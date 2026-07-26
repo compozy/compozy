@@ -1,16 +1,16 @@
 ---
 name: agh-code-guidelines
 description: >-
-  Go production discipline for AGH. Use when writing or editing non-test Go
+  Go production discipline for Compozy. Use when writing or editing non-test Go
   files under cmd or internal, including config, logging, CLI, concurrency, and
   process-lifecycle paths. Do not use for Go tests; pair it with the narrower
   schema, contract, cleanup, or network skill when those domains apply.
 trigger: implicit
 ---
 
-# AGH Code Guidelines
+# Compozy Code Guidelines
 
-Apply the canonical AGH rules before changing production Go. This file owns the
+Apply the canonical Compozy rules before changing production Go. This file owns the
 application order; its references own the rules.
 
 ## Procedures
@@ -37,7 +37,7 @@ application order; its references own the rules.
 2. If setup or teardown has more than one fallible step, complete `agh-cleanup-failure-paths` before continuing.
 3. Verify that public behavior remains manageable through the required CLI, HTTP, UDS, native-tool, extension, config, docs, and official-skill surfaces.
 
-*Done when:* every changed lifetime has one explicit owner and every public contract has a complete AGH Impact Audit.
+*Done when:* every changed lifetime has one explicit owner and every public contract has a complete Compozy Impact Audit.
 
 **Step 4: Verify Once**
 

@@ -20,7 +20,7 @@ The local audit caught:
   `internal/task/manager.go` review-event helpers and the consumer list in
   `web/src/systems/tasks/hooks/use-task-stream.ts:33-72`.
 - A no-route review outcome misnamed `error`. The implemented outcome is `blocked`, persisted by
-  `task.Service.RecordRunReview` and exposed through `agh task review`.
+  `task.Service.RecordRunReview` and exposed through `compozy task review`.
 - A broken `/runtime/core/agent/context` link with no matching MDX route under `packages/site`.
 - Bridge-notification UI placement claims that did not match the operator route in
   `web/src/routes/_app/tasks.$id.tsx` (Orchestration tab) or the run-detail route.
@@ -39,7 +39,7 @@ during metadata checks.
 ## Root cause
 
 Delegated docs runs operate from a snapshot of intent. They are unusually good at producing prose
-that _sounds_ like AGH. They do not have a self-audit step that proves event names, routes,
+that _sounds_ like Compozy. They do not have a self-audit step that proves event names, routes,
 outcomes, and UI strings against the runtime, contracts, and live route components. When the
 delegation finishes and reports success, the parent agent inherits the false confidence unless an
 audit pass goes through the docs against authoritative sources before merge.

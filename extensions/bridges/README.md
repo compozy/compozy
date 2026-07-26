@@ -1,7 +1,7 @@
 # Bridge Providers
 
 Each provider implementation lives in its own directory with an `extension.toml`; there is no
-central source-tree registry. Released `agh` artifacts do not include these provider executables or
+central source-tree registry. Released `compozy` artifacts do not include these provider executables or
 install them automatically.
 
 ## Start here
@@ -13,7 +13,7 @@ install them automatically.
 
 ## Build and install
 
-From a trusted AGH source checkout, run this from the repository root with the daemon running:
+From a trusted Compozy source checkout, run this from the repository root with the daemon running:
 
 ```bash
 PROVIDER=slack
@@ -33,7 +33,7 @@ compozy extension install \
 compozy extension status "$PROVIDER" -o json
 ```
 
-The local install is an explicit trust decision. It copies the provider into the AGH extension home
+The local install is an explicit trust decision. It copies the provider into the Compozy extension home
 and enables it; use `compozy extension enable "$PROVIDER" -o json` only if it was disabled later.
 
 ## In-tree providers

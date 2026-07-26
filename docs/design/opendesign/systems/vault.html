@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
-<title>Vault · AGH</title>
+<title>Vault · Compozy</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -454,7 +454,7 @@
     </div>
   </div>
   <div class="sheet__foot">
-    <span class="mono" id="sheet-cli">agh vault put vault:automation/nightly-deploy/webhook_secret --value-stdin</span>
+    <span class="mono" id="sheet-cli">compozy vault put vault:automation/nightly-deploy/webhook_secret --value-stdin</span>
   </div>
 </aside>
 
@@ -540,7 +540,7 @@
   var TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
   var CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>';
 
-  /* Sample inventory — refs mirror real AGH vault namespaces (providers, mcp, bridges, automation, sessions). */
+  /* Sample inventory — refs mirror real Compozy vault namespaces (providers, mcp, bridges, automation, sessions). */
   var SECRETS = [
     { ref: "providers/anthropic/api_key",  kind: "api_key",        created: "Apr 03, 2026", updated: "Jun 21" },
     { ref: "providers/openai/api_key",     kind: "api_key",        created: "Apr 03, 2026", updated: "May 09" },
@@ -826,7 +826,7 @@
     document.getElementById("sheet-kind").textContent = s.kind;
     document.getElementById("sheet-created").textContent = s.created;
     document.getElementById("sheet-updated").textContent = s.updated;
-    document.getElementById("sheet-cli").textContent = "agh vault put vault:" + s.ref + " --value-stdin";
+    document.getElementById("sheet-cli").textContent = "compozy vault put vault:" + s.ref + " --value-stdin";
     document.getElementById("replace-input").value = "";
     document.getElementById("replace-save").disabled = true;
     setSheet(true);

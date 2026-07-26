@@ -23,16 +23,16 @@ Bruno clicked `Fork & edit` on the bundled read-only `software-delivery` Loop. T
 3. Click `Fork & edit`.
 4. Observe the page and refresh the Loops catalog independently.
 
-**Expected:** AGH atomically creates a workspace-owned fork and opens it in the builder so the graph/contract can be edited and published under CAS without mutating the bundled source.
+**Expected:** Compozy atomically creates a workspace-owned fork and opens it in the builder so the graph/contract can be edited and published under CAS without mutating the bundled source.
 **Actual (initial):** `POST /api/workspaces/:workspace_id/loops` returned HTTP 500 in 3 ms; the page stayed on the read-only Loop and exposed only `Internal Server Error`.
 **Actual (first-fix replay):** `reviews-watch` forked into `/loops/reviews-watch/editor`; a valid Watch spec edit passed validation, but Publish rejected the v0 CAS with `loop: validation failed: expected_version is required`.
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-007-fork-internal-server-error.png`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-007-loop-fork-fixed-builder.dom.txt`
-- `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-108e1613c829/runtime/logs/agh.log`: `2026-07-13T02:11:03.297661-03:00`, `POST /api/workspaces/:workspace_id/loops`, status 500.
-- The failed initial POST left `.agh/loops/software-delivery/loop.yaml` with an mtime matching the request even though the client received 500, proving non-atomic partial state.
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-007-fork-internal-server-error.png`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-007-loop-fork-fixed-builder.dom.txt`
+- `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-108e1613c829/runtime/logs/compozy.log`: `2026-07-13T02:11:03.297661-03:00`, `POST /api/workspaces/:workspace_id/loops`, status 500.
+- The failed initial POST left `.compozy/loops/software-delivery/loop.yaml` with an mtime matching the request even though the client received 500, proving non-atomic partial state.
 - First-fix replay: the builder rendered `Published v0`, `Validation 0 issues`, and an enabled Publish action immediately before the version-zero CAS rejection.
 
 ## Fix

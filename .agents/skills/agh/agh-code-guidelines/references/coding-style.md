@@ -1,4 +1,4 @@
-# AGH Coding Style — Canonical Rules
+# Compozy Coding Style — Canonical Rules
 
 Verbatim canonical rules. Reviewers will quote these.
 

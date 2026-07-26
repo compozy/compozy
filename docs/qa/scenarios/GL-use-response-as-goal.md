@@ -11,7 +11,7 @@ bug_ids: BUG-20260713-use-as-goal-inert
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-use-as-goal-live-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-use-as-goal-protects-draft.dom.txt
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-use-as-goal-live-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-use-as-goal-protects-draft.dom.txt
 last_report: docs/qa/reports/2026-07-13-automation-features.md
 overlaps: GL-001;GL-013
 ---

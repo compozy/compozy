@@ -17,7 +17,7 @@ The detector accepts a manual override via the `QA_OUTPUT_PATH` environment vari
 
 ## 2. Where artifacts live
 
-The living-docs convention (current, `compozy/agh` and sister repos):
+The living-docs convention (current, `compozy/compozy` and sister repos):
 
 ```
 docs/qa/

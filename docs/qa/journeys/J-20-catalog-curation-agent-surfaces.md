@@ -1,6 +1,6 @@
 # J-20 — Curate the model catalog from structured agent surfaces
 
-The agent-manageability spine of the program (`model-selector` _spec §11, §5.5, AGH Impact Audit). An autonomous operator with no web UI curates and inspects the catalog entirely through structured output: `compozy provider models list/set/refresh/status`, the `view=curated|all` HTTP/UDS param, the `POST .../models/curate` facade, and the `provider_models_list`/`provider_models_curate` native tools. The catalog goes from stale-by-construction to curatable, and every surface must agree on the same persisted state and the same deterministic error codes.
+The agent-manageability spine of the program (`model-selector` _spec §11, §5.5, Compozy Impact Audit). An autonomous operator with no web UI curates and inspects the catalog entirely through structured output: `compozy provider models list/set/refresh/status`, the `view=curated|all` HTTP/UDS param, the `POST .../models/curate` facade, and the `provider_models_list`/`provider_models_curate` native tools. The catalog goes from stale-by-construction to curatable, and every surface must agree on the same persisted state and the same deterministic error codes.
 
 ```mermaid
 flowchart TD

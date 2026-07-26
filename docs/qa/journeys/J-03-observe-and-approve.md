@@ -28,7 +28,7 @@ journey:
       origin: in-app-nav
     - url: "web /loops/:name/runs/:id (run-detail) approval card"
       origin: in-app-nav
-    - url: "CLI: agh loop approve <run> --decision approve|request_changes|reject --gate <id>"
+    - url: "CLI: compozy loop approve <run> --decision approve|request_changes|reject --gate <id>"
       origin: direct
   actions:
     - step: 1

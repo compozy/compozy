@@ -1,7 +1,7 @@
 # J-prune-missing-workspace — Remove a missing local workspace
 
-An operator registers a local folder, uses it, removes that folder outside AGH,
-and returns. AGH discovers that the path no longer exists and removes the
+An operator registers a local folder, uses it, removes that folder outside Compozy,
+and returns. Compozy discovers that the path no longer exists and removes the
 workspace from every public catalog instead of preserving a ghost.
 
 ```mermaid
@@ -9,7 +9,7 @@ flowchart TD
     E[Entry: workspace picker] --> A[Add an existing local folder]
     A --> U[Open the workspace and create ordinary state]
     U --> X[Remove the folder from the filesystem]
-    X --> R[Return to AGH and refresh]
+    X --> R[Return to Compozy and refresh]
     R --> D[Side effect: missing path is reconciled]
     D --> L[Workspace disappears from switcher and workspace list]
     L --> P[Old deep link shows recoverable missing-workspace guidance]
@@ -26,15 +26,15 @@ journey:
   entry_points:
     - url: "web workspace picker"
       origin: in-app-nav
-    - url: "CLI agh workspace list"
+    - url: "CLI compozy workspace list"
       origin: direct
   actions:
     - step: 1
       verb: "Register an existing local folder"
       expected_observable: "The workspace appears once and opens successfully"
     - step: 2
-      verb: "Remove the folder outside AGH"
-      expected_observable: "No manual AGH delete is required"
+      verb: "Remove the folder outside Compozy"
+      expected_observable: "No manual Compozy delete is required"
     - step: 3
       verb: "Return and refresh"
       expected_observable: "The missing workspace is reconciled out of the switcher and list"

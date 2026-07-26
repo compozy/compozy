@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AGH Behavioral Scenario Charter",
+  "title": "Compozy Behavioral Scenario Charter",
   "description": "Charter consumed by the auditor. When the scenario is playbook-driven (real-scenario-qa with --playbook), the bootstrap materializes this charter from the playbook spec — so playbook_ref, required_deliverables, and required_collaboration are populated automatically.",
   "type": "object",
   "additionalProperties": true,

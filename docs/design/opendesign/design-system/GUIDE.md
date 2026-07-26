@@ -1,4 +1,4 @@
-# AGH Design System — Author's Guide
+# Compozy Design System — Author's Guide
 
 Single source of truth for every future design/prototype in `docs/design/opendesign/`.
 Read this before starting any surface. On conflict: **production (`packages/ui/src/tokens.css` + `web/src`) > this folder > any older prototype**.
@@ -41,4 +41,4 @@ Read this before starting any surface. On conflict: **production (`packages/ui/s
 ## Legacy map
 
 Deleted (2026-07-22, superseded by this folder): `systems/design-system.html`, `systems/catalog-design-system.html`, `settings/settings-design-system.html`, `modals/modal-design-system.html`.
-Living references: `os/agh-os-v2.html` + `os/os-v2.js` (shell behavior), `os/pagehead-redesign.html` (head lab), `dashboard/dashboard.html`, `tasks/task-detail.html`, `_done/agents/agent-detail.html` (RuntimeSelector), `_done/shell/sidebar-sessions-02.html` (session lists), `modals/` (library + `MODAL-STANDARD.md` + `verify.mjs`).
+Living references: `os/compozy-os-v2.html` + `os/os-v2.js` (shell behavior), `os/pagehead-redesign.html` (head lab), `dashboard/dashboard.html`, `tasks/task-detail.html`, `_done/agents/agent-detail.html` (RuntimeSelector), `_done/shell/sidebar-sessions-02.html` (session lists), `modals/` (library + `MODAL-STANDARD.md` + `verify.mjs`).

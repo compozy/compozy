@@ -4,7 +4,7 @@ area: RT
 title: Rebuild provider context from one session's persisted transcript
 persona: Théo
 journey: J-11
-expected: When ACP session loading is unsupported or the saved provider session is missing, AGH starts a fresh provider session, prepends the workspace checkpoint followed by only that AGH session's pruned persisted transcript to the first accepted prompt, preserves the authored message, and exposes one durable `Context rebuilt from log.` marker. A successful ACP load performs no replay and adds no recovery marker.
+expected: When ACP session loading is unsupported or the saved provider session is missing, Compozy starts a fresh provider session, prepends the workspace checkpoint followed by only that Compozy session's pruned persisted transcript to the first accepted prompt, preserves the authored message, and exposes one durable `Context rebuilt from log.` marker. A successful ACP load performs no replay and adds no recovery marker.
 entry_points: daemon session reactivation; session transcript; session events
 qa_status: untested
 bug_ids:

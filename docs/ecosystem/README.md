@@ -1,4 +1,4 @@
-# AGH Ecosystem Opportunity Map
+# Compozy Ecosystem Opportunity Map
 
 - **Language:** English · [Português (Brasil)](ptbr/README.md)
 - **Status:** research reference and product opportunity map, not a committed roadmap
@@ -9,12 +9,12 @@
 
 This document answers two different ecosystem questions:
 
-1. Which reusable services and integrations should AGH make reachable through atomic extensions?
+1. Which reusable services and integrations should Compozy make reachable through atomic extensions?
 2. Which complete outcomes should people be able to activate without understanding agents, MCP, hooks, schedules, or runtime configuration?
 
 The distinction is the center of the strategy:
 
-> Extensions make services reachable. Bundles make outcomes repeatable. AGH keeps those outcomes running.
+> Extensions make services reachable. Bundles make outcomes repeatable. Compozy keeps those outcomes running.
 
 The catalogs deliberately extend beyond software development and operations. They include personal productivity, family administration, local business, sales, support, marketing, creative work, commerce, finance, legal intake, recruiting, education, research, nonprofit work, hospitality, property operations, and other domains where a durable agent system can remove recurring coordination work.
 
@@ -35,17 +35,17 @@ These are catalog records, not committed roadmap items or an estimate of impleme
 
 ## Executive recommendation
 
-AGH should expose two primary marketplace doors and one editorial layer:
+Compozy should expose two primary marketplace doors and one editorial layer:
 
 | Door | User question | Artifact | Primary author |
 | --- | --- | --- | --- |
-| **Connect a service** | “Can AGH reach the system I already use?” | Atomic extension or provider implementation | Integration developers and vendors |
-| **Get an outcome** | “Can AGH run this recurring job for me?” | Outcome, persona, or vertical bundle | Domain experts, operators, consultants, and developers |
-| **Choose a starter collection** | “What should someone like me install first?” | Curated collection plus guided starter | AGH maintainers, partners, and community curators |
+| **Connect a service** | “Can Compozy reach the system I already use?” | Atomic extension or provider implementation | Integration developers and vendors |
+| **Get an outcome** | “Can Compozy run this recurring job for me?” | Outcome, persona, or vertical bundle | Domain experts, operators, consultants, and developers |
+| **Choose a starter collection** | “What should someone like me install first?” | Curated collection plus guided starter | Compozy maintainers, partners, and community curators |
 
 This creates a larger contributor surface than a developer-only plugin directory. Developers can publish reliable connectors and runtime providers. Domain experts can compose them into useful operating packages without reimplementing authentication or transport. Curators can package trusted starting points for an audience or market.
 
-The first public collection should be small enough to verify rigorously but broad enough to demonstrate that AGH is not only a coding tool:
+The first public collection should be small enough to verify rigorously but broad enough to demonstrate that Compozy is not only a coding tool:
 
 - Personal Chief of Staff
 - Meeting to Action
@@ -60,7 +60,7 @@ The first public collection should be small enough to verify rigorously but broa
 - Community Manager
 - Fix a Linear Issue
 
-## The current AGH model
+## The current Compozy model
 
 The opportunity map was derived from the implemented model before competitor research began. The current source of truth is the extension manifest and resource registry under `internal/extension/`, the bundle model under `internal/bundles/`, the public contracts under `internal/api/contract/`, and the operator documentation under `packages/site/content/runtime/core/`.
 
@@ -68,7 +68,7 @@ The opportunity map was derived from the implemented model before competitor res
 
 An extension is the installable, versioned, trust-bearing unit. It can be resource-only or run as a capability-gated subprocess. Its manifest can package static resources, and a running extension can publish supported resources through the host API.
 
-| Extension concern | Current AGH shape |
+| Extension concern | Current Compozy shape |
 | --- | --- |
 | Lifecycle | Search, list, install, inspect through status/provenance, enable, disable, update, remove |
 | Provenance | Source, source tier, trust state, checksum, marketplace metadata |
@@ -76,7 +76,7 @@ An extension is the installable, versioned, trust-bearing unit. It can be resour
 | Service surfaces | Runtime-registered providers such as memory backends, bridge adapters, tool providers, model sources, and loop watch sources |
 | Dynamic resources | Hook bindings, tools, agents, MCP servers, skills, automation jobs, automation triggers, and bundle catalog resources |
 | Security | Declared method grants and capability grants gate host API access |
-| Management | CLI, HTTP/UDS, and native `agh__extensions_*` and `agh__resources_*` tools |
+| Management | CLI, HTTP/UDS, and native `compozy__extensions_*` and `compozy__resources_*` tools |
 
 An atomic integration should normally own one reusable responsibility: a service connector, bridge transport, provider implementation, event source, policy hook, migration adapter, document/media provider, or infrastructure adapter. It should not silently install a persona or start recurring work.
 
@@ -93,13 +93,13 @@ A bundle is an extension-provided catalog with activatable profiles. A profile a
 | Triggers | Projects activation-owned automation triggers |
 | Bridge presets | Projects activation-owned bridge instances in a disabled state; secret slots remain catalog/preview metadata until a separate connection and enablement step |
 
-CLI and HTTP/UDS expose catalog, preview, activate, list, get, update, deactivate, and network-settings operations. Native tools expose only `agh__bundles_list`, `agh__bundles_info`, `agh__bundles_activate`, `agh__bundles_deactivate`, and `agh__bundles_status`; agents use the structured CLI or API fallback for preview, update, and network settings. Preview is non-mutating and exposes the resources that activation would project.
+CLI and HTTP/UDS expose catalog, preview, activate, list, get, update, deactivate, and network-settings operations. Native tools expose only `compozy__bundles_list`, `compozy__bundles_info`, `compozy__bundles_activate`, `compozy__bundles_deactivate`, and `compozy__bundles_status`; agents use the structured CLI or API fallback for preview, update, and network settings. Preview is non-mutating and exposes the resources that activation would project.
 
 ### The composition boundary that must remain explicit
 
 Current bundle profiles do **not** profile-scope skills, loops, hooks, tools, or extension-level MCP servers. Those resources are enabled with their owning extension. A bundle also cannot install another extension or resolve an implementation from a provider contract.
 
-Bundle-declared jobs and triggers currently target a named agent, not a Loop. An authorized target agent can start an installed Loop through `agh__loop_run`; direct job/trigger-to-Loop binding would require a bundle-contract change.
+Bundle-declared jobs and triggers currently target a named agent, not a Loop. An authorized target agent can start an installed Loop through `compozy__loop_run`; direct job/trigger-to-Loop binding would require a bundle-contract change.
 
 The current-compatible package therefore looks like this:
 
@@ -158,7 +158,7 @@ A package that combines general integrations with domain constraints, terminolog
 
 A collection is editorial curation; it should not hide independent package ownership. A starter is a guided setup experience that selects a bundle variant, connects required services, chooses autonomy and delivery settings, runs a demo, and produces the first useful result.
 
-Collections and starters are recommendations in this document, not current AGH runtime artifacts.
+Collections and starters are recommendations in this document, not current Compozy runtime artifacts.
 
 ## Prioritization model
 
@@ -180,7 +180,7 @@ Prioritization should be revisited with evidence, using the following dimensions
 6. **Integration viability:** is there a stable official API, MCP server, webhook, CLI, or partner path?
 7. **Setup burden:** how many credentials, scopes, paid services, and local dependencies are required?
 8. **Operational burden:** rate limits, retries, idempotency, recovery, and ongoing maintenance.
-9. **Differentiation:** does the result use AGH channels, jobs, triggers, wake/reentry policies, Loops, and managed agents rather than duplicate a generic chat connector?
+9. **Differentiation:** does the result use Compozy channels, jobs, triggers, wake/reentry policies, Loops, and managed agents rather than duplicate a generic chat connector?
 
 ### Risk labels
 
@@ -199,7 +199,7 @@ Personal, health, financial, legal, employment, and other sensitive-data bundles
 
 ### Use the in-tree bridge base
 
-The repository contains first-party bridge implementations for Discord, Google Chat, GitHub, Linear, Slack, Microsoft Teams, Telegram, and WhatsApp. Released `agh` artifacts do not bundle these provider executables or install them automatically; a trusted source checkout builds and installs them explicitly. Even with that distribution caveat, the implementations are a valuable foundation: outcome bundles can meet users in tools they already open every day.
+The repository contains first-party bridge implementations for Discord, Google Chat, GitHub, Linear, Slack, Microsoft Teams, Telegram, and WhatsApp. Released `compozy` artifacts do not bundle these provider executables or install them automatically; a trusted source checkout builds and installs them explicitly. Even with that distribution caveat, the implementations are a valuable foundation: outcome bundles can meet users in tools they already open every day.
 
 A bridge should not automatically be treated as a complete business connector. Each in-tree bridge implementation should be audited for bidirectional commands, threads, attachments, approvals, delivery receipts, webhook authenticity, identity mapping, rate-limit diagnostics, and the service-specific action surface required by bundles. Missing business operations can be added as a separate tool-provider extension or a deliberate expansion of the existing integration contract.
 
@@ -253,7 +253,7 @@ A bundle should declare required, optional, and one-of dependencies. Installatio
 
 ### 2. Profile-scoped static resources
 
-AGH needs either profile-scoped activation for skills, loops, hooks, tools, and MCP servers or a comparably clear composition mechanism. Enabling one outcome profile should not unintentionally expose every static resource in its extension.
+Compozy needs either profile-scoped activation for skills, loops, hooks, tools, and MCP servers or a comparably clear composition mechanism. Enabling one outcome profile should not unintentionally expose every static resource in its extension.
 
 ### 3. Provider contracts
 
@@ -296,7 +296,7 @@ Every listing should define:
 
 Use distinct trust lanes:
 
-- **Official:** maintained by AGH with a defined compatibility and support policy.
+- **Official:** maintained by Compozy with a defined compatibility and support policy.
 - **Verified:** publisher identity, source ownership, security review, conformance tests, and signed immutable release are verified.
 - **Community:** open publication with mandatory scanning and explicit absence of support guarantees.
 - **Workspace or local:** private packages outside the public registry.
@@ -353,7 +353,7 @@ The first screen should not require cron syntax, MCP transport, TOML, tool schem
 
 ### Credential-first integration records
 
-The integrations.sh research shows why a directory of endpoints is insufficient. AGH integration records should preserve interface type, endpoint, authentication scheme, credential acquisition URL, required scopes, source provenance, discovery method, and freshness. When one service has MCP, REST, GraphQL, and CLI surfaces, the extension author should choose or combine them deliberately rather than expose duplicates to the user.
+The integrations.sh research shows why a directory of endpoints is insufficient. Compozy integration records should preserve interface type, endpoint, authentication scheme, credential acquisition URL, required scopes, source provenance, discovery method, and freshness. When one service has MCP, REST, GraphQL, and CLI surfaces, the extension author should choose or combine them deliberately rather than expose duplicates to the user.
 
 ### Machine-readable discovery
 
@@ -367,7 +367,7 @@ The strongest contributor model is:
 
 That model needs the following support:
 
-1. `agh extension create` and `agh bundle create` scaffolds with representative examples.
+1. `compozy extension create` and `compozy bundle create` scaffolds with representative examples.
 2. Local validation for manifest shape, dependency graph, workspace scope, secrets, permissions, install/update/uninstall, and health checks.
 3. A fixture-backed test harness plus positive, negative, credential-failure, rate-limit, partial-failure, idempotency, and cleanup cases.
 4. An automatic listing preview with composition, permission, and compatibility reports.
@@ -416,9 +416,9 @@ Marketplace ranking should not reduce trust to stars or downloads. Better signal
 
 ## Evidence map
 
-The companion catalogs use short source codes. A source code means the ecosystem supplied a precedent, integration surface, or demand signal. It does not independently validate the proposed AGH product.
+The companion catalogs use short source codes. A source code means the ecosystem supplied a precedent, integration surface, or demand signal. It does not independently validate the proposed Compozy product.
 
-### AGH source of truth
+### Compozy source of truth
 
 - `internal/extension/manifest.go`
 - `internal/extension/bundle.go`
@@ -435,7 +435,7 @@ The companion catalogs use short source codes. A source code means the ecosystem
 - `packages/site/content/runtime/core/extensions/`
 - `packages/site/content/runtime/core/loops/extensions.mdx`
 - `packages/site/content/runtime/core/resources/bundles.mdx`
-- `skills/agh/references/capabilities-and-bundles.md`
+- `skills/compozy/references/capabilities-and-bundles.md`
 - `docs/rfcs/005_capability-catalogs-agent-directories.md`
 
 ### Local competitor snapshots
@@ -508,7 +508,7 @@ Awesome lists and community catalogs are discovery inputs, not trust authorities
 
 ## Research conclusions by reference
 
-| Reference | Strongest lesson for AGH |
+| Reference | Strongest lesson for Compozy |
 | --- | --- |
 | integrations.sh | The atomic map must include authentication and provenance, not only an endpoint or tool list. |
 | Pi | A narrow core plus flexible extensions, guided UI, non-persistent temporary trials, and reusable skill/package primitives can accelerate experimentation; temporary execution keeps the same trust boundary. |
@@ -517,14 +517,14 @@ Awesome lists and community catalogs are discovery inputs, not trust authorities
 | Paperclip | Portable operational organizations, budgets, approvals, Heartbeats, handoffs, and recovery make multi-agent packages legible as an operating system rather than a prompt collection. |
 | Claude | Role-focused plugins show that functions such as sales, support, finance, legal, marketing, product, and research can be first-class distribution categories. |
 | OpenAI | Plugin manifests, listing metadata, install/auth policy, connector-plus-skill composition, and structured review provide a strong marketplace contract. |
-| n8n and awesome lists | Community demand clusters around complete outcomes and long-tail niches; breadth is useful for discovery but must be filtered through AGH trust and runtime fit. |
+| n8n and awesome lists | Community demand clusters around complete outcomes and long-tail niches; breadth is useful for discovery but must be filtered through Compozy trust and runtime fit. |
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
-- **Native tools:** no runtime impact. Checked `skills/agh/references/native-tools.md`, `internal/tools/builtin_ids.go`, and the current source-defined tool map: extensions expose search/list/info/install/update/remove/enable/disable; bundles expose list/info/activate/deactivate/status; resources expose list/info/snapshot. Bundle preview, update, and network settings remain structured CLI/HTTP/UDS fallbacks. The documents add no tool ID, toolset, descriptor, schema, digest, risk flag, availability diagnostic, capability gate, or fallback.
+- **Native tools:** no runtime impact. Checked `skills/compozy/references/native-tools.md`, `internal/tools/builtin_ids.go`, and the current source-defined tool map: extensions expose search/list/info/install/update/remove/enable/disable; bundles expose list/info/activate/deactivate/status; resources expose list/info/snapshot. Bundle preview, update, and network settings remain structured CLI/HTTP/UDS fallbacks. The documents add no tool ID, toolset, descriptor, schema, digest, risk flag, availability diagnostic, capability gate, or fallback.
 - **Extensibility and hooks:** no runtime impact. The documents describe the current manifest, resource registry, bundle projector, hook/tool/skill/MCP relationship, bridge presets, marketplace lifecycle, and future opportunities. They do not change extensions, hooks, registries, bridge SDKs, MCP sidecars, bundle behavior, or `config.toml`.
 - **Workspace data isolation:** not applicable to runtime state because this editorial diff adds no datum. Checked global/workspace validation and projection in `internal/bundles/model/model.go`, `internal/bundles/service.go`, `internal/bundles/resource.go`, `internal/bundles/resource_projection.go`, `internal/bundles/resource_store.go`, and `internal/daemon/native_bundle_resource_tools.go`, plus the owning bundle service/resource tests. The opportunity requirements call for future credentials, memory, caches, events, SSE, and delivery to preserve global/workspace/session/agent scope; they do not claim that new paths exist.
-- **Official AGH skill:** no impact. Checked `skills/agh/SKILL.md`, `skills/agh/references/capabilities-and-bundles.md`, `skills/agh/references/tools-and-skills.md`, and `skills/agh/references/native-tools.md`. No public behavior, tool ID, CLI path, event, capability, bundle/resource contract, memory/network/task semantic, or fallback changed, so the bundled skill needs no update.
+- **Official Compozy skill:** no impact. Checked `skills/compozy/SKILL.md`, `skills/compozy/references/capabilities-and-bundles.md`, `skills/compozy/references/tools-and-skills.md`, and `skills/compozy/references/native-tools.md`. No public behavior, tool ID, CLI path, event, capability, bundle/resource contract, memory/network/task semantic, or fallback changed, so the bundled skill needs no update.
 
 ## Web, docs, config, and QA impact
 

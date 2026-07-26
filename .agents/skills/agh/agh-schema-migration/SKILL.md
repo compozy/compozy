@@ -1,10 +1,10 @@
 ---
 name: agh-schema-migration
-description: Authors append-only Goose SQL migrations for AGH SQLite streams and keeps declarative schema sources, atlas.sum, Atlas checks, sqlc output, and migration tests synchronized. Use for SQLite table, column, index, constraint, trigger, or seed-data changes under internal/store or internal/memory. Do not use for in-memory structures, derived Markdown memory, or non-SQLite caches.
+description: Authors append-only Goose SQL migrations for Compozy SQLite streams and keeps declarative schema sources, atlas.sum, Atlas checks, sqlc output, and migration tests synchronized. Use for SQLite table, column, index, constraint, trigger, or seed-data changes under internal/store or internal/memory. Do not use for in-memory structures, derived Markdown memory, or non-SQLite caches.
 trigger: implicit
 ---
 
-# AGH Schema Migration
+# Compozy Schema Migration
 
 ## Procedure
 

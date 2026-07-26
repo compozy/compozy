@@ -31,7 +31,7 @@ journey:
       origin: direct
     - url: "config.toml [window_manager]"
       origin: direct
-    - url: "agh layout export|validate|apply"
+    - url: "compozy layout export|validate|apply"
       origin: direct
   actions:
     - step: 1

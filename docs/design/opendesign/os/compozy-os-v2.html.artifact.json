@@ -1,8 +1,8 @@
 {
   "version": 1,
   "kind": "html",
-  "title": "os-v2/agh-os-v2.html",
-  "entry": "os-v2/agh-os-v2.html",
+  "title": "os-v2/compozy-os-v2.html",
+  "entry": "os-v2/compozy-os-v2.html",
   "renderer": "html",
   "status": "complete",
   "exports": [

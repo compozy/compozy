@@ -67,7 +67,7 @@ The built-in registry lives in `internal/config/provider.go`.
 
 ## Authentication modes
 
-Provider authentication is explicit. Compozy does not infer that every provider needs an Compozy-managed
+Provider authentication is explicit. Compozy does not infer that every provider needs a Compozy-managed
 API key.
 
 | Mode           | Owner                             | Runtime behavior                                                                                      |
@@ -355,7 +355,7 @@ none_security = "local_transport"
 ```
 
 No-auth providers render as `No auth required` in status, doctor, web, and CLI output. They cannot
-define credential slots or login/status commands. If a custom provider requires an Compozy-managed key,
+define credential slots or login/status commands. If a custom provider requires a Compozy-managed key,
 use `auth_mode = "bound_secret"` and define `credential_slots`:
 
 ```toml

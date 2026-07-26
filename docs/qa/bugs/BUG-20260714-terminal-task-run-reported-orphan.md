@@ -7,11 +7,11 @@
 - **Journey Step:** Inspect a completed task-role run after its worker session stops
 - **Scenarios:** TA-terminal-run-inspect
 - **Found:** 2026-07-14 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
-- **Origin:** AGH-71 verification
+- **Origin:** Compozy-71 verification
 
 ## Summary
 
-The Task and run are durably Completed, but Task inspect still emits the live error `task_run_orphan` because the completed run retains an ownership token and its bound session is terminal. The suggested `agh task release ... --reason "orphaned"` command is invalid recovery guidance for terminal work and contradicts the Task's truthful terminal state.
+The Task and run are durably Completed, but Task inspect still emits the live error `task_run_orphan` because the completed run retains an ownership token and its bound session is terminal. The suggested `compozy task release ... --reason "orphaned"` command is invalid recovery guidance for terminal work and contradicts the Task's truthful terminal state.
 
 ## Reproduction
 
@@ -25,7 +25,7 @@ The Task and run are durably Completed, but Task inspect still emits the live er
 ## Evidence
 
 - Task `task-1f83323b5632a917`; run `run-df8c1dd9a1b8b5f8`; session `sess-64f9badf5a65dd2f`.
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/agh71-faithful-child-b-one-run.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/compozy71-faithful-child-b-one-run.dom.txt`
 
 ## Fix
 
@@ -37,4 +37,4 @@ The Task and run are durably Completed, but Task inspect still emits the live er
 ## Verification
 
 - Rebuilt daemon PID `19957` from the corrected source and reloaded the original Task and run through the in-app Browser.
-- Both pages render `Completed`, bound stopped session `sess-64f9badf5a65dd2f`, `Next action terminal`, zero diagnostics, and no release command. Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/terminal-task-run-no-orphan-fixed.dom.txt`.
+- Both pages render `Completed`, bound stopped session `sess-64f9badf5a65dd2f`, `Next action terminal`, zero diagnostics, and no release command. Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/terminal-task-run-no-orphan-fixed.dom.txt`.

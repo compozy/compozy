@@ -6,11 +6,11 @@ description: Restrict direct messages before enabling a bridge, without confusin
 Bridge access has three separate boundaries. Configure all three before treating a public callback
 as ready:
 
-| Boundary                 | Question it answers                                    | Owner                                        |
-| ------------------------ | ------------------------------------------------------ | -------------------------------------------- |
-| Transport authentication | Did this request come from the configured platform?    | Provider signature, token, or JWT validation |
-| Sender authorization     | May this direct-message sender reach the bridge?       | `dm_policy` plus `provider_config.dm`        |
-| Route isolation          | Which accepted conversations share an Compozy session? | `routing_policy`                             |
+| Boundary                 | Question it answers                                   | Owner                                        |
+| ------------------------ | ----------------------------------------------------- | -------------------------------------------- |
+| Transport authentication | Did this request come from the configured platform?   | Provider signature, token, or JWT validation |
+| Sender authorization     | May this direct-message sender reach the bridge?      | `dm_policy` plus `provider_config.dm`        |
+| Route isolation          | Which accepted conversations share a Compozy session? | `routing_policy`                             |
 
 `dm_policy` controls direct messages only. It does not authorize or deny channels, servers, groups,
 spaces, repositories, or issues. Use the provider's platform permissions and a route-specific bridge

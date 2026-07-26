@@ -30,7 +30,7 @@ progress from a stalled team.
    and release dispatch.
 3. Run `observe-runtime.py` for 1,800 seconds with a 300-second stall threshold while agents work.
 4. After the window, compare `qa/observation-summary.json` with
-   `agh task list --workspace lumen-notes -o toon` and the exact task-run lists.
+   `compozy task list --workspace lumen-notes -o toon` and the exact task-run lists.
 
 **Expected:** Runtime-owned task, session, and Network progress keeps the journey log growing so the
 observer identifies the actual silent agent or stalled task, if any.
@@ -42,25 +42,25 @@ declared tasks unstarted and six task-owning agents silent, while the independen
 ## Evidence
 
 - Observation summary:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/observation-summary.json`
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/observation-summary.json`
 - Journey log:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/journey-log.jsonl`
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/journey-log.jsonl`
 - Independent CLI comparison:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/notes/autonomous-progress-observer-mismatch.md`
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/notes/autonomous-progress-observer-mismatch.md`
 - Task activation and one-kickoff evidence:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/task-activation.json`;
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/operator-kickoff.jsonl`
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/task-activation.json`;
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/operator-kickoff.jsonl`
 - Fresh attempt-2 reproduction:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/observer-result.json`;
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/observer-result.json`;
   the observer again reported ten declared tasks as unstarted and all eleven runs as lacking
   completion, while the public Task catalog showed eight completed tasks and three ready tasks.
 - Attempt-2 journey/public-surface evidence:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/journey-log.jsonl`;
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/web-task-catalog.png`.
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/journey-log.jsonl`;
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/web-task-catalog.png`.
 
 ## Fix
 
-- **Root cause:** `observe-runtime.py` exclusively tails `qa/journey-log.jsonl`, but the AGH daemon,
+- **Root cause:** `observe-runtime.py` exclusively tails `qa/journey-log.jsonl`, but the Compozy daemon,
   agent sessions, task scheduler, and Network runtime have no writer that projects their durable
   lifecycle events into that log. Only bootstrap/controller helpers wrote rows in this run. The
   observer then derived task and agent state from that incomplete log instead of a runtime-owned

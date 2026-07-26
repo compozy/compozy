@@ -28,8 +28,8 @@ Lea received a substantial real Cursor/Grok response and clicked `Use as Goal`. 
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-grok-transcript.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-grok-transcript.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
 - Session `sess-b1c980b86709053d`; the action was activated twice with no route or Goal-state change.
 
 ## Fix

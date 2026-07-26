@@ -18,4 +18,4 @@ overlaps:
 
 story: As an end user I clear approvals and failures directly from Home without opening the task inbox.
 
-New behavior shipped 2026-07-23. The attention list is composed server-side (inbox approval/failed lanes + needs_attention tasks) so the CLI (`agh observe overview -o json`) sees the same items and actions the UI renders.
+New behavior shipped 2026-07-23. The attention list is composed server-side (inbox approval/failed lanes + needs_attention tasks) so the CLI (`compozy observe overview -o json`) sees the same items and actions the UI renders.

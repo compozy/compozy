@@ -16,8 +16,8 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "Bootstrap one fresh isolated lab; use its unique AGH_HOME, daemon/Web ports, provider home, and tmux-bridge socket. Register long-lived PIDs, export AGH_WEB_API_PROXY_TARGET from the manifest, and run eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every pass/fail/blocked/abort exit; cite teardown.json with clean=true."
-      - "Use Playwright/browser-use for onboarding, the ready and disabled Network empty states, Settings, and the session/task/Loop/automation controls at 375/768/1280 widths with keyboard-visible focus; shell/API evidence cannot settle those UI legs. Read the public Network guide and bundled AGH skill, then confirm those visits changed no setting."
+      - "Bootstrap one fresh isolated lab; use its unique COMPOZY_HOME, daemon/Web ports, provider home, and tmux-bridge socket. Register long-lived PIDs, export COMPOZY_WEB_API_PROXY_TARGET from the manifest, and run eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every pass/fail/blocked/abort exit; cite teardown.json with clean=true."
+      - "Use Playwright/browser-use for onboarding, the ready and disabled Network empty states, Settings, and the session/task/Loop/automation controls at 375/768/1280 widths with keyboard-visible focus; shell/API evidence cannot settle those UI legs. Read the public Network guide and bundled Compozy skill, then confirm those visits changed no setting."
       - "Record channel, wake, usage, status, and owner projections before and after one omitted-participation session, task run, Loop run, and schedule/webhook/trigger-backed automation fire. Re-read after refresh and daemon restart."
       - "Inspect Local agent context, prompt/environment/tool availability, then spawn child, review, and detached work. Each must resolve independently to Local; removed legacy fields must fail before mutation and preserve form input."
     must_avoid:

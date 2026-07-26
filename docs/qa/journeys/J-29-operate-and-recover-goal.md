@@ -1,6 +1,6 @@
 # J-29 — Operate and recover a Goal without UI-only shortcuts
 
-An autonomous agent operates Goal through HTTP, UDS, CLI, and native tools while the runtime is restarted or raced at every durable effect boundary. The journey proves AGH's premise: public structured surfaces converge on one store/runtime path, internal prompt sources stay literal, and ambiguity escalates without automatic replay.
+An autonomous agent operates Goal through HTTP, UDS, CLI, and native tools while the runtime is restarted or raced at every durable effect boundary. The journey proves Compozy's premise: public structured surfaces converge on one store/runtime path, internal prompt sources stay literal, and ambiguity escalates without automatic replay.
 
 ```mermaid
 flowchart TD
@@ -35,9 +35,9 @@ journey:
   entry_points:
     - url: "HTTP and UDS session prompt, Goal snapshot, turn, and Run-list routes"
       origin: external-share
-    - url: "CLI: agh session prompt; agh loop turns; agh loop runs"
+    - url: "CLI: compozy session prompt; compozy loop turns; compozy loop runs"
       origin: direct
-    - url: "native: agh__goal_get, agh__goal_report, agh__loop_turns"
+    - url: "native: compozy__goal_get, compozy__goal_report, compozy__loop_turns"
       origin: direct
   actions:
     - step: 1

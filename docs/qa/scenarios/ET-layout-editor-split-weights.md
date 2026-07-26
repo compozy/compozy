@@ -16,6 +16,6 @@ last_report:
 overlaps: MS-configure-window-manager; ET-layout-editor-split-orientation
 ---
 
-story: As an operator, a layout I build in Settings is one the daemon will accept.
+story: As a person running agent work, a layout I build in Settings is one the daemon will accept.
 
 qa-impact: 2026-07-24 fixes a defect: every split created in Settings emitted a weight of 1 per child, and the daemon requires the vector to sum to 1 with no normalization pass, so "Validate and preview" always failed. Flag only; the next QA cycle owns live testing.

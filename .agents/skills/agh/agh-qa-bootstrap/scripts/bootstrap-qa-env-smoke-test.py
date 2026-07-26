@@ -205,7 +205,7 @@ def main() -> None:
         recorded: list[dict] = []
         paused = False
 
-        def fake_runner(_agh_bin: str, args: list[str], _env: dict[str, str]) -> dict:
+        def fake_runner(_compozy_bin: str, args: list[str], _env: dict[str, str]) -> dict:
             nonlocal paused
             commands.append(args)
             if args[:2] == ["scheduler", "status"]:
@@ -219,7 +219,7 @@ def main() -> None:
             if args[:2] == ["task", "start"]:
                 task_id = args[2]
                 return {"task": {"id": task_id}, "run": {"id": f"run-{task_id}"}}
-            raise AssertionError(f"unexpected fake AGH command: {args!r}")
+            raise AssertionError(f"unexpected fake Compozy command: {args!r}")
 
         def fake_recorder(_helper: Path, _log: Path, row: dict) -> None:
             recorded.append(row)
@@ -228,7 +228,7 @@ def main() -> None:
             workspace_path,
             workspace_path / "qa-artifacts",
             manifest_path,
-            "agh-test",
+            "compozy-test",
             runner=fake_runner,
             recorder=fake_recorder,
         )
@@ -272,7 +272,7 @@ def main() -> None:
             workspace_path / "qa-artifacts",
             manifest_path,
             kickoff_evidence,
-            "agh-test",
+            "compozy-test",
             runner=fake_runner,
             recorder=fake_recorder,
         )

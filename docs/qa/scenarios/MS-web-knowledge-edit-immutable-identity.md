@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell
 ---
 
-story: As an operator I refine what a knowledge entry says without silently breaking the references agents already use to retrieve it.
+story: As a person running agent work I refine what a knowledge entry says without silently breaking the references agents already use to retrieve it.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.4-4.5), task_02, implemented 2026-07-25. Before this change the edit dialog sent `name` and `type` back on every PATCH even though neither was editable, and the save was gated on content changes only, so a description-only edit could not be saved.
 

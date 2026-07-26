@@ -11,7 +11,7 @@ cursor-seeded `/api/tasks/{id}/stream` SSE feed. The first delegated draft assig
 `source.onmessage = handleMessage` and shipped with focused tests that only exercised an unnamed
 `message` frame. `make verify` passed.
 
-The audit caught that the hook would silently drop every real task event in production: AGH writes
+The audit caught that the hook would silently drop every real task event in production: Compozy writes
 named events through `internal/api/core/sse.go:54-60`, where `WriteTaskStreamEvent` sets
 `SSEMessage.Name = event.Type`. Each frame goes out as `event: task.run_started` (or similar).
 `EventSource` only routes named SSE events to listeners registered through
@@ -44,7 +44,7 @@ called are not evidence that the hook handles the producer's real frames.
   unnamed-frame fallback, not as the primary path.
 - Test stubs MUST mimic both `addEventListener`/`removeEventListener` and `onmessage`. Assert that
   named-handler invocations route through the registered listener, not through `onmessage`.
-- For other named-SSE feeds in AGH (network, automation, observability), repeat this pattern
+- For other named-SSE feeds in Compozy (network, automation, observability), repeat this pattern
   before shipping a TypeScript/web consumer.
 
 ## Anti-pattern

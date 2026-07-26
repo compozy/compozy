@@ -29,14 +29,14 @@ Bruno selected Cursor Agent and Grok 4.5 through the New session runtime selecto
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-invalid-grok-persisted.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-grok-transcript.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-invalid-grok-persisted.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-grok-transcript.dom.txt`
 - Failed sessions `sess-d5879464f13e2350` and `sess-8cdde6e564e0ac5c`; live session `sess-b1c980b86709053d`.
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
 
 ## Fix
 
-- **Root cause:** Cursor had no authoritative AGH model catalog, so aliases survived until late ACP negotiation after process launch. The always-installed tool gateway also preferred `ask`/default mode instead of the provider-advertised `agent` mode. The Web selector and backend therefore disagreed on both the valid model identity and effective runtime configuration.
+- **Root cause:** Cursor had no authoritative Compozy model catalog, so aliases survived until late ACP negotiation after process launch. The always-installed tool gateway also preferred `ask`/default mode instead of the provider-advertised `agent` mode. The Web selector and backend therefore disagreed on both the valid model identity and effective runtime configuration.
 - **Fix commit:** pending
 - **Regression test:** Canonical ACP negotiation, model-catalog, session-manager preflight, and Web session-create suites cover exact Cursor model acceptance, alias rejection before reservation/spawn, native-default preservation, reconciled runtime state, and the authoritative-provider boundary.
 

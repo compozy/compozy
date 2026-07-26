@@ -85,7 +85,7 @@ These do not exist in the contract and were not invented:
 - **Per-display / multi-monitor config.** No display entity exists anywhere in the model.
 - **Auto-tiling modes (bsp, master-stack, fibonacci).** `layout.arrange` is a command with presets `horizontal | vertical | grid | stack`; it is not a stored layout property.
 - **Floating rules ("app X always floats").** `new_window_policy` is a single global switch; there is no per-app rule table.
-- **Per-workspace overrides.** `document.overrides` and `.agh/config.toml` exist, but the settings section is `scope: "global"`, `available_scopes: ["global"]`. Surfacing it needs a new schema, not a new component.
+- **Per-workspace overrides.** `document.overrides` and `.compozy/config.toml` exist, but the settings section is `scope: "global"`, `available_scopes: ["global"]`. Surfacing it needs a new schema, not a new component.
 - **Profile auto-activation by screen shape.** `aspect_variant` is stored and nothing consumes it — the UI says so instead of implying a match rule.
 - **Undo / redo in the editor.** Only `Reset`. `layout.undo/redo` are daemon commands the settings editor does not call.
 - **A visual preview from the daemon.** `preview` returns ids and counts. Every rectangle on this page is computed client-side from `frame` + `weights` + `axis`.

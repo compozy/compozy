@@ -57,29 +57,29 @@ The runtime was healthy and unpaused; it had no queued work to claim. The next p
 
 ## Strict Audit
 
-- Report: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/qa-audit-report.json`
-- Summary: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/qa-audit-report.md`
+- Report: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/qa-audit-report.json`
+- Summary: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/qa-audit-report.md`
 - Blocking checks: C6 (0/12 task runs), C7/C8 (missing cross-surface journey evidence), C10/C11 (no reused artifacts or disruption probes), C16 (no declared deliverables), and C17 (no collaboration/review/disagreement/channel activity).
 - C14 is expected for this intermediate failed pass: the single final `make verify` gate belongs to the completed Marketplace source freeze, not to a known-blocked lab.
 
 ## Process Envelope
 
-- Manifest: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/bootstrap-manifest.json`.
-- Scenario contract: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/scenario-contract.json`.
-- Behavioral charter: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/behavioral-scenario-charter.yaml`.
-- Diagnostic note: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/bug-0028-marketplace-retest.json`.
-- Mandatory teardown evidence: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/teardown.json` records `clean=true`, no survivors, and completion at `2026-07-15T14:55:02Z`.
+- Manifest: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/bootstrap-manifest.json`.
+- Scenario contract: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/scenario-contract.json`.
+- Behavioral charter: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/behavioral-scenario-charter.yaml`.
+- Diagnostic note: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/bug-0028-marketplace-retest.json`.
+- Mandatory teardown evidence: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/teardown.json` records `clean=true`, no survivors, and completion at `2026-07-15T14:55:02Z`.
 
 ## Final Status
 
 **BLOCKED — BUG-0028 reproduced for a third independent pass.** The real-provider kickoff was healthy, but the QA harness neither made the declared knowledge readable to assigned workspaces nor started the 12 saved task intents. No product-scheduler change is justified by this evidence. A fresh post-fix playbook run is required; this lab remains the immutable failing witness.
 
 [QA_BOOTSTRAP]
-manifest_path=/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/bootstrap-manifest.json
-lab_root=/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab
-runtime_home=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-ee20e019b6aa/runtime
+manifest_path=/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/bootstrap-manifest.json
+lab_root=/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab
+runtime_home=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-ee20e019b6aa/runtime
 base_url=http://127.0.0.1:58785
-verification_report=/Users/pedronauck/Dev/compozy/agh/docs/qa/reports/2026-07-15-northstar-pay.md
+verification_report=/Users/pedronauck/Dev/compozy/compozy/docs/qa/reports/2026-07-15-northstar-pay.md
 health_status=fresh
-teardown_path=/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/teardown.json
+teardown_path=/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/teardown.json
 [/QA_BOOTSTRAP]

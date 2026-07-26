@@ -30,9 +30,9 @@ journey:
   entry_points:
     - url: "web /loops/:name/configure (loop-configure sheet)"
       origin: in-app-nav
-    - url: "CLI: agh loop configure --name <loop> ..."
+    - url: "CLI: compozy loop configure --name <loop> ..."
       origin: direct
-    - url: "native tool: agh__loop_configure"
+    - url: "native tool: compozy__loop_configure"
       origin: in-app-nav
   actions:
     - step: 1

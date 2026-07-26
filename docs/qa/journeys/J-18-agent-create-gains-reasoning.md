@@ -5,7 +5,7 @@ Agent-create's RuntimeStep was the weakest of the three old pickers: bare `model
 ```mermaid
 flowchart TD
     E1[Entry: Agents view → New agent] --> W[Create-agent wizard]
-    E2[Entry: agent authoring via HTTP/UDS/CLI/agh__agent_create] --> STRUCT[Create the same canonical provider·model·reasoning definition through structured input]
+    E2[Entry: agent authoring via HTTP/UDS/CLI/compozy__agent_create] --> STRUCT[Create the same canonical provider·model·reasoning definition through structured input]
     W --> B[Basics step]
     B --> R[Runtime step]
     R --> SEL[Unified RuntimeSelector: provider · model · reasoning]
@@ -21,7 +21,7 @@ flowchart TD
     PARAMS -->|empty axes omitted| POST
     STRUCT --> POST
     POST --> OK[Agent created; default runtime incl. reasoning written to AGENT.md]
-    OK --> FRESHREAD[Fresh read-back: GET /api/agents/:name · UDS parity · CLI agh agent info · AGENT.md file — stored runtime shows the reasoning default; NO native agent read tool exists]
+    OK --> FRESHREAD[Fresh read-back: GET /api/agents/:name · UDS parity · CLI compozy agent info · AGENT.md file — stored runtime shows the reasoning default; NO native agent read tool exists]
     FRESHREAD --> SESS[New session without override resolves agent default reasoning into StartOpts — true_end_state]
     SESS --> OVERRIDE[A later session with an explicit runtime override wins over the agent default — terminal]
     R -.->|scope switch workspace↔global| RESETALL[Provider/model/reasoning reset for the new scope's providers]
@@ -37,7 +37,7 @@ journey:
   entry_points:
     - url: "web Agents view → New agent → Runtime step"
       origin: in-app-nav
-    - url: "POST /api/agents over HTTP/UDS; agh agent create; agh__agent_create"
+    - url: "POST /api/agents over HTTP/UDS; compozy agent create; compozy__agent_create"
       origin: direct
   actions:
     - step: 1
@@ -84,5 +84,5 @@ e2e_backbone:
     - "Unit/integration: agent config reasoning_effort default resolves into StartOpts for a session created without an explicit override (task 01 suite)."
   manual:
     - "Charter CH-029 (Bruno) walks the RuntimeStep reasoning add + draft/params threading + provider-change clear."
-    - "Charter CH-036 (Ada) creates the same agent definition through HTTP/UDS/CLI/agh__agent_create, then fresh-reads it through the real read surfaces (there is no native agent read tool)."
+    - "Charter CH-036 (Ada) creates the same agent definition through HTTP/UDS/CLI/compozy__agent_create, then fresh-reads it through the real read surfaces (there is no native agent read tool)."
 ```

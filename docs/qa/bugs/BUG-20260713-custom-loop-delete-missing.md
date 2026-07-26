@@ -24,16 +24,16 @@ After publishing workspace-owned `reviews-watch` v1, Bruno could configure, edit
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-delete-action-missing.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-delete-restores-readonly-catalog.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-delete-restores-readonly-detail.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-goalless-delete-restored-bundled.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-delete-action-missing.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-delete-restores-readonly-catalog.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-delete-restores-readonly-detail.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-goalless-delete-restored-bundled.dom.txt`
 - Source trace: `web/src/systems/loops/hooks/use-loop-actions.ts` exports `useDeleteLoop`, but no Loop route/component consumes it.
 
 ## Fix
 
 - **Root cause:** The delete mutation is implemented but is not wired to a workspace-owned Loop UI action or confirmation lifecycle.
-- **Fix:** Wire a workspace-only `Delete loop` action into the Loop detail, use the shared `@agh/ui` typed-name `ConfirmDialog`, execute the existing mutation only after exact confirmation, and evict/navigate only after success so failures preserve the current detail cache.
+- **Fix:** Wire a workspace-only `Delete loop` action into the Loop detail, use the shared `@compozy/ui` typed-name `ConfirmDialog`, execute the existing mutation only after exact confirmation, and evict/navigate only after success so failures preserve the current detail cache.
 - **Fix commit:** pending final task commit
 - **Regression test:** Canonical Loop detail/action suites cover workspace-only visibility, typed-name gating, cancel, one-shot confirmation, success-only cache eviction/navigation, and failure preservation. The worker's focused Loop lane passed 49/49 tests; scoped format/lint and React Doctor 100/100 also passed.
 

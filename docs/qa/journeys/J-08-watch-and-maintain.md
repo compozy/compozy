@@ -32,7 +32,7 @@ journey:
   entry_points:
     - url: "web /loops (loops-catalog) reviews-watch › Run  /  web run-detail (rounds)"
       origin: in-app-nav
-    - url: "CLI: agh loop run --name reviews-watch --input pr=123 (until-clean IS the default: iteration_cap 0; max-rounds via loop_config)"
+    - url: "CLI: compozy loop run --name reviews-watch --input pr=123 (until-clean IS the default: iteration_cap 0; max-rounds via loop_config)"
       origin: direct
   actions:
     - step: 1

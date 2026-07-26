@@ -1,17 +1,17 @@
 ---
 name: agh-design
-description: AGH visual-design authority for production UI, static artifacts, prototypes, and reviews. Use when creating or reviewing an AGH surface or changing tokens, typography, spacing, depth, icons, or motion. Do not use for capture-only verification; use agh-ui-screenshot.
+description: Compozy visual-design authority for production UI, static artifacts, prototypes, and reviews. Use when creating or reviewing a Compozy surface or changing tokens, typography, spacing, depth, icons, or motion. Do not use for capture-only verification; use agh-ui-screenshot.
 ---
 
-# AGH Design
+# Compozy Design
 
-Use the canonical visual authorities before making AGH design decisions.
+Use the canonical visual authorities before making Compozy design decisions.
 
 ## Authority
 
 1. `packages/ui/src/tokens.css`: canonical token source consumed by Tailwind v4.
 2. `DESIGN.md`: rationale, generated token tables, anti-patterns, and semantic component contracts.
-3. `packages/ui/src/index.ts`: the `@agh/ui` surface contract — the canonical primitive inventory.
+3. `packages/ui/src/index.ts`: the `@compozy/ui` surface contract — the canonical primitive inventory.
 4. `packages/ui/src/components/**/*.tsx`: canonical production recipes.
 5. `COPY.md`: product voice, terms, and public claim rules.
 6. `PRODUCT.md`: audience, register, design principles, and anti-references.
@@ -50,7 +50,7 @@ exported token values; do not invent a parallel palette.
 ## Production code
 
 Reuse gate — before authoring any component, map every generic UI need against
-`packages/ui/src/index.ts` and import the primitive from `@agh/ui` instead of
+`packages/ui/src/index.ts` and import the primitive from `@compozy/ui` instead of
 re-implementing it. Redefining an exported name in `web/` or `packages/site/`
 fails lint (`compozy-ui-reuse/no-shadow-ui-primitive`); genuinely
 domain-specific variants take a domain-prefixed name. New generic primitives
@@ -76,4 +76,4 @@ bundle with zero unresolved blocking divergence.
 - **No exported primitive fits:** decide whether the need is generic or domain-specific; add generic primitives to `packages/ui` and domain composites to the owning Web system.
 - **A plausible mock implies unsupported runtime behavior:** remove the unsupported control or metric; daemon truth wins.
 - **Runtime truth conflicts with a normative visual reference:** follow runtime truth, record the contract conflict, and reconcile or explicitly authorize the reference delta before claiming parity.
-- **The reference shows placeholder art, demo data, or omits product content:** a prototype is lossy — keep the canonical owner (brand inventory, runtime truth, existing views), record the authorized difference, and never grow an `@agh/ui` brand primitive or delete product content to match a mock.
+- **The reference shows placeholder art, demo data, or omits product content:** a prototype is lossy — keep the canonical owner (brand inventory, runtime truth, existing views), record the authorized difference, and never grow an `@compozy/ui` brand primitive or delete product content to match a mock.

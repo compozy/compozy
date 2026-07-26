@@ -30,8 +30,8 @@ Lea started the bundled `software-delivery` Loop with a slug that had no matchin
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-001-software-delivery-stalled-missing-taskset.png`
-- `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-108e1613c829/runtime/logs/agh.log` lines 1268-1277.
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-001-software-delivery-stalled-missing-taskset.png`
+- `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-108e1613c829/runtime/logs/compozy.log` lines 1268-1277.
 - Persisted run `looprun-2cf0340ae8091bbe` in workspace `ws_06366aad69887872` returns `output_ref: \"loop_action_failed\"` for both failed `load_tasks` generations.
 
 ## Fix
@@ -46,5 +46,5 @@ Lea started the bundled `software-delivery` Loop with a slug that had no matchin
 - **Retested:** 2026-07-13 in the same isolated lab after rebuilding and explicitly restarting the registered daemon process.
 - **Automated evidence:** `gofmt -d` returned no diff; `go test -race ./internal/daemon -count=1` passed 1,159 tests; `go test -race ./internal/store/globaldb -count=1` passed 666 tests. The worker's affected Web lane passed codegen-check, typecheck, 3,319 tests in 391 files, and focused lint.
 - **Public evidence:** Browser-created run `looprun-b165c15b174e3d40` rendered `No task set matched .compozy/tasks/helix-v1-launch/task_*.md.` and `Create the matching task set or correct the Loop input, then retry the run.` beneath both failed `load_tasks` nodes. The public run API persisted the same typed `action_failure` payload.
-- **Evidence:** `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-001-loop-failure-detail-fixed.dom.txt`.
+- **Evidence:** `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-001-loop-failure-detail-fixed.dom.txt`.
 - **Result:** Verified. The terminal state remains truthful while the operator now receives the missing prerequisite and recovery path.

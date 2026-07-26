@@ -5,7 +5,7 @@ title: Manage Live participation configuration lifecycle
 persona: Bruno
 journey: J-administer-network-live
 expected: Supported `[network.live.defaults]` and `[network.live.limits]` values survive reload and restart, while removed Network keys are rejected without changing active availability.
-entry_points: config.toml; agh config set; agh config reload; agh status -o json
+entry_points: config.toml; compozy config set; compozy config reload; compozy status -o json
 qa_status: pass
 bug_ids:
 fix_status:

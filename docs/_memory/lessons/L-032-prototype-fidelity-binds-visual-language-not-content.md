@@ -6,13 +6,13 @@
 
 ## Context
 
-os-shell task_03 implemented the OS menubar in Visual Contract Mode against `docs/design/opendesign/os/agh-os-v2.html`. The prototype's `.mb-logo` — a 16×16 accent tile with a center dot, placeholder chrome art — was treated as a normative parity obligation. The reuse gate ("check `packages/ui/src/index.ts` before authoring"; `compozy-ui-reuse/no-shadow-ui-primitive`) forbade a local mark, and loop memory crystallized R4: "always reuse `@agh/ui` `Logo` — never a local MenuBarMark". The only resolution satisfying every gate at once was growing the shared brand primitive: `Logo` gained `menubar` (and `glyph`) variants reproducing placeholder art, shipped with story + test + a passing VC bundle (VC-04, zero authorized differences).
+os-shell task_03 implemented the OS menubar in Visual Contract Mode against `docs/design/opendesign/os/compozy-os-v2.html`. The prototype's `.mb-logo` — a 16×16 accent tile with a center dot, placeholder chrome art — was treated as a normative parity obligation. The reuse gate ("check `packages/ui/src/index.ts` before authoring"; `compozy-ui-reuse/no-shadow-ui-primitive`) forbade a local mark, and loop memory crystallized R4: "always reuse `@compozy/ui` `Logo` — never a local MenuBarMark". The only resolution satisfying every gate at once was growing the shared brand primitive: `Logo` gained `menubar` (and `glyph`) variants reproducing placeholder art, shipped with story + test + a passing VC bundle (VC-04, zero authorized differences).
 
 No individual rule was wrong; the crossing was. Visual Contract fidelity defaulted to `normative` on every axis including marks and content, and nothing ranked the authorities when parity, reuse, and placement collided — so the agent optimized for the cheapest all-gates-green path.
 
 ## Root cause
 
-A prototype is lossy by construction — it carries demo data, simplified copy, stand-in marks, and omits product content. Doctrine that binds every axis as normative makes agents faithfully reproduce the losses: placeholder art becomes brand inventory, demo data becomes UI truth, omissions become deletions. The missing rule was an authority scope: the reference owns visual language (layout, anatomy, typography, tokens, motion); runtime truth owns content/data; `COPY.md` owns labels/copy; the `@agh/ui` brand inventory owns marks.
+A prototype is lossy by construction — it carries demo data, simplified copy, stand-in marks, and omits product content. Doctrine that binds every axis as normative makes agents faithfully reproduce the losses: placeholder art becomes brand inventory, demo data becomes UI truth, omissions become deletions. The missing rule was an authority scope: the reference owns visual language (layout, anatomy, typography, tokens, motion); runtime truth owns content/data; `COPY.md` owns labels/copy; the `@compozy/ui` brand inventory owns marks.
 
 ## Rule
 

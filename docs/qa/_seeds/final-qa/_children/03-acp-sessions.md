@@ -13,15 +13,15 @@ authoritative_runtime_truth: internal/CLAUDE.md
 
 ## 1. Module Surface
 
-The packages under test compose the entire "live agent loop" of AGH: the daemon spawns a real ACP-compatible subprocess, brokers JSON-RPC over stdio, persists every event with correlation keys, and serves replay/SSE back to operators and other agents.
+The packages under test compose the entire "live agent loop" of Compozy: the daemon spawns a real ACP-compatible subprocess, brokers JSON-RPC over stdio, persists every event with correlation keys, and serves replay/SSE back to operators and other agents.
 
 | Package                          | Responsibility (file:line refs)                                                                                                                                                                                                  |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `internal/acp`                   | `Driver` for ACP launch + JSON-RPC over stdio (`internal/acp/client.go:50-186`); `Start → initializeConnection → negotiateSession (createSession or loadSession)` flow; `Prompt` returns a typed event channel (`client.go:570-610`); `Cancel` sends `session/cancel` notification (`client.go:594-610`); `Stop` cooperative-cancel + subprocess shutdown (`client.go:641-712`); event-type constants (`internal/acp/types.go:24-52`); `IsLoadSessionResourceMissing` classification (`client.go:553-567`). |
 | `internal/session`               | `Manager` with goroutine ownership, max-session reservation, lineage, finalization wait (`internal/session/manager.go:83-734`); start/lifecycle in `manager_start.go`, `manager_lifecycle.go`, `manager_stop_*`; prompt path with detached lifetime in `manager_prompt.go`; spawn lineage primitives in `spawn.go:14-200+`; transcript assembly seam in `transcript.go`; `Soul` rewrap in `soul.go`. Caller-environment injection in `manager_start.go:558-559`. |
-| `internal/transcript`            | Canonical replay assembler (`internal/transcript/transcript.go:113-130`), schema constant `agh.session.event.v1` (`:17`), assistant buffer + tool-lifecycle merge (`:73-84`, `:239-318`), canonical encode/decode (`MarshalAgentEvent` / `UnmarshalAgentEvent` `:737-822`). |
+| `internal/transcript`            | Canonical replay assembler (`internal/transcript/transcript.go:113-130`), schema constant `compozy.session.event.v1` (`:17`), assistant buffer + tool-lifecycle merge (`:73-84`, `:239-318`), canonical encode/decode (`MarshalAgentEvent` / `UnmarshalAgentEvent` `:737-822`). |
 | `internal/store/sessiondb`       | Per-session SQLite event store (`events.db`); schema migrations registry (`internal/store/sessiondb/session_db.go:74-86`); strict v1→v2 raw-payload strip migration; `events`, `token_usage`, `hook_runs` tables (`:27-72`).      |
-| `internal/agentidentity`         | Daemon-validated caller identity (`internal/agentidentity/identity.go:18-247`); env vars `AGH_SESSION_ID`/`AGH_AGENT` (`:20-23`); UDS headers `X-AGH-Session-ID`/`X-AGH-Agent`/`X-AGH-Workspace-ID` (`:25-29`); stable error codes (`identity_required`, `identity_stale`, `identity_mismatch`, `identity_unauthorized`, `identity_lookup_unavailable`); deterministic exit codes (`:34-45`).                                  |
+| `internal/agentidentity`         | Daemon-validated caller identity (`internal/agentidentity/identity.go:18-247`); env vars `COMPOZY_SESSION_ID`/`COMPOZY_AGENT` (`:20-23`); UDS headers `X-Compozy-Session-ID`/`X-Compozy-Agent`/`X-Compozy-Workspace-ID` (`:25-29`); stable error codes (`identity_required`, `identity_stale`, `identity_mismatch`, `identity_unauthorized`, `identity_lookup_unavailable`); deterministic exit codes (`:34-45`).                                  |
 | `internal/situation`             | `/agent/context` and prompt-startup assembler (`internal/situation/service.go:96-308`); workspace, agent, capabilities, limits, peer roster, inbox summary; bounded section limit `DefaultSectionLimit = 8` (`:24`); deterministic provenance (`provenance` `:557-562`).                                                                                                            |
 | `internal/sse`                   | Shared SSE decode helpers (`internal/sse/decode.go`).                                                                                                                                                                            |
 | `internal/api/contract`          | Shared session/agent-context payloads (`internal/api/contract/agents.go`, `responses.go`, `tasks.go`), `AgentSpawnRequest`/`AgentSpawnPayload` (`agents.go:334-352`), `SessionLineagePayload` mapping.                            |
@@ -53,7 +53,7 @@ GET    /api/agent/context                      ← situation surface
 POST   /api/agent/spawn                        ← bounded child session
 ```
 
-The UDS surface mirrors the same routes (`internal/api/udsapi/routes.go:66-90`). The CLI shape is `agh session {new|list|status|inspect|prompt|events|history|stop|resume|repair|wait}` (`internal/cli/session.go:16-37`) and `agh spawn` for bounded child sessions (`internal/cli/spawn.go:28-76`). `agh exec --ide claude --model …` is a separate headless surface and is **not** in scope here.
+The UDS surface mirrors the same routes (`internal/api/udsapi/routes.go:66-90`). The CLI shape is `compozy session {new|list|status|inspect|prompt|events|history|stop|resume|repair|wait}` (`internal/cli/session.go:16-37`) and `compozy spawn` for bounded child sessions (`internal/cli/spawn.go:28-76`). `compozy exec --ide claude --model …` is a separate headless surface and is **not** in scope here.
 
 ACP-supported subagent commands (the binaries that a real-LLM scenario must exercise) come from the builtin provider table at `internal/config/provider.go:124-256`:
 
@@ -74,7 +74,7 @@ The module already has thick unit and integration coverage. Real-LLM scenarios m
 - `internal/acp/client_test.go` — JSON-RPC framing, capability negotiation, `Resource not found` classification (case `IsLoadSessionResourceMissing`, `client_test.go:857-858` injects `Code: -32002, Message: "Resource not found: sess-existing"`); cooperative cancel; permission roundtrip.
 - `internal/acp/client_integration_test.go` — long-running prompt with synthetic stdio agent.
 - `internal/acp/handlers_test.go`, `internal/acp/failure_probe_test.go`, `internal/acp/launcher_tool_host_test.go`, `internal/acp/process_tree_test.go` — sandbox launcher seam, ToolHost host, process-tree cleanup.
-- `internal/session/manager_test.go` — Create/Resume/Stop, `AGH_SESSION_ID`/`AGH_AGENT` env injection (`:2714-2720`, `:2792-2799`), stale-resume → fresh-start fallback (`:585`, `:645`).
+- `internal/session/manager_test.go` — Create/Resume/Stop, `COMPOZY_SESSION_ID`/`COMPOZY_AGENT` env injection (`:2714-2720`, `:2792-2799`), stale-resume → fresh-start fallback (`:585`, `:645`).
 - `internal/session/manager_lineage_test.go`, `network_peer_test.go`, `manager_hooks_test.go`, `manager_clear_test.go`, `manager_delete_test.go` — lineage propagation, hooks, soul lock interplay.
 - `internal/session/manager_integration_test.go`, `manager_stop_integration_test.go`, `provider_lifecycle_integration_test.go` — full stop/wait join pattern.
 - `internal/session/transcript_test.go`, `internal/transcript/transcript_test.go` — golden persisted-events → assembled-Message round trips.
@@ -88,26 +88,26 @@ The module already has thick unit and integration coverage. Real-LLM scenarios m
 ## 3. Gaps (what the real-LLM lane must prove)
 
 1. **Real tool-use turns persist intact.** Claude Code emits `tool_call` followed by `tool_result` with non-trivial `tool_input`/`tool_output` JSON; transcript reconstruction must produce a `RoleToolCall + RoleToolResult` pair without losing JSON shape (`internal/transcript/transcript.go:239-318`).
-2. **SSE typed envelope parity across providers.** The same scenario shape must produce the same SSE event vocabulary (`text-delta`, `reasoning-delta`, `tool-input-start`, `tool-input-available`, `tool-output-available`, `data-agh-event`, `data-agh-permission`, `error`, `finish`) regardless of which ACP agent backs it (`internal/api/httpapi/prompt.go:251-352`).
+2. **SSE typed envelope parity across providers.** The same scenario shape must produce the same SSE event vocabulary (`text-delta`, `reasoning-delta`, `tool-input-start`, `tool-input-available`, `tool-output-available`, `data-compozy-event`, `data-compozy-permission`, `error`, `finish`) regardless of which ACP agent backs it (`internal/api/httpapi/prompt.go:251-352`).
 3. **Detached-prompt invariant under real load.** `httpapi.promptSession` and `udsapi.promptSession` use `context.WithCancel(context.WithoutCancel(c.Request.Context()))` (`prompt.go:104`, `udsapi/prompt.go:33`). When the HTTP/UDS connection drops mid-stream, the subprocess MUST keep producing tokens; only `POST /api/sessions/:id/prompt/cancel` must interrupt it.
 4. **Stale-ACP-id classification on resume.** `acp.IsLoadSessionResourceMissing` must convert RPC error code `-32002` "Resource not found" into a fresh-start fallback (`internal/acp/client.go:553-567`); a real provider that has restarted between sessions exercises this path naturally.
-5. **`AGH_SESSION_ID` / `AGH_AGENT` reach the subprocess and are read back via UDS headers.** The agent-side CLI uses these env vars to call back into the daemon (`internal/agentidentity/identity.go:20-29`, set in `internal/session/manager_start.go:558-559`); spoofed values must be rejected by `Resolve` against the daemon's authoritative session lookup.
+5. **`COMPOZY_SESSION_ID` / `COMPOZY_AGENT` reach the subprocess and are read back via UDS headers.** The agent-side CLI uses these env vars to call back into the daemon (`internal/agentidentity/identity.go:20-29`, set in `internal/session/manager_start.go:558-559`); spoofed values must be rejected by `Resolve` against the daemon's authoritative session lookup.
 6. **`/agent/context` reflects daemon truth.** Workspace, capabilities (skills + agent-defined), limits, peers, inbox — all bounded to `DefaultSectionLimit = 8` (`situation/service.go:24`) — must match what `situation.Service.ContextForSession` computes from the session manager state at the moment the agent calls `/agent/context`.
 7. **Goroutine ownership at shutdown.** `Manager.WaitForFinalizations` (`manager.go:704-734`) must drain; no goroutine leaks across daemon shutdown.
 8. **`claim_token` redaction in this surface.** Although `claim_token` is owned by the autonomy kernel, it appears in synthetic prompt metadata (`acp.PromptSyntheticMeta`, `internal/acp/types.go:175-184`) and in any tool result that echoes a task handle. Persisted transcripts, SSE frames, and `/agent/context` MUST never carry a raw `compozy_claim_*` token.
 9. **Subprocess-crash classification.** A subprocess SIGKILL while a prompt is in flight must be classified `store.FailureProcess` (`store.types.go:117 StopAgentCrashed`, `internal/session/failure.go:15-91`) and surfaced as a typed `error` SSE event before the channel closes — never as a stalled stream.
-10. **Replay equivalence.** A persisted events log replayed via `internal/transcript.Assemble` must produce the same `[]Message` ordering and content the live SSE stream produced for the original turn — no drift from the canonical schema (`agh.session.event.v1`).
+10. **Replay equivalence.** A persisted events log replayed via `internal/transcript.Assemble` must produce the same `[]Message` ordering and content the live SSE stream produced for the original turn — no drift from the canonical schema (`compozy.session.event.v1`).
 
 ## 4. Real-LLM Scenarios
 
-Every scenario runs in a fresh `agh-qa-bootstrap` lab with isolated `AGH_HOME`,
+Every scenario runs in a fresh `agh-qa-bootstrap` lab with isolated `COMPOZY_HOME`,
 daemon port, and tmux-bridge socket. Provider auth follows the resolved
 provider contract: bound-secret, brokered, and explicitly isolated-home lanes
 use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli` lanes with
 `home_policy=operator` preserve the operator `HOME` / native login state unless
 the scenario explicitly validates isolated provider-home behavior. The runner
 spawns the real binary listed under `provider`. Body redaction defaults on;
-opt-in capture (`AGH_QA_CAPTURE_CONTENT=1`) for bug reports.
+opt-in capture (`COMPOZY_QA_CAPTURE_CONTENT=1`) for bug reports.
 
 ```yaml
 id: ACP-01
@@ -120,24 +120,24 @@ live: true
 provider: claude-code
 preconditions:
   - Direct `claude` provider authenticated in the effective Claude home for the lane: operator `HOME` by default, or isolated `PROVIDER_HOME` only when the scenario explicitly validates isolated native auth
-  - `agh provider show claude` reports command `npx -y @agentclientprotocol/claude-agent-acp@latest`
-  - daemon up via bootstrap manifest; `agh status -o json` reports `running`
+  - `compozy provider show claude` reports command `npx -y @agentclientprotocol/claude-agent-acp@latest`
+  - daemon up via bootstrap manifest; `compozy status -o json` reports `running`
 preconditions_files: [internal/config/provider.go:165-173]
 steps:
-  1. `agh session new --agent claude --cwd $LAB/workspace -o json` → record session_id S
+  1. `compozy session new --agent claude --cwd $LAB/workspace -o json` → record session_id S
   2. Open `GET /api/sessions/$S/stream` SSE; record Last-Event-ID after first event
-  3. `agh session prompt $S "Read README.md and tell me the title in one sentence" -o jsonl` (or `POST /api/sessions/$S/prompt {message: …}`)
+  3. `compozy session prompt $S "Read README.md and tell me the title in one sentence" -o jsonl` (or `POST /api/sessions/$S/prompt {message: …}`)
   4. Wait for SSE to emit `tool-input-start` for read tool, then `tool-output-available`, then a final `text-delta` containing the title, then `finish`
-  5. `agh session events $S --type tool_call -o json` and `--type tool_result -o json`
-  6. `agh session transcript $S -o json`
+  5. `compozy session events $S --type tool_call -o json` and `--type tool_result -o json`
+  6. `compozy session transcript $S -o json`
 expected_behavior:
   - SSE frames in order: `start`, `tool-input-start { toolName: "read"|"Read" }`, `tool-input-available {input.file_path: ".../README.md"}`, `tool-output-available {output.tool_result.content non-empty}`, `text-start`, ≥1 `text-delta`, `text-end`, `finish {finishReason: "stop"}`, `[DONE]`
   - events.db has at least one `tool_call` row and one `tool_result` row sharing a tool_call_id, plus ≥1 `agent_message`
-  - Every event row has schema `agh.session.event.v1` (assert via direct sqlite read against `$AGH_HOME/sessions/$S/events.db` table `events.content`)
+  - Every event row has schema `compozy.session.event.v1` (assert via direct sqlite read against `$COMPOZY_HOME/sessions/$S/events.db` table `events.content`)
   - Transcript replay assembles Role=tool_call → Role=tool_result → Role=assistant; ToolName != ""; ToolInput.file_path matches the read file
 evidence:
-  - `events.json` from `agh session events $S -o jsonl`
-  - `transcript.json` from `agh session transcript $S -o json`
+  - `events.json` from `compozy session events $S -o jsonl`
+  - `transcript.json` from `compozy session transcript $S -o json`
   - `sse.log` raw SSE capture
   - `forbidden_needles_check.json`: assert raw `compozy_claim_` substring count == 0 across {events.json, transcript.json, sse.log, daemon.log}
 failure_signatures:
@@ -145,7 +145,7 @@ failure_signatures:
   - tool_call without paired tool_result → broken merge in `applyToolResult` (`transcript.go:269-318`)
   - SSE emits `tool-output-available` before any `tool-input-start` → broken `ensureToolCallStarted` ordering (`prompt.go:371-395`)
 cleanup:
-  - `agh session stop $S`; `agh session list --all -o json` reports state stopped
+  - `compozy session stop $S`; `compozy session list --all -o json` reports state stopped
 ```
 
 ```yaml
@@ -159,20 +159,20 @@ live: true
 provider: openclaw
 preconditions:
   - `openclaw` binary on PATH inside PROVIDER_HOME; `openclaw --version` ok
-  - `agh provider show openclaw` reports command `openclaw acp` (`internal/config/provider.go:233-237`)
+  - `compozy provider show openclaw` reports command `openclaw acp` (`internal/config/provider.go:233-237`)
 steps:
-  1. `agh session new --agent openclaw --provider openclaw --cwd $LAB/workspace -o json` → S
+  1. `compozy session new --agent openclaw --provider openclaw --cwd $LAB/workspace -o json` → S
   2. Same prompt as ACP-01 ("Read README.md …")
   3. Capture SSE; capture events.db rows
 expected_behavior:
   - Identical typed-event sequence as ACP-01 (start → tool_input → tool_output → text_delta → finish), even if the OpenClaw text body differs
   - tool_call_id values across both providers are unique strings; Manager-assigned IDs are stable across the session lifetime
-  - `agh session inspect $S` reports `caps.supports_load_session` matching what OpenClaw advertises in `initialize` response
+  - `compozy session inspect $S` reports `caps.supports_load_session` matching what OpenClaw advertises in `initialize` response
 evidence: same as ACP-01, plus `caps.json` from `inspect`
 failure_signatures:
-  - One provider emits `data-agh-event` with raw provider payload only — must NOT happen; `prompt.go:354-361` is the fallback only for unknown ACP event types
+  - One provider emits `data-compozy-event` with raw provider payload only — must NOT happen; `prompt.go:354-361` is the fallback only for unknown ACP event types
   - capability negotiation drift between providers → broken `negotiateSession` (`acp/client.go:372-468`)
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -186,16 +186,16 @@ live: true
 provider: hermes
 preconditions:
   - `hermes` binary on PATH inside PROVIDER_HOME; `hermes acp --help` shows ACP transport
-  - `agh provider show hermes` reports command `hermes acp` (`internal/config/provider.go:215-219`)
+  - `compozy provider show hermes` reports command `hermes acp` (`internal/config/provider.go:215-219`)
 steps:
-  1. `agh session new --agent hermes --provider hermes --cwd $LAB/workspace -o json` → S
+  1. `compozy session new --agent hermes --provider hermes --cwd $LAB/workspace -o json` → S
   2. Run the same "Read README.md …" prompt
   3. Capture SSE + events.db
 expected_behavior: same as ACP-02, with Hermes-specific tool-name spelling allowed
 evidence: same as ACP-02
 failure_signatures:
   - Hermes emits its own native event names (e.g. `agent_thought_chunk`) and the daemon does NOT remap to `EventTypeThought` → broken legacy parser (`transcript.go:401-439`)
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -213,10 +213,10 @@ steps:
   2. Send second prompt P2 ("Now do step 1") via HTTP; deliberately abort SSE GET halfway through the turn (close TCP after 50% of expected text-delta volume)
   3. Reconnect to `GET /api/sessions/$S/stream` with header `Last-Event-ID: $L1` (lib reads `c.GetHeader("Last-Event-ID")` per `internal/api/core/handlers.go:521`)
   4. Receive only events with sequence > L1; verify no duplicate text-deltas observed in the final transcript
-  5. `agh session events $S --since L1 -o json` matches the resumed SSE
+  5. `compozy session events $S --since L1 -o json` matches the resumed SSE
 expected_behavior:
   - Reconnect emits exactly the missing tail of P1+P2; no event with sequence ≤ L1 is replayed
-  - Final reconstructed transcript via `agh session transcript $S` is identical whether assembled from continuous-SSE or reconnect-SSE
+  - Final reconstructed transcript via `compozy session transcript $S` is identical whether assembled from continuous-SSE or reconnect-SSE
 evidence:
   - `sse_session_1.log` (initial), `sse_session_2.log` (reconnect)
   - `events_after_L1.json`
@@ -224,7 +224,7 @@ evidence:
 failure_signatures:
   - reconnect replays events ≤ L1 → broken sequence comparator in `pollAndStreamSessionEvents`
   - reconnect emits zero events even though P2 produced new ones → broken poll/ticker loop (`session_stream.go:77-100`)
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -243,7 +243,7 @@ steps:
   3. After ~3s, kill ONLY the SSE TCP socket (do not call `/prompt/cancel`); record wall-clock
   4. Reconnect SSE with `Last-Event-ID` from step 3; observe that text-deltas continue to arrive (proves `context.WithoutCancel` detached the prompt)
   5. Now `POST /api/sessions/$S/prompt/cancel` (`internal/api/httpapi/sessions.go:43-50`)
-  6. Observe SSE emit a `data-agh-event` with `stop_reason: "canceled"` or an `error`/`finish` close-out
+  6. Observe SSE emit a `data-compozy-event` with `stop_reason: "canceled"` or an `error`/`finish` close-out
 expected_behavior:
   - Step 3-4: token deltas continue arriving for at least 5s after socket close — proves `prompt.go:104` (`context.WithoutCancel(c.Request.Context())`) keeps the prompt alive
   - Step 5: prompt drains within 2s of explicit cancel; SSE finishes; events.db ends with a tool/agent event whose `stop_reason` is `"canceled"` (or `acp.AgentEvent.StopReason == "canceled"`); CLI exit code 0
@@ -257,7 +257,7 @@ failure_signatures:
   - Step 3-4: deltas stop after socket close → request context is still tied to prompt; `prompt.go:104` regression
   - Step 5: prompt does NOT terminate within ≥10s of explicit cancel → `Cancel` notification not delivered (`acp/client.go:594-610`)
   - SSE never emits a finish frame after cancel → broken `runPrompt` cancellation goroutine (`acp/client.go:743-792`)
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -271,13 +271,13 @@ live: true
 provider: claude-code
 preconditions:
   - ACP-01 preconditions
-  - PID of the spawned ACP subprocess available (probe via `agh session inspect -o json` if exposed; otherwise `pgrep -f claude-agent-acp` inside the lab)
+  - PID of the spawned ACP subprocess available (probe via `compozy session inspect -o json` if exposed; otherwise `pgrep -f claude-agent-acp` inside the lab)
 steps:
   1. Create session S; start a long prompt
   2. While prompt is in flight, `kill -9 <pid_of_subprocess>` (forces uncooperative exit)
   3. Observe SSE
-  4. `agh session status $S -o json` and `agh session inspect $S -o json`
-  5. Try to `agh session resume $S` — should fall back to fresh start, not propagate a stale ACP id
+  4. `compozy session status $S -o json` and `compozy session inspect $S -o json`
+  5. Try to `compozy session resume $S` — should fall back to fresh start, not propagate a stale ACP id
 expected_behavior:
   - SSE emits a typed `error` event with non-empty `errorText`, then `finish`, then `[DONE]` — never a silently-closed channel
   - Session record transitions to `state=stopped`, `stop_reason=agent_crashed` or equivalent (`store.types.go:117`)
@@ -286,11 +286,11 @@ expected_behavior:
   - Crash bundle path is set when `internal/session/crash_bundle.go:166` triggers
 evidence:
   - `sse_crash.log`, `session_status.json`, `inspect.json`, `resume_response.json`
-  - Bundle artifacts at `$AGH_HOME/crashes/<id>/...` listed in inspect output
+  - Bundle artifacts at `$COMPOZY_HOME/crashes/<id>/...` listed in inspect output
 failure_signatures:
   - Session reports `state=pending` instead of `crashed` → forensic rule violated (`internal/CLAUDE.md` "Inactive metadata repair must distinguish startup-pending from crashed")
   - Resume call returns 500 with raw "Resource not found" text → `IsLoadSessionResourceMissing` not invoked at the resume call site
-cleanup: `agh session delete $S` (terminal cleanup)
+cleanup: `compozy session delete $S` (terminal cleanup)
 ```
 
 ```yaml
@@ -304,9 +304,9 @@ live: true
 provider: claude-code
 preconditions: ACP-01 preconditions
 steps:
-  1. Create session S, send 1 prompt (so ACP session id is captured), `agh session stop $S`
+  1. Create session S, send 1 prompt (so ACP session id is captured), `compozy session stop $S`
   2. Manually wipe the upstream ACP provider's session storage (e.g. delete the effective Claude session path for the lane: `$HOME/.claude/projects/<S>/...` on operator-home runs or `$PROVIDER_HOME/.claude/projects/<S>/...` on isolated-home runs) so the upstream agent no longer knows the ACP session id
-  3. `agh session resume $S` (which calls `Driver.loadSession` → `acpsdk.AgentMethodSessionLoad`)
+  3. `compozy session resume $S` (which calls `Driver.loadSession` → `acpsdk.AgentMethodSessionLoad`)
   4. Observe behavior
 expected_behavior:
   - Resume completes successfully via fresh-start fallback (a new ACP session is created); session row reflects new ACP session id
@@ -318,7 +318,7 @@ evidence:
 failure_signatures:
   - Resume fails with 5xx — classification is not invoked at this call site
   - New session id replaces lineage parent/root pointers — broken lineage continuity
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -332,24 +332,24 @@ live: true
 provider: claude-code
 preconditions: ACP-01 preconditions; coordinator config not in test
 steps:
-  1. Create parent session P (agent=claude). Record P's `AGH_SESSION_ID`/`AGH_AGENT` from the subprocess env (assert via `agh session inspect P -o json` showing the env was injected per `manager_start.go:558-559`)
-  2. From inside the parent agent context, the agent calls `agh spawn --agent claude --ttl-seconds 600 --role worker -o json` (CLI passes `X-AGH-Session-ID: P` UDS header per `internal/cli/agent_kernel.go` + `internal/api/core/agent_identity.go:117`)
+  1. Create parent session P (agent=claude). Record P's `COMPOZY_SESSION_ID`/`COMPOZY_AGENT` from the subprocess env (assert via `compozy session inspect P -o json` showing the env was injected per `manager_start.go:558-559`)
+  2. From inside the parent agent context, the agent calls `compozy spawn --agent claude --ttl-seconds 600 --role worker -o json` (CLI passes `X-Compozy-Session-ID: P` UDS header per `internal/cli/agent_kernel.go` + `internal/api/core/agent_identity.go:117`)
   3. Daemon validates identity, `Manager.Spawn` returns child C with lineage{ParentSessionID: P, RootSessionID: P, SpawnDepth: 1, SpawnRole: "worker"} (`internal/session/spawn.go:65-103`)
   4. Send a prompt to child C
-  5. `agh session list --all -o json` → confirm both P and C present, lineage populated
-  6. `agh session events $C -o json` — every event carries `parent_session_id=P` and `root_session_id=P` correlation keys (per CLAUDE.md observability invariant)
-  7. `agh session events $P --type spawn_created -o json` — find the typed spawn event
+  5. `compozy session list --all -o json` → confirm both P and C present, lineage populated
+  6. `compozy session events $C -o json` — every event carries `parent_session_id=P` and `root_session_id=P` correlation keys (per CLAUDE.md observability invariant)
+  7. `compozy session events $P --type spawn_created -o json` — find the typed spawn event
 expected_behavior:
   - Spawn returns 201 with `AgentSpawnPayload` (`contract/agents.go:348-352`); body includes `lineage.parent_session_id == P`, `lineage.root_session_id == P`, `lineage.spawn_depth == 1`
   - Child events.db rows all carry parent/root correlation in JSON event content
   - Sessions list shows P→C tree
   - `/api/agent/context` for child reports `self.session_id == C` and Soul/lineage section reflects parent
 evidence:
-  - `spawn.json`, `parent_events.json`, `child_events.json`, `lineage_tree.json` (from `agh session list -o json`)
+  - `spawn.json`, `parent_events.json`, `child_events.json`, `lineage_tree.json` (from `compozy session list -o json`)
 failure_signatures:
   - lineage.parent_session_id missing on child events — broken normalization in `manager_start.go` or hooks dispatch
   - spawn returns 200 OK without lineage — `agentSpawnPayloadFromSession` regression (`agent_spawn.go:95+`)
-cleanup: `agh session stop $C; agh session stop $P`
+cleanup: `compozy session stop $C; compozy session stop $P`
 ```
 
 ```yaml
@@ -366,26 +366,26 @@ steps:
   1. Create session S; run a multi-tool prompt: "Read X, write summary to Y, run cat Y" (forces ≥3 tool turns)
   2. Capture every SSE frame in order to `live_sse.jsonl`
   3. Stop session
-  4. `agh session events $S -o jsonl > stored_events.jsonl`
-  5. Run `agh session transcript $S -o json > replay_messages.json`
+  4. `compozy session events $S -o jsonl > stored_events.jsonl`
+  5. Run `compozy session transcript $S -o json > replay_messages.json`
   6. Run a transcript-from-live reconstruction: feed `live_sse.jsonl` through the same canonical schema decoder (call `transcript.UnmarshalAgentEvent` on the `data` payloads, then `transcript.Assemble` with synthesized `store.SessionEvent`s) → `live_messages.json`
 expected_behavior:
   - `live_messages.json` and `replay_messages.json` are JSON-equal modulo whitespace
   - Every Message has matching `id`, `role`, `content`, `tool_name`, `tool_input`, `tool_result`, ordering
-  - Schema marker preserved: every persisted `events.content` parses with `schema = "agh.session.event.v1"` (`transcript.go:17`)
+  - Schema marker preserved: every persisted `events.content` parses with `schema = "compozy.session.event.v1"` (`transcript.go:17`)
 evidence:
   - `live_messages.json`, `replay_messages.json`, `diff.txt`
-  - `events_schema_check.json`: SQL `SELECT count(*) FROM events WHERE json_extract(content,'$.schema') != 'agh.session.event.v1'` → must equal 0
+  - `events_schema_check.json`: SQL `SELECT count(*) FROM events WHERE json_extract(content,'$.schema') != 'compozy.session.event.v1'` → must equal 0
 failure_signatures:
   - role drift (assistant content split where it shouldn't) → broken `flushAssistantOnTurnChange` (`transcript.go:174-181`)
   - tool_input lost between live and replay → broken canonical encode in `MarshalAgentEvent` (`transcript.go:737-787`)
   - schema mismatch → migration v2 `strip_canonical_event_raw_payloads` regression
-cleanup: `agh session delete $S`
+cleanup: `compozy session delete $S`
 ```
 
 ```yaml
 id: ACP-10
-title: Caller identity — `AGH_SESSION_ID` env present, absent, and spoofed
+title: Caller identity — `COMPOZY_SESSION_ID` env present, absent, and spoofed
 theme: identity
 coverage:
   primary: [identity.env_inject, identity.spoof_reject]
@@ -396,14 +396,14 @@ preconditions: ACP-01 preconditions
 steps:
   Subtest A — happy path:
     1. Create session S
-    2. From inside the subprocess (via `agh session prompt S "exec: agh agent context -o json"` or by attaching to the spawned subprocess shell), run `agh agent context -o json`
-    3. Daemon validates `X-AGH-Session-ID: S`, `X-AGH-Agent: claude` and returns a populated `AgentContextPayload`
+    2. From inside the subprocess (via `compozy session prompt S "exec: compozy agent context -o json"` or by attaching to the spawned subprocess shell), run `compozy agent context -o json`
+    3. Daemon validates `X-Compozy-Session-ID: S`, `X-Compozy-Agent: claude` and returns a populated `AgentContextPayload`
   Subtest B — missing identity:
-    1. From a shell *outside* any AGH session (env vars absent), run `agh agent context -o json`
-    2. CLI exits with code 64 (`ExitIdentityRequired`, `agentidentity/identity.go:38`); JSON error has `code: "identity_required"`, message contains "AGH_SESSION_ID is required"
+    1. From a shell *outside* any Compozy session (env vars absent), run `compozy agent context -o json`
+    2. CLI exits with code 64 (`ExitIdentityRequired`, `agentidentity/identity.go:38`); JSON error has `code: "identity_required"`, message contains "COMPOZY_SESSION_ID is required"
   Subtest C — spoofed identity:
-    1. Set `AGH_SESSION_ID=sess-stale-12345`, `AGH_AGENT=claude` in a shell that has no such session
-    2. `agh agent context -o json`
+    1. Set `COMPOZY_SESSION_ID=sess-stale-12345`, `COMPOZY_AGENT=claude` in a shell that has no such session
+    2. `compozy agent context -o json`
     3. CLI exits 65 (`ExitIdentityInvalid`); JSON error code `identity_stale`
   Subtest D — workspace mismatch:
     1. Create two workspaces W1, W2; create session S in W1
@@ -435,7 +435,7 @@ preconditions:
   - 12 skills enabled in workspace (forces Section.Truncated=true at limit=8)
 steps:
   1. Create session S in workspace W (with 12 skills)
-  2. Call `GET /api/agent/context` with X-AGH-Session-ID: S
+  2. Call `GET /api/agent/context` with X-Compozy-Session-ID: S
   3. Inspect payload sections
   4. Send a prompt that uses a skill so the situation surface should reflect the skill capability
   5. Re-call `/agent/context`; capabilities still bounded
@@ -451,7 +451,7 @@ evidence:
 failure_signatures:
   - capabilities count exceeds 8 — `boundedCapabilities` regression
   - provenance source missing — `provenance` constant changed silently
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -466,12 +466,12 @@ provider: claude-code
 preconditions: ACP-01 preconditions; daemon launched in supervised mode that exposes goleak hook in test build (`-tags goleak_check`)
 steps:
   1. Spawn 5 sessions concurrently; send 1 prompt to each; let them run to completion
-  2. `agh daemon stop` (graceful)
+  2. `compozy daemon stop` (graceful)
   3. Daemon shutdown invokes `Manager.WaitForFinalizations(ctx)` (`session/manager.go:704-734`)
   4. With the goleak-instrumented build, capture `goroutine_dump.txt` after `WaitForFinalizations` returns and before process exit
 expected_behavior:
   - All 5 finalizations complete within the daemon shutdown timeout
-  - goroutine_dump shows zero goroutines owned by `internal/session` package after WaitForFinalizations returns (assert via `runtime.Stack` regex against `pedronauck/agh/internal/session\.`)
+  - goroutine_dump shows zero goroutines owned by `internal/session` package after WaitForFinalizations returns (assert via `runtime.Stack` regex against `pedronauck/compozy/internal/session\.`)
   - Daemon exits 0; `daemon.log` records every session as final-state stopped
 evidence:
   - `goroutine_dump.txt`, `daemon_shutdown.log`, `final_session_states.json`
@@ -499,12 +499,12 @@ steps:
 expected_behavior:
   - At ~8s, SSE emits `runtime_warning` (`acp/types.go:46-47`) and then `error` with deadline message; `finish`; `[DONE]`
   - Subprocess remains alive (no Stop)
-  - `agh session status $S` shows session still active (only the prompt was deadlined, not the session)
+  - `compozy session status $S` shows session still active (only the prompt was deadlined, not the session)
 evidence:
   - `sse_deadline.log`, `session_status_after_deadline.json`
 failure_signatures:
   - Prompt runs past 30s with no daemon-side cancel — re-attached deadline missing or `context.WithoutCancel` used without re-deadlining (regression of CLAUDE.md "Detached execution lifetime")
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -520,7 +520,7 @@ preconditions: ACP-01 preconditions
 steps:
   1. Create session S
   2. Issue prompt
-  3. While prompt in flight, `agh session stop $S` with a tight deadline (e.g. `--timeout 2s`)
+  3. While prompt in flight, `compozy session stop $S` with a tight deadline (e.g. `--timeout 2s`)
   4. Subprocess receives SIGTERM (Unix process-group signaling per `internal/procutil`); if it doesn't exit within 2s, daemon escalates to SIGKILL (per `acp/client.go:714-741 stopExecCommand`)
 expected_behavior:
   - Stop returns within 2s + small grace; CLI exit 0
@@ -560,7 +560,7 @@ evidence:
 failure_signatures:
   - text-deltas of P1 and P2 interleave in the same turn_id → broken serialization
   - `proc.beginPrompt` returned an active state for two concurrent calls
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -577,7 +577,7 @@ steps:
   1. Create session S
   2. Issue a prompt that forces a large output (e.g. "Print the contents of generated_long_file.txt verbatim" where the file is ~2MB)
   3. Stream SSE; observe daemon RSS during the stream (sample every second)
-  4. After completion, `agh session transcript $S` and assert the assistant message content size matches the original
+  4. After completion, `compozy session transcript $S` and assert the assistant message content size matches the original
 expected_behavior:
   - Daemon RSS growth bounded (no unbounded buffering — `acp.Driver.WithPromptBufferSize` defaults to 128 events `acp/client.go:25`)
   - Every text-delta is flushed (assert SSE writer flush semantics in `core.WriteSSE`)
@@ -588,7 +588,7 @@ evidence:
 failure_signatures:
   - RSS grows to >2× expected → unbounded buffer
   - SSE pauses for seconds at a time → blocked flush
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -603,7 +603,7 @@ provider: claude-code
 preconditions:
   - PROVIDER_HOME pinned to an older `@agentclientprotocol/claude-agent-acp` major that doesn't speak `acpsdk.ProtocolVersionNumber` (`internal/acp/client.go:339`)
 steps:
-  1. `agh session new --agent claude --cwd $LAB/workspace -o json`
+  1. `compozy session new --agent claude --cwd $LAB/workspace -o json`
   2. Daemon attempts `acpsdk.AgentMethodInitialize` (`acp/client.go:337-369`); upstream returns version-mismatch error
 expected_behavior:
   - Session creation fails with `store.FailureHandshake` and a typed error envelope; CLI exit non-zero with stable code
@@ -644,7 +644,7 @@ evidence:
   - `events_dump.sql.txt` (raw rows), `daemon.log`, `transcript.json`
 failure_signatures:
   - Any non-zero count → raw token leak; this is a release blocker (cite CLAUDE.md "claim_token redaction is non-negotiable")
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ```yaml
@@ -656,13 +656,13 @@ coverage:
   secondary: [transcript.canonical, session.lineage]
 live: true
 provider: claude-code
-preconditions: ACP-01 preconditions; ability to restart daemon (`agh daemon restart`)
+preconditions: ACP-01 preconditions; ability to restart daemon (`compozy daemon restart`)
 steps:
   1. Create session S; run a multi-tool prompt to completion; record events_count_before and transcript_hash_before
-  2. `agh daemon stop`; verify `$AGH_HOME/sessions/$S/events.db` and `events.db-wal`/`-shm` are not corrupted (sqlite `pragma quick_check` returns OK)
-  3. `agh daemon start`
-  4. `agh session resume $S`; send a follow-up prompt
-  5. `agh session events $S -o jsonl > events_after.jsonl`; transcript again
+  2. `compozy daemon stop`; verify `$COMPOZY_HOME/sessions/$S/events.db` and `events.db-wal`/`-shm` are not corrupted (sqlite `pragma quick_check` returns OK)
+  3. `compozy daemon start`
+  4. `compozy session resume $S`; send a follow-up prompt
+  5. `compozy session events $S -o jsonl > events_after.jsonl`; transcript again
 expected_behavior:
   - Events count after >= count before (new events appended); the first-N events are bit-identical to the saved snapshot before restart
   - Transcript_hash_before matches the prefix of the new transcript
@@ -673,14 +673,14 @@ evidence:
 failure_signatures:
   - events.db corrupted on cold start → wal/shm recovery regression (CLAUDE.md "agh-schema-migration: -wal / -shm companion handling on recovery")
   - schema_version mismatch — migration didn't apply or applied twice
-cleanup: `agh session stop $S`
+cleanup: `compozy session stop $S`
 ```
 
 ## 5. Edge Cases
 
 - **Empty prompt body via `extractPromptMessage`** — POST with no message and no parts MUST return 400 "message is required" (`internal/api/httpapi/prompt.go:213-244`).
-- **`X-AGH-Workspace-ID` header narrows scope** — request to `/api/agent/context` with header for a workspace the session does not belong to → 403/identity_unauthorized.
-- **Session reaches max-sessions cap** — `Manager.reserve` returns `ErrMaxSessionsReached` (`manager.go:33, 571-589`); CLI surfaces the typed error; no orphan reservation left in `m.pending` (assert via `agh session list`).
+- **`X-Compozy-Workspace-ID` header narrows scope** — request to `/api/agent/context` with header for a workspace the session does not belong to → 403/identity_unauthorized.
+- **Session reaches max-sessions cap** — `Manager.reserve` returns `ErrMaxSessionsReached` (`manager.go:33, 571-589`); CLI surfaces the typed error; no orphan reservation left in `m.pending` (assert via `compozy session list`).
 - **`negotiateSession` fails after handshake succeeds** — subprocess must be cleaned up via `cleanupFailedStart`; no zombie subprocess.
 - **`session/load` returns non-`-32002` error** — must NOT trigger fresh-start fallback; bubbled as typed error.
 - **Last-Event-ID with non-numeric value** — `parseLastEventID` returns wrapped error (`internal/api/core/session_stream.go:16-27`); HTTP returns 400.
@@ -688,7 +688,7 @@ cleanup: `agh session stop $S`
 - **Duplicate `tool_call` events** — `applyToolCall` merges into the existing message via `mergeToolCallMessage` (`transcript.go:239-267`); no duplicate row in transcript.
 - **Permission prompt timeout** — `defaultPermissionWait = 5*time.Minute` (`acp/client.go:27`); if the user/agent does not approve, prompt fails with typed `permission_timeout` error.
 - **`/api/sessions/:id/clear`** wipes conversation history but preserves session metadata; subsequent prompts start fresh.
-- **`AGH_AGENT_NAME` legacy env** — `manager_test.go:2720` proves both `AGH_AGENT` and `AGH_AGENT_NAME` are set; agentidentity reads only `AGH_AGENT`. The legacy alias must not be relied upon by the CLI.
+- **`COMPOZY_AGENT_NAME` legacy env** — `manager_test.go:2720` proves both `COMPOZY_AGENT` and `COMPOZY_AGENT_NAME` are set; agentidentity reads only `COMPOZY_AGENT`. The legacy alias must not be relied upon by the CLI.
 
 ## 6. Integration Surfaces
 
@@ -701,16 +701,16 @@ cleanup: `agh session stop $S`
 | `GET /api/sessions/:id/events`, `/history`, `/transcript` | JSON projection | `internal/api/core/handlers.go` |
 | `GET /api/agent/context` | situation surface | `internal/situation/service.go:191-252`, route `httpapi/routes.go:91` |
 | `POST /api/agent/spawn` | bounded child session | `internal/api/core/agent_spawn.go:25-103`, route `httpapi/routes.go` (in agent group) |
-| CLI `agh session …` | wraps HTTP/UDS | `internal/cli/session.go:16-378` |
-| CLI `agh spawn` | calls `/api/agent/spawn` | `internal/cli/spawn.go:28-168` |
-| CLI `agh agent context` | calls `/api/agent/context` | `internal/cli/agent_kernel.go` (caller side via UDS headers `agentidentity/identity.go:24-29`) |
+| CLI `compozy session …` | wraps HTTP/UDS | `internal/cli/session.go:16-378` |
+| CLI `compozy spawn` | calls `/api/agent/spawn` | `internal/cli/spawn.go:28-168` |
+| CLI `compozy agent context` | calls `/api/agent/context` | `internal/cli/agent_kernel.go` (caller side via UDS headers `agentidentity/identity.go:24-29`) |
 
 ## 7. DX Cliffs
 
 - **Detached prompt vs. request lifetime is invisible to operators.** The fact that closing an SSE stream does not stop the LLM is a feature; documentation must be loud about the explicit `prompt/cancel` requirement.
 - **Last-Event-ID semantics.** Many SSE clients default to using the `id` field as a cursor, but the AI-SDK envelope (used by the web UI) uses opaque message ids. The HTTP handler reads `Last-Event-ID` from the request header for replay (`handlers.go:521`). Operators using `curl --no-buffer` need to know to send the header back.
 - **Stale session id error from upstream is invisible by design.** The "Resource not found" is silently re-classified as fresh-start (`acp/client.go:553-567`); operators see no error but they DO see a new ACP session id in `inspect`. Document this.
-- **`AGH_AGENT_NAME` vs `AGH_AGENT`.** Legacy alias still emitted in env; only `AGH_AGENT` is authoritative.
+- **`COMPOZY_AGENT_NAME` vs `COMPOZY_AGENT`.** Legacy alias still emitted in env; only `COMPOZY_AGENT` is authoritative.
 - **`/agent/context` is bounded; the agent must page to see beyond the limit.** Section limit defaults to 8; an agent that needs more must call `/api/skills`, `/api/network/peers`, `/api/network/inbox` directly.
 
 ## 8. Failure Modes
@@ -731,49 +731,49 @@ cleanup: `agh session stop $S`
 
 ## 9. Fixtures
 
-- **Bootstrap manifest**: produced by `agh-qa-bootstrap` skill; includes unique `AGH_HOME`, daemon ports, tmux-bridge socket, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` paths, `AGH_WEB_API_PROXY_TARGET` (when web QA also runs).
+- **Bootstrap manifest**: produced by `agh-qa-bootstrap` skill; includes unique `COMPOZY_HOME`, daemon ports, tmux-bridge socket, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` paths, `COMPOZY_WEB_API_PROXY_TARGET` (when web QA also runs).
 - **Workspace seed**: `$LAB/workspace/` with a `README.md` (≥3 paragraphs), `src/file_a.go`, `src/file_b.go`, and a `generated_long_file.txt` (~2MB) for ACP-16.
-- **Skill seed**: 12 enabled skills under `$AGH_HOME/skills/` for ACP-11 (truncation proof).
+- **Skill seed**: 12 enabled skills under `$COMPOZY_HOME/skills/` for ACP-11 (truncation proof).
 - **Provider auth**: direct `claude` uses native Claude CLI auth from the effective Claude home for the lane (operator `HOME` by default; isolated `PROVIDER_HOME` only for explicit isolated-home scenarios). OpenClaw, Hermes, wrapped providers, and brokered credentials follow their own contract and may stage auth into `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` when the lane is bound-secret or explicitly isolated.
 - **Forbidden needles**: `["compozy_claim_FAKE_QA_", "compozy_claim_TESTONLY_"]` for ACP-18; runner sweeps SSE/events/log files for these and asserts count == 0.
 - **goleak build tag**: `//go:build goleak_check` for ACP-12 to avoid hot-path overhead in production builds.
 
 ## 10. Citations
 
-- Repo-wide rules: `/Users/pedronauck/Dev/compozy/agh/CLAUDE.md` (Critical Rules; Workflow; Skill Dispatch; CI/Release).
-- Backend invariants: `/Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md` — Architecture (lines 9-49), Concurrency (29-37), Observability (47-52), Security Invariants (55-62), Forensic Bug Fixes (130-135).
+- Repo-wide rules: `/Users/pedronauck/Dev/compozy/compozy/CLAUDE.md` (Critical Rules; Workflow; Skill Dispatch; CI/Release).
+- Backend invariants: `/Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md` — Architecture (lines 9-49), Concurrency (29-37), Observability (47-52), Security Invariants (55-62), Forensic Bug Fixes (130-135).
 - ACP driver:
-  - `/Users/pedronauck/Dev/compozy/agh/internal/acp/client.go:23-31` (defaults), `:50-186` (Driver/Start), `:337-369` (initialize), `:372-468` (negotiate), `:553-567` (`IsLoadSessionResourceMissing`), `:570-610` (Prompt+Cancel), `:641-741` (Stop).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/acp/types.go:24-52` (event-type constants), `:175-184` (`PromptSyntheticMeta`).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/acp/launcher.go` (sandbox launcher seam).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/acp/client.go:23-31` (defaults), `:50-186` (Driver/Start), `:337-369` (initialize), `:372-468` (negotiate), `:553-567` (`IsLoadSessionResourceMissing`), `:570-610` (Prompt+Cancel), `:641-741` (Stop).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/acp/types.go:24-52` (event-type constants), `:175-184` (`PromptSyntheticMeta`).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/acp/launcher.go` (sandbox launcher seam).
 - Sessions:
-  - `/Users/pedronauck/Dev/compozy/agh/internal/session/manager.go:83-734` (Manager core); `:558-559` env injection in `manager_start.go`.
-  - `/Users/pedronauck/Dev/compozy/agh/internal/session/spawn.go:14-200+` (Spawn caps, lineage, permission narrowing).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/session/failure.go:15-91`, `crash_bundle.go:166`, `liveness.go:32-39`.
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/session/manager.go:83-734` (Manager core); `:558-559` env injection in `manager_start.go`.
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/session/spawn.go:14-200+` (Spawn caps, lineage, permission narrowing).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/session/failure.go:15-91`, `crash_bundle.go:166`, `liveness.go:32-39`.
 - Transcript:
-  - `/Users/pedronauck/Dev/compozy/agh/internal/transcript/transcript.go:17` (`agh.session.event.v1`), `:113-130` (Assemble entry), `:174-181` (turn-change flush), `:239-318` (tool lifecycle), `:737-822` (Marshal/Unmarshal canonical).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/transcript/transcript.go:17` (`compozy.session.event.v1`), `:113-130` (Assemble entry), `:174-181` (turn-change flush), `:239-318` (tool lifecycle), `:737-822` (Marshal/Unmarshal canonical).
 - Persistence:
-  - `/Users/pedronauck/Dev/compozy/agh/internal/store/sessiondb/session_db.go:27-72` (schema), `:74-86` (migrations registry).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/store/types.go:117` (`StopAgentCrashed`).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/store/failure.go:20` (`FailureProcess`).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:27-72` (schema), `:74-86` (migrations registry).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/store/types.go:117` (`StopAgentCrashed`).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/store/failure.go:20` (`FailureProcess`).
 - Identity:
-  - `/Users/pedronauck/Dev/compozy/agh/internal/agentidentity/identity.go:18-247` (full Resolve flow + error envelopes), `:34-45` (exit codes).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/agentidentity/identity.go:18-247` (full Resolve flow + error envelopes), `:34-45` (exit codes).
 - Situation:
-  - `/Users/pedronauck/Dev/compozy/agh/internal/situation/service.go:24` (`DefaultSectionLimit`), `:96-144` (Service ctor), `:191-252` (`ContextForSession`), `:446-460` (limits), `:557-562` (provenance), `:1053-1063` (`sectionMeta`).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/situation/service.go:24` (`DefaultSectionLimit`), `:96-144` (Service ctor), `:191-252` (`ContextForSession`), `:446-460` (limits), `:557-562` (provenance), `:1053-1063` (`sectionMeta`).
 - API surfaces:
-  - `/Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/routes.go:66-87` (session route registration).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/api/udsapi/routes.go:66-90`.
-  - `/Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/prompt.go:90-156` (HTTP SSE entry; detached lifetime at `:104`); `:251-580` (typed envelope state machine).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/api/udsapi/prompt.go:22-74`.
-  - `/Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/sessions.go:43-50` (`cancelSessionPrompt`).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/api/core/session_stream.go:69-100` (`pollAndStreamSessionEvents`).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/api/core/handlers.go:521` (`Last-Event-ID`).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/api/core/agent_spawn.go:25-103`.
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/routes.go:66-87` (session route registration).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/udsapi/routes.go:66-90`.
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/prompt.go:90-156` (HTTP SSE entry; detached lifetime at `:104`); `:251-580` (typed envelope state machine).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/udsapi/prompt.go:22-74`.
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/sessions.go:43-50` (`cancelSessionPrompt`).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/core/session_stream.go:69-100` (`pollAndStreamSessionEvents`).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/core/handlers.go:521` (`Last-Event-ID`).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/api/core/agent_spawn.go:25-103`.
 - CLI:
-  - `/Users/pedronauck/Dev/compozy/agh/internal/cli/session.go:16-378` (session subtree).
-  - `/Users/pedronauck/Dev/compozy/agh/internal/cli/spawn.go:28-168` (spawn cmd).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/cli/session.go:16-378` (session subtree).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/cli/spawn.go:28-168` (spawn cmd).
 - Provider matrix:
-  - `/Users/pedronauck/Dev/compozy/agh/internal/config/provider.go:124-256` (claude / openclaw / hermes / codex / gemini commands).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/config/provider.go:124-256` (claude / openclaw / hermes / codex / gemini commands).
 - QA framework references:
-  - `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md` (scenario shape, provider-mode tri-state, evidence-as-pass-criterion).
-  - `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md` (hermetic env shield, async/cancel rigor, subprocess HOME isolation, cancellation ≤2s assertions).
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md` (scenario shape, provider-mode tri-state, evidence-as-pass-criterion).
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md` (hermetic env shield, async/cancel rigor, subprocess HOME isolation, cancellation ≤2s assertions).

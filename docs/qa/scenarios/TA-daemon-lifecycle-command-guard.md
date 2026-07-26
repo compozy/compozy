@@ -4,7 +4,7 @@ area: TA
 title: Reject daemon lifecycle commands before scheduling
 persona: Bruno
 journey: J-24
-expected: Creating a dynamic automation job with a command-shaped AGH daemon restart, stop, or kill instruction fails with the stable blocked class and persists no job; prose in non-command fields remains valid.
+expected: Creating a dynamic automation job with a command-shaped Compozy daemon restart, stop, or kill instruction fails with the stable blocked class and persists no job; prose in non-command fields remains valid.
 entry_points: automation CLI; HTTP/UDS POST /api/automation/jobs; compozy__automation_jobs_create
 qa_status: untested
 bug_ids:

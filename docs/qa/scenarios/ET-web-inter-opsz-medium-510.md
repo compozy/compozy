@@ -18,4 +18,4 @@ overlaps:
 
 Added by typography alignment with OpenDesign (2026-07-20). Flag only — retest in the next QA cycle.
 
-Verify against `docs/design/opendesign/shell/agh-refined-7.html` and `DESIGN.md` §3: Inter Variable opsz, UI medium 510, body tracking −0.006em, features cv01/ss03/cv11.
+Verify against `docs/design/opendesign/shell/compozy-refined-7.html` and `DESIGN.md` §3: Inter Variable opsz, UI medium 510, body tracking −0.006em, features cv01/ss03/cv11.

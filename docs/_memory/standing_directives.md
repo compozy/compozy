@@ -6,7 +6,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 ## SD-001 — Long-Running Sessions Supervision
 
-**Posture.** AGH sessions can run for hours. Supervise activity, don't wait on wall-clock timeouts. Heartbeats, progress events, and idempotent cancel are the supervision primitives.
+**Posture.** Compozy sessions can run for hours. Supervise activity, don't wait on wall-clock timeouts. Heartbeats, progress events, and idempotent cancel are the supervision primitives.
 
 **Required behavior:**
 
@@ -25,7 +25,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 ## SD-002 — Remove Legacy Alpha Compatibility Code
 
-**Posture.** AGH is greenfield alpha with zero production users. Compat shims, nil-receiver legacy stubs, legacy-meta no-ops, and dual code paths for "old behavior" are forbidden. **Delete the old thing.** This is a stronger, perpetual application of the CLAUDE.md "Greenfield Alpha — Zero Legacy Tolerance" rule.
+**Posture.** Compozy is greenfield alpha with zero production users. Compat shims, nil-receiver legacy stubs, legacy-meta no-ops, and dual code paths for "old behavior" are forbidden. **Delete the old thing.** This is a stronger, perpetual application of the CLAUDE.md "Greenfield Alpha — Zero Legacy Tolerance" rule.
 
 **Required behavior:**
 
@@ -57,7 +57,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 ## SD-004 — Multi-LLM Development Pipeline
 
-**Posture.** AGH development uses three LLMs with deliberate role assignment.
+**Posture.** Compozy development uses three LLMs with deliberate role assignment.
 
 **Required behavior:**
 
@@ -112,7 +112,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 - When Paper artboards (design references) conflict with daemon truth, **daemon wins**.
 - Paper governs _composition_; `DESIGN.md` governs _grammar_ (tokens, depth, motion).
-- A design reference is **lossy by nature**: demo data, fixture copy, placeholder brand marks, and simplified or omitted product content are prototype artifacts, never product instructions. Content/data belong to runtime truth, labels/copy to `COPY.md`, marks to the `@agh/ui` brand inventory — record the divergence as an authorized delta (L-032).
+- A design reference is **lossy by nature**: demo data, fixture copy, placeholder brand marks, and simplified or omitted product content are prototype artifacts, never product instructions. Content/data belong to runtime truth, labels/copy to `COPY.md`, marks to the `@compozy/ui` brand inventory — record the divergence as an authorized delta (L-032).
 - No invented controls (per-bridge retry/timeout when runtime doesn't support them).
 - No invented metrics (no "pending retry" counts when telemetry doesn't expose them).
 - Observability-only views are allowed (e.g., Network Peers in v1 has no Disconnect/Remove until backend models them).
@@ -147,7 +147,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 - Don't redesign the data when independent slices flag the same data as "right shape, no consumer."
 - Build the consumer; preserve the data shape.
 - Surface convergence explicitly in research artifacts ("8 of 10 slices flagged the same six lines").
-- The autonomy program is the canonical case study: AGH was 80% built before autonomy started; the work was integration, not invention.
+- The autonomy program is the canonical case study: Compozy was 80% built before autonomy started; the work was integration, not invention.
 
 **Source:** `analysis/analysis_global_runs.md` finding 7; `autonomous/analysis/analysis.md`.
 
@@ -170,16 +170,16 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 ## SD-011 — Extensible and Agent-Manageable by Design
 
-**Posture.** AGH is not only a daemon with UI. It is an extensible runtime that agents must be able to inspect, configure, operate, and repair through structured surfaces. A feature is incomplete if it cannot be extended by AGH's extension surfaces or managed by agents without relying on the web UI.
+**Posture.** Compozy is not only a daemon with UI. It is an extensible runtime that agents must be able to inspect, configure, operate, and repair through structured surfaces. A feature is incomplete if it cannot be extended by Compozy's extension surfaces or managed by agents without relying on the web UI.
 
 **Required behavior:**
 
-- Every PRD, TechSpec, `_tasks.md`, and task body that creates, updates, or removes a feature states the impact on AGH extensibility surfaces: extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, and protocol docs.
+- Every PRD, TechSpec, `_tasks.md`, and task body that creates, updates, or removes a feature states the impact on Compozy extensibility surfaces: extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, and protocol docs.
 - Every user-visible or operator-visible capability has an agent-manageability plan: CLI verbs with structured output, HTTP/UDS parity when daemon state crosses the boundary, deterministic error contracts, discoverable status, and documentation for the agent path.
 - Every CLI command, HTTP endpoint, UDS route, generated contract type, and site reference is added, updated, or deleted in the same change as the feature it manages.
 - Every `config.toml` addition, update, removal, or no-longer-needed key is handled as a lifecycle change: structs, defaults, merge/overlay behavior, validation, examples, docs, and tests move together.
 - "No impact" is allowed only with evidence: the artifact names the checked surfaces and explains why no extension, agent-operation, or config change is needed.
 
-**Source:** explicit user directive on 2026-04-26; reinforces AGH's product premise (`agent-first`, highly extensible, highly configurable).
+**Source:** explicit user directive on 2026-04-26; reinforces Compozy's product premise (`agent-first`, highly extensible, highly configurable).
 
 **Triggers re-evaluation when:** any spec/feature changes runtime behavior, public contracts, CLI verbs, HTTP/UDS routes, config keys, hooks, extension manifests, skill/tool/resource surfaces, bridge SDKs, or agent-operated workflows.

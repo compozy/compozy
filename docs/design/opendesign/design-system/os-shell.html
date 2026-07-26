@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AGH DS · 02 OS Shell</title>
+<title>Compozy DS · 02 OS Shell</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -64,7 +64,7 @@ body{background:var(--canvas);overflow-y:auto}
 <body>
 <div class="doc" data-od-id="ds-os-shell">
   <nav class="docnav" data-od-id="ds-nav">
-    <span class="docnav__brand"><i></i>AGH DS</span>
+    <span class="docnav__brand"><i></i>Compozy DS</span>
     <a href="index.html">Overview</a>
     <a href="foundations.html">01 Foundations</a>
     <a href="os-shell.html" aria-current="page">02 OS Shell</a>
@@ -73,9 +73,9 @@ body{background:var(--canvas);overflow-y:auto}
   </nav>
 
   <header class="hero" data-od-id="hero">
-    <p class="eyebrow">AGH Design System · Chapter 02</p>
+    <p class="eyebrow">Compozy Design System · Chapter 02</p>
     <h1>OS Shell</h1>
-    <p>AGH is an operating system for agents. The shell is three fixed zones — a 44px menu bar, a
+    <p>Compozy is an operating system for agents. The shell is three fixed zones — a 44px menu bar, a
     wallpapered desktop of floating windows, and a bottom dock — with Spaces per workspace and ⌘K as
     the universal entry point. Chrome lives in <code class="mono">ds-shell.css</code> under the radius
     waiver (12–22px); everything inside a window returns to the content scale. Reference behavior:
@@ -87,13 +87,13 @@ body{background:var(--canvas);overflow-y:auto}
     <div class="sec__head"><span class="sec__num">01</span><h2>Menu bar — 44px</h2></div>
     <p>Left: 28px logo · workspace trigger (18px monogram + name + chevrons) · Session / View / Help menus.
     Right tray is fixed and minimal: <b>approvals bell · ⌘K chip · Settings cog</b> — no clock, no cost,
-    no mesh chips, no avatar (AGH has no user concept). Glass: <code class="mono">--shell-glass</code> + blur 26.</p>
+    no mesh chips, no avatar (Compozy has no user concept). Glass: <code class="mono">--shell-glass</code> + blur 26.</p>
     <div class="demo" data-od-id="demo-menubar">
       <header class="menubar" style="z-index:1">
         <div class="mb-side">
-          <button class="mb-logo" aria-label="AGH"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg></button>
+          <button class="mb-logo" aria-label="Compozy"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg></button>
           <button class="ws-trigger" aria-haspopup="true" aria-expanded="false">
-            <span class="ws-avatar mono">AG</span><span class="ws-name">agh</span>
+            <span class="ws-avatar mono">AG</span><span class="ws-name">compozy</span>
             <svg class="chevrons" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <nav class="mb-menus" aria-label="Menus">
@@ -270,7 +270,7 @@ body{background:var(--canvas);overflow-y:auto}
       <div style="flex:1;height:120px;border-radius:10px;border:1px solid var(--line-strong);background:radial-gradient(260px 160px at 85% 108%, var(--success-tint), transparent 60%),radial-gradient(320px 180px at 8% -8%, color-mix(in oklab, #225555 40%, transparent), transparent 64%),linear-gradient(180deg,var(--canvas),var(--rail) 60%)"></div>
       <div style="flex:1;height:120px;border-radius:10px;border:1px solid var(--line-strong);background:radial-gradient(300px 170px at 50% -14%, rgba(255,255,255,.04), transparent 58%),linear-gradient(180deg,var(--canvas),var(--rail) 50%)"></div>
     </div>
-    <p class="demo-note">ember · mesh · carbon — defaults: agh=ember, branasio=mesh, labs=carbon</p>
+    <p class="demo-note">ember · mesh · carbon — defaults: compozy=ember, branasio=mesh, labs=carbon</p>
   </section>
 
   <!-- ============ 06 MOBILE ============ -->

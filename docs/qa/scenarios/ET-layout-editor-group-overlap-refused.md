@@ -16,6 +16,6 @@ last_report:
 overlaps: MS-configure-window-manager
 ---
 
-story: As an operator, I find out that a layout is impossible while I am building it, not after I try to apply it.
+story: As a person running agent work, I find out that a layout is impossible while I am building it, not after I try to apply it.
 
 qa-impact: 2026-07-24 new behavior. The canvas evaluates group overlap client-side for the immediate mark and still routes the decision through the daemon's validate step. Flag only; the next QA cycle owns live testing.

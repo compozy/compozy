@@ -100,7 +100,7 @@ Deliberate boundaries: this cycle is not a full mobile compatibility matrix, sec
 
 1. Freeze implementation and pass the touched frontend/backend scoped gates.
 2. Bootstrap a **fresh** isolated `northstar-pay` lab; never reuse the earlier forensics manifest.
-3. Export `AGH_WEB_API_PROXY_TARGET` from the manifest and preserve the provider home policy it declares.
+3. Export `COMPOZY_WEB_API_PROXY_TARGET` from the manifest and preserve the provider home policy it declares.
 4. Create `docs/qa/reports/2026-07-11-northstar-pay.md` with every session matrix row `Pending` before the first walk.
 5. Post exactly one in-persona operator kickoff, observe without evaluator prompts, and collect public CLI/API/Web evidence.
 6. Capture deterministic Storybook PNGs for changed visible surfaces and real-app checkpoints/failures only.

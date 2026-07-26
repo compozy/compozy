@@ -1,11 +1,11 @@
 ---
 name: agh-qa-bootstrap
-description: Bootstraps isolated AGH QA labs and emits the canonical manifest for downstream QA. Use when local QA needs daemon, workspace, provider, or playbook setup. Do not use for unit tests, planning-only work, or browser-only checks.
+description: Bootstraps isolated Compozy QA labs and emits the canonical manifest for downstream QA. Use when local QA needs daemon, workspace, provider, or playbook setup. Do not use for unit tests, planning-only work, or browser-only checks.
 trigger: explicit
 argument-hint: "[scenario-slug] [--playbook <ref>]"
 ---
 
-# AGH QA Bootstrap
+# Compozy QA Bootstrap
 
 Provision infrastructure and scratch evidence for one QA pass. Bootstrap does
 not prove runtime behavior; downstream QA owns journeys and verdicts.

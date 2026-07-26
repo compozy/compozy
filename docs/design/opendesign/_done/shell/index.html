@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AGH · Refined operator surface</title>
+  <title>Compozy · Refined control surface</title>
   <link rel="preconnect" href="https://rsms.me/" />
   <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,9 +15,9 @@
 
   <style>
     /* ─────────────────────────────────────────────────────────────────
-     * AGH refined — tokens
+     * Compozy refined — tokens
      *
-     * Goal: drop the operator/dev/tech register without leaving the AGH
+     * Goal: drop the operator/dev/tech register without leaving the Compozy
      * warm-dark identity. Three strict rules:
      *
      *   1. Accent (orange) is SCARCE. It appears at most twice per
@@ -39,7 +39,7 @@
     :root {
       color-scheme: dark;
 
-      /* Surface ladder — warm but cooler than current AGH.
+      /* Surface ladder — warm but cooler than current Compozy.
          OKLch keeps the steps perceptually even. */
       --bg:        oklch(13.2% 0.005 60);
       --surface:   oklch(15.8% 0.005 55);
@@ -60,7 +60,7 @@
       --border-soft:   rgba(255, 248, 240, 0.04);
       --hairline:      rgba(255, 248, 240, 0.05);
 
-      /* Accent — keep the AGH orange identity */
+      /* Accent — keep the Compozy orange identity */
       --accent:       oklch(67% 0.165 40);
       --accent-hover: oklch(72% 0.17 42);
       --accent-soft:  oklch(67% 0.165 40 / 0.12);
@@ -1193,7 +1193,7 @@
 
   <script type="text/babel" data-presets="env,react">
     /* ─────────────────────────────────────────────────────────────────
-     * Mock data — close to AGH's real shape, full status coverage.
+     * Mock data — close to Compozy's real shape, full status coverage.
      * ─────────────────────────────────────────────────────────── */
 
     const TASKS = [
@@ -1348,19 +1348,19 @@
     const ACTIVITY = {
       "tsk-7f3a2b": [
         { time: "2m ago",  who: { kind: "agent", label: "claude-opus-4-7", short: "claude" }, msg: "Started attempt 2",        detail: "claim acquired · capability resolve.session-bridge.leak" },
-        { time: "9m ago",  who: { kind: "system", label: "agh-runtime" },                     msg: "Attempt 1 timed out",      detail: "no progress for 600s · automatic retry queued" },
+        { time: "9m ago",  who: { kind: "system", label: "compozy-runtime" },                     msg: "Attempt 1 timed out",      detail: "no progress for 600s · automatic retry queued" },
         { time: "14m ago", who: { kind: "human",  label: "Pedro", short: "Pedro" },           msg: "Increased priority to High", detail: "operator reclassified from Medium" },
         { time: "26m ago", who: { kind: "human",  label: "Pedro", short: "Pedro" },           msg: "Created task",             detail: "linked from session sess-aa7c · trigger origin manual" },
       ],
       "tsk-9c4d18": [
-        { time: "11m ago", who: { kind: "human",  label: "Pedro", short: "Pedro" },                 msg: "Spawned 4 children",      detail: "fan-out across workspaces agh-runtime · compozy · scratch · _root" },
-        { time: "32m ago", who: { kind: "system", label: "agh-runtime" },                            msg: "Plan accepted",           detail: "review gate satisfied · proceed-with-caveats" },
+        { time: "11m ago", who: { kind: "human",  label: "Pedro", short: "Pedro" },                 msg: "Spawned 4 children",      detail: "fan-out across workspaces compozy-runtime · compozy · scratch · _root" },
+        { time: "32m ago", who: { kind: "system", label: "compozy-runtime" },                            msg: "Plan accepted",           detail: "review gate satisfied · proceed-with-caveats" },
         { time: "44m ago", who: { kind: "agent",  label: "claude-opus-4-7", short: "claude" },       msg: "Submitted plan for review", detail: "estimated 4 child runs · 2 dependencies" },
       ],
       "tsk-4d7e23": [
-        { time: "23m ago", who: { kind: "system", label: "agh-runtime" },                            msg: "Attempt 3 failed",        detail: "tsc exit 1 · max attempts reached · awaiting operator" },
+        { time: "23m ago", who: { kind: "system", label: "compozy-runtime" },                            msg: "Attempt 3 failed",        detail: "tsc exit 1 · max attempts reached · awaiting operator" },
         { time: "27m ago", who: { kind: "agent",  label: "codex-gpt-5.4", short: "codex" },          msg: "Started attempt 3",       detail: "applied last-good fixture, retry under reduced scope" },
-        { time: "38m ago", who: { kind: "system", label: "agh-runtime" },                            msg: "Attempt 2 failed",        detail: "same diagnostic · no patch applied" },
+        { time: "38m ago", who: { kind: "system", label: "compozy-runtime" },                            msg: "Attempt 2 failed",        detail: "same diagnostic · no patch applied" },
       ],
     };
 
@@ -1517,7 +1517,7 @@
         <aside className="side">
           <div className="side__brand">
             <span className="brandmark" aria-hidden="true">A</span>
-            <span className="side__brand-name">AGH Runtime</span>
+            <span className="side__brand-name">CompozyOS runtime</span>
             <span className="side__brand-meta">v0.41</span>
           </div>
 
@@ -1633,7 +1633,7 @@
         <div className="page">
           <p className="page__eyebrow">
             <span className="page__eyebrow-dot" />
-            Workspace · agh-runtime · synced 2m ago
+            Workspace · compozy-runtime · synced 2m ago
           </p>
           <h1 className="page__title">Tasks</h1>
           <p className="page__lead">
@@ -1749,7 +1749,7 @@
     function TaskDetail({ task }) {
       const subs = SUB_ISSUES[task.id] || [];
       const acts = ACTIVITY[task.id] || [
-        { time: task.time, who: { kind: "system", label: "agh-runtime" }, msg: `Task ${STATUS_TONE[task.status].label.toLowerCase()}`, detail: `${task.id} · workspace agh-runtime` },
+        { time: task.time, who: { kind: "system", label: "compozy-runtime" }, msg: `Task ${STATUS_TONE[task.status].label.toLowerCase()}`, detail: `${task.id} · workspace compozy-runtime` },
         { time: "earlier",  who: task.owner,                              msg: "Created task",                            detail: "trigger origin = manual" },
       ];
 
@@ -1763,7 +1763,7 @@
               {task.id}
             </span>
             <span style={{ color: "var(--faint)" }}>·</span>
-            <span>workspace agh-runtime</span>
+            <span>workspace compozy-runtime</span>
             <span style={{ color: "var(--faint)" }}>·</span>
             <span>updated {task.time}</span>
           </p>

@@ -1,6 +1,6 @@
 # Internal Backend (Go)
 
-The Go runtime — `internal/*` packages composed by `internal/daemon`, plus the API transports under `internal/api/*`. ACP subprocess management, SQLite persistence, HTTP/SSE + UDS APIs, autonomy kernel, AGH Network. Entry binary lives in `cmd/compozy`.
+The Go runtime — `internal/*` packages composed by `internal/daemon`, plus the API transports under `internal/api/*`. ACP subprocess management, SQLite persistence, HTTP/SSE + UDS APIs, autonomy kernel, Compozy Network. Entry binary lives in `cmd/compozy`.
 
 Repo-wide rules (Critical Rules, Workflow, Build, Commits, Skill Dispatch, Memory & Skills RFC, CI/Release) live in the **root `CLAUDE.md`**. This file owns architecture, package boundaries, autonomy contracts, security invariants, and `internal/`-specific debugging/forensics.
 
@@ -65,12 +65,12 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 - **`claim_token` redaction is non-negotiable.** Raw `claim_token` (`compozy_claim_*`), MCP auth tokens, OAuth codes, PKCE verifiers, and secret bindings MUST NEVER appear in logs, status APIs, settings views, error payloads, channel messages, SSE, web UI, or memory. Use hash forms (`claim_token_hash`) over the wire. Network layer rejects raw `claim_token` in metadata.
 - **Symlink escape hardening.** Skill sidecars, skill files, managed-extension dependency copies, and bundle install paths MUST verify resolved targets remain inside approved roots. Use `EvalSymlinks` + path-prefix check, not naive joins. Handle macOS `/private/var/folders` quirk (canonicalize source root before containment check).
 - **Path security helpers.** Filesystem helpers resolving user-controlled or agent-controlled paths use the `sanitizePathKey` + `realpathDeepestExisting` pattern (defenses against null-byte, URL-encoded traversal, Unicode normalization, symlink-escape).
-- **Identity proof-stripping defense.** In any signed-message processing path (AGH Network v1), an identity in verified format (`nickname@fingerprint`) without valid `proof` MUST classify as `rejected`, not `unverified`.
+- **Identity proof-stripping defense.** In any signed-message processing path (Compozy Network v1), an identity in verified format (`nickname@fingerprint`) without valid `proof` MUST classify as `rejected`, not `unverified`.
 - **External-call timeouts.** Outbound HTTP/network calls MUST use a client with an explicit timeout. `http.DefaultClient` is forbidden in production code paths.
 - **Load-time security scan.** Every non-bundled skill is scanned via `internal/skills.VerifyContent` on every load (not just install). Critical findings block; warning findings log; info findings log silently. Bundled skills are exempt because `go:embed` provides immutability.
 - **Provider auth boundary.** Native ACP providers (`auth_mode = native_cli`) use provider-owned
-  CLI login/session state and MUST NOT require AGH-bound API-key `credential_slots`. Bound secrets
-  are legal only under `auth_mode = bound_secret`, where AGH resolves `env:` or
+  CLI login/session state and MUST NOT require Compozy-bound API-key `credential_slots`. Bound secrets
+  are legal only under `auth_mode = bound_secret`, where Compozy resolves `env:` or
   `vault:providers/<provider>/<slot>` refs and injects exactly those values. Provider env/home
   policy is part of this security boundary: `env_policy = filtered` strips secret-shaped daemon
   variables, `env_policy = isolated` starts from a minimal allowlist, and
@@ -79,64 +79,64 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 
 ## Package Layout
 
-| Path                            | Responsibility                                                                |
-| ------------------------------- | ----------------------------------------------------------------------------- |
-| `cmd/compozy`                   | Main entry point, CLI binary                                                  |
-| `internal/config`               | TOML loading, validation, merge, home paths, agent def parsing                |
-| `internal/acp`                  | ACP client: subprocess spawn, JSON-RPC over stdio                             |
-| `internal/agentidentity`        | Caller-identity inference from `COMPOZY_SESSION_ID`/`COMPOZY_AGENT`           |
-| `internal/automation`           | Cron, webhook, and scheduled triggers; durable scheduler state                |
-| `internal/bridges`              | External messaging adapters (Slack, Telegram, etc.)                           |
-| `internal/bridgesdk`            | Bridge SDK / contract types                                                   |
-| `internal/bundles`              | Bundle activation projector                                                   |
-| `internal/cli`                  | Cobra commands                                                                |
-| `internal/codegen`              | OpenAPI → TS generator helpers                                                |
-| `internal/coordinator`          | Coordinator-agent bootstrap and lifecycle                                     |
-| `internal/daemon`               | Composition root, lock, boot, shutdown                                        |
-| `internal/diagnostics`          | Diagnostics + health probes                                                   |
-| `internal/e2elane`              | E2E lane harness wiring                                                       |
-| `internal/sandbox`              | Sandbox profile resolution and provider runtime                               |
-| `internal/extension`            | Extension manifest, registry, host API, install runtime                       |
-| `internal/extensiontest`        | Extension test harness                                                        |
-| `internal/filesnap`             | File snapshot utilities                                                       |
-| `internal/fileutil`             | Shared filesystem helpers                                                     |
-| `internal/frontmatter`          | YAML frontmatter parsing                                                      |
-| `internal/hooks`                | Typed hook taxonomy + dispatch                                                |
-| `internal/logger`               | Structured logging (slog)                                                     |
-| `internal/mcp`                  | MCP server lifecycle / sidecars                                               |
-| `internal/memory`               | Persistent dual-scope memory (global + workspace + agent), provenance, recall |
-| `internal/memory/consolidation` | Dream consolidation runtime (Time → Sessions → Lock gate cascade)             |
-| `internal/network`              | AGH Network participation, conversations, durable acceptance, bounded wakes   |
-| `internal/observe`              | Event recording, health metrics, query engine                                 |
-| `internal/procutil`             | Process utilities, process-group signaling, Windows fallback                  |
-| `internal/providerenv`          | Provider env/home isolation helpers shared by session launch and CLI auth     |
-| `internal/registry`             | Skill/agent/capability registry helpers                                       |
-| `internal/resources`            | Resource projector / codec / validate                                         |
-| `internal/retry`                | Retry primitives                                                              |
-| `internal/scheduler`            | Mechanical scheduler (idle registry, wakeups, sweep, recovery)                |
-| `internal/session`              | Session lifecycle, Manager, state machine                                     |
-| `internal/settings`             | Settings overlay/projection                                                   |
-| `internal/situation`            | Situation surface providers (`/agent/context`)                                |
-| `internal/skills`               | Skills catalog, loader, `VerifyContent`, MCP/hook decl, provenance            |
-| `skills/` (repo-root)           | Embedded bundled skill definitions and resources                              |
-| `internal/sse`                  | Shared SSE helpers                                                            |
-| `internal/store`                | SQLite helpers, migration streams/engine, integrity validation                |
-| `internal/store/globaldb`       | Global catalog (`compozy.db`): sessions, metadata                             |
-| `internal/store/sessiondb`      | Per-session event store (`events.db`)                                         |
-| `internal/subprocess`           | Subprocess signaling primitives                                               |
-| `internal/task`                 | Task domain, `task_runs` ownership, `ClaimNextRun`                            |
-| `internal/testutil`             | Shared test helpers                                                           |
-| `internal/api/contract`         | Shared daemon/CLI/HTTP contract types                                         |
-| `internal/api/core`             | Shared handler types (`BaseHandlers`), error mapping, SSE helpers             |
-| `internal/api/httpapi`          | HTTP/SSE server (Gin) for web UI                                              |
-| `internal/api/udsapi`           | UDS server for CLI IPC                                                        |
-| `internal/api/testutil`         | Test helpers for the API layer                                                |
-| `internal/toolruntime`          | Tool process registry + interrupts                                            |
-| `internal/tools`                | Tool definitions and dispatch                                                 |
-| `internal/transcript`           | Canonical replay message assembly from persisted events                       |
-| `internal/version`              | Build metadata                                                                |
-| `internal/workref`              | Work reference helpers                                                        |
-| `internal/workspace`            | Workspace resolver and entity management                                      |
+| Path                            | Responsibility                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------- |
+| `cmd/compozy`                   | Main entry point, CLI binary                                                    |
+| `internal/config`               | TOML loading, validation, merge, home paths, agent def parsing                  |
+| `internal/acp`                  | ACP client: subprocess spawn, JSON-RPC over stdio                               |
+| `internal/agentidentity`        | Caller-identity inference from `COMPOZY_SESSION_ID`/`COMPOZY_AGENT`             |
+| `internal/automation`           | Cron, webhook, and scheduled triggers; durable scheduler state                  |
+| `internal/bridges`              | External messaging adapters (Slack, Telegram, etc.)                             |
+| `internal/bridgesdk`            | Bridge SDK / contract types                                                     |
+| `internal/bundles`              | Bundle activation projector                                                     |
+| `internal/cli`                  | Cobra commands                                                                  |
+| `internal/codegen`              | OpenAPI → TS generator helpers                                                  |
+| `internal/coordinator`          | Coordinator-agent bootstrap and lifecycle                                       |
+| `internal/daemon`               | Composition root, lock, boot, shutdown                                          |
+| `internal/diagnostics`          | Diagnostics + health probes                                                     |
+| `internal/e2elane`              | E2E lane harness wiring                                                         |
+| `internal/sandbox`              | Sandbox profile resolution and provider runtime                                 |
+| `internal/extension`            | Extension manifest, registry, host API, install runtime                         |
+| `internal/extensiontest`        | Extension test harness                                                          |
+| `internal/filesnap`             | File snapshot utilities                                                         |
+| `internal/fileutil`             | Shared filesystem helpers                                                       |
+| `internal/frontmatter`          | YAML frontmatter parsing                                                        |
+| `internal/hooks`                | Typed hook taxonomy + dispatch                                                  |
+| `internal/logger`               | Structured logging (slog)                                                       |
+| `internal/mcp`                  | MCP server lifecycle / sidecars                                                 |
+| `internal/memory`               | Persistent dual-scope memory (global + workspace + agent), provenance, recall   |
+| `internal/memory/consolidation` | Dream consolidation runtime (Time → Sessions → Lock gate cascade)               |
+| `internal/network`              | Compozy Network participation, conversations, durable acceptance, bounded wakes |
+| `internal/observe`              | Event recording, health metrics, query engine                                   |
+| `internal/procutil`             | Process utilities, process-group signaling, Windows fallback                    |
+| `internal/providerenv`          | Provider env/home isolation helpers shared by session launch and CLI auth       |
+| `internal/registry`             | Skill/agent/capability registry helpers                                         |
+| `internal/resources`            | Resource projector / codec / validate                                           |
+| `internal/retry`                | Retry primitives                                                                |
+| `internal/scheduler`            | Mechanical scheduler (idle registry, wakeups, sweep, recovery)                  |
+| `internal/session`              | Session lifecycle, Manager, state machine                                       |
+| `internal/settings`             | Settings overlay/projection                                                     |
+| `internal/situation`            | Situation surface providers (`/agent/context`)                                  |
+| `internal/skills`               | Skills catalog, loader, `VerifyContent`, MCP/hook decl, provenance              |
+| `skills/` (repo-root)           | Embedded bundled skill definitions and resources                                |
+| `internal/sse`                  | Shared SSE helpers                                                              |
+| `internal/store`                | SQLite helpers, migration streams/engine, integrity validation                  |
+| `internal/store/globaldb`       | Global catalog (`compozy.db`): sessions, metadata                               |
+| `internal/store/sessiondb`      | Per-session event store (`events.db`)                                           |
+| `internal/subprocess`           | Subprocess signaling primitives                                                 |
+| `internal/task`                 | Task domain, `task_runs` ownership, `ClaimNextRun`                              |
+| `internal/testutil`             | Shared test helpers                                                             |
+| `internal/api/contract`         | Shared daemon/CLI/HTTP contract types                                           |
+| `internal/api/core`             | Shared handler types (`BaseHandlers`), error mapping, SSE helpers               |
+| `internal/api/httpapi`          | HTTP/SSE server (Gin) for web UI                                                |
+| `internal/api/udsapi`           | UDS server for CLI IPC                                                          |
+| `internal/api/testutil`         | Test helpers for the API layer                                                  |
+| `internal/toolruntime`          | Tool process registry + interrupts                                              |
+| `internal/tools`                | Tool definitions and dispatch                                                   |
+| `internal/transcript`           | Canonical replay message assembly from persisted events                         |
+| `internal/version`              | Build metadata                                                                  |
+| `internal/workref`              | Work reference helpers                                                          |
+| `internal/workspace`            | Workspace resolver and entity management                                        |
 
 ## Memory & Skills Runtime (RFC-backed)
 

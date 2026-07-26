@@ -35,7 +35,7 @@ disable services:
 Tool mutations require approval and pass through the same source-trust filter as the CLI.
 Deterministic denials include `EXTENSION_SOURCE_FORBIDDEN`, `EXTENSION_APPROVAL_REQUIRED`,
 `EXTENSION_NOT_INSTALLED`, and `EXTENSION_VALIDATION_FAILED`. Marketplace trust roots and raw
-marketplace credentials stay on operator surfaces and are not exposed as tool inputs.
+marketplace credentials stay on control surfaces and are not exposed as tool inputs.
 
 Every install records provenance and a trust report in the extension registry. The payload includes
 the source tier, slug or local path, checksum, checksum verification result, `allow_unverified`, the
@@ -154,7 +154,7 @@ the registry downloader and the independent non-curated side-load gate:
 
 ```toml
 [marketplace.catalog]
-base_url = "https://raw.githubusercontent.com/compozy/agh/main/catalog"
+base_url = "https://raw.githubusercontent.com/compozy/compozy/main/catalog"
 ttl = "1h"
 timeout = "10s"
 

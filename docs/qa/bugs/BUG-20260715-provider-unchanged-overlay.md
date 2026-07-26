@@ -24,8 +24,8 @@ Saving the Claude provider editor without changing a field materialized the comp
 
 ## Evidence
 
-- Mobile red/green replay: `/Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/ch-033-provider-noop.json`.
-- Green screenshot: `/Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/ch-033-provider-noop-green.png`.
+- Mobile red/green replay: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/ch-033-provider-noop.json`.
+- Green screenshot: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/ch-033-provider-noop-green.png`.
 
 ## Fix
 

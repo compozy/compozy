@@ -37,22 +37,22 @@ real-runtime E2E exposed timestamp-nullability and error-context regressions in 
 
 | Surface | Concrete entry point | Scenario(s) | Charter |
 | --- | --- | --- | --- |
-| Daemon fresh boot | `agh daemon start --foreground` | RT-inspect-schema-streams; RT-preserve-shared-schema-isolation | CH-daemon-schema-parity |
+| Daemon fresh boot | `compozy daemon start --foreground` | RT-inspect-schema-streams; RT-preserve-shared-schema-isolation | CH-daemon-schema-parity |
 | HTTP status | `GET /api/status` | RT-inspect-schema-streams; RT-001 | CH-daemon-schema-parity |
 | UDS status | `GET /api/status` over the daemon socket | RT-inspect-schema-streams; RT-001 | CH-daemon-schema-parity |
-| CLI status | `agh status -o json` | RT-inspect-schema-streams; RT-001 | CH-daemon-schema-parity |
-| Shared-file domain smoke | `agh workspace list -o json`; `agh memory list -o json` | RT-preserve-shared-schema-isolation | CH-daemon-schema-parity |
-| Legacy/ahead daemon refusal | `agh daemon start --foreground` against prepared fixtures | RT-refuse-legacy-database; RT-refuse-ahead-database | CH-database-refusal-recovery |
-| Local extension open | `agh extension list -o json` with daemon stopped | RT-refuse-legacy-cli-open; RT-refuse-ahead-database | CH-database-refusal-recovery |
-| Local MCP-auth open | `agh mcp auth status -o json` with daemon stopped | RT-refuse-legacy-cli-open; RT-refuse-ahead-database | CH-database-refusal-recovery |
-| Local provider-auth open | `agh provider auth status <bound-secret-provider> -o json` | RT-refuse-legacy-cli-open | CH-database-refusal-recovery |
-| Model-catalog canary | `agh provider models refresh -o json`; `agh provider models status -o json` | MS-043; MS-044 | CH-model-catalog-storage-canary |
+| CLI status | `compozy status -o json` | RT-inspect-schema-streams; RT-001 | CH-daemon-schema-parity |
+| Shared-file domain smoke | `compozy workspace list -o json`; `compozy memory list -o json` | RT-preserve-shared-schema-isolation | CH-daemon-schema-parity |
+| Legacy/ahead daemon refusal | `compozy daemon start --foreground` against prepared fixtures | RT-refuse-legacy-database; RT-refuse-ahead-database | CH-database-refusal-recovery |
+| Local extension open | `compozy extension list -o json` with daemon stopped | RT-refuse-legacy-cli-open; RT-refuse-ahead-database | CH-database-refusal-recovery |
+| Local MCP-auth open | `compozy mcp auth status -o json` with daemon stopped | RT-refuse-legacy-cli-open; RT-refuse-ahead-database | CH-database-refusal-recovery |
+| Local provider-auth open | `compozy provider auth status <bound-secret-provider> -o json` | RT-refuse-legacy-cli-open | CH-database-refusal-recovery |
+| Model-catalog canary | `compozy provider models refresh -o json`; `compozy provider models status -o json` | MS-043; MS-044 | CH-model-catalog-storage-canary |
 
 ## Regression hot spots
 
 - **Legacy probe and ADR-002 hard cut:** digest the prepared database before and after every refused open;
-  require refusal before readiness and remediation that stops AGH, preserves or moves the complete containing
-  `AGH_HOME` or workspace `.agh` family, and selects a separate fresh home. No single-file or in-place repair.
+  require refusal before readiness and remediation that stops Compozy, preserves or moves the complete containing
+  `COMPOZY_HOME` or workspace `.compozy` family, and selects a separate fresh home. No single-file or in-place repair.
 - **Shared-file isolation (Safety Invariant 4):** require exactly the ordered `global` and `memory` status entries,
   then smoke public global and memory reads before and after restart. Automated store suites own physical table
   disjointness; manual QA does not use direct SQLite reads as its verdict source.

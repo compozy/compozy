@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AGH · New loop · redesign</title>
+<title>Compozy · New loop · redesign</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
 /* ───────────────────────────────────────────────────────────
-   AGH tokens · canonical set shared with task/trigger/job-create redesigns
+   Compozy tokens · canonical set shared with task/trigger/job-create redesigns
    warm-dark surface ramp · single operator-orange accent · flat depth
    ─────────────────────────────────────────────────────────── */
 :root{
@@ -312,7 +312,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
         <div class="sec" id="paneTemplate">
           <div class="sec__head">
             <span class="sec__title">Pick a built-in</span>
-            <span class="sec__sub">Two built-ins ship with AGH</span>
+            <span class="sec__sub">Two built-ins ship with Compozy</span>
           </div>
 
           <div class="glabel" data-group="builtin">Built-in loops <span class="count-chip">2</span></div>
@@ -390,7 +390,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
             <div class="drop" id="dropzone">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <div><b>Drop a <span class="mono" style="font-size:12px">.loop.yaml</span></b> file here, or <span class="u">browse</span></div>
-              <div class="drop__meta">Validated and linted on save &middot; agh loop create --file</div>
+              <div class="drop__meta">Validated and linted on save &middot; compozy loop create --file</div>
             </div>
             <div class="paste-h">or paste the definition</div>
             <textarea class="textarea textarea--mono" id="yamlPaste" style="min-height:120px" placeholder="apiVersion: compozy.loop/v1&#10;kind: Loop&#10;meta:&#10;  name: my-loop&#10;  catalog: { category: Engineering }&#10;concurrency: forbid&#10;contract:&#10;  goal: ...&#10;  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]&#10;  iteration_cap: 50&#10;  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }&#10;graph:&#10;  nodes: [ ... ]&#10;  edges: [ ... ]"></textarea>

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Observe the AGH runtime during a real-scenario QA demo without sending any prompt.
+"""Observe the Compozy runtime during a real-scenario QA demo without sending any prompt.
 
 Read-only helper. Tails journey-log.jsonl for the configured duration; flags stall
 (silence > stall-threshold-sec) with a diagnose block (which agent, which task seems blocked).
 Writes a structured observation summary to qa-artifacts/qa/observation-summary.json so the
 auditor can fold it into its report.
 
-This script does NOT touch the AGH daemon, the SSE stream, or the network. The runtime is
-expected to write to journey-log.jsonl through normal operation (the AGH daemon, agent
+This script does NOT touch the Compozy daemon, the SSE stream, or the network. The runtime is
+expected to write to journey-log.jsonl through normal operation (the Compozy daemon, agent
 sessions, and the record-scenario-action helper). If your scenario lacks a journey-log
 writer, that is a real-scenario bug — not something this observer should patch around.
 """

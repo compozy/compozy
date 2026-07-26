@@ -1,6 +1,6 @@
 # Proposal-mock capture (URL-driven React mocks)
 
-Design audits may need screenshots from `docs/design/new-proposal/agh-refined-7.html` — a single-file React app that does not use a router. Static screenshots of the file at `/` always show the default view; alternate views (kanban, dashboard, inbox, detail, new-task editor, empty state) need a different boot path.
+Design audits may need screenshots from `docs/design/new-proposal/compozy-refined-7.html` — a single-file React app that does not use a router. Static screenshots of the file at `/` always show the default view; alternate views (kanban, dashboard, inbox, detail, new-task editor, empty state) need a different boot path.
 
 ## Pattern: clone-and-patch wrapper
 
@@ -12,7 +12,7 @@ Design audits may need screenshots from `docs/design/new-proposal/agh-refined-7.
 
 2. Copy the canonical mock to a `_capture.html` sibling — never edit the canonical file in place:
    ```
-   cp docs/design/new-proposal/agh-refined-7.html docs/design/new-proposal/_proposal-capture.html
+   cp docs/design/new-proposal/compozy-refined-7.html docs/design/new-proposal/_proposal-capture.html
    ```
 
 3. Patch the copy to read view state from URL `?view=…&task=…&new=…&empty=…&tpl=…&accent=…` query params. The proposal app uses `useState` for `view / taskId / showNew / showEmpty / newTpl / accent`. Replace each `useState(<default>)` call with `useState(_initFromQuery)` where `_initFromQuery` is a small `URLSearchParams` reader injected just before the `App` function.
@@ -43,4 +43,4 @@ The patched copy is throwaway; delete it after the audit:
 rm docs/design/new-proposal/_proposal-capture.html
 ```
 
-Do not commit the patched copy. The canonical `agh-refined-7.html` is the only file that lives in version control.
+Do not commit the patched copy. The canonical `compozy-refined-7.html` is the only file that lives in version control.

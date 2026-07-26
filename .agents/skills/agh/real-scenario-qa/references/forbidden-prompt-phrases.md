@@ -48,7 +48,7 @@ Exception: the operator kickoff message is exempt **only** when the journey-log 
 
 ## Why these are blocked
 
-Each phrase teaches the agent it is being **observed and graded**, not building. That changes the agent's behavior: it produces evidence shaped for an evaluator (markdown reports, checklists, defect-then-fix theater) instead of producing real product work. Real-scenario QA validates the AGH runtime by watching agents behave as if the work were real — which is only possible if the prompts they receive **are** real product work.
+Each phrase teaches the agent it is being **observed and graded**, not building. That changes the agent's behavior: it produces evidence shaped for an evaluator (markdown reports, checklists, defect-then-fix theater) instead of producing real product work. Real-scenario QA validates the Compozy runtime by watching agents behave as if the work were real — which is only possible if the prompts they receive **are** real product work.
 
 ## How to add a new phrase
 

@@ -17,7 +17,7 @@ React 19 SPA with Vite 8, TanStack Router (file-based) + Query v5, Tailwind v4, 
 
 Tokens come from `packages/ui/src/tokens.css` + generated `DESIGN.md` — never invent; never override with ad-hoc hex. Web-specific grammar:
 
-- **Type stack**: Inter (UI + body), JetBrains Mono (metadata, uppercase, tracking 0.06em+), Playfair Display (marketing `.site-home` only), NuixyberNext (the `agh` wordmark only).
+- **Type stack**: Inter (UI + body), JetBrains Mono (metadata, uppercase, tracking 0.06em+), Playfair Display (marketing `.site-home` only), NuixyberNext (the Compozy wordmark only).
 - **Flat depth only**: no freehand `box-shadow`, no content gradients, no glass. Depth = warm surface ramp + `--color-line*` hairlines + exported `--shadow-*` tokens. Sole carve-out: OS-shell chrome (menubar, dock, shell popovers, window frames) uses the tokenized shell glass/blur/window shadows — window-body content stays flat (DESIGN.md §5).
 - **Signal palette is information**: accent `#E8572A` action · `#5FBF85` success · `#E0635A` danger · `#D6A647` warning · `#8E8EB5` info. Status chips use tint tokens, never solid semantic banners.
 - **Copy**: read `COPY.md`; use backend nouns exactly (labels match runtime/domain terms); never imply a metric/control/state/repair path the runtime doesn't expose. Terms per `docs/_memory/glossary.md`.
@@ -55,8 +55,8 @@ Turbo-backed validation runs from the repo root:
 
 ```bash
 make bun-typecheck / bun-test              # full Bun workspace typecheck / test through turbo
-bunx turbo run typecheck --filter=./web    # focused agh-web typecheck
-bunx turbo run test --filter=./web         # focused agh-web tests
+bunx turbo run typecheck --filter=./web    # focused compozy-web typecheck
+bunx turbo run test --filter=./web         # focused compozy-web tests
 ```
 
 Web-local dev/build only (not validation evidence):

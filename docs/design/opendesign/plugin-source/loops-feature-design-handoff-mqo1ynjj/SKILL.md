@@ -1,13 +1,13 @@
 # Loops feature — design handoff
 
 > **Purpose of this file.** A cold-start briefing so a _new chat with another LLM_
-> can continue designing AGH's "Loops" feature screens without re-deriving anything.
+> can continue designing Compozy's "Loops" feature screens without re-deriving anything.
 > Paste this whole file into the new conversation as context. It records what was
 > built, what's left, the design system, and the spec model. **HTML mockups are the
 > deliverables — this doc only describes them.**
 >
 > **Last update:** redesign pass complete. The first five screens were rebuilt to
-> match the real AGH operator UI (much quieter, color = state only) and then stripped
+> match the real Compozy operator UI (much quieter, color = state only) and then stripped
 > down to **content + header only** (the app rail + nav sidebar live in the real app,
 > so the mockups must NOT include them). Read §4 and §10 carefully before building more.
 
@@ -15,7 +15,7 @@
 
 ## 1. Mission
 
-Design **all UI screens** for AGH's new **Loops** feature — a mix of the new
+Design **all UI screens** for Compozy's new **Loops** feature — a mix of the new
 "loop engineering" paradigm with **static DAG workflows**. Deliverables are
 high-fidelity, **self-contained HTML** mockups (one file per screen, inline CSS/JS).
 
@@ -27,19 +27,19 @@ intentionally removed from these references. Do NOT re-add them. (See §10.)
 Spec folder (this repo is linked read-only in the design project):
 
 ```
-/Users/pedronauck/dev/compozy/agh/.compozy/tasks/loops/
+/Users/pedronauck/dev/compozy/compozy/.compozy/tasks/loops/
   _prd.md  _techspec.md  product-ux.md  use-cases.md  requirements.md
   adrs/adr-001..016   analysis/01..17
 ```
 
-The AGH design system is the other source of truth:
-`/Users/pedronauck/dev/compozy/agh/DESIGN.md` + `PRODUCT.md`
+The Compozy design system is the other source of truth:
+`/Users/pedronauck/dev/compozy/compozy/DESIGN.md` + `PRODUCT.md`
 (token source: `packages/ui/src/tokens.css`). Real UI patterns to copy live in
 `web/src/systems/*` and `packages/ui/src/components/*`.
 
 ## 2. Where the artifacts live
 
-The mockups are in the Open Design project workspace (NOT in the agh repo):
+The mockups are in the Open Design project workspace (NOT in the compozy repo):
 
 ```
 /Users/pedronauck/Library/Application Support/Open Design/namespaces/release-stable/data/projects/bb1d96e1-f5c1-4478-a88b-10abd624f30a/
@@ -53,7 +53,7 @@ Each screen is one standalone `.html`, previewable on its own.
 - **Two nouns only:** **Loops** (the catalog) and **Runs** (the executions). No third
   noun — no "ready to run", "spec", or "workflow" screens.
 - A **Loop** = a **contract** (goal → verify → stop) + a **body** (a static DAG of
-  steps) + typed **declared inputs**. It runs on AGH's autonomy kernel (not a 2nd executor).
+  steps) + typed **declared inputs**. It runs on Compozy's autonomy kernel (not a 2nd executor).
 - **Arrive-and-use is the hero path:** pick a Loop → fill an auto-generated input form →
   Run → watch it iterate live. Built-ins run with zero authoring.
 - Runs iterate across **generations**. Re-attempt strategy: `failed-only` (default —
@@ -78,9 +78,9 @@ verification[], terminal_states, iteration_cap, no_progress, budget, fan_out_cei
 - **Linter invariants** (the builder _surfaces_ them, never re-implements): acyclicity ·
   reachability · termination · fan-out finiteness. Publish returns `422` with per-node errors.
 
-## 4. Design system — REBUILT to match real AGH (read before coding)
+## 4. Design system — REBUILT to match real Compozy (read before coding)
 
-The screens now mirror the **real AGH operator UI** (`web/` + `packages/ui`), per
+The screens now mirror the **real Compozy operator UI** (`web/` + `packages/ui`), per
 `DESIGN.md`. The atmosphere: warm near-black canvas, quiet/dense/intentional, flat depth,
 a **single** accent, signal colors as **desaturated tint + text** (never solid banners).
 
@@ -89,7 +89,7 @@ first draft. Node _type_ (action/control/source) is a **neutral** mono label —
 color-coded. Only run/node _state_ gets color (success/warning/danger/accent/info), and
 even then as a small dot or a tint pill.
 
-Tokens (these are the AGH tokens — copy verbatim into every screen's `:root`):
+Tokens (these are the Compozy tokens — copy verbatim into every screen's `:root`):
 
 ```
 surfaces  --rail #0c0b0b · --canvas #131211 · --canvas-soft #1a1918 · --canvas-tint #1c1b1a · --elevated #232220
@@ -134,7 +134,7 @@ radii     4/5/6/8/10/14 · pill 9999 · motion 140ms cubic-bezier(.2,0,0,1)
   ("Ready/Next", "the screenshot that sells the product", etc.). No AI-slop emoji rows.
   Honest placeholders over invented stats.
 
-## 5. DONE (all rebuilt this session: quiet AGH pattern + content-only)
+## 5. DONE (all rebuilt this session: quiet Compozy pattern + content-only)
 
 | File                 | Screen                          | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -142,7 +142,7 @@ radii     4/5/6/8/10/14 · pill 9999 · motion 140ms cubic-bezier(.2,0,0,1)
 | `loops-catalog.html` | Loops catalog                   | Grouped **list** (Built-in / Custom) — not a card grid. Neutral icon wells, kind + category filters (JS), last-run status pills (tint), per-row goal + node/input/cap meta, success rate, Run → run-form.                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `loop-detail.html`   | Loop definition page            | DetailHeader (Run = the one accent CTA · Configure · Fork & edit). Section pattern (label + hairlines): Contract (goal/DoD/verification kinds/terminal chips), read-only body DAG (neutral nodes; 6 nodes for software-delivery), recent runs. Right rail (content): declared inputs, limits vs ceilings, versions, 30d stats.                                                                                                                                                                                                                                                                                               |
 | `run-detail.html`    | **Live run monitor** (heaviest) | Sticky contract header (goal + running pill) + 5 neutral live meters (attempts/tokens/wall/cost/breadth; warn color only near ceiling). Generation timeline on a flat node spine: G1 completed (plan → plan-gate pass → fan-out×4 with 1 failed branch → collect → verify fail → revise); G2 running (carry-forward, embedded converse-and-decide channel with desaturated avatars, pending verify, human approval gate). Right info rail (content): live events, run facts, terminal-outcome legend. Gates are flat tint cards (no side-stripe/gradient). JS ticks meters/events + collapsibles, guarded by reduced-motion. |
-| `runs.html`          | Runs history                    | KPI strip (AGH metric scale), outcome filter segment (JS) + Loop/date selects, Active vs Past tables across the full outcome spectrum, neutral budget mini-bars (warn/danger only near limit), → run-detail.                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `runs.html`          | Runs history                    | KPI strip (Compozy metric scale), outcome filter segment (JS) + Loop/date selects, Active vs Past tables across the full outcome spectrum, neutral budget mini-bars (warn/danger only near limit), → run-detail.                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Cross-screen consistency is locked: identical `:root` token block, shell, `.pill--*`
 vocabulary, type scale. Spec numbers fact-checked (limits, states, node count = 6 for
@@ -175,7 +175,7 @@ Optional later: version diff, node-run drilldown modal, watch-source quiet/stall
 ## 7. How to continue (workflow)
 
 1. Read this file + `DESIGN.md`/`PRODUCT.md` + the spec folder. Don't invent — every
-   term/limit must trace to the spec. **Use the `impeccable` skill** (it loads the AGH
+   term/limit must trace to the spec. **Use the `impeccable` skill** (it loads the Compozy
    register + rules); the user expects it applied extensively.
 2. Copy the `:root` token block + the content-only shell (`.shell{height:100vh}` + `.main`
    topbar/scroll) from `loop-detail.html` or `run-detail.html`. Keep each file fully
@@ -189,10 +189,10 @@ Optional later: version diff, node-run drilldown modal, watch-source quiet/stall
 ## 8. Open decisions / flags
 
 - **Global Runs route:** `product-ux.md` puts run history **under each Loop** and says there
-  is **no separate global Runs nav route**. `runs.html` was kept as an operator convenience
+  is **no separate global Runs nav route**. `runs.html` was kept As a person running agent work convenience
   (and as the `run-detail` "All runs" target). If strict spec-IA is wanted, fold it into the
   catalog/loop-detail instead. (Decision pending the user.)
-- **Palette:** AGH **operator** (warm-dark + orange), matching the real app. A Linear-indigo
+- **Palette:** Compozy **operator** (warm-dark + orange), matching the real app. A Linear-indigo
   reskin would be a pure token swap.
 - **App shell removed by request:** mockups are content + header only; the real app supplies
   the rail/sidebar. New screens must follow suit.
@@ -200,7 +200,7 @@ Optional later: version diff, node-run drilldown modal, watch-source quiet/stall
 ## 9. Suggested skills (for the next session)
 
 - `impeccable` — UI quality (hierarchy, states, accessibility, anti-slop). **Use it.**
-- `agh-design` — AGH branded UI/asset generation.
+- `agh-design` — Compozy branded UI/asset generation.
 - `agh-ui-screenshot` — deterministic PNGs for visual-parity checks.
 - `compozy` — repo conventions, for when this moves to real implementation.
 
@@ -216,7 +216,7 @@ Optional later: version diff, node-run drilldown modal, watch-source quiet/stall
   radial glow), peach/off-palette inline-code colors, em dashes in copy.
 - **Content + header only:** no workspace rail, no nav panel. In-page info rails are content.
 - These screens are the reference for the real `web/` implementation, so they must look like
-  AGH already — earned familiarity, the tool disappearing into the task.
+  Compozy already — earned familiarity, the tool disappearing into the task.
 
 ## Provenance
 

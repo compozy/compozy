@@ -77,7 +77,7 @@ Four defects, each independently reproducible today. **D-1 and D-2 must land fir
 
 ### D-4 · Loading a profile silently discards unapplied edits
 `use-window-manager-layout-profiles.ts:92-103` — `selectProfile` calls `onLoad(structuredClone(record.spec.document))`, replacing the whole draft with no confirmation. `remove` (`:75-79`) also deletes with no confirmation.
-**Fix:** `Load` is confirmed when `editor.dirty` is true; `Delete` uses `ConfirmDialog` from `@agh/ui`. Also fix the reset asymmetry at `:80-89` — after a delete it clears `id`/`displayName` but leaves `aspect`/`overflow`/`scope` on the deleted record's values.
+**Fix:** `Load` is confirmed when `editor.dirty` is true; `Delete` uses `ConfirmDialog` from `@compozy/ui`. Also fix the reset asymmetry at `:80-89` — after a delete it clears `id`/`displayName` but leaves `aspect`/`overflow`/`scope` on the deleted record's values.
 
 ---
 
@@ -219,8 +219,8 @@ Two structural fixes here:
 
 Two gaps worth deciding on separately — neither blocks this work:
 
-1. **Layout profiles have no CLI surface.** `internal/cli/window_manager_layout.go` ships `export`, `validate`, `apply`, `watch`; `grep -rn "layout-profile" internal/cli/` returns nothing. The redesign promotes profiles to a first-class surface, so the core premise ("every capability must be manageable by agents") says the CLI should catch up: `agh window-manager layout-profile {list,get,put,delete}` over the existing `…/layout-profiles` routes. **File as its own task** — the web work does not depend on it.
-2. **Per-workspace overrides have no UI.** `document.overrides` is a full `WorkspaceConfig` on the wire (`web/src/generated/agh-openapi.d.ts:6220-6252`) but `Record<string, unknown>` in the settings types, and the section declares `scope: "global"`, `available_scopes: ["global"]`. Surfacing it needs a new schema and a scope switcher, not a new component. Out of scope here; the redesign states "Global only" in Advanced so the UI does not imply otherwise.
+1. **Layout profiles have no CLI surface.** `internal/cli/window_manager_layout.go` ships `export`, `validate`, `apply`, `watch`; `grep -rn "layout-profile" internal/cli/` returns nothing. The redesign promotes profiles to a first-class surface, so the core premise ("every capability must be manageable by agents") says the CLI should catch up: `compozy window-manager layout-profile {list,get,put,delete}` over the existing `…/layout-profiles` routes. **File as its own task** — the web work does not depend on it.
+2. **Per-workspace overrides have no UI.** `document.overrides` is a full `WorkspaceConfig` on the wire (`web/src/generated/compozy-openapi.d.ts:6220-6252`) but `Record<string, unknown>` in the settings types, and the section declares `scope: "global"`, `available_scopes: ["global"]`. Surfacing it needs a new schema and a scope switcher, not a new component. Out of scope here; the redesign states "Global only" in Advanced so the UI does not imply otherwise.
 
 Config lifecycle: `window_manager.*` is `DiffClassLive` (`internal/config/lifecycle/lifecycle.go:108`) — it hot-applies. The page shows `Applies live` in the head and must **not** render a restart notice.
 
@@ -261,12 +261,12 @@ Non-negotiable — the page is otherwise pointer-only, which would be a regressi
 
 ---
 
-## 11. AGH Impact Audit
+## 11. Compozy Impact Audit
 
 ```markdown
-AGH Impact Audit:
+Compozy Impact Audit:
 
-- Native tools: no impact — checked skills/agh/ tool descriptors and the agh__* registry;
+- Native tools: no impact — checked skills/compozy/ tool descriptors and the compozy__* registry;
   no window-manager tool IDs exist and none are added. The window-manager surface is reached
   through the CLI (internal/cli/window_manager_*.go) and HTTP/UDS routes
   (internal/api/httpapi/window_manager_routes.go), neither of which changes shape here.
@@ -285,9 +285,9 @@ AGH Impact Audit:
   queries with the same keys (settings/lib/query-keys.ts:24-36); no new cache, SSE channel or
   event path is introduced, so no new cross-workspace leak surface exists.
 
-- Official AGH skill: no impact — checked skills/agh/ for window-manager references; the skill
+- Official Compozy skill: no impact — checked skills/compozy/ for window-manager references; the skill
   documents no layout tool IDs, CLI paths or capabilities. If §8 item 1 (layout-profile CLI verbs)
-  is taken up as its own task, that task must update skills/agh/.
+  is taken up as its own task, that task must update skills/compozy/.
 ```
 
 **Web/Docs Impact.** Web: the whole of §4–§7. Docs (`packages/site`): `content/runtime/core/configuration/config-toml.mdx:133-161` documents `[window_manager]` and stays accurate — no key changes. No docs change is required for this task; if the layout-profile CLI lands, its reference page is generated and will co-ship there.

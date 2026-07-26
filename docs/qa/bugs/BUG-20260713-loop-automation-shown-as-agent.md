@@ -30,8 +30,8 @@ Bruno created a Job from `software-delivery`'s Add schedule action, with `Run lo
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-009-loop-job-missing-target.png`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-trigger-loop-start-kind-error.png` (also shows the Trigger preview saying `run an agent` while Run loop is selected).
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-009-loop-job-missing-target.png`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-trigger-loop-start-kind-error.png` (also shows the Trigger preview saying `run an agent` while Run loop is selected).
 - Daemon correlation: `automation.dispatch.loop_delegated`, job `job-6a0a00830d60c1c0`, automation run `run-f4489762ac431856`, Loop run `looprun-aeb24d4f17cf1feb`.
 - Independent Web read: Loops Runs showed `looprun-aeb24d4f17cf1feb · automation`, 2/3 generations, after Run now.
 

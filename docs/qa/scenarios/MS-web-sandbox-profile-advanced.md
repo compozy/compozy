@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell
 ---
 
-story: As an operator I decide where agent sessions execute and what they may reach, without dropping to `agh config set` for the nested fields.
+story: As a person running agent work I decide where agent sessions execute and what they may reach, without dropping to `compozy config set` for the nested fields.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.13–4.14), task_03, implemented 2026-07-25. Before this change `env`, `secret_env`, `network`, and `daytona` were read-only: the dialog carried them through the PUT untouched and the inspect sheet told the operator to edit them on the CLI.
 

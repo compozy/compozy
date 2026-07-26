@@ -28,18 +28,18 @@ Keyboard users cannot reliably see which interactive control owns focus because 
 
 - `.compozy/tasks/marketplace/evidence/contrast/task-06.md`
 - `packages/ui/src/tokens.css` shared focus token definition
-- Resting and keyboard-focused site captures: `/Users/pedronauck/Dev/compozy/agh/.tmp/bug-20260714-focus/{resting,focused}.png`.
-- Exact process teardown: `/Users/pedronauck/Dev/compozy/agh/.tmp/bug-20260714-focus/teardown.json` (`clean=true`).
+- Resting and keyboard-focused site captures: `/Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/{resting,focused}.png`.
+- Exact process teardown: `/Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/teardown.json` (`clean=true`).
 
 ## Fix
 
 - **Root cause:** The shared focus token encodes a one-pixel, low-contrast shadow; this is a system design-token defect rather than a marketplace-local styling defect.
 - **Correction:** The design-system owner now provides exclusive two-pixel outset and inset focus tokens at a verified contrast floor. Every low-contrast UI/Web consumer was migrated; accent focus rings use at least two pixels; the site walkthrough uses `focus-visible:ring-2`; and non-focus hairlines were hard-cut to neutral token names so they cannot be mistaken for focus indicators.
 - **Fix commit:** pending Phase D checkpoint
-- **Regression tests:** The `@agh/ui` token owner reads the generated CSS values and proves thickness plus at least 3:1 contrast across the complete surface cross-product. The design-system lint owner rejects one-pixel and low-contrast focus utilities across `packages/ui`, `web`, and `packages/site`.
+- **Regression tests:** The `@compozy/ui` token owner reads the generated CSS values and proves thickness plus at least 3:1 contrast across the complete surface cross-product. The design-system lint owner rejects one-pixel and low-contrast focus utilities across `packages/ui`, `web`, and `packages/site`.
 
 ## Verification
 
-- **Retested:** 2026-07-16 on the real AGH site walkthrough plus fresh controller lanes.
+- **Retested:** 2026-07-16 on the real Compozy site walkthrough plus fresh controller lanes.
 - **Result:** Computed style is `rgb(232, 87, 42) 0 0 0 2px`, `:focus-visible` matches, and the focused capture shows a crisp accent ring on all four sides while the resting capture has no focus ring.
 - Lint-plugin suite passed 32 tests; `make codegen-check` passed; UI passed 104 files / 532 tests; Web passed 420 files / 3,599 tests with zero lint warnings; site passed 50 files / 247 tests.

@@ -188,7 +188,7 @@ Run only the printed action.
 
 1. When release-grade runtime scope needs a lab and no active
    `bootstrap-manifest.json` exists, activate the project's QA bootstrap
-   skill first (e.g. `agh-qa-bootstrap` in AGH) when installed.
+   skill first (e.g. `agh-qa-bootstrap` in Compozy) when installed.
 2. Dispatch the Fable 5 worker per `references/herdr-delegation.md`
    (QA-report lane). The worker activates `qa-report` with
    `qa-docs-path=docs/qa` and updates journey flows, `docs/qa/scenarios/`

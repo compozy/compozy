@@ -35,7 +35,7 @@ id: J-diagnose-repair-bridge
   value_statement: "I can identify the exact operator-owned fault before enablement and prove the repair without a diagnostic changing runtime state."
   personas: [Tessa, Ada, Omar]
   entry_points:
-    - url: "agh bridge verify <id> --json; agh doctor --only bridge --json"
+    - url: "compozy bridge verify <id> --json; compozy doctor --only bridge --json"
       origin: direct
     - url: "POST /api/bridges/:id/verify over HTTP or UDS"
       origin: direct

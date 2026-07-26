@@ -11,7 +11,7 @@ bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
 retest_status: pending begin-failure versus exchange-failure recovery states
 fix_commits:
-evidence: web/src/hooks/routes/use-mcp-authorize.ts; web/e2e/__tests__/mcp.spec.ts; .compozy/tasks/marketplace/evidence/visual/task-08/authorize-manual-desktop; /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-non-loopback-callback.json; /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-manual-tty-redaction.json
+evidence: web/src/hooks/routes/use-mcp-authorize.ts; web/e2e/__tests__/mcp.spec.ts; .compozy/tasks/marketplace/evidence/visual/task-08/authorize-manual-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-non-loopback-callback.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-manual-tty-redaction.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-web-mcp-authorize; ET-cli-mcp-auth-manual-exchange
 ---

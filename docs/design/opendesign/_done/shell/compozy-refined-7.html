@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>AGH · Workspace</title>
+<title>Compozy · Workspace</title>
 <link rel="preconnect" href="https://rsms.me/" />
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -696,7 +696,7 @@ window.I = I;
 /* ============ DATA ============ */
 const WORKSPACES = [
   { id: "general", name: "general", letter: "G", role: "Workspace" },
-  { id: "agh-runtime", name: "agh-runtime", letter: "A", role: "Workspace" },
+  { id: "compozy-runtime", name: "compozy-runtime", letter: "A", role: "Workspace" },
   { id: "compozy", name: "compozy", letter: "C", role: "Workspace" },
   { id: "scratch", name: "scratch", letter: "S", role: "Workspace" },
 ];
@@ -712,16 +712,16 @@ const AGENTS = [
 ];
 
 const TASKS = [
-  { id: "tsk-7f3a2b", title: "Investigate auth middleware leak in session-bridge", status: "running", priority: "high", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, attempt: { current: 2, max: 3 }, childCount: 1, depCount: 0, time: "2m", watched: true, mine: false, workspace: "agh-runtime", capability: "resolve.session-bridge.leak", lane: "default", origin: "manual" },
-  { id: "tsk-9c4d18", title: "Backfill task_runs.queue_position for legacy rows", status: "in_progress", priority: "medium", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 1, max: 3 }, childCount: 4, depCount: 1, time: "11m", watched: false, mine: true, workspace: "agh-runtime", capability: "migrate.queue_position", lane: "migration", origin: "automation", approvalState: "approved" },
-  { id: "tsk-4d7e23", title: "Resolve typescript errors in @compozy/extension-sdk client.ts", status: "failed", priority: "high", owner: { kind: "agent", label: "qa-runner", short: "qa" }, attempt: { current: 3, max: 3 }, childCount: 0, depCount: 0, parent: "tsk-9c4d18", time: "23m", error: "tsc(2345): Argument of type 'Bridge | null' is not assignable to parameter of type 'Bridge'.", watched: true, mine: false, workspace: "agh-runtime", capability: "typecheck.extension-sdk", lane: "build", origin: "child" },
+  { id: "tsk-7f3a2b", title: "Investigate auth middleware leak in session-bridge", status: "running", priority: "high", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, attempt: { current: 2, max: 3 }, childCount: 1, depCount: 0, time: "2m", watched: true, mine: false, workspace: "compozy-runtime", capability: "resolve.session-bridge.leak", lane: "default", origin: "manual" },
+  { id: "tsk-9c4d18", title: "Backfill task_runs.queue_position for legacy rows", status: "in_progress", priority: "medium", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 1, max: 3 }, childCount: 4, depCount: 1, time: "11m", watched: false, mine: true, workspace: "compozy-runtime", capability: "migrate.queue_position", lane: "migration", origin: "automation", approvalState: "approved" },
+  { id: "tsk-4d7e23", title: "Resolve typescript errors in @compozy/extension-sdk client.ts", status: "failed", priority: "high", owner: { kind: "agent", label: "qa-runner", short: "qa" }, attempt: { current: 3, max: 3 }, childCount: 0, depCount: 0, parent: "tsk-9c4d18", time: "23m", error: "tsc(2345): Argument of type 'Bridge | null' is not assignable to parameter of type 'Bridge'.", watched: true, mine: false, workspace: "compozy-runtime", capability: "typecheck.extension-sdk", lane: "build", origin: "child" },
   { id: "tsk-6b1c44", title: "Land RFC-002 protocol receipt schema", status: "blocked", priority: "high", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 1, max: 1 }, childCount: 3, depCount: 2, time: "1h", blockedReason: "waiting on review of RFC-001", watched: true, mine: true, workspace: "compozy", capability: "rfc.protocol-receipt", lane: "rfc", origin: "manual", approvalPolicy: "manual", approvalState: "pending" },
   { id: "tsk-3e8b07", title: "Implement gallery view for capability marketplace", status: "ready", priority: "medium", owner: { kind: "agent", label: "designer", short: "design" }, attempt: { current: 0, max: 3 }, childCount: 0, depCount: 0, time: "1h", watched: false, mine: false, workspace: "compozy", capability: "ui.marketplace.gallery", lane: "ui", origin: "remote_peer" },
   { id: "tsk-8e2a76", title: "Define agent execution profile defaults for sandbox tier", status: "draft", priority: "low", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 0, max: 1 }, childCount: 0, depCount: 0, time: "3h", watched: false, mine: true, workspace: "general", capability: "config.execution-profile", lane: "config", origin: "manual", draft: true },
   { id: "tsk-2a5f91", title: "Migrate workspace bootstrap fixtures to new manifest format", status: "pending", priority: "low", owner: { kind: "agent", label: "migrations-bot", short: "migr" }, attempt: { current: 0, max: 2 }, childCount: 0, depCount: 1, time: "4h", watched: false, mine: false, workspace: "scratch", capability: "migrate.workspace-fixtures", lane: "migration", origin: "automation" },
-  { id: "tsk-0a3e58", title: "Wire daemon /healthz to status footer", status: "in_progress", priority: "medium", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, attempt: { current: 1, max: 2 }, childCount: 0, depCount: 0, time: "5h", watched: false, mine: false, workspace: "agh-runtime", capability: "ui.status-footer.healthz", lane: "ui", origin: "manual" },
-  { id: "tsk-5f9b32", title: "Patch SQLite migration registry race on first boot", status: "completed", priority: "high", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, attempt: { current: 1, max: 3 }, childCount: 0, depCount: 0, time: "yesterday", watched: false, mine: false, workspace: "agh-runtime", capability: "fix.migration-race", lane: "fix", origin: "manual" },
-  { id: "tsk-1c6d05", title: "Refresh peer card avatar resolver", status: "canceled", priority: "low", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 0, max: 1 }, childCount: 0, depCount: 0, time: "2d", watched: false, mine: true, workspace: "agh-runtime", capability: "ui.peer-card.avatar", lane: "ui", origin: "manual" },
+  { id: "tsk-0a3e58", title: "Wire daemon /healthz to status footer", status: "in_progress", priority: "medium", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, attempt: { current: 1, max: 2 }, childCount: 0, depCount: 0, time: "5h", watched: false, mine: false, workspace: "compozy-runtime", capability: "ui.status-footer.healthz", lane: "ui", origin: "manual" },
+  { id: "tsk-5f9b32", title: "Patch SQLite migration registry race on first boot", status: "completed", priority: "high", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, attempt: { current: 1, max: 3 }, childCount: 0, depCount: 0, time: "yesterday", watched: false, mine: false, workspace: "compozy-runtime", capability: "fix.migration-race", lane: "fix", origin: "manual" },
+  { id: "tsk-1c6d05", title: "Refresh peer card avatar resolver", status: "canceled", priority: "low", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 0, max: 1 }, childCount: 0, depCount: 0, time: "2d", watched: false, mine: true, workspace: "compozy-runtime", capability: "ui.peer-card.avatar", lane: "ui", origin: "manual" },
 ];
 
 const STATUS_TONE = {
@@ -769,24 +769,24 @@ const DEPENDENCIES = {
 const ACTIVITY = {
   "tsk-7f3a2b": [
     { time: "2m",  type: "task.run_started",    tone: "accent",  who: "code-reviewer", msg: "Started attempt 2",          detail: "claim acquired · capability resolve.session-bridge.leak" },
-    { time: "9m",  type: "task.run_failed",     tone: "danger",  who: "agh-runtime",     msg: "Attempt 1 timed out",        detail: "no progress for 600s · automatic retry queued" },
+    { time: "9m",  type: "task.run_failed",     tone: "danger",  who: "compozy-runtime",     msg: "Attempt 1 timed out",        detail: "no progress for 600s · automatic retry queued" },
     { time: "14m", type: "task.priority_changed", tone: "warning", who: "Pedro",          msg: "Increased priority to High", detail: "operator reclassified from Medium" },
     { time: "26m", type: "task.created",        tone: "default", who: "Pedro",           msg: "Created task",               detail: "linked from session sess-aa7c · trigger origin manual" },
   ],
   "tsk-9c4d18": [
-    { time: "11m", type: "task.children_spawned", tone: "accent", who: "Pedro",          msg: "Spawned 4 children",         detail: "fan-out across workspaces agh-runtime · compozy · scratch · _root" },
-    { time: "32m", type: "task.plan_accepted",  tone: "success", who: "agh-runtime",     msg: "Plan accepted",              detail: "review gate satisfied · proceed-with-caveats" },
+    { time: "11m", type: "task.children_spawned", tone: "accent", who: "Pedro",          msg: "Spawned 4 children",         detail: "fan-out across workspaces compozy-runtime · compozy · scratch · _root" },
+    { time: "32m", type: "task.plan_accepted",  tone: "success", who: "compozy-runtime",     msg: "Plan accepted",              detail: "review gate satisfied · proceed-with-caveats" },
     { time: "44m", type: "task.plan_submitted", tone: "default", who: "code-reviewer", msg: "Submitted plan for review",  detail: "estimated 4 child runs · 1 dependency" },
-    { time: "1h",  type: "task.dependency_resolved", tone: "success", who: "agh-runtime", msg: "Dependency resolved",       detail: "tsk-3a02fc → completed" },
+    { time: "1h",  type: "task.dependency_resolved", tone: "success", who: "compozy-runtime", msg: "Dependency resolved",       detail: "tsk-3a02fc → completed" },
     { time: "2h",  type: "task.created",        tone: "default", who: "Pedro",           msg: "Created task",               detail: "scope = workspace · lane = migration" },
   ],
   "tsk-4d7e23": [
-    { time: "23m", type: "task.run_failed",     tone: "danger",  who: "agh-runtime",     msg: "Attempt 3 failed",           detail: "tsc exit 1 · max attempts reached · awaiting operator" },
+    { time: "23m", type: "task.run_failed",     tone: "danger",  who: "compozy-runtime",     msg: "Attempt 3 failed",           detail: "tsc exit 1 · max attempts reached · awaiting operator" },
     { time: "27m", type: "task.run_started",    tone: "accent",  who: "qa-runner",   msg: "Started attempt 3",          detail: "applied last-good fixture, retry under reduced scope" },
-    { time: "38m", type: "task.run_failed",     tone: "danger",  who: "agh-runtime",     msg: "Attempt 2 failed",           detail: "same diagnostic · no patch applied" },
+    { time: "38m", type: "task.run_failed",     tone: "danger",  who: "compozy-runtime",     msg: "Attempt 2 failed",           detail: "same diagnostic · no patch applied" },
     { time: "55m", type: "task.run_started",    tone: "accent",  who: "qa-runner",   msg: "Started attempt 2",          detail: "auto-retry from queue" },
-    { time: "1h",  type: "task.run_failed",     tone: "danger",  who: "agh-runtime",     msg: "Attempt 1 failed",           detail: "tsc(2345) on Bridge | null assignment" },
-    { time: "1h",  type: "task.created",        tone: "default", who: "agh-runtime",     msg: "Spawned from parent",        detail: "parent tsk-9c4d18 · lane = build" },
+    { time: "1h",  type: "task.run_failed",     tone: "danger",  who: "compozy-runtime",     msg: "Attempt 1 failed",           detail: "tsc(2345) on Bridge | null assignment" },
+    { time: "1h",  type: "task.created",        tone: "default", who: "compozy-runtime",     msg: "Spawned from parent",        detail: "parent tsk-9c4d18 · lane = build" },
   ],
 };
 
@@ -870,19 +870,19 @@ function Pill({ tone="neutral", icon, mono, children, className="", size }) {
   const cls = `pill pill--${tone}` + (mono?" pill--mono":"") + (size?` pill--${size}`:"") + (className?` ${className}`:"");
   return <span className={cls}>{icon}{children}</span>;
 }
-window.AGH = { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill };
+window.Compozy = { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill };
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, AGH } = window;
+const { I, Compozy } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = AGH;
+const { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = Compozy;
 
 /* ============ RAIL ============ */
 function Rail({ activeWs, onSelectWs, onAddWs }) {
   return (
     <aside className="rail" role="navigation" aria-label="Workspaces">
-      <button className="rail__logo" title="AGH home" aria-label="AGH home">A</button>
+      <button className="rail__logo" title="Compozy home" aria-label="Compozy home">A</button>
       <div className="rail__divider" />
       {WORKSPACES.map((ws) => (
         <button key={ws.id} className="rail__avatar" data-active={activeWs === ws.id} onClick={() => onSelectWs(ws.id)} title={ws.name} aria-label={`Workspace ${ws.name}`}>
@@ -990,13 +990,13 @@ function Sidebar({ activeWs, activeNav, activeAgent, onNav, onSelectAgent, onSwi
   );
 }
 
-window.AGH_SHELL = { Rail, Sidebar };
+window.COMPOZY_SHELL = { Rail, Sidebar };
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, AGH } = window;
+const { I, Compozy } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { TASKS, STATUS_TONE, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = AGH;
+const { TASKS, STATUS_TONE, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = Compozy;
 
 /* ============ TOPBAR ============ */
 const VIEWS = [
@@ -1135,7 +1135,7 @@ function TaskListView({ onSelectTask, lane, setLane, sortBy, setSortBy }) {
           <span className="page-head__count">{visible.length} of {TASKS.length}</span>
         </div>
         <div className="page-head__meta">
-          <span className="vc"><I.Briefcase size="xs" />workspace agh-runtime</span>
+          <span className="vc"><I.Briefcase size="xs" />workspace compozy-runtime</span>
           <span className="page-head__meta-sep">·</span>
           <span className="vc"><I.Clock size="xs" />synced 2m ago</span>
           <span className="page-head__meta-sep">·</span>
@@ -1532,13 +1532,13 @@ function EmptyState({ onNew, onPickTemplate }) {
   );
 }
 
-window.AGH_VIEWS = { TasksTopBar, TaskListView, KanbanView, DashboardView, InboxView, EmptyState };
+window.COMPOZY_VIEWS = { TasksTopBar, TaskListView, KanbanView, DashboardView, InboxView, EmptyState };
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, AGH } = window;
+const { I, Compozy } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { TEMPLATES, Pill } = AGH;
+const { TEMPLATES, Pill } = Compozy;
 
 /* ============ NEW TASK EDITOR ============ */
 const TPL_DEFAULTS = {
@@ -1758,7 +1758,7 @@ function NewTaskEditor({ initialTemplate = "one_shot", onClose, onCreate }) {
               </div>
               <div className="context-box">
                 <div className="context-box__row"><span className="context-box__label">Scope</span><span className="context-box__value">{scope}</span></div>
-                <div className="context-box__row"><span className="context-box__label">Workspace</span><span className="context-box__value">agh-runtime</span></div>
+                <div className="context-box__row"><span className="context-box__label">Workspace</span><span className="context-box__value">compozy-runtime</span></div>
                 <div className="context-box__row"><span className="context-box__label">Identifier</span><span className="context-box__value context-box__value--mono">{identifier || "auto"}</span></div>
                 <div className="context-box__row"><span className="context-box__label">Parent</span><span className="context-box__value context-box__value--mono">{parent || "—"}</span></div>
                 <div className="context-box__row"><span className="context-box__label">Lane</span><span className="context-box__value">default</span></div>
@@ -1780,13 +1780,13 @@ function NewTaskEditor({ initialTemplate = "one_shot", onClose, onCreate }) {
   );
 }
 
-window.AGH_NEW = { NewTaskEditor };
+window.COMPOZY_NEW = { NewTaskEditor };
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, AGH } = window;
+const { I, Compozy } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = AGH;
+const { TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = Compozy;
 
 /* ============ TASK DETAIL ============ */
 const DETAIL_TABS = [
@@ -1831,7 +1831,7 @@ function DetailHeader({ task, onBack }) {
             <span className="page-head__meta-sep">·</span>
             <span className="detail-head__meta-item"><span className="detail-head__meta-label">Origin</span><span>{task.origin}</span></span>
             <span className="page-head__meta-sep">·</span>
-            <span className="detail-head__meta-item"><span className="detail-head__meta-label">Created by</span><span>{task.owner.kind === "human" ? task.owner.label : "agh-runtime"}</span></span>
+            <span className="detail-head__meta-item"><span className="detail-head__meta-label">Created by</span><span>{task.owner.kind === "human" ? task.owner.label : "compozy-runtime"}</span></span>
             <span className="page-head__meta-sep">·</span>
             <span className="detail-head__meta-item"><span className="detail-head__meta-label">Last update</span><span className="mono" style={{fontSize:11}}>{task.time} ago</span></span>
             <span className="page-head__meta-sep">·</span>
@@ -2091,7 +2091,7 @@ function DependenciesTab({ task }) {
 }
 
 function AgentsTab({ task }) {
-  const agentEvents = (ACTIVITY[task.id] || []).filter(e => e.who && !["agh-runtime", "Pedro"].includes(e.who) || true);
+  const agentEvents = (ACTIVITY[task.id] || []).filter(e => e.who && !["compozy-runtime", "Pedro"].includes(e.who) || true);
   const grouped = {};
   for (const e of (ACTIVITY[task.id] || [])) {
     const k = e.who || "unknown";
@@ -2102,7 +2102,7 @@ function AgentsTab({ task }) {
     ...g,
     live: g.name.includes("code-reviewer") || g.name.includes("qa-runner") ? 1 : 0,
     descendants: g.name.includes("code-reviewer") ? 3 : g.name.includes("qa-runner") ? 1 : 0,
-  })).filter(c => !["agh-runtime"].includes(c.name));
+  })).filter(c => !["compozy-runtime"].includes(c.name));
   if (!cards.length) cards.push({ name: task.owner.label, events: [], live: STATUS_TONE[task.status]?.pulse ? 1 : 0, idle: 0, descendants: 0 });
   return (
     <div className="agent-grid">
@@ -2219,7 +2219,7 @@ function OrchestrationTab({ task }) {
         <div className="orch-card__body">
           <div className="review-row">
             <I.Slack size="sm" style={{ color: "var(--info)" }} />
-            <span className="review-row__title">#agh-runtime — emit on <strong>completed</strong>, <strong>failed</strong></span>
+            <span className="review-row__title">#compozy-runtime — emit on <strong>completed</strong>, <strong>failed</strong></span>
             <span className="review-row__time">webhook</span>
           </div>
           {task.id === "tsk-9c4d18" && (
@@ -2290,17 +2290,17 @@ function TaskDetail({ task, onBack }) {
   );
 }
 
-window.AGH_DETAIL = { TaskDetail };
+window.COMPOZY_DETAIL = { TaskDetail };
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, AGH, AGH_SHELL, AGH_VIEWS, AGH_NEW, AGH_DETAIL } = window;
+const { I, Compozy, COMPOZY_SHELL, COMPOZY_VIEWS, COMPOZY_NEW, COMPOZY_DETAIL } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { TASKS } = AGH;
-const { Rail, Sidebar } = AGH_SHELL;
-const { TasksTopBar, TaskListView, KanbanView, DashboardView, InboxView, EmptyState } = AGH_VIEWS;
-const { NewTaskEditor } = AGH_NEW;
-const { TaskDetail } = AGH_DETAIL;
+const { TASKS } = Compozy;
+const { Rail, Sidebar } = COMPOZY_SHELL;
+const { TasksTopBar, TaskListView, KanbanView, DashboardView, InboxView, EmptyState } = COMPOZY_VIEWS;
+const { NewTaskEditor } = COMPOZY_NEW;
+const { TaskDetail } = COMPOZY_DETAIL;
 
 const ACCENTS = [
   { id: "orange", color: "#e8572a", hover: "#d14e25", strong: "#f6874f", ink: "#17110f" },
@@ -2351,7 +2351,7 @@ function Tweaks({ accent, setAccent, view, setView, mode, setMode }) {
 }
 
 function App() {
-  const [activeWs, setActiveWs] = useState("agh-runtime");
+  const [activeWs, setActiveWs] = useState("compozy-runtime");
   const [activeNav, setActiveNav] = useState("tasks");
   const [activeAgent, setActiveAgent] = useState(null);
   const [view, setView] = useState("list");

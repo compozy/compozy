@@ -27,8 +27,8 @@ Lea submitted a valid plain `/goal` objective from a live Cursor/Grok session. N
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-goal-judge-unavailable.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-goal-judge-unavailable.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
 - Session `sess-b1c980b86709053d`; no Goal chip or turn appeared after the command.
 
 ## Fix

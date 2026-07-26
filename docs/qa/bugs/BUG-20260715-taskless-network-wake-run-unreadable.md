@@ -10,15 +10,15 @@
 
 ## Summary
 
-Network usage exposed a durable `task_run_id`, but `agh task run show <id>` failed with `task id is required`. Ada could not follow the public identifier back to its terminal run even though the run itself was present and valid.
+Network usage exposed a durable `task_run_id`, but `compozy task run show <id>` failed with `task id is required`. Ada could not follow the public identifier back to its terminal run even though the run itself was present and valid.
 
 ## Reproduction
 
 - **Charter:** CH-live-bounds-agent-path · **Tour:** Interrupt Tour
 - **Environment:** desktop / isolated local daemon / en-US
 
-1. Settle a Live Network wake and read its `task_run_id` from `agh network usage -o json`.
-2. Run `agh task run show <task-run-id> -o json` or `GET /api/task-runs/:id`.
+1. Settle a Live Network wake and read its `task_run_id` from `compozy network usage -o json`.
+2. Run `compozy task run show <task-run-id> -o json` or `GET /api/task-runs/:id`.
 
 **Expected:** The public run read returns the persisted taskless `network_wake` and omits any absent Task reference.
 **Actual:** The service loaded a Task unconditionally and rejected the intentionally empty `task_id`.

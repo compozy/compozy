@@ -5,7 +5,7 @@ The PRD repair journey under the ADR-011 authorization floor and ADR-016 daemon-
 ```mermaid
 flowchart TD
   A[Entry: /mcp?scope=&server= via marketplace Manage or guided-install Authorize toast] --> B[Status matrix: configured x auth x runtime x probe, four independent signals]
-  A2[Entry: agh mcp authorize <name> --scope --workspace] --> C
+  A2[Entry: compozy mcp authorize <name> --scope --workspace] --> C
   A3[Entry: sidebar Catalog > MCP] --> B
   B -->|needs_login OAuth remote| C[Begin: daemon PKCE session; live authorization_url always visible and copyable]
   B -->|stdio or non-OAuth server| B2[No authorize affordance offered — truthful absence]
@@ -36,11 +36,11 @@ journey:
   entry_points:
     - url: /mcp?scope=workspace|global&server=<name>
       origin: in-app-nav
-    - url: agh mcp authorize <name> [--manual] [--scope --workspace]
+    - url: compozy mcp authorize <name> [--manual] [--scope --workspace]
       origin: direct
     - url: POST /api/settings/mcp-servers/{name}/auth/begin|exchange|logout
       origin: direct
-    - url: agh.network/runtime/core/marketplace
+    - url: compozy.com/runtime/core/marketplace
       origin: external-share
   actions:
     - step: 1

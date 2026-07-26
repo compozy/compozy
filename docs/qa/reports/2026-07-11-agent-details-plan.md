@@ -38,12 +38,12 @@ Each in-scope row appears once. The union is the complete 12-row scope.
 Task 09 creates a fresh lab with:
 
 ```bash
-python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py \
+python3 .agents/skills/agh/agh-qa-bootstrap/scripts/bootstrap-qa-env.py \
   --scenario agent-details-task-09 \
   --repo-root .
 ```
 
-Use the manifest's `AGH_HOME`, `AGH_HTTP_PORT`, `AGH_UDS_PATH`, `TMUX_BRIDGE_SOCKET`, `AGH_WEB_API_PROXY_TARGET`, provider homes, browser policy, audit command, and teardown command. Seed dozens of agents; include a global/workspace same-name pair, an MCP/Soul/Heartbeat-bearing source, a duplicate target name, an active session, failed/done sessions, and an agent with diagnostics. Config writes are sequential. No parallel labs are planned; if execution introduces parallelism, each lab needs its own manifest-derived home, ports, and socket.
+Use the manifest's `COMPOZY_HOME`, `COMPOZY_HTTP_PORT`, `COMPOZY_UDS_PATH`, `TMUX_BRIDGE_SOCKET`, `COMPOZY_WEB_API_PROXY_TARGET`, provider homes, browser policy, audit command, and teardown command. Seed dozens of agents; include a global/workspace same-name pair, an MCP/Soul/Heartbeat-bearing source, a duplicate target name, an active session, failed/done sessions, and an agent with diagnostics. Config writes are sequential. No parallel labs are planned; if execution introduces parallelism, each lab needs its own manifest-derived home, ports, and socket.
 
 The run ends on every terminal path with the manifest `TEARDOWN_COMMAND`; completion cites `teardown.json` with `"clean": true`.
 

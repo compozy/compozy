@@ -16,7 +16,7 @@ When two components can perform the same authoritative state transition (claim, 
 
 > When an authoritative primitive owns a state transition (`task.Service.ClaimNextRun`, `Spawn`, `EnsureMigration`), no peer package may replicate the transition. Wake/observe/sweep are allowed; claim/own is not.
 
-## Examples (canonical authorities in AGH)
+## Examples (canonical authorities in Compozy)
 
 | Transition                    | Authority                            | Allowed peers                                                  |
 | ----------------------------- | ------------------------------------ | -------------------------------------------------------------- |

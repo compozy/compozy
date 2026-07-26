@@ -6,7 +6,7 @@
 
 ## Context
 
-Running agents in parallel git worktrees is the intended AGH workflow (L-009 isolated their runtime state). But whenever two agents reached their completion gates simultaneously, both `make verify` runs stalled and never finished, making real parallel development impossible.
+Running agents in parallel git worktrees is the intended Compozy workflow (L-009 isolated their runtime state). But whenever two agents reached their completion gates simultaneously, both `make verify` runs stalled and never finished, making real parallel development impossible.
 
 ## Root cause
 
@@ -20,10 +20,10 @@ Eliminated as causes (checked 2026-07-09): daemon singleton lock uses `flock.Try
 
 ## Operationalization
 
-- `Verify()` (magefile) acquires `~/Library/Caches/agh-dev/verify.lock` (`os.UserCacheDir()`-based) before running steps; a queued run prints `make verify is queued: pid N (worktree X) holds the machine-wide verify lock` every 15s. Lock release is automatic on process exit (kernel flock), so a crashed holder never wedges the queue.
-- The lock is capacity management, not correctness: every failure path (no cache dir, flock error) warns and proceeds. `AGH_VERIFY_LOCK=off` bypasses for single-checkout machines (CI runners don't contend anyway).
+- `Verify()` (magefile) acquires `~/Library/Caches/compozy-dev/verify.lock` (`os.UserCacheDir()`-based) before running steps; a queued run prints `make verify is queued: pid N (worktree X) holds the machine-wide verify lock` every 15s. Lock release is automatic on process exit (kernel flock), so a crashed holder never wedges the queue.
+- The lock is capacity management, not correctness: every failure path (no cache dir, flock error) warns and proceeds. `COMPOZY_VERIFY_LOCK=off` bypasses for single-checkout machines (CI runners don't contend anyway).
 - Agents seeing the queue message must wait, not kill: a queued verify is working as designed. During iteration, scoped lanes (`make lint` + scoped `go test`, turbo `--filter`) remain the concurrency-friendly path — the queue only serializes the machine-sized gates (verify and the E2E lanes, which share the lock).
-- Scoped lanes are bounded instead of locked: the unit lane budgets combined `go test -p` × `-parallel` concurrency against half the effective Go CPU capacity (`AGH_GO_TEST_P` overrides the package cap), and every Vitest project caps `maxWorkers` at 50%, so iteration in one worktree stays safe next to another worktree's work.
+- Scoped lanes are bounded instead of locked: the unit lane budgets combined `go test -p` × `-parallel` concurrency against half the effective Go CPU capacity (`COMPOZY_GO_TEST_P` overrides the package cap), and every Vitest project caps `maxWorkers` at 50%, so iteration in one worktree stays safe next to another worktree's work.
 - Helpers live in `magefiles/verifylock.go`; suite: `magefiles/verifylock_test.go` (`go test -tags mage -race ./magefiles`).
 
 ## Detection signals

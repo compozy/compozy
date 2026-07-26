@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-agent-marketplace-parity
-  mission: "As Ada — no web UI, no TTY, no browser — walk discovery and acquisition through their supported structured planes: CLI JSON, HTTP, and UDS for lifecycle operations, plus agh__marketplace_search for discovery. Prove those planes report the same daemon-owned state, every error is deterministic, and a rejected install provably writes nothing (the born-valid anchor on the agent plane)."
+  mission: "As Ada — no web UI, no TTY, no browser — walk discovery and acquisition through their supported structured planes: CLI JSON, HTTP, and UDS for lifecycle operations, plus compozy__marketplace_search for discovery. Prove those planes report the same daemon-owned state, every error is deterministic, and a rejected install provably writes nothing (the born-valid anchor on the agent plane)."
   mode: charter-with-tour
   persona:
     name: Ada
@@ -16,14 +16,14 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "For one daemon state, capture `agh marketplace search -o json` (idle and queried), the HTTP and UDS responses, and the agh__marketplace_search result: grouped kind order fixed (mcp/extension/skill/bundle), totals only where real, installed/update fields identical across the four discovery planes. Do not infer native mutation support from this read-only tool."
+      - "For one daemon state, capture `compozy marketplace search -o json` (idle and queried), the HTTP and UDS responses, and the compozy__marketplace_search result: grouped kind order fixed (mcp/extension/skill/bundle), totals only where real, installed/update fields identical across the four discovery planes. Do not infer native mutation support from this read-only tool."
       - "Resolve info by an entry whose display name differs from entry_id; then probe unknown kind, unknown entry, blank segments, invalid limit — each error deterministic (400/404) and identical across CLI/HTTP/UDS; confirm the deleted legacy browse routes return 404."
-      - "Exercise the focused projections explicitly: `agh skill search <query> -o json`, resolve the selected entry with `agh skill info <entry_id> -o json`, install it and read effective metadata with `agh skill inspect <installed-name> -o json`, then run `agh extension search <query> -o json`. Compare each response with its unified namespace or installed-lifecycle owner."
+      - "Exercise the focused projections explicitly: `compozy skill search <query> -o json`, resolve the selected entry with `compozy skill info <entry_id> -o json`, install it and read effective metadata with `compozy skill inspect <installed-name> -o json`, then run `compozy extension search <query> -o json`. Compare each response with its unified namespace or installed-lifecycle owner."
       - "Install a curated MCP entry twice: once complete (typed + vault-ref values, next_step correct, provenance stamped, refs visible without values) and once missing a required value or overriding a locked template field — the rejection must leave config, vault, and provenance provably untouched on fresh reads."
-      - "Install the same entry into two workspaces and authorize both via `agh mcp authorize`: distinct scoped tokens AND distinct canonical secret_env refs per workspace; each authorize command exits non-zero unless its exact target reaches authenticated && token_present."
-      - "Run `agh bundle preview`, `agh bundle activate`, and `agh bundle update` against the same activation exercised through HTTP and UDS: preview writes nothing, activation inventory/scope agree, and update clears a deliberately induced spec_drift after re-applying the current profile."
+      - "Install the same entry into two workspaces and authorize both via `compozy mcp authorize`: distinct scoped tokens AND distinct canonical secret_env refs per workspace; each authorize command exits non-zero unless its exact target reaches authenticated && token_present."
+      - "Run `compozy bundle preview`, `compozy bundle activate`, and `compozy bundle update` against the same activation exercised through HTTP and UDS: preview writes nothing, activation inventory/scope agree, and update clears a deliberately induced spec_drift after re-applying the current profile."
       - "Refresh with an isolated feed: per-kind structured outcomes, --kind bundle rejected without projection mutation, a downed feed served stale-marked while installed-item management still works; break one kind's source and prove the grouped search isolates the failure to that kind's error field."
-      - "Confirm `agh__marketplace_search` is registered and callable with search behavior mirroring HTTP/UDS, verify every other agh__* ID explicitly named by an in-scope scenario is registered and callable for its own documented contract (ET-049), and scan all structured output, events, and logs for plaintext secrets or OAuth material."
+      - "Confirm `compozy__marketplace_search` is registered and callable with search behavior mirroring HTTP/UDS, verify every other compozy__* ID explicitly named by an in-scope scenario is registered and callable for its own documented contract (ET-049), and scan all structured output, events, and logs for plaintext secrets or OAuth material."
     must_avoid:
       - "Web surfaces entirely; extension policy administration beyond reading diagnostics (CH-extension-policy-admin-gates); manual paste-back completion (CH-remote-operator-manual-auth)."
   evidence_expectations:

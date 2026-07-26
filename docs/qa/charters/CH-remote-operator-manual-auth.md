@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "With the daemon bound non-loopback, prove GET /api/mcp/oauth/callback is refused (Safety Invariant 14) and the web dialog + CLI still expose the copyable URL and the manual completion path."
-      - "Complete once by pasting a bare code and once by pasting the full redirect URL — in the web dialog and via `agh mcp authorize <name> --manual` — confirming exactly one value is sent to exchange and success appears only on refetched authenticated && token_present."
+      - "Complete once by pasting a bare code and once by pasting the full redirect URL — in the web dialog and via `compozy mcp authorize <name> --manual` — confirming exactly one value is sent to exchange and success appears only on refetched authenticated && token_present."
       - "Paste garbage: a URL with mismatched state, an expired session's code, both code and redirect together, an empty paste — each must fail deterministically, leave the dialog in a truthful failed state, and preserve any prior token."
       - "Scan CLI output, web DOM, request logs, and events for the pasted code/redirect URL — the exchange inputs are secret-class and must never echo (Safety Invariant 9)."
       - "Run begin/exchange/logout for two workspace targets sharing one server name over HTTP and UDS: payloads must match per plane, and the two workspaces must hold distinct OAuth tokens and distinct canonical secret_env refs (both-channel workspace boundary, Safety Invariant 8)."

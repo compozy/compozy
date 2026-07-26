@@ -11,7 +11,7 @@ bug_ids: BUG-20260713-loop-contract-goal-not-editable
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-007-loop-fork-run-stopped.dom.txt; /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-goalless-published-v1.dom.txt; /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-goalless-v1-real-run.dom.txt
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-007-loop-fork-run-stopped.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-goalless-published-v1.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-goalless-v1-real-run.dom.txt
 last_report: docs/qa/reports/2026-07-13-automation-features.md
 overlaps: LP-019;LP-024
 ---

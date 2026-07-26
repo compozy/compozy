@@ -4,8 +4,8 @@ area: RT
 title: Escalate a task run after ACP subprocess health failure
 persona: Ada
 journey: J-diagnose-task-session-health
-expected: Active failed ACP health verdicts produce the same bounded evidence through HTTP, UDS, agh status, and runtime.subprocess_health doctor output; the configured threshold moves the exact linked nonterminal run to needs_attention once, an unexpected process exit escalates immediately, terminal runs remain terminal, and threshold 0 preserves diagnostics without task mutation.
-entry_points: daemon.subprocess_health_escalation_threshold; GET /api/status; GET /api/doctor; agh status; agh doctor --only runtime.subprocess_health; agh task run recover
+expected: Active failed ACP health verdicts produce the same bounded evidence through HTTP, UDS, compozy status, and runtime.subprocess_health doctor output; the configured threshold moves the exact linked nonterminal run to needs_attention once, an unexpected process exit escalates immediately, terminal runs remain terminal, and threshold 0 preserves diagnostics without task mutation.
+entry_points: daemon.subprocess_health_escalation_threshold; GET /api/status; GET /api/doctor; compozy status; compozy doctor --only runtime.subprocess_health; compozy task run recover
 qa_status: untested
 bug_ids:
 fix_status:
@@ -30,7 +30,7 @@ Phase C planning 2026-07-19: settles defect D5 (ADR-010 §4, ADR-011) in the cov
 
 Forensic evidence contract (SD-006) — each item cites timestamp, exact command, observed output:
 
-- Matching failed-verdict evidence across HTTP, UDS, `agh status`, and doctor output.
+- Matching failed-verdict evidence across HTTP, UDS, `compozy status`, and doctor output.
 - The single `needs_attention` transition (one canonical event with correlation keys) for the exact
   linked nonterminal run, plus the immediate-escalation crash run.
 - The threshold-0 run preserving diagnostics without task mutation, and the terminal-run

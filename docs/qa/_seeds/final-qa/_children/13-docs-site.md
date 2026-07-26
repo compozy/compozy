@@ -1,39 +1,39 @@
 ---
 name: 13-docs-site
-title: Documentation Site (packages/site, agh.network) — Real-LLM QA Plan
-description: Behavior-first QA scenarios for the Fumadocs site at packages/site — Next.js 16 export build at agh.network, Fumadocs MDX runtime/protocol trees, Velite-powered blog/changelog, generated OpenAPI + CLI reference, search index, sitemap/robots/RSS, OpenGraph, theme + design-token contract, and the bun-side gates that ship the site through `make verify`. Closes the docs-site loop end-to-end so any change touching content/, app/, components/, lib/, or codegen targets is validated against the canonical DESIGN.md, COPY.md, and runtime-truth invariants.
+title: Documentation Site (packages/site, compozy.com) — Real-LLM QA Plan
+description: Behavior-first QA scenarios for the Fumadocs site at packages/site — Next.js 16 export build at compozy.com, Fumadocs MDX runtime/protocol trees, Velite-powered blog/changelog, generated OpenAPI + CLI reference, search index, sitemap/robots/RSS, OpenGraph, theme + design-token contract, and the bun-side gates that ship the site through `make verify`. Closes the docs-site loop end-to-end so any change touching content/, app/, components/, lib/, or codegen targets is validated against the canonical DESIGN.md, COPY.md, and runtime-truth invariants.
 type: final-qa-child
 module: docs-site
 parent: ../_parent.md
 provider_lanes: [claude-code]
 authoritative_runtime_truth:
-  - /Users/pedronauck/Dev/compozy/agh/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/AGENTS.md
-  - /Users/pedronauck/Dev/compozy/agh/DESIGN.md
-  - /Users/pedronauck/Dev/compozy/agh/COPY.md
-  - /Users/pedronauck/Dev/compozy/agh/docs/_memory/glossary.md
+  - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/AGENTS.md
+  - /Users/pedronauck/Dev/compozy/compozy/DESIGN.md
+  - /Users/pedronauck/Dev/compozy/compozy/COPY.md
+  - /Users/pedronauck/Dev/compozy/compozy/docs/_memory/glossary.md
 references:
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/04-autonomy-kernel.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/11-api-cli-parity.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/04-autonomy-kernel.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/11-api-cli-parity.md
 ---
 
-# 13 — Documentation Site (packages/site, agh.network)
+# 13 — Documentation Site (packages/site, compozy.com)
 
-Sibling of `11-api-cli-parity.md` (which proves codegen drift in `openapi/agh.json` and `web/src/generated/agh-openapi.d.ts`) and of every backend child whose contract change must co-ship docs (per the root CLAUDE.md "No partial-surface completions" directive and the `cy-web-docs-impact` skill). This module proves **the docs site itself** — that the Fumadocs MDX runtime/protocol trees render with no broken anchors; that the API reference is a faithful projection of `openapi/agh.json`; that the CLI reference under `content/runtime/cli-reference/` is a faithful projection of the cobra JSON export via `make cli-docs`; that the Velite blog + changelog body content is real (no aspirational copy); that DESIGN.md tokens and COPY.md vocabulary are honored; that the search index, sitemap, robots.txt, and RSS feed shape match the runtime-truth contracts in `packages/site/lib/`; that the bun gate (`make bun-lint`, `make bun-typecheck`, `make bun-test`) is green; and that `make site-build` produces a deterministic static export ready for `agh.network`.
+Sibling of `11-api-cli-parity.md` (which proves codegen drift in `openapi/compozy.json` and `web/src/generated/compozy-openapi.d.ts`) and of every backend child whose contract change must co-ship docs (per the root CLAUDE.md "No partial-surface completions" directive and the `cy-web-docs-impact` skill). This module proves **the docs site itself** — that the Fumadocs MDX runtime/protocol trees render with no broken anchors; that the API reference is a faithful projection of `openapi/compozy.json`; that the CLI reference under `content/runtime/cli-reference/` is a faithful projection of the cobra JSON export via `make cli-docs`; that the Velite blog + changelog body content is real (no aspirational copy); that DESIGN.md tokens and COPY.md vocabulary are honored; that the search index, sitemap, robots.txt, and RSS feed shape match the runtime-truth contracts in `packages/site/lib/`; that the bun gate (`make bun-lint`, `make bun-typecheck`, `make bun-test`) is green; and that `make site-build` produces a deterministic static export ready for `compozy.com`.
 
 The CLAUDE.md and packages/site/CLAUDE.md invariants this child encodes:
 
 - "**Pull tokens from `DESIGN.md` (repo root).** No invented colors, type, radii, spacing, or motion." (`packages/site/CLAUDE.md:7`)
 - "**Pull product language from `COPY.md` (repo root).** Landing copy, blog/changelog, runtime/protocol narrative docs, site config, OpenGraph metadata, SEO descriptions, and public CTAs MUST follow the copy system before inventing new wording." (`packages/site/CLAUDE.md:8`)
-- "**Hero positioning is locked**: headline 'An open workplace for AI agents.' with subhead … Open-workplace-first." (`packages/site/CLAUDE.md:9`; mirrors COPY.md §3 and the auto-memory entry "AGH Site & Documentation Project — hero relocked 2026-05-01").
+- "**Hero positioning is locked**: headline 'An open workplace for AI agents.' with subhead … Open-workplace-first." (`packages/site/CLAUDE.md:9`; mirrors COPY.md §3 and the auto-memory entry "Compozy Site & Documentation Project — hero relocked 2026-05-01").
 - "**`packages/site` ships in same PR as backend contract changes** that affect documented APIs/CLI verbs (per `internal/api/contract` co-ship rule in root CLAUDE.md)." (`packages/site/CLAUDE.md:10`)
-- "Document only behavior the runtime actually supports today. … API/CLI references are generated from `openapi/agh.json` and the cobra JSON export — do not paraphrase. If the generated reference is wrong, fix the source." (`packages/site/CLAUDE.md:54-55`)
+- "Document only behavior the runtime actually supports today. … API/CLI references are generated from `openapi/compozy.json` and the cobra JSON export — do not paraphrase. If the generated reference is wrong, fix the source." (`packages/site/CLAUDE.md:54-55`)
 - "Vocabulary follows `docs/_memory/glossary.md`. The canonical artifact name is `capability`, never `recipe`." (`packages/site/CLAUDE.md:56`)
-- "The canonical artifact name is `capability`, never `recipe`, `workflow`, `procedure`, or `playbook` for current AGH behavior." (root `CLAUDE.md` Vocabulary & Product Strategy)
+- "The canonical artifact name is `capability`, never `recipe`, `workflow`, `procedure`, or `playbook` for current Compozy behavior." (root `CLAUDE.md` Vocabulary & Product Strategy)
 
 Every scenario below is written for the **real-claude-code** lane only where it must be (DOC-19 — "Try it" embed harness). Most scenarios are control-plane invariants that do not need a live LLM, so they run under **mock-acp** or as headless static-build assertions.
 
@@ -60,7 +60,7 @@ The static `app/` routes (`packages/site/app/`):
 | `/sitemap.xml`                 | `packages/site/app/sitemap.ts:8-25`                                | Combines runtime + protocol pages, blog posts, blog category pages, plus `/`, `/blog`, `/changelog`.                                                         |
 | `/robots.txt`                  | `packages/site/app/robots.ts:6-14`                                 | Allows `/`; emits canonical sitemap URL.                                                                                                                     |
 | `/opengraph-image`             | `packages/site/app/opengraph-image.tsx:12-78`                      | 1200×630 PNG; embeds `siteConfig.description` and the locked headline.                                                                                       |
-| Global metadata                | `packages/site/app/layout.tsx:27-72`                               | Title template `%s \| AGH`, theme color `#E8572A`, manifest `/site.webmanifest`, icons, OpenGraph, Twitter, robots index/follow.                              |
+| Global metadata                | `packages/site/app/layout.tsx:27-72`                               | Title template `%s \| Compozy`, theme color `#E8572A`, manifest `/site.webmanifest`, icons, OpenGraph, Twitter, robots index/follow.                              |
 
 Content trees on disk:
 
@@ -69,10 +69,10 @@ Content trees on disk:
   - `core/` — 18 subfolders (sessions, agents, network, autonomy, memory, tools, skills, resources, automation, bridges, sandbox, workspaces, operations, configuration, extensions, hooks, getting-started)
   - `guides/` — `choose-an-operator-surface.mdx`, `coordinate-agents-over-network.mdx`, `debug-a-failed-session.mdx`, `index.mdx`, `meta.json`
   - `use-cases/` — `handoff-between-agents.mdx`, `index.mdx`, `prepare-a-project-workspace.mdx`, `release-readiness-sweep.mdx`, `review-a-change.mdx`, `meta.json`
-  - `cli-reference/` — generated from `make cli-docs` via `go run ./cmd/agh doc --output-dir packages/site/content/runtime/cli-reference` (`Makefile:77-78`); contains 27 verb folders + `index.mdx`, `meta.json`, plus single-file leaves `agh.mdx`, `install.mdx`, `update.mdx`, `uninstall.mdx`, `version.mdx`, `whoami.mdx`, `spawn.mdx`.
-  - `api-reference/` — generated from `openapi/agh.json` via `bun run scripts/generate-openapi.ts` (`packages/site/scripts/generate-openapi.ts:96-118`); preserves `index.mdx`, generates one `<tag>.mdx` per OpenAPI tag (currently 21 files: agent, agents, automation, bridges, bundles, daemon, extensions, hooks, memory, network, observe, resources, sessions, settings, skills, tasks, tools, toolsets, vault, workspaces — plus `index.mdx`, `meta.json`).
+  - `cli-reference/` — generated from `make cli-docs` via `go run ./cmd/compozy doc --output-dir packages/site/content/runtime/cli-reference` (`Makefile:77-78`); contains 27 verb folders + `index.mdx`, `meta.json`, plus single-file leaves `compozy.mdx`, `install.mdx`, `update.mdx`, `uninstall.mdx`, `version.mdx`, `whoami.mdx`, `spawn.mdx`.
+  - `api-reference/` — generated from `openapi/compozy.json` via `bun run scripts/generate-openapi.ts` (`packages/site/scripts/generate-openapi.ts:96-118`); preserves `index.mdx`, generates one `<tag>.mdx` per OpenAPI tag (currently 21 files: agent, agents, automation, bridges, bundles, daemon, extensions, hooks, memory, network, observe, resources, sessions, settings, skills, tasks, tools, toolsets, vault, workspaces — plus `index.mdx`, `meta.json`).
 - **Protocol docs** — `packages/site/content/protocol/`: 13 top-level MDX (`overview.mdx`, `envelope.mdx`, `message-kinds.mdx`, `interactions.mdx`, `delivery.mdx`, `verification.mdx`, `peer-discovery.mdx`, `capability-discovery.mdx`, `ed25519-jcs.mdx`, `examples.mdx`, `conformance.mdx`, `implementation-status.mdx`, `index.mdx`) plus `guide/` and `meta.json`.
-- **Blog** — `packages/site/content/blog/`: `posts/` (currently `introducing-agh-the-first-agent-network-protocol.mdx`), `authors/` (`pedronauck.yml`), `changelog/` (currently empty — the Velite `releases` collection is the canonical changelog source).
+- **Blog** — `packages/site/content/blog/`: `posts/` (currently `introducing-compozy-the-first-agent-network-protocol.mdx`), `authors/` (`pedronauck.yml`), `changelog/` (currently empty — the Velite `releases` collection is the canonical changelog source).
 
 Generated artifacts that **must be in lockstep** with their generators (any drift here is a doc-site QA failure):
 
@@ -80,8 +80,8 @@ Generated artifacts that **must be in lockstep** with their generators (any drif
 | ----------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | `.source/`                                      | `bun run source:generate` (`fumadocs-mdx source.config.ts .source`)              | `content/runtime/`, `content/protocol/`                          |
 | `.velite/`                                      | `bun run content:generate` (`velite build`)                                      | `content/blog/posts/`, `content/blog/authors/`, `content/blog/changelog/` |
-| `content/runtime/cli-reference/**`              | `make cli-docs` (`go run ./cmd/agh doc --output-dir …` — `Makefile:77-78`)        | cobra command tree under `internal/cli/`                         |
-| `content/runtime/api-reference/**`              | `bun run generate:openapi` (`packages/site/scripts/generate-openapi.ts:96-118`)  | `openapi/agh.json` (`packages/site/lib/openapi.ts:8`)            |
+| `content/runtime/cli-reference/**`              | `make cli-docs` (`go run ./cmd/compozy doc --output-dir …` — `Makefile:77-78`)        | cobra command tree under `internal/cli/`                         |
+| `content/runtime/api-reference/**`              | `bun run generate:openapi` (`packages/site/scripts/generate-openapi.ts:96-118`)  | `openapi/compozy.json` (`packages/site/lib/openapi.ts:8`)            |
 | `out/` (static export)                          | `make site-build` (`Makefile:74-75`) → `cd packages/site && bun run build`       | All the above                                                    |
 
 The fonts allowed are precisely four:
@@ -89,7 +89,7 @@ The fonts allowed are precisely four:
 - **Inter** — `packages/site/app/layout.tsx:8-12` (sans, body, UI, docs headings)
 - **Playfair Display** — `packages/site/app/layout.tsx:14-19` (marketing display, `.site-home h1/h2` only — `packages/site/app/global.css:310-313`)
 - **JetBrains Mono** — `packages/site/app/layout.tsx:21-25` (mono labels, badges, code)
-- **NuixyberNext** — `packages/site/app/global.css:14-20` (`@font-face` for `/fonts/NuixyberNext-Regular.ttf`); used **only** via `<Logo variant="logo" />` from `@agh/ui` for the wordmark.
+- **NuixyberNext** — `packages/site/app/global.css:14-20` (`@font-face` for `/fonts/NuixyberNext-Regular.ttf`); used **only** via `<Logo variant="logo" />` from `@compozy/ui` for the wordmark.
 
 Per `DESIGN.md` §3 "Font Families" any other font on any page is a doc-site failure.
 
@@ -99,8 +99,8 @@ Per `DESIGN.md` §3 "Font Families" any other font on any page is a doc-site fai
 
 - `packages/site/lib/internal-links.test.ts:171-220` — content link rot for every internal route + every hash anchor; flags ambiguous heading IDs; rejects raw `*.mdx` links.
 - `packages/site/lib/runtime-api-reference.test.ts:36-64` — every OpenAPI tag has its `<tag>.mdx`; every used tag is partitioned into exactly one `API_SECTIONS` group.
-- `packages/site/lib/runtime-manual-cli-examples.test.ts:151-204` — every manual `agh ...` shell example uses a command in the generated CLI reference; flags stale `agh session get`, `agh network peers --channel`, broken `agh spawn` flags; enforces `--ttl-seconds`, `--session`, `--channel`, `--kind`, `--body` shapes.
-- `packages/site/lib/runtime-docs-truth.test.ts:60-119` — runtime-truth contracts: MCP resource kind aligns with `internal/config/mcp_resource.go`; resource error mapping aligns with `internal/api/core/errors.go`; SSE examples never go through `/events`; API reference declares `built from openapi/agh.json` and references `make codegen-check`; tool-invoke examples reference real `agh__*` tool IDs.
+- `packages/site/lib/runtime-manual-cli-examples.test.ts:151-204` — every manual `compozy ...` shell example uses a command in the generated CLI reference; flags stale `compozy session get`, `compozy network peers --channel`, broken `compozy spawn` flags; enforces `--ttl-seconds`, `--session`, `--channel`, `--kind`, `--body` shapes.
+- `packages/site/lib/runtime-docs-truth.test.ts:60-119` — runtime-truth contracts: MCP resource kind aligns with `internal/config/mcp_resource.go`; resource error mapping aligns with `internal/api/core/errors.go`; SSE examples never go through `/events`; API reference declares `built from openapi/compozy.json` and references `make codegen-check`; tool-invoke examples reference real `compozy__*` tool IDs.
 - `packages/site/lib/site-design-token-contract.test.ts:48-62` — every hex color across `app/`, `components/`, `content/`, `lib/`, plus `public/favicon.svg` and `public/site.webmanifest`, must exist in the canonical `packages/ui/src/tokens.css` palette.
 - `packages/site/lib/site-copy-contract.test.ts:32-45` — bans first-person plural ("we", "our") in `app/changelog/`, `components/landing/`, `content/blog/posts/`.
 - `packages/site/lib/landing-truth.test.tsx:67-103` — landing `PROVIDERS` aligned with `internal/config/provider.go` `builtinProviders`; landing source citations point at existing runtime routes; banned premature claims (`signed`, `verified identity`, `Ed25519`).
@@ -119,8 +119,8 @@ The gap real-scenario lane must close: every existing vitest spec stubs the runt
 
 1. **Hero copy is the canonical 2026-05-01 relock**: assert hero `<h1>` is exactly "An open workplace for AI agents." and the subhead matches `packages/site/CLAUDE.md:9` byte-for-byte (DOC-01).
 2. **Sidebar resolution is exhaustive**: every `runtimeDocs.getPages()` and `protocolDocs.getPages()` URL renders a 200 in the static export and every internal link from those pages resolves (DOC-02).
-3. **Search returns results for "session", "memory", "extension"**: assert `/api/search` answers each query with non-zero hits and at least one `tag: "Runtime"` and one `tag: "AGH Network"` result (DOC-03).
-4. **API reference rendering is faithful to `openapi/agh.json`**: every `<tag>.mdx` exists, renders an APIPage block, and the page enumerates every operation in that tag (DOC-04).
+3. **Search returns results for "session", "memory", "extension"**: assert `/api/search` answers each query with non-zero hits and at least one `tag: "Runtime"` and one `tag: "Compozy Network"` result (DOC-03).
+4. **API reference rendering is faithful to `openapi/compozy.json`**: every `<tag>.mdx` exists, renders an APIPage block, and the page enumerates every operation in that tag (DOC-04).
 5. **CLI reference rendering is faithful to the cobra export**: `make cli-docs` is idempotent, every cobra leaf has a generated MDX, and any agent-manageable verb listed in `internal/cli/root.go:65-123` is reachable from `/runtime/cli-reference/<verb>` (DOC-05).
 6. **MDX live blocks compile**: `Mermaid`, `GuideCard`, `GuideGrid`, `OperatorNote`, `RouteList`, `RouteRow`, `Workflow`, `WorkflowStep`, and `APIPage` all render in static export (DOC-06).
 7. **Theme contract**: every page passes the dark-only contract; `<html class="dark">` is hardcoded in the export; no shadows, no off-palette hex colors, fonts limited to Inter + JetBrains Mono + Playfair Display (`.site-home` only) + NuixyberNext (wordmark only) (DOC-07).
@@ -130,13 +130,13 @@ The gap real-scenario lane must close: every existing vitest spec stubs the runt
 11. **Image alt-text**: every `<img>`/`<Image>` in the export has a non-empty alt or empty alt for decorative images (DOC-11).
 12. **Build determinism**: `make site-build` twice produces byte-identical `out/` modulo timestamp footers (DOC-12).
 13. **Bun gate**: `make bun-lint`, `make bun-typecheck`, `make bun-test` all pass on a clean checkout (DOC-13).
-14. **COPY.md adherence (vocabulary)**: scrape `content/`, `components/landing/`, `app/blog/`, `app/changelog/`, and the rendered `out/` for `recipe`, `workflow`, `procedure`, `playbook` referring to current AGH artifacts (DOC-14).
+14. **COPY.md adherence (vocabulary)**: scrape `content/`, `components/landing/`, `app/blog/`, `app/changelog/`, and the rendered `out/` for `recipe`, `workflow`, `procedure`, `playbook` referring to current Compozy artifacts (DOC-14).
 15. **DESIGN.md adherence (CSS)**: scrape generated CSS in `out/_next/static/css/*.css` for `box-shadow`, `drop-shadow`, off-palette hex, and disallowed font families (DOC-15).
 16. **SEO + OpenGraph**: every page in `out/` has stable `<title>`, `<meta name="description">`, `og:image`, and there is no duplicate meta within a page (DOC-16).
 17. **Sitemap + robots**: `/sitemap.xml` lists every runtime/protocol page, every blog post, every category, every static route; `/robots.txt` is sane (DOC-17).
-18. **`@agh/ui` consumption**: every shared primitive imported from `@agh/ui` in the site is documented (or has a story under `packages/ui`) (DOC-18).
+18. **`@compozy/ui` consumption**: every shared primitive imported from `@compozy/ui` in the site is documented (or has a story under `packages/ui`) (DOC-18).
 19. **Real-LLM "Try it" embed (or harness)**: prove that today the site does **not** run live prompts client-side; document the test-mode harness that proves the embed surface (or its absence) is honest (DOC-19).
-20. **Codegen co-ship doc**: regenerating `openapi/agh.json` triggers `bun run generate:openapi` and the API reference tree updates lockstep; no orphan `<tag>.mdx` (DOC-20).
+20. **Codegen co-ship doc**: regenerating `openapi/compozy.json` triggers `bun run generate:openapi` and the API reference tree updates lockstep; no orphan `<tag>.mdx` (DOC-20).
 21. **CLI codegen co-ship doc**: `make cli-docs` regenerates the cobra MDX tree; flag/verb removal is reflected in the site without orphan files (DOC-21).
 22. **`out/` deployable**: serve `out/` with a static server and assert every route returns 200 with `Content-Type: text/html` and `text/css`, `image/*`, etc. as expected; `_headers` (Cloudflare-style) honored (DOC-22).
 
@@ -144,26 +144,26 @@ The gap real-scenario lane must close: every existing vitest spec stubs the runt
 
 | Mode               | When                                                                                              | Driver                                                                                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mock-acp`         | **Default for this child.** Every static-build, codegen-drift, link-crawl, and CSS-scrape scenario | No daemon needed. Operates on `packages/site/out/` after `make site-build` and on `openapi/agh.json` + cobra export.                                    |
+| `mock-acp`         | **Default for this child.** Every static-build, codegen-drift, link-crawl, and CSS-scrape scenario | No daemon needed. Operates on `packages/site/out/` after `make site-build` and on `openapi/compozy.json` + cobra export.                                    |
 | `real-claude-code` | **Only DOC-19** when proving (or refuting) a live-prompt embed surface                            | Real `claude-opus-4-8` ACP subprocess against an isolated daemon; the site does NOT today host an interactive embed, so the scenario asserts that. |
 
 Bootstrap and isolation discipline (mandatory):
 
-- One isolated `AGH_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario that needs a daemon (DOC-19) — per `agh-worktree-isolation` skill and `agh-qa-bootstrap`.
-- For everything else: a clean monorepo checkout, `bun install` at root, `make codegen` green so `openapi/agh.json` is current, and `make cli-docs` green so the cobra tree under `content/runtime/cli-reference/` is current. No daemon required.
+- One isolated `COMPOZY_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario that needs a daemon (DOC-19) — per `agh-worktree-isolation` skill and `agh-qa-bootstrap`.
+- For everything else: a clean monorepo checkout, `bun install` at root, `make codegen` green so `openapi/compozy.json` is current, and `make cli-docs` green so the cobra tree under `content/runtime/cli-reference/` is current. No daemon required.
 - For headless-browser scenarios (DOC-01, DOC-02, DOC-08, DOC-09, DOC-22): serve `packages/site/out/` with `npx serve out -p <unique-port>` (or `bun x serve`) bound to `127.0.0.1:<port>` and drive Playwright/Puppeteer against it. Different port per parallel run.
-- Sequential codegen calls only — never run `make codegen` and `bun run generate:openapi` in parallel; the second reads `openapi/agh.json` produced by the first (per Workflow Rules "Never parallelize config writes against one isolated QA home").
+- Sequential codegen calls only — never run `make codegen` and `bun run generate:openapi` in parallel; the second reads `openapi/compozy.json` produced by the first (per Workflow Rules "Never parallelize config writes against one isolated QA home").
 
 ## 5. Preconditions (apply to every scenario)
 
 - Worktree clean: `git status` empty modulo intentional staged QA edits.
 - `make verify` is green on the SUT branch (per the Critical Rules) — that closes the bun gate (`bun-lint`/`bun-typecheck`/`bun-test`/`web-build`) plus Go tests, fmt, lint, build, boundaries.
-- For static-build scenarios: `make codegen` and `make cli-docs` both green, so `openapi/agh.json` and `content/runtime/cli-reference/**` are in lockstep with their sources.
+- For static-build scenarios: `make codegen` and `make cli-docs` both green, so `openapi/compozy.json` and `content/runtime/cli-reference/**` are in lockstep with their sources.
 - For static-build scenarios: `make site-build` green, producing `packages/site/out/`.
 - For headless-browser scenarios: a static server bound to `127.0.0.1:<port>` serving `packages/site/out/`. Playwright (Chromium) installed via `bunx playwright install chromium`.
 - For DOC-19 (real-LLM): direct `claude` auth comes from the effective Claude
   home for the lane (operator `HOME` by default; isolated `PROVIDER_HOME`
-  only for explicit isolated-home scenarios); `agh provider show claude`
+  only for explicit isolated-home scenarios); `compozy provider show claude`
   reports the expected ACP command.
 
 Per-scenario evidence layout under `.artifacts/qa/<run-id>/doc-XX/`:
@@ -177,7 +177,7 @@ Per-scenario evidence layout under `.artifacts/qa/<run-id>/doc-XX/`:
 
 - Stop any background static server (`pkill -f "serve out -p <port>"` or kill PID from manifest).
 - Stop any background Playwright runner.
-- For DOC-19: `agh daemon stop` (or kill PID from manifest).
+- For DOC-19: `compozy daemon stop` (or kill PID from manifest).
 - Archive any HTML/CSS/screenshot captures alongside the report bundle.
 - Tear down the worktree only after evidence artifacts are written.
 
@@ -203,13 +203,13 @@ preconditions:
   - `make site-build` is green
   - Static server bound to 127.0.0.1:<port> serving packages/site/out/
 docs_refs:
-  - /Users/pedronauck/Dev/compozy/agh/COPY.md
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/COPY.md
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/CLAUDE.md
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/landing/hero.tsx:43-51
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/(home)/page.tsx:16-33
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/layout.tsx:27-72
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/opengraph-image.tsx:60-72
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero.tsx:43-51
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/(home)/page.tsx:16-33
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/layout.tsx:27-72
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/opengraph-image.tsx:60-72
 steps:
   - Build: `make site-build` (`Makefile:74-75`) and capture exit code.
   - Serve: `bunx serve packages/site/out -p $PORT` in the background; wait until 200 on `/`.
@@ -252,11 +252,11 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/source.ts:65-75
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/runtime-navigation.ts:117-132
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/internal-links.test.ts:171-220
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/runtime/[[...slug]]/page.tsx:13-39
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/protocol/[[...slug]]/page.tsx:13-39
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/source.ts:65-75
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/runtime-navigation.ts:117-132
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/internal-links.test.ts:171-220
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/runtime/[[...slug]]/page.tsx:13-39
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/protocol/[[...slug]]/page.tsx:13-39
 steps:
   - Enumerate every runtime + protocol URL by reading the build's `.source/` cache (`runtime.toFumadocsSource()` and `protocol.toFumadocsSource()` outputs are persisted under `.source/`); fall back to crawling `/sitemap.xml` if `.source/` is unavailable.
   - For every URL `U`, request `http://127.0.0.1:$PORT$U` over HTTP and assert status 200 and `Content-Type` starts with `text/html`.
@@ -294,19 +294,19 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/api/search/route.ts:6-27
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-search-index.test.ts:71-110
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/api/search/route.ts:6-27
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-search-index.test.ts:71-110
 steps:
   - GET `http://127.0.0.1:$PORT/api/search?q=session`. Capture JSON.
   - GET `http://127.0.0.1:$PORT/api/search?q=memory`. Capture JSON.
   - GET `http://127.0.0.1:$PORT/api/search?q=extension`. Capture JSON.
-  - For each response, assert `length(results) > 0` and at least one result with `tag === "Runtime"` and at least one with `tag === "AGH Network"` (where the term occurs in both trees).
+  - For each response, assert `length(results) > 0` and at least one result with `tag === "Runtime"` and at least one with `tag === "Compozy Network"` (where the term occurs in both trees).
   - Inspect the returned `url` field; resolve each to a 200 in the same static server.
 expected:
   - All three queries return non-empty lists.
-  - "session" returns Runtime results (sessions docs) AND AGH Network results (interactions/delivery talk about sessions).
-  - "memory" returns Runtime results (memory docs); AGH Network may return zero — accept if zero, but Runtime must be non-empty.
-  - "extension" returns Runtime results (extensions docs); AGH Network may return zero.
+  - "session" returns Runtime results (sessions docs) AND Compozy Network results (interactions/delivery talk about sessions).
+  - "memory" returns Runtime results (memory docs); Compozy Network may return zero — accept if zero, but Runtime must be non-empty.
+  - "extension" returns Runtime results (extensions docs); Compozy Network may return zero.
 evidence:
   - `doc-03-search-session.json`, `doc-03-search-memory.json`, `doc-03-search-extension.json`
 failure_signatures:
@@ -321,7 +321,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: doc-04-api-reference-faithful
-title: Every OpenAPI tag has a rendered MDX page; every operation in `openapi/agh.json` is reachable from one of those pages
+title: Every OpenAPI tag has a rendered MDX page; every operation in `openapi/compozy.json` is reachable from one of those pages
 theme: docs-site.api-reference
 coverage:
   primary:
@@ -336,22 +336,22 @@ preconditions:
   - `make codegen` and `make codegen-check` both green
   - `bun run generate:openapi` has run as part of `make site-build`
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/scripts/generate-openapi.ts:96-118
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/content/runtime/api-reference/meta.json
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/runtime-api-reference.test.ts:36-64
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/openapi.ts:8
-  - /Users/pedronauck/Dev/compozy/agh/openapi/agh.json
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/spec/spec.go:144-208
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/spec/spec_test.go:1219-1232
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/scripts/generate-openapi.ts:96-118
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/content/runtime/api-reference/meta.json
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/runtime-api-reference.test.ts:36-64
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/openapi.ts:8
+  - /Users/pedronauck/Dev/compozy/compozy/openapi/compozy.json
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/spec/spec.go:144-208
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/spec/spec_test.go:1219-1232
 steps:
-  - Read `openapi/agh.json` and enumerate every used tag and every operation under `paths.*.<method>`.
+  - Read `openapi/compozy.json` and enumerate every used tag and every operation under `paths.*.<method>`.
   - For each tag `T`, assert `packages/site/content/runtime/api-reference/<tagSlug(T)>.mdx` exists and renders an `APIPage` block.
   - Crawl the rendered page at `http://127.0.0.1:$PORT/runtime/api-reference/<tagSlug>` and assert each operation under `T` is referenced (operationId, method, or path appears in the rendered HTML body).
   - Cross-check against the `internal/api/spec.Operations()` registry: assert the count of distinct operationIds matches `internal/api/spec/spec_test.go:1219-1232` (currently 202).
 expected:
   - Every used tag has its MDX file (asserted by existing `runtime-api-reference.test.ts`, re-confirmed at the rendered HTML level).
   - Every operationId appears at least once in the rendered tree.
-  - The API reference index page (`/runtime/api-reference`) declares "built from `openapi/agh.json`" and references `make codegen-check` (per `runtime-docs-truth.test.ts:95-104`).
+  - The API reference index page (`/runtime/api-reference`) declares "built from `openapi/compozy.json`" and references `make codegen-check` (per `runtime-docs-truth.test.ts:95-104`).
 evidence:
   - `doc-04-tag-list.json` (tags from openapi)
   - `doc-04-mdx-list.json` (tag MDX files present)
@@ -383,17 +383,17 @@ provider: mock-acp
 preconditions:
   - SUT branch checked out
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/Makefile:77-78
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/root.go:65-123
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/content/runtime/cli-reference/meta.json
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/runtime-manual-cli-examples.test.ts:89-98
+  - /Users/pedronauck/Dev/compozy/compozy/Makefile:77-78
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/root.go:65-123
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/content/runtime/cli-reference/meta.json
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/runtime-manual-cli-examples.test.ts:89-98
 steps:
   - Run `make cli-docs`; capture stdout, stderr, exit. Assert exit 0.
   - `git status -- packages/site/content/runtime/cli-reference/` — assert empty (deterministic regen).
   - Re-run `make cli-docs` immediately; assert `git status` still empty (idempotent).
-  - Build the CLI tree by walking `cli.NewRootCommand()` (write a one-shot Go binary under `internal/cli/cli_tree_main.go` for the duration of the run, then delete) and emit every leaf verb path (e.g. `agh session new`, `agh task run claim`).
+  - Build the CLI tree by walking `cli.NewRootCommand()` (write a one-shot Go binary under `internal/cli/cli_tree_main.go` for the duration of the run, then delete) and emit every leaf verb path (e.g. `compozy session new`, `compozy task run claim`).
   - For each leaf verb path, assert a corresponding MDX file exists under `packages/site/content/runtime/cli-reference/` (folder + `.mdx` mapping per `runtime-manual-cli-examples.test.ts:89-98`).
-  - Crawl `http://127.0.0.1:$PORT/runtime/cli-reference/<verb-path>/` for the first three verb paths chosen at random; assert 200 + the rendered page contains the verb's `## agh <verb>` heading.
+  - Crawl `http://127.0.0.1:$PORT/runtime/cli-reference/<verb-path>/` for the first three verb paths chosen at random; assert 200 + the rendered page contains the verb's `## compozy <verb>` heading.
 expected:
   - `make cli-docs` is idempotent (zero diff on second run).
   - Every cobra leaf verb has its MDX file.
@@ -404,7 +404,7 @@ evidence:
   - `doc-05-cli-docs-output.log`
   - `doc-05-cli-docs-rerun-diff.txt` (must be empty)
 failure_signatures:
-  - `make cli-docs` non-zero → `cmd/agh doc` regression.
+  - `make cli-docs` non-zero → `cmd/compozy doc` regression.
   - Idempotent re-run produces a diff → CLI doc generator emits non-deterministic ordering or timestamp.
   - Cobra leaf without MDX → CLI verb added without regenerating site tree (violates the `internal/CLAUDE.md` "No partial-surface completions" rule and `packages/site/CLAUDE.md:46` "do not hand-edit those files; edit the cobra command source instead").
 cleanup:
@@ -429,14 +429,14 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/mdx-components.tsx:24-37
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/docs/mdx-blocks.tsx
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/docs/mermaid.tsx
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/global.css:230-309 (agh-mermaid token overrides)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/mdx-components.tsx:24-37
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/docs/mdx-blocks.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/docs/mermaid.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/global.css:230-309 (compozy-mermaid token overrides)
 steps:
   - Grep `packages/site/content/` for usages of each custom block (`Mermaid`, `GuideCard`, `GuideGrid`, `OperatorNote`, `RouteList`, `RouteRow`, `Workflow`, `WorkflowStep`).
   - For each block, pick at least one MDX page that uses it; navigate Chromium to that page in the static server.
-  - For `Mermaid`: assert an `svg.agh-mermaid-svg` element rendered with non-zero width/height. Assert it inherits `--color-text-primary`, `--color-surface`, etc., from the `.agh-mermaid` overrides in `app/global.css:230-309`.
+  - For `Mermaid`: assert an `svg.compozy-mermaid-svg` element rendered with non-zero width/height. Assert it inherits `--color-text-primary`, `--color-surface`, etc., from the `.compozy-mermaid` overrides in `app/global.css:230-309`.
   - For `APIPage`: assert at least one example response body block + one parameter table renders on `/runtime/api-reference/sessions/`.
   - For `GuideCard`/`GuideGrid`/`OperatorNote`/`RouteList`/`RouteRow`/`Workflow`/`WorkflowStep`: assert each renders the expected ARIA role/landmark plus the canonical CSS class.
 expected:
@@ -473,11 +473,11 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/DESIGN.md
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/layout.tsx:78-95
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/global.css:14-31,46-63,310-313
-  - /Users/pedronauck/Dev/compozy/agh/packages/ui/src/tokens.css
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/site-design-token-contract.test.ts:48-62
+  - /Users/pedronauck/Dev/compozy/compozy/DESIGN.md
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/layout.tsx:78-95
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/global.css:14-31,46-63,310-313
+  - /Users/pedronauck/Dev/compozy/compozy/packages/ui/src/tokens.css
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/site-design-token-contract.test.ts:48-62
 steps:
   - Build: confirm `out/` exists.
   - Static-scrape every CSS file under `packages/site/out/_next/static/css/*.css`. Concatenate.
@@ -488,7 +488,7 @@ steps:
   - Inspect rendered DOM on `/`: assert `<html class="dark …">` (per `app/layout.tsx:80-83`).
   - Inspect rendered DOM on `/runtime/`, `/protocol/`, `/blog/`, `/changelog/`: same `class="dark"` and no `prefers-color-scheme: light` adaptation.
   - Inspect every page that uses Playfair Display: confirm scope is `.site-home h1, .site-home h2` (per `app/global.css:310-313`) — Playfair must NOT appear on `/runtime/`, `/protocol/`, `/blog/`, `/changelog/` document headings.
-  - Inspect NuixyberNext usage: confirm it appears only inside the wordmark `<Logo variant="logo" />` from `@agh/ui` — never in document body or headings.
+  - Inspect NuixyberNext usage: confirm it appears only inside the wordmark `<Logo variant="logo" />` from `@compozy/ui` — never in document body or headings.
 expected:
   - Zero shadow declarations.
   - 100% of hex colors map to canonical tokens.
@@ -526,9 +526,9 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/global.css:315-332 (mobile docs body)
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/site/home-header.tsx:110-116 (mobile nav)
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/site/docs-header.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/global.css:315-332 (mobile docs body)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/site/home-header.tsx:110-116 (mobile nav)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/site/docs-header.tsx
 steps:
   - Configure Chromium with viewport 390×844 (DPR 3).
   - Visit `/`, `/runtime/`, `/protocol/`, `/blog/`, `/changelog/`, `/runtime/cli-reference/`, `/runtime/api-reference/sessions/`.
@@ -567,11 +567,11 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/layout.tsx:85-91 (Skip-to-content link)
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-icon-accessibility.test.ts
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-landmark-accessibility.test.ts
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-visual-accessibility.test.ts
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-aside-accessibility.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/layout.tsx:85-91 (Skip-to-content link)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-icon-accessibility.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-landmark-accessibility.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-visual-accessibility.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-aside-accessibility.test.ts
 steps:
   - Run axe-core (or `@axe-core/playwright`) headless against `/`, `/runtime/`, `/protocol/`, `/blog/`, `/changelog/`, one runtime doc page, one protocol doc page, one CLI reference page, one API reference page.
   - Assert axe returns zero violations of severity `serious` or higher.
@@ -613,8 +613,8 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/content-external-links.test.ts
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-link-safety.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/content-external-links.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-link-safety.test.ts
 steps:
   - Crawl every HTML page under `packages/site/out/`.
   - Collect every `<a href>` whose href starts with `http://` or `https://`.
@@ -650,8 +650,8 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-media-quality.test.ts
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/landing/hero.tsx:31 (aria-hidden background)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-media-quality.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero.tsx:31 (aria-hidden background)
 steps:
   - Crawl every HTML page under `packages/site/out/`; collect every `<img>` and the parent's `aria-hidden` attribute.
   - For each `<img>`:
@@ -686,9 +686,9 @@ provider: mock-acp
 preconditions:
   - Worktree clean
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/Makefile:74-75
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/next.config.mjs
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/package.json:11 (`prebuild` runs codegen + source + content)
+  - /Users/pedronauck/Dev/compozy/compozy/Makefile:74-75
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/next.config.mjs
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/package.json:11 (`prebuild` runs codegen + source + content)
 steps:
   - `rm -rf packages/site/out packages/site/.next packages/site/.source packages/site/.velite`.
   - Run `make site-build` (run #1). Capture exit + duration. Snapshot `out/` to `out-1/` via `cp -R`.
@@ -727,10 +727,10 @@ provider: mock-acp
 preconditions:
   - Fresh `bun install` at repo root completed
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/CLAUDE.md (Bun workspaces — monorepo-wide)
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/package.json
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/vitest.config.ts
-  - /Users/pedronauck/Dev/compozy/agh/vitest.config.ts (root projects)
+  - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md (Bun workspaces — monorepo-wide)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/package.json
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/vitest.config.ts
+  - /Users/pedronauck/Dev/compozy/compozy/vitest.config.ts (root projects)
 steps:
   - Run `make bun-lint`. Capture exit + stderr. Assert exit 0 (zero tolerance — root CLAUDE.md).
   - Run `make bun-typecheck`. Capture exit + stderr. Assert exit 0.
@@ -754,7 +754,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: doc-14-copy-vocab
-title: Scrape MDX prose and rendered HTML for `recipe`, `workflow`, `procedure`, `playbook` referring to current AGH artifacts; flag every occurrence
+title: Scrape MDX prose and rendered HTML for `recipe`, `workflow`, `procedure`, `playbook` referring to current Compozy artifacts; flag every occurrence
 theme: docs-site.copy
 coverage:
   primary:
@@ -765,24 +765,24 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/COPY.md
-  - /Users/pedronauck/Dev/compozy/agh/CLAUDE.md (Vocabulary & Product Strategy section)
-  - /Users/pedronauck/Dev/compozy/agh/docs/_memory/glossary.md
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/site-copy-contract.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/COPY.md
+  - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md (Vocabulary & Product Strategy section)
+  - /Users/pedronauck/Dev/compozy/compozy/docs/_memory/glossary.md
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/site-copy-contract.test.ts
 steps:
   - Concatenate every MDX file under `packages/site/content/runtime/` and `packages/site/content/protocol/` (excluding `cli-reference/` and `api-reference/` which are generated and may legitimately mention `workflow` as part of the OpenAPI tag name `tasks` → `Workflow` icon).
   - Concatenate every rendered HTML page under `packages/site/out/` (excluding `/runtime/cli-reference/` and `/runtime/api-reference/` for the same reason).
   - For each banned term `recipe`, `procedure`, `playbook`, `workflow`, count occurrences. The term `workflow` is allowed when used as the OpenAPI tag `Workflow` (capital W) on icon labels — exclude that exact context.
-  - For each occurrence, assert it does NOT refer to a current AGH artifact (e.g., "this capability is a workflow" → fail; "this is not a workflow engine" → pass per COPY.md §2 "What AGH Is Not").
+  - For each occurrence, assert it does NOT refer to a current Compozy artifact (e.g., "this capability is a workflow" → fail; "this is not a workflow engine" → pass per COPY.md §2 "What Compozy Is Not").
 expected:
-  - Zero violations referring to current AGH artifacts.
-  - Allowed: explicit "AGH is not a workflow engine" framings (per COPY.md §2).
+  - Zero violations referring to current Compozy artifacts.
+  - Allowed: explicit "Compozy is not a workflow engine" framings (per COPY.md §2).
 evidence:
   - `doc-14-mdx-occurrences.json`
   - `doc-14-html-occurrences.json`
   - `doc-14-violations.json` (must be empty after manual review)
 failure_signatures:
-  - "Recipe", "procedure", "playbook" referring to AGH capabilities → COPY.md drift; canonical artifact name is `capability`.
+  - "Recipe", "procedure", "playbook" referring to Compozy capabilities → COPY.md drift; canonical artifact name is `capability`.
   - "Workflow" referring to a capability → same drift; capabilities are interpretive, not deterministic programs (RFC 002 / `docs/_memory/glossary.md`).
 cleanup:
   - Nothing.
@@ -805,9 +805,9 @@ provider: mock-acp
 preconditions:
   - DOC-12 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/DESIGN.md
-  - /Users/pedronauck/Dev/compozy/agh/packages/ui/src/tokens.css
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/global.css:14-31,46-63,310-313
+  - /Users/pedronauck/Dev/compozy/compozy/DESIGN.md
+  - /Users/pedronauck/Dev/compozy/compozy/packages/ui/src/tokens.css
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/global.css:14-31,46-63,310-313
 steps:
   - Concatenate every CSS file under `packages/site/out/_next/static/css/`.
   - Run the same scrape as DOC-07, but on the EMITTED CSS (DOC-07 also covers the source files via the existing `site-design-token-contract.test.ts`).
@@ -848,24 +848,24 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/layout.tsx:27-72
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/site-config.ts:18-63 (createPageMetadata)
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/runtime/[[...slug]]/page.tsx:45-57
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/protocol/[[...slug]]/page.tsx:45-57
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/blog/[slug]/page.tsx:32-50
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/layout.tsx:27-72
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/site-config.ts:18-63 (createPageMetadata)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/runtime/[[...slug]]/page.tsx:45-57
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/protocol/[[...slug]]/page.tsx:45-57
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/blog/[slug]/page.tsx:32-50
 steps:
   - Crawl every HTML page in `packages/site/out/`.
   - For each page, parse the `<head>` and assert:
     - Exactly one `<title>` tag with non-empty text.
     - Exactly one `<meta name="description">` with non-empty content.
     - Exactly one `<meta property="og:image">` with non-empty content (default `/opengraph-image`, may be overridden per-page e.g. blog post cover).
-    - Exactly one `<link rel="canonical">` whose href starts with `https://agh.network`.
+    - Exactly one `<link rel="canonical">` whose href starts with `https://compozy.com`.
     - Exactly one `<meta name="twitter:card">`.
   - Aggregate all titles + descriptions across the export; flag any duplicate `(title, description)` pair on routes that should be unique (e.g., `/runtime/core/sessions/lifecycle` should not share metadata with `/runtime/core/sessions/permissions`).
 expected:
   - Zero pages missing any of the required meta.
   - Zero duplicates across distinct content routes.
-  - Title template `"%s | AGH"` (root layout) is honored on every non-home page.
+  - Title template `"%s | Compozy"` (root layout) is honored on every non-home page.
 evidence:
   - `doc-16-meta.json` (per route)
   - `doc-16-missing.json` (must be empty)
@@ -873,7 +873,7 @@ evidence:
 failure_signatures:
   - Missing title → `generateMetadata` regression in a route.
   - Duplicate meta → page passing a static config that overrides `createPageMetadata`.
-  - Canonical URL points at non-https or non-`agh.network` origin → site-config regression.
+  - Canonical URL points at non-https or non-`compozy.com` origin → site-config regression.
 cleanup:
   - Nothing.
 ```
@@ -894,15 +894,15 @@ provider: mock-acp
 preconditions:
   - DOC-01 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/sitemap.ts:8-25
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/app/robots.ts:6-14
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-route-metadata.test.ts:48-78
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/sitemap.ts:8-25
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/robots.ts:6-14
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-route-metadata.test.ts:48-78
 steps:
   - GET `/sitemap.xml` from the static server. Parse XML.
   - Parallel-enumerate the expected URL set: `/`, `/blog`, `/changelog`, every `runtimeDocs.getPages()` URL, every `protocolDocs.getPages()` URL, every blog post permalink, every category page (`/blog/categories/<category>`).
   - Assert sitemap URL set ⊇ expected set (and conversely, no extra URLs).
-  - Assert every URL in the sitemap is HTTPS, on the `agh.network` origin, terminates with `/` (per `canonicalPath`).
-  - GET `/robots.txt`. Assert it allows `/` for `*` and the `Sitemap:` line points at `https://agh.network/sitemap.xml`.
+  - Assert every URL in the sitemap is HTTPS, on the `compozy.com` origin, terminates with `/` (per `canonicalPath`).
+  - GET `/robots.txt`. Assert it allows `/` for `*` and the `Sitemap:` line points at `https://compozy.com/sitemap.xml`.
 expected:
   - Sitemap URL set == expected set.
   - Sitemap URLs are canonical HTTPS.
@@ -914,16 +914,16 @@ evidence:
 failure_signatures:
   - Missing URL → sitemap generator regression in `app/sitemap.ts`.
   - Extra URL → stale entry leaking from removed content.
-  - Non-HTTPS or non-`agh.network` URL → `siteConfig.url` drift.
+  - Non-HTTPS or non-`compozy.com` URL → `siteConfig.url` drift.
 cleanup:
   - Nothing.
 ```
 
-### DOC-18 — `@agh/ui` consumption is documented or storied
+### DOC-18 — `@compozy/ui` consumption is documented or storied
 
 ```yaml qa-scenario
-id: doc-18-agh-ui-consumption
-title: Every `@agh/ui` primitive imported by the site has either a story under `packages/ui/` or a documentation page
+id: doc-18-compozy-ui-consumption
+title: Every `@compozy/ui` primitive imported by the site has either a story under `packages/ui/` or a documentation page
 theme: docs-site.ui-kit
 coverage:
   primary:
@@ -934,19 +934,19 @@ provider: mock-acp
 preconditions:
   - SUT branch checked out
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/CLAUDE.md (Cross-References)
-  - /Users/pedronauck/Dev/compozy/agh/packages/ui/
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/landing/install-section.tsx:4 (`buttonVariants`)
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/site/home-header.tsx:4 (`Logo`, `buttonVariants`, `cn`)
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/site/site-footer.tsx:1 (`Logo`, `cn`)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/CLAUDE.md (Cross-References)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/ui/
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/install-section.tsx:4 (`buttonVariants`)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/site/home-header.tsx:4 (`Logo`, `buttonVariants`, `cn`)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/site/site-footer.tsx:1 (`Logo`, `cn`)
 steps:
-  - `grep -rE 'from "@agh/ui(?:/[a-z-]+)?"' packages/site/app packages/site/components packages/site/lib` → enumerate the set of imported symbols.
+  - `grep -rE 'from "@compozy/ui(?:/[a-z-]+)?"' packages/site/app packages/site/components packages/site/lib` → enumerate the set of imported symbols.
   - For each symbol, locate either:
     - A Storybook story under `packages/ui/src/**/*.stories.tsx` (or wherever the package places stories), OR
     - A documentation page under `packages/site/content/` that demonstrates the primitive.
   - Flag any imported symbol with neither.
 expected:
-  - 100% of imported `@agh/ui` symbols are documented or storied.
+  - 100% of imported `@compozy/ui` symbols are documented or storied.
 evidence:
   - `doc-18-imports.json`
   - `doc-18-coverage.json`
@@ -973,18 +973,18 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Bootstrap manifest with isolated `AGH_HOME`, daemon HTTP port, and the
+  - Bootstrap manifest with isolated `COMPOZY_HOME`, daemon HTTP port, and the
     effective Claude home for the lane documented (`HOME` by default,
     `PROVIDER_HOME` only for explicit isolated-home scenarios)
-  - Daemon up: `agh status -o json` reports `status="running"`
+  - Daemon up: `compozy status -o json` reports `status="running"`
   - Direct `claude` auth available in the effective Claude home for the lane
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/components/landing/hero-player.tsx (Remotion Player)
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/remotion/hero/composition.tsx
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/03-acp-sessions.md (sibling for real prompt path)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero-player.tsx (Remotion Player)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/remotion/hero/composition.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/03-acp-sessions.md (sibling for real prompt path)
 steps:
-  - Audit `packages/site/app/`, `packages/site/components/`, `packages/site/lib/` for any client-side fetch to a daemon endpoint (`/api/sessions/.../prompt`, `/api/sessions/.../stream`, `agh.network` itself, or a staged daemon URL). Use `grep -rE 'fetch\(|EventSource|/api/sessions|/api/observe' packages/site/`.
+  - Audit `packages/site/app/`, `packages/site/components/`, `packages/site/lib/` for any client-side fetch to a daemon endpoint (`/api/sessions/.../prompt`, `/api/sessions/.../stream`, `compozy.com` itself, or a staged daemon URL). Use `grep -rE 'fetch\(|EventSource|/api/sessions|/api/observe' packages/site/`.
   - **Today's expected outcome**: zero client-side daemon prompt calls (the only `Player` is Remotion's local `HeroChatComposition`; there is no live ACP).
   - If audit finds a "Try it" embed (e.g., a future feature):
     - Drive a headless browser to the page hosting the embed.
@@ -993,9 +993,9 @@ steps:
     - Cross-reference the daemon's `events.db` for the matching session.
   - If audit finds none (the truthful current state):
     - Assert the hero animation is a Remotion `<Player>` composition (`components/landing/hero-player.tsx:46-60`), not a live LLM stream.
-    - Assert the composition runs locally (no network call) — verify by intercepting Network requests in the headless browser; expect zero requests to `127.0.0.1:<daemon-port>` or `agh.network/api/`.
+    - Assert the composition runs locally (no network call) — verify by intercepting Network requests in the headless browser; expect zero requests to `127.0.0.1:<daemon-port>` or `compozy.com/api/`.
     - Assert the README/landing copy never claims interactive embeds today.
-    - Document the test-mode harness for any future embed: a future scenario template that drives the embed against an isolated daemon with `AGH_WEB_API_PROXY_TARGET` exported (per CLAUDE.md "Isolated Web QA must export `AGH_WEB_API_PROXY_TARGET`").
+    - Document the test-mode harness for any future embed: a future scenario template that drives the embed against an isolated daemon with `COMPOZY_WEB_API_PROXY_TARGET` exported (per CLAUDE.md "Isolated Web QA must export `COMPOZY_WEB_API_PROXY_TARGET`").
 expected:
   - Truthful UI: today, the site renders a Remotion preview, NOT a live LLM stream. The QA report explicitly states "no live embed today; honest preview".
   - If a future embed is added: it MUST connect to a real daemon and produce a real SSE event sequence (mirroring API-02 in `11-api-cli-parity.md`).
@@ -1007,7 +1007,7 @@ failure_signatures:
   - Site contains a hidden client-side LLM call without operator awareness → truthful-UI violation; immediate blocker.
   - "Try it" embed claimed in copy but not implemented → COPY.md / runtime-truth divergence.
 cleanup:
-  - `agh daemon stop` (or kill PID from manifest).
+  - `compozy daemon stop` (or kill PID from manifest).
 ```
 
 ### DOC-20 — Codegen co-ship doc: API reference updates lockstep
@@ -1027,14 +1027,14 @@ provider: mock-acp
 preconditions:
   - Worktree clean; `make codegen-check` green
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/contract/responses.go
-  - /Users/pedronauck/Dev/compozy/agh/openapi/agh.json
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/scripts/generate-openapi.ts:96-118
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/content/runtime/api-reference/
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/contract/responses.go
+  - /Users/pedronauck/Dev/compozy/compozy/openapi/compozy.json
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/scripts/generate-openapi.ts:96-118
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/content/runtime/api-reference/
 steps:
-  - Save backups of `internal/api/contract/responses.go`, `openapi/agh.json`, and the entire `packages/site/content/runtime/api-reference/` tree.
+  - Save backups of `internal/api/contract/responses.go`, `openapi/compozy.json`, and the entire `packages/site/content/runtime/api-reference/` tree.
   - Add a new field to a contract struct (e.g. `DaemonStatusPayload.SchemaTestField string`).
-  - Run `make codegen`. Assert exit 0; assert `openapi/agh.json` updated.
+  - Run `make codegen`. Assert exit 0; assert `openapi/compozy.json` updated.
   - Run `bun run generate:openapi` (from `packages/site/`). Assert exit 0.
   - Inspect `packages/site/content/runtime/api-reference/`: assert (a) every previously-existing tag MDX still exists, (b) any new tag (if the contract change introduced one) has a fresh MDX, (c) `meta.json` reflects the updated tag set.
   - Build: `make site-build`. Assert exit 0.
@@ -1072,14 +1072,14 @@ provider: mock-acp
 preconditions:
   - Worktree clean
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/root.go
-  - /Users/pedronauck/Dev/compozy/agh/Makefile:77-78
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/content/runtime/cli-reference/
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/root.go
+  - /Users/pedronauck/Dev/compozy/compozy/Makefile:77-78
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/content/runtime/cli-reference/
 steps:
   - Backup `internal/cli/root.go` and `packages/site/content/runtime/cli-reference/`.
-  - Add a temporary subcommand: e.g. `agh whoami debug` (a no-op leaf under the existing `whoami` group). Wire it via cobra under the `whoami` parent.
+  - Add a temporary subcommand: e.g. `compozy whoami debug` (a no-op leaf under the existing `whoami` group). Wire it via cobra under the `whoami` parent.
   - Run `make cli-docs`. Assert exit 0; assert a new MDX appears at `packages/site/content/runtime/cli-reference/whoami/debug.mdx`.
-  - Run `make site-build`. Crawl `/runtime/cli-reference/whoami/debug/`; assert 200 with a `## agh whoami debug` heading.
+  - Run `make site-build`. Crawl `/runtime/cli-reference/whoami/debug/`; assert 200 with a `## compozy whoami debug` heading.
   - Rename the cobra command to `whoami debug-renamed`; run `make cli-docs` again; assert the old `debug.mdx` is removed and `debug-renamed.mdx` exists.
   - Revert: remove the temporary subcommand; run `make cli-docs`; assert `git diff -- internal/cli/ packages/site/content/runtime/cli-reference/` is empty.
 expected:
@@ -1092,8 +1092,8 @@ evidence:
   - `doc-21-cli-tree-after-rename.json`
   - `doc-21-final-git-diff.txt` (must be empty)
 failure_signatures:
-  - New subcommand without new MDX → `cmd/agh doc` regression; the doc generator is missing a leaf.
-  - Rename leaves orphan MDX → `cmd/agh doc --output-dir` does not clean stale files; either the generator is meant to clean or `cli-docs` should `rm -rf` first; document the contract.
+  - New subcommand without new MDX → `cmd/compozy doc` regression; the doc generator is missing a leaf.
+  - Rename leaves orphan MDX → `cmd/compozy doc --output-dir` does not clean stale files; either the generator is meant to clean or `cli-docs` should `rm -rf` first; document the contract.
   - Final `git diff` non-empty → revert path broken.
 cleanup:
   - Restore from backups; assert worktree clean.
@@ -1116,9 +1116,9 @@ provider: mock-acp
 preconditions:
   - DOC-12 preconditions; `out/` present
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/next.config.mjs (`output: "export"`, `trailingSlash: true`)
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/public/_headers
-  - /Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-security-headers.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/next.config.mjs (`output: "export"`, `trailingSlash: true`)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/public/_headers
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-security-headers.test.ts
 steps:
   - Serve `out/` with `bunx serve packages/site/out -p $PORT --no-clipboard --single`.
   - Read every URL from `/sitemap.xml`. For each:
@@ -1149,14 +1149,14 @@ Every scenario MUST produce a Worked / Failed / Blocked / Follow-up report at `.
 - Total runtime + protocol pages enumerated; total operationIds enumerated; total cobra leaves enumerated.
 - Cross-reference every failure to one of the gap items in §3.
 - Every external link rotted (DOC-10) becomes a doc-content follow-up issue.
-- Every undocumented `@agh/ui` symbol (DOC-18) becomes a doc/storybook follow-up issue.
+- Every undocumented `@compozy/ui` symbol (DOC-18) becomes a doc/storybook follow-up issue.
 - Truthful-UI status (DOC-19): "no live embed today" or "live embed proven against daemon `<id>`".
 
 ## 9. Pass criteria (module-level)
 
 The 13-docs-site module is **green** when:
 
-- DOC-01..DOC-22 all reach status `Worked` (or `Worked-with-Follow-up` for DOC-18 if a small number of `@agh/ui` symbols are documented as follow-ups).
+- DOC-01..DOC-22 all reach status `Worked` (or `Worked-with-Follow-up` for DOC-18 if a small number of `@compozy/ui` symbols are documented as follow-ups).
 - `make verify` is green on the SUT branch (root CLAUDE.md Critical Rule).
 - `make codegen-check` and `make cli-docs` are both green and idempotent.
 - The static export under `packages/site/out/` is byte-deterministic across two clean runs.
@@ -1166,25 +1166,25 @@ The 13-docs-site module is **green** when:
 
 ## 10. Open questions / follow-ups
 
-- **`agh.network` deploy parity**: this child runs against a local static server (`bunx serve out/`). The deployed `agh.network` runs behind Cloudflare Pages, which honors `public/_headers`. A follow-up scenario should run a smoke test against the deployed origin once a release is cut, asserting the same DOC-16 / DOC-22 contracts hold (separate from this pre-release child since deployment is post-merge).
+- **`compozy.com` deploy parity**: this child runs against a local static server (`bunx serve out/`). The deployed `compozy.com` runs behind Cloudflare Pages, which honors `public/_headers`. A follow-up scenario should run a smoke test against the deployed origin once a release is cut, asserting the same DOC-16 / DOC-22 contracts hold (separate from this pre-release child since deployment is post-merge).
 - **Real-LLM embed**: when the team ships an interactive "Try it" embed, DOC-19 must be promoted from "honest absence" to a real-prompt scenario mirroring `API-02` in `11-api-cli-parity.md`.
 - **Storybook adjacency (DOC-18)**: `packages/ui` may not yet host stories. If stories are not the chosen documentation path, document each consumed primitive in `content/runtime/` instead and update DOC-18's pass criteria.
 - **Velite `changelog/` collection is empty today**: when the first Velite-backed `release` MDX lands, add a DOC-23 scenario asserting the `/changelog` page renders the release entry, the `ChangelogTocRail` shows the version, and the `cliff.toml` metadata aligns (per the looper canonical CI patterns).
-- **Mermaid in dark mode (DOC-06)**: if Mermaid output ever shows a light-theme bleed, add a regression scenario locking down the `agh-mermaid` token overrides at the rendered-svg level.
+- **Mermaid in dark mode (DOC-06)**: if Mermaid output ever shows a light-theme bleed, add a regression scenario locking down the `compozy-mermaid` token overrides at the rendered-svg level.
 
 ## 11. Source map (file:line citations)
 
 Authoritative references used by this child (every citation is repo-absolute):
 
-- Hero copy lock: `/Users/pedronauck/Dev/compozy/agh/packages/site/components/landing/hero.tsx:43-51`, `/Users/pedronauck/Dev/compozy/agh/packages/site/CLAUDE.md:9`, `/Users/pedronauck/Dev/compozy/agh/COPY.md` §2-3.
-- Site config: `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/site-config.ts:1-7`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/layout.tsx:27-72`.
-- Fumadocs source: `/Users/pedronauck/Dev/compozy/agh/packages/site/source.config.ts:3-9`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/source.ts:65-75`.
-- Velite: `/Users/pedronauck/Dev/compozy/agh/packages/site/velite.config.ts:1-85`.
-- App routes: `/Users/pedronauck/Dev/compozy/agh/packages/site/app/(home)/page.tsx:16-33`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/runtime/[[...slug]]/page.tsx:13-57`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/protocol/[[...slug]]/page.tsx:13-57`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/blog/page.tsx:28-114`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/blog/[slug]/page.tsx:52-117`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/blog/feed.xml/route.ts:15-51`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/changelog/page.tsx:16-101`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/api/search/route.ts:6-27`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/sitemap.ts:8-25`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/robots.ts:6-14`, `/Users/pedronauck/Dev/compozy/agh/packages/site/app/opengraph-image.tsx:12-78`.
-- Generators: `/Users/pedronauck/Dev/compozy/agh/packages/site/scripts/generate-openapi.ts:96-118`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/openapi.ts:1-12`, `/Users/pedronauck/Dev/compozy/agh/packages/site/package.json:7-19`, `/Users/pedronauck/Dev/compozy/agh/Makefile:69-78`.
-- Custom MDX components: `/Users/pedronauck/Dev/compozy/agh/packages/site/mdx-components.tsx:1-37`, `/Users/pedronauck/Dev/compozy/agh/packages/site/components/docs/mdx-blocks.tsx`, `/Users/pedronauck/Dev/compozy/agh/packages/site/components/docs/mermaid.tsx`.
-- Existing test contracts: `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/internal-links.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/runtime-api-reference.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/runtime-manual-cli-examples.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/runtime-docs-truth.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/site-design-token-contract.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/site-copy-contract.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/landing-truth.test.tsx`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-route-metadata.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-search-index.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-security-headers.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-media-quality.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-icon-accessibility.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-landmark-accessibility.test.ts`, `/Users/pedronauck/Dev/compozy/agh/packages/site/lib/public-link-safety.test.ts`.
-- Design + copy: `/Users/pedronauck/Dev/compozy/agh/DESIGN.md`, `/Users/pedronauck/Dev/compozy/agh/COPY.md`, `/Users/pedronauck/Dev/compozy/agh/packages/ui/src/tokens.css`.
-- Glossary: `/Users/pedronauck/Dev/compozy/agh/docs/_memory/glossary.md`.
-- Sibling QA children: `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/04-autonomy-kernel.md`, `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/11-api-cli-parity.md`.
-- QA pattern references: `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md`, `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md`.
+- Hero copy lock: `/Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero.tsx:43-51`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/CLAUDE.md:9`, `/Users/pedronauck/Dev/compozy/compozy/COPY.md` §2-3.
+- Site config: `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/site-config.ts:1-7`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/layout.tsx:27-72`.
+- Fumadocs source: `/Users/pedronauck/Dev/compozy/compozy/packages/site/source.config.ts:3-9`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/source.ts:65-75`.
+- Velite: `/Users/pedronauck/Dev/compozy/compozy/packages/site/velite.config.ts:1-85`.
+- App routes: `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/(home)/page.tsx:16-33`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/runtime/[[...slug]]/page.tsx:13-57`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/protocol/[[...slug]]/page.tsx:13-57`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/blog/page.tsx:28-114`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/blog/[slug]/page.tsx:52-117`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/blog/feed.xml/route.ts:15-51`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/changelog/page.tsx:16-101`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/api/search/route.ts:6-27`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/sitemap.ts:8-25`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/robots.ts:6-14`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/opengraph-image.tsx:12-78`.
+- Generators: `/Users/pedronauck/Dev/compozy/compozy/packages/site/scripts/generate-openapi.ts:96-118`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/openapi.ts:1-12`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/package.json:7-19`, `/Users/pedronauck/Dev/compozy/compozy/Makefile:69-78`.
+- Custom MDX components: `/Users/pedronauck/Dev/compozy/compozy/packages/site/mdx-components.tsx:1-37`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/components/docs/mdx-blocks.tsx`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/components/docs/mermaid.tsx`.
+- Existing test contracts: `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/internal-links.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/runtime-api-reference.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/runtime-manual-cli-examples.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/runtime-docs-truth.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/site-design-token-contract.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/site-copy-contract.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/landing-truth.test.tsx`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-route-metadata.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-search-index.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-security-headers.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-media-quality.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-icon-accessibility.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-landmark-accessibility.test.ts`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/public-link-safety.test.ts`.
+- Design + copy: `/Users/pedronauck/Dev/compozy/compozy/DESIGN.md`, `/Users/pedronauck/Dev/compozy/compozy/COPY.md`, `/Users/pedronauck/Dev/compozy/compozy/packages/ui/src/tokens.css`.
+- Glossary: `/Users/pedronauck/Dev/compozy/compozy/docs/_memory/glossary.md`.
+- Sibling QA children: `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/04-autonomy-kernel.md`, `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/11-api-cli-parity.md`.
+- QA pattern references: `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md`, `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md`.

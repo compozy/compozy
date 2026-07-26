@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-configure-window-manager
 ---
 
-story: As an operator, loading or deleting a saved layout never silently destroys work I have not applied yet.
+story: As a person running agent work, loading or deleting a saved layout never silently destroys work I have not applied yet.
 
 qa-impact: 2026-07-24 fixes a defect: selecting a profile replaced the whole draft with no confirmation and no dirty check, and a delete left three of the removed record's fields seeded into the next one. Flag only; the next QA cycle owns live testing.
 

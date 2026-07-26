@@ -7,7 +7,7 @@ guide for the executable reference, architecture, implementation sequence, and o
 Do not duplicate that walkthrough here.
 
 In-tree providers are trusted Go extensions and may import `internal/bridgesdk`. External modules
-cannot use these internal packages, and AGH does not yet publish a complete external bridge SDK,
+cannot use these internal packages, and Compozy does not yet publish a complete external bridge SDK,
 grant surface, or conformance harness.
 
 ## Canonical owners
@@ -67,7 +67,7 @@ validated `COMPOZY_BRIDGE_*` environment seam for trusted sovereign or fake-serv
 
 - Match method and content type, bound the raw body, apply rate/in-flight limits, select one instance,
   then authenticate before parsing trusted fields.
-- Preserve managed `scope` and `workspace_id`; never derive AGH ownership from provider input.
+- Preserve managed `scope` and `workspace_id`; never derive Compozy ownership from provider input.
 - Normalize supported events into typed message, command, action, reaction, or edit envelopes.
 - Apply DM/ACL policy, validate, use adapter-local `Seen` as a read-only duplicate check, ingest, then
   `Mark` only after Host acceptance. The in-process cache defaults to five minutes; the daemon writes
@@ -113,7 +113,7 @@ validated `COMPOZY_BRIDGE_*` environment seam for trusted sovereign or fake-serv
 - Publish provider-derived targets only from a bounded truthful API; otherwise keep the SDK fallback
   from operator-declared delivery defaults. Ambiguous names remain ambiguous.
 - Co-ship the provider README, overview/capability matrix, provider setup guide, navigation, official
-  AGH skill, generated contracts when shared types change, and `docs/qa/state.csv` impact.
+  Compozy skill, generated contracts when shared types change, and `docs/qa/state.csv` impact.
 - A setup guide independently covers provider acquisition, credentials, disabled creation,
   public-to-local callback mapping, access policy, verification and enablement, a real inbound route,
   `send-test`, limits, and credential rotation.
@@ -165,7 +165,7 @@ A provider is not complete until all of these are true:
 - restart/resume, cancellation, removal, and cleanup behavior pass under `-race`;
 - the access, route, delivery, progress, and unsupported-operation boundaries match public docs;
 - CLI/HTTP/UDS and the official skill let an agent inspect and operate the behavior without the Web;
-- QA tracker impact is flagged and the AGH Impact Audit names native tools, extensibility/hooks,
+- QA tracker impact is flagged and the Compozy Impact Audit names native tools, extensibility/hooks,
   workspace isolation, and official-skill effects.
 
 Build or initialize alone is not functional proof. A platform HTTP success alone is not inbound

@@ -7,7 +7,7 @@ Covers US-006 (ADR-010 §3) and the §3.5 daemon memory observability probe.
 
 ```mermaid
 flowchart TD
-    E1[Entry: agh drain CLI] --> D[Drain requested]
+    E1[Entry: compozy drain CLI] --> D[Drain requested]
     E2[Entry: POST /api/drain HTTP or UDS] --> D
     W[Precondition: one active prompt + one claimed task run] --> D
     D --> S[Status + doctor show draining on every transport]
@@ -32,7 +32,7 @@ journey:
   value_statement: "I can quiesce the daemon deliberately: nothing new is admitted, nothing in flight is lost, and every surface tells me the same truthful state."
   personas: [Dora]
   entry_points:
-    - url: "CLI: agh drain; agh undrain; agh status; agh doctor -o json"
+    - url: "CLI: compozy drain; compozy undrain; compozy status; compozy doctor -o json"
       origin: direct
     - url: "HTTP/UDS: POST /api/drain; POST /api/undrain; GET /api/status; GET /api/doctor"
       origin: direct

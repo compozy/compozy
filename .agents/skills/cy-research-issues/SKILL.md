@@ -28,7 +28,7 @@ pointer, not a substitute.
 - `references/explorer-dispatch.md` — explorer agent contract, the seven-section analysis schema,
   the dispatch prompt template, and the failure/resume protocol for agents killed mid-run.
 - `references/techspec-lite-template.md` — the full `_techspec.md` template (sections 1-10 incl.
-  AGH Impact Audit and Web/Docs Impact) plus authoring rules (YAGNI, Open Decisions instead of ADR
+  Compozy Impact Audit and Web/Docs Impact) plus authoring rules (YAGNI, Open Decisions instead of ADR
   ceremony).
 - `references/issue-task-template.md` — the complete `task_NN.md` template merging issue DNA with
   the executable contract, the parser rules, the `_tasks.md` graph manifest contract, complexity
@@ -101,7 +101,7 @@ pointer, not a substitute.
 
 5. **Author `_techspec.md` (lite).**
    - **STOP. Read `references/techspec-lite-template.md` in full before writing the techspec.**
-     Fill every section it defines — the AGH Impact Audit and Web/Docs Impact sections are
+     Fill every section it defines — the Compozy Impact Audit and Web/Docs Impact sections are
      mandatory, and contested decisions go to its Open Decisions section instead of blocking on
      interactive rounds.
    - This is the reference document `cy-execute-task` reads for implementation guidance — carry

@@ -1,9 +1,9 @@
 ---
 name: agh-ui-screenshot
-description: Screenshot capture for deterministic PNG evidence and visual-contract bundles for AGH Storybook stories and local UI URLs. Use for visual audits, regression diffs, and design-parity checks. Do not use for interactive E2E flows, remote authenticated sites, or Storybook test execution.
+description: Screenshot capture for deterministic PNG evidence and visual-contract bundles for Compozy Storybook stories and local UI URLs. Use for visual audits, regression diffs, and design-parity checks. Do not use for interactive E2E flows, remote authenticated sites, or Storybook test execution.
 ---
 
-# AGH UI Screenshot
+# Compozy UI Screenshot
 
 Capture deterministic PNG evidence through the bundled CDP helper. The helper
 owns load/font settling and viewport emulation; the procedure owns target

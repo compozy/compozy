@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell; NB-bridge-edit-reply; NB-indeterminate-bridge-delivery; NB-web-bridge-setup
 ---
 
-story: As an operator I change what a bridge does and prove it can still deliver, without wondering which of two delivery dialogs I am in.
+story: As a person running agent work I change what a bridge does and prove it can still deliver, without wondering which of two delivery dialogs I am in.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.9, decision D2), task_03, implemented 2026-07-25. Before this change the delivery check and the real send were two separate dialogs launched from the detail panel, each with its own target draft that could silently drift from the other.
 

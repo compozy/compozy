@@ -1,6 +1,6 @@
-# Copy System: AGH
+# Copy System: Compozy
 
-One product language across AGH marketing, documentation, runtime UI, CLI help, release copy, package metadata, OpenGraph metadata, examples, and launch material.
+One product language across Compozy marketing, documentation, runtime UI, CLI help, release copy, package metadata, OpenGraph metadata, examples, and launch material.
 
 `COPY.md` is the verbal counterpart to `DESIGN.md`.
 
@@ -37,56 +37,57 @@ Runtime truth beats copy preference. Generated API/CLI references beat paraphras
 
 ### Canonical One-Liner
 
-AGH is a local-first agent operating system: one daemon for durable agent sessions, one shared surface for humans and agents, and one open network for agent-to-agent coordination.
+CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.
 
 ### Short Pitch
 
-AGH runs the agent CLIs teams already use as durable, inspectable sessions. It keeps work attached to a workspace, exposes the same state through CLI, HTTP/SSE, UDS, and web UI, and ships `compozy-network/v0` so agents can discover peers, delegate work, exchange capabilities, and close the loop with receipts.
+Compozy turns the agent CLIs people already use into durable work that can outlive a terminal tab. Sessions, tasks, loops, memory, permissions, automation, and the OS shell share one daemon-owned state; people and agents can operate that state through web, CLI, HTTP/SSE, UDS, and tools. Compozy Network adds agent-to-agent coordination inside the same system.
 
 ### Product Category
 
-Use `agent operating system` as the category descriptor when needed. Do not make it the only hero idea. The sharper public hook is the open-workplace promise:
+Use `agent operating system` as the category descriptor. Use **CompozyOS** when naming the complete system or making the category explicit; use **Compozy** in normal product prose. The OS claim rests on integrated completeness and extensibility, not on a desktop metaphor or a collection of disconnected features.
 
-> An open workplace for AI agents.
+Task 11 owns the launch headline, subhead, and their final locks. Do not promote provisional landing copy into this file before that task.
 
 ### Primary Promise
 
-Real agent work should be durable, observable, agent-manageable, and able to cross the boundary of one terminal tab.
+People can start, watch, guide, resume, and finish agent work in one system. The work stays durable and inspectable, and agents can manage the same runtime through structured surfaces.
 
 ### Differentiator Ladder
 
-Lead with the highest-leverage, most public differentiators:
+Lead with the system, then prove it through the connected parts:
 
-1. **AGH Network:** active sessions can become peers, discover each other, exchange typed envelopes, and return receipts.
-2. **Local-first durable runtime:** one Go binary, background daemon, SQLite-backed state, durable sessions, event history, and resumable work.
-3. **Agent-manageable surfaces:** CLI, HTTP/SSE, UDS, and tools expose structured controls agents can call.
-4. **Autonomy kernel:** task runs, claim tokens, leases, safe spawn, and coordinator handoff make multi-agent work observable and bounded.
-5. **Tool registry and extensibility:** native Go tools, MCP, extensions, hooks, skills, capabilities, bridges, and policies through one daemon-owned runtime.
-6. **Memory and consolidation:** typed memory, workspace/global scopes, operation history, and gated consolidation behavior.
+1. **Integrated completeness:** execution, tasks, loops, memory, permissions, automation, coordination, and the OS shell share one runtime and one state model. The connection between them is the claim; a feature count is not.
+2. **Built to be built on:** extensions, hooks, skills, capabilities, bridges, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
+3. **Local-first durability:** one Go binary and SQLite-backed daemon keep sessions, events, work, and state durable, resumable, and inspectable.
+4. **Shared control:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents.
+5. **Bounded autonomy:** task runs, claim tokens, leases, safe spawn, memory scopes, and coordinator handoff make multi-agent work observable and recoverable.
+6. **Compozy Network:** sessions can become peers, exchange typed envelopes, and return receipts. In the named comparison set — Orca, Paperclip, Smithers, Hermes, OpenClaw, Synara, and T3 — this is the subsystem none provides as part of the same agent OS.
 
-### What AGH Is Not
+### What Compozy Is Not
 
 Use the glossary as the authority. In public copy, keep these boundaries clear:
 
-- AGH is not a workflow engine. Capabilities are interpretive, not deterministic programs.
-- AGH is not a federation protocol. AGH Network is a self-contained agent coordination layer, not an organization-level trust system.
-- AGH is not an MCP replacement. MCP integrates into AGH.
-- AGH is not an A2A replacement. AGH Network and A2A can coexist.
-- AGH does not compete on owning the wire protocol. AGH competes on runtime, SDK, observability, DX, and integration depth.
+- Compozy is not a desktop shell placed over an agent CLI. The shell is one surface over a daemon-owned operating system.
+- Compozy is not a workflow engine. Capabilities are interpretive, not deterministic programs.
+- Compozy is not a federation protocol. Compozy Network is a self-contained agent coordination layer, not an organization-level trust system.
+- Compozy is not an MCP replacement. MCP integrates into Compozy.
+- Compozy is not an A2A replacement. Compozy Network and A2A can coexist.
+- Compozy does not compete on owning a wire protocol. It competes on the integrated runtime, extension surface, observability, and depth of coordination.
 
 ## 3. Message Architecture
 
 ### Primary Narrative
 
-An open workplace for AI agents.
+Agent work needs an operating system, not a stack of disconnected tools.
 
-This is the strongest first-contact story. AGH is not just another local agent runner. It gives durable agent sessions a place to find peers, share capabilities, and close work with receipts on compozy-network/v0.
+CompozyOS ties execution, state, governance, coordination, and presentation into one local-first runtime. The primary story is that the parts already work together: a task can start a session, permissions bound it, memory follows the workspace, people can see and steer it, and another agent can continue the work without rebuilding the context by hand.
 
 ### Secondary Narrative
 
-Local-first runtime for real agent work.
+Built to be built on.
 
-AGH keeps agent sessions durable, replayable where supported by the event model, observable, resumable, and controllable through the same surfaces humans and agents use.
+Compozy exposes extensions, hooks, skills, capabilities, bridges, SDKs, MCP, native tools, and structured control surfaces as parts of the operating system. Agents do not only run on the system; they can operate it through the same contracts people use.
 
 ### Network Mode Naming
 
@@ -99,21 +100,21 @@ availability never opts an execution in. In code and structured payloads, preser
 
 Every major copy surface should draw from one or more proof pillars.
 
-| Pillar                   | Claim Shape                                                                       | Proof to Prefer                                                                                 |
-| ------------------------ | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| AGH Network              | Explicitly Live agents exchange typed envelopes and collect receipts.             | Local/Live controls, `agh network` commands, message kinds, commit-first delivery, audit trail. |
-| Durable Runtime          | Sessions survive beyond one terminal interaction and remain inspectable.          | Session CLI, event DBs, SSE, UDS/HTTP parity, web session views.                                |
-| Agent-Manageable Control | Agents operate AGH through structured surfaces, not hidden UI-only paths.         | CLI `-o json`, HTTP/UDS endpoints, tool registry, hosted MCP projection.                        |
-| Autonomy Kernel          | Work ownership is token-fenced, leased, and recoverable.                          | Task claim, heartbeat, complete/fail/release, coordinator state, safe spawn.                    |
-| Tool Registry            | One canonical tool surface spans native tools, MCP, and extensions.               | `agh tool list/search/info/invoke`, policy decisions, toolsets.                                 |
-| Memory                   | Memory is typed, scoped, file-backed, and inspectable.                            | `agh memory` commands, memory taxonomy, operation history, health.                              |
-| Extensibility            | Extensions, hooks, skills, bridges, capabilities, and SDKs plug into the runtime. | Host API, hook dispatch, capability catalog, bridge adapters, SDK docs.                         |
+| Pillar            | Claim Shape                                                                             | Proof to Prefer                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Integrated System | Work, state, policy, memory, automation, coordination, and the OS shell stay connected. | A real task/session/loop journey that crosses those surfaces without duplicate state.               |
+| Durable Runtime   | Sessions survive beyond one terminal interaction and remain inspectable.                | Session CLI, event databases, SSE, UDS/HTTP parity, web session views.                              |
+| Shared Control    | People and agents operate the same daemon-owned state through structured surfaces.      | CLI `-o json`, HTTP/UDS endpoints, native tools, hosted MCP projection, truthful web views.         |
+| Bounded Autonomy  | Work ownership is token-fenced, leased, observable, and recoverable.                    | Task claim, heartbeat, complete/fail/release, coordinator state, safe spawn.                        |
+| Extensibility     | Public contracts let the operating system grow without bypassing runtime ownership.     | Host API, hooks, extensions, skills, capability catalog, bridge adapters, SDKs, and tool registry.  |
+| Memory            | Memory is typed, scoped, file-backed, and inspectable.                                  | `compozy memory` commands, memory taxonomy, operation history, health.                              |
+| Compozy Network   | Explicitly Live agents exchange typed envelopes and collect receipts.                   | Local/Live controls, `compozy network` commands, message kinds, commit-first delivery, audit trail. |
 
 ### Feature Priority by Surface
 
-- **Homepage:** AGH Network first, then runtime proof, then install path.
+- **Homepage:** the integrated OS outcome first, connected-system proof second, extensibility third, and Compozy Network as the unique subsystem within that system.
 - **Runtime docs:** the reader's problem first, architecture second.
-- **Protocol docs:** AGH Network value and adoption path first, wire mechanics second.
+- **Protocol docs:** Compozy Network value and adoption path first, wire mechanics second; never promote the subsystem into the whole product category.
 - **Web UI:** truthful state and the person's next action first, marketing language last.
 - **CLI help:** exact verb behavior first, product narrative only when it clarifies intent.
 - **Changelog:** merged behavior and breaking changes first, no aspirational roadmap.
@@ -121,19 +122,19 @@ Every major copy surface should draw from one or more proof pillars.
 
 ## 4. Audience & Surface Intent
 
-| Audience                  | Reader Job                                                                                  | Proof They Need                                                                                               | CTA Style                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| People running agent work | Start, watch, guide, resume, and finish agent work — technical or not.                      | A clear install path, visible session state, plain-language docs; commands and event history one step deeper. | `Install the runtime`, `Start the daemon`, `Open the runtime docs`.  |
-| Agent/runtime developers  | Understand extension points and daemon contracts.                                           | APIs, SDKs, tool registry, hooks, capabilities, generated references.                                         | `Build an extension`, `Read the Host API`, `View the tool registry`. |
-| Protocol implementers     | Implement or inspect `compozy-network/v0` outside AGH.                                      | Envelope shape, message kinds, trust model, conformance guidance.                                             | `Read the compozy-network/v0 spec`, `Send a minimal message`.        |
-| Contributors              | Work safely in the repo and preserve product semantics.                                     | Glossary, AGENTS/CLAUDE instructions, tests, task specs.                                                      | `Read the contributor path`, `Run the verification gate`.            |
-| Evaluators                | Decide whether AGH is different from local CLIs, harnesses, MCP, A2A, and workflow engines. | Sharp positioning, named constraints, honest maturity, sourced comparison.                                    | `Compare the runtime`, `See what ships today`.                       |
+| Audience                  | Reader Job                                                                                      | Proof They Need                                                                                               | CTA Style                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| People running agent work | Start, watch, guide, resume, and finish agent work — technical or not.                          | A clear install path, visible session state, plain-language docs; commands and event history one step deeper. | `Install the runtime`, `Start the daemon`, `Open the runtime docs`.  |
+| Agent/runtime developers  | Understand extension points and daemon contracts.                                               | APIs, SDKs, tool registry, hooks, capabilities, generated references.                                         | `Build an extension`, `Read the Host API`, `View the tool registry`. |
+| Protocol implementers     | Implement or inspect `compozy-network/v0` outside Compozy.                                      | Envelope shape, message kinds, trust model, conformance guidance.                                             | `Read the compozy-network/v0 spec`, `Send a minimal message`.        |
+| Contributors              | Work safely in the repo and preserve product semantics.                                         | Glossary, AGENTS/CLAUDE instructions, tests, task specs.                                                      | `Read the contributor path`, `Run the verification gate`.            |
+| Evaluators                | Decide whether Compozy is different from local CLIs, harnesses, MCP, A2A, and workflow engines. | Sharp positioning, named constraints, honest maturity, sourced comparison.                                    | `Compare the runtime`, `See what ships today`.                       |
 
 The primary audience spans non-technical and technical people. Default public prose to plain language; keep the exact mechanism one step away — a linked reference, expandable detail, or secondary text — not in the first sentence.
 
 ## 5. Voice & Editorial Rules
 
-AGH copy is people-first, plain-spoken, and calm-confident. It writes for anyone who runs agent work — technical or not. Everyday words carry the claim; the mechanism stays one step away as proof, never as an entry fee.
+Compozy copy is people-first, plain-spoken, and calm-confident. It writes for anyone who runs agent work — technical or not. Everyday words carry the claim; the mechanism stays one step away as proof, never as an entry fee.
 
 ### Voice
 
@@ -142,7 +143,7 @@ AGH copy is people-first, plain-spoken, and calm-confident. It writes for anyone
 - Plain, not vague.
 - Confident, not inflated.
 - Person-first: speak to the person whose work the agents are doing — founder, writer, analyst, or engineer — never to an abstract "user," and never through protocol jargon.
-- Product-led: AGH, AGH Runtime, and AGH Network are usually the subject.
+- Product-led: Compozy, CompozyOS runtime, and Compozy Network are usually the subject.
 
 ### Style Rules
 
@@ -153,7 +154,7 @@ AGH copy is people-first, plain-spoken, and calm-confident. It writes for anyone
 - Define a runtime term at first use on end-user surfaces; reference docs may assume it.
 - Use second person in docs and how-to copy when it helps the reader act.
 - Use `you` sparingly in marketing. It should sharpen the reader's job, not turn every line into sales copy.
-- Do not use `we` or `our` in marketing body copy. Use the product as the subject: `AGH does...`, `AGH Network gives...`, `The runtime keeps...`.
+- Do not use `we` or `our` in marketing body copy. Use the product as the subject: `Compozy does...`, `Compozy Network gives...`, `The runtime keeps...`.
 - No emoji, exclamation marks, or hype punctuation.
 - No fake urgency.
 - No fabricated testimonials, logos, stats, benchmarks, or maturity claims.
@@ -161,7 +162,7 @@ AGH copy is people-first, plain-spoken, and calm-confident. It writes for anyone
 
 ### Copy Rhythm
 
-Good AGH copy often has this shape:
+Good Compozy copy often has this shape:
 
 1. Name the reader's problem.
 2. State the product capability.
@@ -169,7 +170,7 @@ Good AGH copy often has this shape:
 
 Example:
 
-> Agents should not stop working when a terminal tab closes. AGH keeps them in durable sessions — with saved history, resumable state, and the same view from CLI, API, and web.
+> Agents should not stop working when a terminal tab closes. Compozy keeps them in durable sessions — with saved history, resumable state, and the same view from CLI, API, and web.
 
 ## 6. Vocabulary & Naming
 
@@ -177,13 +178,12 @@ The glossary is authoritative. This section lists the terms most likely to appea
 
 ### Product Names
 
-| Term                   | Use                                                                                                                                       |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `AGH`                  | The complete product: runtime, daemon, site, docs, CLI, UI, extensibility, and network implementation.                                    |
-| `AGH Runtime`          | The local daemon and runtime surface: sessions, memory, skills, workspaces, automation, bridges, tools, hooks, extensions, observability. |
-| `AGH Network`          | The agent-to-agent coordination layer and public network concept.                                                                         |
-| `compozy-network/v0`   | The protocol/version name. Use lowercase, mono in UI/docs when possible.                                                                  |
-| `AGH Network Protocol` | Spec/reference contexts only. Prefer `AGH Network` in marketing and narrative copy.                                                       |
+| Term                 | Use                                                                                                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Compozy`            | The public product name in normal prose, UI, commands, package descriptions, and calls to action.                                                                               |
+| `CompozyOS`          | The complete agent operating system — runtime, daemon, work model, memory, automation, permissions, OS shell, extensibility, and coordination — in category or formal contexts. |
+| `Compozy Network`    | The agent-to-agent coordination subsystem and public network concept. It is part of CompozyOS, not the product category.                                                        |
+| `compozy-network/v0` | The protocol/version name. Use lowercase and monospace in UI/docs when possible.                                                                                                |
 
 ### Canonical Example Trio
 
@@ -191,7 +191,7 @@ When public copy needs to name 2–3 specific agent CLIs as examples (hero subhe
 
 > Claude Code, OpenClaw, and Hermes.
 
-Why this trio: these are the most recognizable ACP-compatible CLIs in the current AGH ecosystem. Older copy used Claude Code, Codex, Gemini CLI, or Pi as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
+Why this trio: these are the most recognizable ACP-compatible CLIs in the current Compozy ecosystem. Older copy used Claude Code, Codex, Gemini CLI, or Pi as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
 
 The full enumeration of supported drivers lives in `packages/site/components/landing/provider-data.ts` (`SUPPORTED_AGENT_PROVIDERS`). When public copy needs the total count, derive it from `SUPPORTED_AGENT_COUNT` instead of hardcoding a number.
 
@@ -207,12 +207,12 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - `hook`: typed lifecycle dispatch. Do not call hooks a generic event bus.
 - `extension`: package that can provide resources, capabilities, and Host API actions.
 - `bridge`: external messaging/platform adapter. Do not use `channel` for Slack/Discord/etc. adapters.
-- `channel`: AGH Network namespace or coordination channel, not a generic adapter.
+- `channel`: Compozy Network namespace or coordination channel, not a generic adapter.
 
 ### Agent Artifact Terms
 
 - `capability`: the canonical term for reusable agent artifacts advertised or transferred between peers.
-- `skill`: local procedural instruction loaded by AGH.
+- `skill`: local procedural instruction loaded by Compozy.
 - `AGENT.md`: single-agent definition format.
 - `AGENTS.md`: project-level agent instruction file.
 
@@ -232,7 +232,7 @@ Use those words only when discussing external systems or historical migration co
 - `claim_token_hash`: safe public form.
 - `lease`: bounded ownership interval.
 - `safe spawn`: daemon-managed child-session creation with TTL, caps, and permission narrowing.
-- `coordinator`: managed AGH session that orchestrates coordinated work.
+- `coordinator`: managed Compozy session that orchestrates coordinated work.
 
 ### OS Shell Terms
 
@@ -330,9 +330,10 @@ Goal: make the core difference obvious quickly.
 
 Use:
 
-- hero locked to "An open workplace for AI agents." with subhead locked to "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts."
-- AGH Network as the differentiator.
-- runtime proof immediately after the network claim.
+- the Task 11 launch contract for the final headline and subhead; this governance file intentionally does not duplicate or pre-activate them.
+- an OS-level outcome followed by proof that execution, state, permissions, memory, automation, coordination, and the shell are connected.
+- extensibility as the second criterion: show how extensions, hooks, skills, SDKs, and tools participate in the same runtime.
+- Compozy Network as the unique subsystem inside the complete system, not as the whole-product lead.
 - install path as primary conversion.
 - concrete signal cards only when the numbers are current.
 
@@ -360,18 +361,18 @@ Avoid:
 
 ### Protocol Docs
 
-Goal: help implementers understand `compozy-network/v0` without adopting AGH internals.
+Goal: help implementers understand `compozy-network/v0` without adopting Compozy internals.
 
 Use:
 
-- `AGH Network` for the concept.
+- `Compozy Network` for the concept.
 - `compozy-network/v0` for protocol/version.
 - message kinds, envelope behavior, trust profile, conformance, and examples.
 
 Avoid:
 
-- implying AGH ownership is required to implement the protocol.
-- confusing MCP, A2A, and AGH Network roles.
+- implying Compozy ownership is required to implement the protocol.
+- confusing MCP, A2A, and Compozy Network roles.
 
 ### Blog / Launch Posts
 
@@ -461,37 +462,20 @@ Avoid:
 Formula:
 
 ```text
-AGH is a <category>: <runtime promise>, <shared-surface promise>, and <network promise>.
+CompozyOS is a <category> for <outcome>: <integrated-system promise>, <shared-control proof>, and <extensibility proof>.
 ```
 
 Approved:
 
 ```text
-AGH is a local-first agent operating system: one daemon for durable agent sessions, one shared surface for humans and agents, and one open network for agent-to-agent coordination.
+CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.
 ```
 
 ### Hero
 
-Formula:
+Task 11 owns the launch headline, subhead, and final allocation across landing, OpenGraph, and launch surfaces. Until that work lands, treat the current site hero as provisional and do not copy it into governance, metadata, or new public surfaces.
 
-```text
-Headline: <core outcome>
-Subhead: <what AGH is> + <who/what it runs> + <network/runtime proof>
-Primary CTA: <install/start action>
-Secondary CTA: <network/docs proof path>
-```
-
-Approved headline:
-
-```text
-An open workplace for AI agents.
-```
-
-Approved subhead:
-
-```text
-AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts.
-```
+Any hero proposal still follows these constraints: lead with the OS-level outcome, place the mechanism one step behind it, prove integrated completeness, keep the people-first register, and avoid making Compozy Network stand in for the complete product.
 
 ### Feature Card
 
@@ -517,7 +501,7 @@ Weak:
 ```text
 Eyebrow: Innovation
 Title: Seamless agent collaboration
-Description: AGH unlocks the future of autonomous teamwork.
+Description: Compozy unlocks the future of autonomous teamwork.
 ```
 
 ### Docs Overview
@@ -585,7 +569,7 @@ Avoid:
 
 ## 10. Examples & Anti-Patterns
 
-### Strong AGH Copy
+### Strong Compozy Copy
 
 ```text
 Real commands, not docs-ware.
@@ -594,18 +578,18 @@ Real commands, not docs-ware.
 Why it works: short, specific, dry, and tied to a command surface.
 
 ```text
-No Docker. No Postgres. agh daemon start.
+No Docker. No Postgres. compozy daemon start.
 ```
 
 Why it works: concrete local-first proof.
 
 ```text
-Every other agent tool stops at the single-runtime boundary.
+Orca, Paperclip, Smithers, Hermes, OpenClaw, Synara, and T3 each prove demand for part of the system. Compozy connects those operating-system responsibilities in one runtime.
 ```
 
-Why it works: names the strategic boundary without inventing a benchmark.
+Why it works: names the comparison set and frames the difference as integration rather than an unsupported ranking.
 
-### Weak AGH Copy
+### Weak Compozy Copy
 
 ```text
 An AI-powered platform to supercharge agent workflows.
@@ -631,10 +615,11 @@ If site metadata, OpenGraph images, hero copy, and docs intro use different one-
 
 Known drift to watch for:
 
-- "An open workplace for AI agents" as the current hero vs older "Your agents can finally talk to each other.", `AGH Network` as the public hook, or "runtime with a network built in" phrasing.
+- a provisional or retired landing headline being copied into governance before Task 11 installs the launch contract.
+- `Compozy Network` or "runtime with a network built in" phrasing standing in for the integrated CompozyOS category.
 - `capability` vs old `recipe`, `workflow`, `procedure`, or `playbook` language.
 - runtime behavior that moved from planned to shipped or from spec to deleted.
-- `operator surface` and operator-first persona language in older copy vs the current people-first register: the runtime term is `control surface`, and the audience is people running agent work (technical or not).
+- people-first language drifting back toward control-room personas: the runtime term is `control surface`, and the audience is people running agent work (technical or not).
 
 ## 11. Agent Prompt Guide
 
@@ -643,13 +628,13 @@ Use these as task-local prompts after reading the target files.
 ### Rewrite a Homepage Hero
 
 ```text
-Use COPY.md and DESIGN.md. Keep the hero open-workplace-first. Headline must preserve "An open workplace for AI agents." and subhead must preserve "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts." Use only claims backed by current code/docs. Primary CTA installs or starts the runtime. Secondary CTA points to compozy-network/v0 docs.
+Use COPY.md, DESIGN.md, and the Task 11 launch contract. Do not invent, duplicate, or relock the headline or subhead. Lead with the OS-level outcome, prove integrated completeness and extensibility with current runtime evidence, and keep Compozy Network in its subsystem role. Primary CTA installs or starts the runtime; the secondary CTA points to the strongest supporting proof.
 ```
 
 ### Write a Docs Intro
 
 ```text
-Use COPY.md, docs/_memory/glossary.md, and the generated CLI/API reference for this surface. Start with the reader's task, then the AGH surface used to complete it, then constraints. Do not paraphrase generated flags or endpoints if a generated reference exists.
+Use COPY.md, docs/_memory/glossary.md, and the generated CLI/API reference for this surface. Start with the reader's task, then the Compozy surface used to complete it, then constraints. Do not paraphrase generated flags or endpoints if a generated reference exists.
 ```
 
 ### Write a Feature Card
@@ -681,7 +666,7 @@ Check runtime truth, glossary vocabulary, claim maturity, CTA specificity, forbi
 Before shipping copy or product-facing text, verify:
 
 - Runtime truth is checked against current code, generated references, docs, tests, or release artifacts.
-- The copy uses `AGH`, `AGH Runtime`, `AGH Network`, and `compozy-network/v0` correctly.
+- The copy uses `Compozy`, `CompozyOS`, `Compozy Network`, and `compozy-network/v0` correctly.
 - Glossary terms are applied, especially `capability`, `skill`, `bridge`, `channel`, `AGENT.md`, and `AGENTS.md`.
 - Inline example lists of agent CLIs use the canonical trio (Claude Code, OpenClaw, and Hermes) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.
@@ -702,7 +687,7 @@ Update `COPY.md` when:
 - a public feature moves between planned, partial, alpha, shipped, or deprecated
 - canonical vocabulary changes
 - homepage hero or product one-liner changes
-- AGH Network protocol naming changes
+- Compozy Network protocol naming changes
 - the canonical example trio of agent CLIs needs to change
 - generated CLI/API surfaces change in a way that affects public docs or examples
 - a review finds repeated copy drift across surfaces

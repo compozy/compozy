@@ -11,20 +11,20 @@
 
 ## Summary
 
-For one unchanged daemon state, CLI, HTTP, and UDS returned the curated extension while registered native tool `agh__marketplace_search` returned an empty extension slice with `extension service is not configured`. Agents therefore saw a materially different catalog than human and structured transport clients.
+For one unchanged daemon state, CLI, HTTP, and UDS returned the curated extension while registered native tool `compozy__marketplace_search` returned an empty extension slice with `extension service is not configured`. Agents therefore saw a materially different catalog than human and structured transport clients.
 
 ## Reproduction
 
 1. Start the daemon with a curated extension feed containing `qa-marketplace-extension`.
 2. Refresh the catalog and confirm CLI, HTTP, and UDS Marketplace search each return the entry.
-3. Invoke `agh__marketplace_search` with `{}` through the live tool registry.
+3. Invoke `compozy__marketplace_search` with `{}` through the live tool registry.
 
 **Expected:** Fixed kind order and per-kind items/errors match the shared daemon projection across CLI, HTTP, UDS, and native discovery.
 **Actual:** Only the native extension kind failed with `extension service is not configured`.
 
 ## Evidence
 
-- Field-level isolated replay: `/Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/native-marketplace-extension-parity.json`.
+- Field-level isolated replay: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/native-marketplace-extension-parity.json`.
 - The native descriptor remained registered, available, authorized, and callable, proving this was handler wiring rather than policy denial.
 
 ## Fix
@@ -38,4 +38,4 @@ For one unchanged daemon state, CLI, HTTP, and UDS returned the curated extensio
 
 - The canonical regression failed before the production change with `extension service is not configured`.
 - `TestMarketplaceNativeSearch` and the complete native extension tool suite pass under `-race`.
-- After rebuilding and restarting the isolated daemon, `agh__marketplace_search` returned the exact four-kind order and `qa-marketplace-extension` with no extension error, matching CLI, HTTP, and UDS.
+- After rebuilding and restarting the isolated daemon, `compozy__marketplace_search` returned the exact four-kind order and `qa-marketplace-extension` with no extension error, matching CLI, HTTP, and UDS.

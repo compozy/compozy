@@ -5,7 +5,7 @@ title: Answer a live agent clarification
 persona: Théo
 journey: J-answer-agent-requests
 expected: A live session shows one truthful clarification card, accepts an offered choice or free text through Web, CLI, HTTP, or UDS, resumes the waiting tool with the same structured answer, and keeps resolved, timed-out, or canceled evidence after reload without exposing another workspace.
-entry_points: Web session timeline; compozy__clarify; agh session clarify pending/answer; GET/POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications
+entry_points: Web session timeline; compozy__clarify; compozy session clarify pending/answer; GET/POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications
 qa_status: untested
 bug_ids:
 fix_status:

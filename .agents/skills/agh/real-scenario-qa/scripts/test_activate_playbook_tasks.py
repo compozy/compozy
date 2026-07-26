@@ -3,7 +3,7 @@
 Suite: real-scenario task activation adapter
 Invariant: a declared channel starts a live run through the current named-channel CLI contract.
 Boundary IN: activate-playbook-tasks argument construction and activation evidence.
-Boundary OUT: the AGH CLI parser and daemon, covered by the live real-scenario run.
+Boundary OUT: the Compozy CLI parser and daemon, covered by the live real-scenario run.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ class ActivatePlaybookTasksTest(unittest.TestCase):
 
             calls: list[list[str]] = []
 
-            def runner(_agh_bin: str, args: list[str], _env: dict[str, str]) -> dict:
+            def runner(_compozy_bin: str, args: list[str], _env: dict[str, str]) -> dict:
                 calls.append(args)
                 if args == ["scheduler", "status"]:
                     return {"scheduler": {"paused": False}}

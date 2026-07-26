@@ -5,7 +5,7 @@ title: Refuse a database ahead of the binary
 persona: Bruno
 journey: J-operate-daemon-schema
 expected: Startup stops before normal work, while remaining local CLI opens return exactly one parseable JSON error document with diagnostic.code schema_ahead, the surface, canonical path, and newer-binary-or-complete-family remediation; MCP auth reaches the daemon instead of opening the database locally.
-entry_points: agh daemon start --foreground; agh extension list -o json; agh provider auth status <bound-secret-provider> -o json
+entry_points: compozy daemon start --foreground; compozy extension list -o json; compozy provider auth status <bound-secret-provider> -o json
 qa_status: untested
 bug_ids:
 fix_status:

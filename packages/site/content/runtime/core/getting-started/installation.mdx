@@ -56,7 +56,7 @@ npm install -g @compozy/agh
 #### Go
 
 ```bash
-go install github.com/compozy/agh@latest
+go install github.com/compozy/compozy@latest
 ```
 
 Homebrew, npm, and Go installs should be updated with the same tool that installed them.
@@ -149,7 +149,7 @@ bounded repair.
 `compozy update --check` when you want a status-only check. Managed installs defer to the package
 manager and return the exact upgrade command instead of mutating files directly, such as
 `brew upgrade compozy/compozy/agh`, `npm update -g @compozy/agh`, or
-`go install github.com/compozy/agh@latest`. Windows direct-binary installs remain manual in
+`go install github.com/compozy/compozy@latest`. Windows direct-binary installs remain manual in
 this first cut. `compozy uninstall` removes runtime launch
 artifacts idempotently and preserves `~/.compozy` unless you explicitly pass `--purge --force`.
 

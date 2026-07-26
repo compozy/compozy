@@ -1,7 +1,7 @@
 ---
 name: agh-cleanup-failure-paths
 description: >-
-  Partial-failure cleanup audit for AGH Go functions. Use when a changed
+  Partial-failure cleanup audit for Compozy Go functions. Use when a changed
   function acquires, registers, starts, claims, leases, or opens more than one
   fallible resource before returning. Do not use for pure transformations,
   read-only helpers, or test-only code.

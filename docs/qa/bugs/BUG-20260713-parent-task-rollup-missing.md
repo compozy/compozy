@@ -7,7 +7,7 @@
 - **Journey Step:** J-complete-task-tree, complete the final child and continue the parent workflow
 - **Scenarios:** TA-parent-rollup-completion; LP-task-rollup-wakes-loop
 - **Found:** 2026-07-13 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
-- **Origin:** Linear AGH-71 live Cursor replay
+- **Origin:** Linear Compozy-71 live Cursor replay
 
 ## Summary
 
@@ -25,9 +25,9 @@ All three children of one parent completed through the real UI and Cursor/Grok t
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/agh71-child1-completed.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/agh71-parent-after-first-child.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/agh71-all-children-completed-parent-stuck.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/compozy71-child1-completed.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/compozy71-parent-after-first-child.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/compozy71-all-children-completed-parent-stuck.dom.txt`
 - Parent `task-4b4a98ccf636c99b`; child continuations `run-e768865c2ff066dd` and `run-9b8470afc9f2c190`.
 
 ## Fix
@@ -38,8 +38,8 @@ All three children of one parent completed through the real UI and Cursor/Grok t
 
 ## Verification
 
-- A fresh, uncontaminated tree used parent `task-a2b46ce593b5e75b` with unavailable exact owner `sess-agh71-unavailable-parent`, so the parent run naturally reached `task.run_starved` and `task.run_needs_attention` without ever binding a session.
+- A fresh, uncontaminated tree used parent `task-a2b46ce593b5e75b` with unavailable exact owner `sess-compozy71-unavailable-parent`, so the parent run naturally reached `task.run_starved` and `task.run_needs_attention` without ever binding a session.
 - Child A `task-aeae6a3825340585` completed once through Cursor/Grok session `sess-0bb0f23ac1414396`; the parent remained nonterminal.
 - Child B `task-1f83323b5632a917` completed once through session `sess-64f9badf5a65dd2f`. The final child transaction emitted parent `task.run.completed` seq 300 and `task.status_changed` seq 301, and parent run `run-b0985a94beb209b9` became Completed with `No bound session`.
-- A real reload plus Children tab showed the parent and both children Completed, with exactly one parent run and one run per child. Evidence: `agh71-faithful-parent-run.dom.txt`, `agh71-faithful-parent-children.dom.txt`, and `agh71-faithful-child-b-one-run.dom.txt` under the active post-onboarding-fix lab.
-- A matching Loop wake was not installed for this fresh tree; that separate integration boundary remains pending in `LP-task-rollup-wakes-loop` and does not weaken the AGH-71 parent-settlement verdict.
+- A real reload plus Children tab showed the parent and both children Completed, with exactly one parent run and one run per child. Evidence: `compozy71-faithful-parent-run.dom.txt`, `compozy71-faithful-parent-children.dom.txt`, and `compozy71-faithful-child-b-one-run.dom.txt` under the active post-onboarding-fix lab.
+- A matching Loop wake was not installed for this fresh tree; that separate integration boundary remains pending in `LP-task-rollup-wakes-loop` and does not weaken the Compozy-71 parent-settlement verdict.

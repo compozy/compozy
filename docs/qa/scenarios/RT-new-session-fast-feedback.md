@@ -11,7 +11,7 @@ bug_ids: BUG-20260713-cursor-model-startup-contract, BUG-20260713-new-session-mo
 fix_status: fixed
 retest_status: pending
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/new-session-modal-timing.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/new-session-modal-timing.json
 last_report: docs/qa/reports/2026-07-13-automation-features.md
 overlaps: RT-010
 ---

@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell; NB-web-bridge-setup; NB-bridge-provider-setup
 ---
 
-story: As an operator I connect a chat platform by picking the provider, naming it, and pasting the credentials it asks for — and if one credential fails to store, I am told which one instead of losing the whole bridge.
+story: As a person running agent work I connect a chat platform by picking the provider, naming it, and pasting the credentials it asks for — and if one credential fails to store, I am told which one instead of losing the whole bridge.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.8), task_03, implemented 2026-07-25. Before this change the dialog was a three-step wizard that only *listed* the provider's secret slots read-only; binding them required a second trip to the detail panel.
 

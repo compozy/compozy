@@ -1,20 +1,32 @@
-# AGH Glossary
+# CompozyOS Glossary
 
-Canonical vocabulary for AGH and AGH Network. When the corpus is ambiguous (older RFC drafts, older `.codex/ledger` entries, internal Slack/notes), this document is authoritative.
+Canonical vocabulary for CompozyOS and Compozy Network. When the corpus is ambiguous (older RFC drafts, older `.codex/ledger` entries, internal Slack/notes), this document is authoritative.
 
 ---
 
 ## Core Concepts
 
+### Compozy / CompozyOS
+
+**Compozy** is the public product name used in ordinary prose, UI, commands, packages, and calls to action.
+
+**CompozyOS** is the formal name for the complete agent operating system: the daemon-owned runtime, sessions and work model, memory, permissions, automation, OS shell, extensibility, and coordination. Use it when the category or the integrated system matters. Do not use `Compozy Runtime` as a separate product name.
+
+### Compozy Network
+
+The agent-to-agent coordination subsystem inside CompozyOS. It lets sessions participate as peers, discover capabilities, exchange typed envelopes, and return receipts. The current protocol/version name is `compozy-network/v0`.
+
+Compozy Network is not the product category, a federation protocol, or a synonym for CompozyOS. Its wire format remains implementable outside Compozy.
+
 ### Capability
 
-The single canonical name for **reusable agent artifacts** that describe transferable delegation offers, network discovery shapes, and AGH artifacts shipped between peers.
+The single canonical name for **reusable agent artifacts** that describe transferable delegation offers, network discovery shapes, and Compozy artifacts shipped between peers.
 
 A capability is **interpretive**, not deterministic — it tells an agent what is available, not how to execute a deterministic program.
 
 **Forbidden synonyms:** `recipe` (used in pre-rename RFC 003-old), `procedure`, `playbook`. If you find these in code, docs, or task artifacts targeting current behavior, rename them. `workflow` is no longer a forbidden synonym: the runtime now owns a first-class **Loop** domain (see below, ADR-001). A capability is still never a workflow/loop — but the word `workflow` no longer implies a naming collision.
 
-**Source:** RFC 003-v0 (`.../agh-rfcs-local/003-compozy-network-v0.md`) renamed `recipe` → `capability`. RFC 004 enforces.
+**Source:** RFC 003-v0 (`.../compozy-rfcs-local/003-compozy-network-v0.md`) renamed `recipe` → `capability`. RFC 004 enforces.
 
 **Operational identity:** `(peer_id, capability_id)`.
 
@@ -26,27 +38,27 @@ A capability is **interpretive**, not deterministic — it tells an agent what i
 
 The **deterministic runtime program the daemon owns and executes**, defined by the contract **goal → act → verify → stop** plus a fixed set of named terminal outcomes (ADR-001). A Loop's body is a static DAG of typed nodes; iteration is simply what happens when verification says "not done." A single-pass linear pipeline is still a Loop — one that finished on its first pass — and it still carries the contract (definition-of-done, verification gate, terminal states, budget), which is the value no plain DAG engine delivers.
 
-Loops ride AGH's existing durable foundations (work queue, sessions, automation, network, memory) — they are **not** a second execution engine. The serialized definition is `compozy.loop/v1` YAML; the resolved form is what the coordinator runs.
+Loops ride Compozy's existing durable foundations (work queue, sessions, automation, network, memory) — they are **not** a second execution engine. The serialized definition is `compozy.loop/v1` YAML; the resolved form is what the coordinator runs.
 
 **Loop vs Capability:** a Loop is deterministic and runtime-owned; a [capability](#capability) is interpretive and network-shipped. Loops do not replace capabilities, and loop execution never travels over the network wire.
 
 **Terminal outcomes:** `done`, `no-op`, `blocked`, `failed`, `exhausted`, `stalled`. Live states: `queued`, `running`, `watching`, `needs-approval`, `paused`.
 
-**Not to be conflated with:** the historical "workflow" positioning. AGH is a runtime with a Loop domain; the AGH Network protocol remains not a workflow engine.
+**Not to be conflated with:** the historical "workflow" positioning. Compozy is a runtime with a Loop domain; the Compozy Network protocol remains not a workflow engine.
 
 ---
 
 ### Skill
 
-A **bundled procedural instruction** that an AGH session can activate before doing work. Skills are local to AGH (loaded via `internal/skills`), governed by `metadata.agh.*` frontmatter, scanned via `VerifyContent`, may declare MCP servers and lifecycle hooks.
+A **bundled procedural instruction** that a Compozy session can activate before doing work. Skills are local to Compozy (loaded via `internal/skills`), governed by `metadata.compozy.*` frontmatter, scanned via `VerifyContent`, and may declare MCP servers and lifecycle hooks.
 
-**Skills vs. Capabilities:** Skills live inside an AGH instance and govern an agent's behavior locally. Capabilities cross AGH instances over the network and describe what an agent offers to peers. A skill could be exposed as a capability, but they are not the same artifact.
+**Skills vs. Capabilities:** Skills live inside a Compozy instance and govern an agent's behavior locally. Capabilities cross Compozy instances over the network and describe what an agent offers to peers. A skill could be exposed as a capability, but they are not the same artifact.
 
 ---
 
 ### Sandbox
 
-The AGH execution boundary selected for a workspace or session. A sandbox profile is configured under `[sandboxes.<name>]`, selected by `sandbox_ref` or runtime flags, and carried through the session lifecycle as sandbox metadata.
+The Compozy execution boundary selected for a workspace or session. A sandbox profile is configured under `[sandboxes.<name>]`, selected by `sandbox_ref` or runtime flags, and carried through the session lifecycle as sandbox metadata.
 
 Implemented providers are `local` and `daytona`. Provider lifecycle surfaces use `sandbox.prepare`, `sandbox.ready`, `sandbox.sync.before`, `sandbox.sync.after`, and `sandbox.stop` hooks, plus the extension Host API methods `sandbox/list`, `sandbox/info`, and `sandbox/exec`.
 
@@ -56,7 +68,7 @@ Do not call this product feature an `environment`. Reserve `environment`, `env`,
 
 ### AGENT.md (frontmatter format)
 
-Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The current runtime portability unit is the AGH agent directory rooted at `$AGH_HOME/agents/<name>/` for global scope and `.agh/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.
+Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The current runtime portability unit is the Compozy agent directory rooted at `$COMPOZY_HOME/agents/<name>/` for global scope and `.compozy/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.
 
 **Status:** Partially shipped from RFC 001. The runtime now parses `AGENT.md` frontmatter,
 including agent-local `skills/` overlays and `skills.disabled`. Draft fields such as
@@ -65,7 +77,7 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 **vs AGENTS.md (project file)**:
 
 - `AGENTS.md` = project-level instructions (industry convention, plain Markdown).
-- `AGENT.md` = single-agent definition (AGH proposal, structured frontmatter).
+- `AGENT.md` = single-agent definition (Compozy proposal, structured frontmatter).
 - Different filenames, different purposes. Do not conflate.
 - The standardization path (extension to AGENTS.md under AAIF, vs. standalone) is open per RFC 001 §6.6.
 
@@ -73,10 +85,10 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 
 ### Peer Card
 
-The AGH Network discovery artifact: a peer's identity and `peer_card.capabilities` index, optionally
-with `peer_card.ext["compozy.capabilities_brief"]` for AGH-specific projection.
+The Compozy Network discovery artifact: a peer's identity and `peer_card.capabilities` index, optionally
+with `peer_card.ext["compozy.capabilities_brief"]` for Compozy-specific projection.
 
-**vs A2A Agent Card:** A2A Agent Cards are an external industry standard. Peer Cards are AGH-Network specific but could be generated FROM an AGENT.md definition (RFC 001 §3.3 is open on the mapping). Today they are not unified.
+**vs A2A Agent Card:** A2A Agent Cards are an external industry standard. Peer Cards are Compozy-Network specific but could be generated FROM an AGENT.md definition (RFC 001 §3.3 is open on the mapping). Today they are not unified.
 
 ---
 
@@ -88,13 +100,13 @@ A network-scoped identifier matching `[a-z0-9][a-z0-9._-]{0,127}`.
 
 ### `nickname@fingerprint`
 
-The verified-format identity in AGH Network v1. `nickname` matches `[a-z0-9_-]{1,32}`; `fingerprint` is the first 32 lowercase hex of `SHA-256(pubkey)`.
+The verified-format identity in Compozy Network v1. `nickname` matches `[a-z0-9_-]{1,32}`; `fingerprint` is the first 32 lowercase hex of `SHA-256(pubkey)`.
 
 **Critical:** A `nickname@fingerprint`-shaped identity arriving WITHOUT a valid `proof` MUST classify as `rejected`, NOT `unverified`. This is the proof-stripping defense from RFC 004 §3.3.
 
 ### Caller Identity (operational)
 
-Inside AGH, agent-facing CLI commands resolve identity from `AGH_SESSION_ID` / `AGH_AGENT` through `internal/agentidentity`. **Operator endpoints MUST NOT infer agent identity from environment variables.** Agent → identity-implicit. Operator → identity-explicit.
+Inside Compozy, agent-facing CLI commands resolve identity from `COMPOZY_SESSION_ID` / `COMPOZY_AGENT` through `internal/agentidentity`. **Operator endpoints MUST NOT infer agent identity from environment variables.** Agent → identity-implicit. Operator → identity-explicit.
 
 ---
 
@@ -181,7 +193,7 @@ Bounded replay window via `id`. Recommended 300-second clock-skew rejection when
 
 ### Memory Types (taxonomy)
 
-Per RFC 002 / Claude Code AutoDream / AGH `internal/memory/consolidation/`:
+Per RFC 002 / Claude Code AutoDream / Compozy `internal/memory/consolidation/`:
 
 - `user` — persona, role, preferences, knowledge.
 - `feedback` — rules and corrections from past interactions.
@@ -192,7 +204,7 @@ Per RFC 002 / Claude Code AutoDream / AGH `internal/memory/consolidation/`:
 
 - `agent` — local to a specific agent definition.
 - `workspace` — shared across agents within a workspace.
-- `global` — shared across workspaces in the AGH installation.
+- `global` — shared across workspaces in the Compozy installation.
 
 Default write scope is declared per agent in `memory.scope`.
 
@@ -232,7 +244,7 @@ The single authoritative claim primitive. Lives in `internal/task`. The mechanic
 
 ### Coordinator
 
-A managed AGH session whose semantic role is to orchestrate executable workspace runs. Auto-spawn
+A managed Compozy session whose semantic role is to orchestrate executable workspace runs. Auto-spawn
 is conservative: a run must be enqueued, coordinator auto-start enabled, no healthy active
 coordinator present, and spawn caps available. Network participation is not a bootstrap condition.
 
@@ -250,7 +262,7 @@ status authority.
 
 ### Task Execution Profile
 
-The task-owned typed overlay that selects the runtime shape of orchestration for one task. Persisted under `task_execution_profiles` plus selector side tables (never in `metadata_json`). Configured under `[task.orchestration.profile]` and managed through `agh task profile inspect|update|delete`, `/api/tasks/{id}/profile`, native task tools, and the web UI Task setup sheet.
+The task-owned typed overlay that selects the runtime shape of orchestration for one task. Persisted under `task_execution_profiles` plus selector side tables (never in `metadata_json`). Configured under `[task.orchestration.profile]` and managed through `compozy task profile inspect|update|delete`, `/api/tasks/{id}/profile`, native task tools, and the web UI Task setup sheet.
 
 The profile carries `CoordinatorProfile` (`mode = "inherit" | "guided"`), `WorkerProfile` (worker agent/provider/model + worker eligibility selectors), `ReviewProfile` (reviewer selectors), `ParticipantPolicy` (allowed/preferred channels, peers, agents, capabilities), `SandboxPolicy` (`mode = "inherit" | "none" | "ref"`), and an optional `network_participation` request for future runs. Validation runs at write time in `task.Service.SetExecutionProfile`; session start loads the persisted profile without re-running validation. PUT replaces the entire profile — omitted blocks normalize to defaults.
 
@@ -338,7 +350,7 @@ Blocking commit gate: `fmt → lint → test → boundaries → build`. Zero war
 
 ### `make codegen` / `make codegen-check`
 
-Regenerate / verify drift on `openapi/agh.json`, `web/src/generated/agh-openapi.d.ts`. Mandatory after any `internal/api/contract` change.
+Regenerate / verify drift on `openapi/compozy.json`, `web/src/generated/compozy-openapi.d.ts`. Mandatory after any `internal/api/contract` change.
 
 ### Test Layers
 
@@ -350,19 +362,19 @@ Regenerate / verify drift on `openapi/agh.json`, `web/src/generated/agh-openapi.
 
 ### Real-Scenario QA
 
-The practice of validating AGH the way real users experience it, owned by the `qa-report` (planning, living docs) + `qa-execution` (persona-driven sessions, evidence) pair over the committed `docs/qa/` tree (`state.csv`, `bugs/BUG-NNNN` registry, journeys, charters, dated reports). For release-grade validation of the multi-agent runtime, the `real-scenario-qa` skill adds the playbook harness: an isolated lab (via `agh-qa-bootstrap`), one in-persona operator kickoff, read-only runtime observation, and a strict deliverable/collaboration audit — exercising CLI + Web + API surfaces end-to-end.
+The practice of validating Compozy the way real users experience it, owned by the `qa-report` (planning, living docs) + `qa-execution` (persona-driven sessions, evidence) pair over the committed `docs/qa/` tree (`state.csv`, `bugs/BUG-NNNN` registry, journeys, charters, dated reports). For release-grade validation of the multi-agent runtime, the `real-scenario-qa` skill adds the playbook harness: an isolated lab (via `agh-qa-bootstrap`), one in-persona operator kickoff, read-only runtime observation, and a strict deliverable/collaboration audit — exercising CLI + Web + API surfaces end-to-end.
 
 ---
 
-## "What AGH Is Not"
+## "What Compozy Is Not"
 
 For positioning consistency on the marketing site and in docs:
 
-- **AGH Network is not a workflow engine.** Capabilities are interpretive, not deterministic programs, and envelopes never carry loop execution. (The AGH *runtime* does own a deterministic [Loop](#loop) domain — but it stays off the network wire, per ADR-001.)
-- AGH is **not a federation protocol**. AGH Network v1 is a self-certified pairwise envelope, not a federated trust system.
-- AGH is **not an MCP replacement**. MCP integrates _into_ AGH skills via `metadata.agh.mcp_servers`.
-- AGH is **not an A2A replacement**. AGH Network is a peer-to-peer envelope; A2A is an industry standard. They can coexist.
-- AGH **competes on runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol.** AGH Network must remain implementable outside AGH.
+- **Compozy Network is not a workflow engine.** Capabilities are interpretive, not deterministic programs, and envelopes never carry loop execution. (The Compozy *runtime* does own a deterministic [Loop](#loop) domain — but it stays off the network wire, per ADR-001.)
+- Compozy is **not a federation protocol**. Compozy Network v1 is a self-certified pairwise envelope, not a federated trust system.
+- Compozy is **not an MCP replacement**. MCP integrates _into_ Compozy skills via `metadata.compozy.mcp_servers`.
+- Compozy is **not an A2A replacement**. Compozy Network is a peer-to-peer envelope; A2A is an industry standard. They can coexist.
+- Compozy **competes on runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol.** Compozy Network must remain implementable outside Compozy.
 
 ---
 

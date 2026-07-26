@@ -36,9 +36,9 @@ This section closes the former shared README changelog. Details remain in the da
 - Referential integrity: pending final validation.
 - Repository gate: pending final validation.
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
-- Native tools: no impact — no `agh__*` ids, descriptors, schemas, digests, risk flags, availability diagnostics, or capability gates changed.
+- Native tools: no impact — no `compozy__*` ids, descriptors, schemas, digests, risk flags, availability diagnostics, or capability gates changed.
 - Extensibility and hooks: no runtime impact — extension, hook, capability, tool/resource, bundle, registry, bridge SDK, MCP, and config lifecycle surfaces are unchanged; only QA workflow instructions that inspect them are migrated.
 - Workspace data isolation: no runtime data change — no global/workspace/session/agent datum or propagation path changed; scenario records preserve their existing workspace-isolation expectations.
-- Official AGH skill: no public AGH behavior changed — `skills/agh/` requires no capability or tool guidance update; local QA orchestration skills are updated only to consume the new tracker source.
+- Official Compozy skill: no public Compozy behavior changed — `skills/compozy/` requires no capability or tool guidance update; local QA orchestration skills are updated only to consume the new tracker source.

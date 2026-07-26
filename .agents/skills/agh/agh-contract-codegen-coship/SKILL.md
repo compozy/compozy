@@ -1,6 +1,6 @@
 ---
 name: agh-contract-codegen-coship
-description: Contract co-ship for AGH wire changes. Use when editing public DTOs, OpenAPI, JSON-RPC extension shapes, generated clients, or handler request/response semantics. Do not use for internal Go refactors or test-only changes that leave the wire contract unchanged.
+description: Contract co-ship for Compozy wire changes. Use when editing public DTOs, OpenAPI, JSON-RPC extension shapes, generated clients, or handler request/response semantics. Do not use for internal Go refactors or test-only changes that leave the wire contract unchanged.
 trigger: implicit
 ---
 

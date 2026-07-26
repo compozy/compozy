@@ -1,14 +1,14 @@
 # Security
 
-AGH is a local-first runtime. Its default trust boundary is the operating-system account that runs
+Compozy is a local-first runtime. Its default trust boundary is the operating-system account that runs
 the daemon, not an application-level tenant boundary. Treat every process with access to that
 account, `$COMPOZY_HOME`, or the daemon socket as trusted operator software.
 
 ## Report a vulnerability
 
 Report suspected vulnerabilities privately through the repository's
-[Security page](https://github.com/compozy/agh/security). Do not put credentials, exploit payloads,
-or sensitive runtime data in a public issue. Include the AGH version, operating system, affected
+[Security page](https://github.com/compozy/compozy/security). Do not put credentials, exploit payloads,
+or sensitive runtime data in a public issue. Include the Compozy version, operating system, affected
 surface, minimal reproduction, and expected impact.
 
 ## Execution isolation
@@ -19,15 +19,15 @@ define the process inputs and intended scope, but they do not create a container
 or OS security boundary. Run untrusted agents in a provider-backed sandbox whose isolation contract
 fits your threat model.
 
-## `agh mcp serve` authority
+## `compozy mcp serve` authority
 
-`agh mcp serve` is a foreground relay to an already-running daemon. Every invocation requires a
+`compozy mcp serve` is a foreground relay to an already-running daemon. Every invocation requires a
 workspace and exposes an approved subset of the existing Host API as `compozy_host__*` MCP tools. The
 relay binds session, task, network, memory, and resource operations to that workspace and rejects
 conflicting caller-supplied workspace values. It does not mint or change native `compozy__*` tool IDs.
 
 The default stdio transport has no separate authentication step. The local process that spawns
-`agh mcp serve --workspace <workspace>` receives operator authority for the published Host API
+`compozy mcp serve --workspace <workspace>` receives operator authority for the published Host API
 methods in that workspace. Configure stdio only in MCP clients and agent definitions you trust with
 that authority.
 
@@ -50,7 +50,7 @@ stop the foreground relay when the client no longer needs it.
 
 ## Secret redaction
 
-AGH always applies exact protection for claim tokens, secret references, and secrets registered by
+Compozy always applies exact protection for claim tokens, secret references, and secrets registered by
 the Vault or another runtime subsystem. `redact.enabled` controls an additional heuristic for likely
 credentials in free text and log messages. The daemon snapshots this setting at boot, so a change is
 restart-required. Disabling it does not disable the exact protections.

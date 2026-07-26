@@ -57,7 +57,7 @@ For each `{ name, url }`:
 
 1. `Page.navigate({ url })` — start navigation.
 2. `Page.loadEventFired()` — block until the `load` event fires inside the iframe.
-3. `sleep(waitMs)` — give React + Storybook + any Suspense boundaries time to settle. `2200 ms` is the empirical floor for AGH's `systems-*-routes-*` stories.
+3. `sleep(waitMs)` — give React + Storybook + any Suspense boundaries time to settle. `2200 ms` is the empirical floor for Compozy's `systems-*-routes-*` stories.
 4. `Runtime.evaluate({ expression: "document.fonts.ready.then(()=>1)", awaitPromise: true, timeout: 5000 })` — block until Inter and JetBrains Mono are decoded and ready to paint. Without this step, captures intermittently render in fallback system fonts.
 5. `Page.captureScreenshot({ format: "png" })` — capture; data comes back base64.
 6. `writeFileSync(<out>/<name>.png, Buffer.from(data, "base64"))` — write the PNG.

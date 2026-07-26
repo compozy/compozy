@@ -1,12 +1,12 @@
 # Task Details Redesign Plan
 
 > Status: **approved** · Created 2026-07-16 · Approved 2026-07-17 · Owner: Pedro
-> Sources: 7 production screenshots (CleanShot 23.38.*), full web implementation audit, @agh/ui primitive audit, runtime-truth inventory (DTOs, state machines, HTTP/CLI verbs), AGH pattern bar (DESIGN.md, tokens.css, design-system.html, LOOPS-DESIGN-SPEC, agent-detail/run-detail prototypes).
+> Sources: 7 production screenshots (CleanShot 23.38.*), full web implementation audit, @compozy/ui primitive audit, runtime-truth inventory (DTOs, state machines, HTTP/CLI verbs), Compozy pattern bar (DESIGN.md, tokens.css, design-system.html, LOOPS-DESIGN-SPEC, agent-detail/run-detail prototypes).
 > This document is editable. TODO markers and open questions are inline. Approve or edit it, then hand it back for prototype generation.
 
 ## 0. Intent
 
-Rebuild the task-details surface (detail page, all its internal views, and the run-detail page) from an operator console into a calm, Linear-grade product page that a non-expert can read at a glance, while keeping every operator capability reachable through progressive disclosure. Strictly reuse `@agh/ui` primitives and the AGH pattern bar; render only controls the daemon actually supports.
+Rebuild the task-details surface (detail page, all its internal views, and the run-detail page) from an operator console into a calm, Linear-grade product page that a non-expert can read at a glance, while keeping every operator capability reachable through progressive disclosure. Strictly reuse `@compozy/ui` primitives and the Compozy pattern bar; render only controls the daemon actually supports.
 
 **Done means:** a reviewer can answer "what is this task, what is happening now, what do I do next" in under 5 seconds on every state; heuristic score moves from the current ~16/40 baseline to 30+; zero raw enums/ids as primary text; one accent target per viewport; every control maps to a real HTTP/CLI verb.
 
@@ -69,7 +69,7 @@ Cognitive-load checklist: fails 6 of 8 (single focus, chunking, visual hierarchy
 - `/tasks/$id/runs/$runId` run-detail page.
 - The operator disclosure layer (diagnostics, bridges, stream, raw data).
 - Task-scoped dialogs/sheets opened from these pages (execution profile editor, confirmations).
-- New/changed `@agh/ui` primitives required by the above.
+- New/changed `@compozy/ui` primitives required by the above.
 
 **Out of scope (separate initiatives)**
 - `/tasks` list surfaces (List / Kanban / Dashboard / Inbox) beyond inheriting the same status vocabulary and topbar chrome.
@@ -78,7 +78,7 @@ Cognitive-load checklist: fails 6 of 8 (single focus, chunking, visual hierarchy
 
 ---
 
-## 3. Design principles (Linear-grade, AGH-constrained)
+## 3. Design principles (Linear-grade, Compozy-constrained)
 
 1. **One question per zone.** Head answers "what is this and where does it stand". Content column answers "what happened and what's next". Rail answers "how is it configured". Operator drawer answers "why exactly, in machine terms".
 2. **Single source of status.** Exactly one task-status pill, in `.head__pills`. Run rows carry their own run status. One live indicator total (pulse on the status pill while a run is active). Everything else derives, never repeats.
@@ -86,7 +86,7 @@ Cognitive-load checklist: fails 6 of 8 (single focus, chunking, visual hierarchy
 4. **Exception-based pills.** Pills appear only when they carry exceptional information: priority ≠ medium, approval pending, paused, blocked, needs attention. Normal state = quiet page.
 5. **Verbs, not toggles.** Task status is derived by the daemon (there is no set-status verb). The UI offers state transitions as actions (Start, Pause, Approve, Retry, Recover), never an editable status dropdown. Truthful UI over familiar UI.
 6. **Human language first, machine truth one hover away.** Every event, state, and error renders in plain product language; the raw type/id stays as mono secondary text or tooltip for operators.
-7. **Primitives only.** Every element maps to an `@agh/ui` export or a named domain composite built on them. No bespoke cards, dls, or live dots. Kit gaps get fixed in `packages/ui` (story + test), not worked around.
+7. **Primitives only.** Every element maps to an `@compozy/ui` export or a named domain composite built on them. No bespoke cards, dls, or live dots. Kit gaps get fixed in `packages/ui` (story + test), not worked around.
 8. **Accent budget: one target per viewport.** The single contextual primary action owns the accent. Row links, tabs, dots, icons are neutral.
 9. **Density where data earns it.** Tables and activity feeds can be dense (product register permission); chrome, meta, and configuration cannot.
 
@@ -231,7 +231,7 @@ Tabs become URL state: `/tasks/$id?tab=runs` (or child routes). Deep links to a 
 
 ## 6. Primary-action state machine (truthful controls)
 
-Exactly one accent action, derived from state; everything else ghost/overflow. All verbs are real HTTP/CLI surfaces (`internal/api/httpapi/routes.go:156-231`, CLI `agh task ...`).
+Exactly one accent action, derived from state; everything else ghost/overflow. All verbs are real HTTP/CLI surfaces (`internal/api/httpapi/routes.go:156-231`, CLI `compozy task ...`).
 
 | Task state | Primary (accent) | Secondary visible | Overflow |
 |---|---|---|---|
@@ -316,7 +316,7 @@ Example rewrite (S1 warn card): "Run heartbeat is stale. The claimed run has not
 
 ## 8. Component mapping
 
-### 8.1 Reuse as-is (`@agh/ui`)
+### 8.1 Reuse as-is (`@compozy/ui`)
 
 | Surface element | Primitive |
 |---|---|
@@ -385,7 +385,7 @@ Rejected: generic `StatusSelect` for task status — status is derived by the da
 4. **Run page is not live today.** Polling only (`use-task-run-page.ts:48`); either attach the task stream during implementation or do not render live affordances there.
 5. **Tier-c fields stay in Inspect**: claim_token_hash, lease_until, heartbeat_at, idempotency_key, designation_group_id, coordination_channel_id, event seq, previous_run_id, spawn failures, review circuit fields, raw payloads. Raw claim tokens do not exist in any DTO (never render).
 6. **Reviews come from their own endpoints** (`/:id/reviews`), not the task record.
-7. **CLI surface is `agh task` (singular)** for any command hints.
+7. **CLI surface is `compozy task` (singular)** for any command hints.
 8. **Dead SSE listeners** in `use-task-stream.ts:33-96` (`task.run_review_circuit_opened`, `task.notification_delivered`, hook-bus names) to be pruned during implementation.
 9. Every rendered control maps to §6 verbs; anything else is forbidden (fake affordances ban).
 
@@ -412,7 +412,7 @@ TODO(pedro): confirm whether `tasks/task-detail-states.html` should be one galle
 - **Copy**: all vocabulary changes in `task-formatters.ts`; new humanized event map as its own module with fallback.
 - **Routing**: URL-addressable tabs; keep `use-task-stream` invalidation model; prune dead listeners; wire run page to the stream before advertising live.
 - **Greenfield rule**: hard cuts, no compat props or legacy variants left behind; obsolete components deleted in the same change.
-- **AGH Impact Audit (for the implementation task)**: Native tools: no impact expected (UI-only; verify no `agh__*` descriptor references task UI copy). Extensibility/hooks: no impact (no contract change); config lifecycle: none. Workspace data isolation: no impact (read models unchanged; verify workspace_id stays in all task queries). Official AGH skill: update `skills/agh/` only if CLI hints/copy embedded there change.
+- **Compozy Impact Audit (for the implementation task)**: Native tools: no impact expected (UI-only; verify no `compozy__*` descriptor references task UI copy). Extensibility/hooks: no impact (no contract change); config lifecycle: none. Workspace data isolation: no impact (read models unchanged; verify workspace_id stays in all task queries). Official Compozy skill: update `skills/compozy/` only if CLI hints/copy embedded there change.
 - **QA tracker**: changed user-visible behavior → reset affected `docs/qa/scenarios/` task-detail scenarios to `untested` when the web implementation lands (not for prototypes).
 - Design-system/redesign implementation in `web/` must run through the `designer` agent flow with `agh-design` + `ui-craft` and `agh-ui-screenshot` evidence, per repo rules.
 

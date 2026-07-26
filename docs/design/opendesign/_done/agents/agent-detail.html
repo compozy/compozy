@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>release-captain · Agents · AGH</title>
+<title>release-captain · Agents · Compozy</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -634,7 +634,7 @@
               <div class="file-meta"><span>~312 words</span><span class="dotsep"></span><span>Read-only here</span></div>
               <div class="prose">
                 <h3>Role</h3>
-                <p>You are <code>release-captain</code>, the operator agent for cutting and shipping AGH releases. You coordinate changelog drafts, version bumps, and release notes against the current workspace.</p>
+                <p>You are <code>release-captain</code>, the operator agent for cutting and shipping Compozy releases. You coordinate changelog drafts, version bumps, and release notes against the current workspace.</p>
                 <h3>Operating rules</h3>
                 <ul>
                   <li>Prefer verified daemon state over assumptions. Read session and git status before proposing a cut.</li>
@@ -642,7 +642,7 @@
                   <li>Keep permissions at approve-reads unless the operator raises them for a specific cut.</li>
                 </ul>
                 <h3>Outputs</h3>
-                <p>Produce concrete next steps: files to touch, PR title, and the exact <code>agh</code> commands the operator should run.</p>
+                <p>Produce concrete next steps: files to touch, PR title, and the exact <code>compozy</code> commands the operator should run.</p>
               </div>
             </div>
           </div>
@@ -721,7 +721,7 @@ Speak in sentence case. No exclamation marks.</textarea>
               <div class="kv__row">
                 <div class="kv__k">Toolsets</div>
                 <div class="taglist" style="padding:8px 0 0">
-                  <span class="pill" data-mono="true">agh-core</span>
+                  <span class="pill" data-mono="true">compozy-core</span>
                 </div>
               </div>
             </div>
@@ -877,14 +877,14 @@ Speak in sentence case. No exclamation marks.</textarea>
             <h3 class="spanel__title">Access</h3>
             <div class="field"><label class="field__label">Tools</label><div class="token-field__chips" id="s-chips-tools"></div><div class="token-field__add"><input class="input mono" id="s-input-tools" placeholder="Add tool (e.g. Bash)" autocomplete="off" /><button type="button" class="btn btn--sm btn--outline" data-s-add="tools" data-s-input="s-input-tools">Add</button></div></div>
             <div class="field"><label class="field__label">Deny tools</label><div class="token-field__chips" id="s-chips-denyTools"></div><div class="token-field__add"><input class="input mono" id="s-input-denyTools" placeholder="Add pattern (e.g. Bash(rm:*))" autocomplete="off" /><button type="button" class="btn btn--sm btn--outline" data-s-add="denyTools" data-s-input="s-input-denyTools">Add</button></div></div>
-            <div class="field"><label class="field__label">Toolsets</label><div class="token-field__chips" id="s-chips-toolsets"></div><div class="token-field__add"><input class="input mono" id="s-input-toolsets" placeholder="Add toolset (e.g. agh-core)" autocomplete="off" /><button type="button" class="btn btn--sm btn--outline" data-s-add="toolsets" data-s-input="s-input-toolsets">Add</button></div></div>
+            <div class="field"><label class="field__label">Toolsets</label><div class="token-field__chips" id="s-chips-toolsets"></div><div class="token-field__add"><input class="input mono" id="s-input-toolsets" placeholder="Add toolset (e.g. compozy-core)" autocomplete="off" /><button type="button" class="btn btn--sm btn--outline" data-s-add="toolsets" data-s-input="s-input-toolsets">Add</button></div></div>
           </section>
           <section class="spanel hide" data-settings-panel="mcp">
             <h3 class="spanel__title">MCP servers</h3>
             <p class="spanel__intro">MCP servers are defined in the agent file.</p>
             <div class="panelbox">
               <div class="mcp-row"><div class="mcp-row__head"><span class="mcp-row__name">github</span><span class="pill" data-mono="true">stdio</span></div><div class="mcp-row__cmd">npx -y @modelcontextprotocol/server-github</div><div class="mcp-row__envs"><span class="pill" data-mono="true">GITHUB_TOKEN</span></div></div>
-              <div class="mcp-row"><div class="mcp-row__head"><span class="mcp-row__name">linear</span><span class="pill" data-mono="true">sse</span></div><div class="mcp-row__cmd">https://mcp.linear.app/sse?workspace=agh-labs&amp;channel=…</div><div class="mcp-row__envs"><span class="pill" data-mono="true">LINEAR_API_KEY</span></div></div>
+              <div class="mcp-row"><div class="mcp-row__head"><span class="mcp-row__name">linear</span><span class="pill" data-mono="true">sse</span></div><div class="mcp-row__cmd">https://mcp.linear.app/sse?workspace=compozy-labs&amp;channel=…</div><div class="mcp-row__envs"><span class="pill" data-mono="true">LINEAR_API_KEY</span></div></div>
             </div>
           </section>
           <section class="spanel hide" data-settings-panel="danger">
@@ -1014,8 +1014,8 @@ Speak in sentence case. No exclamation marks.</textarea>
   }
   function starSvg(fill){ return '<svg viewBox="0 0 24 24" fill="'+(fill?'currentColor':'none')+'" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+icon('star').replace(/<svg[^>]*>|<\/svg>/g,'')+'</svg>'; }
 
-  // ---------- real AGH brand logos (packages/ui/src/logos) ----------
-  // Mirrors KindIcon: brand mark where AGH ships one, lucide fallback otherwise.
+  // ---------- real Compozy brand logos (packages/ui/src/logos) ----------
+  // Mirrors KindIcon: brand mark where Compozy ships one, lucide fallback otherwise.
   var LOGO = {
     codex:{ vb:"0 0 721 721", inner:'<path fill="currentColor" d="M304.246 294.611V249.028C304.246 245.189 305.687 242.309 309.044 240.392L400.692 187.612C413.167 180.415 428.042 177.058 443.394 177.058C500.971 177.058 537.44 221.682 537.44 269.182C537.44 272.54 537.44 276.379 536.959 280.218L441.954 224.558C436.197 221.201 430.437 221.201 424.68 224.558L304.246 294.611ZM518.245 472.145V363.224C518.245 356.505 515.364 351.707 509.608 348.349L389.174 278.296L428.519 255.743C431.877 253.826 434.757 253.826 438.115 255.743L529.762 308.523C556.154 323.879 573.905 356.505 573.905 388.171C573.905 424.636 552.315 458.225 518.245 472.141V472.145ZM275.937 376.182L236.592 353.152C233.235 351.235 231.794 348.354 231.794 344.515V238.956C231.794 187.617 271.139 148.749 324.4 148.749C344.555 148.749 363.264 155.468 379.102 167.463L284.578 222.164C278.822 225.521 275.942 230.319 275.942 237.039V376.186L275.937 376.182ZM360.626 425.122L304.246 393.455V326.283L360.626 294.616L417.002 326.283V393.455L360.626 425.122ZM396.852 570.989C376.698 570.989 357.989 564.27 342.151 552.276L436.674 497.574C442.431 494.217 445.311 489.419 445.311 482.699V343.552L485.138 366.582C488.495 368.499 489.936 371.379 489.936 375.219V480.778C489.936 532.117 450.109 570.985 396.852 570.985V570.989ZM283.134 463.99L191.486 411.211C165.094 395.854 147.343 363.229 147.343 331.562C147.343 294.616 169.415 261.509 203.48 247.593V356.991C203.48 363.71 206.361 368.508 212.117 371.866L332.074 441.437L292.729 463.99C289.372 465.907 286.491 465.907 283.134 463.99ZM277.859 542.68C223.639 542.68 183.813 501.895 183.813 451.514C183.813 447.675 184.294 443.836 184.771 439.997L279.295 494.698C285.051 498.056 290.812 498.056 296.568 494.698L417.002 425.127V470.71C417.002 474.549 415.562 477.429 412.204 479.346L320.557 532.126C308.081 539.323 293.206 542.68 277.854 542.68H277.859ZM396.852 599.776C454.911 599.776 503.37 558.513 514.41 503.812C568.149 489.896 602.696 439.515 602.696 388.176C602.696 354.587 588.303 321.962 562.392 298.45C564.791 288.373 566.231 278.296 566.231 268.224C566.231 199.611 510.571 148.267 446.274 148.267C433.322 148.267 420.846 150.184 408.37 154.505C386.775 133.392 357.026 119.958 324.4 119.958C266.342 119.958 217.883 161.22 206.843 215.921C153.104 229.837 118.557 280.218 118.557 331.557C118.557 365.146 132.95 397.771 158.861 421.283C156.462 431.36 155.022 441.437 155.022 451.51C155.022 520.123 210.682 571.466 274.978 571.466C287.931 571.466 300.407 569.549 312.883 565.228C334.473 586.341 364.222 599.776 396.852 599.776Z"/>' },
     claude:{ vb:"0 0 256 257", inner:'<path fill="#D97757" d="m50.228 170.321 50.357-28.257.843-2.463-.843-1.361h-2.462l-8.426-.518-28.775-.778-24.952-1.037-24.175-1.296-6.092-1.297L0 125.796l.583-3.759 5.12-3.434 7.324.648 16.202 1.101 24.304 1.685 17.629 1.037 26.118 2.722h4.148l.583-1.685-1.426-1.037-1.101-1.037-25.147-17.045-27.22-18.017-14.258-10.37-7.713-5.25-3.888-4.925-1.685-10.758 7-7.713 9.397.649 2.398.648 9.527 7.323 20.35 15.75L94.817 91.9l3.889 3.24 1.555-1.102.195-.777-1.75-2.917-14.453-26.118-15.425-26.572-6.87-11.018-1.814-6.61c-.648-2.723-1.102-4.991-1.102-7.778l7.972-10.823L71.42 0 82.05 1.426l4.472 3.888 6.61 15.101 10.694 23.786 16.591 32.34 4.861 9.592 2.592 8.879.973 2.722h1.685v-1.556l1.36-18.211 2.528-22.36 2.463-28.776.843-8.1 4.018-9.722 7.971-5.25 6.222 2.981 5.12 7.324-.713 4.73-3.046 19.768-5.962 30.98-3.889 20.739h2.268l2.593-2.593 10.499-13.934 17.628-22.036 7.778-8.749 9.073-9.657 5.833-4.601h11.018l8.1 12.055-3.628 12.443-11.342 14.388-9.398 12.184-13.48 18.147-8.426 14.518.778 1.166 2.01-.194 30.46-6.481 16.462-2.982 19.637-3.37 8.88 4.148.971 4.213-3.5 8.62-20.998 5.184-24.628 4.926-36.682 8.685-.454.324.519.648 16.526 1.555 7.065.389h17.304l32.21 2.398 8.426 5.574 5.055 6.805-.843 5.184-12.962 6.611-17.498-4.148-40.83-9.721-14-3.5h-1.944v1.167l11.666 11.406 21.387 19.314 26.767 24.887 1.36 6.157-3.434 4.86-3.63-.518-23.526-17.693-9.073-7.972-20.545-17.304h-1.36v1.814l4.73 6.935 25.017 37.59 1.296 11.536-1.814 3.76-6.481 2.268-7.13-1.297-14.647-20.544-15.1-23.138-12.185-20.739-1.49.843-7.194 77.448-3.37 3.953-7.778 2.981-6.48-4.925-3.436-7.972 3.435-15.749 4.148-20.544 3.37-16.333 3.046-20.285 1.815-6.74-.13-.454-1.49.194-15.295 20.999-23.267 31.433-18.406 19.702-4.407 1.75-7.648-3.954.713-7.064 4.277-6.286 25.47-32.405 15.36-20.092 9.917-11.6-.065-1.686h-.583L44.07 198.125l-12.055 1.555-5.185-4.86.648-7.972 2.463-2.593 20.35-13.999-.064.065Z"/>' },
@@ -1029,7 +1029,7 @@ Speak in sentence case. No exclamation marks.</textarea>
   };
   function glyphSVG(id){
     var L = LOGO[id];
-    if(!L){ // lucide "terminal" fallback for providers AGH ships no brand mark for (opencode, etc.)
+    if(!L){ // lucide "terminal" fallback for providers Compozy ships no brand mark for (opencode, etc.)
       return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>';
     }
     return '<svg viewBox="'+L.vb+'" xmlns="http://www.w3.org/2000/svg">'+L.inner+'</svg>';
@@ -1049,7 +1049,7 @@ Speak in sentence case. No exclamation marks.</textarea>
   // ---------- component state ----------
   // each mounted instance keeps its own selection so the demos stay independent
   var instances = {}; // id -> {sel:{provider,model,reasoning}, compact, el, opts}
-  var LS = { fav:"agh:pmr:fav", recent:"agh:pmr:recent" };
+  var LS = { fav:"compozy:pmr:fav", recent:"compozy:pmr:recent" };
   var favSet = load(LS.fav, {}), recentList = load(LS.recent, null);
   if(!recentList){ recentList = MODELS.filter(function(m){return m.recent;}).map(function(m){return m.id;}); }
   MODELS.forEach(function(m){ if(m.fav) favSet[m.id]=true; });
@@ -1642,7 +1642,7 @@ Speak in sentence case. No exclamation marks.</textarea>
     category:"Engineering / Release", provider: agentRuntime.provider, model: agentRuntime.model, reasoning: agentRuntime.reasoning, command:"",
     permission:"approve_reads",
     instructions: document.getElementById("s-instructions").value,
-    tools:["Bash","Read","Edit","Write","Glob","Grep"], denyTools:["WebFetch","Bash(rm:*)"], toolsets:["agh-core"]
+    tools:["Bash","Read","Edit","Write","Glob","Grep"], denyTools:["WebFetch","Bash(rm:*)"], toolsets:["compozy-core"]
   };
   var settingsCurrent = JSON.parse(JSON.stringify(settingsInitial));
   var selectMenuEl = null;

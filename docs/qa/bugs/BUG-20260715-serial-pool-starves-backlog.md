@@ -18,7 +18,7 @@ capacity existed and was making progress.
 ## Reproduction
 
 - **Charter:** Marketplace Northstar playbook · **Tour:** autonomous one-kickoff delivery
-- **Environment:** Isolated AGH lab with one shared workspace, one frontend pool worker, and real Claude providers
+- **Environment:** Isolated Compozy lab with one shared workspace, one frontend pool worker, and real Claude providers
 
 1. Queue three or more runs owned by the same single-session worker pool.
 2. Let the worker claim and process the first run.
@@ -33,7 +33,7 @@ backlog.
 
 ## Evidence
 
-- Isolated lab: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-final-pass-20260715-20260715-160444-641330-lab`.
+- Isolated lab: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-final-pass-20260715-20260715-160444-641330-lab`.
 - Affected task/run: `task-northstar-pay-004` / `run-062c70a3b7273704` at `2026-07-15T16:19:10`.
 - Mandatory teardown: `qa-artifacts/qa/teardown.json` records `clean=true` with no surviving lab process.
 

@@ -1,4 +1,4 @@
-# AGH modal redesign research summary
+# Compozy modal redesign research summary
 
 > **Living authority:** `MODAL-STANDARD.md`, the 16 surfaces + `verify.mjs` in this folder, and `../design-system/patterns.html` § Modals. This summary is research history; open questions below are not a live backlog.
 

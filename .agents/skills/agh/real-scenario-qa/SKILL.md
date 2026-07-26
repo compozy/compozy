@@ -1,13 +1,13 @@
 ---
 name: real-scenario-qa
-description: Dogfoods AGH through an autonomous startup scenario with live providers, cross-surface observation, and strict evidence audit. Use for release or complex-integration QA. Do not use for smoke, static, mock-only, or unit-test work.
+description: Dogfoods Compozy through an autonomous startup scenario with live providers, cross-surface observation, and strict evidence audit. Use for release or complex-integration QA. Do not use for smoke, static, mock-only, or unit-test work.
 trigger: explicit
 argument-hint: "[playbook-ref]"
 ---
 
 # Real Scenario QA
 
-Execute release-grade QA by running an entire fictional startup project on the AGH runtime and observing the result. The runtime drives the work; the observer never tells agents they are being evaluated. The auditor enforces real deliverables (compiled/parsed/runnable artifacts) and real collaboration (peer messages, review cycles, disagreement resolution).
+Execute release-grade QA by running an entire fictional startup project on the Compozy runtime and observing the result. The runtime drives the work; the observer never tells agents they are being evaluated. The auditor enforces real deliverables (compiled/parsed/runnable artifacts) and real collaboration (peer messages, review cycles, disagreement resolution).
 
 The skill rejects any prompt that frames the work as QA. See `references/forbidden-prompt-phrases.md`.
 
@@ -31,7 +31,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 1. Activate `agh-qa-bootstrap` with scenario `$PLAYBOOK_REF` and `--playbook "$PLAYBOOK_REF"`; complete its full procedure instead of calling its helper directly.
 2. Consume the canonical `BOOTSTRAP_MANIFEST` and its emitted paths. Never reconstruct provider, browser, proxy, audit, or teardown state here.
-3. Confirm the selected playbook, agent registrations, open-task tree, knowledge files, required deliverables/collaboration, and populated charter all belong to the same healthy manifest. Register only `RUNTIME_WORKSPACE_PATH` with AGH; agents must not see the lab's `qa-artifacts/` or audit contracts.
+3. Confirm the selected playbook, agent registrations, open-task tree, knowledge files, required deliverables/collaboration, and populated charter all belong to the same healthy manifest. Register only `RUNTIME_WORKSPACE_PATH` with Compozy; agents must not see the lab's `qa-artifacts/` or audit contracts.
 
 *Done when:* bootstrap's completion criteria pass and the charter has no placeholders.
 
@@ -48,7 +48,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 **Step 4: Post the Operator Kickoff**
 
 1. After runtime agents, sessions, channels, and the deterministic task ids from `.compozy/tasks/open-tasks.json` exist under the shared `RUNTIME_WORKSPACE_PATH`, prepare task activation behind a scheduler barrier (mutating):
-   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py prepare --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --agh-bin "${COMPOZY_BIN:-compozy}"`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py prepare --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --compozy-bin "${COMPOZY_BIN:-compozy}"`
 2. Render and validate the kickoff payload (mutating only the inspectable payload file):
    `python3 .agents/skills/agh/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST"`
 3. The helper aborts with exit code 2 if the rendered kickoff contains any phrase from `references/forbidden-prompt-phrases.md`. Rewrite the playbook's `kickoff_brief` when blocked.
@@ -56,7 +56,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
    `compozy session prompt <operator-session-id> "$(cat $WORKSPACE_PATH/.compozy/operator-kickoff.txt)" -o jsonl > $QA_OUTPUT_PATH/qa/operator-kickoff.jsonl`
 5. Confirm the successful post from its non-empty evidence (mutating), then release the queued task runs (mutating):
    `python3 .agents/skills/agh/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --confirm-posted "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl"`
-   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py release --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --kickoff-evidence "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl" --agh-bin "${COMPOZY_BIN:-compozy}"`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py release --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --kickoff-evidence "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl" --compozy-bin "${COMPOZY_BIN:-compozy}"`
 6. Confirm the manifest reports `KICKOFF_POSTED=true`, `KICKOFF_TIMESTAMP` is set, task activation is `released`, and the scheduler is unpaused. Send no further prompt to any agent under test; a stall becomes a bug.
 
 *Done when:* every declared task has one queued run behind the barrier, exactly one evidenced kickoff is confirmed, dispatch is released, and the observer has no path for a second agent prompt.
@@ -68,7 +68,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 2. While the observer is tailing the journey log, capture cross-surface evidence WITHOUT directing agents:
    - CLI: `compozy task list`, `compozy agent list`, `compozy channel list`, `compozy session list` against the isolated daemon.
    - API: read endpoints that intersect the playbook's primary domain.
-   - Web: open the AGH web app via `browser-use:browser` (or the `agent-browser` fallback) against `$COMPOZY_WEB_API_PROXY_TARGET`. Capture DOM snapshot, URL, screenshot.
+   - Web: open the Compozy web app via `browser-use:browser` (or the `agent-browser` fallback) against `$COMPOZY_WEB_API_PROXY_TARGET`. Capture DOM snapshot, URL, screenshot.
    - Runtime: confirm the journey-log keeps growing.
 3. Record observer-only or out-of-band evidence with the mutating helper `.agents/skills/agh/real-scenario-qa/scripts/record-scenario-action.py`; never use it to fabricate runtime-owned actions.
 4. When the observer reports stall (exit code 1), open `<QA_OUTPUT_PATH>/qa/observation-summary.json`, identify the silent agent / unstarted task, and proceed to Step 6 with that diagnosis. Do not attempt to "wake" the agent with a prompt.
@@ -85,7 +85,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
    `python3 .agents/skills/agh/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --final-report "docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md" --strict`
 5. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check. All durable bugs go to the repo's global registry as `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first, per `qa-report`'s bug-registry rules) and are linked into the affected `docs/qa/scenarios/*.md` files:
    - **C15** forbidden phrase in a prompt → rewrite the playbook source (system_prompt or kickoff_brief), not the auditor or the regex list.
-   - **C16** deliverable count short → file a runtime bug (which AGH agent failed to produce the artifact, why, what state shows the failure). Do not author the missing artifact yourself — the runtime is what's under test.
+   - **C16** deliverable count short → file a runtime bug (which Compozy agent failed to produce the artifact, why, what state shows the failure). Do not author the missing artifact yourself — the runtime is what's under test.
    - **C17** collaboration loop short → file a runtime bug describing which channel, agent, or review cycle did not complete. Cite journey-log timestamps.
    - **C18** stall → the registry bug is mandatory and must name the silent agent and stalled task.
 6. Re-run the relevant scoped checks after each fix; after source freezes again, refresh the single full gate evidence and rerun the strict auditor.
@@ -107,7 +107,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 - If the kickoff helper aborts on a forbidden phrase, rewrite the playbook's `kickoff_brief`. Do not edit `references/forbidden-prompt-phrases.md` to remove the rule.
 - If task activation preparation fails, keep the owned scheduler barrier paused, inspect `qa/task-activation.json`, and retry with the same idempotency keys. Never post the kickoff with a partial task tree.
 - If kickoff delivery or confirmation fails, keep dispatch paused. Retry only the same unconfirmed delivery when no provider evidence exists; once evidence exists, confirmation is the only valid next step. Release refuses an empty kickoff transcript or an unconfirmed manifest.
-- If `observe-runtime.py` reports a stall, do NOT inject a prompt to wake the agent. The runtime stall IS the bug under test. File it in `docs/qa/bugs/` against the AGH runtime.
+- If `observe-runtime.py` reports a stall, do NOT inject a prompt to wake the agent. The runtime stall IS the bug under test. File it in `docs/qa/bugs/` against the Compozy runtime.
 - If a required deliverable type cannot be parsed by the auditor (e.g., a TSX file with non-standard exports), fix the artifact in the workspace via the agent that authored it (re-prompting in-persona is fine; new operator prompts are not). If the agent cannot fix it, that is a runtime bug.
 - If `browser-use:browser` is unavailable, follow the `agent-browser` fallback per the bootstrap browser policy. Do not silently drop the Web surface.
 - If providers are unreachable, record the boundary in `provider-attempt.json`. The run verdict becomes BLOCKED, never PASS.

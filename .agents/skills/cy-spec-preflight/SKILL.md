@@ -1,12 +1,12 @@
 ---
 name: cy-spec-preflight
 description: >-
-  Loads the AGH spec authoring playbook plus relevant lessons, standing
+  Loads the Compozy spec authoring playbook plus relevant lessons, standing
   directives, glossary, and active context before cy-create-prd,
   cy-create-techspec, or cy-create-tasks runs. Applies phase-specific checks:
   PRDs stay business-focused, TechSpecs carry the six quality markers, and
   every spec/task captures extensibility integration, agent-manageability,
-  config lifecycle, QA tail coverage, and Web/Docs Impact. Use whenever an AGH
+  config lifecycle, QA tail coverage, and Web/Docs Impact. Use whenever a Compozy
   spec authoring skill is about to run. Do not use for spec execution, review
   remediation, or non-spec brainstorming
   output.
@@ -16,7 +16,7 @@ argument-hint: "[phase]"
 
 # Spec Preflight
 
-Authors of AGH PRDs, TechSpecs, and `_tasks.md` repeatedly produce drafts that miss project-specific directives — frameworks named in PRDs, prose-only TechSpecs, "fraco" test coverage. This skill loads project memory before handing off to `cy-create-prd`, `cy-create-techspec`, or `cy-create-tasks`, then runs the relevant post-draft checks before approval.
+Authors of Compozy PRDs, TechSpecs, and `_tasks.md` repeatedly produce drafts that miss project-specific directives — frameworks named in PRDs, prose-only TechSpecs, "fraco" test coverage. This skill loads project memory before handing off to `cy-create-prd`, `cy-create-techspec`, or `cy-create-tasks`, then runs the relevant post-draft checks before approval.
 
 ## Required Inputs
 
@@ -28,7 +28,7 @@ Authors of AGH PRDs, TechSpecs, and `_tasks.md` repeatedly produce drafts that m
 
 1. Read `docs/_memory/spec-authoring-playbook.md` in full.
 2. Read `docs/_memory/standing_directives.md` (SD-001..SD-011).
-3. Read `docs/_memory/glossary.md` (vocabulary discipline — `capability` vs `recipe`, AGH is/is-not).
+3. Read `docs/_memory/glossary.md` (vocabulary discipline — `capability` vs `recipe`, Compozy is/is-not).
 4. Read the matching lessons by phase. Read `references/phase-lessons.md` for the phase → lesson mapping.
 5. Read `CLAUDE.md` Authoring Posture, Architecture Principles, Autonomy Contracts, Security Invariants sections.
 
@@ -102,7 +102,7 @@ Phase-specific checks below. Run only the relevant block. Use the "before author
 - **Phase cannot be inferred:** ask the user explicitly. Do not guess.
 - **Playbook missing:** halt. The playbook is mandatory context. Direct the user to restore from git or re-run the synthesis.
 - **`scripts/check-*.py` fail with structural errors:** the artifact does not match the expected shape. Surface the path that broke; do not auto-fix.
-- **PRD names AGH-Network wire format:** allowed exception per `lessons/L-013` — confirm with user before stripping.
+- **PRD names Compozy-Network wire format:** allowed exception per `lessons/L-013` — confirm with user before stripping.
 - **TechSpec missing markers:** do not let the user skip. Pedro will reject the spec; resolve missing markers first.
 - **`_tasks.md` missing QA pair:** auto-invoke `cy-tasks-tail-qa-pair` to repair.
 - **`_tasks.md` missing Web/Docs Impact subitems:** auto-invoke `cy-web-docs-impact` to populate.

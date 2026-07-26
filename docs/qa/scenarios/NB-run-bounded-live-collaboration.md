@@ -11,7 +11,7 @@ bug_ids: BUG-20260715-network-usage-workspace-name-empty;BUG-20260715-network-wa
 fix_status: fixed
 retest_status: pass
 fix_commits: pending local diff
-evidence: docs/qa/evidence/2026-07-14-network-changes/ch-live-bounds-agent-path.md;/Users/pedronauck/dev/qa-labs/agh-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/teardown.json
+evidence: docs/qa/evidence/2026-07-14-network-changes/ch-live-bounds-agent-path.md;/Users/pedronauck/dev/qa-labs/compozy-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/teardown.json
 last_report: docs/qa/reports/2026-07-14-network-changes.md
 overlaps: NB-execution-participation-defaults;NB-020;RT-073
 ---

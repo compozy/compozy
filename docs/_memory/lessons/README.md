@@ -1,6 +1,6 @@
 # Lessons Learned
 
-Durable engineering lessons distilled from real AGH incidents and decisions since April 2026. Each lesson is a single file with a confirmed root cause, the fix or rule, and the evidence trail.
+Durable engineering lessons distilled from real Compozy incidents and decisions since April 2026. Each lesson is a single file with a confirmed root cause, the fix or rule, and the evidence trail.
 
 These are NOT speculative warnings — every lesson here has either an ADR, a commit, a review issue, or a verifiable QA bug behind it.
 
@@ -16,7 +16,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-006](L-006-greenfield-delete-not-adapt.md)                 | Greenfield + zero-legacy means delete, not adapt                                 | Project posture                  |
 | [L-007](L-007-e2e-follows-runtime-contract.md)                | E2E harness regressions follow runtime contract changes                          | Testing                          |
 | [L-008](L-008-schema-migrations-mandatory.md)                 | Schema migrations are required even on fresh DBs                                 | Persistence                      |
-| [L-009](L-009-concurrent-worktree-deadlock.md)                | Concurrent worktree commits deadlock; isolate `AGH_HOME` + ports                 | Workflow                         |
+| [L-009](L-009-concurrent-worktree-deadlock.md)                | Concurrent worktree commits deadlock; isolate `COMPOZY_HOME` + ports                 | Workflow                         |
 | [L-010](L-010-model-name-validation.md)                       | Non-existent model name silently breaks the entire batch                         | Workflow / CI                    |
 | [L-011](L-011-fraco-test-coverage-pushback.md)                | "Fraco" test coverage is the most repeated pushback on generated `_tasks.md`     | Spec authoring                   |
 | [L-012](L-012-techspec-prose-only-rework.md)                  | TechSpec without Go interface signatures triggers heavy review rework            | Spec authoring                   |
@@ -38,7 +38,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-028](L-028-correction-is-not-license-for-opposite-extreme.md) | A correction is not a license for the opposite extreme                          | Decision process / Spec authoring |
 | [L-029](L-029-qa-labs-must-tear-down-processes.md)            | QA labs must tear down processes, not just isolate them                          | Workflow / QA hygiene            |
 | [L-030](L-030-dual-verify-capacity-collapse.md)               | Two concurrent `make verify` runs collapse the machine; serialize the gate       | Workflow / Build tooling         |
-| [L-031](L-031-primitive-reuse-is-a-gate-not-prose.md)         | Primitive reuse is a gate, not prose — shadows of `@agh/ui` exports fail lint    | Frontend / Design system / Process |
+| [L-031](L-031-primitive-reuse-is-a-gate-not-prose.md)         | Primitive reuse is a gate, not prose — shadows of `@compozy/ui` exports fail lint    | Frontend / Design system / Process |
 | [L-032](L-032-prototype-fidelity-binds-visual-language-not-content.md) | Prototype fidelity binds visual language, not content                   | Frontend / Design system / Process |
 
 ## How to use

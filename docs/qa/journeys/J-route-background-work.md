@@ -4,7 +4,7 @@ An operator assigns the runtime identity and model used by daemon-owned backgrou
 
 ```mermaid
 flowchart TD
-    A[Entry: config.toml, Settings, or agh roles] --> B[Read the effective roles configuration]
+    A[Entry: config.toml, Settings, or compozy roles] --> B[Read the effective roles configuration]
     B --> C{Choose global or workspace scope}
     C -->|global| D[Set a role route and optional fallback]
     C -->|workspace| E[Set a workspace role override]
@@ -33,11 +33,11 @@ journey:
   entry_points:
     - url: "config.toml"
       origin: direct
-    - url: "agh config set roles.<role>.<key> <value> (--scope workspace --workspace <root> for overlays)"
+    - url: "compozy config set roles.<role>.<key> <value> (--scope workspace --workspace <root> for overlays)"
       origin: direct
-    - url: "agh__config_list|get|set|unset over exact roles.* leaves (agh__config_path for the selected scope target only)"
+    - url: "compozy__config_list|get|set|unset over exact roles.* leaves (compozy__config_path for the selected scope target only)"
       origin: direct
-    - url: "agh roles list|show; GET /api/roles and GET /api/roles/{role} over HTTP or UDS"
+    - url: "compozy roles list|show; GET /api/roles and GET /api/roles/{role} over HTTP or UDS"
       origin: direct
     - url: "Web /settings/roles"
       origin: direct
@@ -73,7 +73,7 @@ journey:
 ```
 
 Taxonomy sweep: this journey owns the functional global/workspace round trip, structured role
-discovery (including the native `agh__config_*` write path and the docs pages as entry origin),
+discovery (including the native `compozy__config_*` write path and the docs pages as entry origin),
 pre-acceptance fallback, invalid-value recovery, fresh-read continuity, cross-workspace
 isolation, and the Settings Roles surface. Responsive and accessibility checks belong to the
 Settings-panel scenario rather than being duplicated by the transport scenarios.

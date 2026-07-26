@@ -1,7 +1,7 @@
 ---
 name: cy-web-docs-impact
 description: >-
-  Audits a backend AGH change for downstream impact on web/, packages/site,
+  Audits a backend Compozy change for downstream impact on web/, packages/site,
   agent-operable CLI/HTTP/UDS surfaces, extensibility surfaces, and config.toml.
   Adds explicit impact subitems to backend tasks, even when the conclusion is no
   impact. Use when drafting tasks or reviewing TechSpec coverage for changes

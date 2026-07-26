@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-first-slack-response
-  mission: "As Tessa, connect Slack from an installed extension to one visible in-thread AGH response, measure time to first message (TTFM) as operator actions and wall-clock minutes against the Hermes ≈7-action baseline, and stop on any undocumented or ambiguous handoff."
+  mission: "As Tessa, connect Slack from an installed extension to one visible in-thread Compozy response, measure time to first message (TTFM) as operator actions and wall-clock minutes against the Hermes ≈7-action baseline, and stop on any undocumented or ambiguous handoff."
   mode: scenario-based
   persona:
     name: Tessa

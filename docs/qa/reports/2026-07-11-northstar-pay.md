@@ -46,11 +46,11 @@ The following changed rows were explicitly outside this targeted execution and r
 
 ## Bootstrap and Runtime
 
-- **Manifest:** `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/bootstrap-manifest.json`.
-- **Scenario contract:** `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/scenario-contract.json`.
-- **Behavioral charter:** `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/behavioral-scenario-charter.yaml`.
-- **Workspace:** `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab`.
-- **Runtime home:** `/tmp/aghqa-093029b162b3/runtime`.
+- **Manifest:** `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/bootstrap-manifest.json`.
+- **Scenario contract:** `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/scenario-contract.json`.
+- **Behavioral charter:** `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/behavioral-scenario-charter.yaml`.
+- **Workspace:** `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab`.
+- **Runtime home:** `/tmp/compozyqa-093029b162b3/runtime`.
 - **Registry workspace:** `ws_dc76b2b52e82493a`; durable workspace identity `01KX8XCTQRVF7GZ9N815GVSXYK`.
 - **Provider session:** `sess-40ede54a94b77e0f`; turn `turn-cff59efdc929d215`; healthy `end_turn` at event sequence 212.
 - **Final retest daemon:** PID `1446547`, upgraded in place through pre-rebase branch GlobalDB v69 (the same cleanup is final registry v72).
@@ -86,16 +86,16 @@ No declared collaborator session subsequently started, and no Task acquired a ru
 
 Evidence:
 
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/bug-0028-autonomy-stall.json`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/provider-attempt.json`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/journey-log.jsonl`
-- `/tmp/aghqa-093029b162b3/runtime/sessions/sess-40ede54a94b77e0f/events.db`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/bug-0028-autonomy-stall.json`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/provider-attempt.json`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/journey-log.jsonl`
+- `/tmp/compozyqa-093029b162b3/runtime/sessions/sess-40ede54a94b77e0f/events.db`
 
 ## Verified Fixes
 
 ### BUG-0029 — first-thread contract discoverability
 
-The native Network descriptor, CLI help/local validation, OpenAPI, protocol, generated TypeScript/CLI references, and bundled AGH skill now expose the exact thread ID grammar and state that the first valid send creates the thread. Real Claude read the corrected CLI help and created `thread_war-room-launch-001`, message `msg-8de42886c15d2879`.
+The native Network descriptor, CLI help/local validation, OpenAPI, protocol, generated TypeScript/CLI references, and bundled Compozy skill now expose the exact thread ID grammar and state that the first valid send creates the thread. Real Claude read the corrected CLI help and created `thread_war-room-launch-001`, message `msg-8de42886c15d2879`.
 
 ### BUG-0030 — native Network workspace identity
 
@@ -121,14 +121,14 @@ Protocol timestamps have one-second resolution and message IDs are random, so `(
 
 Canonical lab evidence paths:
 
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/bug-0025-native-send-retest.json`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/bug-0026-memory-health-retest.json`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/bug-0027-network-ordering-retest.json`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/frontend-continuity-retest.json`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/frontend-scale-preconditions.json`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/screenshots/live/network-thread-history-v68.png`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/screenshots/live/session-continuity-initial.png`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/screenshots/live/session-continuity-reload.png`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/bug-0025-native-send-retest.json`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/bug-0026-memory-health-retest.json`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/bug-0027-network-ordering-retest.json`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/frontend-continuity-retest.json`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/notes/frontend-scale-preconditions.json`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/screenshots/live/network-thread-history-v68.png`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/screenshots/live/session-continuity-initial.png`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/screenshots/live/session-continuity-reload.png`
 
 ## Browser and Visual Disclosure
 
@@ -153,11 +153,11 @@ The authoritative final `make verify` passed against the implementation digest r
 
 Passing monorepo evidence:
 
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/logs/final-make-verify.log`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/logs/final-make-verify.log`
 
 The earlier capacity-saturated run is retained separately as regression evidence. It led to the root scheduler-budget fix; no test, race detector, assertion, or timeout was weakened:
 
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/logs/failed-make-verify-pre-scheduler.log`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/logs/failed-make-verify-pre-scheduler.log`
 
 ## Strict Auditor
 
@@ -165,8 +165,8 @@ The final strict auditor exited 2 with 15 substantive scenario-contract blockers
 
 Audit artifacts:
 
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/qa-audit-report.json`
-- `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/qa-audit-report.md`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/qa-audit-report.json`
+- `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/qa-audit-report.md`
 
 The `--api-base-url` invocation also emits warning C99 because the auditor intentionally does not implement API deep equality; direct CLI/API/Web/runtime evidence above owns those assertions.
 
@@ -182,18 +182,18 @@ The `--api-base-url` invocation also emits warning C99 because the auditor inten
 
 The manifest teardown stopped daemon PID `1446547`, Vite PID `1314317`, Web Storybook PID `1338948`, and UI Storybook PID `1339719`. A post-teardown port audit found one QA-specific Chrome opened on Storybook at PID `1339187`; it was added to the lab PID registry and the official teardown was repeated. The earlier personal Chrome on debugging port 9222 predates this lab and was left untouched.
 
-Final evidence `/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/teardown.json` records `clean: true`, no survivors, and all five lab-owned PIDs. Ports 3000, 44473, 6006, and 6007 are no longer listening.
+Final evidence `/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/teardown.json` records `clean: true`, no survivors, and all five lab-owned PIDs. Ports 3000, 44473, 6006, and 6007 are no longer listening.
 
 ## Final Status
 
 **BLOCKED.** The branch's targeted frontend/runtime regression fixes are verified on real persisted data and real browser surfaces. The Northstar Pay release-grade scenario is not approved because autonomous Task activation, collaboration, deliverables, and disruption recovery did not occur. No evidence was invented, no missing artifact was authored by the observer, and no second provider prompt was used to hide the stall.
 
 [QA_BOOTSTRAP]
-manifest_path=/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/bootstrap-manifest.json
-lab_root=/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab
-runtime_home=/tmp/aghqa-093029b162b3/runtime
+manifest_path=/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/bootstrap-manifest.json
+lab_root=/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab
+runtime_home=/tmp/compozyqa-093029b162b3/runtime
 base_url=http://127.0.0.1:44473
-verification_report=/home/pedronauck/Projects/agh/docs/qa/reports/2026-07-11-northstar-pay.md
+verification_report=/home/pedronauck/Projects/compozy/docs/qa/reports/2026-07-11-northstar-pay.md
 health_status=fresh
-teardown_path=/home/pedronauck/dev/qa-labs/agh-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/teardown.json
+teardown_path=/home/pedronauck/dev/qa-labs/compozy-northstar-pay-20260711-153916-425791-lab/qa-artifacts/qa/teardown.json
 [/QA_BOOTSTRAP]

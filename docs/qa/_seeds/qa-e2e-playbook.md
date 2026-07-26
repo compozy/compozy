@@ -1,11 +1,11 @@
-# AGH QA / E2E Playbook
+# Compozy QA / E2E Playbook
 
 > Living document for manual and future automated end-to-end validation.
 > Seeded from real daemon + web + `agent-browser` execution on 2026-04-14.
 
 ## 1. Purpose
 
-This document defines the QA / E2E flows that must be exercised regularly for AGH.
+This document defines the QA / E2E flows that must be exercised regularly for Compozy.
 It is intended to serve three purposes:
 
 1. A repeatable manual checklist for future QA rounds.
@@ -30,7 +30,7 @@ When a check fails, the default assumption must be "product bug until disproven"
 ### 2.1 Non-negotiable rules
 
 - Always run against a real built binary, not only mocked frontend hooks.
-- Always use an isolated `AGH_HOME` for QA so local user state is not polluted.
+- Always use an isolated `COMPOZY_HOME` for QA so local user state is not polluted.
 - Always cross-check critical UI mutations with CLI or persisted backend state.
 - Always rerun the full repo gate with `make verify` before calling a round complete.
 - Always treat raw `5xx`, stuck spinners, and silent no-op mutations as failures.
@@ -190,14 +190,14 @@ Always fail if:
 
 Goal:
 
-- Prove AGH can bootstrap and run in a clean isolated home.
+- Prove Compozy can bootstrap and run in a clean isolated home.
 
 Steps:
 
-1. Create a temporary `AGH_HOME`.
-2. Run `./bin/agh install`.
+1. Create a temporary `COMPOZY_HOME`.
+2. Run `./bin/compozy install`.
 3. Start the daemon.
-4. Check `./bin/agh status`.
+4. Check `./bin/compozy status`.
 
 Assertions:
 
@@ -209,7 +209,7 @@ Assertions:
 Edge coverage:
 
 - first boot from empty state
-- no dependency on an already-populated `~/.agh`
+- no dependency on an already-populated `~/.compozy`
 
 ---
 
@@ -385,8 +385,8 @@ Assertions:
 
 Important nuance:
 
-- `agh session list` without `--all` only shows active sessions.
-- Use `agh session list --all` when checking persistence after shutdown.
+- `compozy session list` without `--all` only shows active sessions.
+- Use `compozy session list --all` when checking persistence after shutdown.
 
 ---
 
@@ -828,7 +828,7 @@ This document should eventually map to executable suites, not only manual rounds
 
 ### Recommended execution model
 
-- Use an isolated `AGH_HOME` fixture per suite or per worker.
+- Use an isolated `COMPOZY_HOME` fixture per suite or per worker.
 - Use public CLI to seed data only where the UI is not the target under test.
 - Use browser automation only for flows whose primary contract is UI behavior.
 - Always validate critical mutations through a second read path.

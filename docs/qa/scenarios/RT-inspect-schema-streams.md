@@ -5,13 +5,13 @@ title: Inspect daemon schema streams across structured surfaces
 persona: Ada
 journey: J-operate-daemon-schema
 expected: HTTP, UDS, and CLI JSON return deep-equal global and memory entries with stream, version, applied count, and schema digest.
-entry_points: GET /api/status over HTTP; GET /api/status over UDS; agh status -o json
+entry_points: GET /api/status over HTTP; GET /api/status over UDS; compozy status -o json
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/fresh-status-cli.json;/Users/pedronauck/dev/qa-labs/agh-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/fresh-status-http.json;/Users/pedronauck/dev/qa-labs/agh-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/fresh-status-uds.json;/Users/pedronauck/dev/qa-labs/agh-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/session-summary.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/fresh-status-cli.json;/Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/fresh-status-http.json;/Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/fresh-status-uds.json;/Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/session-summary.md
 last_report: docs/qa/reports/2026-07-12-store-redesign.md
 overlaps: RT-inspect-schema-streams;RT-001
 ---

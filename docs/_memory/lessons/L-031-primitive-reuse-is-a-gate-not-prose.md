@@ -1,12 +1,12 @@
 # L-031 — Primitive reuse is a gate, not prose
 
 **Class:** Frontend / Design system / Process
-**Date discovered:** 2026-07-10 (operator report "components keep getting recreated instead of reusing `@agh/ui`" → reuse audit on the `model-selector` worktree)
+**Date discovered:** 2026-07-10 (operator report "components keep getting recreated instead of reusing `@compozy/ui`" → reuse audit on the `model-selector` worktree)
 **Evidence sources:** First repo-wide run of `compozy-ui-reuse/no-shadow-ui-primitive` found **17 shadow definitions**; discovery audit of the doc/skill hot path; remediation sweep across `web/src` and `packages/site`. Touched files: `lint-plugins/ui-primitive-reuse.mjs`, `.oxlintrc.json`, `packages/ui/CLAUDE.md`, root `CLAUDE.md` (Design System), `DESIGN.md` §9, `.agents/skills/agh/agh-design/SKILL.md`, plus 25+ consumer files.
 
 ## Context
 
-`@agh/ui` already had everything the docs said it needed: a complete hand-written primitive
+`@compozy/ui` already had everything the docs said it needed: a complete hand-written primitive
 inventory (`packages/ui/README.md`), semantic contracts in `DESIGN.md` §9, and two design skills
 (`agh-design`, `ui-craft`) that were mandatory for all UI work. Duplication happened anyway. The
 audit found why:
@@ -25,7 +25,7 @@ First enforcement run found 17 real shadows: `ActionResultBanner` **×4** (setti
 vault, hooks-extensions, sandbox — the 4th copy was missed by a regex scan and only surfaced by
 the AST rule), `OperationalLinksRow` ×3, local `Section`, `FieldLabel`, `Timeline`,
 `ToolCallRow`, and 6 site components (`Avatar`, `CodeBlock` ×2, `KindChip`, `WireCard`,
-`SidebarSectionLabel`). Several were the **inverse** failure: composites promoted into `@agh/ui`
+`SidebarSectionLabel`). Several were the **inverse** failure: composites promoted into `@compozy/ui`
 as dormant code whose original callsites were never migrated — promotion without convergence
 produces the same drift as recreation.
 
@@ -43,7 +43,7 @@ that kept regressing.
 ## Rule
 
 > Consumer surfaces (`web/src/**`, `packages/site/**`) never define a function, class, or
-> component-initialized const whose name `@agh/ui` exports. Import the primitive; a genuinely
+> component-initialized const whose name `@compozy/ui` exports. Import the primitive; a genuinely
 > domain-distinct variant takes a domain-prefixed name (`SessionToolCallRow`, `MessageTimeline`,
 > `BlogCodeBlock`, `DocsSidebarSectionLabel`). New generic primitives land in `packages/ui`
 > (story + test in the same PR); silent shadowing is the only forbidden state. Enforced at
@@ -55,7 +55,7 @@ that kept regressing.
 - `lint-plugins/ui-primitive-reuse.mjs` derives the banned set from `packages/ui/src/index.ts`
   at lint time (PascalCase value exports only; types, hooks, helpers, ALL_CAPS constants
   excluded). It throws loudly if the index moves — never weaken to a silent empty set.
-- Promotion protocol: when a domain composite is promoted into `@agh/ui`, the same change must
+- Promotion protocol: when a domain composite is promoted into `@compozy/ui`, the same change must
   migrate or domain-rename every existing callsite. Dormant promoted code + live local copies is
   a lint failure from day one.
 - Shadow triage is a two-branch decision: **compose/import** when the primitive covers the need;
@@ -72,7 +72,7 @@ that kept regressing.
 - Maintaining a hand-written inventory table as the canonical catalog — it drifts, and a drifted
   inventory teaches agents to distrust it. Point at `src/index.ts`; generated views are the only
   acceptable copies (L-024).
-- Promoting a primitive into `@agh/ui` without migrating its origin callsites in the same change.
+- Promoting a primitive into `@compozy/ui` without migrating its origin callsites in the same change.
 - Auditing duplication with regex over `function X(`/`const X =` — the 4th `ActionResultBanner`
   proved only AST-level matching tells the truth.
 

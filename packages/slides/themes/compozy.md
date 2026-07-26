@@ -1,12 +1,12 @@
 ---
-name: AGH Warm Dark
-description: Operator-first warm-dark theme. Editorial Playfair display, Inter body, JetBrains Mono accents, single ember accent (#E8572A), flat depth, no shadows.
+name: Compozy Warm Dark
+description: people-first warm-dark theme. Editorial Playfair display, Inter body, JetBrains Mono accents, single ember accent (#E8572A), flat depth, no shadows.
 mode: dark
 ---
 
-# AGH Warm Dark
+# Compozy Warm Dark
 
-Editorial warm-dark identity for AGH presentations. Lifts tokens directly from `DESIGN.md` and `packages/ui/src/tokens.css` so slides match the runtime UI, docs, and marketing site. Single accent (`#E8572A`), flat depth (no shadows), Playfair display over Inter body, JetBrains Mono for eyebrow/labels.
+Editorial warm-dark identity for Compozy presentations. Lifts tokens directly from `DESIGN.md` and `packages/ui/src/tokens.css` so slides match the runtime UI, docs, and marketing site. Single accent (`#E8572A`), flat depth (no shadows), Playfair display over Inter body, JetBrains Mono for eyebrow/labels.
 
 ## Palette
 
@@ -108,7 +108,7 @@ const Footer = ({ pageNum, total }: { pageNum: number; total: number }) => (
   >
     <span style={{ display: "inline-flex", alignItems: "center", gap: 16 }}>
       <span style={{ width: 8, height: 8, borderRadius: 9999, background: "#E8572A" }} />
-      AGH · 2026
+      Compozy · 2026
     </span>
     <span>
       {String(pageNum).padStart(2, "0")} / {String(total).padStart(2, "0")}
@@ -169,7 +169,7 @@ Apply to title + eyebrow + first paragraph only, with `cubic-bezier(0.2, 0, 0, 1
 
 ## Aesthetic
 
-Editorial warm-dark, operator-first. Playfair carries display weight at 400 (never bold) over `#141312`; Inter dense at 36 px sets the body rhythm; JetBrains Mono uppercase eyebrows mark structural beats. The single ember accent `#E8572A` is a scarce resource — one mark of emphasis per slide, never decoration. References: modernist editorial print (Pentagram, Apple Pro Dark terminal, Stripe docs warm tone). Avoid: gradients, drop shadows, glassmorphism, pill CTAs, decorative emoji, neon glow, 3D type, bevels, rainbow signal-color use, centered hero compositions. Slides should read like a calm engineering document, not a keynote.
+Editorial warm-dark, people-first. Playfair carries display weight at 400 (never bold) over `#141312`; Inter dense at 36 px sets the body rhythm; JetBrains Mono uppercase eyebrows mark structural beats. The single ember accent `#E8572A` is a scarce resource — one mark of emphasis per slide, never decoration. References: modernist editorial print (Pentagram, Apple Pro Dark terminal, Stripe docs warm tone). Avoid: gradients, drop shadows, glassmorphism, pill CTAs, decorative emoji, neon glow, 3D type, bevels, rainbow signal-color use, centered hero compositions. Slides should read like a calm engineering document, not a keynote.
 
 ## Example usage
 
@@ -189,7 +189,7 @@ export const design: DesignSystem = {
 const styles = `
   @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Playfair+Display:wght@400&display=swap");
   @keyframes fadeUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: translateY(0) } }
-  .agh-rise { animation: fadeUp 200ms cubic-bezier(0.2, 0, 0, 1) both; }
+  .compozy-rise { animation: fadeUp 200ms cubic-bezier(0.2, 0, 0, 1) both; }
 `;
 
 const Cover: Page = () => (
@@ -208,14 +208,14 @@ const Cover: Page = () => (
         position: "relative",
       }}
     >
-      <div className="agh-rise" style={{ marginBottom: 80 }}>
+      <div className="compozy-rise" style={{ marginBottom: 80 }}>
         <Eyebrow>Chapter 01</Eyebrow>
       </div>
-      <div className="agh-rise">
+      <div className="compozy-rise">
         <Title>The Big Idea</Title>
       </div>
       <p
-        className="agh-rise"
+        className="compozy-rise"
         style={{
           fontFamily:
             '"Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',

@@ -48,7 +48,7 @@ The Web gate failure is inherited automated-suite debt rather than a reproduced 
 
 - Global and workspace `dream` fields retained independent provenance, including a workspace override equal to the global value; the workspace agent route repaired cleanly from `ghost` to `qa-curator`.
 - Exact CLI config writes rejected the max-children bound, four deleted paths, invalid `roles.dream.timeout`, and an old `[memory.dream] agent` key while preserving the last good configuration.
-- A real Codex session resolved and called `agh__config_list|get|path|set|unset`; the temporary auto-title model was live immediately and restored afterward.
+- A real Codex session resolved and called `compozy__config_list|get|path|set|unset`; the temporary auto-title model was live immediately and restored afterward.
 - Two defects were fixed and retested: the leaked `roleconfig` path and the inherited provider chain. The latter's final hidden auto-title child ran on `general/codex/gpt-5.6-luna` with no restart and no fallback.
 
 ### CH-role-fallback-boundary — Fixed
@@ -56,13 +56,13 @@ The Web gate failure is inherited automated-suite debt rather than a reproduced 
 - A real auto-title primary failed before acceptance and advanced exactly once to `codex/gpt-5.6-sol`; CLI and HTTP returned the same durable event id `sum-60ee72216e65824f`, parent session, workspace, role, attempt, provider, and model.
 - After the inherited-provider fix, the same public workflow ran the primary `codex/gpt-5.6-luna`, generated the title, and emitted zero fallback events.
 - Ordered multi-entry exhaustion, single-try behavior, zero failed-attempt residue, empty-chain behavior, and the no-fallback-after-acceptance fence passed in the real-daemon integration lane.
-- Deliberate skip: the public CLI/HTTP/UDS contract has no operation that kills only an accepted hidden ACP child. `agh session stop` is a normal lifecycle action and would not prove the fence, so no synthetic public evidence was claimed. The `memory_controller` branch was also skipped because it has no live LLM invocation.
+- Deliberate skip: the public CLI/HTTP/UDS contract has no operation that kills only an accepted hidden ACP child. `compozy session stop` is a normal lifecycle action and would not prove the fence, so no synthetic public evidence was claimed. The `memory_controller` branch was also skipped because it has no live LLM invocation.
 
 ### CH-reserved-builtin-name-sweep — Fixed
 
-- CLI, HTTP, UDS, and real native `agh__agent_create` rejected reserved creates; rename and duplicate rejected without mutating the source; case/whitespace variants rejected; `coordinator-helper` succeeded and was cleaned up.
+- CLI, HTTP, UDS, and real native `compozy__agent_create` rejected reserved creates; rename and duplicate rejected without mutating the source; case/whitespace variants rejected; `coordinator-helper` succeeded and was cleaned up.
 - The bundle probe found and fixed both snapshot loss and error-code collapse. After rebuild, CLI/HTTP/UDS/native activation returned `agent_name_reserved`, HTTP/UDS used 422, and activation/agent catalogs remained unchanged.
-- A pre-existing `$AGH_HOME/agents/coordinator/AGENT.md` was diagnosed and skipped at boot while the virtual coordinator still resolved. CLI, API, UDS, native, and Fleet catalogs stayed builtin-free.
+- A pre-existing `$COMPOZY_HOME/agents/coordinator/AGENT.md` was diagnosed and skipped at boot while the virtual coordinator still resolved. CLI, API, UDS, native, and Fleet catalogs stayed builtin-free.
 
 ### CH-roles-projection-truthfulness — Pass
 
@@ -88,7 +88,7 @@ The Web gate failure is inherited automated-suite debt rather than a reproduced 
 
 ### BUG-20260724-coordinator-config-list-path: Coordinator enabled state is published under a path operators cannot use
 
-- **Symptom:** `agh config list` exposed `roles.coordinator.roleconfig.enabled` instead of the writable public path `roles.coordinator.enabled`.
+- **Symptom:** `compozy config list` exposed `roles.coordinator.roleconfig.enabled` instead of the writable public path `roles.coordinator.enabled`.
 - **Root cause:** the redacted reflection projector named an anonymous embedded TOML struct after its Go type instead of flattening its fields.
 - **Fix:** `69b2099f3cada66395ced4c8ae862b21b5ebc996` merges anonymous untagged TOML struct fields into their parent projection.
 - **Regression test:** `internal/cli/config_test.go` — the canonical config rendering suite failed before and passes after the fix.
@@ -126,7 +126,7 @@ The Web gate failure is inherited automated-suite debt rather than a reproduced 
 
 | Persona | Where (journey/step) | Felt | Sharpness | Outcome |
 |---|---|---|---|---|
-| Dora | J-route-background-work / inherited config inspection | `agh config get` on an unset inherited leaf returns path-not-found while the Roles projection truthfully returns null. | Low | Accepted contract boundary: config reads persisted leaves; role projection owns effective/inherited truth. |
+| Dora | J-route-background-work / inherited config inspection | `compozy config get` on an unset inherited leaf returns path-not-found while the Roles projection truthfully returns null. | Low | Accepted contract boundary: config reads persisted leaves; role projection owns effective/inherited truth. |
 
 ## Runtime Errors Observed
 

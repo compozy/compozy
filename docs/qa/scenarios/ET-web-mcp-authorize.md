@@ -11,7 +11,7 @@ bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: BUG-20260715-mcp-oauth-name-segment fixed
 retest_status: pending begin-attempt race and truthful begin-failure recovery
 fix_commits:
-evidence: web/src/hooks/routes/use-mcp-authorize.ts; web/src/systems/settings/components/mcp-authorize-dialog.tsx; web/e2e/__tests__/mcp.spec.ts; .compozy/tasks/marketplace/evidence/visual/task-08/authorize-waiting-desktop; /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json; /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png
+evidence: web/src/hooks/routes/use-mcp-authorize.ts; web/src/systems/settings/components/mcp-authorize-dialog.tsx; web/e2e/__tests__/mcp.spec.ts; .compozy/tasks/marketplace/evidence/visual/task-08/authorize-waiting-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-api-mcp-oauth-endpoints; ET-cli-mcp-authorize; ET-web-mcp-authorize-manual
 ---

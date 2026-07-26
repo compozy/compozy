@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status: pending Marketplace nested-route active indicator
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-web-marketplace-landing-browse; ET-web-extensions-manage
 ---

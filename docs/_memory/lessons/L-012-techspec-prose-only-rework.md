@@ -47,4 +47,4 @@ When a spec is missing a marker, fix the spec — do not start tasks against the
 ## Source
 
 - `../analysis/analysis_compozy_tasks.md` §"Markers of 'good enough to execute'" and §"Markers of trouble"
-- `docs/_memory/_synthesis.md` skill candidate S-M9 `agh-techspec-quality-gate`
+- `docs/_memory/_synthesis.md` skill candidate S-M9 `compozy-techspec-quality-gate`

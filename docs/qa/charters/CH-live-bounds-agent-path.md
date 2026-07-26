@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "Bootstrap a fresh isolated lab with unique AGH_HOME/ports/provider home/tmux socket, register every daemon/provider process, and execute eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every terminal path; cite teardown.json clean=true."
+      - "Bootstrap a fresh isolated lab with unique COMPOZY_HOME/ports/provider home/tmux socket, register every daemon/provider process, and execute eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every terminal path; cite teardown.json clean=true."
       - "Start a Local control and an explicit Live owner with small finite bounds. Send an eligible direct, an eligible mention, ineligible control kinds, a same-root burst, a distinct root, and a depth-capped reply; compare durable dispositions with provider activation count."
       - "Interrupt once before claim by restarting the daemon, once during provider work by disabling Network/canceling, and once at exhaustion. Re-read each source, task-run wake, terminal settlement, conversation, and per-run/channel/workspace usage; no source may activate twice."
       - "Compare CLI -o json, HTTP, UDS, native tools, and agent context for mode/source/channel/bounds/consumption/usage plus network_participation_unavailable, not_participating, loop_requires_live, unknown-channel, unsupported, authority, and invalid-combination diagnostics."

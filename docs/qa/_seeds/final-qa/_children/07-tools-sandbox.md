@@ -31,13 +31,13 @@ This child owns the runtime contract that turns a model's `tool_call` into an ob
 | Package                                     | Responsibility                                                                                                                                                                                                                          |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `internal/tools`                            | Descriptor / Provider / Registry / dispatch pipeline; policy evaluator; approval-token store; result limiter (byte cap + redaction); tool-event emission contract. Composition root: `internal/tools/registry.go:32-48`.                |
-| `internal/tools/builtin`                    | Native-Go (`agh__*`) descriptors and handlers — catalog/skills/network/sessions/workspace/memory/observe/bridges/tasks/autonomy/config/hooks/automation/extensions/mcp_auth.                                                            |
+| `internal/tools/builtin`                    | Native-Go (`compozy__*`) descriptors and handlers — catalog/skills/network/sessions/workspace/memory/observe/bridges/tasks/autonomy/config/hooks/automation/extensions/mcp_auth.                                                            |
 | `internal/toolruntime`                      | Process registry + interrupts. `Registry.Register/Checkpoint/Complete/Interrupt/ReconcileBoot` (`internal/toolruntime/registry.go:128-358`). Default interrupter sends SIGTERM → poll → SIGKILL with PID/start-time validation.        |
 | `internal/sandbox`                          | Provider-neutral types: Backend (`local`/`daytona`/`e2b`), SyncMode, PersistenceMode, Resolved, NetworkPolicy, ToolHost interface (`types.go:230-304`). Provider Registry (`registry.go:23-82`).                                       |
 | `internal/sandbox/local`                    | Daemon-host provider; wires `acp.NewLocalToolHost` and `acp.NewLocalLauncher` per session (`provider.go:85-132`).                                                                                                                       |
 | `internal/sandbox/daytona`                  | Remote sandbox provider — Daytona SDK launcher, sidecar transport, SSH token manager, archive sync (`tar.go:145-313`), provider-side EvalSymlinks containment.                                                                          |
 | `internal/sandbox/providertest`             | Generic compliance suite for `sandbox.Provider`; called from each provider's tests.                                                                                                                                                     |
-| `internal/mcp`                              | Hosted MCP (`agh tool mcp` stdio proxy) lifecycle service: launch nonce, peer credential bind, projection digest, call/release. Remote-MCP `CallExecutor` for stdio + http/sse servers with timeouts (`executor.go:115-150`).            |
+| `internal/mcp`                              | Hosted MCP (`compozy tool mcp` stdio proxy) lifecycle service: launch nonce, peer credential bind, projection digest, call/release. Remote-MCP `CallExecutor` for stdio + http/sse servers with timeouts (`executor.go:115-150`).            |
 | `internal/mcp/auth`                         | OAuth/PKCE service for remote MCP servers; HTTP client with explicit timeout (`service.go:31-53`); token store contract.                                                                                                                |
 | `internal/fileutil`                         | Atomic write/replace/remove primitives — `AtomicWriteFile` (`atomic.go:14-46`), `AtomicRemoveFile` (`atomic.go:49-67`). Used by every config/state writer in this module.                                                                |
 
@@ -94,7 +94,7 @@ This child owns the runtime contract that turns a model's `tool_call` into an ob
 
 Two distinct subsystems — keep them straight.
 
-- **Hosted MCP** — `internal/mcp/hosted.go:23-180` plus `hosted_proxy.go`. The daemon mints a single-use bind nonce, ACP launches `agh tool mcp` as an MCP stdio sidecar pointed at the daemon's UDS, the proxy binds with `(SessionID, Nonce)`, peer credentials and binary path are verified (`hosted.go:38-39, 164-167`). Server name is `agh-hosted-tools`. Failures are fail-closed.
+- **Hosted MCP** — `internal/mcp/hosted.go:23-180` plus `hosted_proxy.go`. The daemon mints a single-use bind nonce, ACP launches `compozy tool mcp` as an MCP stdio sidecar pointed at the daemon's UDS, the proxy binds with `(SessionID, Nonce)`, peer credentials and binary path are verified (`hosted.go:38-39, 164-167`). Server name is `compozy-hosted-tools`. Failures are fail-closed.
 - **Remote MCP** — `internal/mcp/executor.go:115-150` and the auth service in `internal/mcp/auth/`. Daemon connects to user-configured stdio / http / sse MCP servers via `mcp-go`; default call timeout is `30s` (`executor.go:25`); both the executor (`executor.go:129-150`) and the metadata client (`auth/service.go:21-53`) construct `*http.Client{Timeout: ...}` — `http.DefaultClient` is forbidden in this code path.
 
 ### 1.6 Secret redaction surface
@@ -170,11 +170,11 @@ These five helpers — not a single `fileutil` symbol — are the path-security 
 
 ## 3. Coverage Gaps
 
-For each gap, the load-bearing AGH claim and the missing test.
+For each gap, the load-bearing Compozy claim and the missing test.
 
-| Gap                                                                       | Claim AGH makes                                                                                                                                                                                       | Missing test                                                                                                                                                                                                              |
+| Gap                                                                       | Claim Compozy makes                                                                                                                                                                                       | Missing test                                                                                                                                                                                                              |
 | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Real-LLM tool dispatch end-to-end**                                     | "Tool dispatch goes through hooks for permission decisions (deny/narrow/annotate)." (`internal/CLAUDE.md` Security Invariants + `internal/tools/dispatch.go:49-93`).                                  | Spawn real Claude Code, drive `fs/read_text_file`, `fs/write_text_file`, and `terminal/create` (the canonical "tool.read_file/write_file/run_command" surface in AGH), assert each event is recorded with input digest. |
+| **Real-LLM tool dispatch end-to-end**                                     | "Tool dispatch goes through hooks for permission decisions (deny/narrow/annotate)." (`internal/CLAUDE.md` Security Invariants + `internal/tools/dispatch.go:49-93`).                                  | Spawn real Claude Code, drive `fs/read_text_file`, `fs/write_text_file`, and `terminal/create` (the canonical "tool.read_file/write_file/run_command" surface in Compozy), assert each event is recorded with input digest. |
 | **Real interrupt mid-execution**                                          | "interrupted, not success" — `defaultInterrupter` SIGTERM → SIGKILL with PID validation (`internal/toolruntime/interrupt.go:13-78`).                                                                  | Run `terminal/create sleep 60`, fire `Driver.Interrupt(scope{TerminalID})`, assert `ProcessRecord.State == Interrupted`, child PID gone, exit code in observed terminal output is non-zero.                              |
 | **Sandbox blocks `/etc/shadow` and `../` escape**                         | `acp.NewLocalToolHost` enforces `Resolved.RuntimeRootDir` containment; `daytona/tar.archiveTargetPath:202-212` rejects abs + traversal headers.                                                       | Drive `fs/read_text_file path=/etc/shadow` and `fs/read_text_file path=../../etc/passwd`; assert ACP error, ledger row written, no agent crash.                                                                          |
 | **Null-byte path rejection**                                              | "Path security helpers handle null-byte, URL-encoded traversal, Unicode normalization, symlink-escape." (root prompt).                                                                                | `fileutil.AtomicWriteFile("foo\x00.txt", ...)` returns a deterministic error; ACP `fs/write_text_file` with embedded `\x00` fails before any disk side effect.                                                            |
@@ -182,9 +182,9 @@ For each gap, the load-bearing AGH claim and the missing test.
 | **Unicode NFD/NFC homoglyph rejection**                                   | Same.                                                                                                                                                                                                  | `fs/write_text_file` with a path that NFD-normalizes outside the workspace root (e.g. composed Latin Small Letter A With Diaeresis vs decomposed) is rejected.                                                            |
 | **Symlink-escape under EvalSymlinks**                                     | `skills.ensurePathWithinRoot:9-36`; `daytona/tar.ensureSafeParent:297-313`.                                                                                                                            | Place `link -> /etc` inside the sandbox root, drive `fs/read_text_file path=link/passwd`; assert the EvalSymlinks-after-join check rejects.                                                                              |
 | **OPENAI_API_KEY etc never persisted in tool logs**                       | `internal/tools/result_limit.go:17-104` + `internal/tools/dispatch.go:606-624` redaction; `internal/diagnostics/redact.go` runtime registry.                                                          | Fixture writes the key to a workspace file, agent reads it via `fs/read_text_file`, assert the persisted SSE event + tool ledger contains `[REDACTED]` (not the literal key) and the `RedactedInputFields` path is set. |
-| **Hosted MCP sidecar lifecycle**                                          | `internal/mcp/hosted.go:182-...` Launch → bind → projection → call → release; daemon shutdown propagates SIGTERM to the proxy.                                                                        | E2E: start session, capture proxy PID (PPID == daemon), `agh daemon stop`, assert proxy exits within `defaultShutdownTimeout` (10s), no orphan.                                                                          |
-| **Hosted MCP exposes daemon tool through real agent**                     | Same.                                                                                                                                                                                                  | Real Claude Code calls `mcp__agh-hosted-tools__agh__skill_view`, daemon executes through `RuntimeRegistry`, response carries valid skill content; ledger row matches.                                                    |
-| **MCP plugin lifecycle hot reload**                                       | Hosted projection digest invalidates on registry change; remote MCP `CallExecutor.servers` re-resolves on every call.                                                                                  | Drive `agh extensions install <ext-with-mcp>`, observe SSE projection-changed event, run an in-flight call across the toggle, assert no in-flight call is dropped.                                                       |
+| **Hosted MCP sidecar lifecycle**                                          | `internal/mcp/hosted.go:182-...` Launch → bind → projection → call → release; daemon shutdown propagates SIGTERM to the proxy.                                                                        | E2E: start session, capture proxy PID (PPID == daemon), `compozy daemon stop`, assert proxy exits within `defaultShutdownTimeout` (10s), no orphan.                                                                          |
+| **Hosted MCP exposes daemon tool through real agent**                     | Same.                                                                                                                                                                                                  | Real Claude Code calls `mcp__compozy-hosted-tools__compozy__skill_view`, daemon executes through `RuntimeRegistry`, response carries valid skill content; ledger row matches.                                                    |
+| **MCP plugin lifecycle hot reload**                                       | Hosted projection digest invalidates on registry change; remote MCP `CallExecutor.servers` re-resolves on every call.                                                                                  | Drive `compozy extensions install <ext-with-mcp>`, observe SSE projection-changed event, run an in-flight call across the toggle, assert no in-flight call is dropped.                                                       |
 | **External HTTP call timeout — chaos**                                    | `executor.go:129-150` constructs `*http.Client{Timeout: defaultCallTimeout}`; `auth/service.go:21-53` does the same.                                                                                  | Stand up a slow MCP `http` server (60s body delay), call a tool, assert error within `executor.timeout + slack`, error wraps `context.DeadlineExceeded`.                                                                  |
 | **Tool registry collision precedence**                                    | `registry.go:288-289` accumulates `conflicts`; `conflictReason:438-444` distinguishes ID vs sanitized-name collisions.                                                                                 | Register two providers exposing the same external `mcp__github__search` and `mcp__github__Search`; assert higher-precedence layer wins, lower is `Conflicted=true`, audit event recorded.                                |
 | **Hook deny short-circuits pre-call before spawn**                       | `runPreCallHook:267-275` returns `ErrToolDenied` before `target.handle.Call` runs; failDispatch emits `ToolCallDenied`, not `ToolCallFailed`.                                                          | Configure a hook that returns `Decision{Callable:false}`, drive a real agent call, assert no provider-side process spawn (e.g. no `terminal/create` PID created).                                                        |
@@ -198,10 +198,10 @@ For each gap, the load-bearing AGH claim and the missing test.
 
 Each scenario is a fenced markdown block with `qa-scenario` + `qa-flow`.
 Numbered TOL-01..TOL-17. Live runs use
-`agh sessions start --agent claude-code --workspace ./fixtures/<theme>`
+`compozy sessions start --agent claude-code --workspace ./fixtures/<theme>`
 against a real Claude Code subagent unless tagged `provider: none`. All runs
 use `agh-qa-bootstrap`-issued `bootstrap-manifest.json` with unique
-`AGH_HOME`, daemon ports, and provider auth resolved per the provider's
+`COMPOZY_HOME`, daemon ports, and provider auth resolved per the provider's
 `home_policy`: bound-secret and explicitly isolated-home lanes use
 `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli` lanes with
 `home_policy=operator` preserve the operator `HOME` unless the scenario
@@ -232,12 +232,12 @@ preconditions:
   - Workspace fixture: ./fixtures/tol01/ contains AGENT.md + a small README.md.
   - Sandbox profile: backend=local, permissions=approve-reads (the local provider default per provider.go:63).
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol01 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol01 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Read README.md, then write a NOTES.md summarizing it (3 lines), then run 'wc -l NOTES.md' and report the count" -o json | tee prompt.json
-  - run: agh sessions transcript $SID -o json > transcript.json
-  - run: agh tool ledger --session-id $SID -o json > ledger.json
+  - run: compozy sessions prompt $SID --message "Read README.md, then write a NOTES.md summarizing it (3 lines), then run 'wc -l NOTES.md' and report the count" -o json | tee prompt.json
+  - run: compozy sessions transcript $SID -o json > transcript.json
+  - run: compozy tool ledger --session-id $SID -o json > ledger.json
   - run: jq '[.[] | select(.kind=="tool_call_completed") | {tool_id, source_kind, decision, reason_codes, result_bytes}]' ledger.json | tee summary.json
   - run: ls -la ./fixtures/tol01/NOTES.md
 expected_behavior:
@@ -257,7 +257,7 @@ failure_signatures:
   - NOTES.md written outside the workspace root.
   - Raw secret literal in any captured artifact.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop && rm -f ./fixtures/tol01/NOTES.md
+  - compozy sessions stop $SID && compozy daemon stop && rm -f ./fixtures/tol01/NOTES.md
 ```
 ```
 
@@ -283,21 +283,21 @@ preconditions:
   - As TOL-01.
   - Build is current (toolruntime/interrupt.go owns SIGTERM 250ms then SIGKILL 1s grace).
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol02 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol02 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Run a 'sleep 60 && echo done' command, do not finish until it completes" --detach -o json | tee prompt.json
+  - run: compozy sessions prompt $SID --message "Run a 'sleep 60 && echo done' command, do not finish until it completes" --detach -o json | tee prompt.json
   - wait: until ledger.json shows tool_call_started for terminal/create with sleep 60 in args
-  - run: agh tool processes --session-id $SID -o json | tee procs.json
+  - run: compozy tool processes --session-id $SID -o json | tee procs.json
   - set: PID=$(jq -r '.[] | select(.source=="acp_terminal") | .pid' procs.json | head -1)
   - set: PGID=$(jq -r '.[] | select(.source=="acp_terminal") | .process_group_id' procs.json | head -1)
   - set: TID=$(jq -r '.[] | select(.source=="acp_terminal") | .owner.terminal_id' procs.json | head -1)
   - run: ps -o pid,ppid,pgid,command -p $PID
-  - run: agh tool interrupt --session-id $SID --terminal-id $TID -o json | tee interrupt.json
+  - run: compozy tool interrupt --session-id $SID --terminal-id $TID -o json | tee interrupt.json
   - wait: 3s
   - run: kill -0 $PID 2>&1 || echo "child gone"
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_completed" or .kind=="tool_call_failed") | {kind, tool_id, reason_codes, error_code}]' | tee outcomes.json
-  - run: agh sessions transcript $SID -o json | jq '.[] | select(.kind=="tool_result") | .result.is_error' | tee is_error.txt
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_completed" or .kind=="tool_call_failed") | {kind, tool_id, reason_codes, error_code}]' | tee outcomes.json
+  - run: compozy sessions transcript $SID -o json | jq '.[] | select(.kind=="tool_result") | .result.is_error' | tee is_error.txt
 expected_behavior:
   - procs.json reports a row with state=running, source=acp_terminal, pgid > 0.
   - interrupt.json: `matched >= 1`, `signaled >= 1`.
@@ -313,7 +313,7 @@ failure_signatures:
   - tool_call_completed with success=true for sleep 60.
   - reason_codes does not surface call-canceled / interrupt classification.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -338,13 +338,13 @@ preconditions:
   - As TOL-01.
   - Workspace fixture: ./fixtures/tol03/ — clean dir, no preexisting symlinks.
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol03 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol03 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Try to read /etc/shadow and report the error verbatim" -o json | tee p1.json
-  - run: agh sessions prompt $SID --message "Now try ../../etc/passwd via the read tool and report the error verbatim" -o json | tee p2.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed") | {tool_id, reason_codes, error_code}]' | tee fails.json
-  - run: agh sessions transcript $SID -o json > transcript.json
+  - run: compozy sessions prompt $SID --message "Try to read /etc/shadow and report the error verbatim" -o json | tee p1.json
+  - run: compozy sessions prompt $SID --message "Now try ../../etc/passwd via the read tool and report the error verbatim" -o json | tee p2.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed") | {tool_id, reason_codes, error_code}]' | tee fails.json
+  - run: compozy sessions transcript $SID -o json > transcript.json
 expected_behavior:
   - p1 / p2 transcripts show the agent acknowledging the denial; no shadow / passwd contents present in transcript.json.
   - fails.json includes at least two entries with tool_id=fs/read_text_file and error_code=invalid_input or unavailable; reason_codes references path-containment.
@@ -355,7 +355,7 @@ failure_signatures:
   - any line of /etc/shadow or /etc/passwd present in evidence.
   - fs/read_text_file recorded as tool_call_completed.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -379,11 +379,11 @@ provider: none
 steps:
   - run: go test -run TestAtomicWriteRejectsNullByte ./internal/fileutil/... -count=1
   - run: go test -run TestACPLocalToolHost.*NullByte ./internal/acp/... -count=1
-  - run: agh daemon start && sleep 3
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol04 -o json | tee sess.json
+  - run: compozy daemon start && sleep 3
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol04 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Use the write tool with the path 'leak\x00.txt' and content 'x', then report the error code from the runtime verbatim" -o json | tee p.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed") | {tool_id, error_code, reason_codes}]' | tee fails.json
+  - run: compozy sessions prompt $SID --message "Use the write tool with the path 'leak\x00.txt' and content 'x', then report the error code from the runtime verbatim" -o json | tee p.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed") | {tool_id, error_code, reason_codes}]' | tee fails.json
 expected_behavior:
   - Both go test runs PASS; if a regression test does not exist yet, this scenario blocks until it is added (cite `internal/fileutil/atomic.go:14-46` and `internal/acp/handlers.go:237-247`).
   - fails.json contains a tool_call_failed for fs/write_text_file with error_code=invalid_input.
@@ -394,7 +394,7 @@ failure_signatures:
   - Any file matching `leak*` written.
   - error_code != invalid_input.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -414,11 +414,11 @@ provider: claude-code
 
 ```yaml qa-flow
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol05 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol05 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Use the write tool with path 'docs/%2e%2e/etc/passwd' and content 'x'; if it errors, paste the error" -o json | tee p.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed" or .kind=="tool_call_completed") | {kind, tool_id, error_code, reason_codes}]' | tee out.json
+  - run: compozy sessions prompt $SID --message "Use the write tool with path 'docs/%2e%2e/etc/passwd' and content 'x'; if it errors, paste the error" -o json | tee p.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed" or .kind=="tool_call_completed") | {kind, tool_id, error_code, reason_codes}]' | tee out.json
   - run: ls -la ./fixtures/tol05 /etc/passwd
 expected_behavior:
   - out.json shows fs/write_text_file as tool_call_failed (path is treated literally, ends up outside workspace, EvalSymlinks-after-join rejects).
@@ -430,7 +430,7 @@ failure_signatures:
   - tool_call_completed for fs/write_text_file in this scenario.
   - any change to /etc/passwd.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -453,11 +453,11 @@ preconditions:
   - Workspace fixture root is ./fixtures/tol06/composed/ (containing a Latin Small Letter A With Diaeresis: U+00E4).
   - Agent will be asked to target a sibling that, post-NFD-normalization, decomposes back to U+0061 U+0308 — same on disk for case-insensitive filesystems but distinct strings at the API boundary.
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol06/composed -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol06/composed -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Use the write tool with path '../decomposed/leak.txt' (where 'decomposed' is the NFD form of the workspace root's last segment) and content 'x'" -o json | tee p.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed") | {tool_id, error_code, reason_codes}]' | tee out.json
+  - run: compozy sessions prompt $SID --message "Use the write tool with path '../decomposed/leak.txt' (where 'decomposed' is the NFD form of the workspace root's last segment) and content 'x'" -o json | tee p.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed") | {tool_id, error_code, reason_codes}]' | tee out.json
   - run: ls -la ./fixtures/tol06
 expected_behavior:
   - out.json: fs/write_text_file failed with reason citing path containment.
@@ -468,7 +468,7 @@ failure_signatures:
   - leak.txt written anywhere outside the composed/ root.
   - tool_call_completed for fs/write_text_file with this path.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop && rm -rf ./fixtures/tol06/decomposed
+  - compozy sessions stop $SID && compozy daemon stop && rm -rf ./fixtures/tol06/decomposed
 ```
 ```
 
@@ -494,12 +494,12 @@ preconditions:
   - Pre-step creates `./fixtures/tol07/escape -> /etc` symlink before the daemon resolves the workspace.
 steps:
   - run: ln -snf /etc ./fixtures/tol07/escape
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol07 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol07 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Read 'escape/passwd' via the read tool and report any error verbatim" -o json | tee p.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed") | {tool_id, error_code, reason_codes}]' | tee out.json
-  - run: agh sessions transcript $SID -o json | grep -c "root:" || echo "no shadow contents"
+  - run: compozy sessions prompt $SID --message "Read 'escape/passwd' via the read tool and report any error verbatim" -o json | tee p.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.kind=="tool_call_failed") | {tool_id, error_code, reason_codes}]' | tee out.json
+  - run: compozy sessions transcript $SID -o json | grep -c "root:" || echo "no shadow contents"
 expected_behavior:
   - out.json shows fs/read_text_file failed; reason_codes maps to a containment violation.
   - Transcript does not contain `/etc/passwd` content.
@@ -510,7 +510,7 @@ failure_signatures:
   - any /etc/passwd content present.
   - tool_call_completed for fs/read_text_file via the escape link.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop && rm ./fixtures/tol07/escape
+  - compozy sessions stop $SID && compozy daemon stop && rm ./fixtures/tol07/escape
 ```
 ```
 
@@ -536,26 +536,26 @@ preconditions:
   - ./fixtures/tol08/.env contains: `OPENAI_API_KEY=sk-fakeQAA1B2C3D4E5F6G7H8I9` (synthetic key, prefix matches real OpenAI shape but is a deterministic fixture).
   - Agent system prompt explicitly instructs to NOT echo secrets, to prove redaction is structural, not behavioral.
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol08 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol08 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Read .env and tell me how many lines it has; do not repeat any value verbatim" -o json | tee p.json
-  - run: agh tool ledger --session-id $SID -o json > ledger.json
-  - run: agh sessions transcript $SID -o json > transcript.json
-  - run: agh sessions events $SID -o json > events.json
-  - run: grep -E 'sk-fakeQAA1B2C3D4E5F6G7H8I9' ledger.json transcript.json events.json $LAB_HOME/logs/agh.log; echo "exit=$?"
+  - run: compozy sessions prompt $SID --message "Read .env and tell me how many lines it has; do not repeat any value verbatim" -o json | tee p.json
+  - run: compozy tool ledger --session-id $SID -o json > ledger.json
+  - run: compozy sessions transcript $SID -o json > transcript.json
+  - run: compozy sessions events $SID -o json > events.json
+  - run: grep -E 'sk-fakeQAA1B2C3D4E5F6G7H8I9' ledger.json transcript.json events.json $LAB_HOME/logs/compozy.log; echo "exit=$?"
   - run: jq '[.[] | select(.kind=="tool_call_completed") | {tool_id, redacted_input_fields, result_redaction_paths}]' ledger.json | tee redactions.json
 expected_behavior:
-  - grep returns exit 1 (no match) across ALL evidence (ledger, transcript, events, agh.log).
+  - grep returns exit 1 (no match) across ALL evidence (ledger, transcript, events, compozy.log).
   - redactions.json shows at least one `result_redaction_paths` entry covering the key location for the read result; `redacted_input_fields` is set when the agent passes a secret-bearing argument.
   - Captured tool result value at the key offset is the literal `[REDACTED]` (`internal/tools/result_limit.go:17`).
 evidence_to_capture:
-  - ledger.json, transcript.json, events.json, $LAB_HOME/logs/agh.log, redactions.json.
+  - ledger.json, transcript.json, events.json, $LAB_HOME/logs/compozy.log, redactions.json.
 failure_signatures:
   - Any of the captured artifacts contains `sk-fakeQAA1B2C3D4E5F6G7H8I9`.
   - result_redaction_paths empty when result clearly contained the key.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -564,7 +564,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: tol-mcp-sidecar-lifecycle
-title: agh-hosted-tools sidecar starts with the session and exits when the daemon is stopped (no orphan)
+title: compozy-hosted-tools sidecar starts with the session and exits when the daemon is stopped (no orphan)
 theme: tools-sandbox
 coverage:
   primary:
@@ -579,23 +579,23 @@ provider: claude-code
 preconditions:
   - config.toml enables hosted MCP (default per HostedConfig.Enabled wiring).
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol09 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol09 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: ps -o pid,ppid,pgid,command -ax | grep -E "agh tool mcp|agh-hosted-tools" | tee proxy.before
+  - run: ps -o pid,ppid,pgid,command -ax | grep -E "compozy tool mcp|compozy-hosted-tools" | tee proxy.before
   - set: PROXY_PID=$(awk '{print $1}' proxy.before | head -1)
   - run: kill -0 $PROXY_PID && echo "proxy alive"
-  - run: agh daemon stop -o json | tee stop.json
+  - run: compozy daemon stop -o json | tee stop.json
   - wait: 12s
   - run: kill -0 $PROXY_PID 2>&1 || echo "proxy gone"
-  - run: ps -o pid,ppid,command -ax | grep -E "agh tool mcp|agh-hosted-tools" || true | tee proxy.after
+  - run: ps -o pid,ppid,command -ax | grep -E "compozy tool mcp|compozy-hosted-tools" || true | tee proxy.after
 expected_behavior:
-  - proxy.before lists at least one `agh tool mcp` (hosted-MCP stdio proxy) child whose PPID is the daemon PID.
-  - kill -0 $PROXY_PID after `agh daemon stop` (within defaultShutdownTimeout=10s + slack) reports the proxy gone.
+  - proxy.before lists at least one `compozy tool mcp` (hosted-MCP stdio proxy) child whose PPID is the daemon PID.
+  - kill -0 $PROXY_PID after `compozy daemon stop` (within defaultShutdownTimeout=10s + slack) reports the proxy gone.
   - proxy.after is empty.
   - `mcp/hosted.go` ErrHostedDisabled is NOT logged unless the config gates it off.
 evidence_to_capture:
-  - proxy.before, proxy.after, stop.json, $LAB_HOME/logs/agh.log filtered to mcp.
+  - proxy.before, proxy.after, stop.json, $LAB_HOME/logs/compozy.log filtered to mcp.
 failure_signatures:
   - proxy.after non-empty.
   - PROXY_PID still alive >12s after stop.
@@ -609,7 +609,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: tol-mcp-hosted-tool-roundtrip
-title: Real agent calls mcp__agh-hosted-tools__agh__skill_view through the hosted MCP proxy; round-trip works; ledger captures it
+title: Real agent calls mcp__compozy-hosted-tools__compozy__skill_view through the hosted MCP proxy; round-trip works; ledger captures it
 theme: tools-sandbox
 coverage:
   primary:
@@ -624,23 +624,23 @@ provider: claude-code
 preconditions:
   - At least one user-level skill installed under $LAB_HOME/skills/ (or bundled fallback).
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol10 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol10 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "List your available agh-hosted skills via the hosted MCP, then view the first one and report its title and 5-line summary" -o json | tee p.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id | startswith("mcp__agh-hosted-tools__")) | {tool_id, kind, decision}]' | tee mcp.json
-  - run: agh sessions events $SID -o json | jq '[.[] | select(.event=="mcp.hosted.bind" or .event=="mcp.hosted.call.completed")]' | tee mcphosted_events.json
+  - run: compozy sessions prompt $SID --message "List your available compozy-hosted skills via the hosted MCP, then view the first one and report its title and 5-line summary" -o json | tee p.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id | startswith("mcp__compozy-hosted-tools__")) | {tool_id, kind, decision}]' | tee mcp.json
+  - run: compozy sessions events $SID -o json | jq '[.[] | select(.event=="mcp.hosted.bind" or .event=="mcp.hosted.call.completed")]' | tee mcphosted_events.json
 expected_behavior:
-  - mcp.json shows at least one `mcp__agh-hosted-tools__agh__skill_list` (or `..__agh__skill_search`) followed by `..__agh__skill_view` — both `tool_call_completed` with decision=allowed.
+  - mcp.json shows at least one `mcp__compozy-hosted-tools__compozy__skill_list` (or `..__compozy__skill_search`) followed by `..__compozy__skill_view` — both `tool_call_completed` with decision=allowed.
   - p.json transcript references skill content the agent could only have obtained from the hosted MCP (cite a bundled-skill marker line).
   - mcphosted_events.json records the bind event with `bind_id` and `digest`.
 evidence_to_capture:
   - sess.json, p.json, mcp.json, mcphosted_events.json.
 failure_signatures:
-  - No mcp__agh-hosted-tools__* call in the ledger.
+  - No mcp__compozy-hosted-tools__* call in the ledger.
   - Hosted MCP returns ErrHostedBindNotFound or ErrHostedNonceExpired during the run.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -665,18 +665,18 @@ provider: claude-code
 preconditions:
   - Test fixture extension `qa-mcp-fixture` exposes one MCP stdio server with a single tool `mcp__qa-mcp-fixture__echo`.
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh extensions install ./fixtures/extensions/qa-mcp-fixture -o json
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol11 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy extensions install ./fixtures/extensions/qa-mcp-fixture -o json
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol11 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Use mcp__qa-mcp-fixture__echo with {\"text\":\"hello\"} and report the response" -o json | tee p1.json
-  - run: agh extensions disable qa-mcp-fixture -o json
+  - run: compozy sessions prompt $SID --message "Use mcp__qa-mcp-fixture__echo with {\"text\":\"hello\"} and report the response" -o json | tee p1.json
+  - run: compozy extensions disable qa-mcp-fixture -o json
   - wait: 1s
-  - run: agh sessions prompt $SID --message "Try mcp__qa-mcp-fixture__echo again with {\"text\":\"world\"}; if it errors paste the error verbatim" -o json | tee p2.json
-  - run: agh extensions enable qa-mcp-fixture -o json
+  - run: compozy sessions prompt $SID --message "Try mcp__qa-mcp-fixture__echo again with {\"text\":\"world\"}; if it errors paste the error verbatim" -o json | tee p2.json
+  - run: compozy extensions enable qa-mcp-fixture -o json
   - wait: 1s
-  - run: agh sessions prompt $SID --message "Try mcp__qa-mcp-fixture__echo with {\"text\":\"reborn\"}" -o json | tee p3.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id=="mcp__qa-mcp-fixture__echo") | {kind, decision, reason_codes}]' | tee echo.json
+  - run: compozy sessions prompt $SID --message "Try mcp__qa-mcp-fixture__echo with {\"text\":\"reborn\"}" -o json | tee p3.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id=="mcp__qa-mcp-fixture__echo") | {kind, decision, reason_codes}]' | tee echo.json
 expected_behavior:
   - p1: tool_call_completed (echo returns "hello").
   - p2: tool_call_failed with reason_codes citing source disabled or backend unavailable.
@@ -690,7 +690,7 @@ failure_signatures:
   - p2 succeeds (disable did not take effect).
   - p3 fails (re-enable did not take effect).
 cleanup:
-  - agh extensions remove qa-mcp-fixture -o json && agh sessions stop $SID && agh daemon stop
+  - compozy extensions remove qa-mcp-fixture -o json && compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -716,21 +716,21 @@ preconditions:
   - config.toml registers the stub as an MCP server with `kind: http`, no auth.
   - executor.timeout left at default 30s (`internal/mcp/executor.go:25`).
 steps:
-  - run: agh daemon start && sleep 5
-  - run: time agh tool call --tool-id mcp__qa-stub__noop --input '{}' -o json 2>&1 | tee out.json; echo "elapsed=${SECONDS}s"
+  - run: compozy daemon start && sleep 5
+  - run: time compozy tool call --tool-id mcp__qa-stub__noop --input '{}' -o json 2>&1 | tee out.json; echo "elapsed=${SECONDS}s"
   - run: jq '{error_code, reason_codes, message}' out.json
 expected_behavior:
   - elapsed is between executor.timeout (30s) and executor.timeout + 5s.
   - error_code = timed_out or backend_failed; reason_codes contains call_timed_out or backend_unhealthy.
-  - Log line in agh.log shows "context.DeadlineExceeded" wrapped error from the mcp-go transport.
+  - Log line in compozy.log shows "context.DeadlineExceeded" wrapped error from the mcp-go transport.
 evidence_to_capture:
-  - out.json, $LAB_HOME/logs/agh.log filtered to the call's correlation_id, time output.
+  - out.json, $LAB_HOME/logs/compozy.log filtered to the call's correlation_id, time output.
 failure_signatures:
   - elapsed >> executor.timeout + 5s (hang regression).
   - error_code reports succeeded.
-  - http.DefaultClient diagnostic — search agh.log for any frame mentioning DefaultClient.
+  - http.DefaultClient diagnostic — search compozy.log for any frame mentioning DefaultClient.
 cleanup:
-  - agh daemon stop && tear down stub server.
+  - compozy daemon stop && tear down stub server.
 ```
 ```
 
@@ -754,11 +754,11 @@ provider: none
 preconditions:
   - Two fixture extensions `qa-precedence-bundled` and `qa-precedence-user` both declare `mcp__github__search`. Bundled (or higher-layer) MUST win per the five-layer precedence rule (`internal/CLAUDE.md` Memory & Skills RFC).
 steps:
-  - run: agh daemon start && sleep 3
-  - run: agh extensions install ./fixtures/extensions/qa-precedence-user -o json
-  - run: agh tool list --tool-id mcp__github__search -o json | tee lookup.json
-  - run: agh tool registry diagnostics -o json | jq '[.tools[] | select(.id=="mcp__github__search") | {id, source, availability, decision}]' | tee diag.json
-  - run: agh observe events --filter tool_registry_collision --limit 10 -o json | tee audit.json
+  - run: compozy daemon start && sleep 3
+  - run: compozy extensions install ./fixtures/extensions/qa-precedence-user -o json
+  - run: compozy tool list --tool-id mcp__github__search -o json | tee lookup.json
+  - run: compozy tool registry diagnostics -o json | jq '[.tools[] | select(.id=="mcp__github__search") | {id, source, availability, decision}]' | tee diag.json
+  - run: compozy observe events --filter tool_registry_collision --limit 10 -o json | tee audit.json
 expected_behavior:
   - lookup.json shows ONE callable view from the bundled (higher-precedence) source; user-layer view is `Availability.Conflicted=true` with `ReasonCodes=[conflicted_id]` (`internal/tools/registry.go:438-444, 480-485`).
   - diag.json reflects the same.
@@ -769,7 +769,7 @@ failure_signatures:
   - Both views surface as callable.
   - No audit event recorded.
 cleanup:
-  - agh extensions remove qa-precedence-user -o json && agh daemon stop
+  - compozy extensions remove qa-precedence-user -o json && compozy daemon stop
 ```
 ```
 
@@ -789,16 +789,16 @@ provider: claude-code
 
 ```yaml qa-flow
 preconditions:
-  - Hook script under .agh/hooks/qa-deny-write.sh returns JSON `{decision:{callable:false, reason_codes:["hook_denied"]}}` for any pre_call event whose tool_id == fs/write_text_file.
+  - Hook script under .compozy/hooks/qa-deny-write.sh returns JSON `{decision:{callable:false, reason_codes:["hook_denied"]}}` for any pre_call event whose tool_id == fs/write_text_file.
   - Hook is wired via config.
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol14 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol14 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Write a one-line CLAIMED.md saying 'pwned' to the workspace and confirm" -o json | tee p.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id=="fs/write_text_file") | {kind, decision, reason_codes, error_code}]' | tee out.json
+  - run: compozy sessions prompt $SID --message "Write a one-line CLAIMED.md saying 'pwned' to the workspace and confirm" -o json | tee p.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id=="fs/write_text_file") | {kind, decision, reason_codes, error_code}]' | tee out.json
   - run: ls -la ./fixtures/tol14
-  - run: agh hooks runs --session-id $SID -o json | jq '[.[] | select(.tool_id=="fs/write_text_file") | {hook, decision, error}]' | tee hooks.json
+  - run: compozy hooks runs --session-id $SID -o json | jq '[.[] | select(.tool_id=="fs/write_text_file") | {hook, decision, error}]' | tee hooks.json
 expected_behavior:
   - out.json shows fs/write_text_file as `tool_call_denied` with reason_codes including `hook_denied`; NO `tool_call_started` for fs/write_text_file makes it past the pre-hook (hooks fire BEFORE tool_call_started in `dispatch.go:40-49`; check ordering carefully).
   - No CLAIMED.md exists.
@@ -809,7 +809,7 @@ failure_signatures:
   - CLAIMED.md materializes.
   - tool_call_completed for fs/write_text_file in this scenario.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -829,14 +829,14 @@ provider: claude-code
 
 ```yaml qa-flow
 preconditions:
-  - Hook .agh/hooks/qa-narrow-write.sh returns a patched CallRequest whose Input.path is rewritten to add an allowlist annotation, AND a Decision that injects an additional reason if path is outside notes/.
+  - Hook .compozy/hooks/qa-narrow-write.sh returns a patched CallRequest whose Input.path is rewritten to add an allowlist annotation, AND a Decision that injects an additional reason if path is outside notes/.
   - The hook follows mergeHookCallRequest semantics (`dispatch.go:339-371`) — does NOT rewrite tool_id (forbidden, lines 258-266).
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol15 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol15 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Write 'inside notes' to notes/note1.md (this should succeed) then write 'outside' to secrets/leak.md (this should fail)" -o json | tee p.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id=="fs/write_text_file") | {kind, input_digest, reason_codes}]' | tee out.json
+  - run: compozy sessions prompt $SID --message "Write 'inside notes' to notes/note1.md (this should succeed) then write 'outside' to secrets/leak.md (this should fail)" -o json | tee p.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id=="fs/write_text_file") | {kind, input_digest, reason_codes}]' | tee out.json
   - run: ls -la ./fixtures/tol15/notes ./fixtures/tol15/secrets 2>&1
 expected_behavior:
   - notes/note1.md exists; secrets/leak.md does not exist.
@@ -847,7 +847,7 @@ failure_signatures:
   - secrets/leak.md exists.
   - hook attempted to rewrite tool_id (`dispatch.go:258-266` should have rejected; if not, this is a bypass bug).
 cleanup:
-  - agh sessions stop $SID && agh daemon stop && rm -rf ./fixtures/tol15/notes ./fixtures/tol15/secrets
+  - compozy sessions stop $SID && compozy daemon stop && rm -rf ./fixtures/tol15/notes ./fixtures/tol15/secrets
 ```
 ```
 
@@ -869,16 +869,16 @@ provider: claude-code
 
 ```yaml qa-flow
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol16 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol16 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Run these five commands in parallel via the terminal tool: 'sleep 2 && echo a', 'sleep 2 && echo b', 'sleep 2 && echo c', 'sleep 2 && echo d', 'sleep 2 && echo e'. Wait for all of them and report their outputs in order." --detach -o json | tee p.json
+  - run: compozy sessions prompt $SID --message "Run these five commands in parallel via the terminal tool: 'sleep 2 && echo a', 'sleep 2 && echo b', 'sleep 2 && echo c', 'sleep 2 && echo d', 'sleep 2 && echo e'. Wait for all of them and report their outputs in order." --detach -o json | tee p.json
   - wait: 1s
-  - run: agh tool processes --session-id $SID -o json | tee proc.during.json
+  - run: compozy tool processes --session-id $SID -o json | tee proc.during.json
   - wait: 5s
-  - run: agh tool processes --session-id $SID -o json | tee proc.after.json
-  - run: agh tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id=="terminal/create" and .kind=="tool_call_completed") | .tool_call_id] | length' | tee count.txt
-  - run: agh sessions stop $SID && wait_for_session_stop $SID
+  - run: compozy tool processes --session-id $SID -o json | tee proc.after.json
+  - run: compozy tool ledger --session-id $SID -o json | jq '[.[] | select(.tool_id=="terminal/create" and .kind=="tool_call_completed") | .tool_call_id] | length' | tee count.txt
+  - run: compozy sessions stop $SID && wait_for_session_stop $SID
   - run: ps -ax | grep -v grep | grep -E 'sleep 2 && echo [a-e]' || echo "no orphans"
 expected_behavior:
   - proc.during.json: 5 rows with state=running, distinct PIDs and PGIDs, source=acp_terminal.
@@ -891,7 +891,7 @@ failure_signatures:
   - proc.during.json shows fewer than 5 distinct PIDs (registry race).
   - any sleep child remains after sessions stop (orphan leak).
 cleanup:
-  - agh daemon stop
+  - compozy daemon stop
 ```
 ```
 
@@ -917,16 +917,16 @@ preconditions:
   - ./fixtures/tol17 contains a small Python module `calc.py` with a buggy `divide` function (returns int division), a failing `test_calc.py`, and an AGENT.md describing the refactor goal.
   - Local sandbox provider; permissions=approve-reads.
 steps:
-  - run: agh daemon start && sleep 5
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/tol17 -o json | tee sess.json
+  - run: compozy daemon start && sleep 5
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/tol17 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "Read calc.py and test_calc.py, fix the divide function so the tests pass, then run pytest -q and report PASSED/FAILED" -o json | tee p.json
-  - run: agh tool ledger --session-id $SID -o json > ledger.json
+  - run: compozy sessions prompt $SID --message "Read calc.py and test_calc.py, fix the divide function so the tests pass, then run pytest -q and report PASSED/FAILED" -o json | tee p.json
+  - run: compozy tool ledger --session-id $SID -o json > ledger.json
   - run: jq '[.[] | select(.kind=="tool_call_completed") | .tool_id] | group_by(.) | map({tool: .[0], count: length})' ledger.json | tee mix.json
-  - run: agh sessions events $SID -o json > events.json
+  - run: compozy sessions events $SID -o json > events.json
   - run: cat ./fixtures/tol17/calc.py
   - run: (cd ./fixtures/tol17 && pytest -q) | tee pytest.txt
-  - run: grep -E '\bsk-|\bcompozy_claim_|\bANTHROPIC_API_KEY' ledger.json events.json transcript.json $LAB_HOME/logs/agh.log; echo "exit=$?"
+  - run: grep -E '\bsk-|\bcompozy_claim_|\bANTHROPIC_API_KEY' ledger.json events.json transcript.json $LAB_HOME/logs/compozy.log; echo "exit=$?"
 expected_behavior:
   - p.json: state=completed, assistant text references PASSED.
   - mix.json: at least one fs/read_text_file, one fs/write_text_file, one terminal/create entry.
@@ -941,7 +941,7 @@ failure_signatures:
   - Tool call missing correlation_id, session_id, or input_digest.
   - pytest.txt FAILED.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop && cd ./fixtures/tol17 && git checkout -- calc.py test_calc.py
+  - compozy sessions stop $SID && compozy daemon stop && cd ./fixtures/tol17 && git checkout -- calc.py test_calc.py
 ```
 ```
 
@@ -983,7 +983,7 @@ Matrix of dependencies and obligations.
 | `internal/api/core`           | Expose tool list/get/search/call + tool ledger + tool processes through `BaseHandlers`.                                              | Share parsing/validation; HTTP and UDS choose registration only.                                                 | `internal/api/contract` types                                  |
 | `internal/api/httpapi`        | Mount `/api/tools/*`, `/api/tool/processes`, `/api/tool/interrupt`, `/api/tool/ledger`.                                              | Honor SSE redaction; never broadcast raw input.                                                                  | `internal/api/httpapi/routes.go`                                 |
 | `internal/api/udsapi`         | Mount UDS parity for the same surface; agents use UDS by default.                                                                    | Same.                                                                                                            | `internal/api/udsapi/routes.go`                                  |
-| `internal/cli`                | `agh tool *` subcommands invoke the UDS client; `agh tool mcp` is the hosted-MCP stdio proxy entry.                                  | Use `commandDeps` injection for tests; never log raw tool input.                                                 | `internal/cli/...` (tool subcommand tree)                       |
+| `internal/cli`                | `compozy tool *` subcommands invoke the UDS client; `compozy tool mcp` is the hosted-MCP stdio proxy entry.                                  | Use `commandDeps` injection for tests; never log raw tool input.                                                 | `internal/cli/...` (tool subcommand tree)                       |
 | `internal/automation`         | Automation jobs that invoke tools dispatch through the same registry; `secret_env` resolution is identical.                          | Honor scheduled-tool detached lifetime via `context.WithoutCancel`.                                              | `internal/automation/...`                                       |
 | `internal/network`            | Network turns may block writes (`acp/handlers.go:242` `ErrToolBlockedForNetworkTurn`); MCP calls during network turns are governed.   | Surface `ErrToolBlockedForNetworkTurn` cleanly.                                                                  | `internal/acp/handlers.go:241-242, 380-384`                    |
 
@@ -1006,12 +1006,12 @@ Matrix of dependencies and obligations.
    - Symptom: a contributor copies the pattern thinking it is the standard.
    - Fix surface: replace with `errors.New("ssh access requires explicit http client")` or remove the fallback; tighten with a regression test pinning the production constructor's wiring.
 
-5. **`agh tool ledger` paginated output truncates without a marker.**
+5. **`compozy tool ledger` paginated output truncates without a marker.**
    - Symptom: a long-running session produces hundreds of entries; the CLI truncates without indicating "more results available".
    - Fix surface: add a `next_after_seq` field in the JSON shape (parity with `internal/observe`).
 
 6. **`Tool.execution.cleanup` is implicit on `Stop`, not on session crash.**
-   - Symptom: kill -9 the daemon mid-tool; on restart, `ReconcileBoot` marks the process stale, but operator does not see a structured "tool was running when daemon died" record in `agh sessions transcript`.
+   - Symptom: kill -9 the daemon mid-tool; on restart, `ReconcileBoot` marks the process stale, but operator does not see a structured "tool was running when daemon died" record in `compozy sessions transcript`.
    - Fix surface: surface stale-tool records as transcript entries, not just registry rows (`toolruntime/registry.go:276-283`).
 
 7. **`PermissionMode` change mid-session has no observable confirmation.**
@@ -1030,7 +1030,7 @@ Matrix of dependencies and obligations.
 
 If any of these slip, we ship a broken tool runtime.
 
-1. **Raw secret literal in any tool ledger / SSE / agh.log entry.** `grep -E '\bsk-[A-Za-z0-9]{20,}\b'` and `grep -E '\bcompozy_claim_[A-Za-z0-9]+\b'` over all evidence in TOL-08, TOL-10, TOL-17 returns exit 1.
+1. **Raw secret literal in any tool ledger / SSE / compozy.log entry.** `grep -E '\bsk-[A-Za-z0-9]{20,}\b'` and `grep -E '\bcompozy_claim_[A-Za-z0-9]+\b'` over all evidence in TOL-08, TOL-10, TOL-17 returns exit 1.
 2. **Orphan tool subprocess after sessions stop.** TOL-16 ps grep returns "no orphans".
 3. **Interrupt does not kill grandchild on Unix.** TOL-02 cleanup verifies the entire tree.
 4. **Path containment bypass via null-byte / URL-encoded / Unicode / symlink.** TOL-04 / TOL-05 / TOL-06 / TOL-07 all reject and leave no artifacts.
@@ -1049,8 +1049,8 @@ If any of these slip, we ship a broken tool runtime.
 
 The QA harness for this child must:
 
-- Use `agh-qa-bootstrap` with unique `AGH_HOME`, daemon HTTP/UDS ports, `tmux-bridge` socket, and `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`. Default `:2123` is forbidden.
-- Provide a real Claude Code agent path: `agh sessions start --agent claude-code --workspace ./fixtures/tol<NN>`.
+- Use `agh-qa-bootstrap` with unique `COMPOZY_HOME`, daemon HTTP/UDS ports, `tmux-bridge` socket, and `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`. Default `:2123` is forbidden.
+- Provide a real Claude Code agent path: `compozy sessions start --agent claude-code --workspace ./fixtures/tol<NN>`.
 - Provide a deterministic mock-ACP path for non-LLM scenarios (TOL-04, TOL-12, TOL-13): the existing `internal/acp/acpmock` test binary.
 - Provide a stub MCP HTTP server for TOL-12 — Go test binary that sleeps 60s before responding, exposes a single tool `mcp__qa-stub__noop`.
 - Provide fixture extensions:
@@ -1090,7 +1090,7 @@ The QA harness for this child must:
 - `internal/sandbox/daytona/ssh.go:75-135` — SSH access token request; production wires explicit http client; line 88 fallback flagged as DX cliff.
 - `internal/sandbox/providertest/suite.go` — shared compliance suite.
 - `internal/mcp/hosted.go:1-180+` — hosted MCP launch nonce, bind nonce TTL, projection digest, peer/binary validation; fail-closed errors.
-- `internal/mcp/hosted_proxy.go:1-200+` — `agh tool mcp` stdio proxy lifecycle; release-on-error.
+- `internal/mcp/hosted_proxy.go:1-200+` — `compozy tool mcp` stdio proxy lifecycle; release-on-error.
 - `internal/mcp/executor.go:1-800+` — remote MCP CallExecutor; default 30s timeout; `*http.Client{Timeout: ...}` discipline; per-call deadline via context.
 - `internal/mcp/peer.go:1-60` — UDS peer credential surface for hosted MCP.
 - `internal/mcp/auth/service.go:1-60+` — OAuth metadata discovery + token store; explicit http client timeout.

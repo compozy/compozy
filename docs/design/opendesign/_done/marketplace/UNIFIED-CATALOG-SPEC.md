@@ -145,7 +145,7 @@ Recorded in `LISTING-STANDARD.md` §When-to-use / §Marketplace chrome; do not a
 
 - Scope PillGroup labels: `Installed` / `Marketplace` (icons required; bundles Installed shows `active` pills). Kind RouteNav labels: `Skills` · `MCPs` · `Extensions` · `Bundles`.
 - Head meta: `N in the marketplace · N installed · N updates available`.
-- Installed empty: "No skills installed yet. Everything you install from the marketplace shows up here. You can also use `agh skills install <name>`." (per-kind verb/CLI variants; bundles: activate).
+- Installed empty: "No skills installed yet. Everything you install from the marketplace shows up here. You can also use `compozy skills install <name>`." (per-kind verb/CLI variants; bundles: activate).
 - Toasts: `<name> installed · View installed →`, `<name> updated to vX.Y.Z`, `<name> authorized · server running`, `<name> deactivated`.
 - Never render catalog-status banners inside modal chrome.
 
@@ -155,14 +155,14 @@ Reset to `untested`: `docs/qa/scenarios/ET-web-marketplace-landing-browse.md`, `
 
 ## 6. Web/Docs impact
 
-`packages/site` docs that reference `/skills`, `/mcp`, `/extensions`, or `?kind=` marketplace URLs must be updated to the subroute model. Official AGH skill (`skills/agh/`): update route guidance for install/manage flows.
+`packages/site` docs that reference `/skills`, `/mcp`, `/extensions`, or `?kind=` marketplace URLs must be updated to the subroute model. Official Compozy skill (`skills/compozy/`): update route guidance for install/manage flows.
 
-## 7. AGH Impact Audit
+## 7. Compozy Impact Audit
 
-- **Native tools:** no impact — no `agh__*` IDs, descriptors, schemas, or capability gates change; web-only IA.
+- **Native tools:** no impact — no `compozy__*` IDs, descriptors, schemas, or capability gates change; web-only IA.
 - **Extensibility and hooks:** all install/manage endpoints and dialogs unchanged; `GET /api/marketplace/search` remains an agent/CLI surface without a web page. Backend listing-embed follow-up is contract-additive with OpenAPI co-ship.
 - **Workspace data isolation:** unchanged — workspace scoping of skills inventory and MCP scope handling carries into the Installed scope; query keys stay workspace-aware.
-- **Official AGH skill:** update `skills/agh/` route references (§6).
+- **Official Compozy skill:** update `skills/compozy/` route references (§6).
 
 ## 8. Acceptance gates
 

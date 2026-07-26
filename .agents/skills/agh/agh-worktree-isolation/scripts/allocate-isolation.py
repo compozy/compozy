@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Allocate an isolated AGH runtime envelope for a parallel-worktree scenario.
+"""Allocate an isolated Compozy runtime envelope for a parallel-worktree scenario.
 
 Outputs export statements (POSIX-shell syntax) to stdout so callers can:
     eval "$(python3 allocate-isolation.py --slug my-qa)"
@@ -63,7 +63,7 @@ def main() -> int:
     slug = args.slug or f"compozy-iso-{int(time.time())}"
 
     try:
-        agh_home = resolve_home(slug, prefer_worktree=args.prefer_worktree)
+        compozy_home = resolve_home(slug, prefer_worktree=args.prefer_worktree)
     except Exception as exc:
         print(f"FAILED to allocate COMPOZY_HOME: {exc}", file=sys.stderr)
         return 1
@@ -74,19 +74,19 @@ def main() -> int:
         print(f"FAILED to pick free HTTP port: {exc}", file=sys.stderr)
         return 1
 
-    uds_path = agh_home / f"daemon-{random_suffix(4)}.sock"
-    tmux_socket = agh_home / f"tmux-bridge-{random_suffix(4)}.sock"
+    uds_path = compozy_home / f"daemon-{random_suffix(4)}.sock"
+    tmux_socket = compozy_home / f"tmux-bridge-{random_suffix(4)}.sock"
 
     sys.stderr.write(
         f"# Allocated isolation envelope for slug={slug}\n"
-        f"#   COMPOZY_HOME={agh_home}\n"
+        f"#   COMPOZY_HOME={compozy_home}\n"
         f"#   COMPOZY_HTTP_PORT={http_port}\n"
         f"#   COMPOZY_UDS_PATH={uds_path}\n"
         f"#   TMUX_BRIDGE_SOCKET={tmux_socket}\n"
     )
 
-    print(f"export COMPOZY_ISOLATION_ROOT={shquote(str(agh_home))}")
-    print(f"export COMPOZY_HOME={shquote(str(agh_home))}")
+    print(f"export COMPOZY_ISOLATION_ROOT={shquote(str(compozy_home))}")
+    print(f"export COMPOZY_HOME={shquote(str(compozy_home))}")
     print(f"export COMPOZY_HTTP_PORT={http_port}")
     print(f"export COMPOZY_UDS_PATH={shquote(str(uds_path))}")
     print(f"export TMUX_BRIDGE_SOCKET={shquote(str(tmux_socket))}")

@@ -32,7 +32,7 @@ journey:
   value_statement: "Even when an agent echoes a live key, nothing durable or streamed ever holds the raw value — and I can prove it with greps, not promises."
   personas: [Dora]
   entry_points:
-    - url: "CLI: agh config get/set redact.enabled; daemon logs; agh session events"
+    - url: "CLI: compozy config get/set redact.enabled; daemon logs; compozy session events"
       origin: direct
     - url: "HTTP/UDS: session SSE stream; history queries; GET /api/doctor"
       origin: direct

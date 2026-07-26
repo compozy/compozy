@@ -485,7 +485,7 @@ contract instead of assuming SDK parity that is not present.
 ## Practical Example: Prompt Enhancer
 
 This example mirrors the repository's `sdk/examples/prompt-enhancer` pattern and can be built and
-exercised from an Compozy repository checkout, where its `package.json` resolves `@compozy/extension-sdk`
+exercised from a Compozy repository checkout, where its `package.json` resolves `@compozy/extension-sdk`
 with `workspace:*`. It cannot be managed-installed as written: the runtime import remains in the
 built JavaScript, and the workspace dependency is a symlink outside the example root. The managed
 installer rejects runtime dependency symlinks that escape the package boundary. The extension

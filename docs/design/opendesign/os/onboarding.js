@@ -1,5 +1,5 @@
 /* ============================================================
-   AGH OS — first-run onboarding
+   CompozyOS — first-run onboarding
    Two steps, mirroring web/src/systems/onboarding:
      1. default model  → RuntimeSelector + auth mode (+ bound secret)
      2. workspaces     → /api/fs/browse directory browser + selection
@@ -252,7 +252,7 @@ const defaultAuthFor = (id) => (PROV[id]?.harness === 'pi_acp' ? 'bound_secret' 
 /* ============================================================
    RUNTIME SELECTOR — trigger + popup
    ============================================================ */
-const LS = { fav: 'agh:pmr:fav', recent: 'agh:pmr:recent' };
+const LS = { fav: 'compozy:pmr:fav', recent: 'compozy:pmr:recent' };
 const lsLoad = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const lsSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } };
 let favSet = lsLoad(LS.fav, {});
@@ -550,8 +550,8 @@ const FS = {
   '/Users/pedro': ['Desktop', 'Developer', 'Documents', 'Downloads', 'Projects'],
   '/Users/pedro/Desktop': [],
   '/Users/pedro/Developer': ['compozy', 'courses', 'labs', 'oss'],
-  '/Users/pedro/Developer/compozy': ['agh', 'looper', 'pi', 'releasepr'],
-  '/Users/pedro/Developer/compozy/agh': ['cmd', 'internal', 'packages', 'web'],
+  '/Users/pedro/Developer/compozy': ['compozy', 'looper', 'pi', 'releasepr'],
+  '/Users/pedro/Developer/compozy/compozy': ['cmd', 'internal', 'packages', 'web'],
   '/Users/pedro/Developer/compozy/looper': [],
   '/Users/pedro/Developer/compozy/pi': [],
   '/Users/pedro/Developer/compozy/releasepr': [],
@@ -567,8 +567,8 @@ const FS = {
   '/Users/pedro/Projects': ['field-notes'],
   '/Users/pedro/Projects/field-notes': [],
   '/Applications': [], '/Library': [], '/System': [], '/Users/Shared': [],
-  '/Users/pedro/Developer/compozy/agh/cmd': [], '/Users/pedro/Developer/compozy/agh/internal': [],
-  '/Users/pedro/Developer/compozy/agh/packages': [], '/Users/pedro/Developer/compozy/agh/web': [],
+  '/Users/pedro/Developer/compozy/compozy/cmd': [], '/Users/pedro/Developer/compozy/compozy/internal': [],
+  '/Users/pedro/Developer/compozy/compozy/packages': [], '/Users/pedro/Developer/compozy/compozy/web': [],
 };
 const parentOf = (p) => (p === '/' ? null : p.replace(/\/[^/]+$/, '') || '/');
 const basename = (p) => p.replace(/\/+$/, '').split('/').pop() || p;
@@ -788,7 +788,7 @@ function unlockShell() {
       title: `${draft.workspaces[0].name} · ready`,
       body: `Default model <strong>${esc(p.name)} / ${esc(m.name)}</strong> · ${n} workspace${n === 1 ? '' : 's'} registered. Sessions start from the dock or <code>⌘K</code>.`,
       actions: [
-        { label: 'Open AGH', primary: true, run: () => { window.location.href = 'agh-os-v2.html'; } },
+        { label: 'Open Compozy', primary: true, run: () => { window.location.href = 'compozy-os-v2.html'; } },
         { label: 'Run setup again', run: () => window.location.reload() },
       ],
     });
@@ -798,10 +798,10 @@ function unlockShell() {
 /* dock + hint hand off to the running shell once setup is done */
 dockEl.addEventListener('click', e => {
   if (document.body.dataset.onboarding !== 'done') return;
-  if (e.target.closest('.dock-item')) window.location.href = 'agh-os-v2.html';
+  if (e.target.closest('.dock-item')) window.location.href = 'compozy-os-v2.html';
 });
 $('#dockNew').addEventListener('click', () => {
-  if (document.body.dataset.onboarding === 'done') window.location.href = 'agh-os-v2.html';
+  if (document.body.dataset.onboarding === 'done') window.location.href = 'compozy-os-v2.html';
 });
 
 function toast({ title, body, actions = [], timeout = 14000 }) {

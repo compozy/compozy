@@ -5,13 +5,13 @@ title: Inspect effective background role routing
 persona: Ada
 journey: J-route-background-work
 expected: CLI, HTTP, and UDS expose the same six-role projection with truthful per-field provenance, nullable inherited values, actionable diagnostics, and no builtin identities in agent catalogs.
-entry_points: agh roles list|show -o json; GET /api/roles and GET /api/roles/{role} over HTTP; GET /api/roles and GET /api/roles/{role} over UDS; docs runtime/api-reference/roles
+entry_points: compozy roles list|show -o json; GET /api/roles and GET /api/roles/{role} over HTTP; GET /api/roles and GET /api/roles/{role} over UDS; docs runtime/api-reference/roles
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/roles-cli.json; /Users/pedronauck/dev/qa-labs/agh-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/roles-http.json; /Users/pedronauck/dev/qa-labs/agh-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/roles-uds.json; /Users/pedronauck/dev/qa-labs/agh-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/role-unknown-http.json; /Users/pedronauck/dev/qa-labs/agh-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/role-dream-ghost-http.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/roles-cli.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/roles-http.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/roles-uds.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/role-unknown-http.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/role-dream-ghost-http.json
 last_report: docs/qa/reports/2026-07-24-agent-roles.md
 overlaps: MS-background-role-routing
 ---

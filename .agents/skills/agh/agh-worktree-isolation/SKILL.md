@@ -1,6 +1,6 @@
 ---
 name: agh-worktree-isolation
-description: Isolates AGH runtime state for concurrent worktrees and QA runs. Use when another agent or runtime may share the machine, or when creating a parallel worktree. Do not use for single-worktree or build-only work.
+description: Isolates Compozy runtime state for concurrent worktrees and QA runs. Use when another agent or runtime may share the machine, or when creating a parallel worktree. Do not use for single-worktree or build-only work.
 trigger: explicit
 argument-hint: "[scenario-slug]"
 ---

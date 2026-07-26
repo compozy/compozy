@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build or reuse a deterministic AGH local QA lab and emit a canonical manifest."""
+"""Build or reuse a deterministic Compozy local QA lab and emit a canonical manifest."""
 
 from __future__ import annotations
 
@@ -50,10 +50,10 @@ def socket_path_length(path: Path) -> int:
     return len(str(path).encode("utf-8"))
 
 
-def socket_limited_paths(agh_home: Path, provider_home: Path) -> dict[str, Path]:
+def socket_limited_paths(compozy_home: Path, provider_home: Path) -> dict[str, Path]:
     return {
-        "COMPOZY_UDS_PATH": agh_home / "compozyd.sock",
-        "TMUX_BRIDGE_SOCKET": agh_home / "tmux-bridge.sock",
+        "COMPOZY_UDS_PATH": compozy_home / "compozyd.sock",
+        "TMUX_BRIDGE_SOCKET": compozy_home / "tmux-bridge.sock",
         "PROVIDER_DEFAULT_UDS": provider_home / ".compozy" / "daemon.sock",
     }
 
@@ -174,8 +174,8 @@ def prepare_provider_home(global_codex_home: Path, provider_home: Path) -> Path:
     return provider_codex_home
 
 
-def write_runtime_config(agh_home: Path, http_port: str, uds_path: str) -> None:
-    config_path = agh_home / "config.toml"
+def write_runtime_config(compozy_home: Path, http_port: str, uds_path: str) -> None:
+    config_path = compozy_home / "config.toml"
     config_path.write_text(
         "[http]\n"
         'host = "127.0.0.1"\n'
@@ -429,7 +429,7 @@ def build_charter_from_playbook(scenario_slug: str, playbook: dict) -> dict:
         "startup_situation": f"{company_name} — {tagline}".strip(" —"),
         "operator_intent": (
             f"{operator_role} drives the active work in {company_name} via a single in-persona kickoff; "
-            "the AGH runtime then sustains autonomous collaboration without further QA prompts."
+            "the Compozy runtime then sustains autonomous collaboration without further QA prompts."
         ),
         "expected_business_outcome": (
             "All required deliverables exist as runnable artifacts (compile/parse/run) and the "
@@ -455,7 +455,7 @@ def build_charter_from_playbook(scenario_slug: str, playbook: dict) -> dict:
             "required": True,
             "providers": [],
             "reachability_probe": (
-                "Provider sessions are launched by the AGH runtime per the playbook agent registrations. "
+                "Provider sessions are launched by the Compozy runtime per the playbook agent registrations. "
                 "Each agent system prompt names the persona and product context."
             ),
             "fallback_boundary": None,
@@ -674,22 +674,22 @@ def main() -> int:
             str(existing_env.get("RUNTIME_WORKSPACE_PATH", workspace_path))
         ).resolve()
         provider_home = Path(str(existing_env.get("PROVIDER_HOME", workspace_path / ".provider-home"))).resolve()
-        agh_home = Path(str(existing_env.get("COMPOZY_HOME", workspace_path / ".compozy" / "runtime"))).resolve()
+        compozy_home = Path(str(existing_env.get("COMPOZY_HOME", workspace_path / ".compozy" / "runtime"))).resolve()
     else:
         runtime_workspace_path = Path(
             str(seed_summary.get("runtime_workspace_path", workspace_path))
         ).resolve()
         provider_home = workspace_path / ".provider-home"
-        agh_home = workspace_path / ".compozy" / "runtime"
-        violations = socket_limit_violations(socket_limited_paths(agh_home, provider_home))
+        compozy_home = workspace_path / ".compozy" / "runtime"
+        violations = socket_limit_violations(socket_limited_paths(compozy_home, provider_home))
         if violations:
             runtime_root = short_runtime_root(workspace_info["SCENARIO_SLUG"])
             provider_home = runtime_root / "provider"
-            agh_home = runtime_root / "runtime"
+            compozy_home = runtime_root / "runtime"
             status_notes.append(
                 "Allocated short runtime/provider homes for portable Unix socket paths: " + "; ".join(violations)
             )
-            followup_violations = socket_limit_violations(socket_limited_paths(agh_home, provider_home))
+            followup_violations = socket_limit_violations(socket_limited_paths(compozy_home, provider_home))
             if followup_violations:
                 raise RuntimeError(
                     "short QA runtime paths still exceed Unix socket limits: " + "; ".join(followup_violations)
@@ -701,16 +701,16 @@ def main() -> int:
     if reused_lab and existing_manifest is not None:
         env_block = {key: str(value) for key, value in existing_manifest.get("env", {}).items()}
     else:
-        agh_home.mkdir(parents=True, exist_ok=True)
+        compozy_home.mkdir(parents=True, exist_ok=True)
         env_block = {
             "SCENARIO_SLUG": workspace_info["SCENARIO_SLUG"],
             "WORKSPACE_PATH": str(workspace_path),
             "RUNTIME_WORKSPACE_PATH": str(runtime_workspace_path),
             "QA_OUTPUT_PATH": str(qa_output_path),
-            "COMPOZY_HOME": str(agh_home),
+            "COMPOZY_HOME": str(compozy_home),
             "COMPOZY_HTTP_PORT": str(pick_free_port()),
-            "COMPOZY_UDS_PATH": str(agh_home / "compozyd.sock"),
-            "TMUX_BRIDGE_SOCKET": str(agh_home / "tmux-bridge.sock"),
+            "COMPOZY_UDS_PATH": str(compozy_home / "compozyd.sock"),
+            "TMUX_BRIDGE_SOCKET": str(compozy_home / "tmux-bridge.sock"),
             "COMPOZY_WEB_API_PROXY_TARGET": "",
             "PROVIDER_HOME": str(provider_home),
             "PROVIDER_CODEX_HOME": str(provider_codex_home),
@@ -725,7 +725,7 @@ def main() -> int:
             "KICKOFF_POSTED": "false",
             "KICKOFF_TIMESTAMP": "",
         }
-        write_runtime_config(agh_home, env_block["COMPOZY_HTTP_PORT"], env_block["COMPOZY_UDS_PATH"])
+        write_runtime_config(compozy_home, env_block["COMPOZY_HTTP_PORT"], env_block["COMPOZY_UDS_PATH"])
 
     env_block["SCENARIO_SLUG"] = workspace_info["SCENARIO_SLUG"]
     env_block["WORKSPACE_PATH"] = str(workspace_path)

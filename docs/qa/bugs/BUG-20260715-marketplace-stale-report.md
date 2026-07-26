@@ -20,18 +20,18 @@ The catalog service correctly retained rows, marked their kind stale, and return
 3. Search or browse the previously projected entry through CLI, HTTP, UDS, and Web.
 
 **Expected:** Refresh returns per-kind `outcome=failed`, prior `entry_count`, `stale=true`, and `error_class`; browse/search keep the prior row and expose its stale diagnostic.
-**Actual:** `agh marketplace refresh -o json` exited 69 with only the joined error. Search/browse served the retained row but omitted `stale`, `error_class`, and the redacted source diagnostic.
+**Actual:** `compozy marketplace refresh -o json` exited 69 with only the joined error. Search/browse served the retained row but omitted `stale`, `error_class`, and the redacted source diagnostic.
 
 ## Evidence
 
-- Isolated lab note: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-kill-switch-stale-report.json`.
+- Isolated lab note: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-kill-switch-stale-report.json`.
 - Pre-fix API owner tests failed with HTTP 500 for the populated refresh report and missing stale fields on both grouped search and kind browse.
 - The internal Marketplace integration suite already proved the service/store retained and marked the projection; the missing boundary was public mapping.
 
 ## Fix
 
 - **Root cause:** `RefreshMarketplaceCatalog` treated any joined service error as an error response even when `RefreshReport.Outcomes` was complete. `curatedMarketplaceKind` ignored `BrowseResult.State`, and `MarketplaceKindResponse` had no stale-state fields.
-- **Correction:** A populated refresh report is now the successful structured response even when individual outcomes failed. Grouped and kind responses co-ship required `stale` plus optional `error_class` and redacted `error` from the service state through HTTP, UDS, CLI, native discovery, generated OpenAPI/TypeScript, Web, site docs, and the official AGH skill.
+- **Correction:** A populated refresh report is now the successful structured response even when individual outcomes failed. Grouped and kind responses co-ship required `stale` plus optional `error_class` and redacted `error` from the service state through HTTP, UDS, CLI, native discovery, generated OpenAPI/TypeScript, Web, site docs, and the official Compozy skill.
 - **Fix commit:** pending Phase D checkpoint
 - **Regression test:** Existing API core Marketplace suites now prove stale rows remain visible with their state and that failed refresh outcomes return HTTP 200; the canonical OpenAPI suite owns the required/optional field shape.
 

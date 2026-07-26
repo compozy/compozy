@@ -4,8 +4,8 @@ area: RT
 title: Compact completed context without losing session evidence
 persona: Théo
 journey: J-11
-expected: At configured context pressure, AGH summarizes only complete prior turns into the workspace checkpoint before archiving their event rows from degraded replay. History retains the archived rows, repeated coverage is idempotent, failed summary or archive work preserves replayable events, and a successful provider load remains unchanged.
-entry_points: daemon session prompts; agh session events; agh session history; degraded session reactivation; config CLI/native tools
+expected: At configured context pressure, Compozy summarizes only complete prior turns into the workspace checkpoint before archiving their event rows from degraded replay. History retains the archived rows, repeated coverage is idempotent, failed summary or archive work preserves replayable events, and a successful provider load remains unchanged.
+entry_points: daemon session prompts; compozy session events; compozy session history; degraded session reactivation; config CLI/native tools
 qa_status: untested
 bug_ids:
 fix_status:
@@ -20,7 +20,7 @@ Drive a session above the configured context-pressure threshold after at least o
 Confirm the checkpoint covers that exact prior-turn sequence range before the rows become archived,
 history still returns the rows, and degraded replay omits their raw fact while preserving it through
 the checkpoint. Interrupt once after coverage but before archive, then retry and confirm provider
-summary work is not duplicated. Repeat with a successful ACP session load and confirm AGH does not
+summary work is not duplicated. Repeat with a successful ACP session load and confirm Compozy does not
 inject replay context.
 
 QA impact 2026-07-15: new session compaction, archive projection, lifecycle event, and config

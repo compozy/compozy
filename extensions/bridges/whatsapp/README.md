@@ -1,6 +1,6 @@
 # WhatsApp Bridge Provider
 
-`extensions/bridges/whatsapp` is the production WhatsApp Cloud API bridge provider for AGH. It runs as a provider-scoped subprocess on top of `internal/bridgesdk` and multiplexes one or more owned `BridgeInstance` records inside a single WhatsApp runtime.
+`extensions/bridges/whatsapp` is the production WhatsApp Cloud API bridge provider for Compozy. It runs as a provider-scoped subprocess on top of `internal/bridgesdk` and multiplexes one or more owned `BridgeInstance` records inside a single WhatsApp runtime.
 
 It implements:
 
@@ -12,9 +12,9 @@ It implements:
 
 ## Outbound delivery
 
-WhatsApp text messages are limited to 4,096 Unicode code points. AGH splits larger replies on natural boundaries, adds an `(N/M)` marker to every chunk, sends the chunks in order, and acknowledges the last `wamid` returned by the Cloud API.
+WhatsApp text messages are limited to 4,096 Unicode code points. Compozy splits larger replies on natural boundaries, adds an `(N/M)` marker to every chunk, sends the chunks in order, and acknowledges the last `wamid` returned by the Cloud API.
 
-The Cloud API does not expose text-message editing. When an accumulated delivery changes, AGH posts a new chunk sequence and keeps the prior remote message ID as the replacement reference.
+The Cloud API does not expose text-message editing. When an accumulated delivery changes, Compozy posts a new chunk sequence and keeps the prior remote message ID as the replacement reference.
 
 ## Tool progress
 
@@ -35,7 +35,7 @@ The provider sends each projected status as a separate text message. The daemon 
 
 ## Build and install
 
-Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+Released `compozy` artifacts do not include this provider executable. From a trusted Compozy source
 checkout, run this from the repository root with the daemon running:
 
 ```bash

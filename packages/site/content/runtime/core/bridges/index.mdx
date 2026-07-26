@@ -150,7 +150,7 @@ Session-->>Broker: project response events
 Broker->>Adapter: bridges/deliver
 Adapter->>Platform: post, edit, or delete response
 Platform-->>User: response appears in channel or chat`}
-caption="An inbound platform event is normalized by the adapter, routed to an Compozy session, and streamed back through the delivery broker to the same platform."
+caption="An inbound platform event is normalized by the adapter, routed to a Compozy session, and streamed back through the delivery broker to the same platform."
 />
 
 ## Adapter architecture
@@ -236,7 +236,7 @@ Package-managed instances can be created by extension bundles. Those records rep
 | GitHub          | `webhook_secret`                             | `token`, `app_id`, `private_key`        | GitHub `X-Hub-Signature-256`.                                         |
 | Linear          | `webhook_secret`                             | `api_key`, `client_id`, `client_secret` | Linear `linear-signature` HMAC.                                       |
 
-Bind each slot to an Compozy-managed vault secret before enabling the bridge. The API accepts the
+Bind each slot to a Compozy-managed vault secret before enabling the bridge. The API accepts the
 plaintext only through the write-only `secret_value` field and never returns it:
 
 ```bash

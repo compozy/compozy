@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit AGH real-scenario QA evidence against a machine-readable contract."""
+"""Audit Compozy real-scenario QA evidence against a machine-readable contract."""
 
 from __future__ import annotations
 

@@ -29,8 +29,8 @@ All authored user messages could lose their original position while the live tra
 
 - Pre-fix session `sess-3fb644eedaea5ab9`; Goal run `looprun-afc234a9b50064b7`.
 - Post-fix session `sess-59296138935045ea`; Goal run `looprun-3724bede0e0e62f5`.
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/session-user-message-reload-fixed.json`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/session-user-message-reload-fixed.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/session-user-message-reload-fixed.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/session-user-message-reload-fixed.dom.txt`
 
 ## Fix
 

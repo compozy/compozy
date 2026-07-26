@@ -4,8 +4,8 @@ area: TA
 title: Task run summary preserves truthful cost provenance
 persona: Bruno
 journey: J-24
-expected: Task run detail and `agh task run show` agree on actual, exact five-bucket estimated, included, or unknown aggregate cost provenance; a missing active-bucket rate, included/unknown states, or incompatible child-session provenance fails closed without an amount.
-entry_points: web task-run detail; `agh task run show <run-id> -o json`; HTTP and UDS task-run detail
+expected: Task run detail and `compozy task run show` agree on actual, exact five-bucket estimated, included, or unknown aggregate cost provenance; a missing active-bucket rate, included/unknown states, or incompatible child-session provenance fails closed without an amount.
+entry_points: web task-run detail; `compozy task run show <run-id> -o json`; HTTP and UDS task-run detail
 qa_status: untested
 bug_ids:
 fix_status:

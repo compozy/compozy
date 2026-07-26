@@ -18,8 +18,8 @@ overlaps: ET-web-desktop-shell-lifecycle; ET-web-command-palette-shortcuts; ET-w
 
 story: As a builder, I can reach and understand every desktop capability from a menu bar that behaves like an OS menu bar and never offers a command the daemon cannot run.
 
-qa-impact: 2026-07-24 the menubar moved onto the `@agh/ui` `Menubar` primitive and grew from
-`Session · View · Help` (one Session item, six View items) to the static five-menu set. The AGH
+qa-impact: 2026-07-24 the menubar moved onto the `@compozy/ui` `Menubar` primitive and grew from
+`Session · View · Help` (one Session item, six View items) to the static five-menu set. The Compozy
 mark stopped opening the Dashboard and became the system menu; the workspace chip became a
 menubar item; the Window menu now carries minimize/zoom/toggle-floating, Move & resize, Arrange
 (incl. Balance), Focus, Undo/Redo layout, desktop switching, Desktops overview, and Close window,

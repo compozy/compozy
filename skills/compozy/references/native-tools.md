@@ -208,7 +208,7 @@ the live registry exposes a matching `compozy__*` descriptor.
 
 This reference gives the stable map. The live descriptor gives exact input schema, output shape, risk flags, availability reason codes, and policy/dependency diagnostics.
 
-If a descriptor is unavailable or denied, do not retry blindly. Choose a narrower tool, read-only status path, or CLI/operator surface based on the reason code.
+If a descriptor is unavailable or denied, do not retry blindly. Choose a narrower tool, read-only status path, or CLI/control surface based on the reason code.
 
 ## Descriptor And Skill Co-Ship
 

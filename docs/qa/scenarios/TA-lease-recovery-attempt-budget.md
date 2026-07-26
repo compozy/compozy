@@ -5,7 +5,7 @@ title: Bound crash-looping recovery by the attempt budget
 persona: Ada
 journey: J-bound-runaway-work
 expected: A run claimed then abandoned repeatedly consumes the durable attempt/recovery budget on every lease-expiry requeue and terminalizes to needs_attention with lease_recovery_exhausted at max_attempts, carrying a forensic reason that distinguishes crash-loop from ordinary failure while the token-fenced snapshot CAS and normal release-requeue semantics stay intact.
-entry_points: agh task next --wait -o json; POST /api/agent/tasks/claim-next; agh task inspect <run-id> -o json; scheduler recovery sweep
+entry_points: compozy task next --wait -o json; POST /api/agent/tasks/claim-next; compozy task inspect <run-id> -o json; scheduler recovery sweep
 qa_status: untested
 bug_ids:
 fix_status:

@@ -51,7 +51,7 @@ the primitive was supposed to prevent.
 
 > **One eyebrow primitive, one CSS utility, one Inter UC contract.** Every uppercase label
 > across `web/`, `packages/site/`, and `packages/ui/`'s public consumer surface MUST render
-> through `<Eyebrow>` (`@agh/ui`) — children + className only, no `case` / `family` / `tone` /
+> through `<Eyebrow>` (`@compozy/ui`) — children + className only, no `case` / `family` / `tone` /
 > `size` / `weight` props — or through the single `.eyebrow` utility on structural HTML
 > (`<dt>`, `<label>`, `<th>`, breadcrumb wrappers). The canonical contract is **Inter UC
 > 11 px / weight 600 (semibold) / letter-spacing -0.005em**, bound to `--text-eyebrow` and

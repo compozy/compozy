@@ -1,6 +1,6 @@
 # Listing standard — rows & cards
 
-Reusable catalog listing pattern for AGH redesigns (Loops, Skills, Bridges, Vault, and similar inventories). Applied in `loops-catalog.html` and `vault-redesign.html`.
+Reusable catalog listing pattern for Compozy redesigns (Loops, Skills, Bridges, Vault, and similar inventories). Applied in `loops-catalog.html` and `vault-redesign.html`.
 
 **Visual companion:** [`catalog-design-system.html`](./catalog-design-system.html) — live specs, anatomy, playground, and class contract for redesigning other inventory pages.
 
@@ -29,8 +29,8 @@ Marketplace kind pages (exception — no Filters, no view mode):
 [ PillGroup: Installed | Marketplace ]   ← icons on both segments; Installed may show count chip
 ```
 
-- **Search** = `@agh/ui` `SearchInput` (26px row, min 220px — `--width-search-input-min`, `/` shortcut). Lives **before** Filters in the listing toolbar — not in the topbar. AND-combined with filter chips.
-- **Filters** = `@agh/ui` reui `<Filters>` (HTML: vault-redesign chip pattern). Not kind/category tab strips. Marketplace kind pages omit Filters.
+- **Search** = `@compozy/ui` `SearchInput` (26px row, min 220px — `--width-search-input-min`, `/` shortcut). Lives **before** Filters in the listing toolbar — not in the topbar. AND-combined with filter chips.
+- **Filters** = `@compozy/ui` reui `<Filters>` (HTML: vault-redesign chip pattern). Not kind/category tab strips. Marketplace kind pages omit Filters.
 - **View mode** = `PillGroup` (default `md`, 24px segments) — borderless track, `radius-xs` segments, elevated active segment, never accent fill. Labels `Rows` | `Cards` (optional Lucide `List` / `LayoutGrid` inside the segment). Marketplace reuses this slot for **scope**, not view mode.
 - Do **not** show a “Sorted by …” label unless the page has a real sort control.
 - Do **not** double-encode the same facet as both a PillGroup and a Filter field.
@@ -93,11 +93,11 @@ Grid: `[ leading 34px ] [ main minmax(0,1fr) ] [ trail auto ]`
 - Selected (optional, for main-pane lists that keep an active row while detail is open): `data-selected` → `--row-selected` / `bg-row-selected`. No selection rail, dot, or indicator chrome — those remain `Item`'s job.
 - Flat list by default (no namespace/type section headers). Filters own type/namespace scoping.
 - Do not duplicate type in meta when the trail already shows a type Pill.
-- Type/kind labels use `@agh/ui` **`Pill`** (`mono`, `size="sm"`, `tone="neutral"`). Vault namespaces use `vaultNamespaceTone` (`sessions` → `info`, else `neutral`). Never invent bordered elevated chips.
+- Type/kind labels use `@compozy/ui` **`Pill`** (`mono`, `size="sm"`, `tone="neutral"`). Vault namespaces use `vaultNamespaceTone` (`sessions` → `info`, else `neutral`). Never invent bordered elevated chips.
 
 ## Card layout (same data)
 
-Compose like `@agh/ui` `CatalogCard`:
+Compose like `@compozy/ui` `CatalogCard`:
 
 ```
 [logo 24]  title

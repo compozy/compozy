@@ -6,7 +6,7 @@
 
 ## Context
 
-CodeRabbit and other reviewers repeatedly flag missing `t.Parallel()` calls in AGH tests. In several cases, the tests use `t.Setenv` to inject configuration; adding `t.Parallel()` to those tests _breaks them_ because Go's testing package explicitly forbids the combination — `t.Setenv` panics if any parent or sibling test is parallel.
+CodeRabbit and other reviewers repeatedly flag missing `t.Parallel()` calls in Compozy tests. In several cases, the tests use `t.Setenv` to inject configuration; adding `t.Parallel()` to those tests _breaks them_ because Go's testing package explicitly forbids the combination — `t.Setenv` panics if any parent or sibling test is parallel.
 
 `TestHooksConcurrentRebuildAndDispatch` is the canonical example: it stayed serial under `make verify` because adding `t.Parallel()` amplified an unrelated flake (a timing-sensitive concurrent-rebuild assertion).
 

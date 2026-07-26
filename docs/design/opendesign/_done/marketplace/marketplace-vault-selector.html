@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Marketplace · MCP Vault selector · AGH</title>
+<title>Marketplace · MCP Vault selector · Compozy</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -209,7 +209,7 @@
       <div class="head-txt">
         <div class="eyebrow">MCP · stdio · curated</div>
         <h2 class="modal__title" id="install-title">Install github</h2>
-        <p class="modal__sub" id="install-description">Bind each required secret before AGH writes the server config.</p>
+        <p class="modal__sub" id="install-description">Bind each required secret before Compozy writes the server config.</p>
       </div>
       <button type="button" class="head-close" id="close-dialog" aria-label="Close install dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </header>
@@ -298,7 +298,7 @@
     return '<label class="input-label" for="secret-value">Secret value</label>'
       + '<input class="input mono" id="secret-value" type="password" autocomplete="new-password" spellcheck="false"'
       + ' aria-describedby="typed-help'+(invalid?' typed-error':'')+'" aria-invalid="'+invalid+'" value="'+typedValue+'" />'
-      + '<p class="input-hint" id="typed-help">AGH writes the value to the canonical MCP Vault ref. Plaintext is never returned.</p>'
+      + '<p class="input-hint" id="typed-help">Compozy writes the value to the canonical MCP Vault ref. Plaintext is never returned.</p>'
       + (invalid ? '<p class="input-error" id="typed-error">Required</p>' : '');
   }
 
@@ -330,7 +330,7 @@
       + '<div class="create-field"><label class="input-label" for="create-value">Secret value</label>'
       + '<div class="create-input-row"><input class="input mono" id="create-value" type="password" autocomplete="new-password" spellcheck="false" aria-describedby="create-help'+(required?' create-required':'')+'" aria-invalid="'+required+'" value="'+(errored?'ghp_example_value':'')+'" />'
       + '<button class="btn" id="create-button" type="button">Create secret</button></div>'
-      + '<p class="input-hint" id="create-help">AGH creates this secret in the mcp namespace and binds the new ref. The value stays write-only.</p>'
+      + '<p class="input-hint" id="create-help">Compozy creates this secret in the mcp namespace and binds the new ref. The value stays write-only.</p>'
       + (required ? '<p class="input-error" id="create-required">Required</p>' : '')+'</div>'
       ;
   }

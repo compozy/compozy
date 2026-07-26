@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-prune-missing-workspace
-  mission: "As Bruno, add a temporary local workspace, remove its folder outside AGH, return through the switcher and old permalink, and continue without a ghost workspace."
+  mission: "As Bruno, add a temporary local workspace, remove its folder outside Compozy, return through the switcher and old permalink, and continue without a ghost workspace."
   mode: charter-with-tour
   persona:
     name: Bruno
@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Register the lab-owned temporary folder through the workspace modal and refresh before removal."
-      - "Remove the folder through a normal user-accessible filesystem command, not AGH internals."
+      - "Remove the folder through a normal user-accessible filesystem command, not Compozy internals."
       - "Return by switcher, refresh, and old permalink; verify Web and one structured list agree."
       - "Confirm another valid workspace remains selected and usable."
 ```

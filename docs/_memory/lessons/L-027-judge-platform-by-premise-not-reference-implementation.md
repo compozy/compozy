@@ -26,7 +26,7 @@ When a platform has exactly one shipped example, the example becomes a mental st
 
 | Claim made from the example | Premise-derived resolution |
 | --- | --- |
-| "Durable work should always delegate to native tasks" | Delegation is opt-in composition (`agh__task_create` + event watch); run-agent chains stay first-class |
+| "Durable work should always delegate to native tasks" | Delegation is opt-in composition (`compozy__task_create` + event watch); run-agent chains stay first-class |
 | "Two attention surfaces are a defect — unify them" | Domain-native surfaces; author picks per YAML; at most a read-only aggregated UI view |
 | "Human gate should shrink to contract boundaries" | Gate criteria `{command, agent-judge, human, extension}` are the loop's exit-condition algebra — the autonomy dial; keep in core |
 | (missed) "md_tasks in core is fine" | Product format as default parse in a generic engine → evict to the extension |

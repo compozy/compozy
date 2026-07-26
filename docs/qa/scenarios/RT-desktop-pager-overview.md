@@ -16,7 +16,7 @@ last_report:
 overlaps: ET-window-manager-multi-client; ET-web-desktop-shell-lifecycle
 ---
 
-story: As an operator, I can move between many desktops from a quiet control and open full management only when I need it.
+story: As a person running agent work, I can move between many desktops from a quiet control and open full management only when I need it.
 
 scope: Verify screen-reader naming and position, 44px target equivalence, visible focus, contrast, reduced motion, portrait/landscape placement, 1/2/7/8+ counts, and no application remount during a switch.
 

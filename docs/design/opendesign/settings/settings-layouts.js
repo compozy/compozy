@@ -1,4 +1,4 @@
-/* AGH · Settings › Layouts — visual window-management editor
+/* Compozy · Settings › Layouts — visual window-management editor
    Every control below maps to a field that exists in the daemon contract:
    - WindowManagerConfig      (global, PATCH /api/settings/window-manager)
    - WindowManagerLayoutDoc   (workspace, validate → preview → PUT …/layout)
@@ -97,7 +97,7 @@
   };
 
   var DOC = {
-    version: 2, workspaceId: "ws-compozy-agh", revision: 41,
+    version: 2, workspaceId: "ws-compozy-compozy", revision: 41,
     desktops: [
       {
         id: "d-build", name: "Build", order: 0, purpose: "standard", focusOwner: null,
@@ -952,7 +952,7 @@
   }
   function setSegm(id, v) {
     Array.prototype.forEach.call(q(id).children, function (b) { b.setAttribute("aria-selected", String(b.dataset.v === v)); });
-    if (id === "pe-scope") q("pe-scope-hint").textContent = v === "global" ? "Available in every workspace on this daemon." : "Visible only inside compozy/agh.";
+    if (id === "pe-scope") q("pe-scope-hint").textContent = v === "global" ? "Available in every workspace on this daemon." : "Visible only inside compozy/compozy.";
   }
   function segmVal(id) { var v = "any"; Array.prototype.forEach.call(q(id).children, function (b) { if (b.getAttribute("aria-selected") === "true") v = b.dataset.v; }); return v; }
   function setOpts(id, v) { Array.prototype.forEach.call(q(id).children, function (b) { b.setAttribute("aria-selected", String(b.dataset.v === v)); }); }

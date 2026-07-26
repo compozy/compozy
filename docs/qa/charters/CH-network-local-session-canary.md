@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 30
   guidance:
     must_try:
-      - "Bootstrap a fresh isolated lab with unique AGH_HOME/ports/provider home/tmux socket, register PIDs, and execute eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every pass/fail/blocked/abort exit; cite clean teardown.json."
+      - "Bootstrap a fresh isolated lab with unique COMPOZY_HOME/ports/provider home/tmux socket, register PIDs, and execute eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every pass/fail/blocked/abort exit; cite clean teardown.json."
       - "With Network available but participation omitted, create, prompt, background, follow, stop, restart the daemon, and compare list/detail/status/transcript output over CLI, HTTP, and UDS."
       - "Independently read Network status, channels, wakes, and usage before and after. The session must remain Local and the ordinary transcript/lifecycle path must not depend on a conversation."
     must_avoid:

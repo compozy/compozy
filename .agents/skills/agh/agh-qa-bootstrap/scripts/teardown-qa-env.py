@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tear down AGH QA labs: stop daemons, kill orphaned lab processes, optionally purge lab dirs.
+"""Tear down Compozy QA labs: stop daemons, kill orphaned lab processes, optionally purge lab dirs.
 
 This is the mandatory counterpart of bootstrap-qa-env.py. Every QA pass that
 bootstraps a lab MUST end with a teardown invocation (success OR failure paths):
@@ -59,7 +59,7 @@ class LabTarget:
     label: str
     manifest_path: Path | None
     roots: list[Path]
-    agh_home: Path | None
+    compozy_home: Path | None
     tmux_socket: Path | None
     uds_path: Path | None
     http_port: int | None
@@ -123,8 +123,8 @@ def read_pid_file(path: Path) -> int:
     return pid if pid > 0 else 0
 
 
-def read_daemon_pid(agh_home: Path) -> int:
-    info_path = agh_home / "daemon.json"
+def read_daemon_pid(compozy_home: Path) -> int:
+    info_path = compozy_home / "daemon.json"
     if info_path.is_file():
         try:
             info = load_json(info_path)
@@ -133,7 +133,7 @@ def read_daemon_pid(agh_home: Path) -> int:
                 return pid
         except (OSError, ValueError, json.JSONDecodeError):
             pass
-    return read_pid_file(agh_home / "daemon.lock")
+    return read_pid_file(compozy_home / "daemon.lock")
 
 
 def list_processes() -> list[tuple[int, int, str]]:
@@ -217,7 +217,7 @@ def registered_pids(qa_root: Path | None) -> dict[int, str]:
     return found
 
 
-def resolve_repo_agh_binary(repo_root: Path) -> Path | None:
+def resolve_repo_compozy_binary(repo_root: Path) -> Path | None:
     candidate = repo_root / "bin" / "compozy"
     if candidate.is_file() and os.access(candidate, os.X_OK):
         return candidate
@@ -225,24 +225,24 @@ def resolve_repo_agh_binary(repo_root: Path) -> Path | None:
 
 
 def stop_daemon_gracefully(
-    agh_binary: Path | None,
-    agh_home: Path,
+    compozy_binary: Path | None,
+    compozy_home: Path,
     result: TeardownResult,
     dry_run: bool,
 ) -> None:
-    pid = read_daemon_pid(agh_home)
+    pid = read_daemon_pid(compozy_home)
     if pid <= 0 or not pid_alive(pid):
         return
     result.stopped_daemon_pid = pid
     if dry_run:
-        result.notes.append(f"dry-run: would stop daemon pid {pid} (COMPOZY_HOME={agh_home})")
+        result.notes.append(f"dry-run: would stop daemon pid {pid} (COMPOZY_HOME={compozy_home})")
         return
-    if agh_binary is not None:
+    if compozy_binary is not None:
         env = dict(os.environ)
-        env["COMPOZY_HOME"] = str(agh_home)
+        env["COMPOZY_HOME"] = str(compozy_home)
         try:
             subprocess.run(
-                [str(agh_binary), "daemon", "stop"],
+                [str(compozy_binary), "daemon", "stop"],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -250,7 +250,7 @@ def stop_daemon_gracefully(
                 env=env,
             )
         except subprocess.TimeoutExpired:
-            result.notes.append(f"compozy daemon stop timed out after {DAEMON_STOP_TIMEOUT_SEC}s for {agh_home}")
+            result.notes.append(f"compozy daemon stop timed out after {DAEMON_STOP_TIMEOUT_SEC}s for {compozy_home}")
         deadline = time.monotonic() + DAEMON_STOP_TIMEOUT_SEC
         while pid_alive(pid) and time.monotonic() < deadline:
             time.sleep(0.25)
@@ -291,8 +291,8 @@ def collect_target_pids(target: LabTarget) -> dict[int, str]:
         for pid in port_listener_pids(target.http_port):
             candidates.setdefault(pid, f"listens on lab port {target.http_port}")
     lsof_scan_paths: list[Path] = []
-    if target.agh_home is not None:
-        lsof_scan_paths.append(target.agh_home)
+    if target.compozy_home is not None:
+        lsof_scan_paths.append(target.compozy_home)
     for root in target.roots:
         name = root.name
         if name.startswith("compozyqa-") or name.startswith("compozy-iso-") or name == ".compozy":
@@ -409,19 +409,19 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
     purgeable: list[Path] = []
     workspace = env.get("WORKSPACE_PATH", manifest.get("workspace_path", ""))
     qa_output = env.get("QA_OUTPUT_PATH", manifest.get("qa_output_path", ""))
-    agh_home = Path(env["COMPOZY_HOME"]).resolve() if env.get("COMPOZY_HOME") else None
+    compozy_home = Path(env["COMPOZY_HOME"]).resolve() if env.get("COMPOZY_HOME") else None
     provider_home = Path(paths["provider_home"]).resolve() if paths.get("provider_home") else None
     if workspace:
         roots.append(Path(workspace).resolve())
     if qa_output:
         roots.append(Path(qa_output).resolve())
-    if agh_home is not None:
-        roots.append(agh_home)
+    if compozy_home is not None:
+        roots.append(compozy_home)
         # short runtime roots ($TMPDIR/compozyqa-<digest>/runtime) purge at the compozyqa root
-        if agh_home.parent.name.startswith("compozyqa-"):
-            purgeable.append(agh_home.parent)
-        elif agh_home.name == "runtime" and agh_home.parent.name == ".compozy":
-            purgeable.append(agh_home)
+        if compozy_home.parent.name.startswith("compozyqa-"):
+            purgeable.append(compozy_home.parent)
+        elif compozy_home.name == "runtime" and compozy_home.parent.name == ".compozy":
+            purgeable.append(compozy_home)
     if provider_home is not None:
         roots.append(provider_home)
     http_port: int | None = None
@@ -432,7 +432,7 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
         label=manifest.get("scenario_slug", manifest_path.parent.name),
         manifest_path=manifest_path,
         roots=roots,
-        agh_home=agh_home,
+        compozy_home=compozy_home,
         tmux_socket=Path(env["TMUX_BRIDGE_SOCKET"]).resolve() if env.get("TMUX_BRIDGE_SOCKET") else None,
         uds_path=Path(env["COMPOZY_UDS_PATH"]).resolve() if env.get("COMPOZY_UDS_PATH") else None,
         http_port=http_port,
@@ -443,9 +443,9 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
 
 def target_from_bare_root(root: Path) -> LabTarget:
     runtime = root / "runtime"
-    agh_home = runtime if runtime.is_dir() else root
+    compozy_home = runtime if runtime.is_dir() else root
     tmux_socket: Path | None = None
-    for sock in sorted(agh_home.glob("tmux-bridge*.sock")):
+    for sock in sorted(compozy_home.glob("tmux-bridge*.sock")):
         tmux_socket = sock
         break
     worktree_scoped = root.name == ".compozy" and "_worktrees" in root.parts
@@ -453,7 +453,7 @@ def target_from_bare_root(root: Path) -> LabTarget:
         label=root.name,
         manifest_path=None,
         roots=[root],
-        agh_home=agh_home,
+        compozy_home=compozy_home,
         tmux_socket=tmux_socket,
         uds_path=None,
         http_port=None,
@@ -501,9 +501,9 @@ def teardown_target(
     dry_run: bool,
 ) -> TeardownResult:
     result = TeardownResult(label=target.label)
-    agh_binary = resolve_repo_agh_binary(repo_root)
-    if target.agh_home is not None and target.agh_home.is_dir():
-        stop_daemon_gracefully(agh_binary, target.agh_home, result, dry_run)
+    compozy_binary = resolve_repo_compozy_binary(repo_root)
+    if target.compozy_home is not None and target.compozy_home.is_dir():
+        stop_daemon_gracefully(compozy_binary, target.compozy_home, result, dry_run)
     kill_tmux_server(target.tmux_socket, result, dry_run)
     pids = collect_target_pids(target)
     signal_pids(pids, grace_sec, result, dry_run)

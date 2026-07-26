@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AGH Real-Scenario QA Playbook",
+  "title": "Compozy Real-Scenario QA Playbook",
   "description": "Self-contained startup playbook consumed by real-scenario-qa. The bootstrap helper materializes workspaces, knowledge files, agents, and an open task tree from this spec; the operator kickoff is the only QA-controlled prompt. Auditor reads required_deliverables and required_collaboration.",
   "type": "object",
   "additionalProperties": false,

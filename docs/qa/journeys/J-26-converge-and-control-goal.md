@@ -40,7 +40,7 @@ journey:
   entry_points:
     - url: "web session composer"
       origin: in-app-nav
-    - url: "CLI: agh session prompt"
+    - url: "CLI: compozy session prompt"
       origin: direct
     - url: "UDS/HTTP session prompt route"
       origin: external-share

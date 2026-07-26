@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>software-delivery · Fork & edit · AGH</title>
+<title>software-delivery · Fork & edit · Compozy</title>
 <style>
   :root{
     --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
@@ -304,7 +304,7 @@
           <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Run agent</span><span class="pk">run-agent</span></div>
           <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Run loop</span><span class="pk">run-loop</span></div>
           <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Transform</span><span class="pk">transform</span></div>
-          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Channel post</span><span class="pk">agh__network_send</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Channel post</span><span class="pk">compozy__network_send</span></div>
           <div class="pal-item" title="Opens a searchable picker over the runtime registry: 181 native tools plus every ext__ and mcp__ tool"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Call tool…</span><span class="pk">registry</span></div>
         </div>
         <div class="pal-group">
@@ -321,7 +321,7 @@
           <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">File import</span><span class="pk">file-import</span></div>
           <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Input</span><span class="pk">input</span></div>
         </div>
-        <div class="pal-note"><b>Kinds are ToolIDs.</b> Beyond <b>run-agent</b>, <b>run-loop</b> and <b>transform</b>, an action's kind is the tool it calls. Channel post is a shortcut that inserts a pre-filled <b>agh__network_send</b> node. Params forms render from the tool's input schema.</div>
+        <div class="pal-note"><b>Kinds are ToolIDs.</b> Beyond <b>run-agent</b>, <b>run-loop</b> and <b>transform</b>, an action's kind is the tool it calls. Channel post is a shortcut that inserts a pre-filled <b>compozy__network_send</b> node. Params forms render from the tool's input schema.</div>
         <div class="pal-note"><b>Fork &amp; edit only.</b> The builder opens an existing Loop or built-in. Drag a node onto the canvas to extend the body, then connect it. Edits create a new version on publish.</div>
       </aside>
 
@@ -377,7 +377,7 @@
           <div class="view" id="view-dsl">
             <div class="dsl">
               <p class="dsl-note">The definition on disk is the source of truth. The graph and this <b>compozy.loop/v1</b> document are two views of the same file, edited losslessly in either direction. String values interpolate with Go templates (<b>{{ }}</b>); conditions are CEL over the same namespace; node ids are snake_case. The highlighted value is the open issue.</p>
-              <pre><span class="c"># .agh/loops/software-delivery.loop.yaml  (fork of built-in v4)</span>
+              <pre><span class="c"># .compozy/loops/software-delivery.loop.yaml  (fork of built-in v4)</span>
 <span class="k">apiVersion</span>: compozy.loop/v1
 <span class="k">kind</span>: Loop
 <span class="k">meta</span>:
@@ -542,8 +542,8 @@
       {t:"text", k:"Timeout", v:"45m", mono:true},
       {t:"text", k:"Retry", v:"max 2", mono:true, hint:"Plus one FREE schema-validation retry outside this budget (ADR-021)."},
       {t:"static", k:"Produces", v:"nodes.execute_task.output", ro:"from schema"},
-      {t:"static", k:"Executes as", v:"AGH task run", ro:"linked"},
-      {t:"hint", v:"Every node execution is an AGH task run. Open it from Run detail for the full transcript, meters and artifacts."}
+      {t:"static", k:"Executes as", v:"Compozy task run", ro:"linked"},
+      {t:"hint", v:"Every node execution is a Compozy task run. Open it from Run detail for the full transcript, meters and artifacts."}
     ]},
     "collect": {cls:"control", kind:"collect", id:"collect", fields:[
       {t:"text", k:"Node id", v:"collect", mono:true},

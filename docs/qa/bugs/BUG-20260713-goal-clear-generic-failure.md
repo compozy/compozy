@@ -25,9 +25,9 @@ Clear correctly revokes the active session Goal and records `goal_control_revoke
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-active-clear-canceled-turn.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-active-clear-run-failed-generic.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/goal-judge-clear-residual.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-active-clear-canceled-turn.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-active-clear-run-failed-generic.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/goal-judge-clear-residual.dom.txt`
 - Run `looprun-1667f72b7cdb7128`, turn 2 Ambiguous, cause `goal_control_revoked_in_flight`.
 
 ## Fix
@@ -43,7 +43,7 @@ Clear correctly revokes the active session Goal and records `goal_control_revoke
 - Deterministic red reproduced the authoritative ordering: after the fake store committed revocation and the judge context was canceled, `Execute` returned only `context canceled`. The green regression requires the typed safe failure while retaining the committed checkpoint as authority.
 - Final real-provider replay used session `sess-0c15074cd1431b4c`, Goal Run `looprun-0d9a6cc9afa3e92e`, and active judge `sess-4afdada5589b5fed`. The same `browser-use` process observed the judge as active, captured the control, and clicked Clear without a second harness startup.
 - The Goal disappeared, the judge settled `stopped/user_canceled`, active system-session count returned to zero, and the Run retained generation 1 with no successor. Run detail rendered `goal_control_revoked_in_flight` as “Goal control revoked the in-flight turn.” with recovery “Start a new Goal to continue the objective.”
-- Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/network/catalog-global-goal-acceptance.json`, `qa/screenshots/goal-clear-typed-third-during-judge-before.png`, `qa/screenshots/goal-clear-typed-third-after.png`, and `qa/screenshots/goal-clear-typed-run-detail.png` in the same lab.
+- Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/network/catalog-global-goal-acceptance.json`, `qa/screenshots/goal-clear-typed-third-during-judge-before.png`, `qa/screenshots/goal-clear-typed-third-after.png`, and `qa/screenshots/goal-clear-typed-run-detail.png` in the same lab.
 
 ## Intermediate re-find (2026-07-13; superseded by the final replay above)
 

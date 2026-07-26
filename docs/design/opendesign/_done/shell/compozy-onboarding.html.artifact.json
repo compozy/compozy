@@ -1,8 +1,8 @@
 {
   "version": 1,
   "kind": "html",
-  "title": "AGH · Workspace v7 (grouped cards)",
-  "entry": "agh-refined-7-preview.html",
+  "title": "Compozy · First-run onboarding",
+  "entry": "compozy-onboarding.html",
   "renderer": "html",
   "status": "complete",
   "exports": [
@@ -10,11 +10,11 @@
     "pdf",
     "zip"
   ],
-  "createdAt": "2026-05-08T21:10:32.751Z",
-  "updatedAt": "2026-05-08T21:10:32.754Z",
+  "createdAt": "2026-05-25T18:14:31.898Z",
+  "updatedAt": "2026-05-25T18:14:31.919Z",
   "designSystemId": "linear-app",
   "metadata": {
-    "identifier": "agh-refined-7-preview",
+    "identifier": "compozy-onboarding",
     "artifactType": "text/html",
     "inferred": false
   }

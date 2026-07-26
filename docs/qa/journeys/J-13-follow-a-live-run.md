@@ -13,7 +13,7 @@ flowchart TD
     E --> C{Composer while running}
     C -->|Enter| Q[Draft queued + visible hint; queued rows editable]
     C -->|Stop| STP[Turn stops; primary flips to Send; badge reflects immediately]
-    C -->|Steer / Interrupt| SI[AGH busy controls preserved]
+    C -->|Steer / Interrupt| SI[Compozy busy controls preserved]
     Q --> DQ[Side effect: queued prompts dispatch in order after the turn ends]
     W --> SET[Turn settles]
     SET --> F[Fold: 'Worked for Xs', terminal message visible below the fold]

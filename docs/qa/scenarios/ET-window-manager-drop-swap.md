@@ -4,8 +4,8 @@ area: ET
 title: Swap two windows by dropping with the swap modifier held
 persona: Bruno
 journey:
-expected: Holding the configured `swap_modifier` (default Shift) while dragging over any tiled window shows a whole-window "Swap windows" preview instead of split/insert/stack; releasing commits one `window.swap` that exchanges the two windows' structural places (tiled↔tiled, floating↔tiled, cross-desktop, and stack membership all exchange cleanly); releasing the modifier mid-drag restores structural drop previews on the next pointer move; `swap_modifier = "none"` disables the gesture; the same swap remains reachable via `agh window swap` and `compozy__window_manager`.
-entry_points: web desktop window drag; Settings window management swap modifier; agh window swap; compozy__window_manager
+expected: Holding the configured `swap_modifier` (default Shift) while dragging over any tiled window shows a whole-window "Swap windows" preview instead of split/insert/stack; releasing commits one `window.swap` that exchanges the two windows' structural places (tiled↔tiled, floating↔tiled, cross-desktop, and stack membership all exchange cleanly); releasing the modifier mid-drag restores structural drop previews on the next pointer move; `swap_modifier = "none"` disables the gesture; the same swap remains reachable via `compozy window swap` and `compozy__window_manager`.
+entry_points: web desktop window drag; Settings window management swap modifier; compozy window swap; compozy__window_manager
 qa_status: untested
 bug_ids:
 fix_status:

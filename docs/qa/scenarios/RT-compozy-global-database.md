@@ -4,7 +4,7 @@ area: RT
 title: Create the Compozy global database without changing session storage
 persona: Bruno
 journey: J-operate-daemon-schema
-expected: A fresh daemon creates compozy.db in the resolved home, keeps each session database named events.db, reports the global path consistently, and never creates or opens agh.db.
+expected: A fresh daemon creates compozy.db in the resolved home, keeps each session database named events.db, reports the global path consistently, and never creates or opens compozy.db.
 entry_points: compozy daemon start; compozy status -o json; global and session database files on disk
 qa_status: untested
 bug_ids:

@@ -1,6 +1,6 @@
 ## Project Overview
 
-AGH is an agent operating system: a Go single-binary daemon that manages AI agent sessions via ACP — spawning ACP agents (Claude Code, OpenClaw, Hermes) as subprocesses over JSON-RPC/stdio, persisting events in SQLite, exposing HTTP/SSE (web UI) + UDS (CLI). Docs live at `compozy.com` (Fumadocs).
+CompozyOS is an agent operating system: a Go single-binary daemon that manages AI agent sessions via ACP — spawning ACP agents (Claude Code, OpenClaw, Hermes) as subprocesses over JSON-RPC/stdio, persisting events in SQLite, exposing HTTP/SSE (web UI) + UDS (CLI). Docs live at `compozy.com` (Fumadocs).
 
 **Core premise:** every capability must be both extensible by the runtime and manageable by agents (CLI/HTTP/UDS with structured output). A feature that only works through internal Go calls or the web UI is incomplete.
 
@@ -33,17 +33,17 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - **QA tracker impact flag before completing any task** — if the diff changes user-visible behavior (UI, CLI verb, API route, config key, copy), flag it in `docs/qa/scenarios/`: new behavior → add an `untested` content-addressed scenario file; changed behavior → reset the affected file's `qa_status` to `untested`. Pure refactors declare "no user-visible change". **Flag, don't retest** — retests belong to the next QA cycle (`untested` scenarios ARE its scope). Use content-addressed ids for new scenarios and bugs; dedup same-behavior/same-symptom add/add conflicts instead of coordinating a shared counter.
 - **Provider-home policy matches the provider contract in local QA.** Bound-secret/brokered creds use `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` from the bootstrap manifest. Exception: `native_cli` + `home_policy = operator` preserves the operator `HOME`/native login unless a scenario tests isolated provider-home.
 - **Isolated Web QA exports `COMPOZY_WEB_API_PROXY_TARGET`** — derive it from the bootstrap manifest/env; never hardcode `:2123`.
-- **Never parallelize config writes against one isolated QA home** — `agh config set` and peers run sequentially per provider/runtime home.
+- **Never parallelize config writes against one isolated QA home** — `compozy config set` and peers run sequentially per provider/runtime home.
 - **Skill helpers use explicit repo-root paths** (`.agents/skills/<skill>/scripts/`), never ambiguous `scripts/...`.
 - **Two-touch rule.** After two patches to the same package/behavior in one workstream, the third change MUST be a structural redesign in a new TechSpec, not a third patch.
 - **Conversation in Brazilian Portuguese; artifacts in English** (TechSpecs, ADRs, code, commits, docs).
 
-## AGH Cross-Surface Impact Audit
+## Compozy Cross-Surface Impact Audit
 
 Every feature, bug fix, refactor, public-contract/CLI/API/native-tool/config/docs change, or runtime behavior change MUST include this audit in the plan/task/completion notes. Purely editorial docs that describe no runtime behavior may state `not applicable — editorial only`.
 
 ```markdown
-AGH Impact Audit:
+Compozy Impact Audit:
 
 - Native tools: <changed tool IDs/toolsets/descriptors/schema digests/capability gates/tests, or no impact + checked surfaces>
 - Extensibility and hooks: <extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, config lifecycle, or no impact + checked surfaces>
@@ -93,7 +93,7 @@ AGH Impact Audit:
 | Lessons learned                                   | `lesson-learned`                                                                         |                                       |
 | Architecture audit                                | `architectural-analysis`                                                                 | `refactoring-analysis`                |
 | Concurrency / races                               | `golang-pro` + `systematic-debugging`                                                    | `agh-code-guidelines`                 |
-| AGH Network (`internal/network` only)             | `agh-code-guidelines` + `golang-pro`                                                     | `systematic-debugging`                |
+| Compozy Network (`internal/network` only)         | `agh-code-guidelines` + `golang-pro`                                                     | `systematic-debugging`                |
 | Performance / hot paths                           | `extreme-software-optimization` + `golang-pro`                                           |                                       |
 | Security review                                   | `security-review`                                                                        |                                       |
 | Creative / new features                           | `grill-me`                                                                               |                                       |
@@ -123,7 +123,7 @@ Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`
 
 **Run the full `make verify` once, as the completion/PR gate — not per micro-task, not twice per commit.** A full run fans one `-race` test binary per package across every core and takes minutes; running it on every small change needlessly saturates the machine. During iteration, gate only the lane you touched; reserve `make verify` for when the task is done. This scopes the dev loop _before_ the final gate — `cy-final-verify` still requires the full pipeline (no subset) at completion.
 
-**`make verify` and the E2E lanes self-serialize across worktrees (L-030).** These gates are machine-sized by design; two at once collapse the machine and both stall. They share a machine-wide lock (`~/Library/Caches/agh-dev/verify.lock`): a second concurrent run queues with explicit "waiting for pid N (worktree X)" messages instead of silently thrashing. Never kill a queued run assuming it hung — read its output. `COMPOZY_VERIFY_LOCK=off` bypasses (CI-style single-checkout machines only). Scoped lanes stay lock-free but bounded: unit `go test` budgets combined package/subtest concurrency against half the effective Go CPU capacity (`COMPOZY_GO_TEST_P` overrides the package cap), and Vitest pools cap at 50%.
+**`make verify` and the E2E lanes self-serialize across worktrees (L-030).** These gates are machine-sized by design; two at once collapse the machine and both stall. They share a machine-wide lock (`~/Library/Caches/compozy-dev/verify.lock`): a second concurrent run queues with explicit "waiting for pid N (worktree X)" messages instead of silently thrashing. Never kill a queued run assuming it hung — read its output. `COMPOZY_VERIFY_LOCK=off` bypasses (CI-style single-checkout machines only). Scoped lanes stay lock-free but bounded: unit `go test` budgets combined package/subtest concurrency against half the effective Go CPU capacity (`COMPOZY_GO_TEST_P` overrides the package cap), and Vitest pools cap at 50%.
 
 - **Go change** → `make lint` + `go test -race ./internal/<pkg>/...` (scoped path, never `./...`).
 - **Web / `packages/ui` / site change** → `bunx turbo run lint typecheck test --filter=./web` (or `./packages/ui`, `./packages/site`).

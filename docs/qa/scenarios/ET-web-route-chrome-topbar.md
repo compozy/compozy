@@ -22,7 +22,7 @@ Verify against `docs/design/opendesign/os/pagehead-redesign.html` (§02–§05),
 unified window head contract.
 
 QA impact 2026-07-20: OS Shell Task 08 absorbed PageHead into the window head — 44px identity,
-optional 38px strip, window-local drill-in crumbs (no `agh /` workspace prefix), document
+optional 38px strip, window-local drill-in crumbs (no `compozy /` workspace prefix), document
 session self-title. Reset to `untested` for the next QA cycle.
 
 QA impact 2026-07-20: OS Shell Task 04 deleted the global `TopbarShell`. Route identity and

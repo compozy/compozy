@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AGH · Create provider</title>
+<title>Compozy · Create provider</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +31,7 @@
       <div class="head-copy">
         <div class="eyebrow">Settings · Provider</div>
         <h1 data-od-id="provider-create-title">New provider</h1>
-        <p>An ACP provider overlay — <b>who owns authentication</b> decides which credential controls AGH may manage.</p>
+        <p>An ACP provider overlay — <b>who owns authentication</b> decides which credential controls Compozy may manage.</p>
       </div>
       <button class="icon-button" type="button" data-close aria-label="Close provider editor">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -109,7 +109,7 @@
       <div class="sec" data-od-component="form-section" data-od-id="provider-create-auth">
         <div class="sec__head">
           <span class="sec__title">Who owns authentication?</span>
-          <span class="sec__sub">AGH asks for credentials only under a bound-secret contract.</span>
+          <span class="sec__sub">Compozy asks for credentials only under a bound-secret contract.</span>
         </div>
         <div class="tpl-grid cols2" data-choice-group="auth" data-od-component="radio-card" data-od-id="provider-auth-group">
           <button class="tpl" type="button" data-choice data-reveal="native-auth" aria-pressed="true">
@@ -118,7 +118,7 @@
               <span class="tpl__name">Native CLI</span>
               <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
             </span>
-            <span class="tpl__desc">The provider owns login and credential state. AGH never asks for keys.</span>
+            <span class="tpl__desc">The provider owns login and credential state. Compozy never asks for keys.</span>
             <span class="tpl__badge b-neutral">Provider-owned</span>
           </button>
           <button class="tpl" type="button" data-choice data-reveal="secret-auth">
@@ -127,8 +127,8 @@
               <span class="tpl__name">Bound secret</span>
               <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
             </span>
-            <span class="tpl__desc">AGH injects declared credential slots at launch, from the vault.</span>
-            <span class="tpl__badge b-info">AGH-managed</span>
+            <span class="tpl__desc">Compozy injects declared credential slots at launch, from the vault.</span>
+            <span class="tpl__badge b-info">Compozy-managed</span>
           </button>
         </div>
 
@@ -208,7 +208,7 @@
                   <span class="settings-row__label">Credential value</span>
                   <span class="settings-row__hint">Write-only</span>
                 </div>
-                <p class="settings-row__description">Set a value only when the ref is managed by the AGH vault.</p>
+                <p class="settings-row__description">Set a value only when the ref is managed by the Compozy vault.</p>
               </div>
               <div class="settings-row__control">
                 <div class="secret" data-editing="false" data-od-component="secret-field">

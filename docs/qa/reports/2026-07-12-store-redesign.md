@@ -16,7 +16,7 @@
 
 ## Flows in Scope
 
-- `J-operate-daemon-schema` — start AGH without silently rewriting incompatible alpha state and inspect the exact daemon-global schema state (`../journeys/J-operate-daemon-schema.md`)
+- `J-operate-daemon-schema` — start Compozy without silently rewriting incompatible alpha state and inspect the exact daemon-global schema state (`../journeys/J-operate-daemon-schema.md`)
 - `J-20` — inspect model-catalog refresh/status persistence as the adjacent storage canary (`../journeys/J-20-catalog-curation-agent-surfaces.md`)
 
 ## Session Matrix & Results
@@ -104,7 +104,7 @@ persona session, RT-refuse-cross-stream-legacy-marker is registered as `untested
 the existing eight pass verdicts remain scoped to the evidence they actually exercised.
 
 The next review rounds also routed every read-only session consumer through the session stream preflight and
-replaced single-file recovery guidance with a cold move of the complete containing `AGH_HOME` or workspace `.agh`
+replaced single-file recovery guidance with a cold move of the complete containing `COMPOZY_HOME` or workspace `.compozy`
 family. Those changes landed after teardown, so RT-refuse-legacy-session-database is registered as `untested` and
 the three previously passed refusal scenarios are reset to `untested`; no new persona verdict is claimed by this
 report for the changed recovery copy.
@@ -166,13 +166,13 @@ None at run start.
 ## Verification Gates
 
 - `make test-e2e-runtime` — PASS (exit 0); evidence
-  `/Users/pedronauck/dev/qa-labs/agh-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/runtime-e2e-final.log`,
+  `/Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/runtime-e2e-final.log`,
   SHA-256 `26454d646cbf661037659fc3c44d95fd0d5c2e48a8b07189f076ea1119c6a2fc`.
 - `go test -race ./internal/bridges ./internal/heartbeat ./internal/observe ./internal/store/globaldb -count=1`
   — PASS, 1,041 tests.
 - `make lint` — PASS, zero issues.
 - Fresh post-fix `make verify` — PASS (exit 0); evidence
-  `/Users/pedronauck/dev/qa-labs/agh-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/final-make-verify-rerun.log`,
+  `/Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/final-make-verify-rerun.log`,
   SHA-256 `a44a9032de43e7af1b4fe4df4746eea79deeccf91031292c9690d525f8d1c4f7`.
 - Fresh post-peer-review `make verify` — PASS (exit 0) on 2026-07-12T16:58Z after the stream-open,
   cross-marker, file-split, test-shape, and nil-receiver remediations.

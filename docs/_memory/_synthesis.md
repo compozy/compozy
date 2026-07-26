@@ -12,7 +12,7 @@ This document is a _review surface_ for Pedro to approve/reject before anything 
 
 2. **Pedro runs a deliberate multi-LLM dev pipeline that CLAUDE.md doesn't capture.** Codex (gpt-5.4-xhigh) authors specs → Claude Opus reviews them → gpt-5.4-mini-high explores. Subagents are read-only. The patterns are stated almost verbatim across many sessions. (codex_sessions, codex_ledger)
 
-3. **Five rules are repeated in every backend session and not in CLAUDE.md**: (a) auto-append `$qa-report` + `$qa-execution` to every `_tasks.md`; (b) every backend task has a Web/Docs Impact subitem; (c) parallel agents need unique `AGH_HOME` + ports; (d) cross-LLM techspec peer review before approval; (e) cite `.resources/<competitor>` paths in tasks. (codex_sessions: most-repeated requests)
+3. **Five rules are repeated in every backend session and not in CLAUDE.md**: (a) auto-append `$qa-report` + `$qa-execution` to every `_tasks.md`; (b) every backend task has a Web/Docs Impact subitem; (c) parallel agents need unique `COMPOZY_HOME` + ports; (d) cross-LLM techspec peer review before approval; (e) cite `.resources/<competitor>` paths in tasks. (codex_sessions: most-repeated requests)
 
 4. **The autonomy ADRs (002–012) and `_techspec.md` encode load-bearing rules that aren't in CLAUDE.md.** Manual-first contract (ADR-010), claim/lease invariants (ADR-003), coordinator triggers (ADR-005), safe spawn (ADR-006), MVP message kinds (ADR-007), hook taxonomy (ADR-009), generated-contracts-co-ship (ADR-011), coordination channels (ADR-012). (existing_surfaces, compozy_tasks)
 
@@ -69,101 +69,101 @@ Listed in 3 priority bands. Each entry: name → trigger → mandate → evidenc
 #### S-H7. `agh-contract-codegen-coship`
 
 - **Trigger**: edits in `internal/api/contract/**`, `internal/api/spec/**`, `web/src/generated/**`, or `openapi/**`.
-- **Mandate**: regenerate `openapi/agh.json` and `web/src/generated/agh-openapi.d.ts` in same PR; update `web/src/systems/*/types.ts` consumers + Storybook/MSW fixtures; pass `make codegen-check`, `make web-typecheck`, `make web-test`.
+- **Mandate**: regenerate `openapi/compozy.json` and `web/src/generated/compozy-openapi.d.ts` in same PR; update `web/src/systems/*/types.ts` consumers + Storybook/MSW fixtures; pass `make codegen-check`, `make web-typecheck`, `make web-test`.
 - **Evidence**: ADR-011 (autonomous) explicitly mandates this; "co-ship" mentioned in compozy_tasks, codex_plans, codex_ledger. Hermes Task 5's first verify failed because settings MCP fixtures didn't carry `transport`. (4 analyses)
 
 #### S-H8. `agh-worktree-isolation`
 
 - **Trigger**: a QA execution or test run is being prepared while user signals (env or task arg) that other agents run in parallel worktrees.
-- **Mandate**: enforce per-worktree unique `AGH_HOME`, unique daemon ports, unique `tmux-bridge` socket paths. Block ops that would write to `~/.agh/` or default ports.
+- **Mandate**: enforce per-worktree unique `COMPOZY_HOME`, unique daemon ports, unique `tmux-bridge` socket paths. Block ops that would write to `~/.compozy/` or default ports.
 - **Evidence**: codex_sessions (asked near-verbatim across multiple sessions); local_runs (`_worktrees/harness/.compozy/runs/...` confirms parallel execution); local_runs ("concurrent worktree commits will deadlock" — `.git/index.lock` contention).
 
 ### MEDIUM priority (clear evidence, narrower scope)
 
-#### S-M1. `agh-acp-driver-lifecycle`
+#### S-M1. `compozy-acp-driver-lifecycle`
 
 - **Mandate**: codify the 4-step activation (`driver.Start` → `attachProcess` → `MarkAgentReady` → publish `ReadySubject`); ACP wrapper process-group launch/kill on Unix; cooperative cancel-then-grace stop semantics; Windows forced-exit fallback.
 - **Evidence**: codex_plans (`child-workgroup-activation.md`, `session-stop-hang.md`, `long-running-sessions.md`, `prompt-stream-stall.md`, `daemon-runtime-dashboard.md`); local_runs; codex_ledger.
 
-#### S-M2. `agh-cli-flag-discipline`
+#### S-M2. `compozy-cli-flag-discipline`
 
 - **Mandate**: trim string-list inputs and drop empty/whitespace; use `cmd.Flags().Changed(name)` (Cobra) to distinguish "not set" from "zero value"; never silently ignore explicit overrides.
 - **Evidence**: autonomous-001 issue_025 (`--kind` silently ignored); autonomous-001 issue_030 (whitespace `--capability` survived). (compozy_tasks, global_runs)
 
-#### S-M3. `agh-secret-redaction-audit`
+#### S-M3. `compozy-secret-redaction-audit`
 
-- **Mandate**: claim*token (`agh_claim*\*`), MCP auth tokens, OAuth codes, PKCE verifiers, secret bindings never appear in logs/status/settings/error payloads/SSE/web/memory. Use hash forms (`claim_token_hash`).
+- **Mandate**: claim*token (`compozy_claim*\*`), MCP auth tokens, OAuth codes, PKCE verifiers, secret bindings never appear in logs/status/settings/error payloads/SSE/web/memory. Use hash forms (`claim_token_hash`).
 - **Evidence**: codex_ledger (Hermes Task 5 + autonomy Task 9 codified the patterns); compozy_tasks (ADR-003/011/012). Autonomy domain validation rejects raw `claim_token` in result metadata.
 
-#### S-M4. `agh-symlink-escape-hardening`
+#### S-M4. `compozy-symlink-escape-hardening`
 
 - **Mandate**: skill sidecars, skill files, managed-extension dependency copies, bundle install paths verify resolved targets remain inside approved roots. Use `EvalSymlinks` + path-prefix check, not naive joins. Handle macOS `/private/var/folders` quirk.
 - **Evidence**: extgaps QA failures (TestCopyInstallTreeMaterializesSymlinkTargets etc.); mcp-auth-security ledger; multiple Hermes review batches. (codex_ledger, local_runs)
 
-#### S-M5. `agh-process-group-supervision`
+#### S-M5. `compozy-process-group-supervision`
 
 - **Mandate**: Unix process groups; Windows forced-exit fallback. Cross-build with `GOOS=windows GOARCH=amd64 go build` before claiming subprocess work complete. Centralize signaling helpers in `internal/procutil`.
 - **Evidence**: `acp-supervision` ledger (Windows fallbacks); session-stop-hang.md; PR 48 CI fix (Linux race exposure via `act`). (codex_ledger, codex_plans)
 
-#### S-M6. `agh-truthful-ui` (or `agh-no-fakery-ui`)
+#### S-M6. `compozy-truthful-ui` (or `compozy-no-fakery-ui`)
 
 - **Mandate**: UI must reflect actual backend support. No invented metrics, no plausible-looking but unmodeled controls. When Paper artboards conflict with daemon truth, daemon wins. Paper governs composition; `DESIGN.md` governs grammar.
 - **Evidence**: codex_plans (`automation-bridges-paper-redesign.md`, `network-paper-pages.md`, `bridge-web-e2e.md`).
 
-#### S-M7. `agh-hard-cut-rename`
+#### S-M7. `compozy-hard-cut-rename`
 
 - **Mandate**: when renaming a concept, sweep code, storage, APIs, CLI, extensions, specs, RFCs, AND `.compozy/tasks/*` artifacts simultaneously. Rewrite schema to final names. No aliases, no dual fields, no migration code.
 - **Evidence**: codex_plans (`network-rename-hard-cut`, `assistant-ui-hard-cut`, `workspace-menu-hardcut`, `remove-legacy-alpha`); codex_ledger (network rename hard-cut, channel↔bridge↔space).
 
-#### S-M8. `agh-prompt-streaming-protocol`
+#### S-M8. `compozy-prompt-streaming-protocol`
 
-- **Mandate**: prompt execution detached from request context via `context.WithoutCancel`; explicit `CancelPrompt` API; AI SDK v6 UI-message parts (`tool-input-start` → `tool-input-available` → `tool-output-available`); AGH-specific data parts (`data-agh-permission`, `data-agh-event`) are additive only.
+- **Mandate**: prompt execution detached from request context via `context.WithoutCancel`; explicit `CancelPrompt` API; AI SDK v6 UI-message parts (`tool-input-start` → `tool-input-available` → `tool-output-available`); Compozy-specific data parts (`data-compozy-permission`, `data-compozy-event`) are additive only.
 - **Evidence**: codex_plans (`prompt-stream-stall.md`, `assistant-ui-hard-cut.md`, `acp-history-replay.md`); codex_ledger (prompt-stream-stall is a four-cause incident).
 
-#### S-M9. `agh-techspec-quality-gate`
+#### S-M9. `compozy-techspec-quality-gate`
 
 - **Mandate**: refuse to mark a techspec ready-to-execute without 6 markers — (a) MVP boundary statement, (b) listed Architectural Boundaries, (c) Go interface signatures pasted as code blocks, (d) data-model field rationale, (e) side-table-vs-JSON decisions, (f) lease/safety invariants enumerated as numbered list.
 - **Evidence**: compozy_tasks — autonomy techspec (cleanly executed across 18 tasks with 1 review round) has all 6 markers; release-adjustments and qa-review (no techspec) have unresolved review queues.
 
-#### S-M10. `agh-shared-handler-rule`
+#### S-M10. `compozy-shared-handler-rule`
 
 - **Mandate**: every REST/UDS endpoint lives as a shared `BaseHandlers` method in `internal/api/core`; HTTP and UDS only choose registration and authentication. No transport-duplicated parsing/validation.
 - **Evidence**: codex_plans (`hooks-cli-endpoints.md`, `api-contract-codegen.md`, `bridge-web-e2e.md`).
 
-#### S-M11. `agh-observability-events`
+#### S-M11. `compozy-observability-events`
 
 - **Mandate**: every domain operation emits a canonical event with correlation keys (`workspace_id`, `session_id`, `task_id`, `run_id`, etc.). Cover with a coverage matrix test that fails if any required lifecycle path doesn't emit its canonical event.
 - **Evidence**: codex_plans (`observability-spine.md` is the substrate; nearly every later plan extends events); compozy_tasks `_techspec.md` enumerates 14+ metrics + 19+ structured log fields.
 
-#### S-M12. `agh-store-sqlite-hygiene`
+#### S-M12. `compozy-store-sqlite-hygiene`
 
 - **Mandate**: `recoverSQLiteDatabase` paths rename `.db` AND `-wal`/`-shm` siblings. `BEGIN IMMEDIATE` for atomic claim/lease. Schema-version bump on every column change.
 - **Evidence**: refac-v2/issue_001 (Critical WAL recovery bug); harness review flagging `CREATE TABLE IF NOT EXISTS` schema evolution. (local_runs, codex_ledger)
 
-#### S-M13. `agh-memory-consolidation-design`
+#### S-M13. `compozy-memory-consolidation-design`
 
 - **Mandate**: AutoDream three-gate cascade (Time → Sessions → Lock) ordered by computational cost. Forked-agent execution. Four-type memory taxonomy (`user/feedback/project/reference`); three scopes (`agent/workspace/global`). `sanitizePathKey` + `realpathDeepestExisting` for path security.
 - **Evidence**: qmd_collections (RFC 002 + claude-code AutoDream article — direct ancestor). `internal/memory/consolidation/` already exists in tree.
 
-#### S-M14. `agh-network-rfc-author`
+#### S-M14. `compozy-network-rfc-author`
 
 - **Mandate**: layered RFC structure (Core / Runtime Delivery / Trust); v0/v1 wire-compat; six canonical message kinds; six lifecycle states; commit-first in-process delivery; JCS+Ed25519 verification steps; proof-stripping defense (verified-format without proof = `rejected`, not `unverified`).
 - **Evidence**: qmd_collections (RFC 003-v0, RFC 004 already implement this).
 
-#### S-M15. `agh-ecosystem-positioning`
+#### S-M15. `compozy-ecosystem-positioning`
 
-- **Mandate**: single-source-of-truth on what AGH is NOT (workflow engine, federation protocol, MCP replacement, A2A replacement) and what it competes on (runtime/SDK/observability/DX _outside_ the open agent network protocol).
-- **Evidence**: qmd_collections — RFC 003-old §4.5 explicitly states this. Critical for site/docs work. The `agh-site-*`, `agh-docs/`, `agh-compozy/` collections are empty (no public artifacts yet).
+- **Mandate**: single-source-of-truth on what Compozy is NOT (workflow engine, federation protocol, MCP replacement, A2A replacement) and what it competes on (runtime/SDK/observability/DX _outside_ the open agent network protocol).
+- **Evidence**: qmd_collections — RFC 003-old §4.5 explicitly states this. Critical for site/docs work. The `compozy-site-*`, `compozy-docs/`, `compozy-compozy/` collections are empty (no public artifacts yet).
 
 ### LOW priority (specialized or narrow — consider before adoption)
 
 | Skill                             | Rationale                                                                                       | Source          |
 | --------------------------------- | ----------------------------------------------------------------------------------------------- | --------------- |
-| `agh-msw-storybook-grouping`      | Web-specific, narrow — could fold into `app-renderer-systems` skill                             | codex_plans     |
-| `act-linux-repro`                 | Could be a documented runbook step in `agh-process-group-supervision` instead of separate skill | codex_ledger    |
-| `agh-bridge-removal-discipline`   | One-off cleanup pattern; might just be a CLAUDE.md rule                                         | codex_ledger    |
-| `agh-context-budget-discipline`   | Hard to enforce mechanically — better as a CLAUDE.md rule                                       | qmd_collections |
-| `agh-agent-md-author`             | Future-state (RFC 001 not yet implemented) — defer                                              | qmd_collections |
+| `compozy-msw-storybook-grouping`      | Web-specific, narrow — could fold into `app-renderer-systems` skill                             | codex_plans     |
+| `act-linux-repro`                 | Could be a documented runbook step in `compozy-process-group-supervision` instead of separate skill | codex_ledger    |
+| `compozy-bridge-removal-discipline`   | One-off cleanup pattern; might just be a CLAUDE.md rule                                         | codex_ledger    |
+| `compozy-context-budget-discipline`   | Hard to enforce mechanically — better as a CLAUDE.md rule                                       | qmd_collections |
+| `compozy-agent-md-author`             | Future-state (RFC 001 not yet implemented) — defer                                              | qmd_collections |
 | `cy-domain-validate-method`       | Narrow request-type pattern; could be a CLAUDE.md item                                          | global_runs     |
 | `cy-review-batch-sizer`           | Workflow ergonomics — could extend `cy-fix-reviews`                                             | global_runs     |
 | `cy-prompt-fixture-canonicalizer` | One incident only (autonomy BUG-002)                                                            | global_runs     |
@@ -174,7 +174,7 @@ Listed in 3 priority bands. Each entry: name → trigger → mandate → evidenc
 - Alternate review-loop tooling (`cy-review-round` + `cy-fix-reviews` + `fix-coderabbit-review` is canonical)
 - New `.claude/agents/*-advisor.md` archetypes (six council archetypes are intentional)
 - A "code-review" or generic "audit" skill (overlaps with `architectural-analysis`, `refactoring-analysis`, `adversarial-review`, `security-review`)
-- An "AGH-docs" skill (`documentation-writer` + `crafting-effective-readmes` cover docs)
+- An "Compozy-docs" skill (`documentation-writer` + `crafting-effective-readmes` cover docs)
 - Cron/schedule-based CI skills (`feedback_ci_no_cron.md` user memory rejects this)
 
 ---
@@ -239,11 +239,11 @@ Sorted by source-count (cross-validated lessons first). Each is a concrete incid
 
 **L26. Defer crypto to ship.** RFC 003 wire envelope shipped as v0 (no crypto) → v1 (Baseline Trust Profile) without breaking wire compat. Wire-compatibility-first beats crypto-first. (qmd_collections)
 
-**L27. "Format, not runtime" trap.** AgentSkills/AGENTS.md/A2A Agent Cards are file formats without runtime governance. AGH's pattern: extend (not fork) the format AND add the runtime. Always ask "is the upstream a format or a runtime?" before composing vs. replacing. (qmd_collections)
+**L27. "Format, not runtime" trap.** AgentSkills/AGENTS.md/A2A Agent Cards are file formats without runtime governance. Compozy's pattern: extend (not fork) the format AND add the runtime. Always ask "is the upstream a format or a runtime?" before composing vs. replacing. (qmd_collections)
 
 **L28. Five-layer precedence is the right number.** Skills/memory/agent: Bundled → Marketplace → User → Additional → Workspace. Six is too many; three loses Marketplace vs User trust tiers. (qmd_collections)
 
-**L29. AGH was 80% built before the autonomy program.** The autonomy work was _integration_, not _invention_. Surfaces a methodology: when scoping a new program, count what already exists. (global_runs analysis intro)
+**L29. Compozy was 80% built before the autonomy program.** The autonomy work was _integration_, not _invention_. Surfaces a methodology: when scoping a new program, count what already exists. (global_runs analysis intro)
 
 **L30. One QA pass surfaces cross-component drift `make verify` misses.** Three E2E regressions (BUG-001/002/003) all rooted in test-vs-runtime contract drift, not production bugs. (compozy_tasks task_18, global_runs)
 
@@ -264,7 +264,7 @@ Promote the existing soft "table-driven default" wording to a hard rule. Reviewe
 
 **P-T1.4 (greenfield deletion)**: _"Every breaking-change techspec must explicitly name its delete targets. 'Delete the old thing' is not a default; it is a checklist item that must be enumerated."_
 
-**P-T1.5 (codegen co-ship)**: _"Generated artifacts ship in the same PR as their source. After any change to `openapi/agh.json`, `openapi/compozy-daemon.json`, `internal/api/contract/**`, or any DTO: run `make codegen`, verify `make codegen-check`, run `make web-typecheck` and `make web-test`. Web fixtures and tests update in lockstep."_
+**P-T1.5 (codegen co-ship)**: _"Generated artifacts ship in the same PR as their source. After any change to `openapi/compozy.json`, `openapi/compozy-daemon.json`, `internal/api/contract/**`, or any DTO: run `make codegen`, verify `make codegen-check`, run `make web-typecheck` and `make web-test`. Web fixtures and tests update in lockstep."_
 
 **P-T1.6 (schema migrations)**: _"Any change to a SQLite column, index, or constraint MUST add a versioned migration in the migrations registry. `EnsureSchema`-style boot reconciliation is forbidden for column changes. Test fresh-DB and reopen-after-restart paths."_
 
@@ -278,7 +278,7 @@ Promote the existing soft "table-driven default" wording to a hard rule. Reviewe
 
 **P-T2.4 (web/docs impact)**: _"Every backend feature task includes a `Web/Docs Impact` subitem listing affected `web/` routes/components/hooks AND `packages/site` doc pages. Backend-only tasks may declare 'no impact' but only after analysis."_
 
-**P-T2.5 (worktree isolation)**: _"When the user runs multiple AGH/Compozy agents in parallel worktrees, every test or QA run uses a unique `AGH_HOME` and unique daemon ports. Default home and default port use is forbidden in QA flows when concurrency is signaled."_
+**P-T2.5 (worktree isolation)**: _"When the user runs multiple Compozy/Compozy agents in parallel worktrees, every test or QA run uses a unique `COMPOZY_HOME` and unique daemon ports. Default home and default port use is forbidden in QA flows when concurrency is signaled."_
 
 **P-T2.6 (detached prompt lifetime)**: _"Any work that outlives an HTTP/UDS request — prompts, network channel sends, automation jobs — MUST detach via `context.WithoutCancel(...)`. Never tie execution lifetime to request lifetime. Expose explicit cancel endpoints (e.g., `POST /api/sessions/:id/prompt/cancel`)."_
 
@@ -304,7 +304,7 @@ Promote the existing soft "table-driven default" wording to a hard rule. Reviewe
 
 **P-T2.17 (Linux-race CI parity)**: _"Before claiming `make verify` complete on race-sensitive packages (`internal/session`, `internal/acp`, `internal/hooks`, `internal/subprocess`, `internal/resources`), reproduce locally with `act workflow_dispatch -W .github/workflows/ci.yml -j verify --container-architecture linux/amd64`."_
 
-**P-T2.18 (secret redaction non-negotiable)**: _"`claim_token` (`agh*claim*_`), MCP auth tokens, OAuth codes, PKCE verifiers, and secret bindings MUST NEVER appear in logs, status APIs, settings views, error payloads, channel messages, SSE, web UI, or memory. Use hash forms (`claim_token_hash`) over the wire."\*
+**P-T2.18 (secret redaction non-negotiable)**: _"`claim_token` (`compozy*claim*_`), MCP auth tokens, OAuth codes, PKCE verifiers, and secret bindings MUST NEVER appear in logs, status APIs, settings views, error payloads, channel messages, SSE, web UI, or memory. Use hash forms (`claim_token_hash`) over the wire."\*
 
 **P-T2.19 (symlink-escape hardening)**: _"Skill sidecars, skill files, managed-extension copies, and bundle install paths MUST verify resolved targets remain inside approved roots. Use `EvalSymlinks` + path-prefix check, not naive joins."_
 
@@ -338,7 +338,7 @@ Promote the existing soft "table-driven default" wording to a hard rule. Reviewe
 
 **P-T3.3 (competitor refs in tasks)**: _"When a TechSpec relies on `.resources/<repo>` references, each generated task includes explicit file paths from those competitors so the implementing agent reads them too. Reference-bearing analysis files belong under `.compozy/tasks/<slug>/analysis/`."_ (codex_sessions repeated)
 
-**P-T3.4 (CLI verb identity)**: _"Agent-facing CLI commands stay identity-inferred from `AGH_SESSION_ID` / `AGH_AGENT` via `internal/agentidentity`. Operator endpoints MUST NOT infer agent identity from environment variables."_ (compozy_tasks ADR-002)
+**P-T3.4 (CLI verb identity)**: _"Agent-facing CLI commands stay identity-inferred from `COMPOZY_SESSION_ID` / `COMPOZY_AGENT` via `internal/agentidentity`. Operator endpoints MUST NOT infer agent identity from environment variables."_ (compozy_tasks ADR-002)
 
 **P-T3.5 (permission narrowing atoms)**: _"Permission narrowing compares concrete atoms only: tools, skills, MCP server IDs, workspace path grants, network channels, env profile grants. Subset-only; unknown child atoms count as widening and reject the spawn."_ (compozy_tasks ADR-006)
 
@@ -360,7 +360,7 @@ Promote the existing soft "table-driven default" wording to a hard rule. Reviewe
 
 **P-T3.14 (path security helpers)**: _"Filesystem helpers resolving user-controlled or agent-controlled paths use the `sanitizePathKey` + `realpathDeepestExisting` pattern (defenses against null-byte, URL-encoded traversal, Unicode normalization, symlink-escape)."_ (qmd_collections)
 
-**P-T3.15 (runtime moat)**: _"AGH's competitive surface is runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol. AGH Network must remain implementable outside AGH. Any feature requiring AGH to interoperate is a design smell."_ (qmd_collections)
+**P-T3.15 (runtime moat)**: _"Compozy's competitive surface is runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol. Compozy Network must remain implementable outside Compozy. Any feature requiring Compozy to interoperate is a design smell."_ (qmd_collections)
 
 **P-T3.16 (canonical ledger format)**: _"Ledger files use the canonical `Goal / Constraints / Decisions / State / Done / Now / Next / Open Questions / Working set` format. The 'Working set' section captures exact file paths + commands."_ (codex_ledger)
 
@@ -396,7 +396,7 @@ Pulled from `analysis/analysis_existing_surfaces.md`:
 
 ### About user memory (`MEMORY.md`)
 
-The user-memory file at `~/.claude/projects/-Users-pedronauck-Dev-compozy-agh/memory/` is silent on:
+The user-memory file at `~/.claude/projects/-Users-pedronauck-Dev-compozy-compozy/memory/` is silent on:
 
 - The autonomous mode kernel (ADRs 001-012)
 - The manual-first contract
@@ -408,11 +408,11 @@ The user-memory file at `~/.claude/projects/-Users-pedronauck-Dev-compozy-agh/me
 
 If we don't promote any of the above to CLAUDE.md, several are good user-memory candidates (they're project-shape facts that persist across conversations).
 
-### About the empty agh-\* QMD collections
+### About the empty compozy-\* QMD collections
 
-`qmd://agh-compozy/`, `qmd://agh-docs/`, `qmd://agh-site-archived/`, `qmd://agh-site-ledger/`, `qmd://agh-site-plans/` are all 0 files. The Fumadocs site project (per existing memory `project_site_docs.md`) is approved but not yet indexed. We should either populate these collections or remove them from QMD to avoid confusion.
+`qmd://compozy-compozy/`, `qmd://compozy-docs/`, `qmd://compozy-site-archived/`, `qmd://compozy-site-ledger/`, `qmd://compozy-site-plans/` are all 0 files. The Fumadocs site project (per existing memory `project_site_docs.md`) is approved but not yet indexed. We should either populate these collections or remove them from QMD to avoid confusion.
 
-### About the `agh-rfcs-local` collection
+### About the `compozy-rfcs-local` collection
 
 5 RFCs (~125KB total). RFC 002 is partly retrospective of code already in tree (`internal/skills/`, `verify_test.go`, `provenance.go`, `mcp.go`, `mcp_sidecar.go`, `hook_decl.go`). RFCs 003-v0 and 004 use `capability`; the older 003 still uses `recipe`. The corpus would benefit from a canonical glossary.
 
@@ -433,4 +433,4 @@ If Pedro approves, the next steps would be (in order):
 3. **Create new skills via `/writing-skills`** in this order: HIGH-priority workflow skills first (`cy-tasks-tail-qa-pair`, `cy-spec-peer-review`, `cy-web-docs-impact`, `agh-worktree-isolation`), then HIGH-priority code-discipline skills (`agh-test-conventions`, `agh-cleanup-failure-paths`, `agh-schema-migration`, `agh-contract-codegen-coship`).
 4. **Capture lesson-learned candidates** in a `docs/_memory/lessons/` registry — start with the Tier 1 (multi-source) lessons.
 5. **Decide on standing directives doc** (`docs/_memory/standing_directives.md`) for `long-running-sessions` and `remove-legacy-alpha`.
-6. **Decide on AGH glossary** to lock down `capability` vs. `recipe` vs. `skill`, AGENT.md vs. AGENTS.md, AGH-Network Peer Card vs. A2A Agent Card, and the "what AGH is not" list. Belongs on the marketing site.
+6. **Decide on Compozy glossary** to lock down `capability` vs. `recipe` vs. `skill`, AGENT.md vs. AGENTS.md, Compozy-Network Peer Card vs. A2A Agent Card, and the "what Compozy is not" list. Belongs on the marketing site.

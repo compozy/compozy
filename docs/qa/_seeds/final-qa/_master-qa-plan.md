@@ -1,16 +1,16 @@
 ---
 name: final-qa-master-plan
-description: Authoritative pre-release QA plan for AGH. Defines philosophy, execution order, evidence requirements, gate criteria, fixture/bootstrap, real-LLM inventory, forbidden-needle rollup, cross-module failure matrix, decision points. Index of all 283 numbered scenarios across 15 module child plans.
+description: Authoritative pre-release QA plan for Compozy. Defines philosophy, execution order, evidence requirements, gate criteria, fixture/bootstrap, real-LLM inventory, forbidden-needle rollup, cross-module failure matrix, decision points. Index of all 283 numbered scenarios across 15 module child plans.
 type: qa-master-plan
 status: planning-complete · ready-for-execution
 authoring_run: 2026-05-02
-applies_to: AGH at HEAD; no production users; greenfield zero-legacy posture
+applies_to: Compozy at HEAD; no production users; greenfield zero-legacy posture
 language_policy: artifacts-en · conversation-brpt
 ---
 
-# AGH Final QA — Master Plan
+# Compozy Final QA — Master Plan
 
-> **Single mission.** Prove that every load-bearing AGH behavior — runtime, contracts, autonomy, memory, skills, tools, extensions, automation, network, API+CLI, web, docs, observability — works end-to-end against real LLMs and real agents, end-to-end through CLI / HTTP / UDS, with every claim cited by `file:line` and every assertion backed by captured evidence. No glorified integration tests; no mocks pretending to be live; no controls in the UI that the daemon doesn't actually implement.
+> **Single mission.** Prove that every load-bearing Compozy behavior — runtime, contracts, autonomy, memory, skills, tools, extensions, automation, network, API+CLI, web, docs, observability — works end-to-end against real LLMs and real agents, end-to-end through CLI / HTTP / UDS, with every claim cited by `file:line` and every assertion backed by captured evidence. No glorified integration tests; no mocks pretending to be live; no controls in the UI that the daemon doesn't actually implement.
 
 ## Table of contents
 
@@ -34,16 +34,16 @@ language_policy: artifacts-en · conversation-brpt
 
 ## 1. Operating model
 
-The QA philosophy AGH is adopting is the synthesis of the openclaw QA framework (`_references/openclaw-qa-patterns.md`) and the hermes test discipline (`_references/hermes-qa-patterns.md`), translated to AGH's Go runtime + ACP subprocess + SQLite persistence + HTTP/SSE/UDS surfaces.
+The QA philosophy Compozy is adopting is the synthesis of the openclaw QA framework (`_references/openclaw-qa-patterns.md`) and the hermes test discipline (`_references/hermes-qa-patterns.md`), translated to Compozy's Go runtime + ACP subprocess + SQLite persistence + HTTP/SSE/UDS surfaces.
 
 ### 1.1 Core tenets
 
 1. **Behavior first.** Every scenario asserts an observable product behavior, not the shape of an internal call. Operators run scenarios; they don't read mocks.
 2. **Real-LLM where it matters.** Spawning Claude Code, OpenClaw, or Hermes via ACP and watching the JSON-RPC + SSE evidence is the canonical proof for any interactive surface. `mock-acp` is permitted only where determinism (claim-race, async-bridge, codec) is the actual property under test.
-3. **Tri-state liveness.** Every scenario declares `live: true | false | conditional`. Live runs that need credentials use a pooled credential broker (openclaw pattern, AGH-local SQLite-backed implementation per `08-extensions-bridges.md` §6).
+3. **Tri-state liveness.** Every scenario declares `live: true | false | conditional`. Live runs that need credentials use a pooled credential broker (openclaw pattern, Compozy-local SQLite-backed implementation per `08-extensions-bridges.md` §6).
 4. **Evidence is the artifact.** Every scenario lists what to capture: log path, db query, SSE stream snapshot, HAR (web), screenshots (web), goroutine snapshot (where goleak is asserted). Without evidence, "passed" is a claim, not a proof.
 5. **`file:line` citations are mandatory.** Every behavioral claim in this plan and its children cites the implementation it's proving. If the citation rots, the citation rots in the plan, not in a hidden test.
-6. **Hermetic by default, but never against the provider contract.** Every run uses an isolated `AGH_HOME`, daemon port, UDS socket, and Web proxy target. Bound-secret, brokered, and explicitly isolated-home lanes use isolated `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` lanes with `home_policy=operator` preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior. The bootstrap manifest is the source of truth (see §8).
+6. **Hermetic by default, but never against the provider contract.** Every run uses an isolated `COMPOZY_HOME`, daemon port, UDS socket, and Web proxy target. Bound-secret, brokered, and explicitly isolated-home lanes use isolated `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` lanes with `home_policy=operator` preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior. The bootstrap manifest is the source of truth (see §8).
 7. **Truthful UI.** UI elements that the daemon doesn't actually serve must NOT render. The web QA includes a positive audit (`UI-19`) and the cross-cutting plan elevates this into a build-rejecting gate (`XCT-14`).
 8. **Greenfield posture.** No backward-compatibility shims. No "soft" assertions. Failure means we delete the offending code or the offending test, not both.
 9. **Two-touch rule.** If a child surfaces the same defect twice during execution, the third encounter triggers a TechSpec, not a third patch.
@@ -53,14 +53,14 @@ The QA philosophy AGH is adopting is the synthesis of the openclaw QA framework 
 
 - It is **not** a benchmarking pass. Benchmarks live in `extreme-software-optimization` and frontier-harness work; performance regressions are flagged but not tuned here.
 - It is **not** a security audit replacement. `security-review` skill remains the canonical security workflow; this pass exercises the *runtime invariants* that security review proves are *correctly invariants in code*. The two complement.
-- It is **not** an SDK conformance test for third-party agent runtimes (a separate AGH Network conformance suite per RFC 003/004 covers that).
+- It is **not** an SDK conformance test for third-party agent runtimes (a separate Compozy Network conformance suite per RFC 003/004 covers that).
 
 ### 1.3 Why two reference frameworks (and not just one)
 
 - **openclaw** gives us the scenario anatomy, qa-channel, qa-coverage CLI, frontier vs regression separation, and the credential broker shape.
 - **hermes** gives us the python-tested-discipline translated to Go: build-tag lanes, hermetic env, packaging-drift tests, atomic-replace-symlinks, OAuth round-trip with mocked transport, cache-isolation tests, source-text invariants, and the `tests/run_interrupt_test.py`-style "explicitly NOT a test runner test" pattern.
 
-The two together give AGH a balanced execution model: openclaw-style scenarios where the unit of value is the operator journey, hermes-style hermetic Go-tag lanes where the unit of value is correctness under concurrency, signals, OS quirks, and crash recovery.
+The two together give Compozy a balanced execution model: openclaw-style scenarios where the unit of value is the operator journey, hermes-style hermetic Go-tag lanes where the unit of value is correctness under concurrency, signals, OS quirks, and crash recovery.
 
 ---
 
@@ -144,7 +144,7 @@ The full edge-case inventory is per-child. The cross-cutting view to keep in min
 | Encoding | UTF-8 BOM (CFG §5), trailing-newline missing (CFG §5), embedded tabs in TOML (CFG §5), embedded newlines in secrets (CFG §5), MDX with backtick-in-fence (DOC §5) |
 | Concurrency | claim race (AUT-01), lock race (MEM-05), concurrent prompts on session (ACP-15), concurrent tool dispatch (TOL-16), concurrent cron triggers (CRN-12), concurrent config writes (CFG §5) |
 | Crash recovery | kill -9 mid-prompt (DB-04), kill -9 between append + broadcast (OBS-03), kill -9 mid-cron-fire (CRN-05), kill -9 before lease expire (AUT-08) |
-| Authentication | webhook unsigned (CRN-07), webhook replay (CRN §5), proof-stripped peer (NET-02), invalid proof (NET-03), unknown-key peer (NET-04), revoked bridge token (EXT-17), spoofed AGH_SESSION_ID (ACP-10) |
+| Authentication | webhook unsigned (CRN-07), webhook replay (CRN §5), proof-stripped peer (NET-02), invalid proof (NET-03), unknown-key peer (NET-04), revoked bridge token (EXT-17), spoofed COMPOZY_SESSION_ID (ACP-10) |
 | Resources | very large prompt output >1MB (ACP-16), 10k events/s (OBS-16), 1k memory writes/s (MEM-17), oversize webhook (CRN-17), 1000 inbound bridge messages/min (EXT-16), 10k peer-card requests/min (NET-17) |
 | Path security | full pattern-set: TOL-04..07, SKL-07..08, EXT-04, plus the load-time scan invariant SKL-04 |
 | Daemon downgrade / upgrade | multi-binary upgrade (DB-10), version mismatch (ACP-17), cross-version peers (NET-09) |
@@ -161,16 +161,16 @@ Per child, but the QA gate must catch at least the following classes:
 | Class | Where it bites users | Catch in this plan |
 |-------|---------------------|--------------------|
 | Error message lacks context | "validation failed" without key path | CFG §7, DB §7 |
-| Status output lies | `agh status` says healthy with stuck subprocess | DB-11, DB-12 |
+| Status output lies | `compozy status` says healthy with stuck subprocess | DB-11, DB-12 |
 | Raw secrets in logs/output | OPENAI_API_KEY, claim_token, vault values | TOL-08, OBS-04, OBS-05, CFG §7 |
 | Truthful UI break | a control whose backend doesn't ship | UI-19, XCT-14 |
-| Vocabulary drift | `recipe` / `workflow` / `procedure` / `playbook` for current AGH behavior | UI-18 (web COPY scrape), DOC-14 (MDX COPY scrape), site-copy task §1 |
+| Vocabulary drift | `recipe` / `workflow` / `procedure` / `playbook` for current Compozy behavior | UI-18 (web COPY scrape), DOC-14 (MDX COPY scrape), site-copy task §1 |
 | Help text rot | CLI help disagrees with cobra | DOC-05 (CLI reference render) + DOC-13 (bun gate) |
 | Codegen drift | contract change without `make codegen` | API-07, API-08, XCT-15 |
 | Restart-required missing flag | UI does not surface `restart_required` | UI-07, CFG-05 |
 | Hot-install hot-vs-cold ambiguity | new skill not visible to live session | SKL-11 (open question §10) |
 | Bridge auth-revoked silent | revoked token → silent retry storm | EXT-17 |
-| `agh extension info` vs `status` | mismatch CLI verb in docs | DOC-05 + EXT §1 (canonical: `status`) |
+| `compozy extension info` vs `status` | mismatch CLI verb in docs | DOC-05 + EXT §1 (canonical: `status`) |
 
 ---
 
@@ -210,7 +210,7 @@ Every captured artifact (logs, SSE streams, transcripts, db rows queried, web HA
 
 ### 7.2 Vocabulary forbidden (case-insensitive in user-facing artifacts only)
 
-For describing CURRENT AGH artifacts (capabilities), the words `recipe`, `workflow`, `procedure`, `playbook` are forbidden. Allowed only when discussing OTHER agent ecosystems or comparing.
+For describing CURRENT Compozy artifacts (capabilities), the words `recipe`, `workflow`, `procedure`, `playbook` are forbidden. Allowed only when discussing OTHER agent ecosystems or comparing.
 
 ### 7.3 Test-only fixture string (must match the seeded fixture, not absent)
 
@@ -227,11 +227,11 @@ The needle's *absence* is the proof; its *presence in any output* is a ship-bloc
 
 Every QA run starts with `agh-qa-bootstrap`. It produces a `bootstrap-manifest.json` and `bootstrap.env` containing:
 
-- `AGH_HOME` — unique directory under `.tmp/qa/<run-id>/agh-home`
-- `AGH_DAEMON_PORT` — free port allocated for the run
-- `AGH_UDS_SOCKET` — unique socket path
-- `AGH_TMUX_SOCKET` — unique tmux-bridge socket path (bridge tests)
-- `AGH_WEB_API_PROXY_TARGET` — derived from above for isolated Web QA
+- `COMPOZY_HOME` — unique directory under `.tmp/qa/<run-id>/compozy-home`
+- `COMPOZY_DAEMON_PORT` — free port allocated for the run
+- `COMPOZY_UDS_SOCKET` — unique socket path
+- `COMPOZY_TMUX_SOCKET` — unique tmux-bridge socket path (bridge tests)
+- `COMPOZY_WEB_API_PROXY_TARGET` — derived from above for isolated Web QA
 - `PROVIDER_HOME` — isolated provider state root for bound-secret, brokered, and explicitly isolated-home lanes
 - `PROVIDER_CODEX_HOME` — isolated Codex root when the lane actually uses Codex-specific auth/config
 - Pooled provider credentials (Slack/Telegram/etc.) leased via the broker (§8.4)
@@ -240,17 +240,17 @@ A fresh manifest per pass by default. A previous manifest is reused only when co
 
 ### 8.2 Worktree isolation (parallel runs)
 
-Concurrent runs MUST allocate isolated `AGH_HOME` + ports + sockets per the parallel-QA rule. The `agh-worktree-isolation` skill is the canonical helper. Default port use is forbidden when concurrency is signaled.
+Concurrent runs MUST allocate isolated `COMPOZY_HOME` + ports + sockets per the parallel-QA rule. The `agh-worktree-isolation` skill is the canonical helper. Default port use is forbidden when concurrency is signaled.
 
 ### 8.3 Provider-home isolation
 
 Provider-backed live scenarios follow each provider's auth contract. Bound-secret, brokered, and explicitly isolated-home lanes point at `PROVIDER_HOME` and `PROVIDER_CODEX_HOME` derived from the manifest. `native_cli` lanes with `home_policy=operator` preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior.
 
-### 8.4 Credential broker (openclaw pattern, AGH-local)
+### 8.4 Credential broker (openclaw pattern, Compozy-local)
 
 For live Slack/Telegram/Network scenarios that need credentials:
 
-- **Storage**: SQLite under `.compozy/qa-broker.db` (AGH-local; not Convex; we do not pull a Convex dependency for QA).
+- **Storage**: SQLite under `.compozy/qa-broker.db` (Compozy-local; not Convex; we do not pull a Convex dependency for QA).
 - **Lease**: `qa-broker lease --capability slack-bot` returns a token + lease TTL. Returns `unavailable` if pool empty (scenario auto-skips with `live: conditional → live: skipped`).
 - **Release**: lease is auto-released on scenario success; explicit release on failure to avoid lock-out.
 - **Rotation**: revoked tokens are removed from pool at the broker, not by the scenario.
@@ -348,7 +348,7 @@ These came out of the research. The operator MUST pick a side before the live la
 5. **DST spring-forward** — cron at 02:30 in spring-forward window: skipped or rolled forward? CRN-11 gates on the answer.
 6. **v0 ↔ v1 network negotiation** — clean version-mismatch error vs negotiation handshake? NET-09 gates.
 7. **Spawn depth cap** — `DefaultSpawnMaxDepth = 1` today (`internal/session/spawn.go:17-18`). The OBS-17 deep-lineage scenario was tuned to depth 1. Decide: keep at 1 (deny depth>1 with typed event), raise to 5/6, or make per-agent-overridable.
-8. **`agh extension info` vs `agh extension status`** — canonical command name. Today the implementation has `status` (`internal/cli/extension.go:220`). EXT-09 picks `status` and recommends docs sync.
+8. **`compozy extension info` vs `compozy extension status`** — canonical command name. Today the implementation has `status` (`internal/cli/extension.go:220`). EXT-09 picks `status` and recommends docs sync.
 9. **Observability matrix red rows** — four canonical event names not 100% pinned by code-grep (memory write, health status change, ACP fresh-start fallback, bridge auth failure). OBS-01 produces `coverage_matrix.json`; the operator must close the four flags in the same commit that lands the live-lane fix.
 
 Until these are decided, the affected scenarios run with `expected: TBD-decision-N` placeholders that the executor renders as "BLOCKED — decision N pending."
@@ -426,7 +426,7 @@ Spot-check (the plan does not duplicate `docs/_memory/lessons/L-*.md` content; i
 ## 15. Out of scope and intentional omissions
 
 - Performance benchmarks (frontier-harness work; QA flags regressions, doesn't tune)
-- Third-party AGH Network conformance suite (separate test target per RFC 003/004)
+- Third-party Compozy Network conformance suite (separate test target per RFC 003/004)
 - Marketplace integration tests (no real marketplace surface yet beyond local registry)
 - Extension marketplace publishing flow (out of v0 scope)
 - IDE integrations beyond CLI/HTTP/UDS surfaces

@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell
 ---
 
-story: As an operator I decide how a channel routes unaddressed work at the moment I create it, and I only name a coordinator once there are real peers to name.
+story: As a person running agent work I decide how a channel routes unaddressed work at the moment I create it, and I only name a coordinator once there are real peers to name.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.6-4.7), task_02, implemented 2026-07-25. Before this change create sent no fanout policy at all (the daemon defaulted to `capability_match`) and edit exposed the policy and coordinator as plain selects with no locked identity.
 

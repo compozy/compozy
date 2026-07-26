@@ -68,9 +68,9 @@ The check script greps for:
 
 If any marker fails, print which one and refuse to mark the spec ready.
 
-## AGH-specific mandatory sections
+## Compozy-specific mandatory sections
 
-The six quality markers are not the whole approval gate. AGH TechSpecs must also include:
+The six quality markers are not the whole approval gate. Compozy TechSpecs must also include:
 
 - **Extensibility Integration Plan** — extension manifests, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, and protocol docs added/changed/removed or explicitly unaffected.
 - **Agent Manageability Plan** — CLI verbs, HTTP endpoints, UDS routes, structured outputs, status/config discovery, and deterministic errors agents will use to operate the feature.

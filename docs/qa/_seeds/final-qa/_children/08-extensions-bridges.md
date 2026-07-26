@@ -1,22 +1,22 @@
 ---
 name: 08-extensions-bridges
-description: AGH pre-release QA — extensions + bridges + bundles + bridge SDK module. Real-LLM scenarios required. Read-only research deliverable.
+description: Compozy pre-release QA — extensions + bridges + bundles + bridge SDK module. Real-LLM scenarios required. Read-only research deliverable.
 type: qa-child
 module: extensions-bridges
 owner: pre-release-qa
 references:
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
 ---
 
 # 08 — Extensions, Bridges, Bundles, and Bridge SDK QA
 
 ## 1. Module scope
 
-This child stresses every load-bearing surface in the AGH extension stack. An
-extension is the canonical AGH unit of "code that the daemon supervises but
+This child stresses every load-bearing surface in the Compozy extension stack. An
+extension is the canonical Compozy unit of "code that the daemon supervises but
 does not own": tool providers, hook subprocesses, memory backends, and
 bridge adapters all flow through one manifest, one registry, and one
 subprocess supervisor. Bundles are the activation projector that turns one
@@ -29,24 +29,24 @@ Packages and SDKs in scope (file:line citations are repo-absolute):
 
 | Surface              | Path                                                                           | Authoritative API                                                                                                                                                                                                                                                                                                  |
 | -------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Manifest + registry  | `/Users/pedronauck/Dev/compozy/agh/internal/extension/`                        | `LoadManifest` (`internal/extension/manifest.go:239`), `Manifest.Validate` (`:269`), `Registry.Install` (`internal/extension/registry.go:162`), `Uninstall` (`:171`), `Enable`/`Disable` (`:194`/`:199`), `installWithConfig` (lower in `registry.go`)                                                              |
-| Manager + supervisor | `/Users/pedronauck/Dev/compozy/agh/internal/extension/manager.go`              | `Manager.recoverExtension` (`:1093`), `launchRuntime` (`:1152`), `ExtensionPhaseRecover` (`:125`)                                                                                                                                                                                                                  |
-| Host API             | `/Users/pedronauck/Dev/compozy/agh/internal/extension/host_api.go`             | `HostAPIRateLimitedCode = -32002` (`:36-37`), `HostAPIInvalidParamsCode` (`:42-43`), default rate-limit / dedup TTL constants (`:47-52`)                                                                                                                                                                           |
-| Managed install      | `/Users/pedronauck/Dev/compozy/agh/internal/extension/install_managed.go`      | Symlink hardening for runtime dependency copy (`:355-572`); cycle detection (`:536`); escape rejection (`:562`)                                                                                                                                                                                                    |
-| Bundles spec         | `/Users/pedronauck/Dev/compozy/agh/internal/extension/bundle.go`               | `BundleSpec` (`:27`), `BundleProfile` (`:35`), `BundleAgent` (`:46`), `BundleChannel` (`:66`), `BundleJob` (`:71`), `BundleTrigger` (`:84`), `BundleBridgePreset` (`:96-104`); bundle root resolve (`:741-750`)                                                                                                     |
-| Bundle service       | `/Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go`                | `Activate` (`:220`), `Deactivate` (`:401`), `PreviewActivation` (`:203`), `reconcileLocked` rollback (`:268-287`, `:388-396`, `:416-425`), Network requirement confirmation, `joinRollbackFailure`                                                                                                              |
-| Bridge registry      | `/Users/pedronauck/Dev/compozy/agh/internal/bridges/registry.go`               | `Registry.CreateInstance`, `UpdateInstance`, `UpdateInstanceState`, `BuildRoutingKey`, `ResolveOrCreateRoute`                                                                                                                                                                                                      |
-| Bridge lifecycle     | `/Users/pedronauck/Dev/compozy/agh/internal/bridges/lifecycle.go`              | `ValidateInstanceStateTransition` (`:9`), `validateInstanceLifecycle` (`:43`), `transitionFromStarting/Ready/Degraded/AuthRequired/Error` (`:101+`)                                                                                                                                                                |
-| Bridge delivery      | `/Users/pedronauck/Dev/compozy/agh/internal/bridges/delivery_broker.go`        | `Broker.Deliver` (`:301`), `enqueueEventLocked` (`:334`/`:424`), bounded per-route queue (`:33,95,118-137`); defaults `defaultDeliveryQueueCapacity=4`, `defaultDeliveryRetryDelay=25ms`, `defaultDeliveryRequestTimeout=5s` (`internal/bridges/delivery_types.go:38-40`)                                          |
-| Bridge SDK (Go)      | `/Users/pedronauck/Dev/compozy/agh/internal/bridgesdk/`                        | `Runtime.Serve` (`internal/bridgesdk/runtime.go:82-100`), `RuntimeConfig` (`:33`), `Session` (`:54`), batching (`batching.go`), dedup (`dedup.go`), webhook helper (`webhook.go`), peer (`peer.go`), HostAPI client (`hostapi.go`)                                                                                  |
-| Bridge SDK (TS)      | `/Users/pedronauck/Dev/compozy/agh/sdk/typescript/src/`                        | `Extension` class (`sdk/typescript/src/extension.ts:109`), `REQUIRED_PROVIDES_METHODS` (`extension.ts:45-49`), tool registration `RegisteredTool` (`:103-107`), `HostAPI` (`host-api.ts`), `StdioTransport` (`transport.ts`)                                                                                       |
-| create-extension     | `/Users/pedronauck/Dev/compozy/agh/sdk/create-extension/`                      | `parseArgs` (`src/index.ts:30`), templates (`templates/{hook-subprocess,memory-backend,tool-provider,go-tool-provider}`), `DEFAULT_SDK_SPEC = "^0.1.0"`                                                                                                                                                            |
-| Bridge providers     | `/Users/pedronauck/Dev/compozy/agh/extensions/bridges/{slack,telegram,discord,gchat,github,linear,teams,whatsapp}` | Each `extension.toml` declares `bridge.platform`, `secret_slots` (e.g. `slack/extension.toml:14-22` for `bot_token`/`signing_secret`), and subprocess command (`./bin/<name>`) wired through bridge SDK runtime.                                                              |
-| Test harness         | `/Users/pedronauck/Dev/compozy/agh/internal/extensiontest/`                    | `bridge_adapter_harness.go`, `bridge_conformance_matrix.go`                                                                                                                                                                                                                                                        |
-| CLI                  | `/Users/pedronauck/Dev/compozy/agh/internal/cli/{extension,bundle,bridge}.go`  | `agh extension {search,list,install,remove,update,enable,disable,status}` (`extension.go:34-233`); `agh bundle {catalog,preview,activate,list,get,update}` (`bundle.go:20-148`); `agh bridge {list,get,create,update,enable,disable,...}` (`bridge.go:17-300`); restart guidance constants `extensionInstallRestartMessage`, `extensionUpdateRestartMessage` (`internal/cli/extension_marketplace.go:22-25`) |
+| Manifest + registry  | `/Users/pedronauck/Dev/compozy/compozy/internal/extension/`                        | `LoadManifest` (`internal/extension/manifest.go:239`), `Manifest.Validate` (`:269`), `Registry.Install` (`internal/extension/registry.go:162`), `Uninstall` (`:171`), `Enable`/`Disable` (`:194`/`:199`), `installWithConfig` (lower in `registry.go`)                                                              |
+| Manager + supervisor | `/Users/pedronauck/Dev/compozy/compozy/internal/extension/manager.go`              | `Manager.recoverExtension` (`:1093`), `launchRuntime` (`:1152`), `ExtensionPhaseRecover` (`:125`)                                                                                                                                                                                                                  |
+| Host API             | `/Users/pedronauck/Dev/compozy/compozy/internal/extension/host_api.go`             | `HostAPIRateLimitedCode = -32002` (`:36-37`), `HostAPIInvalidParamsCode` (`:42-43`), default rate-limit / dedup TTL constants (`:47-52`)                                                                                                                                                                           |
+| Managed install      | `/Users/pedronauck/Dev/compozy/compozy/internal/extension/install_managed.go`      | Symlink hardening for runtime dependency copy (`:355-572`); cycle detection (`:536`); escape rejection (`:562`)                                                                                                                                                                                                    |
+| Bundles spec         | `/Users/pedronauck/Dev/compozy/compozy/internal/extension/bundle.go`               | `BundleSpec` (`:27`), `BundleProfile` (`:35`), `BundleAgent` (`:46`), `BundleChannel` (`:66`), `BundleJob` (`:71`), `BundleTrigger` (`:84`), `BundleBridgePreset` (`:96-104`); bundle root resolve (`:741-750`)                                                                                                     |
+| Bundle service       | `/Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go`                | `Activate` (`:220`), `Deactivate` (`:401`), `PreviewActivation` (`:203`), `reconcileLocked` rollback (`:268-287`, `:388-396`, `:416-425`), Network requirement confirmation, `joinRollbackFailure`                                                                                                              |
+| Bridge registry      | `/Users/pedronauck/Dev/compozy/compozy/internal/bridges/registry.go`               | `Registry.CreateInstance`, `UpdateInstance`, `UpdateInstanceState`, `BuildRoutingKey`, `ResolveOrCreateRoute`                                                                                                                                                                                                      |
+| Bridge lifecycle     | `/Users/pedronauck/Dev/compozy/compozy/internal/bridges/lifecycle.go`              | `ValidateInstanceStateTransition` (`:9`), `validateInstanceLifecycle` (`:43`), `transitionFromStarting/Ready/Degraded/AuthRequired/Error` (`:101+`)                                                                                                                                                                |
+| Bridge delivery      | `/Users/pedronauck/Dev/compozy/compozy/internal/bridges/delivery_broker.go`        | `Broker.Deliver` (`:301`), `enqueueEventLocked` (`:334`/`:424`), bounded per-route queue (`:33,95,118-137`); defaults `defaultDeliveryQueueCapacity=4`, `defaultDeliveryRetryDelay=25ms`, `defaultDeliveryRequestTimeout=5s` (`internal/bridges/delivery_types.go:38-40`)                                          |
+| Bridge SDK (Go)      | `/Users/pedronauck/Dev/compozy/compozy/internal/bridgesdk/`                        | `Runtime.Serve` (`internal/bridgesdk/runtime.go:82-100`), `RuntimeConfig` (`:33`), `Session` (`:54`), batching (`batching.go`), dedup (`dedup.go`), webhook helper (`webhook.go`), peer (`peer.go`), HostAPI client (`hostapi.go`)                                                                                  |
+| Bridge SDK (TS)      | `/Users/pedronauck/Dev/compozy/compozy/sdk/typescript/src/`                        | `Extension` class (`sdk/typescript/src/extension.ts:109`), `REQUIRED_PROVIDES_METHODS` (`extension.ts:45-49`), tool registration `RegisteredTool` (`:103-107`), `HostAPI` (`host-api.ts`), `StdioTransport` (`transport.ts`)                                                                                       |
+| create-extension     | `/Users/pedronauck/Dev/compozy/compozy/sdk/create-extension/`                      | `parseArgs` (`src/index.ts:30`), templates (`templates/{hook-subprocess,memory-backend,tool-provider,go-tool-provider}`), `DEFAULT_SDK_SPEC = "^0.1.0"`                                                                                                                                                            |
+| Bridge providers     | `/Users/pedronauck/Dev/compozy/compozy/extensions/bridges/{slack,telegram,discord,gchat,github,linear,teams,whatsapp}` | Each `extension.toml` declares `bridge.platform`, `secret_slots` (e.g. `slack/extension.toml:14-22` for `bot_token`/`signing_secret`), and subprocess command (`./bin/<name>`) wired through bridge SDK runtime.                                                              |
+| Test harness         | `/Users/pedronauck/Dev/compozy/compozy/internal/extensiontest/`                    | `bridge_adapter_harness.go`, `bridge_conformance_matrix.go`                                                                                                                                                                                                                                                        |
+| CLI                  | `/Users/pedronauck/Dev/compozy/compozy/internal/cli/{extension,bundle,bridge}.go`  | `compozy extension {search,list,install,remove,update,enable,disable,status}` (`extension.go:34-233`); `compozy bundle {catalog,preview,activate,list,get,update}` (`bundle.go:20-148`); `compozy bridge {list,get,create,update,enable,disable,...}` (`bridge.go:17-300`); restart guidance constants `extensionInstallRestartMessage`, `extensionUpdateRestartMessage` (`internal/cli/extension_marketplace.go:22-25`) |
 
 Out of scope (covered by other children): full ACP transport correctness
-(module 03), autonomy kernel internals (module 04), AGH Network channel
+(module 03), autonomy kernel internals (module 04), Compozy Network channel
 correctness (module 06), web UI (module 07).
 
 ## 2. Authoritative invariants under test
@@ -58,10 +58,10 @@ follow the openclaw lowercase dotted/dashed convention.
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `extension.manifest.validate`               | `LoadManifest` rejects missing/invalid name, version, or `min_agh_version`; manifests requesting capabilities they cannot provide are rejected typed.    | `internal/extension/manifest.go:239,269,332`                                                                                                                                                                                                                                          |
 | `extension.manifest.compat`                 | Manifests requiring a higher daemon than the SUT version fail with `ErrManifestIncompatible`.                                                            | `internal/extension/manifest.go:39,213-214,387-395`                                                                                                                                                                                                                                   |
-| `extension.manifest.namespaced-metadata`    | Bridge `config_schema` and other namespaced extension metadata (e.g. `agh.bridge.slack`) round-trip through manifest+registry without loss.              | `internal/extension/manifest.go:99-105,332-355`; `internal/extension/manifest_test.go:295,409,426`                                                                                                                                                                                    |
+| `extension.manifest.namespaced-metadata`    | Bridge `config_schema` and other namespaced extension metadata (e.g. `compozy.bridge.slack`) round-trip through manifest+registry without loss.              | `internal/extension/manifest.go:99-105,332-355`; `internal/extension/manifest_test.go:295,409,426`                                                                                                                                                                                    |
 | `extension.install.symlink-escape`          | Install runtime tree-copy rejects symlinks whose canonical target escapes the source root or forms a cycle.                                              | `internal/extension/install_managed.go:355-572`; `internal/extension/install_managed_test.go:298-499`                                                                                                                                                                                 |
 | `extension.install.checksum`                | Install verifies the on-disk artifact checksum and refuses with `ErrExtensionChecksumMismatch` on mismatch.                                              | `internal/extension/registry.go:31,160-169`                                                                                                                                                                                                                                           |
-| `extension.install.restart-guidance`        | After `agh extension install` (or update), CLI emits restart guidance to stderr; new tools/skills become available after a daemon restart.               | `internal/cli/extension_marketplace.go:22-25`; `internal/cli/extension_marketplace_test.go:415,764,845`                                                                                                                                                                               |
+| `extension.install.restart-guidance`        | After `compozy extension install` (or update), CLI emits restart guidance to stderr; new tools/skills become available after a daemon restart.               | `internal/cli/extension_marketplace.go:22-25`; `internal/cli/extension_marketplace_test.go:415,764,845`                                                                                                                                                                               |
 | `extension.lifecycle.recover`               | A subprocess panic / unexpected exit triggers `recoverExtension` with backoff; the daemon never crashes; the extension is marked unhealthy then recovered or disabled. | `internal/extension/manager.go:1035-1149`                                                                                                                                                                                                                                             |
 | `extension.host-api.rate-limit`             | Per-extension Host API call rate-limit enforced at `HostAPIRateLimitedCode = -32002`; bursts allowed up to configured `defaultHostAPIBurst = 20`.        | `internal/extension/host_api.go:36-50`                                                                                                                                                                                                                                                |
 | `extension.skill.verify-content`            | Every non-bundled skill (including those packaged inside extensions/bundles) is scanned by `internal/skills.VerifyContent` on every load; critical findings block. | `internal/CLAUDE.md` "Load-time security scan"; `internal/skills/registry.go:504`; `internal/skills/verify.go:101-102`                                                                                                                                                                |
@@ -79,14 +79,14 @@ follow the openclaw lowercase dotted/dashed convention.
 | `bridge.signature.verify`                   | Slack bridge rejects webhooks with invalid signing-secret HMAC and missing/expired timestamps; Discord verifies ed25519; Telegram verifies bot-token-derived secret-token header. | `extensions/bridges/slack/provider.go:1094`; `internal/extension/discord_provider_integration_test.go:34-170`                                                                                                                                                                          |
 | `bridge.sdk.contract`                       | Any extension authored against `@compozy/extension-sdk` claiming `tool.provider` MUST register `provide_tools` + `tools/call`. Capability declared but methods missing → initialize fails. | `sdk/typescript/src/extension.ts:42-49`; `sdk/typescript/src/integration.test.ts`                                                                                                                                                                                                     |
 | `bridge.sdk.scaffold`                       | `npx @compozy/create-extension <name> -t <template>` produces a buildable extension whose smoke run boots through `Extension.start()`.                       | `sdk/create-extension/src/index.ts:30-80`; templates `tool-provider/`, `go-tool-provider/`, `hook-subprocess/`, `memory-backend/`                                                                                                                                                     |
-| `cli.extension.machine-readable`            | `agh extension list -o json` and `agh extension status <name> -o json` parity between local-registry path and HTTP/UDS path; payloads identical for the same instance. | `internal/cli/extension.go:73-85,220-233,235-260`                                                                                                                                                                                                                                     |
+| `cli.extension.machine-readable`            | `compozy extension list -o json` and `compozy extension status <name> -o json` parity between local-registry path and HTTP/UDS path; payloads identical for the same instance. | `internal/cli/extension.go:73-85,220-233,235-260`                                                                                                                                                                                                                                     |
 
 ## 3. Operating model
 
 QA mode is **real-scenario** (per the standing directive on real-scenario
 QA). Every scenario:
 
-- Runs against an isolated `AGH_HOME` with unique daemon ports + tmux-bridge
+- Runs against an isolated `COMPOZY_HOME` with unique daemon ports + tmux-bridge
   socket (per `agh-worktree-isolation` skill).
 - Resolves provider auth from the bootstrap manifest according to each
   provider contract: bound-secret, brokered, and explicitly isolated-home
@@ -128,8 +128,8 @@ explicitly with `EXT_SKIP_LIVE=1` in scenario env.
 ## 5. Preconditions (apply to every scenario)
 
 - Fresh QA bootstrap via the `agh-qa-bootstrap` skill. `bootstrap-manifest.json`
-  exported into shell as `bootstrap.env` before any `agh` command.
-- Unique `AGH_HOME` per worktree.
+  exported into shell as `bootstrap.env` before any `compozy` command.
+- Unique `COMPOZY_HOME` per worktree.
 - Bound-secret, brokered, and explicitly isolated-home auth staged into
   `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
   `home_policy=operator` intentionally use the operator `HOME` / native login
@@ -143,26 +143,26 @@ explicitly with `EXT_SKIP_LIVE=1` in scenario env.
 Provider-specific config:
 
 ```text
-AGH_HOME=$HOME/.qa/ext-08/<scenario>/agh-home
-AGH_DAEMON_HTTP=127.0.0.1:<unique-port>
-AGH_DAEMON_UDS=$AGH_HOME/sock/uds.sock
-PROVIDER_HOME=$AGH_HOME/provider-home
-PROVIDER_CODEX_HOME=$AGH_HOME/provider-codex-home
-AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:<unique-port>
+COMPOZY_HOME=$HOME/.qa/ext-08/<scenario>/compozy-home
+COMPOZY_DAEMON_HTTP=127.0.0.1:<unique-port>
+COMPOZY_DAEMON_UDS=$COMPOZY_HOME/sock/uds.sock
+PROVIDER_HOME=$COMPOZY_HOME/provider-home
+PROVIDER_CODEX_HOME=$COMPOZY_HOME/provider-codex-home
+COMPOZY_WEB_API_PROXY_TARGET=http://127.0.0.1:<unique-port>
 EXT_BRIDGE_BROKER_URL=https://broker.qa.example/    # only for live lanes
 EXT_BRIDGE_BROKER_SECRET_MAINTAINER=<...>           # only for live lanes
 ```
 
 ## 6. Cleanup (applies to every scenario)
 
-- `agh daemon stop` (or kill PID from manifest).
+- `compozy daemon stop` (or kill PID from manifest).
 - For live lanes: release the broker lease (`/release` endpoint) before
   archiving evidence.
 - Inspect `extensions`, `bundle_activations`, `bridge_instances`, and
   `bridge_routes` for stuck rows; if found, attach to scenario report and
   do NOT clean — it is evidence.
-- Archive `agh.db`, `events.db` snapshots before tearing down the
-  AGH_HOME.
+- Archive `compozy.db`, `events.db` snapshots before tearing down the
+  COMPOZY_HOME.
 
 ## 7. Mandatory scenarios
 
@@ -170,7 +170,7 @@ EXT_BRIDGE_BROKER_SECRET_MAINTAINER=<...>           # only for live lanes
 
 ```yaml qa-scenario
 id: ext-01-runtime-install
-title: agh extension install <local-path> validates manifest, persists registry row, exposes host API after restart, returns deterministic JSON
+title: compozy extension install <local-path> validates manifest, persists registry row, exposes host API after restart, returns deterministic JSON
 theme: extensions.install
 coverage:
   primary:
@@ -190,27 +190,27 @@ preconditions:
     `[resources.tools.echo]`).
   - Daemon running.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manifest.go:239
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manifest.go:269
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/registry.go:160
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/extension.go:87
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/extension_marketplace.go:22
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manifest.go:239
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manifest.go:269
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/registry.go:160
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/extension.go:87
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/extension_marketplace.go:22
 steps:
-  - Run `agh extension install ./fixtures/ext-fixture -o json`. Capture
+  - Run `compozy extension install ./fixtures/ext-fixture -o json`. Capture
     stdout + stderr.
-  - Run `agh extension list -o json`. Capture.
-  - Run `agh extension status ext-fixture -o json`. Capture.
+  - Run `compozy extension list -o json`. Capture.
+  - Run `compozy extension status ext-fixture -o json`. Capture.
   - Restart daemon. Wait for daemon ready.
   - Prompt a real Claude Code session to call the fixture's tool ("Run
     the `echo` tool with input `hello-ext-01`"). Capture transcript +
     EventStore.
 expected:
-  - `agh extension install` returns success JSON with `name=ext-fixture`,
+  - `compozy extension install` returns success JSON with `name=ext-fixture`,
     `version=…`, non-empty `checksum`, `enabled=true`.
   - Stderr contains the `extensionInstallRestartMessage` line.
   - `extensions` table row exists with `name=ext-fixture`,
     `source=user`, `manifest_path` set.
-  - `agh extension list -o json` and `agh extension status` payloads
+  - `compozy extension list -o json` and `compozy extension status` payloads
     match the row content (parity check).
   - After restart, the agent's tool call returns `hello-ext-01` echoed
     back through the extension subprocess; transcript shows the tool id
@@ -228,7 +228,7 @@ failure_signatures:
     same record: machine-readable parity violated.
   - Tool call fails after restart: host API not exposed end-to-end.
 cleanup:
-  - `agh extension remove ext-fixture`. Confirm the row is gone from
+  - `compozy extension remove ext-fixture`. Confirm the row is gone from
     SQLite and the install dir is removed.
 ```
 
@@ -254,24 +254,24 @@ preconditions:
     - 1 tool registered through the bridge SDK.
     - 1 bridge preset.
     - 1 agent definition.
-  - A test-only fault flag (`AGH_TEST_BUNDLE_RECONCILE_FAULT=true`)
+  - A test-only fault flag (`COMPOZY_TEST_BUNDLE_RECONCILE_FAULT=true`)
     that causes `s.store.ApplyBundleActivationResources` to return an
     error AFTER the activation row has been created, exercising the
     rollback path.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go:220
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go:268
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go:401
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/bundle.go:27
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:220
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:268
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:401
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/bundle.go:27
 steps:
-  - Variant A (happy path): `agh bundle activate bundle-fixture --profile default --workspace wsp-ext02`. Capture state.
+  - Variant A (happy path): `compozy bundle activate bundle-fixture --profile default --workspace wsp-ext02`. Capture state.
   - Variant B (rollback): set fault flag; repeat activate; capture errors and final state.
 expected:
   - Variant A:
     - `bundle_activations` row created with profile=default,
       scope=workspace.
-    - All four overlays observable via `agh bundle get …` /
-      `agh skills list` / `agh tools list` / `agh bridge list`.
+    - All four overlays observable via `compozy bundle get …` /
+      `compozy skills list` / `compozy tools list` / `compozy bridge list`.
     - `session.post_create` hook from the bundle's skill is registered
       and visible in hook taxonomy.
   - Variant B:
@@ -292,7 +292,7 @@ failure_signatures:
     completion violated.
   - Reconcile error swallowed: trust broken.
 cleanup:
-  - `agh bundle deactivate <activation-id>` if variant A row exists;
+  - `compozy bundle deactivate <activation-id>` if variant A row exists;
     confirm clean removal.
 ```
 
@@ -317,11 +317,11 @@ preconditions:
     - bundle-B: skill `qa-bbb`, tool `bbb.echo`, hook `pre.bbb`.
   - Both activated against the same workspace.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go:401
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go:220
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:401
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:220
 steps:
-  - `agh bundle list -o json`; expect two rows.
-  - `agh bundle deactivate <bundle-A-activation-id>`.
+  - `compozy bundle list -o json`; expect two rows.
+  - `compozy bundle deactivate <bundle-A-activation-id>`.
   - Re-list bundles, skills, tools, hooks. Capture all four.
   - Prompt a real Claude Code session to enumerate available tools.
 expected:
@@ -363,17 +363,17 @@ preconditions:
       tool. The traversal target is outside the source root.
     - Fixture-B: extension.toml referencing a directory whose contents
       include a symlink whose canonical path resolves outside the source
-      root (`/tmp/agh-evil-target/`), per
+      root (`/tmp/compozy-evil-target/`), per
       `internal/extension/install_managed_test.go:298-499` shape.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/install_managed.go:355
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/install_managed.go:483
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/install_managed.go:562
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manifest.go:269
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/install_managed.go:355
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/install_managed.go:483
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/install_managed.go:562
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manifest.go:269
 steps:
-  - `agh extension install ./fixtures/malicious-A`. Capture exit code +
+  - `compozy extension install ./fixtures/malicious-A`. Capture exit code +
     stderr.
-  - `agh extension install ./fixtures/malicious-B`. Capture.
+  - `compozy extension install ./fixtures/malicious-B`. Capture.
   - Audit `extensions` directory for any partially-extracted artifact.
 expected:
   - Fixture-A install fails with `ErrManifestInvalid` or
@@ -381,13 +381,13 @@ expected:
   - Fixture-B install fails with `extension: reject runtime dependency
     symlink` / `symlink target … escapes source root` error; exit code
     non-zero.
-  - No partial extension directory was left under `$AGH_HOME/extensions/`.
+  - No partial extension directory was left under `$COMPOZY_HOME/extensions/`.
   - `extensions` table is empty (no row created for either fixture).
   - Stderr does NOT print the absolute traversal target — error
     references the field name, not the resolved path of `/etc/passwd`.
 evidence:
   - Captured stderr/error payloads.
-  - `ls $AGH_HOME/extensions/` showing no debris.
+  - `ls $COMPOZY_HOME/extensions/` showing no debris.
 failure_signatures:
   - Either fixture installs successfully: critical security violation.
   - Partial directory left behind: rollback failure.
@@ -400,7 +400,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: ext-05-namespaced-metadata
-title: Bridge config_schema using namespaced agh.* metadata round-trips through manifest -> registry -> describe without loss
+title: Bridge config_schema using namespaced compozy.* metadata round-trips through manifest -> registry -> describe without loss
 theme: extensions.manifest
 coverage:
   primary:
@@ -412,28 +412,28 @@ live: false
 provider: real-claude-code
 preconditions:
   - Fixture extension declaring a bridge adapter with
-    `[bridge.config_schema]` `schema = "agh.bridge.fixture-platform"`,
+    `[bridge.config_schema]` `schema = "compozy.bridge.fixture-platform"`,
     `version = "1"`, plus two `bridge.secret_slots` entries — same shape
     as `extensions/bridges/slack/extension.toml:24-26`.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manifest.go:99-105
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manifest.go:332-355
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manifest_test.go:295,409,426
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/describe.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manifest.go:99-105
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manifest.go:332-355
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manifest_test.go:295,409,426
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/describe.go
 steps:
   - Install the fixture.
   - Read the persisted manifest blob from `extensions` table or via
-    `agh extension status -o json`.
+    `compozy extension status -o json`.
   - Compare to the source `extension.toml`.
 expected:
   - `bridge.platform`, `bridge.display_name`, `bridge.config_schema.schema`,
     `bridge.config_schema.version`, all secret-slot entries, AND the
-    namespaced `agh.bridge.fixture-platform` schema id are preserved
+    namespaced `compozy.bridge.fixture-platform` schema id are preserved
     byte-for-byte (after canonical whitespace trimming) in the round-tripped
     payload.
   - No silent drop of any namespaced metadata field.
 evidence:
-  - Source `extension.toml` and `agh extension status -o json` diff with
+  - Source `extension.toml` and `compozy extension status -o json` diff with
     only acceptable whitespace differences.
 failure_signatures:
   - Any namespaced metadata field is missing or mutated: format-extension
@@ -468,13 +468,13 @@ preconditions:
   - Slack `slack` extension installed from `extensions/bridges/slack/`
     (`extensions/bridges/slack/extension.toml`).
   - Real Claude Code session created in workspace `wsp-ext06`,
-    coordinator running, `agh bridge create --extension slack
+    coordinator running, `compozy bridge create --extension slack
     --workspace wsp-ext06 --secret-binding ...` issued so the bridge
     instance reaches `ready` status.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/extensions/bridges/slack/provider.go:602,837,915,1094
-  - /Users/pedronauck/Dev/compozy/agh/internal/bridges/lifecycle.go:9
-  - /Users/pedronauck/Dev/compozy/agh/internal/bridges/delivery_broker.go:301
+  - /Users/pedronauck/Dev/compozy/compozy/extensions/bridges/slack/provider.go:602,837,915,1094
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bridges/lifecycle.go:9
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bridges/delivery_broker.go:301
 steps:
   - From the QA driver Slack account, post a message in the channel:
     "Summarize today's plan as 3 bullets — marker EXT-06-{uuid}".
@@ -517,7 +517,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: ext-07-telegram-real-roundtrip
-title: A Telegram user message routes to AGH; agent replies; bot tokens never appear in logs/SSE
+title: A Telegram user message routes to Compozy; agent replies; bot tokens never appear in logs/SSE
 theme: bridges.telegram
 coverage:
   primary:
@@ -535,9 +535,9 @@ preconditions:
     pattern (`docs/concepts/qa-e2e-automation.md` line 253).
   - Telegram extension installed from `extensions/bridges/telegram/`.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/extensions/bridges/telegram/provider.go
-  - /Users/pedronauck/Dev/compozy/agh/internal/bridges/delivery_broker.go:301
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/telegram_provider_integration_test.go
+  - /Users/pedronauck/Dev/compozy/compozy/extensions/bridges/telegram/provider.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bridges/delivery_broker.go:301
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/telegram_provider_integration_test.go
 steps:
   - Driver bot sends a message in the QA group.
   - SUT bot replies via Claude Code.
@@ -579,9 +579,9 @@ preconditions:
     pushing 1000 messages over 60 seconds across 4 routes (250 msgs/route).
   - Mock ACP for deterministic ordering.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/bridges/delivery_broker.go:33-78,95-143,221,301-450
-  - /Users/pedronauck/Dev/compozy/agh/internal/bridges/delivery_types.go:38-40
-  - /Users/pedronauck/Dev/compozy/agh/internal/extensiontest/bridge_adapter_harness.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bridges/delivery_broker.go:33-78,95-143,221,301-450
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bridges/delivery_types.go:38-40
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extensiontest/bridge_adapter_harness.go
 steps:
   - Drive load.
   - Tail `instanceDeliveryMetrics` and `routeWorker.queue` length per
@@ -629,9 +629,9 @@ preconditions:
     can flip the bot token to invalid mid-run (or use a fixture-only
     Slack mock that simulates `auth_revoked`).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/bridges/lifecycle.go:86-96
-  - /Users/pedronauck/Dev/compozy/agh/internal/bridges/types.go:123-124
-  - /Users/pedronauck/Dev/compozy/agh/extensions/bridges/slack/provider.go:837,915
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bridges/lifecycle.go:86-96
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bridges/types.go:123-124
+  - /Users/pedronauck/Dev/compozy/compozy/extensions/bridges/slack/provider.go:837,915
 steps:
   - With the bridge `ready`, revoke the bot token (or simulate via mock).
   - Send 5 inbound messages over 60s.
@@ -640,7 +640,7 @@ steps:
 expected:
   - Bridge transitions `ready → auth_required` (NOT `error` —
     `auth_required` is the documented surface for reauth-needed).
-  - CLI `agh bridge get <id> -o json` returns
+  - CLI `compozy bridge get <id> -o json` returns
     `status: "auth_required"`, `degradation` populated with a
     clean human-readable reason (no stack trace, no token).
   - Retry log shows exponential / capped backoff — fewer than 10
@@ -682,22 +682,22 @@ preconditions:
   - SDK packages (`@compozy/extension-sdk`, `@compozy/create-extension`) built
     locally via `make bun-typecheck` or sourced from `dist/`.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/sdk/create-extension/src/index.ts:30-80
-  - /Users/pedronauck/Dev/compozy/agh/sdk/create-extension/templates/tool-provider/
-  - /Users/pedronauck/Dev/compozy/agh/sdk/typescript/src/extension.ts:42-49,109
-  - /Users/pedronauck/Dev/compozy/agh/sdk/typescript/src/integration.test.ts
+  - /Users/pedronauck/Dev/compozy/compozy/sdk/create-extension/src/index.ts:30-80
+  - /Users/pedronauck/Dev/compozy/compozy/sdk/create-extension/templates/tool-provider/
+  - /Users/pedronauck/Dev/compozy/compozy/sdk/typescript/src/extension.ts:42-49,109
+  - /Users/pedronauck/Dev/compozy/compozy/sdk/typescript/src/integration.test.ts
 steps:
-  - Run `bun create @agh/extension qa-tool-fixture --template tool-provider --dir /tmp/ext-10/`.
+  - Run `bun create @compozy/extension qa-tool-fixture --template tool-provider --dir /tmp/ext-10/`.
   - Inspect generated tree: must contain `extension.json`, `package.json`,
     `src/`, `tsconfig.json`.
   - `cd /tmp/ext-10/qa-tool-fixture && bun install && bun run build`.
-  - `agh extension install /tmp/ext-10/qa-tool-fixture` and restart daemon.
+  - `compozy extension install /tmp/ext-10/qa-tool-fixture` and restart daemon.
   - Real Claude Code session: prompt agent to invoke the scaffolded
     tool with a unique marker.
 expected:
   - Scaffold completes without prompt; tree matches template fixtures.
   - Build succeeds; output bundle present where extension.json points.
-  - `agh extension install` succeeds; status payload shows
+  - `compozy extension install` succeeds; status payload shows
     `capabilities.provides=["tool.provider"]`.
   - On agent invocation: tool's input/output round-trips; transcript
     shows the canonical tool id; output contains the marker.
@@ -717,11 +717,11 @@ cleanup:
   - Remove `/tmp/ext-10/`. Uninstall the extension.
 ```
 
-### EXT-11 — `agh extension list` and `extension status` machine-readable parity (HTTP + UDS)
+### EXT-11 — `compozy extension list` and `extension status` machine-readable parity (HTTP + UDS)
 
 ```yaml qa-scenario
 id: ext-11-cli-machine-readable-parity
-title: agh extension list -o json and agh extension status -o json return identical payloads via HTTP, UDS, and offline (local registry) paths
+title: compozy extension list -o json and compozy extension status -o json return identical payloads via HTTP, UDS, and offline (local registry) paths
 theme: extensions.cli
 coverage:
   primary:
@@ -734,14 +734,14 @@ provider: real-claude-code
 preconditions:
   - Two extensions installed and one disabled.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/extension.go:73,220,235
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/extension_test.go:155,260
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/extension.go:73,220,235
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/extension_test.go:155,260
 steps:
-  - Run `agh extension list -o json` against the running daemon (HTTP).
-  - Run `agh extension list -o json` with `AGH_TRANSPORT=uds`.
-  - Stop daemon. Run `agh extension list -o json` (forces local
+  - Run `compozy extension list -o json` against the running daemon (HTTP).
+  - Run `compozy extension list -o json` with `COMPOZY_TRANSPORT=uds`.
+  - Stop daemon. Run `compozy extension list -o json` (forces local
     registry path via `withLocalExtensionRegistry`).
-  - Same triple for `agh extension status <name>` for each extension.
+  - Same triple for `compozy extension status <name>` for each extension.
 expected:
   - All three outputs for `extension list` are identical sets (after
     sorting by `name`); fields `enabled`, `version`, `manifest_path`,
@@ -783,10 +783,10 @@ preconditions:
   - Bundle `qa-scope-fixture` installed (extension supplies one bundle
     that overlays one tool `scope.echo` and one skill `qa-scope`).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go:163-330
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/model/model.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/service.go:163-330
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/model/model.go
 steps:
-  - `agh bundle activate qa-scope-fixture --profile default --workspace wsp-W`.
+  - `compozy bundle activate qa-scope-fixture --profile default --workspace wsp-W`.
   - Restart daemon.
   - Ask agent in `wsp-W` to enumerate tools and call `scope.echo`.
   - Ask agent in `wsp-W2` to enumerate tools and try the same.
@@ -796,7 +796,7 @@ expected:
   - Agent in `wsp-W2` does NOT see `scope.echo` in its tool list; if
     it attempts to call by name, daemon returns a typed
     `tool not available in workspace` error.
-  - `agh bundle list -o json --workspace wsp-W2` shows the bundle
+  - `compozy bundle list -o json --workspace wsp-W2` shows the bundle
     activation only when filter respects the right scope.
 evidence:
   - Two transcripts (one per workspace).
@@ -830,9 +830,9 @@ preconditions:
   - Local HTTP driver that POSTs forged webhooks to each provider's
     listen address.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/extensions/bridges/slack/provider.go:1094
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/discord_provider_integration_test.go:34-170,417
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/telegram_provider_integration_test.go
+  - /Users/pedronauck/Dev/compozy/compozy/extensions/bridges/slack/provider.go:1094
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/discord_provider_integration_test.go:34-170,417
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/telegram_provider_integration_test.go
 steps:
   - Slack: POST a webhook with mutated body byte; signature mismatches.
   - Slack: POST with stale (>5min old) `X-Slack-Request-Timestamp`.
@@ -880,9 +880,9 @@ preconditions:
     - ext-aaa (same shape; alphabetically first).
     - ext-ccc (legacy fixture using `on_session_created` event).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/skills/loader.go:517-526
-  - /Users/pedronauck/Dev/compozy/agh/internal/skills/loader_test.go:650-660
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manifest.go:108-130
+  - /Users/pedronauck/Dev/compozy/compozy/internal/skills/loader.go:517-526
+  - /Users/pedronauck/Dev/compozy/compozy/internal/skills/loader_test.go:650-660
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manifest.go:108-130
 steps:
   - Variant A: install ext-aaa + ext-bbb (no legacy). Create a real
     session in workspace; capture marker-file ordering and hook
@@ -929,12 +929,12 @@ provider: real-claude-code
 preconditions:
   - Fixture extension `crashy-fixture` whose tool handler panics on a
     specific input marker (`__CRASH__`).
-  - `AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH` style fault flag is supported
+  - `COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH` style fault flag is supported
     by the SDK (used by Slack provider — see
     `extensions/bridges/slack/extension.toml:48`).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manager.go:1035-1149
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manager.go:125
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manager.go:1035-1149
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manager.go:125
 steps:
   - Real Claude Code session calls the fixture tool with `__CRASH__`.
   - Capture: daemon log, `extensions` status, EventStore.
@@ -944,7 +944,7 @@ expected:
   - Daemon does NOT crash (PID identical pre/post).
   - First call returns a typed error to the agent (mapped from
     JSON-RPC error code, e.g. `HostAPIUnavailableCode = -32005`).
-  - `agh extension status crashy-fixture` reports the runtime as
+  - `compozy extension status crashy-fixture` reports the runtime as
     unhealthy (with `lastError` set, `phase=recover`).
   - Manager's `recoverExtension` runs after backoff; on success the
     extension transitions back to active.
@@ -983,15 +983,15 @@ live: false
 provider: real-claude-code
 preconditions:
   - `slack` extension installed in mock-Slack mode (uses
-    `AGH_BRIDGE_SLACK_API_BASE_URL` to point at the test harness;
+    `COMPOZY_BRIDGE_SLACK_API_BASE_URL` to point at the test harness;
     `extensions/bridges/slack/extension.toml:50`).
   - Companion tool-provider extension `qa-multitool` installed
     (registers two tools: `qa.lookup` and `qa.summarize`).
   - Real Claude Code session in workspace `wsp-ext16`.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/extensions/bridges/slack/extension.toml
-  - /Users/pedronauck/Dev/compozy/agh/sdk/typescript/src/extension.ts:42-49
-  - /Users/pedronauck/Dev/compozy/agh/internal/bridges/delivery_broker.go:301
+  - /Users/pedronauck/Dev/compozy/compozy/extensions/bridges/slack/extension.toml
+  - /Users/pedronauck/Dev/compozy/compozy/sdk/typescript/src/extension.ts:42-49
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bridges/delivery_broker.go:301
 steps:
   - Drive a 6-turn conversation with the agent that requires:
     Turn 2: call `qa.lookup` for marker E16-A.
@@ -1035,14 +1035,14 @@ provider: mock-acp
 preconditions:
   - Three malicious source trees:
     - Tree-A: a symlink whose canonical target resolves to
-      `/tmp/agh-evil-target/` (outside the source root).
+      `/tmp/compozy-evil-target/` (outside the source root).
     - Tree-B: a directory cycle (A → B → A) created via symlinks
       under the source root.
     - Tree-C: a legitimate symlink whose target stays inside the
       source root (control / positive path).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/install_managed.go:355,483,536,562
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/install_managed_test.go:298-499
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/install_managed.go:355,483,536,562
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/install_managed_test.go:298-499
 steps:
   - Drive `copyInstallTree` (or trigger via marketplace install with a
     fixture) for each tree.
@@ -1085,10 +1085,10 @@ preconditions:
     embedded via `go:embed` under `internal/skills/bundled/`. Bundled
     skills should NOT be scanned (per the security invariant).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/skills/registry.go:504
-  - /Users/pedronauck/Dev/compozy/agh/internal/skills/verify.go:101-102
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md (Security Invariants — Load-time security scan)
-  - /Users/pedronauck/Dev/compozy/agh/internal/skills/registry_test.go:532,571
+  - /Users/pedronauck/Dev/compozy/compozy/internal/skills/registry.go:504
+  - /Users/pedronauck/Dev/compozy/compozy/internal/skills/verify.go:101-102
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (Security Invariants — Load-time security scan)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/skills/registry_test.go:532,571
 steps:
   - Install `qa-injected`. Restart daemon. Capture daemon log + skill
     catalog state.
@@ -1134,10 +1134,10 @@ preconditions:
   - Slack bridge installed; provider_config schema declares fixed set
     of fields.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/extension/manifest.go:99-105
-  - /Users/pedronauck/Dev/compozy/agh/internal/bridges/registry.go:42-110
+  - /Users/pedronauck/Dev/compozy/compozy/internal/extension/manifest.go:99-105
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bridges/registry.go:42-110
 steps:
-  - `agh bridge create --extension slack --workspace wsp-ext19
+  - `compozy bridge create --extension slack --workspace wsp-ext19
     --provider-config '{"bot_token_alias":"foo","unknown_field":"x"}'`.
 expected:
   - Returns 4xx with typed message naming the unknown field.
@@ -1167,7 +1167,7 @@ preconditions:
   - An extension manifest declares a Live Network participation requirement.
   - No activation has confirmed the current requirement digest.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/network_requirement.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/bundles/network_requirement.go
 steps:
   - Activate without confirmation. Capture the error and activation inventory.
   - Activate again with `confirm_network_requirement=true`.
@@ -1245,7 +1245,7 @@ must be triaged immediately.
 
 Live Slack and Telegram lanes (EXT-06, EXT-07, EXT-09 conditional)
 require pooled credentials per the openclaw `convex-credential-broker`
-pattern — adapted for AGH per the §2 directive in the openclaw
+pattern — adapted for Compozy per the §2 directive in the openclaw
 reference: substrate is local-first SQLite (or a thin HTTP service),
 not Convex.
 

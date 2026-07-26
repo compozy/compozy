@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 60
   guidance:
     must_try:
-      - "Failed health verdicts: identical bounded evidence via HTTP, UDS, agh status, and doctor --only runtime.subprocess_health."
+      - "Failed health verdicts: identical bounded evidence via HTTP, UDS, compozy status, and doctor --only runtime.subprocess_health."
       - "Cross the configured threshold → the exact linked nonterminal run reaches needs_attention once (one canonical event) under repeated checks; an unexpected process exit escalates immediately."
       - "Terminal runs never mutate; threshold 0 keeps diagnostics without task mutation (restart-required config)."
       - "Recover the parked run only after repairing the provider cause; fresh reads must agree with one correlated escalation and one deliberate continuation."

@@ -36,7 +36,7 @@ then hygiene. State what gates each wave (tests-first, telemetry-first, screensh
 [Contested calls with 2+ defensible options: state options, trade-offs, and the recommendation.
 Empty section = "None" explicitly.]
 
-## 7. AGH Impact Audit
+## 7. Compozy Impact Audit
 - Native tools: <impact or "no impact + checked surfaces">
 - Extensibility and hooks: <extensions/hooks/skills/config lifecycle impact; contract-codegen
   co-ship duties for any API change>

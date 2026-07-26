@@ -28,7 +28,7 @@ Run after `cy-create-prd` produces a draft, before approval.
 
 ## Allowed exceptions (justify in PRD body)
 
-- The PRD is *about* AGH Network's wire format → naming the format is the user-observable surface.
+- The PRD is *about* Compozy Network's wire format → naming the format is the user-observable surface.
 - The PRD is about an AGENT.md / MEMORY.md / SKILL.md file format → naming the format is the product.
 - The PRD scopes a specific framework's ergonomics inside `web/` (e.g., TanStack Query patterns) → naming the framework is the topic.
 

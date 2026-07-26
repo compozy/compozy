@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AGH · Create trigger — redesign</title>
+<title>Compozy · Create trigger — redesign</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
 /* ───────────────────────────────────────────────────────────
-   AGH tokens — canonical hex set from packages/ui/src/tokens.css
+   Compozy tokens — canonical hex set from packages/ui/src/tokens.css
    warm-dark surface ramp · single operator-orange accent · flat depth
    ─────────────────────────────────────────────────────────── */
 :root{
@@ -961,8 +961,8 @@ Read the transcript, summarize what went wrong, the likely root cause, and one s
       $("curl-snip").innerHTML =
         '<span class="k">curl</span> -X POST \\\n'
        +'  https://your-daemon'+escHtml(url)+' \\\n'
-       +'  -H <span class="s">"X-AGH-Webhook-Signature: sha256=…"</span> \\\n'
-       +'  -H <span class="s">"X-AGH-Webhook-Timestamp: …"</span> \\\n'
+       +'  -H <span class="s">"X-Compozy-Webhook-Signature: sha256=…"</span> \\\n'
+       +'  -H <span class="s">"X-Compozy-Webhook-Timestamp: …"</span> \\\n'
        +'  -d <span class="s">\'{"action":"deploy_started"}\'</span>';
     }
     renderRelBadge();

@@ -15,22 +15,22 @@ sources:
 
 ## 1. Module Surface
 
-This module owns the daemon configuration plane: how `~/.agh/config.toml` (plus optional workspace overlays, MCP JSON sidecars, and `AGENT.md` definitions) becomes a validated runtime `Config`, how mutations are persisted (CLI + HTTP/UDS settings service), how secrets are stored encrypted, how workspaces resolve their effective view of agents/skills/config, and how all of this is redacted before reaching any operator-visible surface.
+This module owns the daemon configuration plane: how `~/.compozy/config.toml` (plus optional workspace overlays, MCP JSON sidecars, and `AGENT.md` definitions) becomes a validated runtime `Config`, how mutations are persisted (CLI + HTTP/UDS settings service), how secrets are stored encrypted, how workspaces resolve their effective view of agents/skills/config, and how all of this is redacted before reaching any operator-visible surface.
 
 ### 1.1 Filesystem layout (the home root)
 
 `internal/config/home.go:11-37` declares the on-disk vocabulary used everywhere downstream:
 
-- Home root: `~/.agh/` (env override `AGH_HOME`) — `internal/config/home.go:58-75`.
+- Home root: `~/.compozy/` (env override `COMPOZY_HOME`) — `internal/config/home.go:58-75`.
 - `config.toml` (the canonical TOML file) — `internal/config/home.go:25,100`.
 - `agents/<name>/AGENT.md` — `internal/config/home.go:13,36`, `internal/config/agent.go:78`.
 - `skills/<name>/SKILL.md` — `internal/workspace/scanner.go:18`.
 - `memory/`, `sessions/`, `restarts/`, `logs/` — `internal/config/home.go:15-23`.
-- `agh.db` (catalog), `daemon.sock`, `daemon.lock`, `daemon.json` — `internal/config/home.go:25-31`.
-- `logs/agh.log`, `logs/network.audit` — `internal/config/home.go:33-35`.
+- `compozy.db` (catalog), `daemon.sock`, `daemon.lock`, `daemon.json` — `internal/config/home.go:25-31`.
+- `logs/compozy.log`, `logs/network.audit` — `internal/config/home.go:33-35`.
 - `vault.key` (0600 daemon-local AES-256 key) — `internal/vault/crypto.go:38`.
 
-Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agents/<n>/AGENT.md`, `<workspace>/.agh/skills/<n>/SKILL.md`, `<workspace>/.agh/mcp.json`, `<workspace>/.env` — driven by `WorkspaceDiscoveryRoots()` in `internal/config/agent.go:117-146` and the workspace scanner (`internal/workspace/scanner.go:48-83`).
+Workspace overlay layout: `<workspace>/.compozy/config.toml`, `<workspace>/.compozy/agents/<n>/AGENT.md`, `<workspace>/.compozy/skills/<n>/SKILL.md`, `<workspace>/.compozy/mcp.json`, `<workspace>/.env` — driven by `WorkspaceDiscoveryRoots()` in `internal/config/agent.go:117-146` and the workspace scanner (`internal/workspace/scanner.go:48-83`).
 
 ### 1.2 Top-level config sections (`internal/config/config.go:247-269`)
 
@@ -38,7 +38,7 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
 
 | Section | Type / file | Validation | Notable defaults |
 |---|---|---|---|
-| `daemon` | `DaemonConfig` `config.go:33-36` | `Validate()` rejects empty socket — `config.go:774-781` | `socket = ~/.agh/daemon.sock` `config.go:418-421` |
+| `daemon` | `DaemonConfig` `config.go:33-36` | `Validate()` rejects empty socket — `config.go:774-781` | `socket = ~/.compozy/daemon.sock` `config.go:418-421` |
 | `http` | `HTTPConfig` `config.go:38-42` | host non-empty, port 1..65535 — `config.go:783-793` | `host=localhost port=2123` `config.go:423-426` |
 | `defaults` | `DefaultsConfig` `config.go:44-49` | agent required — `config.go:795-802` | `agent="general"` `config.go:427-429,111` |
 | `agents.soul` | `SoulConfig` `config.go:57-62` | bytes positive; projection ≤ body — `config.go:840-858` | `enabled=true; max=32768; projection=2048` `config.go:805-811` |
@@ -68,7 +68,7 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
   1. `DefaultWithHome(homePaths)` (`config.go:418-497`).
   2. `ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg)` — global TOML overlay using pointer-typed overlay structs (`merge.go:16-200+`).
   3. `applyConfigMCPSidecarFile(globalMCPJSONFile(...), &cfg)` — global `mcp.json`.
-  4. If a workspace root resolved, repeat the overlay pair against `<root>/.agh/config.toml` and `<root>/.agh/mcp.json`.
+  4. If a workspace root resolved, repeat the overlay pair against `<root>/.compozy/config.toml` and `<root>/.compozy/mcp.json`.
   5. `normalizeConfigPaths(&cfg)` — expands `~/`, makes paths absolute (uses `ResolvePath`).
   6. `cfg.validateWithEnv(lookup)` (`config.go:504-521`) walks every section.
 - Env / `.env` precedence is a layered lookup: `layeredEnvLookup(processEnvLookup, dotenvLookup)` — process env wins over workspace `.env` (`config.go:283-295, 335-342, 367-374`).
@@ -84,19 +84,19 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
 
 ### 1.5 CLI surface (`internal/cli/config.go`, `vault.go`, `workspace.go`)
 
-- `agh config show [--workspace ROOT]` — full effective config (redacted) — `config.go:182-206`.
-- `agh config list [--workspace ROOT]` — flat key/value entries (redacted) — `config.go:208-230`.
-- `agh config get <path> [--workspace ROOT]` — one redacted value — `config.go:232-254`.
-- `agh config set <path> <value> [--scope global|workspace] [--workspace ROOT]` — validated mutation — `config.go:256-312`. Scalar paths whitelisted in `configScalarMutationKinds` (`config.go:91-163`). Provider scalar paths (`providers.<n>.command|default_model`) — `config.go:1042-1050`. Sandbox + sandbox.network + sandbox.daytona scalar paths — `config.go:1052-1090`.
-- `agh config path [--scope ...] [--workspace ROOT]` — resolved paths and selected target — `config.go:314-383`.
-- `agh config validate [--workspace ROOT] [--repair-env]` (alias `agh config check`) — re-runs full validate; `--repair-env` runs `RepairDotEnvFile(WorkspaceDotEnvFile(workspace))` first — `config.go:385-445`.
-- `agh config edit [--scope ...] [--workspace ROOT]` — opens the selected file in `$VISUAL`/`$EDITOR`, then re-loads to validate — `config.go:447-491`. `requireUnmanagedForMutation` blocks edits when AGH was installed via a managed installer.
-- `agh vault list [--prefix vault:NS/...] [--namespace NS]` — `cli/vault.go:29-61`.
-- `agh vault get <ref>` — redacted metadata only — `cli/vault.go:63-81`.
-- `agh vault put <ref> --kind <kind> --value-stdin` — write-only (`--value-stdin` mandatory) — `cli/vault.go:83-122`.
-- `agh vault delete <ref>` — `cli/vault.go:125-142`.
-- `agh workspace add <path> [--name N --add-dir D --default-agent A --sandbox S]` — `cli/workspace.go:26-71`.
-- `agh workspace list|info <id-or-name>|edit|remove` — `cli/workspace.go:73-235`.
+- `compozy config show [--workspace ROOT]` — full effective config (redacted) — `config.go:182-206`.
+- `compozy config list [--workspace ROOT]` — flat key/value entries (redacted) — `config.go:208-230`.
+- `compozy config get <path> [--workspace ROOT]` — one redacted value — `config.go:232-254`.
+- `compozy config set <path> <value> [--scope global|workspace] [--workspace ROOT]` — validated mutation — `config.go:256-312`. Scalar paths whitelisted in `configScalarMutationKinds` (`config.go:91-163`). Provider scalar paths (`providers.<n>.command|default_model`) — `config.go:1042-1050`. Sandbox + sandbox.network + sandbox.daytona scalar paths — `config.go:1052-1090`.
+- `compozy config path [--scope ...] [--workspace ROOT]` — resolved paths and selected target — `config.go:314-383`.
+- `compozy config validate [--workspace ROOT] [--repair-env]` (alias `compozy config check`) — re-runs full validate; `--repair-env` runs `RepairDotEnvFile(WorkspaceDotEnvFile(workspace))` first — `config.go:385-445`.
+- `compozy config edit [--scope ...] [--workspace ROOT]` — opens the selected file in `$VISUAL`/`$EDITOR`, then re-loads to validate — `config.go:447-491`. `requireUnmanagedForMutation` blocks edits when Compozy was installed via a managed installer.
+- `compozy vault list [--prefix vault:NS/...] [--namespace NS]` — `cli/vault.go:29-61`.
+- `compozy vault get <ref>` — redacted metadata only — `cli/vault.go:63-81`.
+- `compozy vault put <ref> --kind <kind> --value-stdin` — write-only (`--value-stdin` mandatory) — `cli/vault.go:83-122`.
+- `compozy vault delete <ref>` — `cli/vault.go:125-142`.
+- `compozy workspace add <path> [--name N --add-dir D --default-agent A --sandbox S]` — `cli/workspace.go:26-71`.
+- `compozy workspace list|info <id-or-name>|edit|remove` — `cli/workspace.go:73-235`.
 
 ### 1.6 HTTP / UDS settings service
 
@@ -124,8 +124,8 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
 - Two ref schemes: `env:VAR` (`types.go:95-111`) and `vault:<namespace>/<path>` (`types.go:25-33, 113-148`).
 - Eight namespaces: `automation`, `bridges`, `extensions`, `hooks`, `mcp`, `providers`, `sandbox`, `sessions` — `types.go:25-44`.
 - Key scheme: AES-256-GCM with random nonce, `aes-gcm:` prefix, base64 payload — `crypto.go:18-19, 95-119`.
-- Key source: `AGH_VAULT_KEY` env (base64 / hex / 32-byte raw) overrides `~/.agh/vault.key` (auto-generated 0600) — `crypto.go:43-77`.
-- Service: `PutSecret`, `ResolveRef`, `GetMetadata`, `ListMetadata`, `DeleteSecret` — `service.go:69-194`. `ResolveRef` is daemon-internal-only; never returned to operator surfaces.
+- Key source: `COMPOZY_VAULT_KEY` env (base64 / hex / 32-byte raw) overrides `~/.compozy/vault.key` (auto-generated 0600) — `crypto.go:43-77`.
+- Service: `PutSecret`, `ResolveRef`, `GetMetadata`, `ListMetadata`, `DeleteSecret` — `service.go:69-194`. `ResolveRef` is daemon-internal-only; never returned to control surfaces.
 - `Metadata` struct (the only operator-visible shape) — `types.go:67-74`. Carries `Ref, Kind, Present, CreatedAt, UpdatedAt`. **No plaintext fields.**
 - `SecretLikeEnvName` heuristic forbids plain-`env` declarations of `*SECRET*`, `*TOKEN*`, `*PASSWORD*`, `*PASSWD*`, `*API_KEY*`, `*APIKEY*`, `*AUTHORIZATION*`, `*BEARER*`, `*CREDENTIAL*` (`types.go:46-56, 244-269`). Forces them through `secret_env`.
 - `ValidateSecretEnvMap(path, namespace, secretEnv)` (`types.go:271-286`) checks `secret_ref` references match the provider/sandbox/etc. namespace.
@@ -137,11 +137,11 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
 - Lookup: by ID `ws_*`/`ws-*`, by name, by absolute path; canonicalized via `EvalSymlinks + Abs` (`resolver_crud.go:234-310, 312-354`).
 - `ResolveOrRegister(ctx, path)` auto-registers a workspace at `path` if none matches (`resolver.go:165-235`). Rolls back on resolve / change-hook failure with a 2s timeout context (`resolver.go:237-242, rollbackDeleteTimeout`).
 - `WorkspaceDiscoveryRoots(rootDir, additionalDirs, homePaths)` returns left-to-right precedence: workspace root → additional dirs → global home — `config/agent.go:117-146`.
-- Discovery roots produce per-source `AgentsDir()` and `SkillsDir()` paths. The global root reads `<home>/agents` (no `.agh/` prefix), workspace/additional roots read `<root>/.agh/agents` — `config/agent.go:148-164`.
+- Discovery roots produce per-source `AgentsDir()` and `SkillsDir()` paths. The global root reads `<home>/agents` (no `.compozy/` prefix), workspace/additional roots read `<root>/.compozy/agents` — `config/agent.go:148-164`.
 - Per-agent overrides: `AgentDef.Provider`, `Model`, `Tools`, `Toolsets`, `DenyTools`, `Permissions`, `MCPServers`, `Hooks`, `Capabilities` — `config/agent.go:17-31, 211-295`. Loaded via `LoadAgentDefFile` (`config/agent.go:91-115`) which: reads file → `ParseAgentDef` → `mergeAgentMCPSidecar` (per-agent `mcp.json`) → `LoadAgentCapabilities` (per-agent capability catalog, single-file or directory).
 - `AGENT.md` parsing accepts either YAML or TOML frontmatter (`config/agent.go:314-336`); `goccy/go-yaml` strict mode for YAML; `BurntSushi/toml` Undecoded() rejection of unknown keys for TOML.
 - `ResolvedWorkspace` is the per-workspace value the daemon hands to sessions / settings / autonomy — `workspace.go:43-51`. Ships a snapshot of `Config`, the merged agents list, the merged skills list, and the resolved sandbox.
-- Workspace inference for HTTP requests: `X-AGH-Workspace-ID` header (`agentidentity/identity.go:29`) constrains agent operations to the caller's workspace.
+- Workspace inference for HTTP requests: `X-Compozy-Workspace-ID` header (`agentidentity/identity.go:29`) constrains agent operations to the caller's workspace.
 
 ### 1.10 Frontmatter (`internal/frontmatter/`)
 
@@ -149,12 +149,12 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
 
 ### 1.11 Env vars touching this module
 
-- `AGH_HOME` — overrides home root (`config/home.go:64`).
-- `AGH_VAULT_KEY` — overrides vault key file (`vault/crypto.go:44`).
-- `AGH_SESSION_ID`, `AGH_AGENT` — caller identity inside agent sessions (`agentidentity/identity.go:20-22`).
+- `COMPOZY_HOME` — overrides home root (`config/home.go:64`).
+- `COMPOZY_VAULT_KEY` — overrides vault key file (`vault/crypto.go:44`).
+- `COMPOZY_SESSION_ID`, `COMPOZY_AGENT` — caller identity inside agent sessions (`agentidentity/identity.go:20-22`).
 - `HOME` — implicit fallback for both home root and `.agents/skills` (`config/home.go:69, 170-192`).
 - `<workspace>/.env` — secondary env source (`config/dotenv.go:75-78`).
-- `VISUAL`, `EDITOR` — used by `agh config edit` (`cli/config.go:467`).
+- `VISUAL`, `EDITOR` — used by `compozy config edit` (`cli/config.go:467`).
 
 ## 2. Existing Test Coverage Map
 
@@ -177,7 +177,7 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
 - `release_config_test.go`: round-trip of release-managed config.
 - `tool_grammar.go`/`tool_surface_test.go`/`tools_test.go`: tool config grammar.
 
-**Gap flag — most existing tests are pure Go unit tests. They prove parser/merger/validator correctness on synthesized inputs but never prove that a real provider-backed agent picks up the config the way an operator running `agh config set` expects.** The runtime side of "did the daemon actually re-resolve the agent's effective config after a hot-apply?" is not exercised here.
+**Gap flag — most existing tests are pure Go unit tests. They prove parser/merger/validator correctness on synthesized inputs but never prove that a real provider-backed agent picks up the config the way an operator running `compozy config set` expects.** The runtime side of "did the daemon actually re-resolve the agent's effective config after a hot-apply?" is not exercised here.
 
 ### 2.2 `internal/settings/` tests
 
@@ -197,7 +197,7 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
 
 ### 2.4 `internal/vault/` tests
 
-- `service_test.go`: AES-GCM round-trip, env-ref resolution, namespace validation, key-source precedence (`AGH_VAULT_KEY` vs file), 0600-permission assertion (`:353`), supported encodings (raw/hex/base64) (`:302-320`).
+- `service_test.go`: AES-GCM round-trip, env-ref resolution, namespace validation, key-source precedence (`COMPOZY_VAULT_KEY` vs file), 0600-permission assertion (`:353`), supported encodings (raw/hex/base64) (`:302-320`).
 
 **Gap flag — vault never tests "raw secret leaks into a log line / SSE event / HTTP response / CLI output" in a real running daemon. Redaction is asserted in unit tests on the data-shape level only.**
 
@@ -209,7 +209,7 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
 
 ### 2.6 `internal/cli/` tests
 
-- `config_test.go`: scalar-mutation kind matching, redacted fields hidden in stdout, `--scope` parsing, validate-before-write semantics, write-target resolution under `AGH_HOME`.
+- `config_test.go`: scalar-mutation kind matching, redacted fields hidden in stdout, `--scope` parsing, validate-before-write semantics, write-target resolution under `COMPOZY_HOME`.
 - `vault_test.go`: PUT does not echo plaintext (`:111`), DELETE returns redacted record, JSON output shape preserved.
 - `workspace_test.go`: workspace registration command shapes, error mapping.
 
@@ -234,10 +234,10 @@ resolved `AGENT.md` model and reasoning effort reach ACP in protocol order befor
 2. **Restart-required for everything else under `skills.*`** — no scenario forces the API to flag `restart_required: true` and then verifies that a process-level restart picks up the new value while a non-restart leaves the running agent on the old value.
 3. **Workspace overlay precedence inside a live session** — no test runs the same `defaults.provider` declared in global → workspace and proves the per-workspace session uses the workspace value.
 4. **Multi-workspace memory + skill isolation** — `workspace/resolver.go` keys cache by ID, but no test starts session A in workspace A and session B in workspace B simultaneously and proves no cross-talk in agents/skills/memory/provider catalog.
-5. **Secret never appears in any operator-visible surface** — partially proven in unit tests (CLI vault PUT, settings projection), but no scenario walks every surface (`agh config list`, `agh config show`, `/api/settings/...`, `/api/vault/secrets`, SSE log tail, daemon log file, `agh sessions logs`) and asserts a known fake secret string is absent everywhere.
+5. **Secret never appears in any operator-visible surface** — partially proven in unit tests (CLI vault PUT, settings projection), but no scenario walks every surface (`compozy config list`, `compozy config show`, `/api/settings/...`, `/api/vault/secrets`, SSE log tail, daemon log file, `compozy sessions logs`) and asserts a known fake secret string is absent everywhere.
 6. **Vault unification flow** — vault namespaces (`providers`, `bridges`, `automation`, `mcp`, `hooks`, `extensions`, `sandbox`, `sessions`) all share one store, but the audit story is not end-to-end proved: a `GET /api/vault/secrets/metadata` for one namespace must not leak presence of refs in another namespace beyond what the prefix filter allows.
 7. **Default-value drift** — there is no test that fails when `config.toml` (operator-shipped reference) declares a default that disagrees with `DefaultWithHome(...)`. The example and builtin currently agree on `claude-sonnet-5`; a guard must keep them aligned as model defaults change.
-8. **Concurrent `agh config set` against the same key** — no scenario runs two concurrent CLI invocations against the same `AGH_HOME` and verifies a defined ordering or a clean rejection. Standing directive forbids parallelizing config writes against one isolated QA home; this should be an enforcement test, not a documentation rule.
+8. **Concurrent `compozy config set` against the same key** — no scenario runs two concurrent CLI invocations against the same `COMPOZY_HOME` and verifies a defined ordering or a clean rejection. Standing directive forbids parallelizing config writes against one isolated QA home; this should be an enforcement test, not a documentation rule.
 9. **TOML invariant: comment-preserving editor never silently drops user comments** — `OverlayEditor` claims comment preservation; no test runs a config.toml with header / inline / trailing comments through `SetValue`/`Delete` and asserts byte-for-byte preservation outside the targeted region.
 10. **`.env` repair never widens scope** — `RepairDotEnvFile` (`dotenv.go:92-160`) refuses symlinks, dirs, and unsupported syntax. No scenario verifies the temp-file fallback survives a crash mid-rename (the os.CreateTemp + os.Rename pattern at `dotenv.go:480-540`).
 11. **Workspace path with spaces / unicode / symlinks pointing outside an approved root** — root canonicalization is `EvalSymlinks + Abs` (`resolver_crud.go:329-339`) but no scenario proves a symlink workspace pointing to `/private/var/folders/...` (the macOS canonicalization quirk called out in `internal/CLAUDE.md:57`) round-trips identically.
@@ -246,13 +246,13 @@ resolved `AGENT.md` model and reasoning effort reach ACP in protocol order befor
 
 ## 4. Real-LLM / Real-Agent Scenarios (CFG-01 .. CFG-16)
 
-Each scenario uses the `qa-scenario` + `qa-flow` anatomy from openclaw. Scenarios mark `live: true` when they require a real ACP agent under a real `agh sessions start`. They mark `live: false` when they exercise the runtime-side daemon API/CLI/persistence layer end-to-end without a real provider call (still a higher bar than the existing unit tests).
+Each scenario uses the `qa-scenario` + `qa-flow` anatomy from openclaw. Scenarios mark `live: true` when they require a real ACP agent under a real `compozy sessions start`. They mark `live: false` when they exercise the runtime-side daemon API/CLI/persistence layer end-to-end without a real provider call (still a higher bar than the existing unit tests).
 
 Mandatory boilerplate for every scenario (omitted in the per-scenario blocks for brevity):
 
-- All scenarios run inside an isolated `AGH_HOME`, an isolated daemon port (no `:2123` fallback), and an isolated `tmux-bridge` socket per the worktree-isolation directive (`docs/_memory/standing_directives.md`).
+- All scenarios run inside an isolated `COMPOZY_HOME`, an isolated daemon port (no `:2123` fallback), and an isolated `tmux-bridge` socket per the worktree-isolation directive (`docs/_memory/standing_directives.md`).
 - Live scenarios also set `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` from the `bootstrap-manifest.json` (`agh-qa-bootstrap`), per the provider-home isolation directive.
-- Every scenario `cleanup` step calls `agh daemon stop` and removes the bootstrap home tree.
+- Every scenario `cleanup` step calls `compozy daemon stop` and removes the bootstrap home tree.
 
 ````markdown
 ```yaml qa-scenario
@@ -268,12 +268,12 @@ coverage:
 live: false
 provider: none
 preconditions:
-  - Fresh AGH_HOME (no prior config.toml).
-  - Repo root config.toml copied verbatim to <AGH_HOME>/config.toml.
+  - Fresh COMPOZY_HOME (no prior config.toml).
+  - Repo root config.toml copied verbatim to <COMPOZY_HOME>/config.toml.
 steps:
-  - "agh daemon start --foreground=false (managed by tmux-bridge)"
-  - "agh config show -o json > /tmp/show.json"
-  - "agh config validate -o json"
+  - "compozy daemon start --foreground=false (managed by tmux-bridge)"
+  - "compozy config show -o json > /tmp/show.json"
+  - "compozy config validate -o json"
 expected:
   - "config show JSON parses without 'value: <nil>' anywhere"
   - "Every key documented in config.toml.example resolves to a non-zero typed value or the explicit zero (e.g. session.limits.timeout=0s)"
@@ -281,12 +281,12 @@ expected:
   - "config validate exits 0 with status='valid'"
 evidence:
   - "/tmp/show.json byte-equal to golden"
-  - "agh.log shows config.load.completed for global path only"
+  - "compozy.log shows config.load.completed for global path only"
 failure_signatures:
   - "Field added/removed in DefaultWithHome but golden not updated"
   - "config.toml example drifted from defaults (covered by CFG-09)"
 cleanup:
-  - "agh daemon stop"
+  - "compozy daemon stop"
 ```
 ````
 
@@ -303,15 +303,15 @@ coverage:
 live: false
 provider: none
 preconditions:
-  - Fresh AGH_HOME.
-  - <AGH_HOME>/config.toml contains "[[mcp_servers\nname = \"oops\"" (unterminated array of tables).
+  - Fresh COMPOZY_HOME.
+  - <COMPOZY_HOME>/config.toml contains "[[mcp_servers\nname = \"oops\"" (unterminated array of tables).
 steps:
-  - "agh daemon start --foreground (capture stdout+stderr+exit code)"
-  - "agh config validate -o json (separate run)"
+  - "compozy daemon start --foreground (capture stdout+stderr+exit code)"
+  - "compozy config validate -o json (separate run)"
 expected:
   - "Daemon exits non-zero (not 0)"
-  - "stderr contains 'load global config:' and the original parse error including file path AGH_HOME/config.toml and a line number"
-  - "agh config validate exits non-zero with stable JSON shape: {error: {code: 'config.parse', file, line}}"
+  - "stderr contains 'load global config:' and the original parse error including file path COMPOZY_HOME/config.toml and a line number"
+  - "compozy config validate exits non-zero with stable JSON shape: {error: {code: 'config.parse', file, line}}"
   - "Daemon does NOT auto-repair, does NOT silently fall back to defaults"
 evidence:
   - "exit code != 0"
@@ -320,7 +320,7 @@ failure_signatures:
   - "Daemon boots with a partial config (silent fallback)"
   - "Error message lacks file:line"
 cleanup:
-  - "agh daemon stop || true"
+  - "compozy daemon stop || true"
 ```
 ````
 
@@ -337,9 +337,9 @@ coverage:
 live: false
 provider: none
 preconditions:
-  - <AGH_HOME>/config.toml present but with `[defaults]\nagent = ""`.
+  - <COMPOZY_HOME>/config.toml present but with `[defaults]\nagent = ""`.
 steps:
-  - "agh config validate -o json"
+  - "compozy config validate -o json"
 expected:
   - "exit code 1 (or stable code matching CLI policy)"
   - "JSON output: {status:'invalid', errors:[{path:'defaults.agent', message:'defaults.agent is required'}]}"
@@ -350,14 +350,14 @@ failure_signatures:
   - "Error references unrelated section"
   - "Validation succeeds (regression of validateCore wiring)"
 cleanup:
-  - "agh daemon stop || true"
+  - "compozy daemon stop || true"
 ```
 ````
 
 ````markdown
 ```yaml qa-scenario
 id: cfg-04-hot-apply-disabled-skills
-title: agh config set skills.disabled_skills hot-applies without restart
+title: compozy config set skills.disabled_skills hot-applies without restart
 theme: config
 coverage:
   primary:
@@ -369,13 +369,13 @@ live: true
 provider: claude
 preconditions:
   - Daemon running on isolated port.
-  - Fixture skill named 'qa-marker-skill' installed under <AGH_HOME>/skills/.
-  - Active session: agh sessions start --agent claude-code --workspace <ws>
+  - Fixture skill named 'qa-marker-skill' installed under <COMPOZY_HOME>/skills/.
+  - Active session: compozy sessions start --agent claude-code --workspace <ws>
 steps:
-  - "agh skills list -o json --session-id <sid> > /tmp/before.json"
+  - "compozy skills list -o json --session-id <sid> > /tmp/before.json"
   - "subscribe to /api/settings via SSE (background) -> /tmp/sse.log"
-  - "agh config set skills.disabled_skills '[\"qa-marker-skill\"]' --scope global -o json -> capture {behavior, applied, restart_required}"
-  - "agh skills list -o json --session-id <sid> > /tmp/after.json"
+  - "compozy config set skills.disabled_skills '[\"qa-marker-skill\"]' --scope global -o json -> capture {behavior, applied, restart_required}"
+  - "compozy skills list -o json --session-id <sid> > /tmp/after.json"
   - "Send to running Claude session: 'List available skills now and report whether qa-marker-skill appears.'"
 expected:
   - "config set response.behavior == 'applied_now'"
@@ -392,15 +392,15 @@ failure_signatures:
   - "behavior == 'restart_required' (regression of classify.go:90-95)"
   - "Active session still sees the skill (skill registry didn't reload)"
 cleanup:
-  - "agh sessions stop <sid>"
-  - "agh daemon stop"
+  - "compozy sessions stop <sid>"
+  - "compozy daemon stop"
 ```
 ````
 
 ````markdown
 ```yaml qa-scenario
 id: cfg-05-restart-required-flag
-title: agh config set log.level surfaces restart_required and requires daemon restart
+title: compozy config set log.level surfaces restart_required and requires daemon restart
 theme: config
 coverage:
   primary:
@@ -411,11 +411,11 @@ live: false
 provider: none
 preconditions:
   - Daemon running, log.level=info initially.
-  - tail -f <AGH_HOME>/logs/agh.log (background)
+  - tail -f <COMPOZY_HOME>/logs/compozy.log (background)
 steps:
-  - "agh config set log.level debug --scope global -o json -> capture {behavior, restart_required}"
-  - "Generate noisy activity (agh sessions list 5x) -> verify log file has NO debug-level lines"
-  - "agh daemon stop && agh daemon start"
+  - "compozy config set log.level debug --scope global -o json -> capture {behavior, restart_required}"
+  - "Generate noisy activity (compozy sessions list 5x) -> verify log file has NO debug-level lines"
+  - "compozy daemon stop && compozy daemon start"
   - "Generate noisy activity again -> verify log file NOW contains debug-level lines"
 expected:
   - "First config set: behavior=='restart_required', restart_required==true, applied==false"
@@ -429,7 +429,7 @@ failure_signatures:
   - "Mid-run log starts emitting debug (silent hot-apply where there shouldn't be one)"
   - "Restart fails to honor the persisted value"
 cleanup:
-  - "agh daemon stop"
+  - "compozy daemon stop"
 ```
 ````
 
@@ -448,16 +448,16 @@ live: true
 provider: claude
 preconditions:
   - Workspace registered at /tmp/ws-cfg06 with name=cfg06.
-  - Same skill 'overlap-skill' installed at <AGH_HOME>/skills/overlap-skill (bundled-equivalent shadow), at /tmp/ws-cfg06/.agh/skills/overlap-skill (workspace).
-  - Same skill packaged inside <AGH_HOME>/agents/general/.agh/skills/overlap-skill (agent-local, highest precedence).
+  - Same skill 'overlap-skill' installed at <COMPOZY_HOME>/skills/overlap-skill (bundled-equivalent shadow), at /tmp/ws-cfg06/.compozy/skills/overlap-skill (workspace).
+  - Same skill packaged inside <COMPOZY_HOME>/agents/general/.compozy/skills/overlap-skill (agent-local, highest precedence).
   - Each tier's SKILL.md prompt declares 'I am from <tier>' so the LLM can self-report.
 steps:
-  - "agh sessions start --agent general --workspace cfg06 --message 'Run overlap-skill and quote the first line of its prompt.'"
+  - "compozy sessions start --agent general --workspace cfg06 --message 'Run overlap-skill and quote the first line of its prompt.'"
   - "Subscribe to /api/observability events filtered by event_kind=skills.shadow"
 expected:
   - "Claude reply quotes 'I am from agent-local' (highest tier wins)"
   - "Observability emits one shadow-audit event per shadowed skill listing the suppressed sources"
-  - "agh skills list -o json --session-id <sid> shows the agent-local source for overlap-skill"
+  - "compozy skills list -o json --session-id <sid> shows the agent-local source for overlap-skill"
 evidence:
   - "Claude transcript"
   - "Shadow-audit event list"
@@ -465,14 +465,14 @@ failure_signatures:
   - "Claude quotes the workspace or global tier (precedence regression)"
   - "No shadow-audit event emitted (silent collapse)"
 cleanup:
-  - "agh sessions stop <sid>; agh workspace remove cfg06; agh daemon stop"
+  - "compozy sessions stop <sid>; compozy workspace remove cfg06; compozy daemon stop"
 ```
 ````
 
 ````markdown
 ```yaml qa-scenario
 id: cfg-07-workspace-resolver-modes
-title: Workspace resolution by --workspace, AGH_WORKSPACE env, cwd, config-discovery
+title: Workspace resolution by --workspace, COMPOZY_WORKSPACE env, cwd, config-discovery
 theme: workspace
 coverage:
   primary:
@@ -482,10 +482,10 @@ provider: none
 preconditions:
   - Two workspaces registered: ws-alpha at /tmp/alpha, ws-beta at /tmp/beta.
 steps:
-  - "from /tmp/alpha: agh workspace info -o json (no flags)  -> expect ws-alpha resolved by cwd"
-  - "AGH_WORKSPACE=ws-beta agh workspace info -o json (still cwd=/tmp/alpha)  -> expect ws-beta (env wins over cwd)"
-  - "agh workspace info ws-alpha -o json --workspace /tmp/beta  -> expect explicit positional overrides --workspace flag (or stable rule, captured here)"
-  - "from /tmp/elsewhere: agh workspace info -o json  -> expect daemon-side error 'workspace not found' (cwd matches nothing)"
+  - "from /tmp/alpha: compozy workspace info -o json (no flags)  -> expect ws-alpha resolved by cwd"
+  - "COMPOZY_WORKSPACE=ws-beta compozy workspace info -o json (still cwd=/tmp/alpha)  -> expect ws-beta (env wins over cwd)"
+  - "compozy workspace info ws-alpha -o json --workspace /tmp/beta  -> expect explicit positional overrides --workspace flag (or stable rule, captured here)"
+  - "from /tmp/elsewhere: compozy workspace info -o json  -> expect daemon-side error 'workspace not found' (cwd matches nothing)"
 expected:
   - "Resolution order documented and stable: explicit positional > env > cwd-discovery > config-default"
   - "Each result records resolution_source in JSON output for agent-debuggability"
@@ -495,7 +495,7 @@ failure_signatures:
   - "env override silently ignored"
   - "cwd-discovery picks a sibling workspace whose path begins with the cwd path"
 cleanup:
-  - "agh workspace remove ws-alpha ws-beta; agh daemon stop"
+  - "compozy workspace remove ws-alpha ws-beta; compozy daemon stop"
 ```
 ````
 
@@ -513,15 +513,15 @@ coverage:
 live: true
 provider: claude
 preconditions:
-  - workspace-a at /tmp/wsA with /tmp/wsA/.agh/skills/secret-a-skill (prompt: 'I am the alpha-only skill, marker=ALPHA-7').
-  - workspace-b at /tmp/wsB with /tmp/wsB/.agh/skills/secret-b-skill (prompt: 'I am the beta-only skill, marker=BETA-7').
+  - workspace-a at /tmp/wsA with /tmp/wsA/.compozy/skills/secret-a-skill (prompt: 'I am the alpha-only skill, marker=ALPHA-7').
+  - workspace-b at /tmp/wsB with /tmp/wsB/.compozy/skills/secret-b-skill (prompt: 'I am the beta-only skill, marker=BETA-7').
   - Daemon launched once with both registered.
 steps:
-  - "agh sessions start --agent claude-code --workspace wsA --message 'Use secret-a-skill and quote its marker.' (sid_a)"
-  - "agh sessions start --agent claude-code --workspace wsB --message 'Use secret-b-skill and quote its marker.' (sid_b)"
-  - "agh sessions start --agent claude-code --workspace wsA --message 'Try to use secret-b-skill.' (sid_a2)"
-  - "agh memory list --workspace wsA -o json > /tmp/mem_a.json"
-  - "agh memory list --workspace wsB -o json > /tmp/mem_b.json"
+  - "compozy sessions start --agent claude-code --workspace wsA --message 'Use secret-a-skill and quote its marker.' (sid_a)"
+  - "compozy sessions start --agent claude-code --workspace wsB --message 'Use secret-b-skill and quote its marker.' (sid_b)"
+  - "compozy sessions start --agent claude-code --workspace wsA --message 'Try to use secret-b-skill.' (sid_a2)"
+  - "compozy memory list --workspace wsA -o json > /tmp/mem_a.json"
+  - "compozy memory list --workspace wsB -o json > /tmp/mem_b.json"
 expected:
   - "sid_a transcript contains 'ALPHA-7'"
   - "sid_b transcript contains 'BETA-7'"
@@ -534,7 +534,7 @@ failure_signatures:
   - "sid_a2 successfully invokes secret-b-skill"
   - "memory dump for ws A contains ws B markers"
 cleanup:
-  - "agh sessions stop sid_a sid_b sid_a2; agh workspace remove wsA wsB; agh daemon stop"
+  - "compozy sessions stop sid_a sid_b sid_a2; compozy workspace remove wsA wsB; compozy daemon stop"
 ```
 ````
 
@@ -583,16 +583,16 @@ preconditions:
   - Known fake secret string: 'AGHQA-FAKE-SECRET-9c4e1a'.
   - Provider 'claude' configured with credential_slot using secret_ref=vault:providers/claude/api_key, target_env=ANTHROPIC_API_KEY.
 steps:
-  - "printf 'AGHQA-FAKE-SECRET-9c4e1a' | agh vault put vault:providers/claude/api_key --kind api_key --value-stdin -o json"
-  - "agh vault list --namespace providers -o json"
-  - "agh vault get vault:providers/claude/api_key -o json"
-  - "agh config show -o json"
-  - "agh config list -o json"
-  - "curl -s --unix-socket <socket> http:/agh/api/settings/general | jq ."
-  - "curl -s --unix-socket <socket> http:/agh/api/vault/secrets/metadata?ref=vault:providers/claude/api_key | jq ."
-  - "Subscribe to SSE: curl -s -N --unix-socket <socket> http:/agh/api/settings/observability/log-tail (10s window)"
-  - "agh sessions start --agent claude-code --workspace cfg10 --message 'Read your environment and report any unusual long base64-looking strings.' (real Claude run)"
-  - "grep -R 'AGHQA-FAKE-SECRET-9c4e1a' <AGH_HOME>"
+  - "printf 'AGHQA-FAKE-SECRET-9c4e1a' | compozy vault put vault:providers/claude/api_key --kind api_key --value-stdin -o json"
+  - "compozy vault list --namespace providers -o json"
+  - "compozy vault get vault:providers/claude/api_key -o json"
+  - "compozy config show -o json"
+  - "compozy config list -o json"
+  - "curl -s --unix-socket <socket> http:/compozy/api/settings/general | jq ."
+  - "curl -s --unix-socket <socket> http:/compozy/api/vault/secrets/metadata?ref=vault:providers/claude/api_key | jq ."
+  - "Subscribe to SSE: curl -s -N --unix-socket <socket> http:/compozy/api/settings/observability/log-tail (10s window)"
+  - "compozy sessions start --agent claude-code --workspace cfg10 --message 'Read your environment and report any unusual long base64-looking strings.' (real Claude run)"
+  - "grep -R 'AGHQA-FAKE-SECRET-9c4e1a' <COMPOZY_HOME>"
 expected:
   - "vault put response includes only Metadata fields (no plaintext)"
   - "vault list / get returns Present=true plus dates; never the value"
@@ -600,16 +600,16 @@ expected:
   - "HTTP responses never include the value"
   - "SSE log-tail does not stream the value"
   - "Claude reply does not echo the value (provider's own redaction OR our env-mask)"
-  - "grep returns zero hits anywhere under <AGH_HOME>"
+  - "grep returns zero hits anywhere under <COMPOZY_HOME>"
   - "Audit event 'vault.put' fires with ref + namespace + actor, but no value field"
 evidence:
   - "All captured JSON archived"
   - "grep output"
 failure_signatures:
   - "Any surface returns the literal AGHQA-FAKE-SECRET-9c4e1a"
-  - "agh.log contains the value"
+  - "compozy.log contains the value"
 cleanup:
-  - "agh vault delete vault:providers/claude/api_key; agh daemon stop"
+  - "compozy vault delete vault:providers/claude/api_key; compozy daemon stop"
 ```
 ````
 
@@ -630,23 +630,23 @@ preconditions:
   - vault:providers/claude/api_key seeded with a *real* throwaway ANTHROPIC_API_KEY (live-frontier lab key) per the bootstrap manifest.
   - Provider config: secret_ref=vault:providers/claude/api_key, target_env=ANTHROPIC_API_KEY, required=true.
 steps:
-  - "agh sessions start --agent claude-code --workspace cfg11 --message 'Echo \"alive\".'"
+  - "compozy sessions start --agent claude-code --workspace cfg11 --message 'Echo \"alive\".'"
   - "Inspect ACP subprocess via daemon child-monitor (no direct ps): /api/sessions/<sid>/processes | jq ."
-  - "Tail agh.log throughout"
+  - "Tail compozy.log throughout"
 expected:
   - "Claude responds 'alive' (real provider call succeeds, proving the env var was passed)"
-  - "agh.log contains 'vault.resolve_ref ref=vault:providers/claude/api_key namespace=providers' but NEVER the resolved value"
+  - "compozy.log contains 'vault.resolve_ref ref=vault:providers/claude/api_key namespace=providers' but NEVER the resolved value"
   - "Audit event 'vault.read' fires with actor=daemon, scope=session/<sid>"
   - "Subprocess inspection (when supported) does not expose the value back through the API"
 evidence:
   - "Successful Claude response"
-  - "agh.log lines for vault.resolve_ref"
+  - "compozy.log lines for vault.resolve_ref"
 failure_signatures:
-  - "agh.log contains the raw key value"
+  - "compozy.log contains the raw key value"
   - "Provider call fails with 401 (the env var did not propagate)"
   - "vault.read audit event missing"
 cleanup:
-  - "agh sessions stop <sid>; agh vault delete vault:providers/claude/api_key; agh daemon stop"
+  - "compozy sessions stop <sid>; compozy vault delete vault:providers/claude/api_key; compozy daemon stop"
 ```
 ````
 
@@ -662,13 +662,13 @@ live: false
 provider: none
 preconditions:
   - Workspace cfg12 with three malformed agents:
-    * /tmp/cfg12/.agh/agents/no-fence/AGENT.md       (no opening '---')
-    * /tmp/cfg12/.agh/agents/unterminated/AGENT.md  (opening '---' but no closing one)
-    * /tmp/cfg12/.agh/agents/bom/AGENT.md           (file begins with UTF-8 BOM 0xEF 0xBB 0xBF then '---')
-    * /tmp/cfg12/.agh/agents/embedded-tab/AGENT.md  (key contains an embedded tab byte)
+    * /tmp/cfg12/.compozy/agents/no-fence/AGENT.md       (no opening '---')
+    * /tmp/cfg12/.compozy/agents/unterminated/AGENT.md  (opening '---' but no closing one)
+    * /tmp/cfg12/.compozy/agents/bom/AGENT.md           (file begins with UTF-8 BOM 0xEF 0xBB 0xBF then '---')
+    * /tmp/cfg12/.compozy/agents/embedded-tab/AGENT.md  (key contains an embedded tab byte)
 steps:
-  - "agh workspace add /tmp/cfg12 --name cfg12 -o json (auto-discovers agents)"
-  - "agh agent list --workspace cfg12 -o json"
+  - "compozy workspace add /tmp/cfg12 --name cfg12 -o json (auto-discovers agents)"
+  - "compozy agent list --workspace cfg12 -o json"
 expected:
   - "Workspace registers without error"
   - "agent list returns a per-agent diagnostic for each malformed file: {path, error_kind: 'frontmatter.missing'|'frontmatter.unterminated'|'frontmatter.bom'|'frontmatter.invalid_key', message}"
@@ -680,14 +680,14 @@ failure_signatures:
   - "Daemon crashes / refuses to register the workspace"
   - "BOM file silently parses (the BOM was misread as part of the metadata)"
 cleanup:
-  - "agh workspace remove cfg12; agh daemon stop"
+  - "compozy workspace remove cfg12; compozy daemon stop"
 ```
 ````
 
 ````markdown
 ```yaml qa-scenario
 id: cfg-13-overlay-editor-comment-preservation
-title: agh config set preserves user comments and unrelated structure byte-for-byte
+title: compozy config set preserves user comments and unrelated structure byte-for-byte
 theme: config
 coverage:
   primary:
@@ -695,11 +695,11 @@ coverage:
 live: false
 provider: none
 preconditions:
-  - <AGH_HOME>/config.toml hand-authored with header comments, inline comments after values, blank-line separators, and unrelated sections.
+  - <COMPOZY_HOME>/config.toml hand-authored with header comments, inline comments after values, blank-line separators, and unrelated sections.
   - Snapshot original to /tmp/orig.toml.
 steps:
-  - "agh config set log.level debug --scope global -o json"
-  - "diff -u /tmp/orig.toml <AGH_HOME>/config.toml > /tmp/diff.txt"
+  - "compozy config set log.level debug --scope global -o json"
+  - "diff -u /tmp/orig.toml <COMPOZY_HOME>/config.toml > /tmp/diff.txt"
 expected:
   - "diff is bounded to the single targeted line: only `level = \"info\"` -> `level = \"debug\"`"
   - "All comments, blank lines, and other sections preserved byte-for-byte"
@@ -718,7 +718,7 @@ cleanup:
 ````markdown
 ```yaml qa-scenario
 id: cfg-14-concurrent-config-set
-title: Two concurrent agh config set against the same key produce a defined outcome
+title: Two concurrent compozy config set against the same key produce a defined outcome
 theme: config
 coverage:
   primary:
@@ -730,11 +730,11 @@ preconditions:
   - Standing directive: never parallelize config writes against one isolated QA home — but enforce that the daemon NEVER produces a corrupt file even if a misbehaving caller violates the rule.
 steps:
   - "Run in parallel (& backgrounded):
-       (agh config set log.level debug --scope global -o json) &
-       (agh config set log.level error --scope global -o json) &
+       (compozy config set log.level debug --scope global -o json) &
+       (compozy config set log.level error --scope global -o json) &
        wait"
-  - "agh config get log.level -o json"
-  - "agh config validate -o json"
+  - "compozy config get log.level -o json"
+  - "compozy config validate -o json"
 expected:
   - "Either: (a) both succeed and the last writer wins (final value is one of {debug, error}, file is parseable), OR (b) one succeeds and the other fails with a stable 'config: locked' error"
   - "Validate succeeds — never a partial-write that breaks reload"
@@ -746,7 +746,7 @@ failure_signatures:
   - "config.toml has interleaved bytes from both writers"
   - "Validate fails post-run"
 cleanup:
-  - "agh daemon stop"
+  - "compozy daemon stop"
 ```
 ````
 
@@ -764,11 +764,11 @@ live: true
 provider: claude,codex
 preconditions:
   - Two AGENT.md files under workspace cfg15:
-    * /tmp/cfg15/.agh/agents/op-x/AGENT.md  with provider: claude, model: claude-sonnet-5
-    * /tmp/cfg15/.agh/agents/op-y/AGENT.md  with provider: codex,  model: gpt-5.6-luna
+    * /tmp/cfg15/.compozy/agents/op-x/AGENT.md  with provider: claude, model: claude-sonnet-5
+    * /tmp/cfg15/.compozy/agents/op-y/AGENT.md  with provider: codex,  model: gpt-5.6-luna
 steps:
-  - "agh sessions start --agent op-x --workspace cfg15 --message 'What model identifier are you running under? Reply with only that string.'"
-  - "agh sessions start --agent op-y --workspace cfg15 --message 'What model identifier are you running under? Reply with only that string.'"
+  - "compozy sessions start --agent op-x --workspace cfg15 --message 'What model identifier are you running under? Reply with only that string.'"
+  - "compozy sessions start --agent op-y --workspace cfg15 --message 'What model identifier are you running under? Reply with only that string.'"
 expected:
   - "op-x reply matches 'claude-sonnet-5' (or the official model self-id) — proves AGENT.md model field reached the runtime"
   - "op-y reply matches the gpt-5.6-luna family"
@@ -780,7 +780,7 @@ failure_signatures:
   - "Both replies cite the provider default model"
   - "ResolvedAgent constructed with provider default while AGENT.md is ignored"
 cleanup:
-  - "agh sessions stop ...; agh workspace remove cfg15; agh daemon stop"
+  - "compozy sessions stop ...; compozy workspace remove cfg15; compozy daemon stop"
 ```
 ````
 
@@ -797,17 +797,17 @@ coverage:
 live: false
 provider: none
 preconditions:
-  - Workspace cfg16 with /tmp/cfg16/.env containing 'AGH_HOME=/tmp/cfg16-home'.
+  - Workspace cfg16 with /tmp/cfg16/.env containing 'COMPOZY_HOME=/tmp/cfg16-home'.
   - Provider config: secret_ref='env:CFG16_TEST_TOKEN'.
   - Vault key file present in the new home.
 steps:
   - "From inside /tmp/cfg16:
-       agh config validate -o json (without process AGH_HOME)
+       compozy config validate -o json (without process COMPOZY_HOME)
      -> expect home resolves to /tmp/cfg16-home (dotenv wins when no process env)"
-  - "AGH_HOME=/tmp/cfg16-other-home agh config validate -o json
+  - "COMPOZY_HOME=/tmp/cfg16-other-home compozy config validate -o json
      -> expect home resolves to /tmp/cfg16-other-home (process env beats .env)"
   - "Echo CFG16_TEST_TOKEN into /tmp/cfg16/.env, do NOT export it.
-     agh sessions start --agent ... attempts ResolveRef('env:CFG16_TEST_TOKEN').
+     compozy sessions start --agent ... attempts ResolveRef('env:CFG16_TEST_TOKEN').
      Expected: ResolveRef returns the dotenv value when ResolveRef's lookupEnv is layered with dotenv (today only Load uses the layered lookup; vault.Service uses os.LookupEnv unless WithLookupEnv is wired)"
 expected:
   - "Process env always wins over .env (config/config.go:283-295)"
@@ -820,7 +820,7 @@ failure_signatures:
   - ".env value silently overrides exported process env (precedence inverted)"
   - "vault.ResolveRef finds env values that Load did not see, or vice versa"
 cleanup:
-  - "rm /tmp/cfg16/.env; agh daemon stop"
+  - "rm /tmp/cfg16/.env; compozy daemon stop"
 ```
 ````
 
@@ -831,12 +831,12 @@ The QA pass MUST also drive the following edges, each as a one-shot assertion (s
 - **Tab-vs-space indentation in TOML**: `pelletier/go-toml` accepts both, but a hand-mixed `[section]\n\tkey = "v"` must round-trip through `OverlayEditor.SetValue` without spurious whitespace mutation.
 - **UTF-8 BOM at the head of `config.toml`**: today `loadConfigOverlayFile` reads raw bytes; verify it survives the BOM or fails with a clear "BOM not supported" message — not a generic parse error. Today's parser is `BurntSushi/toml.Decode`, which rejects BOM silently producing odd errors; verify and codify behavior.
 - **Trailing-newline missing in `config.toml`**: file like `[daemon]\nsocket = "/tmp/x"` (no final `\n`) — both load and `OverlayEditor.SetValue` MUST work and the persisted result MUST end with exactly one trailing newline.
-- **Comment-only file**: a file with only `# header\n` and no sections must load as `DefaultWithHome` (no error) and a subsequent `agh config set log.level debug` MUST append the new section cleanly.
+- **Comment-only file**: a file with only `# header\n` and no sections must load as `DefaultWithHome` (no error) and a subsequent `compozy config set log.level debug` MUST append the new section cleanly.
 - **Time-zone normalization**: `automation.timezone` defaults are exercised in `automation_test.go` but no scenario verifies that a workspace overlay with `automation.timezone = "America/Sao_Paulo"` survives daemon restart and emits cron events at the right wall-clock time.
 - **Default-value drift**: the existing repo `config.toml` (used as marketing fixture) currently disagrees with `DefaultWithHome` on `claude.default_model`. CFG-09 codifies the test. Other potential drifts: `Limits.MaxSessions = 10` (matches), Network Live defaults/limits (must match the typed config contract), and `permissions.mode = "approve-all"` (matches).
 - **Env-var override precedence with quoted values containing equals**: `KEY="a=b=c"` in `.env`. `godotenv.Unmarshal` handles this; CFG-12-style edge ensures the daemon does too on round-trip.
-- **Secret with embedded newlines**: `agh vault put` reading from stdin uses `strings.TrimRight(content, "\r\n")` (`cli/vault.go:144-154`). A multi-line value (e.g. PEM-formatted secret) — the QA must clarify whether multi-line is supported or rejected.
-- **Workspace path with spaces / unicode**: `/tmp/Pasta com espaços e ümlauts/`. Scanner walks correctly (`os.ReadDir` is byte-safe), but the JSON output for `agh workspace list` and `agh config path` MUST escape correctly.
+- **Secret with embedded newlines**: `compozy vault put` reading from stdin uses `strings.TrimRight(content, "\r\n")` (`cli/vault.go:144-154`). A multi-line value (e.g. PEM-formatted secret) — the QA must clarify whether multi-line is supported or rejected.
+- **Workspace path with spaces / unicode**: `/tmp/Pasta com espaços e ümlauts/`. Scanner walks correctly (`os.ReadDir` is byte-safe), but the JSON output for `compozy workspace list` and `compozy config path` MUST escape correctly.
 - **Symlink workspace pointing outside an approved root**: `EvalSymlinks` resolves through the symlink. The `internal/CLAUDE.md` symlink-escape directive applies to skill paths and bundle install paths, not workspace roots — but any future hardening MUST avoid breaking this case. Codify: workspace at `/tmp/link → /private/var/folders/.../real` round-trips and stable on macOS.
 - **macOS `/private/var/folders` canonicalization quirk** (`internal/CLAUDE.md:57`): scanner snapshots use both raw and canonical paths; verify cache-key stability across canonicalization.
 
@@ -848,41 +848,41 @@ The QA pass MUST also drive the following edges, each as a one-shot assertion (s
 - **`internal/api/core` (`BaseHandlers`)**: settings + vault HTTP/UDS handlers all use the shared `service` types. `MutationResult.RestartRequired` propagates as the `restart_required` JSON field (`internal/api/contract/settings.go:60,652`).
 - **`internal/api/httpapi` + `udsapi`**: thin transport selection. Tests at `httpapi/helpers_test.go:130, 158, 175` and `udsapi/helpers_test.go:71, 99, 116` cover the same restart-required propagation.
 - **`internal/sse`**: settings projection emitted over SSE for live UI feedback. Log-tail SSE endpoint at `internal/api/core/settings.go:290-340`.
-- **`internal/agentidentity`**: workspace inference via `X-AGH-Workspace-ID` header (`identity.go:29`). Caller-identity validation before agent-scoped settings/vault ops.
+- **`internal/agentidentity`**: workspace inference via `X-Compozy-Workspace-ID` header (`identity.go:29`). Caller-identity validation before agent-scoped settings/vault ops.
 - **`internal/automation`**: workspace-overlayed automation triggers; templates validate against `lookup` (workspace `.env` aware).
 - **`internal/sandbox`**: sandbox-profile env/secret_env subject to `vault.ValidateNonSecretEnvMap` and `ValidateSecretEnvMap`.
 - **`internal/extension`**: `ExtensionsConfig.Resources.AllowedKinds`, `MaxScope`, rate limits — config-driven and re-validated on every overlay mutation.
 - **`internal/observe`**: emits `vault.put`, `vault.read`, `settings.changed`, `config.load`, `config.write`, `workspace.register`, `workspace.update` events.
-- **`internal/store/globaldb`**: workspace registrations live in `agh.db`. Vault records also live here (encrypted blobs).
+- **`internal/store/globaldb`**: workspace registrations live in `compozy.db`. Vault records also live here (encrypted blobs).
 
 ## 7. DX Cliffs (high-friction holes likely to bite real users)
 
-1. **"Who wins when an agent has set a value vs an operator?"** — today, agent-scoped overrides via AGENT.md (model, tools, permissions, MCP) override config defaults but do NOT override workspace-scoped overlay values for the same field where they collide. `applyDefaultAgentOverride` in `workspace/resolver.go:279` overrides only `cfg.Defaults.Agent` from `Workspace.DefaultAgent`. Document the precise collision rules in CLI help and `agh config show` output.
-2. **`agh config set` succeeding silently when the key is unknown** — today we error with `"cli: config path %q is not supported by config set"` (`cli/config.go:1039`). But there is no analogous protection for `agh config edit` (free-form file edit) — a typo there is caught only by the post-edit `LoadForHome` re-validation. Verify the error surface emits the exact failing key (CFG-03 covers required keys; this is for "unknown key" specifically).
+1. **"Who wins when an agent has set a value vs an operator?"** — today, agent-scoped overrides via AGENT.md (model, tools, permissions, MCP) override config defaults but do NOT override workspace-scoped overlay values for the same field where they collide. `applyDefaultAgentOverride` in `workspace/resolver.go:279` overrides only `cfg.Defaults.Agent` from `Workspace.DefaultAgent`. Document the precise collision rules in CLI help and `compozy config show` output.
+2. **`compozy config set` succeeding silently when the key is unknown** — today we error with `"cli: config path %q is not supported by config set"` (`cli/config.go:1039`). But there is no analogous protection for `compozy config edit` (free-form file edit) — a typo there is caught only by the post-edit `LoadForHome` re-validation. Verify the error surface emits the exact failing key (CFG-03 covers required keys; this is for "unknown key" specifically).
 3. **Vault key not redacted in error responses** — if `decryptValue` fails (`vault/crypto.go:121-150`), the error uses `fmt.Errorf("vault: decrypt value: %w", err)`. Confirm that `err` from `gcm.Open` does NOT include any plaintext / nonce / payload bytes in its String form. (Today it shouldn't; codify in CFG-10's failure_signatures.)
-4. **`MutationResult.Warnings: ["no changes"]`** (`internal/settings/sections.go:204`) — what does an agent reading the SSE stream do with this? The shape is technically `applied_now=true`; a naive consumer assumes a mutation happened. Document and verify the warning is surfaced in `agh config set` JSON output.
-5. **Workspace not registered yet but path is given** — `ResolveOrRegister` auto-registers (`workspace/resolver.go:165-235`); `Resolve` on a path string fails. Confirm that `agh config set --workspace /not/registered/path ...` produces a clear error rather than auto-registering the workspace as a side-effect of a config write.
-6. **`agh config validate --workspace` without `--repair-env`**: workspace `.env` is parsed fresh on every load. If it has unsupported syntax, validate fails — but the message points at the `.env` file via `dotEnvUnsupportedError`, not at the TOML. Operators may misread this as a TOML problem.
-7. **`AGH_VAULT_KEY` env vs file precedence**: env wins. If an operator sets the env in one shell but launches the daemon from another, vault decryption fails with a generic error. Surface a clear "key source mismatch" diagnostic in `agh config path` or `agh diagnostics`.
-8. **Provider credential `secret_ref = "env:VAR"` when `VAR` is unset**: `vault.ResolveRef` returns `ErrMissingSecret` (`vault/service.go:128-130`). Verify the daemon surfaces this as an actionable error in `agh sessions start` (e.g., "provider 'claude' requires env:ANTHROPIC_API_KEY which is unset; set it via agh vault put or process env").
+4. **`MutationResult.Warnings: ["no changes"]`** (`internal/settings/sections.go:204`) — what does an agent reading the SSE stream do with this? The shape is technically `applied_now=true`; a naive consumer assumes a mutation happened. Document and verify the warning is surfaced in `compozy config set` JSON output.
+5. **Workspace not registered yet but path is given** — `ResolveOrRegister` auto-registers (`workspace/resolver.go:165-235`); `Resolve` on a path string fails. Confirm that `compozy config set --workspace /not/registered/path ...` produces a clear error rather than auto-registering the workspace as a side-effect of a config write.
+6. **`compozy config validate --workspace` without `--repair-env`**: workspace `.env` is parsed fresh on every load. If it has unsupported syntax, validate fails — but the message points at the `.env` file via `dotEnvUnsupportedError`, not at the TOML. Operators may misread this as a TOML problem.
+7. **`COMPOZY_VAULT_KEY` env vs file precedence**: env wins. If an operator sets the env in one shell but launches the daemon from another, vault decryption fails with a generic error. Surface a clear "key source mismatch" diagnostic in `compozy config path` or `compozy diagnostics`.
+8. **Provider credential `secret_ref = "env:VAR"` when `VAR` is unset**: `vault.ResolveRef` returns `ErrMissingSecret` (`vault/service.go:128-130`). Verify the daemon surfaces this as an actionable error in `compozy sessions start` (e.g., "provider 'claude' requires env:ANTHROPIC_API_KEY which is unset; set it via compozy vault put or process env").
 
 ## 8. Failure Modes QA Must Catch
 
-- **No raw secret in any output**: covered by CFG-10. Failure signature: any of the surfaces enumerated returns the literal known-fake string. Run an automated `grep` over `<AGH_HOME>` plus all captured HTTP / SSE / CLI outputs.
-- **Two-workspace memory or skill leak**: covered by CFG-08. Failure signature: workspace A's session can recall workspace B's marker, or `agh memory list --workspace wsA` returns workspace B entries.
+- **No raw secret in any output**: covered by CFG-10. Failure signature: any of the surfaces enumerated returns the literal known-fake string. Run an automated `grep` over `<COMPOZY_HOME>` plus all captured HTTP / SSE / CLI outputs.
+- **Two-workspace memory or skill leak**: covered by CFG-08. Failure signature: workspace A's session can recall workspace B's marker, or `compozy memory list --workspace wsA` returns workspace B entries.
 - **Missing `restart_required` flag on a restart-required key**: covered by CFG-05. Failure signature: `behavior=='applied_now'` for a key listed in `classify.go:87-88` field set.
 - **TOML mis-merge across overlay layers**: covered by CFG-06 + CFG-13. Failure signature: workspace overlay silently fails to override; or comment preservation breaks; or unrelated section accidentally rewritten.
-- **Config write that fails validation still gets persisted**: `EditConfigOverlay` validates *before* `writePersistedFile` (`persistence.go:330-336`). Failure signature: a write that violates `validateWithEnv` mutates the on-disk file. Test by attempting `agh config set http.port 99999` and asserting file unchanged.
+- **Config write that fails validation still gets persisted**: `EditConfigOverlay` validates *before* `writePersistedFile` (`persistence.go:330-336`). Failure signature: a write that violates `validateWithEnv` mutates the on-disk file. Test by attempting `compozy config set http.port 99999` and asserting file unchanged.
 - **`vault put` accepts a value but fails to redact in error case**: failure signature: an error path that includes the plaintext.
-- **Workspace registration succeeds, agent files refuse to parse, daemon never reports the failures**: failure signature: `agh agent list` returns empty without diagnostics. CFG-12 codifies the requirement that agent-load diagnostics must be collected and surfaced.
+- **Workspace registration succeeds, agent files refuse to parse, daemon never reports the failures**: failure signature: `compozy agent list` returns empty without diagnostics. CFG-12 codifies the requirement that agent-load diagnostics must be collected and surfaced.
 
 ## 9. Fixtures / Bootstrap Requirements
 
 Per `agh-qa-bootstrap` and the worktree-isolation directive:
 
-- **Two AGH_HOMEs** — `bootstrap-manifest.json` lab A (`AGH_HOME_A=/tmp/aghqa-cfg-A`) and lab B (`AGH_HOME_B=/tmp/aghqa-cfg-B`). Used by CFG-08.
+- **Two COMPOZY_HOMEs** — `bootstrap-manifest.json` lab A (`COMPOZY_HOME_A=/tmp/compozyqa-cfg-A`) and lab B (`COMPOZY_HOME_B=/tmp/compozyqa-cfg-B`). Used by CFG-08.
 - **Distinct daemon ports** — port allocation via `worktree.allocatePort()` (e.g. 21230 / 21231). NEVER `2123`.
-- **Distinct UDS sockets** — `<AGH_HOME>/daemon.sock` is implicit per home; verify no shared lock.
+- **Distinct UDS sockets** — `<COMPOZY_HOME>/daemon.sock` is implicit per home; verify no shared lock.
 - **Vault seeded with a known fake secret** — `AGHQA-FAKE-SECRET-9c4e1a` (CFG-10) and a real throwaway provider key (CFG-11) under `vault:providers/claude/api_key` of lab A only.
 - **Baseline `config.toml` fixture** — `_fixtures/config-default-snapshot.golden.json` that CFG-01 validates against. Regenerate via `go test ./internal/config -run TestExampleConfigMatchesDefaults -update`.
 - **Fixture skills**:
@@ -934,12 +934,12 @@ Backend implementation citations (file:line) used in this plan:
 - CLI workspace commands: `internal/cli/workspace.go:1-473`. `newWorkspaceCommand` 12-24, add 26-71, list 73-95, info 97-120, edit 122-209, remove 211-235.
 - AgentIdentity: `internal/agentidentity/identity.go:1-100`. `EnvSessionID`/`EnvAgent` 20-22, `HeaderWorkspaceID` 29, exit codes 35-45, errors 47-58, `Credentials` 60-65, `SessionSnapshot` 67-86.
 - API contracts: `internal/api/contract/settings.go:55-65, 644-660`. Restart-required wire-format.
-- Repo config example: `/Users/pedronauck/Dev/compozy/agh/config.toml:1-71` (drift-target for CFG-09).
-- Repo CLAUDE.md (workflow rules): `/Users/pedronauck/Dev/compozy/agh/CLAUDE.md:43-47` (worktree isolation, provider-home isolation, AGH_WEB_API_PROXY_TARGET, never-parallelize-config-writes).
-- Internal CLAUDE.md (security invariants and architecture): `/Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md:54-62, 95, 100-101, 121, 125-127`.
+- Repo config example: `/Users/pedronauck/Dev/compozy/compozy/config.toml:1-71` (drift-target for CFG-09).
+- Repo CLAUDE.md (workflow rules): `/Users/pedronauck/Dev/compozy/compozy/CLAUDE.md:43-47` (worktree isolation, provider-home isolation, COMPOZY_WEB_API_PROXY_TARGET, never-parallelize-config-writes).
+- Internal CLAUDE.md (security invariants and architecture): `/Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md:54-62, 95, 100-101, 121, 125-127`.
 
 Reference QA patterns:
 
-- openclaw config theme: `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md:279, 853-858`.
+- openclaw config theme: `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md:279, 853-858`.
 - openclaw scenario anatomy: `openclaw-qa-patterns.md:90-262`.
 - hermes hermetic shield + secret-shaped env redaction: `hermes-qa-patterns.md:74-99` (autouse fixtures, secret needles).

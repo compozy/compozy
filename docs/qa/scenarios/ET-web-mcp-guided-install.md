@@ -11,7 +11,7 @@ bug_ids: BUG-20260714-keyboard-focus-invisible; BUG-20260715-mcp-install-null-va
 fix_status: BUG-20260714-keyboard-focus-invisible fixed; BUG-20260715-mcp-install-null-values fixed
 retest_status: pending exact invoked Authorize and Manage toast destinations
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/screenshots/marketplace-guided-oauth-installed.png; /Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json; /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json; /Users/pedronauck/Dev/compozy/agh/.tmp/bug-20260714-focus/focused.png
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/screenshots/marketplace-guided-oauth-installed.png; /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json; /Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-cli-mcp-install; ET-api-mcp-catalog-install; ET-web-mcp-authorize
 ---

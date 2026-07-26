@@ -17,7 +17,7 @@ Session-experience personas (added / extended this cycle) alongside the existing
 | Persona | Base | Reality | Owns (session) |
 |---|---|---|---|
 | **Théo** (new) | Power User | desktop, keyboard, long-lived background sessions | J-11 (hero), J-13 |
-| **Nia** (new) | New User | laptop, judges AGH in 10 s | J-12, J-11 adjacents (canary) |
+| **Nia** (new) | New User | laptop, judges Compozy in 10 s | J-12, J-11 adjacents (canary) |
 | **Rafa** (new) | Casual User | desktop, audits long transcripts | J-14 |
 | **Ada** (extended) | Power User (native-tool) | ACP agent, non-human actor | **J-15** (+ J-07 Loops) |
 | **Sol** (extended) | Accessibility-Reliant | keyboard + screen reader | J-13 a11y lens (CH-020) |
@@ -109,7 +109,7 @@ The individual UI/lifecycle tasks (21, 22, 25–37) appended granular scenario r
 | **J-12** | 1 (long-session read snapshot cache) | 3 (cold open no reflash), 5 (deep link single spinner), 7 (tail-first + scroll-up) | 1 (thread states) | 7 (scroll-up lazy-load) | transcript assembly duration; catch-up batch size | **AB-008** (open-fast latency budget) |
 | **J-13** | 2 (broadcaster gap-free stream), 4 (list/detail) | 2 (1k-event progressive), 4 (clear + reload), 8 (scroll hold), 9 (queue order) | 6 (working + reduced-motion) | 4 (clear-convergence) | active stream count; catch-up size; SSE lifecycle | **AB-006** (reduced-motion + streaming E2E sweep) |
 | **J-14** | 1 (read cost) | 4 (clear persists), 7 (tail-first + paging) | 2–9 (tool-call language), 11 (changed-files) | 7 (paging) | read-path assembly duration (via J-12) | **AB-007** (grouping/fold pure-logic + axe a11y pass) |
-| **J-15** | 1 (latency), 3 (snapshot seed), 4 (lifecycle consistency) | — | — | 6 (raw-stream contiguity `agh session events --follow`) | daemon slog: stream open/close, catch-up, assembly | **AB-008** (keep-alive proxy soak) |
+| **J-15** | 1 (latency), 3 (snapshot seed), 4 (lifecycle consistency) | — | — | 6 (raw-stream contiguity `compozy session events --follow`) | daemon slog: stream open/close, catch-up, assembly | **AB-008** (keep-alive proxy soak) |
 
 Manual §9 items 3/4/5/6/7 are explicitly "owned by tasks 42/43" — they are pre-staged as charter must-tries (§9.3→CH-014, §9.4→CH-016, §9.5→CH-014, §9.6→CH-018, §9.7→CH-015/CH-021). Every journey has ≥1 automated backbone lane; each un-automated real-user branch has a charter, and each stable-but-unpinned flow has an AB entry.
 
@@ -162,5 +162,5 @@ Order = highest-impact journey × highest-blast-radius tour first (hero → agen
 
 - **Lab fixtures the pass must provide** (`_qa.md` §8): a genuinely running background session (long turn in flight), a 1k+ event finished session, a failed session with a `failure` payload, an empty session, and a second workspace for the switch-notice branch.
 - **Bug policy** (`_qa.md` §7): blank thread while persisted messages exist, any false lifecycle badge, empty-state copy during load/error, fake/permanently-empty metrics, and silent context-losing redirects are Blocks-Completion/Trust-Damage blockers; dedup against `BUG-0001..0019` before filing; every `state.csv` `fail` carries a `BUG-NNNN`; fixes only under the fix-loop governor.
-- **Deterministic bootstrap:** fresh lab per pass; isolated `AGH_HOME`/ports/`tmux-bridge` sockets when concurrency is signaled; provider home-policy per L-016; export `AGH_WEB_API_PROXY_TARGET` from the manifest (never hardcode `:2123`); config writes against one home run sequentially.
+- **Deterministic bootstrap:** fresh lab per pass; isolated `COMPOZY_HOME`/ports/`tmux-bridge` sockets when concurrency is signaled; provider home-policy per L-016; export `COMPOZY_WEB_API_PROXY_TARGET` from the manifest (never hardcode `:2123`); config writes against one home run sequentially.
 - **Outputs:** lean evidence → `docs/qa/evidence/2026-07-08-session-improvements/` (checkpoints + failures only, skeeper-managed); dated run report → `docs/qa/reports/2026-07-08-session-improvements.md` (Final Status + release verdict with totals by user-impact tier); close with the machine-readable QA bootstrap block (manifest path, lab root, runtime home, base URL, report path).

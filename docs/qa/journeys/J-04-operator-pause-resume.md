@@ -22,15 +22,15 @@ flowchart TD
 ```yaml
 journey:
   id: J-04
-  name: "Pause, resume, and stop a running Loop as an operator"
+  name: "Pause, resume, and stop a running Loop As a person running agent work"
   value_statement: "An operator can safely suspend a running Loop at a generation boundary and resume or stop it, with the status always telling the truth."
   personas: [Bruno]
   entry_points:
     - url: "web /loops/:name/runs/:id (run-detail) Pause / Resume / Stop controls"
       origin: in-app-nav
-    - url: "CLI: agh loop pause|resume|stop <run>"
+    - url: "CLI: compozy loop pause|resume|stop <run>"
       origin: direct
-    - url: "native tool: agh__loop_pause / agh__loop_resume / agh__loop_stop"
+    - url: "native tool: compozy__loop_pause / compozy__loop_resume / compozy__loop_stop"
       origin: in-app-nav
   actions:
     - step: 1

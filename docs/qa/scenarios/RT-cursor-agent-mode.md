@@ -11,7 +11,7 @@ bug_ids: BUG-20260713-cursor-agent-mode-unavailable
 fix_status: fixed
 retest_status: pending
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-grok-transcript.dom.txt
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-grok-transcript.dom.txt
 last_report: docs/qa/reports/2026-07-13-automation-features.md
 overlaps: RT-new-session-fast-feedback
 ---

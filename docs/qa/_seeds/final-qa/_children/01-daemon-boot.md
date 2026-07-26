@@ -9,7 +9,7 @@ sources:
   - internal/heartbeat
   - internal/store
   - internal/version
-  - cmd/agh
+  - cmd/compozy
   - internal/procutil
   - internal/subprocess
 ---
@@ -22,18 +22,18 @@ This module owns every byte of state the daemon writes to disk, the only file lo
 
 ### 1.1 Binary entry point
 
-- `cmd/agh/main.go:12-18` — `main` calls `cli.ExecuteContext(ctx, args, stdout, stderr)` and returns its exit code via `os.Exit`. There is no other entry point. Build metadata (`Version`, `Commit`, `BuildDate`) is injected via `-ldflags` into `internal/version/version.go:8-12`.
+- `cmd/compozy/main.go:12-18` — `main` calls `cli.ExecuteContext(ctx, args, stdout, stderr)` and returns its exit code via `os.Exit`. There is no other entry point. Build metadata (`Version`, `Commit`, `BuildDate`) is injected via `-ldflags` into `internal/version/version.go:8-12`.
 
-### 1.2 Daemon CLI verbs (top-level `agh daemon …`)
+### 1.2 Daemon CLI verbs (top-level `compozy daemon …`)
 
 Defined in `internal/cli/daemon.go:28-148`. All return structured output via `writeCommandOutput` (`-o json|toon|human`).
 
 | Verb                  | File:line                          | Behavior                                                                                                                                                                                                       |
 | --------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agh daemon start`    | `internal/cli/daemon.go:41-70`     | Spawns detached child by default; `--foreground` runs in current terminal; hidden `--internal-child` flag (`internalChildFlagName`) is set by the parent so the spawned child runs the foreground path.        |
-| `agh daemon relaunch` | `internal/cli/daemon.go:72-91`     | Hidden helper that reads `AGH_INTERNAL_RESTART_OPERATION_ID` (`internal/daemon/restart.go:21-22`) and drives the in-place upgrade replacement step.                                                            |
-| `agh status`   | `internal/cli/daemon.go:93-115`    | Tries the live UDS client first, falls back to `daemon.json` + `procutil.Alive` probe. Returns `DaemonStatus` (`internal/cli/daemon.go:318-336`).                                                              |
-| `agh daemon stop`     | `internal/cli/daemon.go:117-148`   | Reads `daemon.json`, sends `SIGTERM` to the recorded PID via `deps.signalProcess`, polls for stop via `daemonInfo` (`internal/cli/daemon.go:302-316`) and the UDS status endpoint.                             |
+| `compozy daemon start`    | `internal/cli/daemon.go:41-70`     | Spawns detached child by default; `--foreground` runs in current terminal; hidden `--internal-child` flag (`internalChildFlagName`) is set by the parent so the spawned child runs the foreground path.        |
+| `compozy daemon relaunch` | `internal/cli/daemon.go:72-91`     | Hidden helper that reads `COMPOZY_INTERNAL_RESTART_OPERATION_ID` (`internal/daemon/restart.go:21-22`) and drives the in-place upgrade replacement step.                                                            |
+| `compozy status`   | `internal/cli/daemon.go:93-115`    | Tries the live UDS client first, falls back to `daemon.json` + `procutil.Alive` probe. Returns `DaemonStatus` (`internal/cli/daemon.go:318-336`).                                                              |
+| `compozy daemon stop`     | `internal/cli/daemon.go:117-148`   | Reads `daemon.json`, sends `SIGTERM` to the recorded PID via `deps.signalProcess`, polls for stop via `daemonInfo` (`internal/cli/daemon.go:302-316`) and the UDS status endpoint.                             |
 
 ### 1.3 HTTP/UDS endpoints owned by the daemon module
 
@@ -49,28 +49,28 @@ Defined in `internal/cli/daemon.go:28-148`. All return structured output via `wr
 
 ### 1.4 Environment variables consumed at boot
 
-- `AGH_HOME` — overrides daemon home root (`internal/config/home.go:62-75`).
-- `AGH_INTERNAL_RESTART_OPERATION_ID` — relaunch helper picks up the persisted restart operation id (`internal/daemon/restart.go:21-22`).
-- `AGH_DEV_VERIFY_BOUNDARIES` — opt-in best-effort import boundary verification at boot (`internal/daemon/boundary.go:51-58`).
+- `COMPOZY_HOME` — overrides daemon home root (`internal/config/home.go:62-75`).
+- `COMPOZY_INTERNAL_RESTART_OPERATION_ID` — relaunch helper picks up the persisted restart operation id (`internal/daemon/restart.go:21-22`).
+- `COMPOZY_DEV_VERIFY_BOUNDARIES` — opt-in best-effort import boundary verification at boot (`internal/daemon/boundary.go:51-58`).
 - `HOME` — fallback path used by `internal/config/home.go:69-74` and `ResolveUserAgentsSkillsDir` (`internal/config/home.go:170-192`).
 
-### 1.5 File paths owned by AGH_HOME
+### 1.5 File paths owned by COMPOZY_HOME
 
 All defined in `internal/config/home.go:11-114`:
 
 | Path                         | Constant                          | Purpose                                                                                                  |
 | ---------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `<AGH_HOME>/agh.db`          | `DatabaseName` (line 25)          | Global SQLite catalog; opened via `globaldb.OpenGlobalDB`.                                                |
-| `<AGH_HOME>/daemon.lock`     | `DaemonLockName` (line 29)        | Singleton advisory file lock + PID file (`internal/daemon/lock.go:50-106`).                              |
-| `<AGH_HOME>/daemon.json`     | `DaemonInfoName` (line 31)        | Discovery record `{pid, port, started_at, network}` written atomically (`internal/daemon/info.go:82-126`). |
-| `<AGH_HOME>/daemon.sock`     | `DaemonSocketName` (line 27)      | UDS socket path; daemon removes a stale socket file at boot (`internal/daemon/orphan.go:87-97`).         |
-| `<AGH_HOME>/logs/agh.log`    | `LogFileName` (line 33)           | Structured slog output (file logger; `internal/daemon/boot.go:251-256`).                                  |
-| `<AGH_HOME>/logs/network.audit` | `NetworkAuditFileName` (line 35) | Append-only AGH Network audit log.                                                                       |
-| `<AGH_HOME>/sessions/`       | `SessionsDirName` (line 19)       | Per-session subdirs containing `events.db` + `meta.json`.                                                |
-| `<AGH_HOME>/memory/`         | `MemoryDirName` (line 17)         | Persistent memory files.                                                                                 |
-| `<AGH_HOME>/skills/`         | `SkillsDirName` (line 15)         | User-level skills.                                                                                       |
-| `<AGH_HOME>/agents/`         | `AgentsDirName` (line 13)         | User-authored AGENT.md/SOUL.md/HEARTBEAT.md files.                                                       |
-| `<AGH_HOME>/restarts/`       | `RestartsDirName` (line 21)       | Persisted `RestartOperation` JSON files (`internal/daemon/restart.go:50-63`).                            |
+| `<COMPOZY_HOME>/compozy.db`          | `DatabaseName` (line 25)          | Global SQLite catalog; opened via `globaldb.OpenGlobalDB`.                                                |
+| `<COMPOZY_HOME>/daemon.lock`     | `DaemonLockName` (line 29)        | Singleton advisory file lock + PID file (`internal/daemon/lock.go:50-106`).                              |
+| `<COMPOZY_HOME>/daemon.json`     | `DaemonInfoName` (line 31)        | Discovery record `{pid, port, started_at, network}` written atomically (`internal/daemon/info.go:82-126`). |
+| `<COMPOZY_HOME>/daemon.sock`     | `DaemonSocketName` (line 27)      | UDS socket path; daemon removes a stale socket file at boot (`internal/daemon/orphan.go:87-97`).         |
+| `<COMPOZY_HOME>/logs/compozy.log`    | `LogFileName` (line 33)           | Structured slog output (file logger; `internal/daemon/boot.go:251-256`).                                  |
+| `<COMPOZY_HOME>/logs/network.audit` | `NetworkAuditFileName` (line 35) | Append-only Compozy Network audit log.                                                                       |
+| `<COMPOZY_HOME>/sessions/`       | `SessionsDirName` (line 19)       | Per-session subdirs containing `events.db` + `meta.json`.                                                |
+| `<COMPOZY_HOME>/memory/`         | `MemoryDirName` (line 17)         | Persistent memory files.                                                                                 |
+| `<COMPOZY_HOME>/skills/`         | `SkillsDirName` (line 15)         | User-level skills.                                                                                       |
+| `<COMPOZY_HOME>/agents/`         | `AgentsDirName` (line 13)         | User-authored AGENT.md/SOUL.md/HEARTBEAT.md files.                                                       |
+| `<COMPOZY_HOME>/restarts/`       | `RestartsDirName` (line 21)       | Persisted `RestartOperation` JSON files (`internal/daemon/restart.go:50-63`).                            |
 
 `EnsureHomeLayout` (`internal/config/home.go:117-136`) creates HomeDir/AgentsDir/SkillsDir/MemoryDir/SessionsDir/RestartsDir/LogsDir with `0o755`. Note: the layout is **not** ensured for `LogFile`, `DatabaseFile`, `DaemonSocket`, `DaemonLock`, `DaemonInfo` — those are created as a side effect of opening them.
 
@@ -164,7 +164,7 @@ Every `*_test.go` under the daemon-boot scope, with a one-line summary, the beha
 - `version_test.go` — `Current()` returns dev defaults; `OverrideVersionForTesting` swaps + restore; `Info.String` format.
 - `version_bench_test.go` — micro-benchmark.
 
-### 2.6 `cmd/agh/`
+### 2.6 `cmd/compozy/`
 
 - `main_test.go` — exercises `main`'s `run` helper through CLI boundary; no real LLM.
 
@@ -183,42 +183,42 @@ Every `*_test.go` under the daemon-boot scope, with a one-line summary, the beha
 
 ### 2.9 Suspicious "integration test in name only"
 
-- `internal/daemon/daemon_*_integration_test.go` — all of these actually integrate AGAINST `acpmock`, not against a real ACP-speaking agent. They are valuable wiring tests but never prove the AGH↔Claude Code wire contract. Final QA must add at least one real-Claude-Code path per critical scenario below.
+- `internal/daemon/daemon_*_integration_test.go` — all of these actually integrate AGAINST `acpmock`, not against a real ACP-speaking agent. They are valuable wiring tests but never prove the Compozy↔Claude Code wire contract. Final QA must add at least one real-Claude-Code path per critical scenario below.
 - `internal/daemon/coordinator_runtime_integration_test.go` — same caveat.
 - `internal/store/sessiondb/session_db_integration_test.go` — actually does drive real sqlite + real writer goroutine; no caveat.
 
 ## 3. Coverage Gaps
 
-For each gap, the claim AGH makes (with citation) and the missing test that would make the claim load-bearing.
+For each gap, the claim Compozy makes (with citation) and the missing test that would make the claim load-bearing.
 
-| Gap                                                                                         | Claim AGH makes                                                                                                                                              | Test that would make the claim load-bearing                                                                                                                                                                                                                                                                                |
+| Gap                                                                                         | Claim Compozy makes                                                                                                                                              | Test that would make the claim load-bearing                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Real ACP subprocess shutdown via process group**                                          | "Process-group supervision parity. Unix uses process groups; Windows uses forced-exit fallback." `internal/CLAUDE.md:36-37`; `procutil/process_group_unix.go:135-218` enumerates `/proc/<pid>/stat` on Linux. | Spawn `agh sessions start --agent claude-code`, give it a long-running tool that itself spawns a grandchild, then `agh daemon stop`. Assert the entire descendant tree (PID, PGID, grandchild) is gone within `defaultShutdownTimeout (10s)` (`daemon.go:45`).                                                            |
+| **Real ACP subprocess shutdown via process group**                                          | "Process-group supervision parity. Unix uses process groups; Windows uses forced-exit fallback." `internal/CLAUDE.md:36-37`; `procutil/process_group_unix.go:135-218` enumerates `/proc/<pid>/stat` on Linux. | Spawn `compozy sessions start --agent claude-code`, give it a long-running tool that itself spawns a grandchild, then `compozy daemon stop`. Assert the entire descendant tree (PID, PGID, grandchild) is gone within `defaultShutdownTimeout (10s)` (`daemon.go:45`).                                                            |
 | **Cross-build for Windows is mandatory**                                                    | "Always cross-build with `GOOS=windows GOARCH=amd64 go build` before claiming subprocess work complete." `internal/CLAUDE.md:37`                              | CI gate that runs `GOOS=windows GOARCH=amd64 go build ./...` against `internal/daemon/...`, `internal/procutil/...`, `internal/subprocess/...`. No such gate exists in current CI.                                                                                                                                            |
-| **`agh.db` never appears 0-byte after a crash**                                             | `OpenSQLiteDatabase` re-opens with `-wal`/`-shm` rename on corruption (`store/sqlite.go:165-186`).                                                            | Crash-injection test: kill -9 the daemon mid-write, restart, assert no 0-byte `agh.db`, no orphan `-wal` longer than `-shm` checkpoint allows.                                                                                                                                                                              |
+| **`compozy.db` never appears 0-byte after a crash**                                             | `OpenSQLiteDatabase` re-opens with `-wal`/`-shm` rename on corruption (`store/sqlite.go:165-186`).                                                            | Crash-injection test: kill -9 the daemon mid-write, restart, assert no 0-byte `compozy.db`, no orphan `-wal` longer than `-shm` checkpoint allows.                                                                                                                                                                              |
 | **Lock file is removed only on clean exit**                                                 | `Lock.Release()` writes PID=0 then `Unlock`+`Close` (`lock.go:124-149`). On crash the file remains with stale PID; next boot reclaims via `lock.StalePID()`. | Test: crash daemon, restart, assert `lock.StalePID() > 0` and `daemon.json` is treated as stale and replaced.                                                                                                                                                                                                              |
 | **Migration stream rejects checksum drift**                                                 | `store.Apply` validates `atlas.sum` before Goose runs; `TestApplyRejectsAtlasSumDrift` covers edited/added/removed SQL.                                      | Preserve the canonical real-DB suite and verify daemon boot surfaces the same deterministic refusal without mutating the database.                                                                                                                                                                                           |
 | **Schema does not silently downgrade**                                                      | `store.Apply` probes the recorded Goose version before `Up` and returns `ErrSchemaAhead`.                                                                    | Boot an older post-Goose binary against a database recorded above its embedded head; assert refusal and byte identity, then prove a newer compatible binary is the state-preserving recovery.                                                                                                                                |
 | **`PRAGMA journal_mode = WAL` is non-negotiable**                                           | `configureSQLite` returns an error if mode is not WAL (`store/sqlite.go:106-117`).                                                                            | Test exists in `store_extra_test.go` for happy path; missing: simulate a tampered DB where journal_mode resists WAL setup, assert open fails with the explicit `"journal_mode = …, want wal"` error.                                                                                                                          |
 | **Detached lifetime: `prompt/cancel` only cancels via explicit endpoint**                   | "Detached execution lifetime. Any work that outlives an HTTP/UDS request — prompts, network channel sends, automation jobs — MUST detach via `context.WithoutCancel(ctx)`." `internal/CLAUDE.md:33-35`. | E2E: start a real prompt, drop the HTTP request mid-stream, assert the prompt continues to completion. Currently the daemon harness never validates this against a real LLM.                                                                                                                                              |
-| **Raw `claim_token` does not appear in any output**                                         | `internal/CLAUDE.md:55`; redaction enforced via `internal/diagnostics/redact.go:11-14` patterns; rejection in API (`internal/api/contract/agents.go:479-498`, `internal/api/core/network.go:283-294`). | E2E: trigger a real claim flow against a real agent, capture **all** of: `agh.log`, SSE stream output, `agh status -o json`, `agh sessions logs <id>`, plus the network audit log. Greedy-grep for the literal regex `\bcompozy_claim_[A-Za-z0-9]+\b`. Zero matches required. No such full-output sweep exists today. |
+| **Raw `claim_token` does not appear in any output**                                         | `internal/CLAUDE.md:55`; redaction enforced via `internal/diagnostics/redact.go:11-14` patterns; rejection in API (`internal/api/contract/agents.go:479-498`, `internal/api/core/network.go:283-294`). | E2E: trigger a real claim flow against a real agent, capture **all** of: `compozy.log`, SSE stream output, `compozy status -o json`, `compozy sessions logs <id>`, plus the network audit log. Greedy-grep for the literal regex `\bcompozy_claim_[A-Za-z0-9]+\b`. Zero matches required. No such full-output sweep exists today. |
 | **Subprocess `goleak` clean shutdown**                                                      | `internal/CLAUDE.md:32-34` — Manager-WaitGroup discipline. `subprocess.Process.Wait` and `Shutdown` exist (`subprocess/process.go:320-449`).                  | Runtime-wide `goleak.VerifyNone(t, ignoreOptions...)` after a full `Daemon.Shutdown` cycle including ACP subprocess cleanup. No top-level test today exercises a full Daemon Run + Shutdown cycle under goleak.                                                                                                              |
-| **HEARTBEAT.md absence does not break boot**                                                | `heartbeat.Resolve` returns an empty `ResolvedPolicy` on `os.ErrNotExist` (`heartbeat.go:237-245`).                                                          | Boot test exists indirectly through resource projector; missing: assert `agh agent context <agent-id>` returns `present:false` on a fresh AGH_HOME, no diagnostic emitted.                                                                                                                                                  |
-| **Boundary check passes against a freshly booted runtime**                                  | `daemon.Boundaries(ctx)` (`internal/daemon/boundary.go:19-45`) is opt-in via `AGH_DEV_VERIFY_BOUNDARIES`.                                                     | A QA gate that exports `AGH_DEV_VERIFY_BOUNDARIES=1` and verifies no warning is logged on boot. Currently a unit test (`TestBoundariesUsesConfiguredRoot` etc.) covers the helper, but no end-to-end gate hooks it into the binary.                                                                                          |
+| **HEARTBEAT.md absence does not break boot**                                                | `heartbeat.Resolve` returns an empty `ResolvedPolicy` on `os.ErrNotExist` (`heartbeat.go:237-245`).                                                          | Boot test exists indirectly through resource projector; missing: assert `compozy agent context <agent-id>` returns `present:false` on a fresh COMPOZY_HOME, no diagnostic emitted.                                                                                                                                                  |
+| **Boundary check passes against a freshly booted runtime**                                  | `daemon.Boundaries(ctx)` (`internal/daemon/boundary.go:19-45`) is opt-in via `COMPOZY_DEV_VERIFY_BOUNDARIES`.                                                     | A QA gate that exports `COMPOZY_DEV_VERIFY_BOUNDARIES=1` and verifies no warning is logged on boot. Currently a unit test (`TestBoundariesUsesConfiguredRoot` etc.) covers the helper, but no end-to-end gate hooks it into the binary.                                                                                          |
 | **Daemon refuses to start while another holds the lock — error message names the prior PID** | `errAlreadyRunning.Error()` (`lock.go:24-29`) prints `daemon: already running with pid <N>`.                                                                  | CLI-level test that asserts the **exact** error string format (operators rely on parsing this).                                                                                                                                                                                                                              |
-| **Concurrent `agh daemon start` exits without race**                                        | `runDaemonForeground` (`cli/daemon.go:150-170`) re-checks `daemonInfo` after `ensureHome`. Two daemons would both try `acquireLock`; second fails.            | Race test: launch `agh daemon start --foreground` twice in parallel, assert exactly one survives and the loser exits with the `errAlreadyRunning` message AND non-zero exit.                                                                                                                                                  |
+| **Concurrent `compozy daemon start` exits without race**                                        | `runDaemonForeground` (`cli/daemon.go:150-170`) re-checks `daemonInfo` after `ensureHome`. Two daemons would both try `acquireLock`; second fails.            | Race test: launch `compozy daemon start --foreground` twice in parallel, assert exactly one survives and the loser exits with the `errAlreadyRunning` message AND non-zero exit.                                                                                                                                                  |
 | **`daemon.json` is atomically replaced**                                                    | `WriteInfo` uses `os.CreateTemp` + `Rename` + `syncDir` (`info.go:82-126`).                                                                                   | Crash a writer mid-write, assert that either old or new payload exists, never half-written.                                                                                                                                                                                                                                  |
 | **Composition root never imports cli/api/daemon out-of-bounds**                             | `boundary.go:60-118` actively rejects this.                                                                                                                  | Already covered by unit. Missing: a single CI gate that runs `mage Boundaries` AND `daemon.Boundaries(ctx)` against the live tree to catch tooling drift.                                                                                                                                                                    |
-| **Restart preserves session ledger and active leases**                                      | `RestartOperation.ActiveSessionCount` is recorded (`restart.go:55-86`); the new daemon reconciles via `bootSessionRepair` (`boot.go:545-617`).                | E2E: start a real ACP session under the OLD binary, trigger restart via the relaunch helper, assert the SAME `session_id` is recoverable from the NEW binary's `agh sessions list -o json`.                                                                                                                                  |
-| **`stopReason` after crash is reclaimable**                                                 | `bootShouldRepairSession` repairs sessions whose `StopReason` is `StopAgentCrashed` or `StopError` (`boot.go:623-635`).                                       | E2E: kill -9 the daemon mid-prompt, restart, assert `agh sessions list -o json` shows the prior session as `state:stopped, stop_reason: agent_crashed` and `agh sessions resume <id>` succeeds.                                                                                                                              |
+| **Restart preserves session ledger and active leases**                                      | `RestartOperation.ActiveSessionCount` is recorded (`restart.go:55-86`); the new daemon reconciles via `bootSessionRepair` (`boot.go:545-617`).                | E2E: start a real ACP session under the OLD binary, trigger restart via the relaunch helper, assert the SAME `session_id` is recoverable from the NEW binary's `compozy sessions list -o json`.                                                                                                                                  |
+| **`stopReason` after crash is reclaimable**                                                 | `bootShouldRepairSession` repairs sessions whose `StopReason` is `StopAgentCrashed` or `StopError` (`boot.go:623-635`).                                       | E2E: kill -9 the daemon mid-prompt, restart, assert `compozy sessions list -o json` shows the prior session as `state:stopped, stop_reason: agent_crashed` and `compozy sessions resume <id>` succeeds.                                                                                                                              |
 | **Process registry boot reconciliation runs once and reports counters**                     | `bootProcessRegistry` (`boot.go:737-764`) calls `state.processRegistry.ReconcileBoot(ctx)`.                                                                  | E2E: leave 3 stale tool-process records in the registry, restart, assert log line `"daemon: reconciled tool process registry"` with `recovered`/`stale` counts, and assert no orphan tool subprocesses remain.                                                                                                                |
 
 ## 4. Real-LLM / Real-Agent Scenarios
 
-Each scenario is one fenced markdown block keyed by the `qa-scenario`/`qa-flow` shape adapted from openclaw (see `_references/openclaw-qa-patterns.md` §2). Numbered DB-01..DB-15. Live runs use `agh sessions start --agent claude-code --workspace ./fixtures/<theme>` against a real Claude Code subagent unless explicitly tagged `provider: none`.
+Each scenario is one fenced markdown block keyed by the `qa-scenario`/`qa-flow` shape adapted from openclaw (see `_references/openclaw-qa-patterns.md` §2). Numbered DB-01..DB-15. Live runs use `compozy sessions start --agent claude-code --workspace ./fixtures/<theme>` against a real Claude Code subagent unless explicitly tagged `provider: none`.
 
 ```markdown
-### DB-01 — Cold start with empty AGH_HOME
+### DB-01 — Cold start with empty COMPOZY_HOME
 
 ```yaml qa-scenario
 id: db-cold-start-empty-home
@@ -237,30 +237,30 @@ provider: none
 
 ```yaml qa-flow
 preconditions:
-  - AGH_HOME=$LAB_HOME exported (`agh-qa-bootstrap` fresh manifest, no provider).
+  - COMPOZY_HOME=$LAB_HOME exported (`agh-qa-bootstrap` fresh manifest, no provider).
   - `$LAB_HOME` directory does not exist.
   - Daemon ports reserved by manifest (no overlap with any other lab).
 steps:
   - run: rm -rf "$LAB_HOME" && mkdir -p "$LAB_HOME"
   - run: ls -la "$LAB_HOME"   # MUST be empty
-  - run: agh daemon start
+  - run: compozy daemon start
   - wait: 5s for daemon ready
-  - run: agh status -o json | tee status.json
+  - run: compozy status -o json | tee status.json
   - run: jq -r '.pid' status.json
   - run: ls -la "$LAB_HOME"
   - run: jq '.daemon.schema_streams' status.json | tee schema-streams.json
   - run: curl --unix-socket "$LAB_HOME/daemon.sock" http://./daemon/status | jq .
-  - run: curl -s "http://127.0.0.1:$AGH_HTTP_PORT/api/observe/health" | jq .
+  - run: curl -s "http://127.0.0.1:$COMPOZY_HTTP_PORT/api/observe/health" | jq .
 expected_behavior:
   - `daemon.lock` exists with the daemon PID written as ASCII (single integer + \n) per `lock.go:175-193`.
   - `daemon.json` exists with `pid > 0`, `port > 0`, `started_at` ISO-8601 UTC, optional `network` block — validated by `info.Validate` (`info.go:31-46`).
   - `daemon.sock` exists and is a UDS socket.
-  - `agh.db` exists; `schema_streams` contains distinct `global` and `memory` rows with version `1`, applied count `1`, and non-empty digests.
-  - `logs/agh.log` exists and contains `"daemon: boot reconciliation complete"` (`boot.go:1721-1725`).
+  - `compozy.db` exists; `schema_streams` contains distinct `global` and `memory` rows with version `1`, applied count `1`, and non-empty digests.
+  - `logs/compozy.log` exists and contains `"daemon: boot reconciliation complete"` (`boot.go:1721-1725`).
   - HTTP `/api/observe/health` returns 200 with `{health, memory, automation}` JSON shape (`handlers.go:868-893`).
-  - `agh status -o json` returns `status:"running"` with the UDS-side payload preferred over `daemon.json` (`cli/daemon.go:283-300`).
+  - `compozy status -o json` returns `status:"running"` with the UDS-side payload preferred over `daemon.json` (`cli/daemon.go:283-300`).
 evidence_to_capture:
-  - `$LAB_HOME/logs/agh.log` (full).
+  - `$LAB_HOME/logs/compozy.log` (full).
   - `$LAB_HOME/daemon.json` (post-ready snapshot).
   - `schema-streams.json`.
   - `status.json`.
@@ -268,10 +268,10 @@ evidence_to_capture:
 failure_signatures:
   - `daemon.json` missing or `port == 0` after status returns running.
   - Either `global` or `memory` is absent, reports version/applied count `0`, or has an empty digest.
-  - `agh status` reports `starting` indefinitely (poll loop in `cli/daemon.go:202-242`).
-  - Raw `compozy_claim_*` token visible anywhere in `agh.log`.
+  - `compozy status` reports `starting` indefinitely (poll loop in `cli/daemon.go:202-242`).
+  - Raw `compozy_claim_*` token visible anywhere in `compozy.log`.
 cleanup:
-  - agh daemon stop && rm -rf "$LAB_HOME"
+  - compozy daemon stop && rm -rf "$LAB_HOME"
 ```
 ```
 
@@ -297,35 +297,35 @@ preconditions:
   - DB-01 has just completed (lab home populated, daemon stopped cleanly).
   - At least 1 prior session row exists in `sessions` table.
 steps:
-  - run: cp "$LAB_HOME/agh.db" "$LAB_HOME/agh.db.before"
-  - run: agh status -o json | jq -S '.daemon.schema_streams' > before.txt
-  - run: agh daemon start
+  - run: cp "$LAB_HOME/compozy.db" "$LAB_HOME/compozy.db.before"
+  - run: compozy status -o json | jq -S '.daemon.schema_streams' > before.txt
+  - run: compozy daemon start
   - wait: 5s
-  - run: agh status -o json
-  - run: agh status -o json | jq -S '.daemon.schema_streams' > after.txt
+  - run: compozy status -o json
+  - run: compozy status -o json | jq -S '.daemon.schema_streams' > after.txt
   - run: diff before.txt after.txt   # MUST be empty
-  - run: grep "boot session repair" "$LAB_HOME/logs/agh.log"
+  - run: grep "boot session repair" "$LAB_HOME/logs/compozy.log"
 expected_behavior:
   - `before.txt == after.txt`: versions, applied counts, and digests are stable across reopen.
   - `boot session repair` log line appears at most once per repaired session (`boot.go:589-596`).
   - No duplicate session_id rows; lineage backfill runs only once per session (`globaldb.go:711-716`).
 evidence_to_capture:
   - `before.txt`, `after.txt`, the diff output.
-  - `agh.log` excerpt around boot.
+  - `compozy.log` excerpt around boot.
 failure_signatures:
   - `applied_at` timestamp on any migration changes between runs.
   - `"daemon: boot session repair complete"` repeats for the SAME session_id more than once.
 cleanup:
-  - agh daemon stop
+  - compozy daemon stop
 ```
 ```
 
 ```markdown
-### DB-03 — Lock collision: second `agh daemon start` exits with stable code + clear error
+### DB-03 — Lock collision: second `compozy daemon start` exits with stable code + clear error
 
 ```yaml qa-scenario
 id: db-lock-collision-second-start
-title: Two daemon starts against same AGH_HOME — second exits with errAlreadyRunning
+title: Two daemon starts against same COMPOZY_HOME — second exits with errAlreadyRunning
 theme: daemon-boot
 coverage:
   primary:
@@ -341,9 +341,9 @@ provider: none
 preconditions:
   - DB-01 daemon is up and ready.
 steps:
-  - run: agh status -o json   # confirm running with PID=$P1
-  - run: agh daemon start 2>&1 | tee second.log; echo "exit=$?" >> second.log
-  - run: agh status -o json   # original still alive
+  - run: compozy status -o json   # confirm running with PID=$P1
+  - run: compozy daemon start 2>&1 | tee second.log; echo "exit=$?" >> second.log
+  - run: compozy status -o json   # original still alive
   - run: cat "$LAB_HOME/daemon.lock"   # must still contain $P1
 expected_behavior:
   - Second start fails. Error text matches `daemon: already running (pid=<P1>)` from `runDaemonDetached` (`cli/daemon.go:184`).
@@ -357,7 +357,7 @@ failure_signatures:
   - `daemon.lock` rewritten with the second-process PID.
   - Error text omits the prior PID (operator UX bug).
 cleanup:
-  - agh daemon stop
+  - compozy daemon stop
 ```
 ```
 
@@ -384,34 +384,34 @@ preconditions:
   - Lab home populated, real Claude Code agent reachable, `PROVIDER_HOME=$LAB_HOME/.provider`.
   - Workspace fixture: `./fixtures/db04-crash-recovery/` with a small AGENT.md.
 steps:
-  - run: agh daemon start
+  - run: compozy daemon start
   - wait: 5s
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/db04-crash-recovery -o json | tee sess.json
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/db04-crash-recovery -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: agh sessions prompt $SID --message "List the files in the workspace and write the listing to NOTES.md" --detach -o json
-  - wait: 1s   # let the prompt actually start (assert `agh sessions list -o json | jq '.[].state'` shows running)
+  - run: compozy sessions prompt $SID --message "List the files in the workspace and write the listing to NOTES.md" --detach -o json
+  - wait: 1s   # let the prompt actually start (assert `compozy sessions list -o json | jq '.[].state'` shows running)
   - run: PID=$(jq -r '.pid' "$LAB_HOME/daemon.json")
   - run: kill -9 $PID
   - wait: 2s
-  - run: ! agh status -o json   # expect failure (running:false or socket gone)
-  - run: agh daemon start
+  - run: ! compozy status -o json   # expect failure (running:false or socket gone)
+  - run: compozy daemon start
   - wait: 5s
-  - run: agh sessions list -o json | jq ".[] | select(.id==\"$SID\")" | tee post.json
-  - run: agh sessions resume $SID -o json | tee resume.json
-  - run: agh sessions transcript $SID -o json | jq 'length'
-  - run: grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' "$LAB_HOME/logs/agh.log"; echo $?
-  - run: agh task list --session-id $SID -o json | tee tasks.json
+  - run: compozy sessions list -o json | jq ".[] | select(.id==\"$SID\")" | tee post.json
+  - run: compozy sessions resume $SID -o json | tee resume.json
+  - run: compozy sessions transcript $SID -o json | jq 'length'
+  - run: grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' "$LAB_HOME/logs/compozy.log"; echo $?
+  - run: compozy task list --session-id $SID -o json | tee tasks.json
   - run: jq '.[] | {id, state, claim_token_hash, claim_token}' tasks.json
 expected_behavior:
   - After kill -9, `daemon.lock` contains stale PID; new daemon detects it via `lock.StalePID()` (`lock.go:88-92`).
   - Boot session repair runs and logs `"daemon: boot session repair complete"` for $SID with `state:stopped, stop_reason:agent_crashed` (`boot.go:566-596`).
-  - `agh sessions resume $SID` re-establishes the session.
+  - `compozy sessions resume $SID` re-establishes the session.
   - `transcript $SID` returns the pre-crash messages plus the post-resume continuation; replay assembled by `internal/transcript/...`.
   - `tasks.json`: every row exposes `claim_token_hash` (sha256 hex) and NEVER `claim_token` (per `task/types.go:276,380`, `lease.go:546-548`, `core/tasks.go:1741-1745`).
-  - `grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' agh.log` returns exit code 1 (no match).
+  - `grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' compozy.log` returns exit code 1 (no match).
 evidence_to_capture:
   - sess.json, post.json, resume.json, tasks.json.
-  - Full `$LAB_HOME/logs/agh.log` between the two daemon runs.
+  - Full `$LAB_HOME/logs/compozy.log` between the two daemon runs.
   - Pre-/post-crash `daemon.json`.
   - SSE stream snapshot from `/api/observe/events?after_seq=<crash-marker>`.
 failure_signatures:
@@ -420,7 +420,7 @@ failure_signatures:
   - Resume returns `ErrSessionNotFound`.
   - Transcript missing the pre-crash prompt, OR replay produces duplicate user messages.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -445,20 +445,20 @@ provider: claude-code
 preconditions:
   - Daemon up; one real Claude Code session active.
 steps:
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/db05 -o json | tee sess.json
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/db05 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
   - run: PARENT_PID=$(jq -r '.pid' "$LAB_HOME/daemon.json")
   - run: pgrep -P $PARENT_PID | tee child_pids.txt   # ACP subprocess pid(s)
-  - run: ps -o pid,ppid,pgid,command -ax | grep -E "(claude|agh)" | tee ps.before
-  - run: agh daemon stop -o json | tee stop.json
+  - run: ps -o pid,ppid,pgid,command -ax | grep -E "(claude|compozy)" | tee ps.before
+  - run: compozy daemon stop -o json | tee stop.json
   - wait: 12s   # allow defaultShutdownTimeout=10s + slack
-  - run: ps -o pid,ppid,pgid,command -ax | grep -E "(claude|agh)" || true | tee ps.after
+  - run: ps -o pid,ppid,pgid,command -ax | grep -E "(claude|compozy)" || true | tee ps.after
   - run: kill -0 $PARENT_PID 2>&1 || echo "parent gone"
   - run: for p in $(cat child_pids.txt); do kill -0 $p 2>&1 || echo "child $p gone"; done
   - run: GOOS=windows GOARCH=amd64 go build ./... | tee winbuild.log
 expected_behavior:
   - Every PID in `child_pids.txt` is gone (`kill -0` reports ESRCH).
-  - `agh daemon stop -o json` reports `status:"stopped"` (`cli/daemon.go:244-281`).
+  - `compozy daemon stop -o json` reports `status:"stopped"` (`cli/daemon.go:244-281`).
   - `daemon.lock` exists with `0\n` (cleared by `lock.Release()` writing PID=0; `lock.go:124-149`).
   - `daemon.json` is gone (removed in `shutdownPersistentResources`; `daemon.go:1245-1260`, `RemoveInfo`).
   - `daemon.sock` is gone.
@@ -541,25 +541,25 @@ provider: none
 preconditions:
   - Build a test-only binary with an embedded, gap-free Goose N+1 SQL migration whose Up statement fails after an earlier DDL statement; refresh its test-only `atlas.sum` so the failure reaches Goose rather than checksum validation.
 steps:
-  - run: agh-qa-bad-migration daemon start --foreground 2>&1 | tee out.log; echo $? >> out.log
-  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT version_id, is_applied FROM goose_db_version_global ORDER BY id;' | tee versions.txt
+  - run: compozy-qa-bad-migration daemon start --foreground 2>&1 | tee out.log; echo $? >> out.log
+  - run: sqlite3 "$LAB_HOME/compozy.db" 'SELECT version_id, is_applied FROM goose_db_version_global ORDER BY id;' | tee versions.txt
   - assert: out.log contains "store: apply migration stream \"global\"" and the underlying SQL error.
   - assert: versions.txt does NOT contain applied version N+1.
-  - assert: `agh.db.<timestamp>.corrupt` files do NOT appear (this is a runtime error, not corruption).
-  - run: agh daemon start   # original binary now boots normally
+  - assert: `compozy.db.<timestamp>.corrupt` files do NOT appear (this is a runtime error, not corruption).
+  - run: compozy daemon start   # original binary now boots normally
   - wait: 5s
-  - run: agh status -o json | jq -r '.status'
+  - run: compozy status -o json | jq -r '.status'
 expected_behavior:
   - Goose rolls back the transactional Up migration; no partial schema object remains.
   - No partial schema state (the failing migration's CREATE statements get rolled back).
   - Original binary recovers cleanly because nothing was recorded.
 evidence_to_capture:
-  - out.log; versions.txt; full `agh.db` schema dump pre and post.
+  - out.log; versions.txt; full `compozy.db` schema dump pre and post.
 failure_signatures:
   - An applied N+1 row appears in `goose_db_version_global`.
   - Daemon boots successfully against bad migration (rollback skipped).
 cleanup:
-  - rm $LAB_HOME/agh.db && agh daemon stop
+  - rm $LAB_HOME/compozy.db && compozy daemon stop
 ```
 ```
 
@@ -568,7 +568,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: db-sqlite-corruption-recovery
-title: Corrupt agh.db is moved to `.corrupt.<ts>` along with -wal/-shm; daemon reopens cleanly
+title: Corrupt compozy.db is moved to `.corrupt.<ts>` along with -wal/-shm; daemon reopens cleanly
 theme: daemon-boot
 coverage:
   primary:
@@ -581,18 +581,18 @@ provider: none
 
 ```yaml qa-flow
 preconditions:
-  - Daemon stopped; `$LAB_HOME/agh.db` exists.
+  - Daemon stopped; `$LAB_HOME/compozy.db` exists.
 steps:
-  - run: printf 'NOT A VALID SQLITE' > "$LAB_HOME/agh.db"   # corrupt
-  - run: dd if=/dev/zero of="$LAB_HOME/agh.db-wal" bs=1k count=8 2>/dev/null   # create matching wal
-  - run: dd if=/dev/zero of="$LAB_HOME/agh.db-shm" bs=1k count=8 2>/dev/null
-  - run: agh daemon start 2>&1 | tee boot.log
+  - run: printf 'NOT A VALID SQLITE' > "$LAB_HOME/compozy.db"   # corrupt
+  - run: dd if=/dev/zero of="$LAB_HOME/compozy.db-wal" bs=1k count=8 2>/dev/null   # create matching wal
+  - run: dd if=/dev/zero of="$LAB_HOME/compozy.db-shm" bs=1k count=8 2>/dev/null
+  - run: compozy daemon start 2>&1 | tee boot.log
   - wait: 5s
-  - run: ls -la "$LAB_HOME"/agh.db* | tee files.txt
-  - run: agh status -o json | jq '.daemon.schema_streams' | tee schema-streams.json
+  - run: ls -la "$LAB_HOME"/compozy.db* | tee files.txt
+  - run: compozy status -o json | jq '.daemon.schema_streams' | tee schema-streams.json
 expected_behavior:
   - `OpenSQLiteDatabase` first attempt fails with one of the markers in `ShouldRecoverSQLite` (`sqlite.go:188-208`).
-  - `recoverSQLiteDatabase` (`sqlite.go:165-186`) renames `agh.db` → `agh.db.corrupt.<RFC3339nano>`, plus `-wal` / `-shm`.
+  - `recoverSQLiteDatabase` (`sqlite.go:165-186`) renames `compozy.db` → `compozy.db.corrupt.<RFC3339nano>`, plus `-wal` / `-shm`.
   - Reopen succeeds; the new fresh DB reports global and memory Goose streams at their embedded heads.
   - boot.log records "store: recover sqlite database" only if the second open also fails (otherwise quiet recovery).
 evidence_to_capture:
@@ -601,9 +601,9 @@ evidence_to_capture:
   - `schema-streams.json` (both daemon-global streams have versions, applied counts, and digests).
 failure_signatures:
   - boot.log contains a fatal "open sqlite database" error and daemon never starts.
-  - Only `agh.db` gets renamed; `-wal` and `-shm` are left next to a fresh DB.
+  - Only `compozy.db` gets renamed; `-wal` and `-shm` are left next to a fresh DB.
 cleanup:
-  - rm -f $LAB_HOME/agh.db.corrupt.* && agh daemon stop
+  - rm -f $LAB_HOME/compozy.db.corrupt.* && compozy daemon stop
 ```
 ```
 
@@ -623,15 +623,15 @@ provider: none
 
 ```yaml qa-flow
 steps:
-  - run: agh daemon start && sleep 3
-  - run: sqlite3 "$LAB_HOME/agh.db" '.schema' | sha256sum > schema.before
-  - run: agh daemon stop && sleep 2
-  - run: agh daemon start && sleep 3
-  - run: sqlite3 "$LAB_HOME/agh.db" '.schema' | sha256sum > schema.after
+  - run: compozy daemon start && sleep 3
+  - run: sqlite3 "$LAB_HOME/compozy.db" '.schema' | sha256sum > schema.before
+  - run: compozy daemon stop && sleep 2
+  - run: compozy daemon start && sleep 3
+  - run: sqlite3 "$LAB_HOME/compozy.db" '.schema' | sha256sum > schema.after
   - assert: cmp schema.before schema.after
-  - run: agh status -o json | jq -S '.daemon.schema_streams' > migrations.before2
-  - run: agh daemon stop && agh daemon start && sleep 3
-  - run: agh status -o json | jq -S '.daemon.schema_streams' > migrations.after2
+  - run: compozy status -o json | jq -S '.daemon.schema_streams' > migrations.before2
+  - run: compozy daemon stop && compozy daemon start && sleep 3
+  - run: compozy status -o json | jq -S '.daemon.schema_streams' > migrations.after2
   - assert: diff migrations.before2 migrations.after2
 expected_behavior:
   - schema sha matches before/after.
@@ -642,7 +642,7 @@ failure_signatures:
   - Schema differs because code bypassed the declarative Goose stream.
   - A stream's applied count or digest changes without an appended migration.
 cleanup:
-  - agh daemon stop
+  - compozy daemon stop
 ```
 ```
 
@@ -663,21 +663,21 @@ provider: claude-code
 
 ```yaml qa-flow
 preconditions:
-  - Two binaries: `$AGH_OLD` (previous build) and `$AGH_NEW` (current build).
+  - Two binaries: `$COMPOZY_OLD` (previous build) and `$COMPOZY_NEW` (current build).
   - Lab home contains an active session and at least one task_run row.
 steps:
-  - run: $AGH_OLD daemon start && sleep 3
-  - run: $AGH_OLD sessions start --agent claude-code --workspace ./fixtures/db10 -o json | tee sess.json
+  - run: $COMPOZY_OLD daemon start && sleep 3
+  - run: $COMPOZY_OLD sessions start --agent claude-code --workspace ./fixtures/db10 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: $AGH_OLD sessions prompt $SID --message "ack and stop" -o json
-  - run: $AGH_OLD status -o json | jq -r '.version' | tee old_version.txt
-  - run: $AGH_OLD daemon stop && sleep 2
-  - run: $AGH_NEW daemon start && sleep 5
-  - run: $AGH_NEW status -o json | jq -r '.version' | tee new_version.txt
-  - run: $AGH_NEW sessions list -o json | jq ".[] | select(.id==\"$SID\")" | tee post_upgrade.json
-  - run: $AGH_NEW status -o json | jq '.daemon.schema_streams' | tee migrations.txt
-  - run: $AGH_NEW sessions resume $SID -o json
-  - run: $AGH_NEW sessions transcript $SID -o json | jq 'length'
+  - run: $COMPOZY_OLD sessions prompt $SID --message "ack and stop" -o json
+  - run: $COMPOZY_OLD status -o json | jq -r '.version' | tee old_version.txt
+  - run: $COMPOZY_OLD daemon stop && sleep 2
+  - run: $COMPOZY_NEW daemon start && sleep 5
+  - run: $COMPOZY_NEW status -o json | jq -r '.version' | tee new_version.txt
+  - run: $COMPOZY_NEW sessions list -o json | jq ".[] | select(.id==\"$SID\")" | tee post_upgrade.json
+  - run: $COMPOZY_NEW status -o json | jq '.daemon.schema_streams' | tee migrations.txt
+  - run: $COMPOZY_NEW sessions resume $SID -o json
+  - run: $COMPOZY_NEW sessions transcript $SID -o json | jq 'length'
 expected_behavior:
   - Status `version` field reflects each binary's `version.Current().Version` (`cli/daemon.go:333`).
   - All migrations from old binary remain; any new migrations apply once.
@@ -685,10 +685,10 @@ expected_behavior:
 evidence_to_capture:
   - old_version.txt, new_version.txt, post_upgrade.json, migrations.txt.
 failure_signatures:
-  - $SID missing from $AGH_NEW session list.
+  - $SID missing from $COMPOZY_NEW session list.
   - migration row gets re-applied (different `applied_at`).
 cleanup:
-  - $AGH_NEW sessions stop $SID && $AGH_NEW daemon stop
+  - $COMPOZY_NEW sessions stop $SID && $COMPOZY_NEW daemon stop
 ```
 ```
 
@@ -710,21 +710,21 @@ provider: claude-code
 
 ```yaml qa-flow
 steps:
-  - run: agh daemon start && sleep 3
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/db11 -o json | tee sess.json
+  - run: compozy daemon start && sleep 3
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/db11 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
-  - run: for i in {1..5}; do agh sessions prompt $SID --message "Compute $i+$i" --detach -o json &; done; wait
-  - run: while true; do curl -s http://127.0.0.1:$AGH_HTTP_PORT/api/observe/health | jq -r '.health.status, .memory.status, .automation.status'; sleep 1; done | head -20 | tee health.txt
+  - run: for i in {1..5}; do compozy sessions prompt $SID --message "Compute $i+$i" --detach -o json &; done; wait
+  - run: while true; do curl -s http://127.0.0.1:$COMPOZY_HTTP_PORT/api/observe/health | jq -r '.health.status, .memory.status, .automation.status'; sleep 1; done | head -20 | tee health.txt
   - run: # induce stall: send SIGSTOP to the ACP subprocess pid
-  - run: ACP_PID=$(jq -r '.subprocess_pid' < <(agh sessions get $SID -o json)); kill -STOP $ACP_PID
+  - run: ACP_PID=$(jq -r '.subprocess_pid' < <(compozy sessions get $SID -o json)); kill -STOP $ACP_PID
   - wait: 30s
-  - run: curl -s http://127.0.0.1:$AGH_HTTP_PORT/api/observe/health | jq . | tee stalled-health.json
-  - run: agh sessions get $SID -o json | jq '.stall_state, .stall_reason' | tee stall.txt
+  - run: curl -s http://127.0.0.1:$COMPOZY_HTTP_PORT/api/observe/health | jq . | tee stalled-health.json
+  - run: compozy sessions get $SID -o json | jq '.stall_state, .stall_reason' | tee stall.txt
   - run: kill -CONT $ACP_PID
 expected_behavior:
   - Health endpoint returns 200 within 1s during all probes.
   - Subprocess `HealthState.Healthy` flips to false after `health_check` consecutive failures cross threshold (`subprocess/health.go:149-161`).
-  - `agh sessions get` reports stall_state and stall_reason populated.
+  - `compozy sessions get` reports stall_state and stall_reason populated.
   - No raw `claim_token` in any output.
 evidence_to_capture:
   - health.txt, stalled-health.json, stall.txt.
@@ -732,7 +732,7 @@ failure_signatures:
   - Health endpoint hangs (>5s) even once.
   - Stalled subprocess never marked unhealthy.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -741,7 +741,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: db-diagnostics-states
-title: agh status -o json + GET /api/diagnostics/* expose accurate state across normal, degraded, and unhealthy
+title: compozy status -o json + GET /api/diagnostics/* expose accurate state across normal, degraded, and unhealthy
 theme: daemon-boot
 coverage:
   primary:
@@ -754,15 +754,15 @@ provider: none
 
 ```yaml qa-flow
 steps:
-  - run: agh status -o json | jq . | tee normal.json
+  - run: compozy status -o json | jq . | tee normal.json
   - assert: normal.json.status == "running"
   - run: # Force memory directory unwritable to provoke degradation
-  - run: chmod 000 "$LAB_HOME/memory" && curl -s http://127.0.0.1:$AGH_HTTP_PORT/api/memory/health | jq . | tee degraded-memory.json
+  - run: chmod 000 "$LAB_HOME/memory" && curl -s http://127.0.0.1:$COMPOZY_HTTP_PORT/api/memory/health | jq . | tee degraded-memory.json
   - run: chmod 755 "$LAB_HOME/memory"
   - run: # provoke automation degradation by editing a webhook to use a missing secret
-  - run: curl -s http://127.0.0.1:$AGH_HTTP_PORT/api/observe/health | jq . | tee composite-health.json
-  - run: agh daemon stop && sleep 2
-  - run: agh status -o json | jq . | tee stopped.json
+  - run: curl -s http://127.0.0.1:$COMPOZY_HTTP_PORT/api/observe/health | jq . | tee composite-health.json
+  - run: compozy daemon stop && sleep 2
+  - run: compozy status -o json | jq . | tee stopped.json
   - assert: stopped.json.status == "stopped"
   - assert: stopped.json.network == null   # `daemonStatusWithState` zeros network when stopped (cli/daemon.go:318-336)
 expected_behavior:
@@ -775,7 +775,7 @@ failure_signatures:
   - daemon status hangs after stop.
   - composite-health.json contains a 5xx error JSON instead of structured `health/memory/automation` payload.
 cleanup:
-  - chmod 755 "$LAB_HOME/memory" && agh daemon start
+  - chmod 755 "$LAB_HOME/memory" && compozy daemon start
 ```
 ```
 
@@ -837,31 +837,31 @@ provider: claude-code
 
 ```yaml qa-flow
 steps:
-  - run: agh daemon start && sleep 3
-  - run: agh sessions start --agent claude-code --workspace ./fixtures/db14 -o json | tee sess.json
+  - run: compozy daemon start && sleep 3
+  - run: compozy sessions start --agent claude-code --workspace ./fixtures/db14 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
   - run: # Start prompt over HTTP with --detach=false to get the streaming response, then kill the curl client
-  - run: timeout 1 curl -N -X POST -d '{"message":"List files and summarize"}' http://127.0.0.1:$AGH_HTTP_PORT/api/sessions/$SID/prompt 2>/dev/null || true
+  - run: timeout 1 curl -N -X POST -d '{"message":"List files and summarize"}' http://127.0.0.1:$COMPOZY_HTTP_PORT/api/sessions/$SID/prompt 2>/dev/null || true
   - wait: 1s
-  - run: agh sessions get $SID -o json | jq -r '.state' | tee state1.txt
+  - run: compozy sessions get $SID -o json | jq -r '.state' | tee state1.txt
   - assert: state1.txt == "running"   # daemon kept the prompt going (context.WithoutCancel; internal/CLAUDE.md:33-35)
-  - run: agh sessions transcript $SID -o json | jq 'length' | tee transcript_count.txt
+  - run: compozy sessions transcript $SID -o json | jq 'length' | tee transcript_count.txt
   - run: # Now exercise the explicit cancel
-  - run: curl -X POST http://127.0.0.1:$AGH_HTTP_PORT/api/sessions/$SID/prompt/cancel -o cancel.json
+  - run: curl -X POST http://127.0.0.1:$COMPOZY_HTTP_PORT/api/sessions/$SID/prompt/cancel -o cancel.json
   - wait: 2s
-  - run: agh sessions get $SID -o json | jq -r '.state' | tee state2.txt
+  - run: compozy sessions get $SID -o json | jq -r '.state' | tee state2.txt
 expected_behavior:
   - state1 = running (request abort did not cancel the prompt).
   - cancel.json = success and state2 ≠ running.
   - Transcript contains the partial response generated before the request was aborted.
-  - No raw claim_token in agh.log.
+  - No raw claim_token in compozy.log.
 evidence_to_capture:
   - state1.txt, state2.txt, cancel.json, transcript_count.txt.
 failure_signatures:
   - state1 == "stopped" or "idle" (detached lifetime regressed).
   - prompt/cancel ignored.
 cleanup:
-  - agh sessions stop $SID && agh daemon stop
+  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -881,14 +881,14 @@ provider: none
 
 ```yaml qa-flow
 steps:
-  - run: agh daemon start && sleep 3
+  - run: compozy daemon start && sleep 3
   - run: # Open a long-poll SSE connection
-  - run: (curl -N "http://127.0.0.1:$AGH_HTTP_PORT/api/observe/events" > sse.log) &
+  - run: (curl -N "http://127.0.0.1:$COMPOZY_HTTP_PORT/api/observe/events" > sse.log) &
   - set: SSE_PID=$!
-  - run: agh daemon stop -o json &
+  - run: compozy daemon stop -o json &
   - wait: 3s
   - run: # While shutting down, attempt a fresh request
-  - run: curl --max-time 2 "http://127.0.0.1:$AGH_HTTP_PORT/api/observe/health" 2>&1 | tee shutting.log
+  - run: curl --max-time 2 "http://127.0.0.1:$COMPOZY_HTTP_PORT/api/observe/health" 2>&1 | tee shutting.log
   - run: curl --max-time 2 --unix-socket "$LAB_HOME/daemon.sock" http://./observe/health 2>&1 | tee shutting-uds.log
   - wait: until daemon stopped (poll daemon.json absence)
   - run: kill -0 $SSE_PID 2>&1 || echo "sse client closed"
@@ -914,7 +914,7 @@ These must be exercised by short asserts inside the QA gate suite:
 - **Full disk during migration**: `applyMigration` calls `tx.ExecContext` which can fail with `SQLITE_FULL`. The deferred `rollbackMigrationTx` (`schema.go:387-399`) must still rollback; assert that the daemon never records the migration row.
 - **fsync failure** during `WriteInfo` (`info.go:114-117`) — temp file path may leak; verify `os.Remove(tempPath)` (`info.go:106-108`) cleans up.
 - **EBUSY on socket creation** — `removeStaleSocket` is unconditional `os.Remove` ignoring `ErrNotExist` (`orphan.go:87-97`); test with a socket file held by an unrelated process.
-- **macOS `/private/var/folders` symlink canonicalization** — Skill sidecar containment uses `EvalSymlinks` (`internal/CLAUDE.md:57`); identical pattern must apply when the QA harness puts AGH_HOME under macOS temp paths.
+- **macOS `/private/var/folders` symlink canonicalization** — Skill sidecar containment uses `EvalSymlinks` (`internal/CLAUDE.md:57`); identical pattern must apply when the QA harness puts COMPOZY_HOME under macOS temp paths.
 - **Time-jump during heartbeat** — system clock moves backward (e.g. NTP); verify `defaultRestartPollInterval` logic in `restart.go` does not deadlock waiting for a deadline that has retroactively passed.
 - **Stale lock from previous PID that has been recycled** — `procutil.Alive(stalePID)` checks `syscall.Kill(pid, 0)` (`procutil.go:13-20`); a recycled PID would erroneously look alive. Document this as a known limitation; the lock content alone is insufficient — `daemon.json.started_at` recovery (`boot.go:419-426`) cross-checks.
 - **DB file 0 bytes** (e.g. previous fsync interrupted) — must be detected by `ShouldRecoverSQLite` (`sqlite.go:188-208`); current marker list does not include `"file is empty"`. Add a regression test to either expand the marker list or to fail-fast with a clear error.
@@ -922,7 +922,7 @@ These must be exercised by short asserts inside the QA gate suite:
 - **`daemon.json` from a future schema version** — currently no schema-version field on daemon.json; `Info.Validate` only checks PID/port/started_at. Document as a deferred surface; add a top-level "schema_version" field to enable future hard cuts.
 - **`restarts/` directory full of stale operations** — `RestartOperation.terminal()` allows pruning; ensure `daemon.startedAt > restartOperation.UpdatedAt + maxRetention` triggers GC. No GC exists today — flag.
 - **`NetworkAuditFile` rotation under load** — append-only log; verify no rotation happens mid-run (or, if rotation lands, that boot tolerates a `.1`/`.2` suffix).
-- **Two daemons on different AGH_HOME, same socket path config** — `cfg.Daemon.Socket` from config takes precedence over `homePaths.DaemonSocket`. Test that `removeStaleSocket(state.cfg.Daemon.Socket)` (`boot.go:405-408`) actually targets the configured socket, not the default.
+- **Two daemons on different COMPOZY_HOME, same socket path config** — `cfg.Daemon.Socket` from config takes precedence over `homePaths.DaemonSocket`. Test that `removeStaleSocket(state.cfg.Daemon.Socket)` (`boot.go:405-408`) actually targets the configured socket, not the default.
 - **`exec.LookPath` resolution for the relaunch binary** — `procutil.resolveLaunchBinary` (`detached.go:76-82`) requires the new binary on PATH; restart helper test must cover the missing-binary case.
 
 ## 6. Integration Surfaces
@@ -957,22 +957,22 @@ Matrix of dependencies and obligations.
 Concrete, with symptom + minimal repro + fix surface.
 
 1. **`daemon: already running` doesn't always name the lock file path.**
-   - Symptom: error message says `daemon: already running with pid 12345` but operators don't know which AGH_HOME owns the collision (matters when running multiple labs).
-   - Repro: set `AGH_HOME=$LAB_A`, start; in another shell `AGH_HOME=$LAB_A` start.
+   - Symptom: error message says `daemon: already running with pid 12345` but operators don't know which COMPOZY_HOME owns the collision (matters when running multiple labs).
+   - Repro: set `COMPOZY_HOME=$LAB_A`, start; in another shell `COMPOZY_HOME=$LAB_A` start.
    - Fix surface: `internal/daemon/lock.go:24-28`. Include `lock.path` in the formatted error.
 
-2. **`agh status` after `kill -9` reports `starting` for ~poll-interval seconds.**
+2. **`compozy status` after `kill -9` reports `starting` for ~poll-interval seconds.**
    - Symptom: `cli/daemon.go:283-300` falls back to `daemonInfo`; if PID still has children (or is recycled), the poll loop returns stale `starting` state.
-   - Repro: kill -9, immediately run `agh status -o json`.
+   - Repro: kill -9, immediately run `compozy status -o json`.
    - Fix surface: cross-check `daemon.json.started_at` against `procutil.MatchesStartTime` (`procutil/process_started_at_unix.go`).
 
 3. **Subprocess-stopped-with-non-zero-exit log line prints raw stderr.**
-   - Symptom: `subprocess/process.go:489-503` joins `proc.Wait()` errors; if a provider CLI prints an API key in its stderr, that key lands in `agh.log`.
+   - Symptom: `subprocess/process.go:489-503` joins `proc.Wait()` errors; if a provider CLI prints an API key in its stderr, that key lands in `compozy.log`.
    - Repro: configure an extension whose binary errors with `unauthorized: api_key=<KEY>` on launch.
    - Fix surface: route the joined error through `diagnostics.Redact` before structured logging (consistent with the redact promise in `internal/CLAUDE.md:55`).
 
 4. **Exit codes are inconsistent.**
-   - Symptom: `agh daemon stop` returns 1 if "not running"; `agh daemon start` returns 1 if "already running"; both via Cobra's RunE error path. Operators cannot distinguish via exit code.
+   - Symptom: `compozy daemon stop` returns 1 if "not running"; `compozy daemon start` returns 1 if "already running"; both via Cobra's RunE error path. Operators cannot distinguish via exit code.
    - Fix surface: define explicit numeric codes in `internal/cli/...` for "not running" (e.g. 4) vs "already running" (e.g. 5) vs "io" (3) and document.
 
 5. **`daemon.lock` zeroed on clean shutdown but the file persists.**
@@ -980,11 +980,11 @@ Concrete, with symptom + minimal repro + fix surface.
    - Fix surface: either `os.Remove` after `Unlock` in `Lock.Release` (`lock.go:124-149`), or document the convention with a comment in the file.
 
 6. **Boundary check is opt-in via env var.**
-   - Symptom: a developer adds an illegal import; `make verify` passes locally because they didn't export `AGH_DEV_VERIFY_BOUNDARIES=1`. They only learn from CI.
+   - Symptom: a developer adds an illegal import; `make verify` passes locally because they didn't export `COMPOZY_DEV_VERIFY_BOUNDARIES=1`. They only learn from CI.
    - Fix surface: turn the runtime check on by default for development builds (use `version.Version == "dev"`).
 
 7. **Restart-pending sentinel handling.**
-   - Symptom: if a relaunch helper aborts after writing `RestartStatusStarting` but before the new daemon writes a fresh `daemon.json`, `agh status` will keep returning the OLD `daemon.json` — operators think the upgrade succeeded.
+   - Symptom: if a relaunch helper aborts after writing `RestartStatusStarting` but before the new daemon writes a fresh `daemon.json`, `compozy status` will keep returning the OLD `daemon.json` — operators think the upgrade succeeded.
    - Fix surface: `cli/daemon.go:283-300` should consult `restartStore.LatestOperation` before trusting `daemon.json`; mark "restart in progress" prominently.
 
 8. **`ShouldRecoverSQLite` marker list is hardcoded English strings.**
@@ -995,7 +995,7 @@ Concrete, with symptom + minimal repro + fix surface.
    - Symptom: HEARTBEAT.md exceeds bytes → diagnostic stored, prompt projection truncated. Operators see truncated output but no top-level "your heartbeat is too long" log.
    - Fix surface: `heartbeat.go:466-481` — emit a `slog.Warn` at the daemon level when boot-time resolution surfaces an `oversized_*` diagnostic.
 
-10. **`agh status -o json` `network` field missing when `daemon.json` was written before the network bound itself.**
+10. **`compozy status -o json` `network` field missing when `daemon.json` was written before the network bound itself.**
     - Symptom: legitimate race during boot; status JSON has `network: null` for ~1s. Web UI renders "network: unknown".
     - Fix surface: stage `WriteInfo` to update `daemon.json` after `bootNetwork` completes (currently `bootServers → daemonNetworkInfo → WriteInfo`, `boot.go:1622-1638`, runs only once).
 
@@ -1003,18 +1003,18 @@ Concrete, with symptom + minimal repro + fix surface.
 
 If any of these slip, we ship a broken daemon.
 
-1. **Raw `claim_token` ever reaching disk or wire.** `grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' agh.log` returns no matches across DB-04 / DB-11 / DB-14 / DB-10 evidence. Same grep across all `*.json` evidence files. (Cited claim: `internal/CLAUDE.md:55`.)
-2. **Orphan ACP subprocess after `agh daemon stop`.** Verified by DB-05 step `kill -0 $CHILD_PID`. (Cited claim: `internal/CLAUDE.md:36-37`.)
+1. **Raw `claim_token` ever reaching disk or wire.** `grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' compozy.log` returns no matches across DB-04 / DB-11 / DB-14 / DB-10 evidence. Same grep across all `*.json` evidence files. (Cited claim: `internal/CLAUDE.md:55`.)
+2. **Orphan ACP subprocess after `compozy daemon stop`.** Verified by DB-05 step `kill -0 $CHILD_PID`. (Cited claim: `internal/CLAUDE.md:36-37`.)
 3. **Migration applied twice.** Each `schema_streams.applied_count` remains equal to the embedded gap-free SQL count after any boot/restart cycle.
 4. **`daemon.lock` remaining with non-zero PID after clean stop.** Always `0\n` after `Lock.Release` (`lock.go:124-149`).
 5. **`daemon.json` left behind after clean stop.** `RemoveInfo` runs in `shutdownPersistentResources` (`daemon.go:1245-1248`).
-6. **`agh.db` 0-byte after crash.** Detected by `ShouldRecoverSQLite` recovery path; if the file is exactly 0 bytes, marker list must include the appropriate signature.
-7. **`agh daemon start` after `kill -9` reports stale PID.** Stale PID handling (`lock.go:88-92`, `boot.go:411-427`) cleanly transitions to a fresh boot.
+6. **`compozy.db` 0-byte after crash.** Detected by `ShouldRecoverSQLite` recovery path; if the file is exactly 0 bytes, marker list must include the appropriate signature.
+7. **`compozy daemon start` after `kill -9` reports stale PID.** Stale PID handling (`lock.go:88-92`, `boot.go:411-427`) cleanly transitions to a fresh boot.
 8. **Schema differs between two clean restarts.** DB-09 hash-equality.
 9. **HTTP/UDS panic during shutdown.** DB-15 sse.log must not contain a goroutine stack trace.
 10. **Goroutine leak after Shutdown.** DB-13 goleak gate.
 11. **Detached prompt cancelled by transport client disconnect.** DB-14 state1 == "running".
-12. **Boundary violation in production code.** `daemon.Boundaries(ctx)` returns nil during boot when `AGH_DEV_VERIFY_BOUNDARIES=1`.
+12. **Boundary violation in production code.** `daemon.Boundaries(ctx)` returns nil during boot when `COMPOZY_DEV_VERIFY_BOUNDARIES=1`.
 13. **Cross-build for Windows fails on `procutil`/`subprocess` work.** `GOOS=windows GOARCH=amd64 go build ./...` exit 0.
 14. **Recovery path leaves orphaned `-wal` / `-shm` next to a fresh DB.** DB-08 files.txt validation.
 
@@ -1023,15 +1023,15 @@ If any of these slip, we ship a broken daemon.
 The QA harness for daemon-boot must:
 
 - Use `agh-qa-bootstrap` to obtain `bootstrap-manifest.json` + `bootstrap.env` with:
-  - **Unique `AGH_HOME`** under `~/.agh-qa/<run-id>/lab-home` (per worktree-isolation directive in CLAUDE.md and the standing directive on parallel QA runs).
+  - **Unique `COMPOZY_HOME`** under `~/.compozy-qa/<run-id>/lab-home` (per worktree-isolation directive in CLAUDE.md and the standing directive on parallel QA runs).
   - **Unique daemon ports** for HTTP and any other listener; default port `:2123` is forbidden.
   - **Unique `tmux-bridge` socket path** if the bridge is exercised.
   - `PROVIDER_HOME` and `PROVIDER_CODEX_HOME` derived from the manifest — never `~/.codex` directly.
-  - `AGH_WEB_API_PROXY_TARGET` exported when the daemon is not on `:2123`.
-- Provide a **real Claude Code agent** path: `agh sessions start --agent claude-code --workspace ./fixtures/<theme>` (no fictional CLIs).
+  - `COMPOZY_WEB_API_PROXY_TARGET` exported when the daemon is not on `:2123`.
+- Provide a **real Claude Code agent** path: `compozy sessions start --agent claude-code --workspace ./fixtures/<theme>` (no fictional CLIs).
 - Provide a **deterministic mock ACP** path for non-LLM scenarios: the existing `internal/acp/acpmock` test binary, used only for scenarios explicitly tagged `provider: none`.
 - Provide a **goleak harness** under `internal/daemon/qa/` (or co-resident in `daemon_test.go` under build tag `daemon_signal_qa`/`daemon_goleak_qa`) so signal-during-boot, goleak-clean-shutdown, and boot-failure-cleanup gates run without the full E2E setup.
-- Provide a **schema-validator script** (`scripts/qa/schema-validator.sh`) that diffs the live `agh.db .schema` against a checked-in golden file; fails on drift.
+- Provide a **schema-validator script** (`scripts/qa/schema-validator.sh`) that diffs the live `compozy.db .schema` against a checked-in golden file; fails on drift.
 - Provide a **claim-token redaction grep gate** (`scripts/qa/claim-token-grep.sh`) run after each scenario over every captured artifact.
 - Provide **artifact layout** under `.artifacts/qa/<run-id>/daemon-boot/db-<NN>/` per scenario:
   - `qa-report.md` — Worked / Failed / Blocked / Follow-up summary.
@@ -1044,7 +1044,7 @@ The QA harness for daemon-boot must:
 
 ## 10. Citations
 
-- `cmd/agh/main.go:1-18` — single binary entrypoint; all real behavior delegated to `internal/cli`.
+- `cmd/compozy/main.go:1-18` — single binary entrypoint; all real behavior delegated to `internal/cli`.
 - `internal/cli/daemon.go:28-507` — CLI verbs, status/start/stop/relaunch wiring, detached-spawn helper.
 - `internal/daemon/daemon.go:1-1318` — composition root + Options + Run/Shutdown sequencing; canonical place where every other subsystem is wired.
 - `internal/daemon/boot.go:152-1779` — boot pipeline (18-step list at line 178), `bootCleanup` LIFO unwinding, lock acquisition, registry open, session-repair-on-boot.

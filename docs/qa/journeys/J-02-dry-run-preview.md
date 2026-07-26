@@ -25,9 +25,9 @@ journey:
   entry_points:
     - url: "web /loops/:name/run › Dry run (loop-run-form)"
       origin: in-app-nav
-    - url: "CLI: agh loop run --name software-delivery --input slug=x --dry-run"
+    - url: "CLI: compozy loop run --name software-delivery --input slug=x --dry-run"
       origin: direct
-    - url: "native tool: agh__loop_run with dry=true"
+    - url: "native tool: compozy__loop_run with dry=true"
       origin: in-app-nav
   actions:
     - step: 1

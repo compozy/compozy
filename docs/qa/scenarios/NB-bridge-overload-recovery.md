@@ -5,7 +5,7 @@ title: Recover a first-party bridge delivery from provider overload
 persona: Omar
 journey: J-connect-bridge-provider
 expected: "A first-party outbound bridge call receiving HTTP 529 classifies the failure as `overloaded`, waits once through the distinct bounded overload profile, and succeeds on the next provider response. HTTP 500 is `server_error`, a connection reset remains `transient`, and a positive `Retry-After` is preserved exactly. A committed mutation is never replayed, delegated ACP agents are unaffected, and no provider-local retry loop exists."
-entry_points: agh bridge send-test; HTTP and UDS bridge send-test; fake-provider outbound transport
+entry_points: compozy bridge send-test; HTTP and UDS bridge send-test; fake-provider outbound transport
 qa_status: untested
 bug_ids:
 fix_status:

@@ -25,8 +25,8 @@ A durable blocked Goal remains attached when its owning session is stopped, and 
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/goal-stopped-session-clear-fails.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/goal-stopped-session-clear-fixed.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/goal-stopped-session-clear-fails.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/goal-stopped-session-clear-fixed.dom.txt`
 - Session `sess-84c5282a292e7f0f`; Goal run `looprun-e6830bc6fd4a086f`.
 
 ## Fix

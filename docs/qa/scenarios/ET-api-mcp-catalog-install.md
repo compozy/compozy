@@ -11,7 +11,7 @@ bug_ids: BUG-20260715-mcp-install-null-values
 fix_status: fixed
 retest_status: pending required-nullable values presence contract and config-apply response
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-api-marketplace-namespace; ET-cli-mcp-install; MS-029
 ---

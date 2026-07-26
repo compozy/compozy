@@ -1,6 +1,6 @@
 ---
-title: "Designing a dark UI without shadows: AGH's flat depth model"
-description: "Drop shadows muddy dark UIs. AGH replaces them with a warm surface ramp, translucent hairlines, and inset focus rings — enforced by tokens and a lint rule."
+title: "Designing a dark UI without shadows: Compozy's flat depth model"
+description: "Drop shadows muddy dark UIs. Compozy replaces them with a warm surface ramp, translucent hairlines, and inset focus rings — enforced by tokens and a lint rule."
 date: 2026-05-20
 category: design
 tags:
@@ -25,13 +25,13 @@ status: publishable
 
 A drop shadow assumes light. Place an element above a white page and the shadow reads as physical depth — the eye expects the world to behave that way. Place the same shadow over a near-black canvas at `#131211` and the eye gets ambiguous information: the shadow lives in the same luminance band as the surface it tries to lift, so it reads as smear rather than separation. Stack three or four of those shadows across cards, popovers, headers, and dropdowns, and the screen turns into a haze.
 
-AGH is a local operator console for long-running agent work — the kind of UI that an engineer stares at for an entire afternoon. Haze on that surface costs more than aesthetics. It costs scan speed, focus visibility, and the operator's ability to tell apart a card, a hovered row, and a selected row at a glance. The flat depth model exists to remove that cost.
+Compozy is a local operator console for long-running agent work — the kind of UI that an engineer stares at for an entire afternoon. Haze on that surface costs more than aesthetics. It costs scan speed, focus visibility, and the operator's ability to tell apart a card, a hovered row, and a selected row at a glance. The flat depth model exists to remove that cost.
 
-AGH's flat depth model substitutes shadow-based elevation with four parts: a warm surface ramp, translucent hairlines, inset focus rings, and a token contract that holds them as the single source of truth — protected by a lint rule that rejects every inline workaround.
+Compozy's flat depth model substitutes shadow-based elevation with four parts: a warm surface ramp, translucent hairlines, inset focus rings, and a token contract that holds them as the single source of truth — protected by a lint rule that rejects every inline workaround.
 
 ## The warm surface ramp
 
-Depth in AGH comes from the canvas, not from light. The runtime ships six luminance steps that climb from the rail to the most elevated surface, all sharing one warm brown-black hue. The eye reads the climb as ordered planes because the hue stays constant while luminance steps remain perceptually even.
+Depth in Compozy comes from the canvas, not from light. The runtime ships six luminance steps that climb from the rail to the most elevated surface, all sharing one warm brown-black hue. The eye reads the climb as ordered planes because the hue stays constant while luminance steps remain perceptually even.
 
 The six steps live in `packages/ui/src/tokens.css`:
 
@@ -52,7 +52,7 @@ The ramp does the work a shadow used to do. A card on `canvas-soft` separates fr
 
 ## Hairlines, not borders
 
-The ramp separates planes. Hairlines edge them. AGH binds three hairline tokens, all translucent white at low alpha so the line layers consistently across every step of the ramp:
+The ramp separates planes. Hairlines edge them. Compozy binds three hairline tokens, all translucent white at low alpha so the line layers consistently across every step of the ramp:
 
 | Token                 | Value                        | Intended use                                   |
 | --------------------- | ---------------------------- | ---------------------------------------------- |
@@ -93,9 +93,9 @@ The contract holds because the substitution is mechanical. If a card's backgroun
 
 ## A lint rule, not a style guide
 
-A style guide is advisory. A lint rule is unbuildable-if-violated. AGH's design system runs through `lint-plugins/compozy-design-system.mjs`, an oxlint plugin that scans JSX for the patterns the token system is supposed to make unreachable.
+A style guide is advisory. A lint rule is unbuildable-if-violated. Compozy's design system runs through `lint-plugins/compozy-design-system.mjs`, an oxlint plugin that scans JSX for the patterns the token system is supposed to make unreachable.
 
-The eyebrow rule is the cleanest specimen. The canonical eyebrow contract is **Inter UC 11px / 600 / -0.005em**, bound to `--text-eyebrow` and `--tracking-eyebrow` in `tokens.css`. Any consumer that needs an uppercase metadata label renders through `<Eyebrow>` from `@agh/ui` or applies the `.eyebrow` utility on a structural HTML element (`<dt>`, `<label>`, `<th>`). The rule rejects every other path:
+The eyebrow rule is the cleanest specimen. The canonical eyebrow contract is **Inter UC 11px / 600 / -0.005em**, bound to `--text-eyebrow` and `--tracking-eyebrow` in `tokens.css`. Any consumer that needs an uppercase metadata label renders through `<Eyebrow>` from `@compozy/ui` or applies the `.eyebrow` utility on a structural HTML element (`<dt>`, `<label>`, `<th>`). The rule rejects every other path:
 
 ```js
 // lint-plugins/compozy-design-system.mjs — the no-inline-eyebrow predicate
@@ -135,12 +135,12 @@ The exchange is system-level coherence for per-component freedom. The runtime UI
 
 ## Three principles for any dark UI
 
-The pattern is reusable beyond AGH. Three principles do most of the work.
+The pattern is reusable beyond Compozy. Three principles do most of the work.
 
 First, treat surface luminance as the depth ramp. A handful of warm-dark steps with a stable hue separates planes more reliably than any drop shadow ever will on a dark surface. Constrain the ramp early — six steps is enough; twelve invites drift.
 
 Second, edge planes with translucent white, not solid borders. A hairline tier from quiet to strong layers consistently across every ramp step and survives token retunes that would break hand-picked border colors.
 
-Third, encode the system as tokens, not conventions, and protect the tokens with a lint rule. A token without enforcement decays as the codebase grows; a lint rule that names the token-aligned replacement inside its error message turns design philosophy into a build-time guarantee. AGH's `tokens.css` and the `compozy-design-system` plugin are the pattern as a working artifact — read them as a template, not a prescription.
+Third, encode the system as tokens, not conventions, and protect the tokens with a lint rule. A token without enforcement decays as the codebase grows; a lint rule that names the token-aligned replacement inside its error message turns design philosophy into a build-time guarantee. Compozy's `tokens.css` and the `compozy-design-system` plugin are the pattern as a working artifact — read them as a template, not a prescription.
 
 The dark UI does not need shadows. It needs a ramp, a hairline, a ring, a token, and the rule that says nothing else gets through.

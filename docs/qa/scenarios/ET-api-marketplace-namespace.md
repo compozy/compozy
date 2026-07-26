@@ -11,7 +11,7 @@ bug_ids: BUG-20260715-native-marketplace-extension-parity
 fix_status: fixed
 retest_status: pending authored parameter, enum, and status contract verification
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-007; ET-008; ET-016
 ---

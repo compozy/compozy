@@ -101,7 +101,7 @@ Charters are immutable once execution begins. Task 10 writes every observation, 
 
 ## Time-to-first-message protocol
 
-Task 10 measures from an installed provider extension and no bridge instance to the first externally visible real AGH response. One operator action is one deliberate operator input or one external provider-console submission/paste. Reading output, waiting, and automatic provider calls do not count.
+Task 10 measures from an installed provider extension and no bridge instance to the first externally visible real Compozy response. One operator action is one deliberate operator input or one external provider-console submission/paste. Reading output, waiting, and automatic provider calls do not count.
 
 - Slack compares against the Hermes baseline of approximately seven operator actions.
 - Telegram compares guided and structured paths against approximately four operator actions; daemon-owned `setWebhook` counts as zero.
@@ -136,7 +136,7 @@ Every measurement records actions, timestamps, public observables, remediation l
 ## Task 10 environment and evidence contract
 
 1. Bootstrap a fresh isolated lab with `agh-qa-bootstrap`; do not reuse another cycle's manifest.
-2. Honor unique `AGH_HOME`, ports, provider homes, and tmux-bridge sockets. Export `AGH_WEB_API_PROXY_TARGET` from the manifest.
+2. Honor unique `COMPOZY_HOME`, ports, provider homes, and tmux-bridge sockets. Export `COMPOZY_WEB_API_PROXY_TARGET` from the manifest.
 3. Register every long-lived daemon, Web server, browser, watcher, and tmux process under `<QA_OUTPUT_PATH>/qa/pids/`.
 4. Create one dated execution report with every charter initially `Pending`; append observations immediately after each journey checkpoint.
 5. Keep bulk logs and captures under `QA_OUTPUT_PATH`; cite only evidence that supports a verdict or failure.
@@ -147,12 +147,12 @@ Every measurement records actions, timestamps, public observables, remediation l
 10. Run the required serialized `make test-e2e-runtime` and `make test-e2e-web` lanes as supporting evidence, not substitutes for persona verdicts.
 11. On every terminal path, execute the manifest `TEARDOWN_COMMAND` or `make qa-reap`. Completion requires `teardown.json` with `"clean": true` and no surviving lab processes.
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
 - **Native tools:** no new tool ID is introduced by this planning task. The structured charter verifies CLI/HTTP/UDS bridge behavior and checks any exposed native descriptors and capability diagnostics for parity.
 - **Extensibility and hooks:** setup begins at installed bridge extensions and covers all eight provider capabilities, secret slots, manifests, routing, and lifecycle behavior. Unrelated bundles, hooks, and sidecars are unchanged.
 - **Workspace data isolation:** bridge instances and durable delivery state retain their global/workspace ownership. Restart and edit/reply charters probe workspace, scope, instance, route, conversation, cache, and event boundaries.
-- **Official AGH skill:** the security/verification charter compares bundled `skills/agh/` bridge guidance with public commands and provider guides. This task changes QA planning artifacts only.
+- **Official Compozy skill:** the security/verification charter compares bundled `skills/compozy/` bridge guidance with public commands and provider guides. This task changes QA planning artifacts only.
 
 ## Planning completeness
 

@@ -28,17 +28,17 @@
 
 ##### Network delivery policies, subscriptions, and thread-to-task promotion
 
-AGH network channels gain durable delivery control. Each channel now carries a fan-out policy — deliver to all members, route to a designated coordinator peer, or match by capability (the default) — managed with `agh network channels create` and `agh network channels update`. Peers and tasks can subscribe to channels: inspect subscriptions with `agh network subscriptions` and manage per-task subscriptions with `agh task subscribe <task-id>`. Executable thread messages can be promoted into durable workspace tasks straight from the CLI with `agh network promote`, or by an agent through the `agh__task_promote_from_thread` native tool, and designated sibling task runs can be fanned out as part of a workflow. Network and task views now surface task links, peer and coordination cost, and delivered size and token metrics, while mentions are normalized (trimmed, empties removed) and size and token limits are enforced as non-negative.
+Compozy network channels gain durable delivery control. Each channel now carries a fan-out policy — deliver to all members, route to a designated coordinator peer, or match by capability (the default) — managed with `compozy network channels create` and `compozy network channels update`. Peers and tasks can subscribe to channels: inspect subscriptions with `compozy network subscriptions` and manage per-task subscriptions with `compozy task subscribe <task-id>`. Executable thread messages can be promoted into durable workspace tasks straight from the CLI with `compozy network promote`, or by an agent through the `compozy__task_promote_from_thread` native tool, and designated sibling task runs can be fanned out as part of a workflow. Network and task views now surface task links, peer and coordination cost, and delivered size and token metrics, while mentions are normalized (trimmed, empties removed) and size and token limits are enforced as non-negative.
 
 ##### Task blocking, recovery, and needs-attention triage
 
-Tasks are now first-class to block, triage, and recover. A task can be explicitly blocked and unblocked with `agh task block <id>` and `agh task unblock <id>`, and every block is kept as durable history you can inspect with `agh task blocks <id>`. A new `needs_attention` status surfaces tasks that stalled and need a human or coordinator to step in — task details now carry the blocked reason and the wake creator so it is clear why a task is waiting and who nudged it. Clear the state with `agh task recover <id>`, recover a specific stalled run with `agh task run recover <run-id>`, or let an agent do it through the `agh__task_recover` native tool and the HTTP/UDS API. Task completion now returns the IDs of any tasks it created, and stronger validation rejects invalid created-task references before they are persisted. Claim tokens are redacted across task outputs and hook payloads, and the new `needs_attention_after` setting controls how long a task may wait before it is flagged for attention.
+Tasks are now first-class to block, triage, and recover. A task can be explicitly blocked and unblocked with `compozy task block <id>` and `compozy task unblock <id>`, and every block is kept as durable history you can inspect with `compozy task blocks <id>`. A new `needs_attention` status surfaces tasks that stalled and need a human or coordinator to step in — task details now carry the blocked reason and the wake creator so it is clear why a task is waiting and who nudged it. Clear the state with `compozy task recover <id>`, recover a specific stalled run with `compozy task run recover <run-id>`, or let an agent do it through the `compozy__task_recover` native tool and the HTTP/UDS API. Task completion now returns the IDs of any tasks it created, and stronger validation rejects invalid created-task references before they are persisted. Claim tokens are redacted across task outputs and hook payloads, and the new `needs_attention_after` setting controls how long a task may wait before it is flagged for attention.
 
 #### Fixes
 
 ##### Clearer native tool errors and availability diagnostics
 
-Native and hosted tool calls now fail legibly. Hosted MCP tool calls return richer, structured JSON error details — the tool ID, an error code, and any denial reasons — instead of opaque failures, and advertised tools carry improved metadata and descriptions. When runtime diagnostic data cannot be retrieved, native tool lookups report a clear "unavailable" diagnostic rather than a silent miss. Hosted and session MCP availability handling is safer overall, with clearer informational and warning logs and graceful fallbacks when a feature is disabled. Documentation and the runtime envelope now consistently direct agents to the canonical `agh__*` tool IDs and the harness-returned tool references.
+Native and hosted tool calls now fail legibly. Hosted MCP tool calls return richer, structured JSON error details — the tool ID, an error code, and any denial reasons — instead of opaque failures, and advertised tools carry improved metadata and descriptions. When runtime diagnostic data cannot be retrieved, native tool lookups report a clear "unavailable" diagnostic rather than a silent miss. Hosted and session MCP availability handling is safer overall, with clearer informational and warning logs and graceful fallbacks when a feature is disabled. Documentation and the runtime envelope now consistently direct agents to the canonical `compozy__*` tool IDs and the harness-returned tool references.
 
 ## 0.0.8 - 2026-06-22
 
@@ -79,7 +79,7 @@ Native and hosted tool calls now fail legibly. Hosted MCP tool calls return rich
 - React doctor fixes (#245)
 - Verify marketplace skill installs (#244)
 - Persist active workspace and redirect on session/workspace mismatch (#238)
-- Safe workspace delete and agh session remove command (#239)
+- Safe workspace delete and compozy session remove command (#239)
 - Unblock release CI (bootstrapRun complexity, stale gate tests) (#249)
 
 ### 📚 Documentation
@@ -92,25 +92,25 @@ Native and hosted tool calls now fail legibly. Hosted MCP tool calls return rich
 
 ##### Dependency-driven auto-enqueue
 
-Tasks can now opt into dependency-driven auto-enqueue. When a task is marked `auto_enqueue_on_ready`, AGH enqueues its next task run automatically as soon as a blocking dependency completes and the task reconciles to `ready` — so a dependency graph advances without a manual `agh task enqueue` at each step. The behavior is conservative: only a successful completion satisfies a `blocks` edge, paused dependents are skipped, and the queued-run reservation keeps at most one open run per dependent under concurrent or retried completions. Enqueue happens only after the completion has durably committed and is best-effort — a failed enqueue is logged, never rolled back onto the completing run. It is off by default; enable it per task with `--auto-enqueue-on-ready` on `agh task create` / `agh task child create`, toggle it with `agh task update`, or set the `auto_enqueue_on_ready` field over HTTP/UDS and the extension SDK.
+Tasks can now opt into dependency-driven auto-enqueue. When a task is marked `auto_enqueue_on_ready`, Compozy enqueues its next task run automatically as soon as a blocking dependency completes and the task reconciles to `ready` — so a dependency graph advances without a manual `compozy task enqueue` at each step. The behavior is conservative: only a successful completion satisfies a `blocks` edge, paused dependents are skipped, and the queued-run reservation keeps at most one open run per dependent under concurrent or retried completions. Enqueue happens only after the completion has durably committed and is best-effort — a failed enqueue is logged, never rolled back onto the completing run. It is off by default; enable it per task with `--auto-enqueue-on-ready` on `compozy task create` / `compozy task child create`, toggle it with `compozy task update`, or set the `auto_enqueue_on_ready` field over HTTP/UDS and the extension SDK.
 
 ##### Runtime evidence mode for task execution profiles
 
-Task execution profiles can now drive worker startup and opt into runtime evidence mode. A task with no pool owner but a `worker.mode = "select"` profile now starts the selected agent, provider, and model and propagates the profile's required capabilities into its claim command. Setting `runtime.mode = "evidence"` boots that worker with guidance to run browser, simulator, and local-app validation and to capture runtime evidence. AGH elevates the session to auto-approve permissions only when the profile also pins an explicit sandbox reference (`sandbox.mode = "ref"`); otherwise the configured permission policy stays in force, and evidence mode grants no extra task authority. The profile's new `runtime` block is surfaced through the execution-profile CLI, the HTTP/UDS endpoints, and the native task tools.
+Task execution profiles can now drive worker startup and opt into runtime evidence mode. A task with no pool owner but a `worker.mode = "select"` profile now starts the selected agent, provider, and model and propagates the profile's required capabilities into its claim command. Setting `runtime.mode = "evidence"` boots that worker with guidance to run browser, simulator, and local-app validation and to capture runtime evidence. Compozy elevates the session to auto-approve permissions only when the profile also pins an explicit sandbox reference (`sandbox.mode = "ref"`); otherwise the configured permission policy stays in force, and evidence mode grants no extra task authority. The profile's new `runtime` block is surfaced through the execution-profile CLI, the HTTP/UDS endpoints, and the native task tools.
 
 #### Fixes
 
 ##### Coordinator sessions wake reliably on new work
 
-Coordinator sessions now wake reliably when new work arrives. When a task run is enqueued for a workspace that already has a running coordinator session, AGH delivers a synthetic wake to that session — interrupting the agent's current turn if it is idle and waiting — so queued runs are picked up promptly instead of stalling. The same interrupt-if-waiting delivery now applies to harness re-entry and heartbeat wakes, force-retried and force-recovered runs re-trigger a coordinator wake, and heartbeat wakes skipped for non-transient reasons are recorded as dropped rather than silently lost. Wake delivery is de-duplicated per session and run and drained safely across daemon shutdown.
+Coordinator sessions now wake reliably when new work arrives. When a task run is enqueued for a workspace that already has a running coordinator session, Compozy delivers a synthetic wake to that session — interrupting the agent's current turn if it is idle and waiting — so queued runs are picked up promptly instead of stalling. The same interrupt-if-waiting delivery now applies to harness re-entry and heartbeat wakes, force-retried and force-recovered runs re-trigger a coordinator wake, and heartbeat wakes skipped for non-transient reasons are recorded as dropped rather than silently lost. Wake delivery is de-duplicated per session and run and drained safely across daemon shutdown.
 
 ##### Marketplace skill installs are verified end-to-end
 
-Marketplace skill installs are now verified end-to-end. After downloading and writing a skill, AGH confirms the runtime can actually discover it as an enabled marketplace skill with matching provenance, instead of reporting success for an install that would never resolve. Installs that are disabled, shadowed by a higher-precedence skill of the same name, missing provenance, or resolved to a different slug now fail with a clear, terminal error and remediation guidance across `agh skill install` and the daemon API. Use `agh skill where <name>` to inspect the winning source before retrying.
+Marketplace skill installs are now verified end-to-end. After downloading and writing a skill, Compozy confirms the runtime can actually discover it as an enabled marketplace skill with matching provenance, instead of reporting success for an install that would never resolve. Installs that are disabled, shadowed by a higher-precedence skill of the same name, missing provenance, or resolved to a different slug now fail with a clear, terminal error and remediation guidance across `compozy skill install` and the daemon API. Use `compozy skill where <name>` to inspect the winning source before retrying.
 
-##### Safe workspace deletion, plus agh session remove and agh open
+##### Safe workspace deletion, plus compozy session remove and compozy open
 
-Workspace deletion is now safe: AGH refuses to delete a workspace while any of its sessions are still active — returning a 409 that names the blocking sessions — and cleans up the workspace's stopped session history transactionally when deletion proceeds. Two agent-manageable CLI commands ship alongside it: `agh session remove <id>` deletes a single session and its persisted history, and `agh open` opens the AGH web UI in your default browser. The CLI reference also gains documentation for `agh open`, `agh session remove`, and the existing `agh onboarding` command group.
+Workspace deletion is now safe: Compozy refuses to delete a workspace while any of its sessions are still active — returning a 409 that names the blocking sessions — and cleans up the workspace's stopped session history transactionally when deletion proceeds. Two agent-manageable CLI commands ship alongside it: `compozy session remove <id>` deletes a single session and its persisted history, and `compozy open` opens the Compozy web UI in your default browser. The CLI reference also gains documentation for `compozy open`, `compozy session remove`, and the existing `compozy onboarding` command group.
 
 ##### Web UI remembers your active workspace
 
@@ -180,7 +180,7 @@ The web UI now remembers your active workspace across reloads and browser restar
 - Module improvements (#29)
 - Memory improvements (#35)
 - Storybook for web and ui (#38)
-- Enable AGH network by default for new installs (#57)
+- Enable Compozy network by default for new installs (#57)
 - Hermes adjustments (#69)
 - Badges design (#84)
 - Storybook scenario and logos gallery
@@ -253,7 +253,7 @@ The web UI now remembers your active workspace across reloads and browser restar
 - Memory v2 (#108)
 - Agent categories (#113)
 - Providers model (#118)
-- Add canonical AGH bundled skill (#143)
+- Add canonical Compozy bundled skill (#143)
 - Onboarding and improvements (#198)
 - Onboarding and improvements (#201)
 
@@ -428,7 +428,7 @@ The web UI now remembers your active workspace across reloads and browser restar
 - Module improvements (#29)
 - Memory improvements (#35)
 - Storybook for web and ui (#38)
-- Enable AGH network by default for new installs (#57)
+- Enable Compozy network by default for new installs (#57)
 - Hermes adjustments (#69)
 - Badges design (#84)
 - Storybook scenario and logos gallery
@@ -501,7 +501,7 @@ The web UI now remembers your active workspace across reloads and browser restar
 - Memory v2 (#108)
 - Agent categories (#113)
 - Providers model (#118)
-- Add canonical AGH bundled skill (#143)
+- Add canonical Compozy bundled skill (#143)
 - Onboarding and improvements (#198)
 - Onboarding and improvements (#201)
 

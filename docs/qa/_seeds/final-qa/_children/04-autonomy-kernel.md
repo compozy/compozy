@@ -1,23 +1,23 @@
 ---
 name: 04-autonomy-kernel
-description: AGH pre-release QA — autonomy kernel module (task_runs + scheduler + hooks + coordinator). Real-LLM scenarios required. Read-only research deliverable.
+description: Compozy pre-release QA — autonomy kernel module (task_runs + scheduler + hooks + coordinator). Real-LLM scenarios required. Read-only research deliverable.
 type: qa-child
 module: autonomy-kernel
 owner: pre-release-qa
 references:
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/autonomous/
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/_archived/20260410-021708-hooks/
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/autonomous/
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/_archived/20260410-021708-hooks/
 ---
 
 # 04 — Autonomy Kernel QA
 
 ## 1. Module scope
 
-The autonomy kernel is the load-bearing inner ring of AGH. It owns durable
+The autonomy kernel is the load-bearing inner ring of Compozy. It owns durable
 work intake, atomic ownership transfer, lease lifecycle, hook dispatch at
 authoritative call sites, mechanical wake/observe/sweep, and coordinator
 agent bootstrap. This QA child stresses every documented invariant from
@@ -28,15 +28,15 @@ Packages in scope (file:line citations are repo-absolute):
 
 | Surface                | Path                                                                       | Authoritative API                                                                                                                                                                                                                                                                                                                              |
 | ---------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Task domain            | `/Users/pedronauck/Dev/compozy/agh/internal/task/`                         | `Service.ClaimNextRun` (`internal/task/lease_manager.go:14`), `HeartbeatRunLease` (`:58`), `ReleaseRunLease` (`:94`), `ReleaseSessionRunLeases` (`:136`), `CompleteRunLease` (`:188`), `FailRunLease` (`:223`), `RecoverExpiredRunLeases` (`:259`), `LookupActiveRunForSession` (`:347`), claim-token primitives (`internal/task/lease.go:151`) |
-| Mechanical scheduler   | `/Users/pedronauck/Dev/compozy/agh/internal/scheduler/`                    | `Scheduler.RunOnce` (`internal/scheduler/scheduler.go:238`), `sweepExpiredLeases` (`:262`), `selectWakeTargets` (`:421`), `dispatchWakeTargets` (`:312`), `Rebuild` (`:194`)                                                                                                                                                                    |
-| Hook taxonomy/dispatch | `/Users/pedronauck/Dev/compozy/agh/internal/hooks/`                        | `Hooks.DispatchTaskRunPreClaim` family (`internal/hooks/dispatch.go`), event registry (`internal/hooks/events.go:54-130`), pipeline (`internal/hooks/pipeline.go:37-172`), subprocess executor timeout (`internal/hooks/executor_subprocess.go:23,224`)                                                                                         |
-| Coordinator            | `/Users/pedronauck/Dev/compozy/agh/internal/coordinator/`                  | `DecideBootstrap` (`internal/coordinator/coordinator.go:104`), `IsExecutableRunStatus` (`:150`), `PermissionPolicy` (`:173`), `Lineage` (`:193`), `PromptOverlay` (`:238`), `ToolAllowlist` (`:64`)                                                                                                                                             |
-| Retry primitives       | `/Users/pedronauck/Dev/compozy/agh/internal/retry/`                        | `internal/retry/retry.go`                                                                                                                                                                                                                                                                                                                      |
-| Automation overlap     | `/Users/pedronauck/Dev/compozy/agh/internal/automation/`                   | `internal/automation/dispatch.go`, `internal/automation/trigger.go` (only the trigger→task-run-enqueue boundary is in-scope here; full automation is module 09).                                                                                                                                                                                |
+| Task domain            | `/Users/pedronauck/Dev/compozy/compozy/internal/task/`                         | `Service.ClaimNextRun` (`internal/task/lease_manager.go:14`), `HeartbeatRunLease` (`:58`), `ReleaseRunLease` (`:94`), `ReleaseSessionRunLeases` (`:136`), `CompleteRunLease` (`:188`), `FailRunLease` (`:223`), `RecoverExpiredRunLeases` (`:259`), `LookupActiveRunForSession` (`:347`), claim-token primitives (`internal/task/lease.go:151`) |
+| Mechanical scheduler   | `/Users/pedronauck/Dev/compozy/compozy/internal/scheduler/`                    | `Scheduler.RunOnce` (`internal/scheduler/scheduler.go:238`), `sweepExpiredLeases` (`:262`), `selectWakeTargets` (`:421`), `dispatchWakeTargets` (`:312`), `Rebuild` (`:194`)                                                                                                                                                                    |
+| Hook taxonomy/dispatch | `/Users/pedronauck/Dev/compozy/compozy/internal/hooks/`                        | `Hooks.DispatchTaskRunPreClaim` family (`internal/hooks/dispatch.go`), event registry (`internal/hooks/events.go:54-130`), pipeline (`internal/hooks/pipeline.go:37-172`), subprocess executor timeout (`internal/hooks/executor_subprocess.go:23,224`)                                                                                         |
+| Coordinator            | `/Users/pedronauck/Dev/compozy/compozy/internal/coordinator/`                  | `DecideBootstrap` (`internal/coordinator/coordinator.go:104`), `IsExecutableRunStatus` (`:150`), `PermissionPolicy` (`:173`), `Lineage` (`:193`), `PromptOverlay` (`:238`), `ToolAllowlist` (`:64`)                                                                                                                                             |
+| Retry primitives       | `/Users/pedronauck/Dev/compozy/compozy/internal/retry/`                        | `internal/retry/retry.go`                                                                                                                                                                                                                                                                                                                      |
+| Automation overlap     | `/Users/pedronauck/Dev/compozy/compozy/internal/automation/`                   | `internal/automation/dispatch.go`, `internal/automation/trigger.go` (only the trigger→task-run-enqueue boundary is in-scope here; full automation is module 09).                                                                                                                                                                                |
 
 Out of scope (covered by other children): full automation cron/webhook
-execution (module 09), AGH Network channel transport (module 06), session
+execution (module 09), Compozy Network channel transport (module 06), session
 manager state machine (module 03), web UI surfaces (module 08).
 
 ## 2. Authoritative invariants under test
@@ -63,7 +63,7 @@ the openclaw lowercase dotted/dashed convention.
 | `hooks.timeout-fail-open`         | Subprocess hook executor uses 5s default timeout; non-required hook timeouts fail-open (dispatch proceeds, error logged).                                  | `internal/hooks/executor_subprocess.go:23,224`; `internal/hooks/pipeline.go:68-79`                                                      |
 | `hooks.required-fail-closed`      | A `Required` hook failure halts the dispatch chain with a wrapped error.                                                                                   | `internal/hooks/pipeline.go:71-77`                                                                                                      |
 | `hooks.ordering`                  | Multiple hooks at the same event fire in `orderedResolvedHooksIfNeeded` precedence then declaration order.                                                 | `internal/hooks/pipeline.go:59`; `internal/hooks/ordering.go`                                                                           |
-| `coordinator.bootstrap`           | First eligible workspace task_run on a fresh AGH_HOME causes a workspace coordinator session to be bootstrapped exactly once.                              | `internal/coordinator/coordinator.go:104,143`                                                                                           |
+| `coordinator.bootstrap`           | First eligible workspace task_run on a fresh COMPOZY_HOME causes a workspace coordinator session to be bootstrapped exactly once.                              | `internal/coordinator/coordinator.go:104,143`                                                                                           |
 | `coordinator.permissions`         | Coordinator sessions are constrained to `ToolAllowlist` and never spawn another coordinator (`SpawnRoleAllowed` rejects coordinator role).                 | `internal/coordinator/coordinator.go:64-78,188`                                                                                         |
 | `coordinator.lineage`             | Every spawned worker carries `parent_session_id` and `root_session_id`; `SpawnDepth` cannot exceed `DefaultSpawnMaxDepth`.                                 | `internal/store/session_lineage.go:13-83`; `internal/session/spawn.go:215`                                                              |
 | `manual-equals-peer`              | A manual prompt is just a peer claim path: it goes through the same `ClaimNextRun` primitive with `actor.Kind == AgentSession`. There is no shortcut path. | `internal/CLAUDE.md` "manual=peer mode"                                                                                                 |
@@ -76,7 +76,7 @@ the openclaw lowercase dotted/dashed convention.
 QA mode is **real-scenario** (per the standing directive on real-scenario
 QA), not pytest-style assertions. Every scenario:
 
-- Runs against an isolated AGH_HOME with unique daemon ports + tmux-bridge
+- Runs against an isolated COMPOZY_HOME with unique daemon ports + tmux-bridge
   socket (per `agh-worktree-isolation` skill).
 - Resolves provider auth from the bootstrap manifest according to each
   provider contract: bound-secret, brokered, and explicitly isolated-home
@@ -103,13 +103,13 @@ parallel under unique worktree isolation.
 | Mode                | When                                                                                              | Driver                                                                                                                                          |
 | ------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `real-claude-code`  | Default for all scenarios that exercise real subagent behavior, lineage, hook dispatch, spawn cap | `claude-opus-4-8` for the parent coordinator; `claude-sonnet-5` for the spawned children where indicated.                                 |
-| `real-openclaw`     | Cross-driver sanity (AUT-09 only) to prove the autonomy kernel is driver-agnostic                 | OpenClaw bundled-plugin runtime via the AGH ACP client.                                                                                         |
+| `real-openclaw`     | Cross-driver sanity (AUT-09 only) to prove the autonomy kernel is driver-agnostic                 | OpenClaw bundled-plugin runtime via the Compozy ACP client.                                                                                         |
 | `real-hermes`       | Reference comparison only (AUT-09 only)                                                           | Hermes via ACP.                                                                                                                                 |
 | `mock-acp` (gate)   | Determinism gate for race-sensitive scenarios where real models add nondeterminism (AUT-01 only). | `internal/e2elane` mock ACP server used only to make a 5-way race deterministic; the surrounding daemon runs real code paths.                    |
 
 `mock-acp` is the deterministic dispatcher described in the openclaw
-tri-state policy; AGH should expose it as `mock-acp`. `real-claude-code` is
-the AGH equivalent of openclaw `live-frontier`. We do NOT include an
+tri-state policy; Compozy should expose it as `mock-acp`. `real-claude-code` is
+the Compozy equivalent of openclaw `live-frontier`. We do NOT include an
 `aimock` lane here — per openclaw's own honest framing, it is additive and
 not a replacement.
 
@@ -117,8 +117,8 @@ not a replacement.
 
 - Fresh QA bootstrap via the `agh-qa-bootstrap` skill. Manifest path saved
   to `bootstrap-manifest.json`; `bootstrap.env` exported into the shell
-  before any `agh` command.
-- Unique `AGH_HOME` per worktree (per the worktree-isolation directive).
+  before any `compozy` command.
+- Unique `COMPOZY_HOME` per worktree (per the worktree-isolation directive).
 - Bound-secret, brokered, and explicitly isolated-home auth staged into
   `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
   `home_policy=operator` intentionally use the operator `HOME` / native login
@@ -131,21 +131,21 @@ not a replacement.
 Provider-specific config:
 
 ```text
-AGH_HOME=$HOME/.qa/aut-04/<scenario>/agh-home
-AGH_DAEMON_HTTP=127.0.0.1:<unique-port>
-AGH_DAEMON_UDS=$AGH_HOME/sock/uds.sock
-PROVIDER_HOME=$AGH_HOME/provider-home
-PROVIDER_CODEX_HOME=$AGH_HOME/provider-codex-home
-AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:<unique-port>
+COMPOZY_HOME=$HOME/.qa/aut-04/<scenario>/compozy-home
+COMPOZY_DAEMON_HTTP=127.0.0.1:<unique-port>
+COMPOZY_DAEMON_UDS=$COMPOZY_HOME/sock/uds.sock
+PROVIDER_HOME=$COMPOZY_HOME/provider-home
+PROVIDER_CODEX_HOME=$COMPOZY_HOME/provider-codex-home
+COMPOZY_WEB_API_PROXY_TARGET=http://127.0.0.1:<unique-port>
 ```
 
 ## 6. Cleanup (applies to every scenario)
 
-- `agh daemon stop` (or kill PID from manifest).
+- `compozy daemon stop` (or kill PID from manifest).
 - Inspect `task_runs` for any stuck `claimed`/`running` rows; if found,
   attach to the scenario report and DO NOT clean — it's evidence.
-- Archive `events.db` and `agh.db` snapshots before tearing down the
-  AGH_HOME.
+- Archive `events.db` and `compozy.db` snapshots before tearing down the
+  COMPOZY_HOME.
 - Tear down the worktree only after evidence artifacts are written.
 
 ## 7. Mandatory scenarios
@@ -168,20 +168,20 @@ risk: high
 live: true
 provider: mock-acp
 preconditions:
-  - Fresh AGH_HOME with no pending task_runs.
+  - Fresh COMPOZY_HOME with no pending task_runs.
   - Five sessions registered in the live SessionRegistry, each with
     capability `code` and shared workspace `wsp-aut01`.
-  - One queued task_run inserted via `agh task create` (or HTTP) with
+  - One queued task_run inserted via `compozy task create` (or HTTP) with
     `required_capabilities=[code]` and `scope=workspace`.
 docs_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/autonomous/_techspec.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/autonomous/_techspec.md
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:14
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease.go:151
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/globaldb/global_db.go:331
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:14
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease.go:151
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/globaldb/global_db.go:331
 steps:
-  - Spawn 5 goroutines (one per peer session). Each calls `agh task next
+  - Spawn 5 goroutines (one per peer session). Each calls `compozy task next
     --workspace wsp-aut01 --capability code --output json` simultaneously
     behind a `sync.Barrier`-equivalent (curl pacing or in-process driver).
   - Capture every JSON response.
@@ -201,7 +201,7 @@ expected:
     placeholder produced by `RedactClaimTokens`.
 evidence:
   - `aut-01-events.json` filtered to `event_type LIKE 'task.run.%'`.
-  - `task_runs` row dumped via `agh debug sql 'SELECT * FROM task_runs
+  - `task_runs` row dumped via `compozy debug sql 'SELECT * FROM task_runs
     WHERE id = ?'` (mask raw token field on output).
   - Daemon log fragment showing one `task.run.claimed` log line.
 failure_signatures:
@@ -210,7 +210,7 @@ failure_signatures:
     `task_runs.claim-token-redaction` violated.
   - `claim_token_hash` missing from event payload: observability gap.
 cleanup:
-  - Release winner's lease via `agh task release --run-id <id>
+  - Release winner's lease via `compozy task release --run-id <id>
     --token <raw>` so the row is requeued; verify
     `claim_token_hash` cleared and `status=queued`.
 ```
@@ -243,16 +243,16 @@ preconditions:
     config) so we don't wait DefaultRunLeaseDuration.
   - Scheduler sweep interval set to 2s for this scenario.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:259
-  - /Users/pedronauck/Dev/compozy/agh/internal/scheduler/scheduler.go:262
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease.go:178
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:259
+  - /Users/pedronauck/Dev/compozy/compozy/internal/scheduler/scheduler.go:262
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease.go:178
 steps:
   - Peer A claims the run; record raw token + lease_until.
   - Sleep `lease_duration + 3s` so the lease expires.
-  - Verify scheduler ran a sweep cycle (`agh scheduler stats` or events
+  - Verify scheduler ran a sweep cycle (`compozy scheduler stats` or events
     `task.run.lease_expired` + `task.run.lease_recovered`).
   - Peer B claims the run (now requeued).
-  - Peer A attempts `agh task complete --run-id <id> --token <stale-raw>`.
+  - Peer A attempts `compozy task complete --run-id <id> --token <stale-raw>`.
 expected:
   - Sweep emits exactly one `task.run.lease_expired` event for the run,
     with `previous_claim_token_hash` redacted to hash form, never raw.
@@ -266,7 +266,7 @@ evidence:
   - EventStore window dump (`aut-02-events.json`).
   - `task_runs` snapshot at three points: T0 (claimed by A), T1 (sweep
     completed), T2 (claimed by B).
-  - Peer A's late `agh task complete` HTTP/UDS response body.
+  - Peer A's late `compozy task complete` HTTP/UDS response body.
 failure_signatures:
   - Sweep does not fire: `scheduler.sweep-recovery` violated.
   - Peer A's late-write succeeds: `task_runs.lease-token-fence` violated;
@@ -298,16 +298,16 @@ preconditions:
     `tool.pre_call` for tool name `fs.write` returning a deny patch.
   - Real Claude Code session active in the workspace.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/pipeline.go:163-171
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/events.go:99
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/matcher.go:249
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/pipeline.go:163-171
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/events.go:99
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/matcher.go:249
 steps:
   - Prompt Claude Code to write a file: "Create the file
     `qa-aut03.txt` with content `hello`".
   - Capture transcript + EventStore for the prompt window.
 expected:
   - `tool.pre_call` event dispatched with `tool_name=fs.write` (or the
-    actual canonical name for write-file in the AGH tool registry).
+    actual canonical name for write-file in the Compozy tool registry).
   - Hook outcome `denied`; `denyReason` propagates back to the agent.
   - `fs.write` is NOT executed; no file at `qa-aut03.txt`.
   - Agent receives typed permission-denied error and acknowledges in the
@@ -347,11 +347,11 @@ preconditions:
     `permission_policy.tools` to a read-only set (excludes `fs.write`).
   - Real Claude Code session created in this workspace.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/dispatch.go:20
-  - /Users/pedronauck/Dev/compozy/agh/internal/coordinator/coordinator.go:64-78
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/session_lineage.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/dispatch.go:20
+  - /Users/pedronauck/Dev/compozy/compozy/internal/coordinator/coordinator.go:64-78
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/session_lineage.go
 steps:
-  - Create the session via `agh sessions create --workspace wsp-aut04`.
+  - Create the session via `compozy sessions create --workspace wsp-aut04`.
   - Verify the resulting `permission_policy.tools` is narrowed.
   - Prompt the agent to write a file.
 expected:
@@ -395,8 +395,8 @@ preconditions:
     the run metadata with `qa.aut05_marker=<random-uuid>`.
   - One queued task_run + eligible session.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/events.go:118
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:50
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/events.go:118
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:50
 steps:
   - Trigger claim, capture EventStore + SSE stream + transcript.
 expected:
@@ -436,9 +436,9 @@ preconditions:
     same run, or attempting to forge a `claim_token_hash` field, or
     attempting to set `spawn_depth` to a forbidden value.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/pipeline.go:148-160
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:521-571
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/pipeline.go:148-160
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:521-571
 steps:
   - Pre-seed an active lease on a run held by Peer A.
   - Trigger Peer B's claim attempt; the malicious hook fires at
@@ -488,17 +488,17 @@ preconditions:
   - Scheduler running with default 15s interval (or override to 3s for
     determinism).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/scheduler/scheduler.go:238
-  - /Users/pedronauck/Dev/compozy/agh/internal/scheduler/scheduler.go:312-403
-  - /Users/pedronauck/Dev/compozy/agh/internal/scheduler/scheduler.go:421-466
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:14
+  - /Users/pedronauck/Dev/compozy/compozy/internal/scheduler/scheduler.go:238
+  - /Users/pedronauck/Dev/compozy/compozy/internal/scheduler/scheduler.go:312-403
+  - /Users/pedronauck/Dev/compozy/compozy/internal/scheduler/scheduler.go:421-466
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:14
 steps:
   - Grep the scheduler binary path / source to verify
     `Scheduler.RunOnce` does not call `Service.ClaimNextRun`. Static
     proof: `grep -n 'ClaimNextRun' internal/scheduler/` returns zero.
   - Wait for one scheduler cycle.
   - Capture EventStore, scheduler stats, and `task_runs` row state.
-  - The session, having been woken, calls `agh task next` of its own
+  - The session, having been woken, calls `compozy task next` of its own
     accord. Now `ClaimNextRun` is invoked — by the SESSION's path, not by
     the scheduler.
 expected:
@@ -506,7 +506,7 @@ expected:
   - Between wake and session-driven claim, `task_runs` row remains
     `status=queued`, `session_id=""`, `claim_token_hash=""`. The
     scheduler did NOT mutate the queue.
-  - The session's subsequent `agh task next` call is the FIRST and
+  - The session's subsequent `compozy task next` call is the FIRST and
     ONLY claim attempt against this run.
   - `task_runs` final state: `status=claimed` with the woken session as
     `claimed_by_ref`.
@@ -545,14 +545,14 @@ preconditions:
   - One claimed run with `lease_duration=10s` and a real Claude Code
     session actively executing tool calls.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/scheduler/scheduler.go:262
-  - /Users/pedronauck/Dev/compozy/agh/internal/coordinator/coordinator.go:104
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md (Forensic Bug Fixes "Inactive metadata repair")
+  - /Users/pedronauck/Dev/compozy/compozy/internal/scheduler/scheduler.go:262
+  - /Users/pedronauck/Dev/compozy/compozy/internal/coordinator/coordinator.go:104
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (Forensic Bug Fixes "Inactive metadata repair")
 steps:
   - Acquire claim, observe live tool calls.
-  - `kill -9 $AGH_DAEMON_PID` immediately.
+  - `kill -9 $COMPOZY_DAEMON_PID` immediately.
   - Wait `lease_duration + 3s`.
-  - Restart daemon (`agh daemon start`).
+  - Restart daemon (`compozy daemon start`).
   - Inspect `task_runs` and EventStore over the recovery window.
 expected:
   - On restart, the scheduler's first sweep emits
@@ -577,14 +577,14 @@ failure_signatures:
   - Raw token in any log line: `task_runs.claim-token-redaction`
     violated.
 cleanup:
-  - Stop daemon. Archive `events.db`, `agh.db` snapshots.
+  - Stop daemon. Archive `events.db`, `compozy.db` snapshots.
 ```
 
-### AUT-09 — Coordinator bootstrap on fresh AGH_HOME
+### AUT-09 — Coordinator bootstrap on fresh COMPOZY_HOME
 
 ```yaml qa-scenario
 id: aut-09-coordinator-bootstrap
-title: Fresh AGH_HOME boots coordinator; coordinator subscribes to task_runs and dispatches first work item to a real Claude Code subagent
+title: Fresh COMPOZY_HOME boots coordinator; coordinator subscribes to task_runs and dispatches first work item to a real Claude Code subagent
 theme: autonomy-kernel.coordinator
 coverage:
   primary:
@@ -598,22 +598,22 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Brand-new AGH_HOME (no agh.db, no events.db).
+  - Brand-new COMPOZY_HOME (no compozy.db, no events.db).
   - Coordinator config enabled (`config.coordinator.enabled=true`,
     `default_ttl=1h`, `max_children=3`,
     `max_active_per_workspace=1`).
   - Cross-driver sanity: re-run with OpenClaw and Hermes set as the child
     driver to prove driver-agnostic behavior.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/coordinator/coordinator.go:104,143,193
-  - /Users/pedronauck/Dev/compozy/agh/internal/coordinator/coordinator.go:64-78
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/spawn.go:215
+  - /Users/pedronauck/Dev/compozy/compozy/internal/coordinator/coordinator.go:104,143,193
+  - /Users/pedronauck/Dev/compozy/compozy/internal/coordinator/coordinator.go:64-78
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/spawn.go:215
 steps:
   - Initialize workspace `wsp-aut09` and create one workspace-scoped
     task with status=queued and a coordination_channel attached.
   - Wait for daemon to autonomously bootstrap a coordinator session.
   - Coordinator session prompts a real Claude Code child via
-    `agh.spawn` (or equivalent).
+    `compozy.spawn` (or equivalent).
   - Capture session lineage on both rows; capture coordinator's
     permission policy.
 expected:
@@ -661,8 +661,8 @@ provider: real-claude-code
 preconditions:
   - Two agent sessions A, B; both eligible for the workspace.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md (manual=peer)
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:14,501-519
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (manual=peer)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:14,501-519
 steps:
   - Agent A submits a manual prompt addressed to agent B (via the
     documented agent-to-agent prompt API).
@@ -671,7 +671,7 @@ expected:
   - A `task_runs` row is created for the manual prompt, queued for B's
     capability set, with `actor_kind=agent_session`,
     `actor_ref=<agent-A>`.
-  - B's session calls `ClaimNextRun` (via `agh task next` or its driver
+  - B's session calls `ClaimNextRun` (via `compozy task next` or its driver
     equivalent). Same code path, same hook chain, same audit trail as
     any other peer claim.
   - There is NO direct prompt-injection shortcut: search the daemon's
@@ -712,9 +712,9 @@ preconditions:
   - Coordinator with `max_children=2`, `max_depth=1`.
   - One real Claude Code child already alive (spawn_depth=1).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/session_lineage.go:127-140
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/spawn.go:215-237
-  - /Users/pedronauck/Dev/compozy/agh/internal/coordinator/coordinator.go:202-208
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/session_lineage.go:127-140
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/spawn.go:215-237
+  - /Users/pedronauck/Dev/compozy/compozy/internal/coordinator/coordinator.go:202-208
 steps:
   - Coordinator attempts to spawn child #2 (allowed, total=2).
   - Coordinator attempts child #3 (must be rejected — `MaxChildren`).
@@ -757,9 +757,9 @@ preconditions:
   - One full task lifecycle: enqueue → claim → heartbeat → complete (or
     fail), spawned by a coordinator with one child.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md (Observability bullet)
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:41-89,118-256
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/session_lineage.go:13-83
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (Observability bullet)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:41-89,118-256
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/session_lineage.go:13-83
 steps:
   - Drive the full lifecycle via real Claude Code + coordinator.
   - For each emitted event, parse the JSON payload and check that
@@ -814,9 +814,9 @@ preconditions:
     - Hook C: `mode=sync`, `required=true`, returns `applied`.
   - Second variant: swap B's `required` to `true` and re-run.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/pipeline.go:59-92
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/ordering.go
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/executor_subprocess.go:23,224
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/pipeline.go:59-92
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/ordering.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/executor_subprocess.go:23,224
 steps:
   - Trigger one tool call; capture trace.
   - Re-run with B promoted to required; trigger same tool call.
@@ -861,9 +861,9 @@ provider: real-claude-code
 preconditions:
   - Repo at the SUT commit, a fresh checkout.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md (Authoritative primitives)
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:14
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (Authoritative primitives)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:14
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease.go
 steps:
   - Static heuristics:
     - `rg -n 'UPDATE\s+task_runs\s+SET\s+claimed_by' --glob '!internal/task/**'` returns zero hits.
@@ -875,7 +875,7 @@ steps:
       regex itself in `internal/task/lease.go:151-166`).
   - Runtime: under load, only `Service.ClaimNextRun` increments the
     `claim_token_hash` column for any row. Tail SQLite via WAL:
-    `agh debug sql 'SELECT id, claim_token_hash, claimed_by_kind FROM
+    `compozy debug sql 'SELECT id, claim_token_hash, claimed_by_kind FROM
     task_runs ORDER BY id DESC LIMIT 50'` snapshots before/after
     several real prompts.
 expected:
@@ -900,7 +900,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: aut-15-real-llm-end-to-end
-title: Real Claude Code spawns child via agh sessions spawn; cron fires same path next minute; full lineage in transcript
+title: Real Claude Code spawns child via compozy sessions spawn; cron fires same path next minute; full lineage in transcript
 theme: autonomy-kernel.end-to-end
 coverage:
   primary:
@@ -919,12 +919,12 @@ preconditions:
     task with payload "summarize the last hour of activity".
   - Coordinator running.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go
-  - /Users/pedronauck/Dev/compozy/agh/internal/coordinator/coordinator.go
-  - /Users/pedronauck/Dev/compozy/agh/internal/scheduler/scheduler.go:238
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/coordinator/coordinator.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/scheduler/scheduler.go:238
 steps:
   - Wait for one cron fire; let coordinator dispatch to a real Claude
-    Code child via `agh sessions spawn`.
+    Code child via `compozy sessions spawn`.
   - Verify the child claims its `task_runs` row.
   - Verify the child completes; `task.run.completed` emitted.
   - Wait for next minute; cron fires again; verify the SAME path is
@@ -964,17 +964,17 @@ preconditions:
   - One full task lifecycle (claim, heartbeat, release/complete) over
     real Claude Code, with 3+ minutes of activity.
   - All four output sinks captured: combined daemon log, SSE replay
-    log (`agh sse replay`), web API responses (every documented
-    endpoint that returns task_run state), `agh.db` + `events.db`
+    log (`compozy sse replay`), web API responses (every documented
+    endpoint that returns task_run state), `compozy.db` + `events.db`
     dumps.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md (Security Invariants)
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease.go:151-166
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:35
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (Security Invariants)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease.go:151-166
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:35
 steps:
   - Drive the lifecycle.
   - Run the audit:
-    `rg -n 'compozy_claim_[A-Za-z0-9_-]{12,}' aut-16-daemon.log aut-16-sse-replay.jsonl aut-16-web-responses.jsonl <(sqlite3 agh.db .dump) <(sqlite3 events.db .dump)`
+    `rg -n 'compozy_claim_[A-Za-z0-9_-]{12,}' aut-16-daemon.log aut-16-sse-replay.jsonl aut-16-web-responses.jsonl <(sqlite3 compozy.db .dump) <(sqlite3 events.db .dump)`
 expected:
   - Audit output is empty. The only legitimate "compozy_claim_" hit anywhere
     is the placeholder `compozy_claim_[REDACTED]` produced by
@@ -1048,7 +1048,7 @@ preconditions:
   - Inject a fault between `store.ClaimNextRun` and `recordTaskEvent`
     using a fault-injection hook (test-only build tag).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease_manager.go:31-54
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease_manager.go:31-54
 steps:
   - Trigger the claim path with the fault enabled.
   - On daemon restart, observe whether the run is consistent: either

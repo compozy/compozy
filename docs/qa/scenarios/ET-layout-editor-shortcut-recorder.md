@@ -16,6 +16,6 @@ last_report:
 overlaps: MS-configure-window-manager
 ---
 
-story: As an operator, I can change a window shortcut and be told immediately if the daemon will not accept the result.
+story: As a person running agent work, I can change a window shortcut and be told immediately if the daemon will not accept the result.
 
 qa-impact: 2026-07-24 new behavior, replacing a raw JSON textarea. The two conflict classes are distinguished because `CanonicalShortcuts` rejects duplicate overrides but accepts an override that shadows a default. Flag only; the next QA cycle owns live testing.

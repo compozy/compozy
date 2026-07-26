@@ -7,7 +7,7 @@
 - **Journey Step:** J-complete-task-tree, recover an escalated child run
 - **Scenarios:** TA-033; TA-parent-rollup-completion
 - **Found:** 2026-07-13 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
-- **Origin:** AGH-71 integrated replay
+- **Origin:** Compozy-71 integrated replay
 
 ## Summary
 
@@ -27,8 +27,8 @@ Activating `Start run` does not create a continuation because the needs-attentio
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-run-needs-attention.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-needs-attention-recovery-hidden.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-run-needs-attention.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-needs-attention-recovery-hidden.dom.txt`
 - Task `task-f6638f9897b1b0f8`; active run `run-0dc2db2a608bf620` remained attempt 1 after `Start run`.
 
 ## Fix
@@ -41,7 +41,7 @@ Activating `Start run` does not create a continuation because the needs-attentio
 ## Verification
 
 - **Retested:** 2026-07-13T10:51Z → 2026-07-13T10:58Z through the original in-app browser and isolated live daemon.
-- Exhausted `run-0dc2db2a608bf620` at attempt 1/max attempts 1 rendered `Needs attention` with neither Recover nor Start run. Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-needs-attention-exhausted-fixed.dom.txt`.
+- Exhausted `run-0dc2db2a608bf620` at attempt 1/max attempts 1 rendered `Needs attention` with neither Recover nor Start run. Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-needs-attention-exhausted-fixed.dom.txt`.
 - Bruno edited the Task through the UI to max attempts 3. Recover appeared while Start run remained hidden; a single click terminalized the old run and queued exactly one attempt-2 continuation, `run-be2c1d6592e2c043`.
 - The fresh Task projection showed two total runs, the new run as the only active Pending run, a new coordination channel, and no duplicate Recover action. Evidence: `ch-task-needs-attention-recoverable-fixed.dom.txt` plus live Task snapshot.
 - Deterministic recoverable/exhausted Task and run captures are under `.codex/evidence/needs-attention-recovery-hidden/`; their `teardown.json` is clean.

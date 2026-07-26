@@ -1,5 +1,5 @@
 /* ============================================================
-   AGH DESIGN SYSTEM — ds-core.css
+   COMPOZY DESIGN SYSTEM — ds-core.css
    Tokens + base + window-content components.
 
    Authority chain (highest first):
@@ -283,7 +283,7 @@ kbd{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
 .toolbar-meta{font-size:11px;color:var(--subtle)}
 
 /* ============ LIST ROWS ============ */
-/* full inventory row — mirrors @agh/ui listing-row-parts */
+/* full inventory row — mirrors @compozy/ui listing-row-parts */
 .list-shell{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
 .listing-row{
   display:grid;grid-template-columns:34px minmax(0,1fr) auto;

@@ -5,7 +5,7 @@ title: Drain new-work admission without interrupting admitted work
 persona: Dora
 journey: J-drain-daemon-safely
 expected: Draining the daemon through CLI, HTTP, or UDS returns the same stable draining state, projects informational status and doctor evidence, refuses new session, prompt, enqueue, and claim work with HTTP 503, lets admitted prompts and claimed runs finish, and restores admission after undrain or restart.
-entry_points: agh drain; agh undrain; POST /api/drain; POST /api/undrain; agh status; agh doctor; session and task admission surfaces
+entry_points: compozy drain; compozy undrain; POST /api/drain; POST /api/undrain; compozy status; compozy doctor; session and task admission surfaces
 qa_status: untested
 bug_ids:
 fix_status:
@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-daemon-memory-reporting; TA-daemon-lifecycle-command-guard
 ---
 
-Start one prompt and claim one task run, then drain AGH through one control transport. Confirm the
+Start one prompt and claim one task run, then drain Compozy through one control transport. Confirm the
 same state through the other transports, verify new work receives the stable temporary refusal, and
 finish the admitted prompt and run. Undrain and confirm new work succeeds. Repeat drain, restart the
 daemon, and confirm the in-memory state returns to active.

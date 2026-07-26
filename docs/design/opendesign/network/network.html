@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Network · AGH</title>
+<title>Network · Compozy</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -428,7 +428,7 @@
       <div class="head-txt">
         <p class="eyebrow">Network</p>
         <h2 class="modal__title" id="mc-title">Create channel</h2>
-        <p class="modal__sub">Spawn one new session per selected agent inside <b>agh</b>.</p>
+        <p class="modal__sub">Spawn one new session per selected agent inside <b>compozy</b>.</p>
       </div>
       <button type="button" class="head-close" data-close-modal aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -644,16 +644,16 @@ var DB = {
 /* ── state ─────────────────────────────────────────────── */
 var S = {channel:'release-coord',level:'channel',threadId:null,directId:null,tab:'threads',q:'',hasWork:false};
 try{
-  var sc = localStorage.getItem('agh:network:channel');
+  var sc = localStorage.getItem('compozy:network:channel');
   if(sc && DB.channels.some(function(c){return c.id===sc})) S.channel = sc;
-  var st = localStorage.getItem('agh:network:tab');
+  var st = localStorage.getItem('compozy:network:tab');
   if(st==='threads'||st==='directs'||st==='activity') S.tab = st;
-  if(localStorage.getItem('agh:network:inspector')==='closed') document.body.dataset.inspector='closed';
+  if(localStorage.getItem('compozy:network:inspector')==='closed') document.body.dataset.inspector='closed';
 }catch(e){}
 function persist(){try{
-  localStorage.setItem('agh:network:channel',S.channel);
-  localStorage.setItem('agh:network:tab',S.tab);
-  localStorage.setItem('agh:network:inspector',document.body.dataset.inspector==='open'?'open':'closed');
+  localStorage.setItem('compozy:network:channel',S.channel);
+  localStorage.setItem('compozy:network:tab',S.tab);
+  localStorage.setItem('compozy:network:inspector',document.body.dataset.inspector==='open'?'open':'closed');
 }catch(e){}}
 
 function ch(){return DB.channels.filter(function(c){return c.id===S.channel})[0]}

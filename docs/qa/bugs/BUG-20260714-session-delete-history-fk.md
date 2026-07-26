@@ -15,7 +15,7 @@ The Delete session modal promised to remove the transcript and history, but ever
 
 ## Reproduction
 
-1. Run a real Cursor/Grok task-role session that invokes an AGH native tool.
+1. Run a real Cursor/Grok task-role session that invokes a Compozy native tool.
 2. Stop the session and delete its terminal Task.
 3. Open the stopped session and confirm Delete session.
 4. Retry through the public session DELETE endpoint.

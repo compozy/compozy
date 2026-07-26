@@ -1,6 +1,6 @@
 # J-09 — Attach an automation start-binding to a Loop
 
-Plug-and-play initiation (PRD F7, §9.14, ADR-007). A Loop declares which start surfaces it accepts (`start[]`); event-driven starts (schedule, webhook, trigger) ride AGH's **existing** automation primitives — a Trigger or Job pointed at the Loop — never a parallel trigger system. The operator attaches one from the Loop detail's **Start bindings** panel; a binding outside the declared `start[]` is rejected, not silently dropped.
+Plug-and-play initiation (PRD F7, §9.14, ADR-007). A Loop declares which start surfaces it accepts (`start[]`); event-driven starts (schedule, webhook, trigger) ride Compozy's **existing** automation primitives — a Trigger or Job pointed at the Loop — never a parallel trigger system. The operator attaches one from the Loop detail's **Start bindings** panel; a binding outside the declared `start[]` is rejected, not silently dropped.
 
 ```mermaid
 flowchart TD

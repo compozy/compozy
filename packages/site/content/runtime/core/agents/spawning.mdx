@@ -3,7 +3,7 @@ title: Spawning
 description: How Compozy resolves an agent definition into an ACP subprocess, negotiates a session, injects environment, and stops the process.
 ---
 
-Spawning is the handoff from an Compozy agent definition to a live ACP subprocess. It starts when a
+Spawning is the handoff from a Compozy agent definition to a live ACP subprocess. It starts when a
 session is created or resumed, and it ends when the subprocess has completed ACP initialization and
 the Compozy session becomes active.
 
@@ -149,7 +149,7 @@ For a new session, Compozy sends `session/new`:
 }
 ```
 
-`additional_dirs` is an Compozy extension field. It is top-level snake_case because the upstream ACP
+`additional_dirs` is a Compozy extension field. It is top-level snake_case because the upstream ACP
 SDK does not model it yet.
 
 The response provides the ACP `sessionId`, supported modes, and supported models. Compozy stores the

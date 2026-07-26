@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 30
   guidance:
     must_try:
-      - "Run `agh provider models refresh -o json` and `agh provider models status -o json` against the same isolated home; accept empty optional timestamps as empty values, never SQL/nullability failures."
+      - "Run `compozy provider models refresh -o json` and `compozy provider models status -o json` against the same isolated home; accept empty optional timestamps as empty values, never SQL/nullability failures."
       - "Restart the daemon and read status again; persisted source state must remain parseable and associated with the correct provider/source."
       - "If a deterministic failing source fixture is available, confirm the error retains source context while redacting credentials and prior catalog rows remain stale-marked rather than disappearing."
     must_avoid:

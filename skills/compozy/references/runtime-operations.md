@@ -286,6 +286,6 @@ structural rather than heuristic candidates.
 
 Compozy must remain agent-manageable. Any runtime capability that affects state should have a deterministic CLI, HTTP/UDS, or tool path with machine-readable output. UI-only management is incomplete.
 
-Management flows involving daemon lifecycle, raw secrets, OAuth, trust roots, provider bootstrap, destructive repair, and cross-session terminal-state mutation stay on operator surfaces unless Compozy explicitly exposes a scoped tool for them.
+Management flows involving daemon lifecycle, raw secrets, OAuth, trust roots, provider bootstrap, destructive repair, and cross-session terminal-state mutation stay on control surfaces unless Compozy explicitly exposes a scoped tool for them.
 
 Marketplace catalog configuration is global-only because its projection and refresh service are global. `compozy__config_set` and `compozy__config_unset` may change `marketplace.catalog.ttl` and `marketplace.catalog.timeout` at global scope; each mutation runs the daemon settings apply lifecycle and returns the real `applied`, `apply_record_id`, `active_generation`, `next_action`, and reconciliation diagnostics. `marketplace.catalog.base_url` is a trust root and remains operator-only through global `compozy config set`. Workspace overlays and workspace-scoped writes are rejected.

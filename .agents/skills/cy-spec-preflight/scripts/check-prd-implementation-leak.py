@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Heuristic checker for AGH PRD implementation leaks.
+"""Heuristic checker for Compozy PRD implementation leaks.
 
 Scans a PRD markdown file and surfaces tokens that should live in a TechSpec
 instead. Strips matches outside code fences (those may quote competitor refs).

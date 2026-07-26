@@ -4,7 +4,7 @@ An agent drives and reads sessions deterministically over any surface (`_qa.md` 
 
 ```mermaid
 flowchart TD
-    E1[Entry: agh CLI] --> C[Create session + send prompt]
+    E1[Entry: compozy CLI] --> C[Create session + send prompt]
     E2[Entry: HTTP client] --> C
     E3[Entry: UDS client] --> C
     C --> REST[Read bounded transcript tail + older pages via before_sequence]
@@ -30,7 +30,7 @@ journey:
   value_statement: "An agent can drive and read sessions deterministically over CLI, HTTP, or UDS — bounded REST history, fenced transcript deltas, explicit resets, keep-alive, gap-free reconnect, and identical lifecycle state everywhere."
   personas: [Ada]
   entry_points:
-    - url: "CLI: agh session ... (create/prompt/events --follow/status/stop)"
+    - url: "CLI: compozy session ... (create/prompt/events --follow/status/stop)"
       origin: direct
     - url: "HTTP: POST/GET /api/.../sessions/:id/{prompt,stream,transcript,events,recap,stop}"
       origin: direct
@@ -81,7 +81,7 @@ e2e_backbone:
     - "E2E-runtime 3: reconnect with matching and stale transcript fences, including explicit reset reasons and empty-delta cursor advancement (task 17)."
     - "E2E-runtime 4: consistent state across list and detail through spawn → background → stop (task 22)."
   manual:
-    - "Manual §9.6: raw-stream contiguity — `agh session events --follow` against a busy session, disconnect during a large output burst, reconnect; the printed sequence is contiguous with no skipped `sequence` (tasks 42/43)."
+    - "Manual §9.6: raw-stream contiguity — `compozy session events --follow` against a busy session, disconnect during a large output burst, reconnect; the printed sequence is contiguous with no skipped `sequence` (tasks 42/43)."
   telemetry:
     - "Task 40 daemon slog/counters: stream open/close, catch-up batch size, transcript assembly duration — the agent-side observability of the same stream."
   followups:

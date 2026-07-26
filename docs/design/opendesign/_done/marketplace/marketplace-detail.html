@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Marketplace · Detail · AGH</title>
+<title>Marketplace · Detail · Compozy</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -346,21 +346,21 @@
   // marketplace.html / marketplace-detail.html.
   var CATALOG = {
     skills: [
-      { id:"git-flow", name:"git-flow", author:"@agh", version:"1.4.2", downloads:"3.4k", source:"registry", icon:"skill", state:"installed", href:"marketplace-detail.html?kind=skills&name=git-flow",
-        tags:["git","review","ci"], license:"MIT", repository:"github.com/agh/skill-git-flow",
+      { id:"git-flow", name:"git-flow", author:"@compozy", version:"1.4.2", downloads:"3.4k", source:"registry", icon:"skill", state:"installed", href:"marketplace-detail.html?kind=skills&name=git-flow",
+        tags:["git","review","ci"], license:"MIT", repository:"github.com/compozy/skill-git-flow",
         mcp_servers:["github"],
         versions:[{v:"1.4.2",tag:"current"},{v:"1.4.1"},{v:"1.3.0"},{v:"1.2.0"}],
         readme:"## What it does\ngit-flow drives the full branch lifecycle from inside a session: it cuts a working branch, runs the project's own lint and test gates before every push, and opens the pull request with a generated summary once the gates are green.\n\nThe skill never invents its own checks. It reads the repository's configured verify command and treats a non-zero exit as a hard stop, so a session cannot land a change the project would reject.\n\n## Usage\n```\nagh skill run git-flow --branch feat/session-cache\n```\nPass `--no-pr` to stop after the push, or `--draft` to open the pull request in draft state." },
-      { id:"docs-sync", name:"docs-sync", author:"@agh", version:"0.9.1", downloads:"1.1k", source:"registry", icon:"skill", state:"default", href:"marketplace-detail.html?kind=skills&name=docs-sync",
-        tags:["docs","openapi","cli"], license:"MIT", repository:"github.com/agh/skill-docs-sync",
+      { id:"docs-sync", name:"docs-sync", author:"@compozy", version:"0.9.1", downloads:"1.1k", source:"registry", icon:"skill", state:"default", href:"marketplace-detail.html?kind=skills&name=docs-sync",
+        tags:["docs","openapi","cli"], license:"MIT", repository:"github.com/compozy/skill-docs-sync",
         mcp_servers:[],
         versions:[{v:"0.9.1",tag:"current"},{v:"0.9.0"},{v:"0.8.2"}],
         readme:"## What it does\ndocs-sync keeps the documentation site aligned with the runtime contract. After an OpenAPI or CLI change it regenerates the affected reference pages, diffs them against what is committed, and reports every drifted file.\n\nIt is read-only by default. Nothing is written until you pass `--apply`, so it fits a review gate as easily as a fix step.\n\n## Usage\n```\nagh skill run docs-sync --check\n```" },
-      { id:"qa-bootstrap", name:"qa-bootstrap", author:"@agh", version:"2.1.0", downloads:"2.0k", source:"registry", icon:"skill", state:"update", updateTo:"2.2.0", href:"marketplace-detail.html?kind=skills&name=qa-bootstrap",
-        tags:["qa","lab","isolation"], license:"Apache-2.0", repository:"github.com/agh/skill-qa-bootstrap",
+      { id:"qa-bootstrap", name:"qa-bootstrap", author:"@compozy", version:"2.1.0", downloads:"2.0k", source:"registry", icon:"skill", state:"update", updateTo:"2.2.0", href:"marketplace-detail.html?kind=skills&name=qa-bootstrap",
+        tags:["qa","lab","isolation"], license:"Apache-2.0", repository:"github.com/compozy/skill-qa-bootstrap",
         mcp_servers:["filesystem"],
         versions:[{v:"2.2.0",tag:"available"},{v:"2.1.0",tag:"installed"},{v:"2.0.1"}],
-        readme:"## What it does\nqa-bootstrap provisions an isolated lab for a QA pass: a fresh AGH_HOME, allocated daemon ports, per-provider home directories, and a bootstrap manifest that later steps read to resume the same environment deterministically.\n\nEvery run is disposable. The manifest records the lab root, base URL, and provider homes so a timed continuation can reattach without guessing paths.\n\n## Requires\nDrives the filesystem MCP server to stage lab files outside the workspace root." },
+        readme:"## What it does\nqa-bootstrap provisions an isolated lab for a QA pass: a fresh COMPOZY_HOME, allocated daemon ports, per-provider home directories, and a bootstrap manifest that later steps read to resume the same environment deterministically.\n\nEvery run is disposable. The manifest records the lab root, base URL, and provider homes so a timed continuation can reattach without guessing paths.\n\n## Requires\nDrives the filesystem MCP server to stage lab files outside the workspace root." },
       { id:"spec-preflight", name:"spec-preflight", author:"@compozy", version:"1.0.3", downloads:"780", source:"registry", icon:"skill", state:"default", href:"marketplace-detail.html?kind=skills&name=spec-preflight",
         tags:["prd","techspec","review"], license:"MIT", repository:"github.com/compozy/skill-spec-preflight",
         mcp_servers:[],
@@ -368,21 +368,21 @@
         readme:"## What it does\nspec-preflight validates PRD and TechSpec inputs against the authoring playbook before any drafting begins. It checks that the brief, ADRs, and glossary terms a spec references actually exist and resolve, and blocks the draft when a required input is missing." }
     ],
     extensions: [
-      { id:"otel-bridge", name:"otel-bridge", author:"@agh", version:"0.6.0", downloads:"1.2k", source:"registry", trust:"verified", type:"bridge", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=otel-bridge",
+      { id:"otel-bridge", name:"otel-bridge", author:"@compozy", version:"0.6.0", downloads:"1.2k", source:"registry", trust:"verified", type:"bridge", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=otel-bridge",
         readme:"## What it does\notel-bridge exports session and tool spans to any OpenTelemetry collector. It hooks the session lifecycle, wraps each tool call in a span, and ships batches over OTLP/gRPC without holding up the agent.\n\nPoint it at a collector endpoint and every session becomes a trace you can open in Jaeger, Tempo, or Honeycomb.",
         desc:"Export session and tool spans to an OpenTelemetry collector." },
       { id:"slack-notify", name:"slack-notify", author:"@community", version:"1.1.4", downloads:"840", source:"registry", trust:"unverified", type:"hook", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=slack-notify",
         warnings:2,
         warningsList:[
-          {severity:"warning", title:"Unsigned package", message:"The checksum verifies against registry metadata, but the publisher is not on the trusted tier. Verify the source before enabling in production.", suggested_command:"agh extensions verify slack-notify", doc_url:"https://agh.network/docs/extensions/trust"},
-          {severity:"info", title:"Network egress", message:"This extension opens outbound connections to Slack. Review the provenance sheet after install to confirm the endpoints.", doc_url:"https://agh.network/docs/extensions/egress"}
+          {severity:"warning", title:"Unsigned package", message:"The checksum verifies against registry metadata, but the publisher is not on the trusted tier. Verify the source before enabling in production.", suggested_command:"compozy extensions verify slack-notify", doc_url:"https://compozy.com/docs/extensions/trust"},
+          {severity:"info", title:"Network egress", message:"This extension opens outbound connections to Slack. Review the provenance sheet after install to confirm the endpoints.", doc_url:"https://compozy.com/docs/extensions/egress"}
         ],
         readme:"## What it does\nslack-notify posts a run summary to a Slack channel when a loop finishes: final status, duration, and a deep link back to the session. It fires on the loop-complete hook and stays silent for in-progress work.",
         desc:"Post run summaries to a Slack channel when a loop finishes." },
-      { id:"cost-guard", name:"cost-guard", author:"@agh", version:"0.3.2", downloads:"410", source:"registry", trust:"verified", type:"hook", icon:"puzzle", state:"installed", href:"marketplace-detail.html?kind=extensions&name=cost-guard",
+      { id:"cost-guard", name:"cost-guard", author:"@compozy", version:"0.3.2", downloads:"410", source:"registry", trust:"verified", type:"hook", icon:"puzzle", state:"installed", href:"marketplace-detail.html?kind=extensions&name=cost-guard",
         readme:"## What it does\ncost-guard caps token spend per workspace. It watches usage as sessions run and pauses any agent that would cross the configured budget, so a runaway loop cannot drain an account overnight.",
         desc:"Cap token spend per workspace and pause agents that breach the budget." },
-      { id:"audit-log", name:"audit-log", author:"@agh", version:"2.0.0", downloads:"2.1k", source:"registry", trust:"verified", type:"hook", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=audit-log",
+      { id:"audit-log", name:"audit-log", author:"@compozy", version:"2.0.0", downloads:"2.1k", source:"registry", trust:"verified", type:"hook", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=audit-log",
         readme:"## What it does\naudit-log keeps an append-only record of installs, policy changes, and destructive removes. Each entry carries the actor, the target, and a checksum, so the trail can be verified after the fact and never silently edited.",
         desc:"Append-only audit trail for installs, policy changes, and destructive removes." }
     ],
@@ -475,14 +475,14 @@
       { id:"linear", name:"linear", transport:"sse", provenance:"curated", state:"default", icon:"plug", href:"marketplace-detail.html?kind=mcp&name=linear",
         desc:"Issues, projects, and cycles via Linear's hosted MCP server over authenticated SSE.",
         url:"https://mcp.linear.app/sse",
-        auth:{type:"oauth2_pkce", issuer_url:"https://linear.app", authorization_url:"https://linear.app/oauth/authorize", token_url:"https://api.linear.app/oauth/token", client_id:"agh-mcp", scopes:["read","issues:create"]},
-        auth_status:{status:"not_authorized", authorization_url:"https://linear.app/oauth/authorize?client_id=agh-mcp"},
-        readme:"## What it does\nLinear's hosted MCP server exposes issues, projects, and cycles over an authenticated SSE connection. There is no local process and no token to paste: the server authorizes through your Linear account with OAuth.\n\nAfter install, AGH writes the server config and then walks you through the authorize step in the browser. Until you authorize, the server shows as not authorized and its tools stay unavailable." },
+        auth:{type:"oauth2_pkce", issuer_url:"https://linear.app", authorization_url:"https://linear.app/oauth/authorize", token_url:"https://api.linear.app/oauth/token", client_id:"compozy-mcp", scopes:["read","issues:create"]},
+        auth_status:{status:"not_authorized", authorization_url:"https://linear.app/oauth/authorize?client_id=compozy-mcp"},
+        readme:"## What it does\nLinear's hosted MCP server exposes issues, projects, and cycles over an authenticated SSE connection. There is no local process and no token to paste: the server authorizes through your Linear account with OAuth.\n\nAfter install, Compozy writes the server config and then walks you through the authorize step in the browser. Until you authorize, the server shows as not authorized and its tools stay unavailable." },
       { id:"sentry", name:"sentry", transport:"http", provenance:"curated", state:"default", icon:"plug", href:"marketplace-detail.html?kind=mcp&name=sentry",
         desc:"Read access to projects and events via Sentry's hosted MCP server over HTTP.",
         url:"https://mcp.sentry.dev/mcp",
-        auth:{type:"oauth2_pkce", issuer_url:"https://sentry.io", authorization_url:"https://sentry.io/oauth/authorize", token_url:"https://sentry.io/oauth/token/", client_id:"agh-mcp", scopes:["project:read","event:read"]},
-        auth_status:{status:"not_authorized", authorization_url:"https://sentry.io/oauth/authorize?client_id=agh-mcp"},
+        auth:{type:"oauth2_pkce", issuer_url:"https://sentry.io", authorization_url:"https://sentry.io/oauth/authorize", token_url:"https://sentry.io/oauth/token/", client_id:"compozy-mcp", scopes:["project:read","event:read"]},
+        auth_status:{status:"not_authorized", authorization_url:"https://sentry.io/oauth/authorize?client_id=compozy-mcp"},
         readme:"## What it does\nSentry's hosted MCP server gives agents read access to projects and events over HTTP. Like other remote servers it authorizes with OAuth after install rather than a stored secret." }
     ]
   };
@@ -703,7 +703,7 @@
         +row("Scopes",'<span class="mono">'+item.auth.scopes.join(", ")+'</span>');
       return readme
         + section("Config template", tpl)
-        + section("Authorization", '<div class="panelbox"><div class="kv">'+authRows+'</div></div><p class="field__desc" style="margin-top:8px">Writing this server does not make it usable. AGH runs the OAuth authorize step after install; tools stay unavailable until you authorize.</p>');
+        + section("Authorization", '<div class="panelbox"><div class="kv">'+authRows+'</div></div><p class="field__desc" style="margin-top:8px">Writing this server does not make it usable. Compozy runs the OAuth authorize step after install; tools stay unavailable until you authorize.</p>');
     }
     tpl='<div class="cfg-block">'+item.command+'\ntransport: '+item.transport+'\n'+(item.required||[]).map(function(f){ return f.key+'=<'+(f.secret?'secret':'value')+'>'; }).join("\n")+'</div>';
     var reqRows=(item.required||[]).map(function(f){ return row(f.key, esc(f.hint)+(f.secret?' <span class="pill" data-mono="true" style="margin-left:6px">secret</span>':'')); }).join("");
@@ -786,7 +786,7 @@
         +'</div></div>');
     }
     if(kind==="mcp"){
-      out+=section("Trust", '<div class="panelbox"><div class="kv">'+row("Provenance","curated")+row("Feed","AGH curated")+row("Community registry","out of v1")+'</div></div>');
+      out+=section("Trust", '<div class="panelbox"><div class="kv">'+row("Provenance","curated")+row("Feed","Compozy curated")+row("Community registry","out of v1")+'</div></div>');
       if(isRemote){
         out+=section("Authorization", '<div class="panelbox"><div class="kv">'
           +row("Status", item.auth_status.status.replace("_"," "))

@@ -44,7 +44,7 @@ Optional environment overrides:
 
 ## Validation Scope
 
-`TestDaytonaLauncherTransportValidation` now validates the real launcher transport that AGH uses for ACP processes:
+`TestDaytonaLauncherTransportValidation` now validates the real launcher transport that Compozy uses for ACP processes:
 
 - creates a Daytona sandbox with the configured image
 - seeds SSH known hosts and requests Daytona SSH access
@@ -98,12 +98,12 @@ The raw SSH non-PTY path is still useful as a probe, but it is no longer the lau
 
 Observed on 2026-04-16:
 
-| Path                        | 1KB steady-state latency     | Notes                                                                                                      |
-| --------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| raw SSH stdio               | about `203ms` to `213ms`     | clean bytes, but misses the previous `100ms` SLA and does not give the launcher-closing behavior AGH needs |
-| Daytona process/session API | hung on first `100B` payload | rejected as a launcher transport                                                                           |
-| preview-link sidecar        | about `153ms`                | operational, but not the current data plane in this checkout                                               |
-| SSH direct-tcp sidecar      | about `155ms` to `160ms`     | current launcher data plane                                                                                |
+| Path                        | 1KB steady-state latency     | Notes                                                                                                          |
+| --------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| raw SSH stdio               | about `203ms` to `213ms`     | clean bytes, but misses the previous `100ms` SLA and does not give the launcher-closing behavior Compozy needs |
+| Daytona process/session API | hung on first `100B` payload | rejected as a launcher transport                                                                               |
+| preview-link sidecar        | about `153ms`                | operational, but not the current data plane in this checkout                                                   |
+| SSH direct-tcp sidecar      | about `155ms` to `160ms`     | current launcher data plane                                                                                    |
 
 That evidence is why the blocking gate moved from raw SSH validation to the dedicated sidecar launcher transport.
 

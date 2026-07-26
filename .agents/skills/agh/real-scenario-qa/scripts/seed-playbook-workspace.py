@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Materialize an AGH real-scenario QA playbook into a workspace.
+"""Materialize a Compozy real-scenario QA playbook into a workspace.
 
 Mutating helper. Called by the bootstrap when --playbook is provided.
 
@@ -12,7 +12,7 @@ Per playbook:
   - Writes the open task tree with deterministic runtime ids at WORKSPACE_PATH/.compozy/tasks/open-tasks.json
   - Writes WORKSPACE_PATH/.compozy/playbook.json with the resolved playbook spec for downstream tools
 
-This script never starts the daemon, never calls `agh ...`, and never sends a prompt. The bootstrap
+This script never starts the daemon, never calls `compozy ...`, and never sends a prompt. The bootstrap
 script and the real-scenario-qa skill drive registration and kickoff in subsequent steps.
 """
 

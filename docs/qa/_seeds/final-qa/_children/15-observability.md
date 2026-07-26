@@ -8,41 +8,41 @@ parent: ../_parent.md
 provider_lanes: [claude-code]
 authoritative_runtime_truth: internal/CLAUDE.md
 references:
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/03-acp-sessions.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/04-autonomy-kernel.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/03-acp-sessions.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/04-autonomy-kernel.md
 ---
 
 # 15 — Observability + Events + Diagnostics + Transcripts + Logging
 
 ## 1. Module scope
 
-This child stresses the **observability spine** of AGH: every place the
+This child stresses the **observability spine** of Compozy: every place the
 runtime records, projects, replays, or surfaces a domain event. The spine
 is what every other module (autonomy, ACP/sessions, automation, network,
 bridges, web UI, CLI) ultimately depends on for truth — if it lies, the
-rest of AGH lies with it.
+rest of Compozy lies with it.
 
 In-scope packages (file:line citations are repo-absolute):
 
 | Surface                  | Path                                                                                | Authoritative API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------------------ | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Observer / event ingest  | `/Users/pedronauck/Dev/compozy/agh/internal/observe/`                               | `Observer.OnSessionCreated` / `OnSessionStopped` / `OnAgentEvent` / `OnAgentEventForSession` (`internal/observe/observer.go:421-508`); `observeAgentEvent` validates + projects (`:510-555`); `writeObservedEventSummary` (`:685-699`); `aggregateObservedUsage` (`:701-728`); `writeObservedPermissionLog` (`:730-767`); query helpers (`internal/observe/query.go:14-117`); health snapshot (`internal/observe/health.go:99-200`); retention sweep (`internal/observe/retention.go:71-100`); task dashboard projection (`internal/observe/tasks.go:1-100`). |
-| Logger                   | `/Users/pedronauck/Dev/compozy/agh/internal/logger/`                                | `New` builds a `slog.JSONHandler` (`internal/logger/logger.go:44-90`); `ParseLevel` (`:92-106`).                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Diagnostics / redaction  | `/Users/pedronauck/Dev/compozy/agh/internal/diagnostics/`                           | `Redact` (`internal/diagnostics/redact.go:61-70`) covers Bearer / quoted-JSON-secret / assignment / token-assignment / dynamic-secret patterns; `RedactAndBound` (`:96-110`); `RegisterDynamicSecret` (`:35-57`).                                                                                                                                                                                                                                                                                                                              |
-| Transcript replay        | `/Users/pedronauck/Dev/compozy/agh/internal/transcript/`                            | `CanonicalSchema = "agh.session.event.v1"` (`internal/transcript/transcript.go:17`); `Assemble` (`:113-130`); turn-change flush (`:174-181`); tool lifecycle merge (`:239-318`); canonical encode/decode (`:737-822`).                                                                                                                                                                                                                                                                                                                       |
-| SSE helpers              | `/Users/pedronauck/Dev/compozy/agh/internal/sse/`                                   | `Decode` reads SSE frames (`internal/sse/decode.go:33-96`); `Event` shape (`:18-23`); `maxEventBytes = 1MiB` (`:15-16`).                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Append-only event store  | `/Users/pedronauck/Dev/compozy/agh/internal/store/`, `internal/store/sessiondb/`    | `SessionDB` per-session ledger; writes remain INSERT-only and sequence-monotonic; the embedded session Goose stream owns schema history and `atlas.sum`. Global ledger lives in `internal/store/globaldb/global_db_observe.go`. |
-| Session SSE replay       | `/Users/pedronauck/Dev/compozy/agh/internal/api/core/`                              | `parseLastEventID` (`internal/api/core/session_stream.go:16-27`); `pollAndStreamSessionEvents` (`:69-101`); `pollSessionStreamTick` (`:104-151`); SSE write helpers (`internal/api/core/sse.go`); observe replay cursor (`internal/api/core/parsers.go:149-163`).                                                                                                                                                                                                                                                                              |
-| Notifier fan-out         | `/Users/pedronauck/Dev/compozy/agh/internal/session/`                               | `Notifier` interface with `OnSessionCreated/Stopped` + `OnAgentEvent` (`internal/session/interfaces.go:306-311`); `AgentEventNotifier` extension (`:313-317`); `Manager.notifyAgentEvent` is invoked **after** durable append (`internal/session/notifier.go:5-16`).                                                                                                                                                                                                                                                                          |
-| Claim-token redaction    | `/Users/pedronauck/Dev/compozy/agh/internal/task/`                                  | `rawClaimTokenPattern = compozy_claim_[A-Za-z0-9_-]+` (`internal/task/lease.go:36`); `RedactClaimTokens` (`internal/task/lease.go:160-166`); raw-token-forbidden-on-the-wire policy is enforced by every event payload using `claim_token_hash` only (`internal/task/manager.go:3702-3791`).                                                                                                                                                                                                                                                       |
-| Forensic classification  | `/Users/pedronauck/Dev/compozy/agh/internal/acp/`, `internal/session/`              | `IsLoadSessionResourceMissing` classifies stale ACP session id (`internal/acp/client.go:553-567`); `manager_lifecycle.go:77-101` calls fresh-start fallback and emits `session.resume.load_session_missing_fallback` (`internal/session/manager_lifecycle.go:86-90`).                                                                                                                                                                                                                                                                          |
+| Observer / event ingest  | `/Users/pedronauck/Dev/compozy/compozy/internal/observe/`                               | `Observer.OnSessionCreated` / `OnSessionStopped` / `OnAgentEvent` / `OnAgentEventForSession` (`internal/observe/observer.go:421-508`); `observeAgentEvent` validates + projects (`:510-555`); `writeObservedEventSummary` (`:685-699`); `aggregateObservedUsage` (`:701-728`); `writeObservedPermissionLog` (`:730-767`); query helpers (`internal/observe/query.go:14-117`); health snapshot (`internal/observe/health.go:99-200`); retention sweep (`internal/observe/retention.go:71-100`); task dashboard projection (`internal/observe/tasks.go:1-100`). |
+| Logger                   | `/Users/pedronauck/Dev/compozy/compozy/internal/logger/`                                | `New` builds a `slog.JSONHandler` (`internal/logger/logger.go:44-90`); `ParseLevel` (`:92-106`).                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Diagnostics / redaction  | `/Users/pedronauck/Dev/compozy/compozy/internal/diagnostics/`                           | `Redact` (`internal/diagnostics/redact.go:61-70`) covers Bearer / quoted-JSON-secret / assignment / token-assignment / dynamic-secret patterns; `RedactAndBound` (`:96-110`); `RegisterDynamicSecret` (`:35-57`).                                                                                                                                                                                                                                                                                                                              |
+| Transcript replay        | `/Users/pedronauck/Dev/compozy/compozy/internal/transcript/`                            | `CanonicalSchema = "compozy.session.event.v1"` (`internal/transcript/transcript.go:17`); `Assemble` (`:113-130`); turn-change flush (`:174-181`); tool lifecycle merge (`:239-318`); canonical encode/decode (`:737-822`).                                                                                                                                                                                                                                                                                                                       |
+| SSE helpers              | `/Users/pedronauck/Dev/compozy/compozy/internal/sse/`                                   | `Decode` reads SSE frames (`internal/sse/decode.go:33-96`); `Event` shape (`:18-23`); `maxEventBytes = 1MiB` (`:15-16`).                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Append-only event store  | `/Users/pedronauck/Dev/compozy/compozy/internal/store/`, `internal/store/sessiondb/`    | `SessionDB` per-session ledger; writes remain INSERT-only and sequence-monotonic; the embedded session Goose stream owns schema history and `atlas.sum`. Global ledger lives in `internal/store/globaldb/global_db_observe.go`. |
+| Session SSE replay       | `/Users/pedronauck/Dev/compozy/compozy/internal/api/core/`                              | `parseLastEventID` (`internal/api/core/session_stream.go:16-27`); `pollAndStreamSessionEvents` (`:69-101`); `pollSessionStreamTick` (`:104-151`); SSE write helpers (`internal/api/core/sse.go`); observe replay cursor (`internal/api/core/parsers.go:149-163`).                                                                                                                                                                                                                                                                              |
+| Notifier fan-out         | `/Users/pedronauck/Dev/compozy/compozy/internal/session/`                               | `Notifier` interface with `OnSessionCreated/Stopped` + `OnAgentEvent` (`internal/session/interfaces.go:306-311`); `AgentEventNotifier` extension (`:313-317`); `Manager.notifyAgentEvent` is invoked **after** durable append (`internal/session/notifier.go:5-16`).                                                                                                                                                                                                                                                                          |
+| Claim-token redaction    | `/Users/pedronauck/Dev/compozy/compozy/internal/task/`                                  | `rawClaimTokenPattern = compozy_claim_[A-Za-z0-9_-]+` (`internal/task/lease.go:36`); `RedactClaimTokens` (`internal/task/lease.go:160-166`); raw-token-forbidden-on-the-wire policy is enforced by every event payload using `claim_token_hash` only (`internal/task/manager.go:3702-3791`).                                                                                                                                                                                                                                                       |
+| Forensic classification  | `/Users/pedronauck/Dev/compozy/compozy/internal/acp/`, `internal/session/`              | `IsLoadSessionResourceMissing` classifies stale ACP session id (`internal/acp/client.go:553-567`); `manager_lifecycle.go:77-101` calls fresh-start fallback and emits `session.resume.load_session_missing_fallback` (`internal/session/manager_lifecycle.go:86-90`).                                                                                                                                                                                                                                                                          |
 
 Out of scope (covered by other children): full ACP/session lifecycle (03),
-autonomy task_runs primitives (04), AGH Network channel transport (06),
+autonomy task_runs primitives (04), Compozy Network channel transport (06),
 automation cron/webhook (09), web UI surfaces (08).
 
 ## 2. Authoritative invariants under test
@@ -58,14 +58,14 @@ scenario in §7 maps back to one or more of these IDs.
 | `obs.sequence-monotonic`            | Per-session event sequence IDs are strictly monotonic, assigned under exclusive writer-goroutine ownership; clock skew does not corrupt order.                                                                                                                  | `internal/store/sessiondb/session_db.go:474-505,532-550,723-728`                                                                                                       |
 | `obs.replay.after-seq`              | Reconnect with `Last-Event-ID: N` (or `?after_sequence=N`) returns only events with sequence > N, in order, with no duplicates.                                                                                                                                 | `internal/api/core/session_stream.go:16-151`; `internal/api/core/parsers.go:28-39`                                                                                    |
 | `obs.replay.cross-restart`          | Events appended before a daemon restart are still replayable after restart. SQLite `-wal`/`-shm` companion files survive recovery.                                                                                                                              | `internal/store/sessiondb/session_db.go:138-179`; `internal/CLAUDE.md` "agh-schema-migration" wal/shm note                                                              |
-| `obs.transcript.replay-equivalence` | Persisted events replayed via `transcript.Assemble` produce the same `[]Message` ordering and content the SSE client originally saw — schema `agh.session.event.v1`.                                                                                            | `internal/transcript/transcript.go:17, 113-130, 174-318, 737-822`                                                                                                      |
+| `obs.transcript.replay-equivalence` | Persisted events replayed via `transcript.Assemble` produce the same `[]Message` ordering and content the SSE client originally saw — schema `compozy.session.event.v1`.                                                                                            | `internal/transcript/transcript.go:17, 113-130, 174-318, 737-822`                                                                                                      |
 | `obs.correlation-keys`              | Every SSE/event payload across the prompt → tool → hook → memory write → end lifecycle carries the documented keys: `session_id`, `parent_session_id`, `root_session_id`, `agent_name`, `task_id`, `run_id`, `claim_token_hash`, `lease_until`, `workflow_id`, `coordinator_session_id`, `scheduler_reason`, `hook_event`, `hook_name`, `spawn_depth`, `actor_kind`, `actor_id`, `release_reason`. | `internal/CLAUDE.md:48-50`                                                                                                                                             |
 | `obs.claim-token-redaction`         | Raw `compozy_claim_*` tokens never appear in logs, SSE, web responses, db rows, error payloads, settings views, or channel messages. Only `claim_token_hash` over the wire.                                                                                          | `internal/CLAUDE.md` Security Invariants (`internal/CLAUDE.md:55-56`); `internal/task/lease.go:36, 160-166`; `internal/task/manager.go:3702-3791`                       |
 | `obs.secret-redaction-logs`         | Diagnostic / log text scrubs Bearer tokens, JSON-shaped secret keys, env-style assignments (`API_KEY=…`, `OPENAI_API_KEY=sk-…`), and runtime-registered secrets.                                                                                                  | `internal/diagnostics/redact.go:18-70`                                                                                                                                  |
-| `obs.diagnostics.health`            | `Observer.Health` returns a typed snapshot with derived `status` ∈ {`ok`, `degraded`}; aggregates persistence, retention, failures, agent probes, bridges, tasks, activities; CLI `agh observe health -o json` and `/api/observe/health` agree byte-for-byte.    | `internal/observe/health.go:30-200`; `internal/cli/observe.go:74-121`; `internal/api/httpapi/routes.go:118`                                                            |
-| `obs.logging.structured-only`       | Production code uses `slog` exclusively; no `fmt.Println`, no `log.Print*`, no `println` outside test files and ignorable `cmd/agh-daytona-sidecar` boundary code.                                                                                               | `internal/logger/logger.go:85-89`; `agh-code-guidelines` skill                                                                                                          |
+| `obs.diagnostics.health`            | `Observer.Health` returns a typed snapshot with derived `status` ∈ {`ok`, `degraded`}; aggregates persistence, retention, failures, agent probes, bridges, tasks, activities; CLI `compozy observe health -o json` and `/api/observe/health` agree byte-for-byte.    | `internal/observe/health.go:30-200`; `internal/cli/observe.go:74-121`; `internal/api/httpapi/routes.go:118`                                                            |
+| `obs.logging.structured-only`       | Production code uses `slog` exclusively; no `fmt.Println`, no `log.Print*`, no `println` outside test files and ignorable `cmd/compozy-daytona-sidecar` boundary code.                                                                                               | `internal/logger/logger.go:85-89`; `agh-code-guidelines` skill                                                                                                          |
 | `obs.errors.no-strings-contains`    | Error propagation uses `%w` and assertions use `errors.Is/As`; no `strings.Contains(err.Error(), …)` outside the documented sqlite-error edge cases.                                                                                                              | `agh-code-guidelines`; existing exemptions cataloged in §10                                                                                                            |
-| `obs.query-engine`                  | `agh observe events --session <id> --since <ts> --type <t>` returns ordered events with stable pagination; large windows stream via SSE (`agh observe events --follow`).                                                                                          | `internal/observe/query.go:14-22`; `internal/cli/observe.go:23-71, 123-173`                                                                                            |
+| `obs.query-engine`                  | `compozy observe events --session <id> --since <ts> --type <t>` returns ordered events with stable pagination; large windows stream via SSE (`compozy observe events --follow`).                                                                                          | `internal/observe/query.go:14-22`; `internal/cli/observe.go:23-71, 123-173`                                                                                            |
 | `obs.acp-fresh-start-fallback`      | A stale ACP session id (`Resource not found`) is classified to a fresh-start fallback and an event records the classification — never propagated as a 5xx.                                                                                                       | `internal/acp/client.go:553-567`; `internal/session/manager_lifecycle.go:77-101`                                                                                       |
 | `obs.startup-pending-vs-crashed`    | A startup-pending session (in `m.pending`) is NOT marked `failed`. A crashed subprocess is. Distinct events are emitted.                                                                                                                                          | `internal/CLAUDE.md` "Forensic Bug Fixes" (`internal/CLAUDE.md:131-135`); `internal/session/manager_lifecycle.go:123-143`                                              |
 | `obs.spawn-depth-cap`               | A deep lineage tree has every event at every level carrying `root_session_id`; `spawn_depth > MaxDepth` is rejected with a typed error and a `spawn.pre_create` deny event. Default `MaxDepth = 1` (`DefaultSpawnMaxDepth`).                                       | `internal/session/spawn.go:17-18, 215-237`; `internal/store/session_lineage.go:13-83, 127-140`                                                                         |
@@ -77,7 +77,7 @@ scenario in §7 maps back to one or more of these IDs.
 QA mode is **real-scenario** (per the standing directive on real-scenario
 QA), not pytest-style assertions. Every scenario:
 
-- Runs against an isolated `AGH_HOME` with unique daemon ports + tmux-bridge
+- Runs against an isolated `COMPOZY_HOME` with unique daemon ports + tmux-bridge
   socket (per `agh-worktree-isolation`).
 - Resolves provider auth from the bootstrap manifest according to each
   provider contract: bound-secret, brokered, and explicitly isolated-home
@@ -94,7 +94,7 @@ QA), not pytest-style assertions. Every scenario:
   - `obs-XX-summary.json` (machine-readable)
   - `obs-XX-events.json` (EventStore rows scoped to the scenario window)
   - `obs-XX-output.log` (combined daemon stdout/stderr + SSE captures)
-- Asserts against EventStore rows + `events.db`/`agh.db` SQL state +
+- Asserts against EventStore rows + `events.db`/`compozy.db` SQL state +
   structured log JSON, never just process exit codes.
 
 `mock-acp` is permitted only where determinism of a write-then-read race is
@@ -112,8 +112,8 @@ The surrounding daemon, observer, store, and logger remain real.
 
 - Fresh QA bootstrap via the `agh-qa-bootstrap` skill. Manifest path saved
   to `bootstrap-manifest.json`; `bootstrap.env` exported into the shell
-  before any `agh` command.
-- Unique `AGH_HOME` per worktree (per the worktree-isolation directive).
+  before any `compozy` command.
+- Unique `COMPOZY_HOME` per worktree (per the worktree-isolation directive).
 - Bound-secret, brokered, and explicitly isolated-home auth staged into
   `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
   `home_policy=operator` intentionally use the operator `HOME` / native login
@@ -121,25 +121,25 @@ The surrounding daemon, observer, store, and logger remain real.
   behavior.
 - Daemon started in background. HTTP / UDS listeners reachable.
 - `make verify` is green on the SUT branch before QA runs.
-- `AGH_WEB_API_PROXY_TARGET` exported when the daemon is not on `:2123` so
+- `COMPOZY_WEB_API_PROXY_TARGET` exported when the daemon is not on `:2123` so
   any web QA running in parallel can reach the isolated daemon.
 
 Provider-specific config:
 
 ```text
-AGH_HOME=$HOME/.qa/obs-15/<scenario>/agh-home
-AGH_DAEMON_HTTP=127.0.0.1:<unique-port>
-AGH_DAEMON_UDS=$AGH_HOME/sock/uds.sock
-PROVIDER_HOME=$AGH_HOME/provider-home
-PROVIDER_CODEX_HOME=$AGH_HOME/provider-codex-home
-AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:<unique-port>
+COMPOZY_HOME=$HOME/.qa/obs-15/<scenario>/compozy-home
+COMPOZY_DAEMON_HTTP=127.0.0.1:<unique-port>
+COMPOZY_DAEMON_UDS=$COMPOZY_HOME/sock/uds.sock
+PROVIDER_HOME=$COMPOZY_HOME/provider-home
+PROVIDER_CODEX_HOME=$COMPOZY_HOME/provider-codex-home
+COMPOZY_WEB_API_PROXY_TARGET=http://127.0.0.1:<unique-port>
 ```
 
 ## 6. Cleanup (applies to every scenario)
 
-- `agh daemon stop` (or kill PID from manifest).
-- Archive `events.db` (per session) and `agh.db` snapshots before tearing
-  down the AGH_HOME — observability scenarios depend on post-mortem replay.
+- `compozy daemon stop` (or kill PID from manifest).
+- Archive `events.db` (per session) and `compozy.db` snapshots before tearing
+  down the COMPOZY_HOME — observability scenarios depend on post-mortem replay.
 - If any scenario uncovered a forbidden-needle hit (raw `compozy_claim_*`,
   provider keys, secret leakage), DO NOT clean — the artifacts are
   shippability evidence.
@@ -168,18 +168,18 @@ preconditions:
     memory write, one bridge route delivery (a pre-built fixture covers
     all of these in a single 2-minute scripted run).
 docs_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/04-autonomy-kernel.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/04-autonomy-kernel.md
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/observer.go:421-555
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/sessiondb/session_db.go:524-552
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/manager.go:20-42
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/events.go:54-130
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/session.go:44-45
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/observer.go:421-555
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:524-552
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/manager.go:20-42
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/events.go:54-130
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/session.go:44-45
 steps:
   1. Drive the full fixture script.
   2. Stop daemon (clean shutdown — no kill -9 here).
-  3. Dump every row from every `events.db` plus `agh.db.event_summaries`
+  3. Dump every row from every `events.db` plus `compozy.db.event_summaries`
      into `obs-01-events.jsonl`.
   4. Cross-reference against the table in §11 (Canonical Event Coverage
      Matrix). For every row in §11, assert at least one event of the
@@ -203,7 +203,7 @@ failure_signatures:
   - Any required correlation key missing on an emitted event is a
     blocker — observability gap that breaks downstream correlation.
 cleanup:
-  - Archive `events.db` per session, archive `agh.db`, stop daemon.
+  - Archive `events.db` per session, archive `compozy.db`, stop daemon.
 ```
 
 ### OBS-02 — Correlation-key completeness across one full real Claude Code session
@@ -227,14 +227,14 @@ preconditions:
   - Memory subsystem enabled; the prompt asks the agent to record one
     fact ("Remember alpha-7 is the canary id") so memory writes happen.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/observer.go:478-555
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/session_stream.go:29-46
-  - /Users/pedronauck/Dev/compozy/agh/internal/hooks/events.go:54-130
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/spawn.go:215-237
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/observer.go:478-555
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/session_stream.go:29-46
+  - /Users/pedronauck/Dev/compozy/compozy/internal/hooks/events.go:54-130
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/spawn.go:215-237
 steps:
   1. Open SSE stream for the session
      (`GET /api/sessions/$S/stream`, no `Last-Event-ID`).
-  2. `agh session prompt $S "Read README.md, summarize, then remember
+  2. `compozy session prompt $S "Read README.md, summarize, then remember
      'alpha-7 is the canary id'"`.
   3. Wait for SSE `finish`.
   4. Capture full SSE log to `obs-02-sse.jsonl`.
@@ -262,7 +262,7 @@ failure_signatures:
     type → observability gap; release blocker.
   - Any raw `compozy_claim_<>=12-char>` substring → critical security leak.
 cleanup:
-  - `agh session stop $S`. Archive sinks.
+  - `compozy session stop $S`. Archive sinks.
 ```
 
 ### OBS-03 — Durable-append-before-broadcast under kill -9
@@ -288,15 +288,15 @@ preconditions:
   - SSE client (curl --no-buffer) attached, capturing every event seen
     on the wire.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/sessiondb/session_db.go:474-552
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/notifier.go:5-16
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/session_stream.go:69-151
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:474-552
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/notifier.go:5-16
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/session_stream.go:69-151
 steps:
   1. Start the long-running prompt; record SSE frames into
      `obs-03-sse-pre.jsonl` until ~20 events are observed.
-  2. `kill -9 $AGH_DAEMON_PID`.
-  3. Restart daemon (`agh daemon start`).
-  4. `sqlite3 $AGH_HOME/sessions/$S/events.db
+  2. `kill -9 $COMPOZY_DAEMON_PID`.
+  3. Restart daemon (`compozy daemon start`).
+  4. `sqlite3 $COMPOZY_HOME/sessions/$S/events.db
      'SELECT id, sequence, type FROM events ORDER BY sequence'`
      → save as `obs-03-events-post.jsonl`.
   5. Reconnect SSE with `Last-Event-ID: 0`; capture into
@@ -349,9 +349,9 @@ preconditions:
   - SSE client uses `Last-Event-ID` header semantics
     (`internal/api/core/handlers.go:521`).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/session_stream.go:16-27, 69-151
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/parsers.go:28-39, 149-163
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/sessiondb/session_db.go:351
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/session_stream.go:16-27, 69-151
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/parsers.go:28-39, 149-163
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:351
 steps:
   1. Send the 1000-event prompt; SSE stream open.
   2. After 500 events received, hard-close the TCP socket.
@@ -374,7 +374,7 @@ failure_signatures:
     `Int64Clause("sequence", ">", query.AfterSequence)`.
   - Duplicate id → idempotency broken; client could double-process.
 cleanup:
-  - `agh session stop $S`.
+  - `compozy session stop $S`.
 ```
 
 ### OBS-05 — SSE replay across a full daemon restart
@@ -396,21 +396,21 @@ preconditions:
   - One real session with ≥ 50 persisted events (multi-tool prompt).
   - Daemon configured with default WAL settings.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/sessiondb/session_db.go:138-179, 723-728
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md (agh-schema-migration wal/shm)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:138-179, 723-728
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (agh-schema-migration wal/shm)
 steps:
   1. Drive prompt to completion; record `events_count_before`,
-     `transcript_hash_before` (sha256 of `agh session transcript $S`).
-  2. `agh daemon stop` (graceful).
-  3. `sqlite3 $AGH_HOME/sessions/$S/events.db 'PRAGMA quick_check'`
+     `transcript_hash_before` (sha256 of `compozy session transcript $S`).
+  2. `compozy daemon stop` (graceful).
+  3. `sqlite3 $COMPOZY_HOME/sessions/$S/events.db 'PRAGMA quick_check'`
      → must return `ok`.
   4. Confirm `events.db-wal` and `events.db-shm` companion files
      present (or absent if checkpointed).
-  5. `agh daemon start`.
+  5. `compozy daemon start`.
   6. Send a follow-up prompt P2 over a fresh SSE connection without
      `Last-Event-ID`.
   7. Observe full SSE replay (events 1..N + new P2 events).
-  8. `agh session transcript $S` → `transcript_hash_after`.
+  8. `compozy session transcript $S` → `transcript_hash_after`.
 expected:
   - quick_check == ok.
   - events_count_after >= events_count_before.
@@ -452,23 +452,23 @@ preconditions:
     over real Claude Code, with 3+ minutes of activity, plus one
     coordinator-driven spawn so synthetic prompt metadata also fires.
   - All output sinks captured: combined daemon log, SSE replay log
-    (`agh observe events --follow` AND `GET /api/sessions/$S/stream`),
+    (`compozy observe events --follow` AND `GET /api/sessions/$S/stream`),
     every documented HTTP endpoint that returns task_run state, web
-    SPA SSE if a web client is attached, `agh.db` + each `events.db`
-    raw dump, settings views (`agh config show -o json`), error
+    SPA SSE if a web client is attached, `compozy.db` + each `events.db`
+    raw dump, settings views (`compozy config show -o json`), error
     payloads from a deliberately bad request.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md (Security Invariants)
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/lease.go:36, 160-166
-  - /Users/pedronauck/Dev/compozy/agh/internal/task/manager.go:3702-3791
-  - /Users/pedronauck/Dev/compozy/agh/internal/diagnostics/redact.go:18-70
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (Security Invariants)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/lease.go:36, 160-166
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task/manager.go:3702-3791
+  - /Users/pedronauck/Dev/compozy/compozy/internal/diagnostics/redact.go:18-70
 steps:
   1. Drive the full lifecycle.
   2. Capture every sink listed in preconditions into separate files
      named `obs-06-<sink>.{log,jsonl}`.
   3. Run the audit:
      `rg -n 'compozy_claim_[A-Za-z0-9_-]{12,}' obs-06-*.log obs-06-*.jsonl
-     <(sqlite3 agh.db .dump) <(for f in $AGH_HOME/sessions/*/events.db;
+     <(sqlite3 compozy.db .dump) <(for f in $COMPOZY_HOME/sessions/*/events.db;
      do sqlite3 $f .dump; done)`
 expected:
   - Audit output is empty.
@@ -513,9 +513,9 @@ preconditions:
     `dynamic-runtime-secret-OBS07` and asserts subsequent log lines
     have it scrubbed.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/diagnostics/redact.go:18-70
-  - /Users/pedronauck/Dev/compozy/agh/internal/diagnostics/redact_test.go:8, 78
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/health.go:228-229 (uses RedactAndBound)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/diagnostics/redact.go:18-70
+  - /Users/pedronauck/Dev/compozy/compozy/internal/diagnostics/redact_test.go:8, 78
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/health.go:228-229 (uses RedactAndBound)
 steps:
   1. Drive a normal real Claude Code prompt that triggers the
      malicious-logging hook three times (once per secret shape).
@@ -546,7 +546,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: obs-08-diagnostics-health-state-machine
-title: Under healthy / degraded / starting / unhealthy states, agh observe health -o json and /api/observe/health agree, transitions emit a state-change event
+title: Under healthy / degraded / starting / unhealthy states, compozy observe health -o json and /api/observe/health agree, transitions emit a state-change event
 theme: observability.health
 coverage:
   primary:
@@ -562,10 +562,10 @@ preconditions:
   - Two synthetic failures pre-seeded so `health.failures.total >= 1`
     in the degraded phase.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/health.go:30-200, 162-185
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/retention.go:14-100
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/observe.go:74-121
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/routes.go:118
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/health.go:30-200, 162-185
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/retention.go:14-100
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/observe.go:74-121
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/routes.go:118
 steps:
   1. Phase A (starting): immediately after daemon start, before any
      session, query both surfaces. Record `health_starting.json`.
@@ -573,7 +573,7 @@ steps:
      query both surfaces. Record `health_healthy.json`.
   3. Phase C (degraded): pre-seed two failed sessions so
      `failures.total >= 1`; force a retention sweep error (e.g. by
-     making `agh.db` read-only for 1 cycle); query both surfaces.
+     making `compozy.db` read-only for 1 cycle); query both surfaces.
      Record `health_degraded.json`.
   4. Phase D (unhealthy proxy): kill the upstream provider binary
      while a probe target is configured; observe agent_probes
@@ -593,7 +593,7 @@ expected:
     a non-OK probe.
   - Each transition emits a corresponding event in the global ledger
     (`event_summaries` rows with type `health.status_changed` or
-    equivalent — verify via `agh observe events --type
+    equivalent — verify via `compozy observe events --type
     health.status_changed`).
 evidence:
   - `health_starting.json`, `health_healthy.json`,
@@ -605,7 +605,7 @@ failure_signatures:
     `agentProbeStatus` regression (`health.go:178-185`).
   - No state-change event emitted on transition → observability gap.
 cleanup:
-  - Restore agh.db permissions, restart provider binary, stop daemon.
+  - Restore compozy.db permissions, restart provider binary, stop daemon.
 ```
 
 ### OBS-09 — Logging discipline static audit
@@ -625,17 +625,17 @@ provider: static
 preconditions:
   - Repo at the SUT commit, fresh checkout.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/logger/logger.go:85-89
-  - /Users/pedronauck/Dev/compozy/agh/CLAUDE.md "Critical Rules"
-  - .agents/skills/agh-code-guidelines/
+  - /Users/pedronauck/Dev/compozy/compozy/internal/logger/logger.go:85-89
+  - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md "Critical Rules"
+  - .agents/skills/agh/agh-code-guidelines/
 steps:
   1. Run the static audit grepset (each must produce zero hits OR
      match the documented exemption list):
      a. `rg -n 'fmt\.Println\(' --glob '!**/*_test.go'
-        --glob '!cmd/agh-daytona-sidecar/**'
+        --glob '!cmd/compozy-daytona-sidecar/**'
         cmd/ internal/`
      b. `rg -n 'log\.Print(f|ln)?\(' --glob '!**/*_test.go'
-        --glob '!cmd/agh-daytona-sidecar/**'
+        --glob '!cmd/compozy-daytona-sidecar/**'
         cmd/ internal/`
      c. `rg -nw 'println' --glob '!**/*_test.go'
         cmd/ internal/`
@@ -646,7 +646,7 @@ steps:
   3. Save audit output to `obs-09-static-audit.txt`.
 expected:
   - Hits are limited to exactly:
-    - `internal/sandbox/daytona/cmd/agh-daytona-sidecar/main.go` lines
+    - `internal/sandbox/daytona/cmd/compozy-daytona-sidecar/main.go` lines
       459/491 (`log.Printf`) — sidecar bootstrap before logger is wired;
       documented in §10.
     - `internal/extension/registry.go:539` (`strings.Contains` "no
@@ -692,13 +692,13 @@ preconditions:
     write summary to Y, run cat Y").
   - SSE captured to `obs-10-live-sse.jsonl`.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/transcript/transcript.go:17, 113-130, 174-181, 239-318, 737-822
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/sessiondb/session_db.go:74-86, 788-808
+  - /Users/pedronauck/Dev/compozy/compozy/internal/transcript/transcript.go:17, 113-130, 174-181, 239-318, 737-822
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:74-86, 788-808
 steps:
   1. Drive the multi-tool prompt; capture SSE.
   2. Stop session.
-  3. `agh session events $S -o jsonl > obs-10-stored.jsonl`.
-  4. `agh session transcript $S -o json > obs-10-replay-messages.json`.
+  3. `compozy session events $S -o jsonl > obs-10-stored.jsonl`.
+  4. `compozy session transcript $S -o json > obs-10-replay-messages.json`.
   5. Reconstruct from live SSE: feed each frame's `data` payload
      through `transcript.UnmarshalAgentEvent`, synthesize
      `store.SessionEvent`s in order, then `transcript.Assemble`
@@ -708,9 +708,9 @@ steps:
 expected:
   - Diff is empty modulo whitespace.
   - Every persisted event has `json_extract(content,'$.schema') ==
-    'agh.session.event.v1'` (run as SQL audit:
+    'compozy.session.event.v1'` (run as SQL audit:
     `SELECT count(*) FROM events WHERE
-    json_extract(content,'$.schema') != 'agh.session.event.v1'`
+    json_extract(content,'$.schema') != 'compozy.session.event.v1'`
     → must equal 0).
   - Every Message has matching `id`, `role`, `content`, `tool_name`,
     `tool_input`, `tool_result`, ordering, `thinking_complete`.
@@ -725,14 +725,14 @@ failure_signatures:
   - Schema audit count > 0 → migration v2 regression; raw payloads
     were not stripped or new rows lack the schema marker.
 cleanup:
-  - `agh session delete $S`.
+  - `compozy session delete $S`.
 ```
 
 ### OBS-11 — Query engine correctness and pagination stability
 
 ```yaml qa-scenario
 id: obs-11-query-engine
-title: agh observe events --session <id> --since <ts> --type <t> returns ordered, complete, stable rows; --follow streams new events via SSE
+title: compozy observe events --session <id> --since <ts> --type <t> returns ordered, complete, stable rows; --follow streams new events via SSE
 theme: observability.query
 coverage:
   primary:
@@ -748,17 +748,17 @@ preconditions:
   - One workspace with both sessions; `since` flag pointing at S1's
     third event timestamp.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/query.go:14-22
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/observe.go:23-71, 123-173
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/types.go:272-307
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/query.go:14-22
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/observe.go:23-71, 123-173
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/types.go:272-307
 steps:
-  1. `agh observe events -o json` (no filters) → save A.
-  2. `agh observe events --session $S1 -o json` → save B.
-  3. `agh observe events --type tool_call -o json` → save C.
-  4. `agh observe events --since 2026-05-02T12:00:00Z -o json` → save D.
-  5. `agh observe events --last 10 -o json` → save E (must be the last
+  1. `compozy observe events -o json` (no filters) → save A.
+  2. `compozy observe events --session $S1 -o json` → save B.
+  3. `compozy observe events --type tool_call -o json` → save C.
+  4. `compozy observe events --since 2026-05-02T12:00:00Z -o json` → save D.
+  5. `compozy observe events --last 10 -o json` → save E (must be the last
      10 strictly).
-  6. `agh observe events --follow -o jsonl` (in background) while a
+  6. `compozy observe events --follow -o jsonl` (in background) while a
      fresh prompt runs; capture into F; stop after 5s.
 expected:
   - A is ordered by timestamp ascending; complete (matches
@@ -782,7 +782,7 @@ failure_signatures:
   - Pagination order changes between runs → missing
     `ORDER BY timestamp, id` stability.
 cleanup:
-  - `agh session stop $S1; agh session stop $S2`.
+  - `compozy session stop $S1; compozy session stop $S2`.
 ```
 
 ### OBS-12 — Append-only invariant: writes that mutate event rows are forbidden
@@ -803,8 +803,8 @@ preconditions:
   - Repo at SUT commit (static portion); a real session with events
     persisted (runtime portion).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/sessiondb/session_db.go:524-552, 788-808
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md "Append-only event store"
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:524-552, 788-808
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md "Append-only event store"
 steps:
   1. Static audit:
      a. `rg -n 'UPDATE\s+events\b' --glob 'internal/store/sessiondb/**'
@@ -863,14 +863,14 @@ preconditions:
     10,000 events/s for 10 seconds (~100,000 events total).
   - Daemon running on the same host; CPU/RSS sampled every second.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/sessiondb/session_db.go:117-179, 460-505, 524-552
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/observer.go:421-555
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:117-179, 460-505, 524-552
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/observer.go:421-555
 steps:
   1. Start mock-acp burst.
   2. Sample daemon RSS every 1s into `obs-13-rss.csv`.
   3. After burst finishes, sample `events.db` row count via
      `SELECT count(*), MAX(sequence) FROM events`.
-  4. Stream all events out via `agh session events $S -o jsonl
+  4. Stream all events out via `compozy session events $S -o jsonl
      > obs-13-events.jsonl`.
 expected:
   - row count == 100,000 (or whatever the mock emits exactly).
@@ -919,9 +919,9 @@ preconditions:
     `WithNow`, `internal/observe/observer.go:184-189`) to inject a
     1-second backwards jump after event 500.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/sessiondb/session_db.go:524-552
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/observer.go:184-189
-  - /Users/pedronauck/Dev/compozy/agh/internal/transcript/transcript.go:132-144
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:524-552
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/observer.go:184-189
+  - /Users/pedronauck/Dev/compozy/compozy/internal/transcript/transcript.go:132-144
 steps:
   1. Drive the burst with the rewritten clock.
   2. Dump events ordered by `sequence`.
@@ -968,11 +968,11 @@ preconditions:
     `$PROVIDER_HOME/.claude/projects/<S>/...`) so the upstream agent
     no longer knows the ACP session id.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/acp/client.go:553-567
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/manager_lifecycle.go:77-101
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md "Stale ACP session ids must be classified, not propagated"
+  - /Users/pedronauck/Dev/compozy/compozy/internal/acp/client.go:553-567
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/manager_lifecycle.go:77-101
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md "Stale ACP session ids must be classified, not propagated"
 steps:
-  1. `agh session resume $S` (which calls `Driver.loadSession` →
+  1. `compozy session resume $S` (which calls `Driver.loadSession` →
      `acpsdk.AgentMethodSessionLoad`).
   2. Capture daemon log + EventStore + HTTP response body.
   3. Send a follow-up prompt; capture SSE.
@@ -1000,7 +1000,7 @@ failure_signatures:
   - No fallback event recorded → observability gap; the operator
     cannot tell whether the fallback fired.
 cleanup:
-  - `agh session stop $S`.
+  - `compozy session stop $S`.
 ```
 
 ### OBS-16 — Forensic case: startup-pending vs crashed are distinguished
@@ -1021,18 +1021,18 @@ provider: real-claude-code
 preconditions:
   - The harness can pause the ACP subprocess between fork and the
     initialize handshake response (gdb/lldb attach, or test-only
-    `AGH_QA_PAUSE_BEFORE_INITIALIZE=1` env that the test build
+    `COMPOZY_QA_PAUSE_BEFORE_INITIALIZE=1` env that the test build
     honors) so the daemon sees the session as `pending` — NOT
     crashed.
   - Independently, the harness can SIGKILL a fully-active
     subprocess.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md "Inactive metadata repair must distinguish startup-pending from crashed"
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/manager_lifecycle.go:104-143
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/types.go (StopReason taxonomy)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md "Inactive metadata repair must distinguish startup-pending from crashed"
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/manager_lifecycle.go:104-143
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/types.go (StopReason taxonomy)
 steps:
   1. Phase A: pause subprocess pre-initialize; query
-     `agh session status $S -o json`.
+     `compozy session status $S -o json`.
   2. Resume subprocess; let session reach `active`.
   3. Phase B: SIGKILL subprocess; query status.
   4. In each phase, dump
@@ -1085,9 +1085,9 @@ preconditions:
     cap and proves the cap rejects deeper spawns. If the cap is
     raised in a later release, re-tune the depth.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/spawn.go:17-18, 215-237
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/session_lineage.go:13-83, 127-140
-  - /Users/pedronauck/Dev/compozy/agh/internal/coordinator/coordinator.go:204
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/spawn.go:17-18, 215-237
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/session_lineage.go:13-83, 127-140
+  - /Users/pedronauck/Dev/compozy/compozy/internal/coordinator/coordinator.go:204
 steps:
   1. Coordinator spawns child C1 at depth 1 (allowed).
   2. C1 attempts to spawn child C2 at depth 2 → must be rejected
@@ -1139,17 +1139,17 @@ risk: critical
 live: true
 provider: real-claude-code
 preconditions:
-  - Workspace seeded with a real codebase to manipulate (use the AGH
+  - Workspace seeded with a real codebase to manipulate (use the Compozy
     repo itself as the test corpus, read-only).
   - Cron pre-seeded so at least one cron-driven enqueue fires
     mid-conversation (cross-link to autonomy module 04 / automation
     module 09).
   - Coordinator running so spawn lineage is exercised.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/observer.go:421-555
-  - /Users/pedronauck/Dev/compozy/agh/internal/transcript/transcript.go:113-130
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/session.go:44-45
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/session_stream.go:69-151
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/observer.go:421-555
+  - /Users/pedronauck/Dev/compozy/compozy/internal/transcript/transcript.go:113-130
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/session.go:44-45
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/session_stream.go:69-151
 steps:
   1. Open SSE; start a 10-minute prompt that progressively asks the
      agent to read 30 different files, write 5 summary files, run 5
@@ -1157,10 +1157,10 @@ steps:
      facts.
   2. Capture full SSE log to `obs-18-sse.jsonl`.
   3. After the turn(s) finish, dump events.db (per session) into
-     `obs-18-events.jsonl`, agh.db event_summaries into
+     `obs-18-events.jsonl`, compozy.db event_summaries into
      `obs-18-summaries.jsonl`.
-  4. Run `agh session transcript $S -o json > obs-18-transcript.json`.
-  5. Run `agh observe health -o json > obs-18-health.json` AT three
+  4. Run `compozy session transcript $S -o json > obs-18-transcript.json`.
+  5. Run `compozy observe health -o json > obs-18-health.json` AT three
      points (start, middle, end).
   6. Run all redaction audits (claim_token, generic secrets) over
      the combined sinks.
@@ -1195,7 +1195,7 @@ failure_signatures:
   - Health flips to degraded mid-run on a healthy fixture →
     spurious failure record.
 cleanup:
-  - `agh session stop $S`. Archive everything.
+  - `compozy session stop $S`. Archive everything.
 ```
 
 ## 8. Optional / nice-to-have scenarios (run if time)
@@ -1218,8 +1218,8 @@ preconditions:
     scenario; `Observer.now` rewritten 2 days into the future after
     seeding events.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/observe/retention.go:14-100
-  - /Users/pedronauck/Dev/compozy/agh/internal/store/globaldb/global_db_observe.go:113-189
+  - /Users/pedronauck/Dev/compozy/compozy/internal/observe/retention.go:14-100
+  - /Users/pedronauck/Dev/compozy/compozy/internal/store/globaldb/global_db_observe.go:113-189
 steps:
   1. Seed 100 events; record per-session events.db row count B0
      and event_summaries count B1.
@@ -1322,8 +1322,8 @@ These are the only allowed appearances of `fmt.Println` / `log.Print*` /
 
 | Path:line                                                      | Pattern                                          | Justification                                                                                                                          |
 | -------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `internal/sandbox/daytona/cmd/agh-daytona-sidecar/main.go:459` | `log.Printf("%s: %v", logMessage, err)`          | Sidecar bootstrap logging before the slog handler is wired; sidecar is a separate process binary, not the AGH daemon.                  |
-| `internal/sandbox/daytona/cmd/agh-daytona-sidecar/main.go:491` | `log.Printf("write JSON response: %v", err)`     | Same — sidecar boundary.                                                                                                               |
+| `internal/sandbox/daytona/cmd/compozy-daytona-sidecar/main.go:459` | `log.Printf("%s: %v", logMessage, err)`          | Sidecar bootstrap logging before the slog handler is wired; sidecar is a separate process binary, not the Compozy daemon.                  |
+| `internal/sandbox/daytona/cmd/compozy-daytona-sidecar/main.go:491` | `log.Printf("write JSON response: %v", err)`     | Same — sidecar boundary.                                                                                                               |
 | `internal/extension/registry.go:539`                           | `strings.Contains(strings.ToLower(err.Error()), "no such table")` | sqlite-specific error string with no exported sentinel; fallback path on first-boot when the table is absent before migrations apply. |
 | `internal/subprocess/transport.go:253`                         | `strings.Contains(err.Error(), "token too long")` | bufio.Scanner returns this string only; no exported sentinel exists upstream.                                                          |
 | `internal/subprocess/process.go:638`                           | `strings.Contains(err.Error(), "file already closed")` | Wraps a `*os.PathError` whose underlying message is the only signal; documented in stdlib.                                             |

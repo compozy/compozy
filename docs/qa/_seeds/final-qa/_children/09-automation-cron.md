@@ -1,17 +1,17 @@
 ---
 name: 09-automation-cron
-description: AGH pre-release QA — automation, cron, webhook triggers, and the durable scheduler cursor. Real-LLM scenarios required. Read-only research deliverable.
+description: Compozy pre-release QA — automation, cron, webhook triggers, and the durable scheduler cursor. Real-LLM scenarios required. Read-only research deliverable.
 type: qa-child
 module: automation-cron
 owner: pre-release-qa
 references:
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/.resources/openclaw/qa/scenarios/scheduling/cron-natural-fire-no-duplicate.md
-  - /Users/pedronauck/Dev/compozy/agh/.resources/openclaw/qa/scenarios/scheduling/cron-single-run-no-duplicate.md
-  - /Users/pedronauck/Dev/compozy/agh/.resources/openclaw/qa/scenarios/scheduling/cron-one-minute-ping.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/.resources/openclaw/qa/scenarios/scheduling/cron-natural-fire-no-duplicate.md
+  - /Users/pedronauck/Dev/compozy/compozy/.resources/openclaw/qa/scenarios/scheduling/cron-single-run-no-duplicate.md
+  - /Users/pedronauck/Dev/compozy/compozy/.resources/openclaw/qa/scenarios/scheduling/cron-one-minute-ping.md
 ---
 
 # 09 — Automation, Cron, Webhooks & Scheduling Triggers QA
@@ -30,18 +30,18 @@ Packages in scope (file:line citations are repo-absolute):
 
 | Surface                | Path                                                                              | Authoritative API                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ---------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Scheduler runtime      | `/Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go`               | `Scheduler.Start` (`:166`), `Stop` (`:197`), `Register` (`:255`), `Update` (`:278`), `Unregister` (`:345`), `executeScheduledJob` (`:593`), `buildSchedulePlan` (`:499`), `reconcileSchedulerState` (`:735`), `nextRunAfter` (`:854`), `nextRunAfterMissed` (`:885`), `predictNextRun` (`:824`), `scheduledFireID` (`:921`), `scheduleHash` (`:934`), `defaultSchedulerStopTimeout = 10s` (`:28`)                                                                                |
-| Dispatcher             | `/Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go`               | `Dispatcher.Dispatch` (`:366`), `dispatchAttempt` (`:412`), `reserveRun` (`:488`), `evaluateFireLimit` (`:554`), `dispatchTaskBackedAttempt` (`:624`), `transitionRun` (`:684`), `finishRunAfterSessionStop` (`:785`), `dispatchPreFireHook` (`:827`), `collectPromptError` (`:1259`), `defaultDispatcherSessionStopTimeout = 10s` (`:59`), `DefaultMaxConcurrentJobs = 5` (`internal/automation/model/types.go:13`)                                                            |
-| Trigger engine         | `/Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go`                | `TriggerEngine.Register` (`:279`), `Update` (`:306`), `Unregister` (`:334`), `Fire` (`:356`), `FireSessionCreated`/`Stopped` (`:372,381`), `FireMemoryConsolidated` (`:390`), `FireHookCompletion` (`:402`), `HandleWebhook` (`:418`), `claimWebhookDelivery` (`:736`), `purgeDeliveriesLocked` (`:764`), `ParseWebhookEndpoint` (`:478`), `SignWebhookPayload` (`:521`), `ValidateWebhookSignature` (`:538`), `ValidateWebhookTimestamp` (`:559`), `DefaultWebhookFreshnessWindow = 5m` (`:52`) |
-| Manager / composition  | `/Users/pedronauck/Dev/compozy/agh/internal/automation/manager.go`                | `Manager.Start` / `Shutdown` / `Status`, `buildSchedulerRuntime` (`:1380`), `buildTriggerRuntime` (`:1399`), `loadSchedulerRegistrations` (`:1413`), `loadTriggerRegistrations` (`:1422`), `syncConfigDefinitions` (`:1442`), `SyncManagedDefinitions` (`:1466`)                                                                                                                                                                                                                |
-| Webhook ingress (HTTP) | `/Users/pedronauck/Dev/compozy/agh/internal/api/core/automation.go`               | `DeliverGlobalWebhook` (`:493`), `DeliverWorkspaceWebhook` (`:498`), `deliverWebhook` (`:502`), `webhookRequestFromHTTP` (`:695`), `WebhookTimestampHeader` / `WebhookSignatureHeader` / `WebhookDeliveryIDHeader` (`:22-30`), `maxWebhookPayloadSize = 1<<20` (`:32`), `http.MaxBytesReader` enforcement (`:727`)                                                                                                                                                               |
-| HTTP routes            | `/Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/routes.go`                | Automation API (`:168-191`), webhook endpoints (`:345-349`: `POST /api/webhooks/global/:endpoint`, `POST /api/webhooks/workspaces/:workspace_id/:endpoint`)                                                                                                                                                                                                                                                                                                                    |
-| CLI                    | `/Users/pedronauck/Dev/compozy/agh/internal/cli/automation.go`                    | `agh automation jobs|triggers|runs` verb tree (`:43-757`)                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Config (TOML)          | `/Users/pedronauck/Dev/compozy/agh/internal/config/automation.go`                 | `AutomationConfig` (`:14`), `AutomationJob` (`:24`), `AutomationTrigger` (`:39`), `Validate` (`:93`), default timezone defaulted to `UTC` (`internal/automation/model/types.go:10`), `DefaultMaxConcurrentJobs = 5` (`internal/automation/model/types.go:13`)                                                                                                                                                                                                                  |
+| Scheduler runtime      | `/Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go`               | `Scheduler.Start` (`:166`), `Stop` (`:197`), `Register` (`:255`), `Update` (`:278`), `Unregister` (`:345`), `executeScheduledJob` (`:593`), `buildSchedulePlan` (`:499`), `reconcileSchedulerState` (`:735`), `nextRunAfter` (`:854`), `nextRunAfterMissed` (`:885`), `predictNextRun` (`:824`), `scheduledFireID` (`:921`), `scheduleHash` (`:934`), `defaultSchedulerStopTimeout = 10s` (`:28`)                                                                                |
+| Dispatcher             | `/Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go`               | `Dispatcher.Dispatch` (`:366`), `dispatchAttempt` (`:412`), `reserveRun` (`:488`), `evaluateFireLimit` (`:554`), `dispatchTaskBackedAttempt` (`:624`), `transitionRun` (`:684`), `finishRunAfterSessionStop` (`:785`), `dispatchPreFireHook` (`:827`), `collectPromptError` (`:1259`), `defaultDispatcherSessionStopTimeout = 10s` (`:59`), `DefaultMaxConcurrentJobs = 5` (`internal/automation/model/types.go:13`)                                                            |
+| Trigger engine         | `/Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go`                | `TriggerEngine.Register` (`:279`), `Update` (`:306`), `Unregister` (`:334`), `Fire` (`:356`), `FireSessionCreated`/`Stopped` (`:372,381`), `FireMemoryConsolidated` (`:390`), `FireHookCompletion` (`:402`), `HandleWebhook` (`:418`), `claimWebhookDelivery` (`:736`), `purgeDeliveriesLocked` (`:764`), `ParseWebhookEndpoint` (`:478`), `SignWebhookPayload` (`:521`), `ValidateWebhookSignature` (`:538`), `ValidateWebhookTimestamp` (`:559`), `DefaultWebhookFreshnessWindow = 5m` (`:52`) |
+| Manager / composition  | `/Users/pedronauck/Dev/compozy/compozy/internal/automation/manager.go`                | `Manager.Start` / `Shutdown` / `Status`, `buildSchedulerRuntime` (`:1380`), `buildTriggerRuntime` (`:1399`), `loadSchedulerRegistrations` (`:1413`), `loadTriggerRegistrations` (`:1422`), `syncConfigDefinitions` (`:1442`), `SyncManagedDefinitions` (`:1466`)                                                                                                                                                                                                                |
+| Webhook ingress (HTTP) | `/Users/pedronauck/Dev/compozy/compozy/internal/api/core/automation.go`               | `DeliverGlobalWebhook` (`:493`), `DeliverWorkspaceWebhook` (`:498`), `deliverWebhook` (`:502`), `webhookRequestFromHTTP` (`:695`), `WebhookTimestampHeader` / `WebhookSignatureHeader` / `WebhookDeliveryIDHeader` (`:22-30`), `maxWebhookPayloadSize = 1<<20` (`:32`), `http.MaxBytesReader` enforcement (`:727`)                                                                                                                                                               |
+| HTTP routes            | `/Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/routes.go`                | Automation API (`:168-191`), webhook endpoints (`:345-349`: `POST /api/webhooks/global/:endpoint`, `POST /api/webhooks/workspaces/:workspace_id/:endpoint`)                                                                                                                                                                                                                                                                                                                    |
+| CLI                    | `/Users/pedronauck/Dev/compozy/compozy/internal/cli/automation.go`                    | `compozy automation jobs|triggers|runs` verb tree (`:43-757`)                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Config (TOML)          | `/Users/pedronauck/Dev/compozy/compozy/internal/config/automation.go`                 | `AutomationConfig` (`:14`), `AutomationJob` (`:24`), `AutomationTrigger` (`:39`), `Validate` (`:93`), default timezone defaulted to `UTC` (`internal/automation/model/types.go:10`), `DefaultMaxConcurrentJobs = 5` (`internal/automation/model/types.go:13`)                                                                                                                                                                                                                  |
 | Cron parser            | `gocron.NewDefaultCron(false)` (`internal/automation/schedule.go:507,832,863,894`) | `github.com/go-co-op/gocron/v2 v2.20.0` (`go.mod:13`), `robfig/cron/v3 v3.0.1` is the underlying parser (`go.mod:28`)                                                                                                                                                                                                                                                                                                                                                          |
 
 Out of scope (covered by other children): mechanical scheduler / idle wake
-(module 04), full coordinator bootstrap (module 04), AGH Network channel
+(module 04), full coordinator bootstrap (module 04), Compozy Network channel
 transport (module 06), session manager state machine (module 03).
 
 ## 2. Authoritative invariants under test
@@ -72,9 +72,9 @@ openclaw lowercase dotted/dashed convention.
 | `dispatch.failure-cron-continues`    | A failed cron-fired prompt does not unregister the cron; the cursor advances to the next fire regardless of run outcome.                                             | `internal/automation/schedule.go:644-668`; cursor advanced before dispatch attempt at `:619-642`                                                                                                                        |
 | `dispatch.session-stop-budget`       | Automation-spawned sessions are stopped within `defaultDispatcherSessionStopTimeout = 10s` after the run completes/fails/cancels; `context.WithoutCancel`-based stop. | `internal/automation/dispatch.go:59,809-825`                                                                                                                                                                            |
 | `trigger.lineage-correlation`        | Cron- and trigger-fired sessions are `SessionTypeSystem`; manager records `RecordAutomationSessionTaskActor` so any task they spawn carries trusted automation provenance. | `internal/automation/dispatch.go:984-1006`, `internal/task` actor derivation                                                                                                                                              |
-| `automation.cli-http-parity`         | `agh automation list -o json` and `GET /api/automation/jobs|triggers|runs` return the same shape; both consume `BaseHandlers` per `internal/api/core/automation.go`. | `internal/cli/automation.go:43-757`, `internal/api/httpapi/routes.go:168-191`, `internal/api/core/automation.go`                                                                                                        |
+| `automation.cli-http-parity`         | `compozy automation list -o json` and `GET /api/automation/jobs|triggers|runs` return the same shape; both consume `BaseHandlers` per `internal/api/core/automation.go`. | `internal/cli/automation.go:43-757`, `internal/api/httpapi/routes.go:168-191`, `internal/api/core/automation.go`                                                                                                        |
 | `enable-disable.live`                | Disable mid-window: in-flight session completes; future fires suppressed via `Update(job, Enabled=false)` → `unregisterLocked` + `deleteSchedulerState`.             | `internal/automation/schedule.go:298-303,344-364`                                                                                                                                                                       |
-| `webhook.unsigned-rejected`          | Missing `X-AGH-Webhook-Signature` header returns 400 before reaching trigger engine; missing `X-AGH-Webhook-Delivery-ID` likewise.                                   | `internal/api/core/automation.go:714-725`                                                                                                                                                                               |
+| `webhook.unsigned-rejected`          | Missing `X-Compozy-Webhook-Signature` header returns 400 before reaching trigger engine; missing `X-Compozy-Webhook-Delivery-ID` likewise.                                   | `internal/api/core/automation.go:714-725`                                                                                                                                                                               |
 | `extensibility.agent-manageable`     | All automation surfaces are exposed via CLI verbs + HTTP endpoints (no UI-only path); webhook delivery has CLI helper or the HTTP endpoint is documented for agents. | `internal/cli/automation.go`, `internal/api/httpapi/routes.go:168-191,345-349`; CLAUDE.md "Agent-manageable by default."                                                                                                |
 
 ## 3. Operating model
@@ -82,7 +82,7 @@ openclaw lowercase dotted/dashed convention.
 QA mode is **real-scenario** (per the standing directive on real-scenario
 QA), not pytest-style assertions. Every scenario:
 
-- Runs against an isolated AGH_HOME with unique daemon ports + tmux-bridge
+- Runs against an isolated COMPOZY_HOME with unique daemon ports + tmux-bridge
   socket (per the `agh-worktree-isolation` skill).
 - Resolves provider auth from the bootstrap manifest according to each
   provider contract: bound-secret, brokered, and explicitly isolated-home
@@ -115,16 +115,16 @@ worktree isolation.
 | `real-claude-code`  | Default for every scenario where the cron-fired prompt must reach a real LLM and the transcript is the proof.      | `claude-opus-4-8` (parent automation prompts); `claude-sonnet-5` for cheap cron-loop scenarios (CRN-01).                  |
 | `mock-acp` (gate)   | Determinism gate for race-sensitive scenarios where real models add nondeterminism (CRN-12, CRN-15).               | `internal/e2elane` mock ACP server used only to stabilize a race; the surrounding daemon, scheduler, and dispatcher are real.   |
 
-`mock-acp` is the AGH equivalent of openclaw `mock-openai`; `real-claude-code`
-is the AGH equivalent of openclaw `live-frontier`. Per openclaw's tri-state,
+`mock-acp` is the Compozy equivalent of openclaw `mock-openai`; `real-claude-code`
+is the Compozy equivalent of openclaw `live-frontier`. Per openclaw's tri-state,
 we do not include an `aimock` lane (additive only).
 
 ## 5. Preconditions (apply to every scenario)
 
 - Fresh QA bootstrap via the `agh-qa-bootstrap` skill. Manifest path saved
   to `bootstrap-manifest.json`; `bootstrap.env` exported into the shell
-  before any `agh` command.
-- Unique `AGH_HOME` per worktree (per the worktree-isolation directive).
+  before any `compozy` command.
+- Unique `COMPOZY_HOME` per worktree (per the worktree-isolation directive).
 - Bound-secret, brokered, and explicitly isolated-home auth staged into
   `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
   `home_policy=operator` intentionally use the operator `HOME` / native login
@@ -142,24 +142,24 @@ we do not include an `aimock` lane (additive only).
 Provider-specific config:
 
 ```text
-AGH_HOME=$HOME/.qa/crn-09/<scenario>/agh-home
-AGH_DAEMON_HTTP=127.0.0.1:<unique-port>
-AGH_DAEMON_UDS=$AGH_HOME/sock/uds.sock
-PROVIDER_HOME=$AGH_HOME/provider-home
-PROVIDER_CODEX_HOME=$AGH_HOME/provider-codex-home
-AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:<unique-port>
+COMPOZY_HOME=$HOME/.qa/crn-09/<scenario>/compozy-home
+COMPOZY_DAEMON_HTTP=127.0.0.1:<unique-port>
+COMPOZY_DAEMON_UDS=$COMPOZY_HOME/sock/uds.sock
+PROVIDER_HOME=$COMPOZY_HOME/provider-home
+PROVIDER_CODEX_HOME=$COMPOZY_HOME/provider-codex-home
+COMPOZY_WEB_API_PROXY_TARGET=http://127.0.0.1:<unique-port>
 ```
 
 ## 6. Cleanup (applies to every scenario)
 
 - Disable any cron jobs created by the scenario:
-  `agh automation jobs update <id> --enabled=false`.
-- `agh daemon stop` (or kill PID from manifest).
+  `compozy automation jobs update <id> --enabled=false`.
+- `compozy daemon stop` (or kill PID from manifest).
 - Inspect `automation_runs` for `status=running`/`scheduled` runs that the
   scenario didn't complete; if found, attach to the scenario report and DO
   NOT clean — it's evidence.
-- Archive `events.db`, `agh.db`, and any audit-log fragments before tearing
-  down the AGH_HOME.
+- Archive `events.db`, `compozy.db`, and any audit-log fragments before tearing
+  down the COMPOZY_HOME.
 - Tear down the worktree only after evidence artifacts are written.
 
 ## 7. Mandatory scenarios
@@ -181,29 +181,29 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME with `automation.enabled = true`, timezone UTC.
+  - Fresh COMPOZY_HOME with `automation.enabled = true`, timezone UTC.
   - One agent definition that points at Claude Code (`claude-sonnet-5` is fine; we just need a transcript).
   - Host wall clock NTP-synchronized within ±1s.
 docs_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/.resources/openclaw/qa/scenarios/scheduling/cron-one-minute-ping.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/.resources/openclaw/qa/scenarios/scheduling/cron-one-minute-ping.md
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:499-540
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:593-668
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:412-486
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/automation.go:121-191
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:499-540
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:593-668
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:412-486
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/automation.go:121-191
 steps:
   - Create the cron via CLI:
-    `agh automation jobs create --name qa-crn01 --scope global --agent <agent> --schedule-mode cron --schedule-expr '*/1 * * * *' --prompt 'Reply with the literal marker {{.JobID}}-fire-<MINUTE>' --enabled --output json`.
+    `compozy automation jobs create --name qa-crn01 --scope global --agent <agent> --schedule-mode cron --schedule-expr '*/1 * * * *' --prompt 'Reply with the literal marker {{.JobID}}-fire-<MINUTE>' --enabled --output json`.
   - Capture `job_id`, scheduler `next_run` from the response.
   - Wait `5m30s` from the moment the second after the next minute boundary
     elapses. Tail SSE / `automation.scheduler.job_fired` log lines.
   - Disable the cron at minute 5:
-    `agh automation jobs update <job_id> --enabled=false`.
+    `compozy automation jobs update <job_id> --enabled=false`.
   - Snapshot `automation_runs` for the job:
-    `agh automation runs --job-id <job_id> -o json`.
+    `compozy automation runs --job-id <job_id> -o json`.
   - For each run, fetch the spawned session id and dump its transcript via
-    `agh sessions transcript <session_id>`.
+    `compozy sessions transcript <session_id>`.
 expected:
   - Exactly 5 rows in `automation_runs` for the 5-minute window, all in
     `status=completed`. Allow ±1 row only if the bottom of the window
@@ -229,7 +229,7 @@ failure_signatures:
   - Non-deterministic `fire_id` values (e.g., per-attempt random ids):
     `cron.next-fire-deterministic` violated.
 cleanup:
-  - Delete the cron: `agh automation jobs delete <job_id>`.
+  - Delete the cron: `compozy automation jobs delete <job_id>`.
   - Stop daemon. Archive evidence.
 ```
 
@@ -250,22 +250,22 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
+  - Fresh COMPOZY_HOME.
   - Cron `*/1 * * * *` enabled with marker prompt.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:464-476
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:735-800
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:619-642
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule_test.go:322-388
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:464-476
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:735-800
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:619-642
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule_test.go:322-388
 steps:
   - At T=0 (just after a minute boundary) create the cron and wait until
     `T+30s` (mid-window).
   - Confirm one row exists for the boundary that already fired (the very
     first fire is part of the warm-up; ignore it for restart proof).
-  - Stop daemon: `agh daemon stop`. Confirm process exit.
+  - Stop daemon: `compozy daemon stop`. Confirm process exit.
   - Sleep until `T+90s` (next minute boundary +30s) — i.e., the daemon was
     DOWN across a fire boundary.
-  - Start daemon: `agh daemon start`.
+  - Start daemon: `compozy daemon start`.
   - Watch for the next two natural fires (`T+120s` and `T+180s`).
   - Snapshot `automation_runs` and `automation_scheduler_state`.
 expected:
@@ -313,13 +313,13 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
+  - Fresh COMPOZY_HOME.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:525-535
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:854-918
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:412-486
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:525-535
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:854-918
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:412-486
 steps:
-  - Create an `at` job scheduled for `T+90s` (`agh automation jobs create
+  - Create an `at` job scheduled for `T+90s` (`compozy automation jobs create
     --schedule-mode at --schedule-time <RFC3339> ...`). Capture `job_id`.
   - At `T+30s` stop daemon.
   - At `T+45s` start daemon.
@@ -363,11 +363,11 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
+  - Fresh COMPOZY_HOME.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:464-476
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:735-800
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/manager.go:1413-1440
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:464-476
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:735-800
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/manager.go:1413-1440
 steps:
   - Create an `at` job for `T+300s` (T+5min absolute).
   - Snapshot scheduler state — `next_run_at = T+300s`,
@@ -412,16 +412,16 @@ risk: critical
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
+  - Fresh COMPOZY_HOME.
   - One `*/1 * * * *` cron creating a long-running prompt (60s of agent
     activity).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:619-668
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:735-800
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:412-486
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:619-668
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:735-800
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:412-486
 steps:
   - Wait until the next minute boundary minus 5s.
-  - `kill -9 $AGH_DAEMON_PID`.
+  - `kill -9 $COMPOZY_DAEMON_PID`.
   - Wait 30s.
   - Restart daemon. Tail the log + `automation_runs`.
 expected:
@@ -467,29 +467,29 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
+  - Fresh COMPOZY_HOME.
   - Vault contains an `automation.qa-crn06.secret` entry holding a
     32+ char shared secret.
   - Webhook trigger registered:
-    `agh automation triggers create --event webhook --endpoint-slug qa-crn06 --webhook-secret-ref automation.qa-crn06.secret --enabled --prompt 'Reply with QA-CRN06-{{.Data.delivery_id}}' ...`.
+    `compozy automation triggers create --event webhook --endpoint-slug qa-crn06 --webhook-secret-ref automation.qa-crn06.secret --enabled --prompt 'Reply with QA-CRN06-{{.Data.delivery_id}}' ...`.
   - Capture `webhook_id` (`wbh_<...>`) from the response.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/automation.go:493-520
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/automation.go:695-753
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:418-460
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:521-555
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:559-578
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:478-508
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/automation.go:493-520
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/automation.go:695-753
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:418-460
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:521-555
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:559-578
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:478-508
 steps:
   - Build the canonical signing payload:
     `<unix_seconds>.<raw_request_body>`.
   - HMAC-SHA256 with the vault secret. Format header
-    `X-AGH-Webhook-Signature: sha256=<hex>`.
+    `X-Compozy-Webhook-Signature: sha256=<hex>`.
   - POST `application/json` body `{"hello":"world"}` to
     `/api/webhooks/global/qa-crn06--<webhook_id>` with headers:
-    - `X-AGH-Webhook-Timestamp: <RFC3339Nano>`
-    - `X-AGH-Webhook-Delivery-ID: dlv-crn06-001`
-    - `X-AGH-Webhook-Signature: sha256=<hmac>`
+    - `X-Compozy-Webhook-Timestamp: <RFC3339Nano>`
+    - `X-Compozy-Webhook-Delivery-ID: dlv-crn06-001`
+    - `X-Compozy-Webhook-Signature: sha256=<hmac>`
   - Capture HTTP response, then poll `automation_runs` for the trigger.
   - Fetch the spawned session and read its transcript.
 expected:
@@ -531,17 +531,17 @@ provider: real-claude-code
 preconditions:
   - Same setup as CRN-06.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/automation.go:714-725
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:538-555
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:1082-1092
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/automation.go:714-725
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:538-555
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:1082-1092
 steps:
   - Variant A: POST without any signature header. Expect 400.
-  - Variant B: POST with `X-AGH-Webhook-Signature: sha256=deadbeef...` (a
+  - Variant B: POST with `X-Compozy-Webhook-Signature: sha256=deadbeef...` (a
     syntactically valid but wrong HMAC). Expect 4xx, body says signature
     invalid.
-  - Variant C: POST with `X-AGH-Webhook-Signature: notsha256=abc` (wrong
+  - Variant C: POST with `X-Compozy-Webhook-Signature: notsha256=abc` (wrong
     prefix). Expect 4xx invalid signature.
-  - Variant D: POST without `X-AGH-Webhook-Delivery-ID`. Expect 400.
+  - Variant D: POST without `X-Compozy-Webhook-Delivery-ID`. Expect 400.
   - Variant E: POST with valid signature for delivery id `dlv-crn07-rep`
     twice within 30s (replay). Expect first 200, second 4xx
     `automation: webhook delivery already processed`.
@@ -584,8 +584,8 @@ provider: real-claude-code
 preconditions:
   - Same setup as CRN-06.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/automation.go:32
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/automation.go:727-737
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/automation.go:32
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/automation.go:727-737
 steps:
   - Generate a payload of exactly `1 << 20 = 1048576` bytes plus 1 (1 MiB
     + 1).
@@ -629,10 +629,10 @@ risk: medium
 live: false
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
+  - Fresh COMPOZY_HOME.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:525-535
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:418-427
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:525-535
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:418-427
 steps:
   - Create an `at` job with `time = T-300s` (5 minutes in the past).
   - Snapshot the response and the `automation_scheduler_state` row.
@@ -674,7 +674,7 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
+  - Fresh COMPOZY_HOME.
   - `config.toml` overlay sets
     `automation.timezone = "America/New_York"`.
   - Host TZ (`/etc/timezone` or shell `TZ`) is `Europe/Amsterdam` (or any
@@ -683,9 +683,9 @@ preconditions:
   - Test conducted at a time when NY and UTC differ by exactly 4 or 5h
     (record DST status).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/manager.go:1380-1396
-  - /Users/pedronauck/Dev/compozy/agh/internal/config/automation.go:97-103
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:506-515
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/manager.go:1380-1396
+  - /Users/pedronauck/Dev/compozy/compozy/internal/config/automation.go:97-103
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:506-515
 steps:
   - Pick an NY local hour that is NOT the same as the current UTC or host
     hour. Schedule a cron expression `0 <NY_HOUR> * * *` for tomorrow.
@@ -729,15 +729,15 @@ risk: critical
 live: false
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME with `automation.timezone = America/New_York`.
+  - Fresh COMPOZY_HOME with `automation.timezone = America/New_York`.
   - Host clock fast-forwarded (or daemon launched with `WithSchedulerClock`
     fake) to the next fall-back date (typically first Sunday of November).
     Use a clockwork fake clock or run during the actual transition for
     real proof.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:506-515
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:854-883
-  - /Users/pedronauck/Dev/compozy/agh/go.mod:13,28 (gocron-v2 + robfig/cron underneath)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:506-515
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:854-883
+  - /Users/pedronauck/Dev/compozy/compozy/go.mod:13,28 (gocron-v2 + robfig/cron underneath)
 steps:
   - Schedule cron `30 1 * * *` (daily at 01:30 NY).
   - Advance the clock to 00:00 NY of fall-back day; let the scheduler
@@ -774,12 +774,12 @@ risk: critical
 live: false
 provider: mock-acp
 preconditions:
-  - Fresh AGH_HOME with `automation.timezone = America/New_York`.
+  - Fresh COMPOZY_HOME with `automation.timezone = America/New_York`.
   - Spring-forward window staged via fake clock (typically second Sunday
     of March; 02:00→03:00 jump).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:506-515
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:854-918
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:506-515
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:854-918
 steps:
   - Schedule cron `30 2 * * *`. Advance clock to 01:55 NY.
   - Watch the daemon log for `automation.scheduler.registered` showing
@@ -823,13 +823,13 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME with `automation.max_concurrent_jobs = 5` (or whatever
+  - Fresh COMPOZY_HOME with `automation.max_concurrent_jobs = 5` (or whatever
     the SUT default is — be explicit in the report).
   - Pool of agent definitions (5+) that can run in parallel.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:295,412-420
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:554-622
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:682-716
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:295,412-420
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:554-622
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:682-716
 steps:
   - Loop: create 50 cron jobs each with `*/1 * * * *` and a 3s prompt.
   - Wait for the next minute boundary plus 90s.
@@ -876,20 +876,20 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
-  - One cron job whose prompt instructs the agent to call `agh task create`
+  - Fresh COMPOZY_HOME.
+  - One cron job whose prompt instructs the agent to call `compozy task create`
     (or the equivalent in-session tool) so a downstream task is enqueued
     by the cron-fired session.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:979-1006
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:984-994
-  - /Users/pedronauck/Dev/compozy/agh/internal/task (DeriveAutomationLinkedAgentSessionActorContext)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:979-1006
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:984-994
+  - /Users/pedronauck/Dev/compozy/compozy/internal/task (DeriveAutomationLinkedAgentSessionActorContext)
 steps:
   - Create the cron at next minute boundary.
   - After fire completes, fetch the spawned session via
-    `agh sessions get <session_id> -o json`.
+    `compozy sessions get <session_id> -o json`.
   - Inspect `type` field — must be `system` (`SessionTypeSystem`).
-  - Inspect any tasks the session created (`agh tasks list -o json`).
+  - Inspect any tasks the session created (`compozy tasks list -o json`).
   - For each task, fetch `task_runs` and inspect `actor_kind` /
     `actor_ref`.
 expected:
@@ -914,7 +914,7 @@ cleanup:
   - Stop daemon, archive evidence.
 ```
 
-### CRN-15 — `agh automation list -o json` parity with HTTP `/api/automation`
+### CRN-15 — `compozy automation list -o json` parity with HTTP `/api/automation`
 
 ```yaml qa-scenario
 id: crn-15-cli-http-parity
@@ -928,19 +928,19 @@ risk: high
 live: false
 provider: mock-acp
 preconditions:
-  - Fresh AGH_HOME with 3 jobs (one each for cron / every / at) + 3
+  - Fresh COMPOZY_HOME with 3 jobs (one each for cron / every / at) + 3
     triggers (webhook / session.created / hook.completion) + several
     runs across them.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/automation.go:43-757
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/automation.go
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/routes.go:168-191
+  - /Users/pedronauck/Dev/compozy/compozy/internal/cli/automation.go:43-757
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/automation.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/routes.go:168-191
 steps:
   - Run:
-    - `agh automation jobs -o json > cli-jobs.json`
-    - `agh automation triggers -o json > cli-triggers.json`
-    - `agh automation runs -o json > cli-runs.json`
-  - HTTP equivalent (use `curl --unix-socket "$AGH_DAEMON_UDS"` or the
+    - `compozy automation jobs -o json > cli-jobs.json`
+    - `compozy automation triggers -o json > cli-triggers.json`
+    - `compozy automation runs -o json > cli-runs.json`
+  - HTTP equivalent (use `curl --unix-socket "$COMPOZY_DAEMON_UDS"` or the
     HTTP port from the manifest):
     - `GET /api/automation/jobs > http-jobs.json`
     - `GET /api/automation/triggers > http-triggers.json`
@@ -983,18 +983,18 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME with one `*/1 * * * *` cron whose prompt takes ~30s.
+  - Fresh COMPOZY_HOME with one `*/1 * * * *` cron whose prompt takes ~30s.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:298-303,344-364
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:785-825
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:298-303,344-364
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:785-825
 steps:
   - Wait for the first fire. Once the spawned session is in
     `running`, immediately disable the cron:
-    `agh automation jobs update <id> --enabled=false`.
+    `compozy automation jobs update <id> --enabled=false`.
   - Verify the in-flight session continues to completion (NOT killed by
     the disable).
   - Wait `90s` past the next minute boundary; verify NO new run fires.
-  - Re-enable: `agh automation jobs update <id> --enabled=true`.
+  - Re-enable: `compozy automation jobs update <id> --enabled=true`.
   - Wait for the next minute boundary; verify the cron fires again.
 expected:
   - First in-flight run completes with `status=completed`.
@@ -1031,15 +1031,15 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME with one `*/1 * * * *` cron whose prompt is malformed
+  - Fresh COMPOZY_HOME with one `*/1 * * * *` cron whose prompt is malformed
     (e.g., calls a tool that doesn't exist or asks the agent to throw an
     error in a way the ACP transport propagates as an event-level
     error).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:441-486
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:727-783
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:619-668
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:1259-1287
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:441-486
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:727-783
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:619-668
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:1259-1287
 steps:
   - Wait for two consecutive fires (T+60s and T+120s relative to the
     boundary).
@@ -1090,13 +1090,13 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME with cron `*/1 * * * *`; prompt is "Spawn a worker via
-    `agh sessions spawn` to summarize the last hour of activity".
+  - Fresh COMPOZY_HOME with cron `*/1 * * * *`; prompt is "Spawn a worker via
+    `compozy sessions spawn` to summarize the last hour of activity".
   - Coordinator config enabled per module 04 conventions.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:412-486
-  - /Users/pedronauck/Dev/compozy/agh/internal/coordinator (module 04 covers depth)
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/spawn.go
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:412-486
+  - /Users/pedronauck/Dev/compozy/compozy/internal/coordinator (module 04 covers depth)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/spawn.go
 steps:
   - Wait for two consecutive cron fires.
   - For each fire: capture the parent session id, the child session id,
@@ -1138,10 +1138,10 @@ provider: real-claude-code
 preconditions:
   - Same setup as CRN-06.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:51-52
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:559-578
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:51-52
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:559-578
 steps:
-  - Variant A: POST with `X-AGH-Webhook-Timestamp` set to `now - 6m`
+  - Variant A: POST with `X-Compozy-Webhook-Timestamp` set to `now - 6m`
     and a signature computed against the stale timestamp. Expect 4xx
     `webhook timestamp outside freshness window`.
   - Variant B: POST with timestamp `now + 6m` (future skew). Expect 4xx.
@@ -1176,15 +1176,15 @@ risk: medium
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
+  - Fresh COMPOZY_HOME.
   - One trigger registered with `event = session.created`,
     `prompt = "A session named {{.Data.session_name}} was just created"`.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:372-378
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/trigger.go:985-1027
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:1100-1118 (renderTriggerPrompt)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:372-378
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/trigger.go:985-1027
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:1100-1118 (renderTriggerPrompt)
 steps:
-  - Create a new session via `agh sessions create --workspace ...`.
+  - Create a new session via `compozy sessions create --workspace ...`.
   - Wait up to 30s for the trigger to fire.
   - Snapshot `automation_runs` filtered to the trigger.
   - Read the spawned session's transcript.
@@ -1225,7 +1225,7 @@ preconditions:
   - Same setup as CRN-06.
 steps:
   - Send a valid webhook with the old secret. Expect 200.
-  - Update the vault secret value via `agh vault put ...`.
+  - Update the vault secret value via `compozy vault put ...`.
   - Send a webhook signed with the OLD secret. Expect 4xx invalid
     signature.
   - Send a webhook signed with the NEW secret. Expect 200.
@@ -1256,11 +1256,11 @@ risk: medium
 live: true
 provider: real-claude-code
 preconditions:
-  - Fresh AGH_HOME.
+  - Fresh COMPOZY_HOME.
   - Cron `*/1 * * * *` with `fire_limit = { max: 1, window: "5m" }`.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/dispatch.go:554-622
-  - /Users/pedronauck/Dev/compozy/agh/internal/automation/schedule.go:682-716
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/dispatch.go:554-622
+  - /Users/pedronauck/Dev/compozy/compozy/internal/automation/schedule.go:682-716
 steps:
   - Let the first fire happen.
   - The next minute's fire should hit the limit and be deferred.
@@ -1339,8 +1339,8 @@ error, or audit log across any CRN scenario:
 - Any reference to the deleted legacy `recipe`/`workflow`/`procedure`
   vocabulary in trigger prompts or run errors (per
   `docs/_memory/glossary.md` — canonical term is `capability`).
-- Any literal `cron.run` / `cron.runs` openclaw vocabulary in AGH
-  prompts: AGH uses `agh automation jobs trigger <id>`, not `cron.run`.
+- Any literal `cron.run` / `cron.runs` openclaw vocabulary in Compozy
+  prompts: Compozy uses `compozy automation jobs trigger <id>`, not `cron.run`.
   Templates copied from the openclaw fixtures must be rewritten before
   use.
 

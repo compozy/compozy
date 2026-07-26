@@ -1,6 +1,6 @@
 # QA — Living Docs
 
-Canonical QA tree for AGH. Owned by the `qa-report` (planning) + `qa-execution` (sessions) skill pair; `real-scenario-qa` (playbook lab + runtime observation) also lands its findings here. One tree, forever: rounds append, ids never reset, history lives in dated reports.
+Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-execution` (sessions) skill pair; `real-scenario-qa` (playbook lab + runtime observation) also lands its findings here. One tree, forever: rounds append, ids never reset, history lives in dated reports.
 
 ## Layout
 
@@ -10,7 +10,7 @@ Canonical QA tree for AGH. Owned by the `qa-report` (planning) + `qa-execution` 
 - `journeys/J-<slug>.md` — journey maps + Mermaid flows. Existing `J-01..J-32` ids are grandfathered.
 - `charters/CH-<slug>.md` — immutable session missions. Existing `CH-001..CH-052` ids are grandfathered; debriefs belong only in run reports.
 - `reports/<YYYY-MM-DD>-<scope>.md` — one per run, never overwritten
-- `evidence/<date>-<scope>/` — checkpoint/failure screenshots + cited run artifacts only (lean). **Skeeper-managed** (`git@github.com:compozy/specs.git`, namespace `agh`, pattern `docs/qa/evidence/**`): gitignored from the main repo, mirrored to the sidecar, restored via `skeeper restore --all`. Reports reference evidence by repo-relative path, which resolves after restore. Uncited bulk dumps are pruned before sync.
+- `evidence/<date>-<scope>/` — checkpoint/failure screenshots + cited run artifacts only (lean). **Skeeper-managed** (`git@github.com:compozy/specs.git`, namespace `compozy`, pattern `docs/qa/evidence/**`): gitignored from the main repo, mirrored to the sidecar, restored via `skeeper restore --all`. Reports reference evidence by repo-relative path, which resolves after restore. Uncited bulk dumps are pruned before sync.
 - `automation-backlog/<slug>.md` — one conflict-resistant automation intent per file.
 - `templates/` — project copies of scenario, bug, charter, and report templates.
 
@@ -30,9 +30,9 @@ New areas: define the code here first, then mint ids.
 
 ## Entry points
 
-- CLI: `agh` (structured output; UDS + HTTP parity)
-- Web: `make web-dev` (export `AGH_WEB_API_PROXY_TARGET` from the bootstrap manifest for isolated labs)
-- Release/scenario labs: `agh-qa-bootstrap` skill (isolated `AGH_HOME`/ports/provider homes; see CLAUDE.md Workflow Rules)
+- CLI: `compozy` (structured output; UDS + HTTP parity)
+- Web: `make web-dev` (export `COMPOZY_WEB_API_PROXY_TARGET` from the bootstrap manifest for isolated labs)
+- Release/scenario labs: `agh-qa-bootstrap` skill (isolated `COMPOZY_HOME`/ports/provider homes; see CLAUDE.md Workflow Rules)
 
 ## Adopted from
 
@@ -49,7 +49,7 @@ New areas: define the code here first, then mint ids.
 
 - The legacy `state.csv` was seeded from the feature-stories tracker (253 stories, cycle 2026-06). Its frozen origin and five subsystem analyses live in `_seeds/feature-stories/`; its rows now live in `scenarios/`. Original prose statuses remain in scenario bodies (`migrated-status:`). Empty journey fields remain intentional until a journey flow legitimately owns the behavior.
 - `bugs/BUG-0001..0017` re-minted from the feature-stories registry (old per-round `BUG-001..017`); impact tiers unclassified — classify on next touch.
-- **Evidence caveat:** the origin lab (`~/dev/qa-labs/agh-feature-stories-20260621-...-lab/`) was accidentally deleted during the 2026-07-05 cleanup, so its lab-relative `qa/evidence/...` and `qa/issues/...` paths in scenario files are dangling. Treat those migrated `pass` verdicts as historical claims backed by the surviving `file:line` code citations; the next Full cycle re-validates with fresh evidence.
+- **Evidence caveat:** the origin lab (`~/dev/qa-labs/compozy-feature-stories-20260621-...-lab/`) was accidentally deleted during the 2026-07-05 cleanup, so its lab-relative `qa/evidence/...` and `qa/issues/...` paths in scenario files are dangling. Treat those migrated `pass` verdicts as historical claims backed by the surviving `file:line` code citations; the next Full cycle re-validates with fresh evidence.
 - `_seeds/final-qa/` — pre-release master plan (283 scenarios across 15 modules) + openclaw/hermes QA pattern libraries, from the retired `.compozy/tasks/final-qa/`. Mine into journeys/charters as cycles touch each module, then prune.
 - `_seeds/qa-e2e-playbook.md` — the 2026-04 E2E playbook (evidence standard, execution profiles, suite matrix, automation backlog seed), formerly `docs/ideas/qa-e2e/`.
 - Historical per-round QA trees (29 under `.compozy/tasks/_archived/*/qa/`), `final-qa/_runs/` evidence, and 28 stale external labs were deleted on 2026-07-05 (no live references; ids collided across rounds and were never migrated).

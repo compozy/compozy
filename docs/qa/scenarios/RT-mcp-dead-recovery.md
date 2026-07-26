@@ -5,7 +5,7 @@ title: Diagnose and automatically recover a dead MCP server
 persona: Dora
 journey: J-offer-runnable-capabilities
 expected: Five confirmed permanent failures mark only the affected workspace MCP server dead; settings, status, doctor, Web, native status, and same-lifetime retained tool descriptors expose a redacted reason; ordinary attempts are suppressed; one due probe succeeds and clears the mark without a daemon restart.
-entry_points: Web /mcp; GET /api/settings/mcp-servers; GET /api/status; agh status; agh doctor --only mcp; compozy__mcp_status; compozy__tool_info; MCP tool discovery
+entry_points: Web /mcp; GET /api/settings/mcp-servers; GET /api/status; compozy status; compozy doctor --only mcp; compozy__mcp_status; compozy__tool_info; MCP tool discovery
 qa_status: untested
 bug_ids:
 fix_status:
@@ -20,7 +20,7 @@ Configure the same stdio MCP server in two workspaces. Terminate the first works
 drive five confirmed permanent discovery failures. Confirm only that workspace reports `dead` and
 `backend_dead`, its last-known tools remain diagnosable but unavailable, and repeated access inside
 the 60-second window does not relaunch the process. Repair the server, wait for the recovery window,
-then trigger one runtime access and confirm the server returns to ready without restarting AGH.
+then trigger one runtime access and confirm the server returns to ready without restarting Compozy.
 Confirm doctor observes the mark without consuming the recovery attempt and that no manual revive
 control appears.
 

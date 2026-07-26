@@ -25,10 +25,10 @@ The command judge for a session-origin Goal runs as an unrestricted `general` Cu
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-lifecycle-blocked-after-three-turns.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-judge-sessions-remain-active.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/evidence/investigate-judge-malformed-turn1.json`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/goal-judge-clear-residual.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-lifecycle-blocked-after-three-turns.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/goal-judge-sessions-remain-active.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/evidence/investigate-judge-malformed-turn1.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/goal-judge-clear-residual.dom.txt`
 - Goals `looprun-5a1acf5934fef596` and `looprun-1667f72b7cdb7128`; active judge sessions `sess-37f86bd295697c71`, `sess-f49398af9db4c77d`, and `sess-14af1951acb1bcae`.
 
 ## Fix
@@ -42,7 +42,7 @@ The command judge for a session-origin Goal runs as an unrestricted `general` Cu
 - Automated production integration is green under race, including three stopped temporary judges and stable IDs after restart.
 - Fresh real Cursor/Grok 4.5 replay passed. Goal `looprun-a6a4368bf1fc8c49` completed in one turn; judge `sess-284fdef67433e103` emitted one strict JSON verdict, performed no tool calls, stopped, and left no active temporary system session. The Run settled `done` with authoritative `{"status":"complete"}` output.
 - A second active-judge replay cleared Goal `looprun-d8466636e525f1e5`; temporary judge `sess-3e07f85d0d2ac987` stopped with `user_canceled`, no system session remained active, and no successor generation was admitted.
-- Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/network/catalog-global-goal-acceptance.json`, `qa/screenshots/catalog-global-goal-approved.png`, and `qa/screenshots/goal-clear-during-judge-joined.png` in the same lab.
+- Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/network/catalog-global-goal-acceptance.json`, `qa/screenshots/catalog-global-goal-approved.png`, and `qa/screenshots/goal-clear-during-judge-joined.png` in the same lab.
 
 ## Re-found (2026-07-13)
 

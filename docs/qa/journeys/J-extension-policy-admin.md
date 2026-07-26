@@ -5,7 +5,7 @@ The PRD admin journey plus the curation-administration story it implies: the pol
 ```mermaid
 flowchart TD
   A[Entry: Settings > Extensions] --> B[Policy page shows exactly registry, base_url, allow_unverified — real keys only]
-  A2[Entry: agh config set extensions.marketplace.allow_unverified / marketplace.catalog.*] --> B
+  A2[Entry: compozy config set extensions.marketplace.allow_unverified / marketplace.catalog.*] --> B
   A3[Entry: blocked-install pointer from Marketplace] --> B
   B --> C{Flip allow_unverified true}
   C --> D[Live apply, no restart; Marketplace blocked affordances flip to warning-confirm]
@@ -35,11 +35,11 @@ journey:
       origin: in-app-nav
     - url: /settings/hooks
       origin: in-app-nav
-    - url: agh config set extensions.marketplace.allow_unverified <bool>
+    - url: compozy config set extensions.marketplace.allow_unverified <bool>
       origin: direct
-    - url: agh config set marketplace.catalog.<base_url|ttl|timeout>
+    - url: compozy config set marketplace.catalog.<base_url|ttl|timeout>
       origin: direct
-    - url: agh.network/runtime/core/configuration
+    - url: compozy.com/runtime/core/configuration
       origin: external-share
   actions:
     - step: 1

@@ -1,7 +1,7 @@
 # Loops - Design Specification
 
 > **What this document is.** A complete, implementation-facing specification of the
-> AGH "Loops" feature *as designed* in the high-fidelity HTML mockups. It records the
+> Compozy "Loops" feature *as designed* in the high-fidelity HTML mockups. It records the
 > screens, their components, the data each surface reads/writes, the interactions, and
 > the domain model the UI assumes.
 >
@@ -14,9 +14,9 @@
 >    interaction behavior.
 >
 > **Sources of truth (do not contradict).**
-> - Spec: `/Users/pedronauck/dev/compozy/agh/.compozy/tasks/loops/` (`_prd.md`,
+> - Spec: `/Users/pedronauck/dev/compozy/compozy/.compozy/tasks/loops/` (`_prd.md`,
 >   `_techspec.md`, `product-ux.md`, `use-cases.md`, `requirements.md`, `adrs/`, `analysis/`).
-> - Design system: `agh/DESIGN.md` + `PRODUCT.md` (tokens from `packages/ui/src/tokens.css`).
+> - Design system: `compozy/DESIGN.md` + `PRODUCT.md` (tokens from `packages/ui/src/tokens.css`).
 > - Design intent + history: `LOOPS-HANDOFF.md` (this folder).
 > - The mockups: `loops-index.html`, `loops-catalog.html`, `loop-detail.html`,
 >   `loop-run-form.html`, `run-detail.html`, `runs.html`, `loop-editor.html`,
@@ -54,7 +54,7 @@ one `.pill--*` status vocabulary, and one type scale.
   executions). No third noun. `[shipped-in-spec]`
 - A **Loop** = a **contract** (goal, definition-of-done, verification, stop conditions)
   + a **body** (a static DAG of typed nodes) + typed **declared inputs**. It executes on
-  AGH's autonomy kernel, not a second executor. `[shipped-in-spec]`
+  Compozy's autonomy kernel, not a second executor. `[shipped-in-spec]`
 - **Arrive-and-use is the hero path:** pick a Loop, fill an auto-generated input form,
   Run, watch it iterate live. Built-ins run with zero authoring. `[shipped-in-spec]`
 - Runs iterate across **generations**. Default re-attempt strategy `failed-only` (re-runs
@@ -73,7 +73,7 @@ one `.pill--*` status vocabulary, and one type scale.
   built-in. There is no blank-canvas from-scratch builder in v1. `[shipped-in-spec]`
 - **Start bindings (ADR-007):** a Loop declares how it may be initiated via the DSL
   `start[]` allowlist (`manual|cli|http|uds|trigger|schedule|webhook|network|extension|native_tool`).
-  Event-driven starts (trigger/schedule/webhook) are carried by AGH's existing automation
+  Event-driven starts (trigger/schedule/webhook) are carried by Compozy's existing automation
   primitives: a Trigger or Job gains a discriminated target, `Run agent` (today) or `Run loop`
   `{workspace, loop, static inputs, event-payload → input mapping}` (spec-only, TechSpec §9.14).
   A watch-source is a node INSIDE the body, never a start binding; the two concepts are never
@@ -301,7 +301,7 @@ approval gate.
   + prepends events (guarded by reduced-motion).
 - **Spec terms surfaced.** live + terminal states (11-state enum); generations; attempts
   vs iteration_cap; token/wall/cost/breadth meters; no-progress window count; node
-  classes/kinds incl. channel posting via `agh__network_send` with
+  classes/kinds incl. channel posting via `compozy__network_send` with
   `harvest: {kind: channel_result, window, responder?, content_rule?}` (the UC2
   converse-and-decide convention, ADR-021; `channel-post` is not a kind); gate verdict +
   routing (`revise`/`next_generation`); carry-forward (failed-only); `needs-approval`
@@ -349,7 +349,7 @@ approval gate.
 - **Key components.**
   - **Palette ("Add node").** Grouped by class: Action (the three reserved kinds
     run-agent / run-loop / transform, a curated tool shortlist incl. a "Channel post"
-    shortcut that inserts a pre-filled `agh__network_send` node, and a searchable
+    shortcut that inserts a pre-filled `compozy__network_send` node, and a searchable
     "Call tool..." picker over the full 181-tool registry, ADR-021), Control (fan-out,
     collect, branch, gate, sub-loop), Source (watch-source, file-import, input). Drag
     affordance. Fork-and-edit note.
@@ -376,7 +376,7 @@ approval gate.
       | {template: "{{ ... }}"}).
     - action/any ToolID: id, kind (the literal ToolID), params form generated from the
       tool's registry input schema (template-interpolated); optional harvest (e.g.
-      `channel_result` on `agh__network_send`).
+      `channel_result` on `compozy__network_send`).
     - control/gate: id, criteria rows ({id, type: command|agent-judge|human|extension,
       per-type fields incl. rubric templates}), verdict_policy (revise_until_clean |
       fixed_passes; the linter requires a judge/human criterion for revise_until_clean),
@@ -494,9 +494,9 @@ tool schemas are the canonical schema source; the editor inspector renders FROM 
   - `transform` (reserved): `params.map: { <key>: {from: <namespace path>} | {value:
     literal} | {template: "{{ ... }}"} }`; pure in-daemon reshaping, the confinement for
     complex mapping.
-  - **any ToolID** (`agh__*` / `ext__*` / `mcp__*`, 181 native tools): `params` = the
+  - **any ToolID** (`compozy__*` / `ext__*` / `mcp__*`, 181 native tools): `params` = the
     tool's input schema (template-interpolated); the editor form is generated from the
-    registry schema. Channel posting is `kind: agh__network_send` + optional
+    registry schema. Channel posting is `kind: compozy__network_send` + optional
     `harvest: {kind: channel_result, window, responder?, content_rule?}` (the UC2
     result convention; the `channel-post` primitive is retired, ADR-021).
 - **control** (closed enum): `fan-out` (`collection: "{{ .nodes.<id>.output.<path> }}"`
@@ -564,7 +564,7 @@ read-only **run fact** on `run-detail`, never chosen on the run form.
 The DSL `start[]` allowlist
 (`manual|cli|http|uds|trigger|schedule|webhook|network|extension|native_tool`) declares how a
 Loop may be initiated; the definition is the only place it is edited. Event-driven kinds
-(trigger/schedule/webhook) are carried by AGH's existing automation primitives via a
+(trigger/schedule/webhook) are carried by Compozy's existing automation primitives via a
 discriminated target on Trigger/Job: `Run agent` (today) or `Run loop`
 `{workspace, loop, static inputs, event-payload → input mapping}` (spec-only, TechSpec §9.14;
 no design HTML for those sheets). Surfacing rules as designed:
@@ -677,10 +677,10 @@ Round-5 write surfaces (ADR-023):
   exclusively consumes the resolved projection, never the author YAML.
 
 Every UI action must have a CLI/HTTP/UDS equivalent over the same daemon state
-(agent-manageability, PRODUCT.md principle 3): `agh loop list|inspect|create|edit|validate`,
-`agh run start|list|inspect|pause|resume|stop|approve`. Validation is also a native-tool
-surface: `agh__loop_validate` (equivalently a `validate` mode on `agh__loop_create`,
-alongside the `agh__loop_*` management tools:
+(agent-manageability, PRODUCT.md principle 3): `compozy loop list|inspect|create|edit|validate`,
+`compozy run start|list|inspect|pause|resume|stop|approve`. Validation is also a native-tool
+surface: `compozy__loop_validate` (equivalently a `validate` mode on `compozy__loop_create`,
+alongside the `compozy__loop_*` management tools:
 `list|describe|run|status|runs|stop|pause|resume|configure|approve|create|delete`)
 mirrors `POST /loops/:name/validate` (ADR-021/023).
 
@@ -709,7 +709,7 @@ close/reopen; runs outcome filter.
 - **Proposal.** Either (a) add dry-run to the spec with explicit semantics (validate inputs
   against the input schema + contract, render the gen-1 plan/preview, spend no budget,
   create no Run, return a plan artifact), exposed as `POST /loops/:name/runs?dry=true` and
-  `agh run start --dry-run`; or (b) drop the control from the UI. Recommend (a): it is a
+  `compozy run start --dry-run`; or (b) drop the control from the UI. Recommend (a): it is a
   cheap, honest operator affordance.
 
 ### 9.2 Branch condition AST `[P0 for the editor]` - RESOLVED (ADR-020)
@@ -727,14 +727,14 @@ close/reopen; runs outcome filter.
   `paused`.
 - **Question.** Confirm the daemon supports pause/resume/stop of a live run and the
   `paused` state transitions.
-- **Proposal.** Confirm in TechSpec + expose `agh run pause|resume|stop` and the HTTP
+- **Proposal.** Confirm in TechSpec + expose `compozy run pause|resume|stop` and the HTTP
   equivalents; define what "pause" means mid-generation (boundary vs immediate).
 
 ### 9.4 Global Runs route `[P2 / IA]`
 - **Design.** `runs.html` is a global, workspace-wide run history with KPIs.
 - **Question.** `product-ux.md` says run history lives under each Loop with no separate
   global Runs nav route.
-- **Proposal.** Decide: (a) adopt global Runs as an operator convenience (update
+- **Proposal.** Decide: (a) adopt global Runs As a person running agent work convenience (update
   product-ux + add a workspace run index + nav entry), or (b) fold it into
   catalog/loop-detail and keep `runs.html` only as the "All runs" target. Recommend (a):
   the "Awaiting you" / active-across-loops view is operationally valuable.
@@ -761,7 +761,7 @@ close/reopen; runs outcome filter.
 - **Question.** Confirm the daemon has a per-loop **config** store distinct from the loop
   **definition**, and the exact boundary of what config can change.
 - **Proposal.** Define `loop config` as a separate persisted object (`GET/PUT
-  /loops/:name/config`, `agh loop config`); document the no-fork boundary verbatim
+  /loops/:name/config`, `compozy loop config`); document the no-fork boundary verbatim
   (the "what cannot change" list in 4.7).
 
 ### 9.7 Node layout persistence `[P1 for editor]`
@@ -776,20 +776,20 @@ close/reopen; runs outcome filter.
 - **Question.** Confirm the human-gate decision set and that `Request changes` routes to
   `revise` (next generation) while `Reject & halt` → terminal `failed`/halt.
 - **Proposal.** Document the decision verbs + their routing in the gate/ADR-005 section and
-  expose `agh run approve|request-changes|reject`.
+  expose `compozy run approve|request-changes|reject`.
 
 ### 9.9 channel-post / converse-and-decide as runtime primitive `[P0]` - REVERSED (ADR-021)
 - **Design (round 4).** `run-detail` rendered an embedded multi-agent channel as a
   first-class `channel-post` action node with a harvested decision; the editor palette
   offered `channel-post`.
 - **Resolution (ADR-021, delete target).** The `channel-post` primitive is retired and
-  does not exist as a kind. Channel posting is `kind: agh__network_send`; the UC2
+  does not exist as a kind. Channel posting is `kind: compozy__network_send`; the UC2
   converse-and-decide completion contract survives as the **harvest spec**, not a kind:
   the node may declare `harvest: {kind: channel_result, window, responder?,
   content_rule?}` (post the request, await the designated result message, harvest its
   payload; no result within the window → `stalled`, unchanged ADR-014 semantics). The
   editor palette keeps a "Channel post" shortcut that inserts a pre-filled
-  `agh__network_send` node, so the UX survives while the dual path is eliminated. The
+  `compozy__network_send` node, so the UX survives while the dual path is eliminated. The
   run-detail channel surface stays and binds to the tool node plus its harvest.
 
 ### 9.10 Picker data sources: agent / ref / file kinds `[P1]`
@@ -828,7 +828,7 @@ close/reopen; runs outcome filter.
   and the run-form hint. The trigger/job create sheets gain a discriminated **target**,
   `Run agent` (today) or `Run loop` `{workspace, loop, static inputs, event-payload → input
   mapping}`; that change is spec-only (TechSpec §9.14) and intentionally has NO design HTML
-  in this pass (the sheets are existing AGH automation surfaces).
+  in this pass (the sheets are existing Compozy automation surfaces).
 - **Question.** Confirm the daemon surface for listing automations by loop target (name,
   kind, enabled state, cron + next fire, endpoint slug, event name) and the pre-targeted
   deep-link contract for `Add trigger` / `Add schedule`.
@@ -846,8 +846,8 @@ close/reopen; runs outcome filter.
   (CAS); a mismatch returns 409 with the current version, so two agents editing the same
   loop can no longer last-write-wins each other. Publish compiles and persists the
   resolved form the runtime exclusively consumes. The editor must surface a
-  version-conflict state on save; the same validate surface ships as `agh loop validate`
-  and a `validate` mode on `agh__loop_create`.
+  version-conflict state on save; the same validate surface ships as `compozy loop validate`
+  and a `validate` mode on `compozy__loop_create`.
 
 ### 9.16 Run status enum: 8 → 11 states `[P0]` - ADDED (ADR-021/022)
 - **Design impact.** The run status enum is exactly 11 states: live `running | watching
@@ -856,7 +856,7 @@ close/reopen; runs outcome filter.
   stalled`. `no_op` (ran, nothing to do) renders neutral and is never shown as
   `done`-with-fake-work; `blocked` (external dependency) renders in the warning family,
   distinct from `stalled`. Every status surface (pills, runs filters, KPI copy,
-  terminal-outcome legend, SSE `status_changed`, CLI, `agh__loop_status`) uses only
+  terminal-outcome legend, SSE `status_changed`, CLI, `compozy__loop_status`) uses only
   these; `ready` is a node-level pill only, never a run status.
 
 ### 9.17 run-agent params: agent + prompt `[P0]` - ADDED (ADR-021)
@@ -902,7 +902,7 @@ close/reopen; runs outcome filter.
 ---
 
 ## 10. Open decisions (carried from the handoff, now consolidated)
-- **Palette:** AGH operator (warm-dark + orange), matching the real app. A Linear-indigo
+- **Palette:** Compozy operator (warm-dark + orange), matching the real app. A Linear-indigo
   reskin is a pure token swap.
 - **App shell:** mockups are content + header only; the real app supplies rail/sidebar.
 - **Editor canvas texture:** a very subtle dot-grid (functional "this is a canvas" signal)

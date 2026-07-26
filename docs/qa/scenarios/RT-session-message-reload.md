@@ -11,7 +11,7 @@ bug_ids: BUG-20260713-session-user-message-reorders-or-disappears
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/session-delete/delete-transcript-before.json; /Users/pedronauck/dev/qa-labs/agh-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/screenshots/session-delete-message.png
+evidence: /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/session-delete/delete-transcript-before.json; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/screenshots/session-delete-message.png
 last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
 overlaps: RT-045, RT-058, TA-089
 ---

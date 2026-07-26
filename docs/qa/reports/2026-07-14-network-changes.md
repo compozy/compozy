@@ -11,7 +11,7 @@
 | --- | --- | --- | --- |
 | Ada | Agent operator | desktop / flaky or wifi-fast / en-US | CH-live-bounds-agent-path, CH-network-local-session-canary |
 | Bruno | Autonomy and Network operator | desktop / wifi-fast / en-US | CH-network-admin-lifecycle, CH-coordination-future-runs |
-| Nia | Solo builder discovering AGH | laptop / wifi-fast / en-US | CH-network-local-default |
+| Nia | Solo builder discovering Compozy | laptop / wifi-fast / en-US | CH-network-local-default |
 | Mateo Rivera | Helix CLI founder/operator | desktop / production-like provider path / en-US | devtool-oss-launch companion inside CH-live-bounds-agent-path |
 
 ## Flows in Scope
@@ -41,7 +41,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Open-registry awareness:** the existing autonomous one-kickoff completion stall remains open. A recurrence is appended to that bug as re-found; the observer never sends a second prompt.
 - **Runtime E2E lane:** PASS — the first post-rebase `rtk make test-e2e-runtime` exposed two Network fixtures still using the removed occurrence-based ACP matcher. The existing daemon E2E fixtures now select causal message metadata; both failing tests passed under focused `-race`, and the complete gate then exited 0. The earlier `running` → `active` assertion correction remains covered by the same complete gate.
 - **Web E2E lane:** PASS — `rtk make test-e2e-web` exited 0 after fresh codegen check, Web build, and the complete daemon-served Playwright lane.
-- **Manifest/teardown register:** `CH-live-bounds-agent-path` used companion manifest `/Users/pedronauck/dev/qa-labs/agh-devtool-oss-launch-20260715-054443-670777-lab/qa-artifacts/qa/bootstrap-manifest.json` and deterministic manifest `/Users/pedronauck/dev/qa-labs/agh-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/bootstrap-manifest.json`. Both `qa/teardown.json` files report `clean: true` and zero survivors; the deterministic teardown reaped registered daemon PID 96663. `CH-network-admin-lifecycle` used manifest `/Users/pedronauck/dev/qa-labs/agh-network-admin-lifecycle-20260715-065421-388927-lab/qa-artifacts/qa/bootstrap-manifest.json`; its `qa/teardown.json` reports `clean: true`, zero survivors, and reaped registered Web PID 17038 plus daemon PID 42469. `CH-coordination-future-runs` used manifest `/Users/pedronauck/dev/qa-labs/agh-network-coordination-future-runs-20260715-081644-086405-lab/qa-artifacts/qa/bootstrap-manifest.json`; its `qa/teardown.json` reports `clean: true`, zero survivors, and reaped registered daemon PID 108. `CH-network-local-default` used manifest `/Users/pedronauck/dev/qa-labs/agh-network-local-default-20260715-095346-610866-lab/qa-artifacts/qa/bootstrap-manifest.json`; its `qa/teardown.json` reports `clean: true`, zero survivors, and reaped registered Web PID 47301 plus daemon PID 56091. `CH-network-local-session-canary` used manifest `/Users/pedronauck/dev/qa-labs/agh-network-local-session-canary-20260715-114820-089792-lab/qa-artifacts/qa/bootstrap-manifest.json`; its `qa/teardown.json` reports `clean: true`, zero survivors, and reaped the registered follow clients plus daemon PID 89467 and runtime holder PID 89479.
+- **Manifest/teardown register:** `CH-live-bounds-agent-path` used companion manifest `/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260715-054443-670777-lab/qa-artifacts/qa/bootstrap-manifest.json` and deterministic manifest `/Users/pedronauck/dev/qa-labs/compozy-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/bootstrap-manifest.json`. Both `qa/teardown.json` files report `clean: true` and zero survivors; the deterministic teardown reaped registered daemon PID 96663. `CH-network-admin-lifecycle` used manifest `/Users/pedronauck/dev/qa-labs/compozy-network-admin-lifecycle-20260715-065421-388927-lab/qa-artifacts/qa/bootstrap-manifest.json`; its `qa/teardown.json` reports `clean: true`, zero survivors, and reaped registered Web PID 17038 plus daemon PID 42469. `CH-coordination-future-runs` used manifest `/Users/pedronauck/dev/qa-labs/compozy-network-coordination-future-runs-20260715-081644-086405-lab/qa-artifacts/qa/bootstrap-manifest.json`; its `qa/teardown.json` reports `clean: true`, zero survivors, and reaped registered daemon PID 108. `CH-network-local-default` used manifest `/Users/pedronauck/dev/qa-labs/compozy-network-local-default-20260715-095346-610866-lab/qa-artifacts/qa/bootstrap-manifest.json`; its `qa/teardown.json` reports `clean: true`, zero survivors, and reaped registered Web PID 47301 plus daemon PID 56091. `CH-network-local-session-canary` used manifest `/Users/pedronauck/dev/qa-labs/compozy-network-local-session-canary-20260715-114820-089792-lab/qa-artifacts/qa/bootstrap-manifest.json`; its `qa/teardown.json` reports `clean: true`, zero survivors, and reaped the registered follow clients plus daemon PID 89467 and runtime holder PID 89479.
 - **Production-parity deviations:** The real-provider companion did not progress from one kickoff into Task runs and remains blocked by `BUG-0028`. The deterministic fixture proved exact Network mechanics with ACP mock agents, but had no installable extension-host fixture or browser journey. Its strict auditor therefore failed eight generic real-scenario minimums. Automated E2E evidence is not relabeled as a manual provider pass.
 
 ## Session Debriefs
@@ -66,7 +66,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **QA-found fixes:** canonical workspace-name resolution, restart-time target resume, and taskless wake-run detail were fixed in their owning layers and live-retested. Bugs: `BUG-20260715-network-usage-workspace-name-empty`, `BUG-20260715-network-wake-restart-target-stopped`, and `BUG-20260715-taskless-network-wake-run-unreadable`.
 - **Evidence:** `docs/qa/evidence/2026-07-14-network-changes/ch-live-bounds-agent-path.md`; lab `qa/{journey-log.jsonl,qa-audit-report.json,mock-recovery-worker-v2.jsonl}`.
 - **Blocked verification:** the strict generic auditor failed eight minimums: differentiated playbook roles, root Task, Web action, cross-surface object linkage, real provider, reused artifact, final verification report, and final `make verify`. The companion supplies provider/Web attempts but remains blocked by `BUG-0028`; the two labs cannot be combined into an artificial PASS. `NB-run-bounded-live-collaboration` itself passed, while `NB-agent-manages-participation` and `NB-020` remain `blocked-verify` for the unwalked delegated-authority/unsupported/Loop and agent-channel/extension-host paths.
-- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/agh-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/teardown.json` has `clean: true`, registered PID 96663 reaped, and zero survivors.
+- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/compozy-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/teardown.json` has `clean: true`, registered PID 96663 reaped, and zero survivors.
 
 ### CH-network-admin-lifecycle — configuration, bundles, hooks, and Web
 
@@ -76,12 +76,12 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Bundles:** preview, explicit activation, list/get, requirement evidence, channel inventory, and no-enrollment semantics passed. Missing confirmation initially mapped to 400 instead of 409 and was fixed. Activation reads now expose optimistic versions; version 1 advanced to 2, then stale CLI and HTTP writes at version 1 returned resource conflict/409 without overwriting current evidence.
 - **Changed requirement constraint:** the public local-extension installer correctly rejects reinstalling an already installed extension, so this fixture could not change its manifest digest in place. The canonical service suite proves digest change advances the version, clears confirmation, rejects stale confirmation, and accepts the current version. `ET-028` remains `blocked-verify` for that manual branch rather than being synthesized as a pass.
 - **Hooks:** a real installed participation hook initially appeared in the catalog but never ran because its shared resolver captured a nil hook runtime before hook boot. After late runtime attachment, real allow, deny, narrow, and forbidden-widen paths passed.
-- **Web:** daemon-served 375/768/1280 captures prove responsive layout, visible keyboard focus, dirty/save/discard state, restart guidance, truthful zero-participant runtime state, and explicit no-enrollment copy. AGH exposes no Web bundle-activation route; CLI/HTTP/UDS/native tools are its specified management surfaces.
+- **Web:** daemon-served 375/768/1280 captures prove responsive layout, visible keyboard focus, dirty/save/discard state, restart guidance, truthful zero-participant runtime state, and explicit no-enrollment copy. Compozy exposes no Web bundle-activation route; CLI/HTTP/UDS/native tools are its specified management surfaces.
 - **QA-found fixes:** `BUG-20260715-bundle-confirmation-status-bad-request`, `BUG-20260715-participation-hooks-inert-after-boot`, and `BUG-20260715-bundle-activation-version-hidden` are fixed and retested in their owning surfaces.
 - **Evidence:** `docs/qa/evidence/2026-07-14-network-changes/ch-network-admin-lifecycle.md`; lab `qa/{journey-log.jsonl,screenshots/}`.
 - **Verdict:** 11 scenarios pass; `ET-028` is `blocked-verify` only for the unavailable public changed-extension fixture.
 - **Strict audit:** FAIL with 10 generic release-playbook blockers: actor/role/channel minimums, Task root/run, provider surface/session, cross-surface object, reused artifact, and the still-pending cycle-final `make verify`. These are not administrative-charter claims and were not synthesized.
-- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/agh-network-admin-lifecycle-20260715-065421-388927-lab/qa-artifacts/qa/teardown.json` has `clean: true`, both registered long-lived processes reaped, and zero survivors.
+- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/compozy-network-admin-lifecycle-20260715-065421-388927-lab/qa-artifacts/qa/teardown.json` has `clean: true`, both registered long-lived processes reaped, and zero survivors.
 
 ### CH-coordination-future-runs — invitation, shared run conversation, and Web
 
@@ -96,25 +96,25 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Evidence:** `docs/qa/evidence/2026-07-14-network-changes/ch-coordination-future-runs.md`; lab `qa/{journey-log.jsonl,qa-audit-report.json,screenshots/}`.
 - **Verdict:** both scenarios pass after fixes.
 - **Strict audit:** FAIL with 10 generic release-playbook blockers: actor/role/channel minimums, root Task marker, CLI/provider/runtime log rows, cross-surface object, real provider session, reused artifact, disruption probe, and cycle-final `make verify`. These are not claims of this focused charter and were not synthesized.
-- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/agh-network-coordination-future-runs-20260715-081644-086405-lab/qa-artifacts/qa/teardown.json` has `clean: true`, registered daemon PID 108 reaped, and zero survivors.
+- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/compozy-network-coordination-future-runs-20260715-081644-086405-lab/qa-artifacts/qa/teardown.json` has `clean: true`, registered daemon PID 108 reaped, and zero survivors.
 
 ### CH-network-local-default — ordinary Local owners and discoverability
 
 - **Persona / tour:** Nia · Feature Tour.
 - **Setup:** fresh manifest `network-local-default-20260715-095346-610866`; isolated daemon on port 56385; deterministic `local-default` ACP mock; current worktree Web build served by the daemon.
 - **Owner matrix:** omitted participation resolved Local for ordinary session, spawned and detached children, Task run/review, CLI and HTTP/Web Loop runs, Automation Job, and Trigger-backed execution. The Task completed through claim, start, handoff, completion, exact idempotent replay, and daemon restart without a Network channel, wake, prompt fragment, tool capability, or usage row.
-- **Context and boundaries:** Local agent context exposed no coordination fiction; every `agh__network*` descriptor remained non-executable with `not_participating`. Legacy owner fields returned named `400 unknown_field` errors before mutation. Empty `task next` returned no claim token, while `--wait` remained blocked until controlled cancellation.
+- **Context and boundaries:** Local agent context exposed no coordination fiction; every `compozy__network*` descriptor remained non-executable with `not_participating`. Legacy owner fields returned named `400 unknown_field` errors before mutation. Empty `task next` returned no claim token, while `--wait` remained blocked until controlled cancellation.
 - **Web and docs:** onboarding, Network ready/disabled empties, Settings, the public guide, and the official skill agreed on Local-by-default and explicit future Live participation. Session, Task, Loop, and Automation controls rendered Local/Live truthfully at 375/768/1280 px without submitting the probes.
 - **QA-found fixes:** `BUG-20260715-network-ready-empty-unoriented`, `BUG-20260715-loop-participation-contract-dropped`, `BUG-20260715-automation-task-participation-control-missing`, `BUG-20260715-automation-editor-compact-layout-clipped`, and `BUG-20260715-loop-run-compact-layout-collapsed` are fixed and retested in their owning contract, component, and rendered surfaces.
 - **Evidence:** `docs/qa/evidence/2026-07-14-network-changes/ch-network-local-default.md`; lab `qa/{journey-log.jsonl,qa-audit-report.json,screenshots/}`; visual-contract envelope `/tmp/agh-ui-screenshot.9xvTyy` with `teardown.json` `clean: true`.
 - **Verdict:** all nine scenarios pass after fixes.
 - **Strict audit:** FAIL with six generic release-playbook blockers: actor/role/channel minimums, one real Live provider-backed session, one later-reused artifact, and cycle-final `make verify`. Those minimums contradict or exceed this focused zero-Network Local charter and were not synthesized; its Task root/run, provider surface, disruption probe, and cross-surface object linkage passed.
-- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/agh-network-local-default-20260715-095346-610866-lab/qa-artifacts/qa/teardown.json` has `clean: true`, registered Web PID 47301 and daemon PID 56091 reaped, and zero survivors.
+- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/compozy-network-local-default-20260715-095346-610866-lab/qa-artifacts/qa/teardown.json` has `clean: true`, registered Web PID 47301 and daemon PID 56091 reaped, and zero survivors.
 
 ### CH-network-local-session-canary — adjacent ordinary session lifecycle
 
 - **Persona / tour:** Ada · Feature Tour.
-- **Setup:** fresh manifest `network-local-session-canary-20260715-114820-089792`; isolated daemon on port 59646 and UDS `aghd.sock`; deterministic `local-canary` ACP mock; Network enabled/ready with no channel or usage.
+- **Setup:** fresh manifest `network-local-session-canary-20260715-114820-089792`; isolated daemon on port 59646 and UDS `compozyd.sock`; deterministic `local-canary` ACP mock; Network enabled/ready with no channel or usage.
 - **Lifecycle:** omitted participation created `sess-dac16c82d9215e16` as immutable Local. A raw CLI follow reconstructed one user/assistant/done turn while the session continued idle in background. A fenced transcript subscriber remained open through stop, received the terminal delta through cursor 7, and closed without a recorder-unavailable error.
 - **Transcript:** one-entry REST pages walked stable start cursors 4, 3, 2, and 1 with constant epoch/generation/max sequence. Matching fences yielded one bounded delta; missing fences yielded `reset=true, reason=fence_missing`. HTTP and UDS bodies matched for each page and SSE payload.
 - **Parity and restart:** stopped list, detail, and transcript were byte-identical across HTTP/UDS. Status and recap matched after masking only the contract's server-set timestamps. The same comparisons passed after a controlled daemon restart, with the Local snapshot and complete transcript unchanged.
@@ -122,7 +122,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Evidence:** `docs/qa/evidence/2026-07-14-network-changes/ch-network-local-session-canary.md`; lab `qa/{journey-log.jsonl,qa-audit-report.json,logs/}`.
 - **Verdict:** both scenarios pass; no new defect or source change.
 - **Strict audit:** FAIL with 10 generic release-playbook blockers: actor/role/channel minimums, Task root/run, Web, an object spanning CLI/API/Web/runtime, a real provider, final verification report, and cycle-final `make verify`. The charter explicitly forbids Web and Live and owns no Task or multi-agent collaboration, so those minimums were not synthesized.
-- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/agh-network-local-session-canary-20260715-114820-089792-lab/qa-artifacts/qa/teardown.json` has `clean: true`; registered raw/transcript follow clients, daemon PID 89467, and runtime holder PID 89479 were reaped with zero survivors.
+- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/compozy-network-local-session-canary-20260715-114820-089792-lab/qa-artifacts/qa/teardown.json` has `clean: true`; registered raw/transcript follow clients, daemon PID 89467, and runtime holder PID 89479 were reaped with zero survivors.
 
 ## Experiential Lens Pass
 
@@ -148,7 +148,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ### Named workspace Network usage queried the wrong store key
 
-- **Symptom:** `agh network usage --workspace bounds-lab -o json` returned an empty report despite settled wakes in that registered workspace.
+- **Symptom:** `compozy network usage --workspace bounds-lab -o json` returned an empty report despite settled wakes in that registered workspace.
 - **Root cause:** the shared API route resolver validated the name but returned the raw route token rather than the canonical resolved workspace ID.
 - **Fix:** `requireRouteWorkspaceID` now returns the resolved ID; no store sees a workspace name as an ownership key.
 - **Regression test:** `internal/api/core/network_usage_public_test.go` routes through name `alpha`, requires query ID `ws-alpha`, and asserts the canonical response ID.
@@ -164,9 +164,9 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ### Taskless Network wake run could not be read by its public ID
 
-- **Symptom:** Network usage exposed `task_run_id=run-1e1b1175e599c620`, but `agh task run show` failed with `task id is required`.
+- **Symptom:** Network usage exposed `task_run_id=run-1e1b1175e599c620`, but `compozy task run show` failed with `task id is required`.
 - **Root cause:** task-run detail unconditionally used the task-backed load path even though `network_wake` runs intentionally require an empty Task ID.
-- **Fix:** run detail now reads every persisted run and includes a Task reference only when one exists. OpenAPI, TypeScript, extension host, CLI human/JSON/TOON, Web task-route guard, official AGH skill, and generated contracts co-ship the optional reference.
+- **Fix:** run detail now reads every persisted run and includes a Task reference only when one exists. OpenAPI, TypeScript, extension host, CLI human/JSON/TOON, Web task-route guard, official Compozy skill, and generated contracts co-ship the optional reference.
 - **Regression test:** the canonical Task live-view suite proves a taskless Network wake returns without a fabricated Task; API, CLI, extension, and Web contract lanes pass.
 - **Retested:** CLI, HTTP, and UDS all returned the corrected live run; `make codegen-check`, four owning Go race packages (363 tests), and the full Web Turbo lane pass.
 

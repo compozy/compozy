@@ -1,6 +1,6 @@
 # Discord Bridge Provider
 
-`extensions/bridges/discord` is the production Discord bridge provider for AGH. It runs as a provider-scoped subprocess on top of `internal/bridgesdk` and multiplexes one or more owned `BridgeInstance` records inside a single Discord runtime.
+`extensions/bridges/discord` is the production Discord bridge provider for Compozy. It runs as a provider-scoped subprocess on top of `internal/bridgesdk` and multiplexes one or more owned `BridgeInstance` records inside a single Discord runtime.
 
 It implements:
 
@@ -28,7 +28,7 @@ Discord exposes a start-typing endpoint without a matching clear request. The pr
 
 ## Build and install
 
-Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+Released `compozy` artifacts do not include this provider executable. From a trusted Compozy source
 checkout, run this from the repository root with the daemon running:
 
 ```bash

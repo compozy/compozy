@@ -10,7 +10,7 @@
 
 ## Summary
 
-Dora listed effective configuration before changing a background role and saw the coordinator toggle as `roles.coordinator.roleconfig.enabled`. That path is not part of the public `[roles]` contract and cannot be used with `agh config set`; the supported path is `roles.coordinator.enabled`.
+Dora listed effective configuration before changing a background role and saw the coordinator toggle as `roles.coordinator.roleconfig.enabled`. That path is not part of the public `[roles]` contract and cannot be used with `compozy config set`; the supported path is `roles.coordinator.enabled`.
 
 ## Reproduction
 
@@ -18,7 +18,7 @@ Dora listed effective configuration before changing a background role and saw th
 - **Environment:** desktop / wifi-fast / en-US, isolated `devtool-oss-launch` lab
 
 1. Start the isolated daemon with pristine role defaults.
-2. Run `agh config list -o json`.
+2. Run `compozy config list -o json`.
 3. Inspect the entries beginning with `roles.coordinator`.
 
 **Expected:** The coordinator toggle is listed as `roles.coordinator.enabled`.
@@ -26,8 +26,8 @@ Dora listed effective configuration before changing a background role and saw th
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/config-list-roles.json`
-- Independent write-path check: `agh config set roles.coordinator.max_children 6` resolves the canonical coordinator branch and returns its bounded validation error, while the published `roleconfig` segment is absent from the supported registry.
+- `/Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/config-list-roles.json`
+- Independent write-path check: `compozy config set roles.coordinator.max_children 6` resolves the canonical coordinator branch and returns its bounded validation error, while the published `roleconfig` segment is absent from the supported registry.
 
 ## Fix
 
@@ -39,4 +39,4 @@ Dora listed effective configuration before changing a background role and saw th
 ## Verification
 
 - **Retested:** 2026-07-24, Dora / J-route-background-work baseline from a freshly rebuilt and restarted isolated daemon · **Report:** docs/qa/reports/2026-07-24-agent-roles.md
-- **Result:** `agh config list -o json` returns `roles.coordinator.enabled`; `agh config get roles.coordinator.enabled -o json` returns `false`; the invalid `roles.coordinator.roleconfig.enabled` path is absent. Package `-race` and repository lint gates pass.
+- **Result:** `compozy config list -o json` returns `roles.coordinator.enabled`; `compozy config get roles.coordinator.enabled -o json` returns `false`; the invalid `roles.coordinator.roleconfig.enabled` path is absent. Package `-race` and repository lint gates pass.

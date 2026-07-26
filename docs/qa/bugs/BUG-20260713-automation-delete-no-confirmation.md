@@ -23,8 +23,8 @@ The Job detail Delete action is an immediate destructive mutation. One click rem
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-job-delete-no-confirmation-before.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-job-delete-no-confirmation-after.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-job-delete-no-confirmation-before.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-job-delete-no-confirmation-after.dom.txt`
 - The before DOM contains one enabled `Delete` button; the immediately following DOM contains `0 jobs found` and no dialog.
 
 ## Fix

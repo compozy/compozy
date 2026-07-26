@@ -11,7 +11,7 @@ caps, workspace inheritance, permission narrowing, and cleanup.
 
 | Constraint              | Behavior                                                                                                                      |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Valid parent identity   | The caller must be an Compozy-managed session resolved from daemon-issued identity.                                           |
+| Valid parent identity   | The caller must be a Compozy-managed session resolved from daemon-issued identity.                                            |
 | TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                                       |
 | Depth cap               | The MVP default max spawn depth is `1`.                                                                                       |
 | Child cap               | The MVP default max children per parent is `5`.                                                                               |

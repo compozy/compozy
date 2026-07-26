@@ -68,7 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - React doctor fixes (#245)
 - Verify marketplace skill installs (#244)
 - Persist active workspace and redirect on session/workspace mismatch (#238)
-- Safe workspace delete and agh session remove command (#239)
+- Safe workspace delete and compozy session remove command (#239)
 - Unblock release CI (bootstrapRun complexity, stale gate tests) (#249)
 
 ### 📚 Documentation
@@ -139,7 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Module improvements (#29)
 - Memory improvements (#35)
 - Storybook for web and ui (#38)
-- Enable AGH network by default for new installs (#57)
+- Enable Compozy network by default for new installs (#57)
 - Hermes adjustments (#69)
 - Badges design (#84)
 - Storybook scenario and logos gallery
@@ -212,7 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Memory v2 (#108)
 - Agent categories (#113)
 - Providers model (#118)
-- Add canonical AGH bundled skill (#143)
+- Add canonical Compozy bundled skill (#143)
 - Onboarding and improvements (#198)
 - Onboarding and improvements (#201)
 
@@ -370,14 +370,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stabilize release e2e flows
 - Improve suite speed
 
-[0.0.9]: https://github.com/compozy/agh/compare/v0.0.8...v0.0.9
-[0.0.8]: https://github.com/compozy/agh/compare/v0.0.7...v0.0.8
-[0.0.7]: https://github.com/compozy/agh/compare/v0.0.6...v0.0.7
-[0.0.6]: https://github.com/compozy/agh/compare/v0.0.5...v0.0.6
-[0.0.5]: https://github.com/compozy/agh/compare/v0.0.4...v0.0.5
-[0.0.4]: https://github.com/compozy/agh/compare/v0.0.3...v0.0.4
-[0.0.3]: https://github.com/compozy/agh/compare/v0.0.2...v0.0.3
-[0.0.2]: https://github.com/compozy/agh/releases/tag/v0.0.2
+[0.0.9]: https://github.com/compozy/compozy/compare/v0.0.8...v0.0.9
+[0.0.8]: https://github.com/compozy/compozy/compare/v0.0.7...v0.0.8
+[0.0.7]: https://github.com/compozy/compozy/compare/v0.0.6...v0.0.7
+[0.0.6]: https://github.com/compozy/compozy/compare/v0.0.5...v0.0.6
+[0.0.5]: https://github.com/compozy/compozy/compare/v0.0.4...v0.0.5
+[0.0.4]: https://github.com/compozy/compozy/compare/v0.0.3...v0.0.4
+[0.0.3]: https://github.com/compozy/compozy/compare/v0.0.2...v0.0.3
+[0.0.2]: https://github.com/compozy/compozy/releases/tag/v0.0.2
 
 ---
 

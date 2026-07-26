@@ -7,7 +7,7 @@
 - **Journey Step:** Approve a human-in-the-loop Task whose first run is already pending
 - **Scenarios:** TA-041
 - **Found:** 2026-07-14 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
-- **Origin:** AGH-71 live approval replay
+- **Origin:** Compozy-71 live approval replay
 
 ## Summary
 
@@ -25,8 +25,8 @@ Task creation with human-in-the-loop approval already enqueues one gated run. Ap
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/task-approval-reuses-open-run-fixed.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/task-approval-reuses-open-run-fixed.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/task-approval-reuses-open-run-fixed.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/task-approval-reuses-open-run-fixed.json`
 
 ## Fix
 

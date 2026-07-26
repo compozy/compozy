@@ -4,14 +4,14 @@ area: ET
 title: Resolve marketplace detail by stable entry identity
 persona: Ada
 journey: J-agent-marketplace-parity
-expected: `agh marketplace info <kind> <entry_id>` returns the same typed detail as HTTP and UDS and reports deterministic 400 or 404 errors for invalid identity.
-entry_points: agh marketplace info <kind> <entry_id> -o json; GET /api/marketplace/:kind/:entry_id over HTTP and UDS
+expected: `compozy marketplace info <kind> <entry_id>` returns the same typed detail as HTTP and UDS and reports deterministic 400 or 404 errors for invalid identity.
+entry_points: compozy marketplace info <kind> <entry_id> -o json; GET /api/marketplace/:kind/:entry_id over HTTP and UDS
 qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pending installed-name collision disambiguation
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-008
 ---

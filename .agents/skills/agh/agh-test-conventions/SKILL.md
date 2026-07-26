@@ -1,13 +1,13 @@
 ---
 name: agh-test-conventions
 description: >-
-  Go test-shape discipline for AGH. Use when writing or editing *_test.go under
+  Go test-shape discipline for Compozy. Use when writing or editing *_test.go under
   cmd or internal after test placement is justified. Do not use for non-Go
   tests, fixture-only changes, or as a replacement for consolidate-test-suites.
 trigger: implicit
 ---
 
-# AGH Test Conventions
+# Compozy Test Conventions
 
 Apply Go-specific shape rules only after `consolidate-test-suites` identifies
 the invariant, owning layer, and canonical suite. This file owns the application

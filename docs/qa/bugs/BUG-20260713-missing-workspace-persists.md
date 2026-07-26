@@ -7,11 +7,11 @@
 - **Journey Step:** J-prune-missing-workspace, steps 2-4
 - **Scenarios:** RT-missing-workspace-pruned
 - **Found:** 2026-07-13 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
-- **Origin:** AGH-47
+- **Origin:** Compozy-47
 
 ## Summary
 
-Bruno registered the lab-owned `ghost-prune-probe` folder through the Add workspace modal, refreshed it successfully, and then removed that folder outside AGH. The active dashboard changed to `Unable to load dashboard` with `workspace root directory no longer exists`, but AGH did not reconcile the registration. Switching to a valid workspace recovered normal use, yet the ghost remained in the switcher, the dashboard workspace count, and the public workspace list after another full refresh.
+Bruno registered the lab-owned `ghost-prune-probe` folder through the Add workspace modal, refreshed it successfully, and then removed that folder outside Compozy. The active dashboard changed to `Unable to load dashboard` with `workspace root directory no longer exists`, but Compozy did not reconcile the registration. Switching to a valid workspace recovered normal use, yet the ghost remained in the switcher, the dashboard workspace count, and the public workspace list after another full refresh.
 
 ## Reproduction
 
@@ -31,11 +31,11 @@ Bruno registered the lab-owned `ghost-prune-probe` folder through the Add worksp
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-workspace-registered.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-after-folder-removal.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-ghost-persists-after-fallback-refresh.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-workspace-registered.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-after-folder-removal.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-ghost-persists-after-fallback-refresh.dom.txt`
 - Public registration: `ws_73db983811b21119`; direct read after removal: HTTP 410 with `workspace root directory no longer exists`.
-- `agh workspace list --json` against the isolated UDS retained the same ghost, matching Web and HTTP rather than reconciling it.
+- `compozy workspace list --json` against the isolated UDS retained the same ghost, matching Web and HTTP rather than reconciling it.
 
 ## Fix
 
@@ -48,7 +48,7 @@ Bruno registered the lab-owned `ghost-prune-probe` folder through the Add worksp
 
 - **Retested:** 2026-07-13T10:38Z → 2026-07-13T10:40Z in the original isolated lab, after rebuilding and restarting the daemon with the fixed source.
 - The first fresh Web workspace-list read pruned `ws_73db983811b21119`; the workspace rail showed only the three valid registrations and the active Task route remained usable.
-- `GET /api/workspaces` and `agh workspace list --json` over the isolated UDS returned the same three valid workspaces; direct read of the former ID returned HTTP 404.
+- `GET /api/workspaces` and `compozy workspace list --json` over the isolated UDS returned the same three valid workspaces; direct read of the former ID returned HTTP 404.
 - A second complete daemon restart retained the reconciled catalog, proving the removal was persisted rather than hidden in one Web cache.
-- Fixed evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/rt-missing-workspace-pruned-first-ui.dom.txt`.
-- **Final ownership retest:** On 2026-07-14, the UI registered `workspace-prune-final`, created and stopped real Cursor/Grok session `sess-0f2fc3f71bf6b69e`, and then reconciled after the folder was removed. The workspace disappeared from the switcher without an error, `agh3` became the valid fallback, UDS listed only the three healthy registrations, and the staged session directory was gone.
+- Fixed evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/rt-missing-workspace-pruned-first-ui.dom.txt`.
+- **Final ownership retest:** On 2026-07-14, the UI registered `workspace-prune-final`, created and stopped real Cursor/Grok session `sess-0f2fc3f71bf6b69e`, and then reconciled after the folder was removed. The workspace disappeared from the switcher without an error, `compozy3` became the valid fallback, UDS listed only the three healthy registrations, and the staged session directory was gone.

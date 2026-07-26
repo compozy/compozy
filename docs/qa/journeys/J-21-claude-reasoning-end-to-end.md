@@ -18,7 +18,7 @@ flowchart TD
     E2[Entry: effort='' provider default] --> NORPC[No effort RPC issued]
     E3[Entry: explicit effort='none'] --> RPCNONE[none RPC issued when advertised]
     E4[Entry: model with no advertised efforts] --> NOSEG[UI renders no reasoning segment; no fabricated levels]
-    RMISS --> ERR422[HTTP/UDS 422; agh session new preserves the code]
+    RMISS --> ERR422[HTTP/UDS 422; compozy session new preserves the code]
     RUNSUP --> ERR422
     APPLY -.->|no MAX_THINKING_TOKENS env| NOENV[No reasoning-budget environment variable injected]
 ```
@@ -33,7 +33,7 @@ journey:
     - url: "web session-create → Claude provider → model with efforts → max"
       origin: in-app-nav
     - http: "POST /api/sessions with provider=claude, model, reasoning_effort=max"
-    - cli: "agh session create … --reasoning-effort max (structured)"
+    - cli: "compozy session create … --reasoning-effort max (structured)"
   actions:
     - step: 1
       verb: "Create a Claude session with reasoning_effort=max"
@@ -49,7 +49,7 @@ journey:
       expected_observable: "The UI renders no reasoning segment/strip (supports-reasoning note or none note); the daemon fabricates no effort levels (heuristic deleted)."
     - step: 5
       verb: "Request an effort the adapter cannot honor"
-      expected_observable: "A missing option returns reasoning_option_missing; an unsupported value returns reasoning_effort_unsupported — before the first prompt; HTTP/UDS map to 422 and `agh session new` preserves the code. No prompt is sent after either failure. AGH exposes no native session-create tool."
+      expected_observable: "A missing option returns reasoning_option_missing; an unsupported value returns reasoning_effort_unsupported — before the first prompt; HTTP/UDS map to 422 and `compozy session new` preserves the code. No prompt is sent after either failure. Compozy exposes no native session-create tool."
   goal:
     observable: "Reasoning is applied through the live ACP option in the correct order, or fails deterministically; no reasoning-budget environment variable is ever injected."
     side_effects: [acp-set-config-option-effort, session-started, no-max-thinking-tokens-env]

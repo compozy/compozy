@@ -2,7 +2,7 @@
 
 **Class:** Persistence
 **Date discovered:** 2026-05-06 (daemon restart migration integrity failure)
-**Evidence sources:** Local daemon restart failure, observed `~/.agh/agh.db` `schema_migrations`
+**Evidence sources:** Local daemon restart failure, observed `~/.compozy/compozy.db` `schema_migrations`
 rows, `0b371eaa feat: add network threads (#105)`, `08eedb32 feat: orchestration
 improvements (#106)`, and L-008 schema migration discipline
 
@@ -72,9 +72,9 @@ then add observed-history reopen coverage.
 ## Source
 
 - Observed local database:
-  `sqlite3 /Users/pedronauck/.agh/agh.db 'SELECT version, name, checksum FROM schema_migrations ORDER BY version;'`
+  `sqlite3 /Users/pedronauck/.compozy/compozy.db 'SELECT version, name, checksum FROM schema_migrations ORDER BY version;'`
 - Failing daemon startup:
-  `error: daemon: open global database "/Users/pedronauck/.agh/agh.db": store: initialize sqlite database "/Users/pedronauck/.agh/agh.db": store: migration 17 integrity mismatch`
+  `error: daemon: open global database "/Users/pedronauck/.compozy/compozy.db": store: initialize sqlite database "/Users/pedronauck/.compozy/compozy.db": store: migration 17 integrity mismatch`
 - Historical files `internal/store/globaldb/global_db.go` and `internal/store/schema.go` — removed
   Go registry and runner that produced the incident
 - `internal/store/migrate.go` and `internal/store/migrate_integrity.go` — current Goose/Atlas path

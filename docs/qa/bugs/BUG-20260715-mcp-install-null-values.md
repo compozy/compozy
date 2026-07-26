@@ -25,8 +25,8 @@ The Marketplace guided installer correctly submitted `values: null` for a remote
 ## Evidence
 
 - Pre-fix canonical API owner test reproduced the HTTP 400 for `values: null`.
-- Isolated retest screenshot: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/screenshots/marketplace-guided-oauth-installed.png`.
-- Authorization and workspace-isolation note: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json`.
+- Isolated retest screenshot: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/screenshots/marketplace-guided-oauth-installed.png`.
+- Authorization and workspace-isolation note: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json`.
 
 ## Fix
 

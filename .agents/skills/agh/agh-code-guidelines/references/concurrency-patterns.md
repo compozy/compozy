@@ -1,4 +1,4 @@
-# AGH Concurrency Patterns — Canonical Rules
+# Compozy Concurrency Patterns — Canonical Rules
 
 Verbatim canonical rules. Reviewers will quote these. Companion skills cover deeper analysis: `systematic-debugging` for race/deadlock investigation, `agh-cleanup-failure-paths` for error-path cancellation discipline.
 

@@ -5,7 +5,7 @@ title: Migrate the shared memory stream while the memory runtime is disabled
 persona: Ada
 journey: J-operate-daemon-schema
 expected: With memory.enabled=false on a fresh home, boot reaches readiness, global and memory schema_streams both report their embedded heads, and memory prompt, recall, and native-tool behavior remains disabled.
-entry_points: config.toml memory.enabled=false; agh daemon start; agh status -o json; GET /api/status over HTTP and UDS
+entry_points: config.toml memory.enabled=false; compozy daemon start; compozy status -o json; GET /api/status over HTTP and UDS
 qa_status: untested
 bug_ids:
 fix_status:

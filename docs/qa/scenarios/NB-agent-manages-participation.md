@@ -5,13 +5,13 @@ title: Manage participation through structured agent surfaces
 persona: Ada
 journey: J-run-bounded-live-collaboration
 expected: CLI, HTTP, UDS, and native tools expose the same immutable mode, source, channel, finite bounds, consumption, and actual-or-unavailable usage; invalid or unauthorized requests return stable named diagnostics without partial execution state.
-entry_points: agh session/task/loop/network commands -o json; HTTP/UDS execution create/start and Network status/usage routes; compozy__network_* and owner native tools; GET /api/agent/context
+entry_points: compozy session/task/loop/network commands -o json; HTTP/UDS execution create/start and Network status/usage routes; compozy__network_* and owner native tools; GET /api/agent/context
 qa_status: untested
 bug_ids: BUG-20260715-network-usage-workspace-name-empty;BUG-20260715-taskless-network-wake-run-unreadable
 fix_status: fixed
 retest_status: pass
 fix_commits: pending local diff
-evidence: docs/qa/evidence/2026-07-14-network-changes/ch-live-bounds-agent-path.md;/Users/pedronauck/dev/qa-labs/agh-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/qa-audit-report.json
+evidence: docs/qa/evidence/2026-07-14-network-changes/ch-live-bounds-agent-path.md;/Users/pedronauck/dev/qa-labs/compozy-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/qa-audit-report.json
 last_report: docs/qa/reports/2026-07-14-network-changes.md
 overlaps: NB-execution-participation-defaults;NB-participation-controls-serialize;RT-031;TA-049
 ---

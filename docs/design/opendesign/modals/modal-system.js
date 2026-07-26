@@ -1,4 +1,4 @@
-/* AGH modal design-system behavior: dialog lifecycle, progressive disclosure,
+/* Compozy modal design-system behavior: dialog lifecycle, progressive disclosure,
    canonical selector mocks, catalog states, secrets, validation, and saving. */
 (() => {
   const root = document;
@@ -275,7 +275,7 @@
     modeButtons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
     root.querySelectorAll('.advanced').forEach((item) => { item.hidden = mode !== 'advanced'; });
     root.querySelectorAll('[data-adv]').forEach((item) => item.classList.toggle('hide', mode !== 'advanced'));
-    root.dispatchEvent(new CustomEvent('agh:mode', { detail: { mode } }));
+    root.dispatchEvent(new CustomEvent('compozy:mode', { detail: { mode } }));
   };
   modeButtons.forEach((button) => {
     button.addEventListener('click', () => activateMode(button));
@@ -306,7 +306,7 @@
       root.querySelectorAll(`[data-conditional="${name}"]`).forEach((item) => {
         setConditionalState(item, item.dataset.match === pill.dataset.value);
       });
-      root.dispatchEvent(new CustomEvent('agh:pill', { detail: { group: name, value: pill.dataset.value } }));
+      root.dispatchEvent(new CustomEvent('compozy:pill', { detail: { group: name, value: pill.dataset.value } }));
     };
     pills.forEach((pill) => {
       pill.addEventListener('click', () => activate(pill));
@@ -334,7 +334,7 @@
       root.querySelectorAll(`[data-conditional="${group.dataset.choiceGroup}"]`).forEach((item) => {
         setConditionalState(item, item.id === target || item.dataset.match === target);
       });
-      root.dispatchEvent(new CustomEvent('agh:choice', { detail: { group: group.dataset.choiceGroup, value: target || button.dataset.value || '' , button } }));
+      root.dispatchEvent(new CustomEvent('compozy:choice', { detail: { group: group.dataset.choiceGroup, value: target || button.dataset.value || '' , button } }));
     };
     choices.forEach((button, index) => {
       button.addEventListener('click', () => activateChoice(button));
@@ -360,7 +360,7 @@
     'slack-secrets': 'Slack declares two write-only slots.',
     'discord-secrets': 'Discord declares two write-only slots.'
   };
-  root.addEventListener('agh:choice', (event) => {
+  root.addEventListener('compozy:choice', (event) => {
     if (event.detail.group === 'permission') {
       const note = root.getElementById('perm-note-txt');
       if (note && permissionNotes[event.detail.value]) note.textContent = permissionNotes[event.detail.value];
@@ -381,7 +381,7 @@
       root.querySelectorAll(`[data-conditional="${select.dataset.revealSelect}"]`).forEach((item) => {
         setConditionalState(item, item.dataset.match === select.value);
       });
-      root.dispatchEvent(new CustomEvent('agh:select', { detail: { name: select.dataset.revealSelect, value: select.value } }));
+      root.dispatchEvent(new CustomEvent('compozy:select', { detail: { name: select.dataset.revealSelect, value: select.value } }));
     };
     select.addEventListener('change', sync);
     sync();
@@ -411,7 +411,7 @@
       if (checked) target.dataset.secretRequired = '';
       else delete target.dataset.secretRequired;
     }
-    root.dispatchEvent(new CustomEvent('agh:switch', { detail: { button, checked } }));
+    root.dispatchEvent(new CustomEvent('compozy:switch', { detail: { button, checked } }));
   }));
 
   /* vault reference collision */
@@ -718,8 +718,8 @@
     '/': ['Applications', 'Library', 'System', 'Users'],
     '/Users': ['you'],
     '/Users/you': ['Desktop', 'Dev', 'Documents', 'Downloads', 'Movies', 'Music', 'Pictures'],
-    '/Users/you/Dev': ['agh-extensions', 'billing', 'checkout-platform', 'design-tokens', 'growth-experiments', 'shared-libs'],
-    '/Users/you/Dev/agh-extensions': ['bridge-sdk', 'hooks', 'marketplace'],
+    '/Users/you/Dev': ['compozy-extensions', 'billing', 'checkout-platform', 'design-tokens', 'growth-experiments', 'shared-libs'],
+    '/Users/you/Dev/compozy-extensions': ['bridge-sdk', 'hooks', 'marketplace'],
     '/Users/you/Dev/billing': ['api', 'migrations', 'worker'],
     '/Users/you/Dev/checkout-platform': ['apps', 'docs', 'infra', 'packages', 'scripts'],
     '/Users/you/Dev/shared-libs': ['auth-kit', 'http-clients', 'telemetry'],

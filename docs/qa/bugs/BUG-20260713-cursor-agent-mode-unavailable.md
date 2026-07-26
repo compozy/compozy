@@ -11,7 +11,7 @@
 
 ## Summary
 
-Bruno successfully started Cursor with Grok 4.5 and asked it to inspect existing evidence then write a release-risk brief. Cursor completed the analysis but refused the write because `Ask mode is on`, instructing Bruno to switch to Agent mode. The same session was then made the exact owner of a real child task; it read the task through `agh__task_read` but refused the mutating claim/complete operations for the same reason. The AGH session UI exposes provider, model, and reasoning selection but no Cursor mode control, so the visible instruction cannot be followed and both normal implementation tasks and durable Task execution are blocked.
+Bruno successfully started Cursor with Grok 4.5 and asked it to inspect existing evidence then write a release-risk brief. Cursor completed the analysis but refused the write because `Ask mode is on`, instructing Bruno to switch to Agent mode. The same session was then made the exact owner of a real child task; it read the task through `compozy__task_read` but refused the mutating claim/complete operations for the same reason. The Compozy session UI exposes provider, model, and reasoning selection but no Cursor mode control, so the visible instruction cannot be followed and both normal implementation tasks and durable Task execution are blocked.
 
 ## Reproduction
 
@@ -21,17 +21,17 @@ Bruno successfully started Cursor with Grok 4.5 and asked it to inspect existing
 1. Start a Cursor/Grok 4.5 session from Agents.
 2. Ask it to inspect existing files and create one new report without changing existing files.
 3. Observe the provider response and inspect the session/runtime controls.
-4. Assign a queued Task to the same exact session and ask it to claim/complete via AGH tools.
+4. Assign a queued Task to the same exact session and ask it to claim/complete via Compozy tools.
 
 **Expected:** A session intended for agent work starts in a writable mode or exposes the provider's supported mode selector before/after creation.
-**Actual:** Cursor reports that Ask mode prevents the requested write and tells the user to switch modes, but AGH offers no such control.
+**Actual:** Cursor reports that Ask mode prevents the requested write and tells the user to switch modes, but Compozy offers no such control.
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-grok-transcript.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-new-session-grok-transcript.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
 - Session `sess-b1c980b86709053d` returned a complete draft but created no `reports/launch-risk-brief.md`.
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-claim-blocked-ask-mode.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-claim-blocked-ask-mode.dom.txt`
 - Task `task-f6638f9897b1b0f8` remained Ready with run `run-0dc2db2a608bf620` unclaimed after the session read it successfully.
 
 ## Fix
@@ -43,4 +43,4 @@ Bruno successfully started Cursor with Grok 4.5 and asked it to inspect existing
 ## Verification
 
 - An isolated live Cursor/Grok session negotiated current mode `agent` and completed a real `Edit File` operation.
-- The final same-persona Browser replay created multiple task-role sessions that claimed their exact existing runs through AGH's mutating native tools and completed exactly once; no session reported Ask-mode refusal.
+- The final same-persona Browser replay created multiple task-role sessions that claimed their exact existing runs through Compozy's mutating native tools and completed exactly once; no session reported Ask-mode refusal.

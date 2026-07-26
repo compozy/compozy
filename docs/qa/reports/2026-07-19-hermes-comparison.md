@@ -13,19 +13,19 @@
 
 - **Scenario:** `hermes-comparison-consumer-saas-growth-20260719-190252-199062`
 - **Playbook:** `consumer-saas-growth` (rotation after the latest `northstar-pay` run)
-- **Manifest:** `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/bootstrap-manifest.json`
-- **Lab root:** `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab`
-- **Runtime workspace:** `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/project`
-- **Runtime home:** `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-a8e82008f022/runtime`
-- **UDS:** `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-a8e82008f022/runtime/aghd.sock`
-- **HTTP / Web proxy:** `http://127.0.0.1:61527` / `AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:61527`
-- **Provider home:** `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-a8e82008f022/provider`
-- **Evidence root:** `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts`
+- **Manifest:** `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/bootstrap-manifest.json`
+- **Lab root:** `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab`
+- **Runtime workspace:** `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/project`
+- **Runtime home:** `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-a8e82008f022/runtime`
+- **UDS:** `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-a8e82008f022/runtime/compozyd.sock`
+- **HTTP / Web proxy:** `http://127.0.0.1:61527` / `COMPOZY_WEB_API_PROXY_TARGET=http://127.0.0.1:61527`
+- **Provider home:** `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-a8e82008f022/provider`
+- **Evidence root:** `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts`
 - **Browser:** `browser-use`; **fresh lab:** `reused_lab=false`; **kickoff:** pending
 
 Bootstrap recovery: the first generic lab lacked the playbook required by `real-scenario-qa` and
 was never used for product evidence. It was torn down before this lab was created;
-`/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-20260719-20260719-190105-273349-lab/qa-artifacts/qa/teardown.json`
+`/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-20260719-20260719-190105-273349-lab/qa-artifacts/qa/teardown.json`
 records `"clean": true` with no survivors.
 
 ## Release-Readiness Criteria (blocking — stated up front, per COPY.md claim standards)
@@ -59,7 +59,7 @@ necessary but NOT sufficient (SD-005); these scenario walks are what closes the 
 | Persona | Base | Device / Network / Locale | Sessions |
 |---|---|---|---|
 | Théo | Power User | desktop / wifi-fast / en-US | CH-crash-resume-compaction, CH-approval-grant-memory, CH-clarify-answer-roundtrip, CH-session-affordances-truth |
-| Ada | Power User (non-human, native-tool) | desktop / wifi-fast / en-US | CH-runaway-work-bounded, CH-workspace-run-capacity, CH-subprocess-health-recovery, CH-runnable-capabilities-truth, CH-mcp-client-operates-agh, CH-memory-batch-integrity, CH-wake-dedup-stress |
+| Ada | Power User (non-human, native-tool) | desktop / wifi-fast / en-US | CH-runaway-work-bounded, CH-workspace-run-capacity, CH-subprocess-health-recovery, CH-runnable-capabilities-truth, CH-mcp-client-operates-compozy, CH-memory-batch-integrity, CH-wake-dedup-stress |
 | Bruno | Power User | desktop / wifi-fast / en-US | CH-schedule-recovery-guard, CH-suggestions-consent |
 | Dora | Power User (runtime administrator — added to personas.md this cycle) | desktop / wifi-fast / en-US | CH-secret-redaction-sweep, CH-drain-without-loss |
 | Rafa | Casual User | desktop / wifi-fast / en-US | CH-truthful-cost-provenance, CH-artifact-recovery-paging |
@@ -78,7 +78,7 @@ New this cycle (each with Mermaid flow, true end state, and ≥1 abandonment pat
 - `J-answer-agent-requests` — a decision answered once is remembered, revocable, never re-asked (`../journeys/J-answer-agent-requests.md`)
 - `J-drain-daemon-safely` — restart or deploy without killing work (`../journeys/J-drain-daemon-safely.md`)
 - `J-keep-secrets-contained` — a leaked secret never reaches disk or stream (`../journeys/J-keep-secrets-contained.md`)
-- `J-operate-agh-from-mcp-client` — operate AGH from an unmodified MCP client (`../journeys/J-operate-agh-from-mcp-client.md`)
+- `J-operate-compozy-from-mcp-client` — operate Compozy from an unmodified MCP client (`../journeys/J-operate-compozy-from-mcp-client.md`)
 - `J-offer-runnable-capabilities` — only runnable capabilities offered; dead ones recover (`../journeys/J-offer-runnable-capabilities.md`)
 - `J-bound-runaway-work` — runaway or wedged work is bounded and explained (`../journeys/J-bound-runaway-work.md`)
 
@@ -112,7 +112,7 @@ qa-execution updates this table in place.
 | 10 | CH-suggestions-consent | J-24 / TA-automation-suggestions | Bruno | Feature | Pass | Dismissed `sugcat_61e4df77633b613a`; status became `dismissed` and Job count remained zero. | |
 | 11 | CH-subprocess-health-recovery | J-diagnose-task-session-health / RT-subprocess-health-escalation | Ada | Feature | Skipped | No controlled provider-crash fixture was available through a public command. | |
 | 12 | CH-runnable-capabilities-truth | J-offer-runnable-capabilities / ET-skill-activation-gates; RT-mcp-dead-recovery; ET-001; ET-002 | Ada | Feature | Skipped | The lab had no disposable MCP target or skill-gate fixture to kill and recover. | |
-| 13 | CH-mcp-client-operates-agh | J-operate-agh-from-mcp-client / ET-workspace-host-api-mcp | Ada | Feature | Skipped | `agh mcp serve` was available, but bootstrap provided no registered external MCP client. | |
+| 13 | CH-mcp-client-operates-compozy | J-operate-compozy-from-mcp-client / ET-workspace-host-api-mcp | Ada | Feature | Skipped | `compozy mcp serve` was available, but bootstrap provided no registered external MCP client. | |
 | 14 | CH-artifact-recovery-paging | J-14 / ET-tool-result-artifact-recovery | Rafa | Garbage | Skipped | No live tool result crossed the retention/offload threshold in this playbook. | |
 | 15 | CH-session-affordances-truth | J-11 / RT-session-lifecycle-affordances; RT-session-cwd-resume | Théo | Feature | Skipped | Exact CWD/resume/title assertions lacked a public deterministic fixture in the running lab. | |
 | 16 | CH-memory-batch-integrity | J-11 / MS-atomic-memory-batch | Ada | Garbage | Skipped | No public trace surface exposed the required generation-scoped batch injection. | |
@@ -134,7 +134,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 | US-007 | U1, ADR-006 | RT-session-cost-provenance; TA-task-run-cost-provenance (+five-rate companions) | J-14 / J-24 | CH-truthful-cost-provenance (9) |
 | US-008 | A1, ADR-007 | TA-automation-suggestions | J-24 | CH-suggestions-consent (10) |
 | US-009 | G2, ADR-005 | RT-secret-redaction-boundary | J-keep-secrets-contained | CH-secret-redaction-sweep (1) |
-| US-010 | ADR-008 | ET-workspace-host-api-mcp | J-operate-agh-from-mcp-client | CH-mcp-client-operates-agh (13) |
+| US-010 | ADR-008 | ET-workspace-host-api-mcp | J-operate-compozy-from-mcp-client | CH-mcp-client-operates-compozy (13) |
 | US-011 | ADR-009 §2, ADR-010 §5 | ET-skill-activation-gates (skills half); RT-mcp-dead-recovery (dead-entity half) | J-offer-runnable-capabilities | CH-runnable-capabilities-truth (12) |
 | US-012 | O1, §3.10 | TA-lease-recovery-attempt-budget (minted this cycle) | J-bound-runaway-work | CH-runaway-work-bounded (4) |
 | US-013 | O2, §3.10 | TA-loop-failure-breaker | J-bound-runaway-work | CH-runaway-work-bounded (4) |
@@ -255,7 +255,7 @@ Registry census at planning time: 1 `open`, 16 `fixed` (awaiting retest), 90 `ve
 ## Planning Validation (this phase)
 
 - Frontmatter validation + tracker view (absolute paths — the canonical form for this tree):
-  `rtk python3 /Users/pedronauck/Dev/compozy/agh3/.agents/skills/qa-report/scripts/materialize_state.py /Users/pedronauck/Dev/compozy/agh3/docs/qa`
+  `rtk python3 /Users/pedronauck/Dev/compozy/compozy3/.agents/skills/qa-report/scripts/materialize_state.py /Users/pedronauck/Dev/compozy/compozy3/docs/qa`
   → `docs/qa/state.csv: 544 scenarios`, zero rejections (state.csv is generated and gitignored).
 - Inventory commands (recursive form — see recovery note in task memory):
   `rtk grep -rl "qa_status: untested" docs/qa/scenarios/`,
@@ -279,9 +279,9 @@ Registry census at planning time: 1 `open`, 16 `fixed` (awaiting retest), 90 `ve
   collaboration minimums). Deliverable parsing passed with 18 valid non-Markdown artifacts; Task
   root/run minimums passed.
 - Audit:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/qa-audit-report.json`.
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/qa-audit-report.json`.
 - Mandatory teardown:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/teardown.json`
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts/qa/teardown.json`
   records `clean: true` and zero survivors.
 
 ### Real-scenario companion attempt 2 — `consumer-saas-growth` — FAIL
@@ -302,11 +302,11 @@ Registry census at planning time: 1 `open`, 16 `fixed` (awaiting retest), 90 `ve
   Job. Session usage also truthfully reported `cost_status=included`, but the full cost matrix was
   not reachable in this playbook.
 - Observer evidence:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/observer-result.json`.
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/observer-result.json`.
 - Strict evidence audit: **PASS**, zero blockers and zero warnings;
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/qa-audit-report.json`.
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/qa-audit-report.json`.
 - Mandatory teardown:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/teardown.json`
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/teardown.json`
   records `clean: true` and zero survivors.
 
 ## What Was Fixed
@@ -351,7 +351,7 @@ Registry census at planning time: 1 `open`, 16 `fixed` (awaiting retest), 90 `ve
 ## Final Status
 
 - **Exit gate (full automated suite):** **PASS** — source-final `make verify` exited 0; evidence:
-  `/Users/pedronauck/dev/qa-labs/agh-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/logs/final-make-verify.log`.
+  `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/logs/final-make-verify.log`.
 - **Issues by user impact:** one open High/P1 Blocks-Completion issue,
   `BUG-20260719-autonomous-progress-unobservable`; attempt 2 also left three runs owned by an
   active session in `needs_attention` and missed every disruption-recovery deadline.

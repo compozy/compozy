@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>Lock launch blockers for the 18:30 UTC cutover · Tasks · AGH</title>
+<title>Lock launch blockers for the 18:30 UTC cutover · Tasks · Compozy</title>
 <style>
   /* ============ tokens — verbatim from agents/agent-detail.html (packages/ui/src/tokens.css lineage) ============ */
   :root{
@@ -591,7 +591,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                 Inspect
               </button>
-              <span style="font-family:var(--font-mono);font-size:10px;color:var(--faint)">agh task inspect task_001</span>
+              <span style="font-family:var(--font-mono);font-size:10px;color:var(--faint)">compozy task inspect task_001</span>
             </div>
           </div>
         </aside>
@@ -641,7 +641,7 @@
     <div>
       <div class="sheet__eyebrow">Operator</div>
       <div class="sheet__title" id="inspectTitle">Inspect</div>
-      <div class="sheet__desc">Runtime internals for this task. Everything here maps to <span class="mono" style="font-size:11px">agh task inspect</span>.</div>
+      <div class="sheet__desc">Runtime internals for this task. Everything here maps to <span class="mono" style="font-size:11px">compozy task inspect</span>.</div>
     </div>
     <button class="sheet__close" type="button" data-close aria-label="Close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -667,7 +667,7 @@
         No findings. The run is claiming, heartbeating, and reporting on schedule.
       </div>
       <div class="code-block"><span class="c"># same view from the CLI</span>
-<span class="k">agh</span> task inspect task_001 <span class="c">-o json</span></div>
+<span class="k">compozy</span> task inspect task_001 <span class="c">-o json</span></div>
     </div>
 
     <div class="ipanel hide" data-ipanel="stream">
@@ -834,7 +834,7 @@ document.getElementById("activityFeed").innerHTML = EVENTS.map(evRow).join("");
 document.getElementById("recentFeed").innerHTML   = EVENTS.slice(0,5).map(evRow).join("");
 
 /* ================= tabs (persisted) ================= */
-const TAB_KEY = "agh:task-detail:tab";
+const TAB_KEY = "compozy:task-detail:tab";
 const tabs = [...document.querySelectorAll(".lane-tabs[aria-label='Task views'] .lane-tab")];
 function selectTab(name){
   tabs.forEach(t=>{

@@ -16,7 +16,7 @@ The daemon metadata timestamp is written after early boot work. A real startup t
 ## Reproduction
 
 1. Start the daemon with enough configured resources that early boot exceeds the process timestamp tolerance.
-2. Confirm the daemon PID is alive and `agh status` succeeds over UDS.
+2. Confirm the daemon PID is alive and `compozy status` succeeds over UDS.
 3. Run an extension Marketplace install or another daemon-owned extension operation.
 
 **Expected:** A reachable UDS status of `running` is authoritative when the PID is alive; an unreachable or dead process remains offline.
@@ -24,7 +24,7 @@ The daemon metadata timestamp is written after early boot work. A real startup t
 
 ## Evidence
 
-- Sanitized red/green and live replay: `/Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/extension-cli-slow-boot-reachability.json`.
+- Sanitized red/green and live replay: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/extension-cli-slow-boot-reachability.json`.
 - The current isolated daemon started at 23:20:45 local and wrote logical `started_at` 5.538 seconds later, still exceeding the removed two-second decision boundary.
 
 ## Fix
@@ -38,4 +38,4 @@ The daemon metadata timestamp is written after early boot work. A real startup t
 
 - The regression failed before the reachability fallback and passes afterward.
 - 121 focused extension and skill CLI cases pass under `-race`.
-- On the rebuilt daemon whose metadata lag is 5.538 seconds, `agh extension search qa -o json` reached the daemon and returned `acme/qa-marketplace-extension` instead of false offline state.
+- On the rebuilt daemon whose metadata lag is 5.538 seconds, `compozy extension search qa -o json` reached the daemon and returned `acme/qa-marketplace-extension` instead of false offline state.

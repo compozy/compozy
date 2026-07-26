@@ -1,34 +1,34 @@
 ---
 name: 12-web-ui
 title: Web UI (React 19 SPA) — Real-LLM Pre-release QA Plan
-description: Behavior-first QA scenarios for the AGH web app — TanStack Router file-based routes, app-renderer-systems (per-domain queries/mutations/optimistic), TanStack Query v5 server state, Zustand UI state, openapi-fetch typed contract, assistant-ui SSE chat runtime, shadcn/@agh/ui primitives, Tailwind v4 tokens — driven against a real Claude Code ACP subprocess through the same daemon HTTP/SSE the operator hits in production. Closes the loop end-to-end so every truthful-UI invariant, accessibility contract, COPY.md vocabulary rule, DESIGN.md token rule, and SSE/after_seq replay invariant is proven by browser-side scenarios, not by isolated component tests.
+description: Behavior-first QA scenarios for the Compozy web app — TanStack Router file-based routes, app-renderer-systems (per-domain queries/mutations/optimistic), TanStack Query v5 server state, Zustand UI state, openapi-fetch typed contract, assistant-ui SSE chat runtime, shadcn/@compozy/ui primitives, Tailwind v4 tokens — driven against a real Claude Code ACP subprocess through the same daemon HTTP/SSE the operator hits in production. Closes the loop end-to-end so every truthful-UI invariant, accessibility contract, COPY.md vocabulary rule, DESIGN.md token rule, and SSE/after_seq replay invariant is proven by browser-side scenarios, not by isolated component tests.
 type: final-qa-child
 module: web-ui
 parent: ../_parent.md
 provider_lanes: [claude-code]
 authoritative_runtime_truth:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/web/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/web/AGENTS.md
-  - /Users/pedronauck/Dev/compozy/agh/DESIGN.md
-  - /Users/pedronauck/Dev/compozy/agh/COPY.md
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/web/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/web/AGENTS.md
+  - /Users/pedronauck/Dev/compozy/compozy/DESIGN.md
+  - /Users/pedronauck/Dev/compozy/compozy/COPY.md
 references:
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/03-acp-sessions.md
-  - /Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_children/11-api-cli-parity.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/03-acp-sessions.md
+  - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/11-api-cli-parity.md
 ---
 
 # 12 — Web UI (React 19 SPA)
 
-Sibling of `03-acp-sessions.md` (real ACP behavior end-to-end through the prompt path) and `11-api-cli-parity.md` (HTTP/UDS/CLI parity over the BaseHandlers spine). This child proves **the operator-facing browser surface itself**: the SPA is served by the daemon's embedded `web/dist` (`web/embed.go`), reaches a real Claude Code subprocess through `/api/sessions/:id/prompt`, renders the typed AI-SDK envelope (`text-delta`, `tool-input-*`, `tool-output-*`, `data-agh-*`, `error`, `finish`) without drift, persists transcripts across reloads, honors DESIGN.md tokens, refuses to advertise capabilities the daemon does not actually expose, and closes the truthful-UI loop. Mocks (`internal/testutil/acpmock`) are only used where the test target is a control-plane invariant (route shell, design tokens, copy vocabulary) and an LLM stream would add flake without coverage.
+Sibling of `03-acp-sessions.md` (real ACP behavior end-to-end through the prompt path) and `11-api-cli-parity.md` (HTTP/UDS/CLI parity over the BaseHandlers spine). This child proves **the operator-facing browser surface itself**: the SPA is served by the daemon's embedded `web/dist` (`web/embed.go`), reaches a real Claude Code subprocess through `/api/sessions/:id/prompt`, renders the typed AI-SDK envelope (`text-delta`, `tool-input-*`, `tool-output-*`, `data-compozy-*`, `error`, `finish`) without drift, persists transcripts across reloads, honors DESIGN.md tokens, refuses to advertise capabilities the daemon does not actually expose, and closes the truthful-UI loop. Mocks (`internal/testutil/acpmock`) are only used where the test target is a control-plane invariant (route shell, design tokens, copy vocabulary) and an LLM stream would add flake without coverage.
 
 The CLAUDE.md / web/CLAUDE.md / DESIGN.md / COPY.md invariants this child encodes:
 
 - **Truthful UI > plausible UI.** "Don't render controls or metrics the runtime doesn't actually support. When Paper artboards conflict with daemon truth, daemon wins. Paper governs _composition_, `DESIGN.md` governs _grammar_." (root `CLAUDE.md` Design System section). This dominates UI-10 and UI-13 and constrains every other scenario.
-- **Live broadcasters publish only after durable append; reconnect/replay uses `after_seq`.** (`internal/CLAUDE.md:52`). The browser SPA must not synthesize messages locally; every visible token must come from the SSE stream and be replayable from `events.db` via `agh session events --since`.
-- **AGH_WEB_API_PROXY_TARGET when the daemon is not on `:2123`.** (`web/CLAUDE.md` Critical Rules). Every isolated-lab scenario reads the bootstrap manifest and exports the proxy target before launching Vite or Playwright. Hardcoding `http://localhost:2123` is a release blocker.
+- **Live broadcasters publish only after durable append; reconnect/replay uses `after_seq`.** (`internal/CLAUDE.md:52`). The browser SPA must not synthesize messages locally; every visible token must come from the SSE stream and be replayable from `events.db` via `compozy session events --since`.
+- **COMPOZY_WEB_API_PROXY_TARGET when the daemon is not on `:2123`.** (`web/CLAUDE.md` Critical Rules). Every isolated-lab scenario reads the bootstrap manifest and exports the proxy target before launching Vite or Playwright. Hardcoding `http://localhost:2123` is a release blocker.
 - **Flat depth model, warm-dark palette, signal palette = information.** (`DESIGN.md` + `web/CLAUDE.md`). Visual regressions assert no `box-shadow`, no content gradients, and that signal colors map to documented meaning (`#E8572A` = action, `#30D158` = success, `#FF453A` = danger, `#FFD60A` = warning, `#BF5AF2` = info).
 - **Backend nouns exactly. `capability`, never `recipe` / `workflow` / `procedure` / `playbook`** (`COPY.md` + `docs/_memory/glossary.md`). Static text scrape gates UI-18.
 - **`claim_token` redaction is non-negotiable.** (`internal/CLAUDE.md` Security Invariants; reused in `03-acp-sessions.md` ACP-18). Raw `compozy_claim_*` MUST NEVER appear in any DOM node, `aria-live` region, network-tab body, or console log.
@@ -45,7 +45,7 @@ The SPA is a Bun + Vite 8 + React 19 + TanStack Router file-based app. Authorita
 | Layer                                                                       | Responsibility (file:line refs)                                                                                                                                                                             |
 | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Embedded static assets                                                      | `web/embed.go` — daemon serves `dist/` over `GET /` and `GET /assets/*`. Build via `make web-build`.                                                                                                        |
-| Vite proxy                                                                  | `web/src/lib/vite-api-proxy-target.ts:1-22` — reads `AGH_WEB_API_PROXY_TARGET`, defaults to `http://localhost:2123`, throws on a non-URL value.                                                              |
+| Vite proxy                                                                  | `web/src/lib/vite-api-proxy-target.ts:1-22` — reads `COMPOZY_WEB_API_PROXY_TARGET`, defaults to `http://localhost:2123`, throws on a non-URL value.                                                              |
 | Root shell + global error/notfound boundaries                               | `web/src/routes/__root.tsx:9-118` (`TooltipProvider`, `Toaster`, `RootRouteErrorBoundary`, `RootRouteNotFoundBoundary`).                                                                                    |
 | `_app` shell layout, sidebar, workspace onboarding gate                     | `web/src/routes/_app.tsx:18-60`. When no workspaces exist, `WorkspaceOnboarding` short-circuits the layout (`web/src/systems/workspace`). Otherwise `AppSidebar` + `<Outlet/>` mounts.                       |
 | Sidebar nav (rail + workspace pills + nav rows + connection indicator)      | `web/src/components/app-sidebar.tsx:1-120+`; `web/src/components/connection-indicator.tsx` (role=status, aria-live=polite).                                                                                  |
@@ -68,13 +68,13 @@ The SPA is a Bun + Vite 8 + React 19 + TanStack Router file-based app. Authorita
 | Vault                                                                       | `web/src/systems/vault/`; settings page `web/src/routes/_app/settings/vault.tsx`; per-session pane via `SessionInspector` Vault tab.                                                                          |
 | Skills                                                                      | `web/src/routes/_app/skills.tsx`; `web/src/systems/skill/`.                                                                                                                                                  |
 | Daemon status / health                                                      | `web/src/systems/daemon/`. The home dashboard reads `getDaemonStatus` (`/api/daemon/status`) and `getObserveHealth` (`/api/observe/health`).                                                                  |
-| API client                                                                  | `web/src/lib/api-client.ts:1-65` (`openapi-fetch` typed against `web/src/generated/agh-openapi.d.ts`). Errors mapped via `apiErrorMessage` / `defaultApiErrorMessage`.                                        |
+| API client                                                                  | `web/src/lib/api-client.ts:1-65` (`openapi-fetch` typed against `web/src/generated/compozy-openapi.d.ts`). Errors mapped via `apiErrorMessage` / `defaultApiErrorMessage`.                                        |
 | Toaster surface                                                             | `web/src/routes/__root.tsx:33` (`<Toaster/>`); `sonner.toast.error` used in `web/src/systems/session/components/permission-prompt.tsx:30`, `web/src/systems/session/hooks/use-session-create-dialog.ts:185`, `web/src/systems/workspace/hooks/use-workspace-setup-content.ts:71`. |
 | Connection state semantics                                                  | `web/src/components/connection-indicator.tsx:38-52` — `role=status`, `aria-live=polite`, `data-status={connected|disconnected|reconnecting}` chip.                                                            |
 
-The CLI/back-end terms used by the SPA come from the typed contract barrel `web/src/generated/agh-openapi.d.ts` (single source of truth for every operation/payload/parameter the SPA can call). Any test that asserts a payload shape MUST import from this generated module — not from a hand-written shim.
+The CLI/back-end terms used by the SPA come from the typed contract barrel `web/src/generated/compozy-openapi.d.ts` (single source of truth for every operation/payload/parameter the SPA can call). Any test that asserts a payload shape MUST import from this generated module — not from a hand-written shim.
 
-The Playwright lane runner is `web/e2e/fixtures/runtime.ts:1-615` (builds the daemon with `go build -o … ./cmd/agh`, spawns `agh daemon start --foreground`, isolates `AGH_HOME`, reserves a free TCP port, and exposes `runtime.url(pathname)` + `requestJSON` + `requestOperatorJSON`). The daemon binary path is overridable via `AGH_TEST_DAEMON_BIN`. Mock-agent fixtures plug in via `runtimeOptions.seed.mockAgents[]` (`web/e2e/fixtures/runtime-seed.ts`) using `internal/testutil/acpmock` JSON fixtures.
+The Playwright lane runner is `web/e2e/fixtures/runtime.ts:1-615` (builds the daemon with `go build -o … ./cmd/compozy`, spawns `compozy daemon start --foreground`, isolates `COMPOZY_HOME`, reserves a free TCP port, and exposes `runtime.url(pathname)` + `requestJSON` + `requestOperatorJSON`). The daemon binary path is overridable via `COMPOZY_TEST_DAEMON_BIN`. Mock-agent fixtures plug in via `runtimeOptions.seed.mockAgents[]` (`web/e2e/fixtures/runtime-seed.ts`) using `internal/testutil/acpmock` JSON fixtures.
 
 ## 2. Existing coverage — do NOT duplicate
 
@@ -101,16 +101,16 @@ The gap real-LLM web scenarios MUST close: every existing Playwright spec drives
 7. **Bridges**: list / detail / test-delivery roundtrip via `POST /api/bridges/:id/test-delivery` (UI-08).
 8. **Sessions / lineage tree**: parent → child sessions visible; click child opens the canonical chat route (UI-09).
 9. **Task runs queue**: `pending` / `leased` / `completed` / `failed` lanes; per-run lease TTL; admin-cancel; DOM never embeds `claim_token` raw text (UI-10).
-10. **Truthful UI capability check**: a control whose backing capability is OFF in `agh status` does NOT render (UI-11).
+10. **Truthful UI capability check**: a control whose backing capability is OFF in `compozy status` does NOT render (UI-11).
 11. **Accessibility**: keyboard reaches every interactive control along the streaming chat; visible focus rings; `aria-live` for SSE token regions and connection indicator; color contrast ≥ DESIGN.md tokens (UI-12).
 12. **Responsive**: 1440x900 / 1024x768 / 768x1024 / 390x844 — no overflow, no clipped content; sidebar collapse works (UI-13).
 13. **Theme adherence**: every page passes the DESIGN.md gate — flat depth (no `box-shadow`), warm-dark canvas (`--color-canvas`/`--color-canvas-deep`), signal palette only where signal is intended (UI-14).
 14. **Tab-visibility SSE reconnect**: tab hidden 60s, foregrounded — UI catches up via `after_seq`; no duplicates (UI-15).
 15. **Error toasts**: every typed error path from `BaseHandlers` maps to a user-facing toast with action affordance; raw `error.message` from openapi-fetch is never rendered untyped (UI-16).
 16. **`claim_token` redaction**: deep DOM scan never matches `/compozy_claim_[A-Za-z0-9_-]+/` across any rendered route (UI-17).
-17. **COPY.md vocabulary**: every visible string passes the canonical-term gate (no `recipe` / `workflow` / `playbook` / `procedure` for current AGH artifacts) (UI-18).
+17. **COPY.md vocabulary**: every visible string passes the canonical-term gate (no `recipe` / `workflow` / `playbook` / `procedure` for current Compozy artifacts) (UI-18).
 18. **DX-cliff catch**: a fake auth method or any orphan control left in any settings panel that the daemon doesn't actually implement — must NOT exist; static audit fails the run (UI-11 + UI-18 cross-check).
-19. **Worktree-isolated proxy**: when the daemon is on a non-default port, the SPA reads `AGH_WEB_API_PROXY_TARGET` from `bootstrap.env` and reaches `/api/...` correctly (UI-01 sub-assertion).
+19. **Worktree-isolated proxy**: when the daemon is on a non-default port, the SPA reads `COMPOZY_WEB_API_PROXY_TARGET` from `bootstrap.env` and reaches `/api/...` correctly (UI-01 sub-assertion).
 
 ## 4. Operating model — provider matrix and bootstrap
 
@@ -121,8 +121,8 @@ Same template as `03-acp-sessions` and `11-api-cli-parity`:
 
 Bootstrap and isolation discipline (mandatory for every scenario):
 
-- One isolated `AGH_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario (per `agh-worktree-isolation` skill and `agh-qa-bootstrap`).
-- **`AGH_WEB_API_PROXY_TARGET` exported from `bootstrap.env`** before launching either Vite (`make web-dev`) or Playwright (`make test-e2e-web`). Hardcoding `http://localhost:2123` is a blocker (`web/CLAUDE.md` Critical Rules + `web/src/lib/vite-api-proxy-target.ts`).
+- One isolated `COMPOZY_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario (per `agh-worktree-isolation` skill and `agh-qa-bootstrap`).
+- **`COMPOZY_WEB_API_PROXY_TARGET` exported from `bootstrap.env`** before launching either Vite (`make web-dev`) or Playwright (`make test-e2e-web`). Hardcoding `http://localhost:2123` is a blocker (`web/CLAUDE.md` Critical Rules + `web/src/lib/vite-api-proxy-target.ts`).
 - Bound-secret, brokered, and explicitly isolated-home auth staged into
   `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
   `home_policy=operator` intentionally use the operator `HOME` / native login
@@ -135,7 +135,7 @@ Per-scenario evidence layout under `.artifacts/qa/<run-id>/ui-XX/`:
 
 - `ui-XX-report.md` (Worked / Failed / Blocked / Follow-up).
 - `ui-XX-summary.json` (machine-readable: pass/fail counts, screenshot paths, network HAR ref).
-- `ui-XX-events.json` (events.db rows scoped to the scenario window via `agh session events <id> --since <ts> -o jsonl`).
+- `ui-XX-events.json` (events.db rows scoped to the scenario window via `compozy session events <id> --since <ts> -o jsonl`).
 - `ui-XX-output.log` (combined daemon stdout/stderr from `runtime.paths.daemonLog`).
 - `ui-XX-screenshots/` (named keys per assertion).
 - `ui-XX-network.har` (full network trace via `context.tracing.start({ snapshots: true, sources: false })` opt-in).
@@ -144,23 +144,23 @@ Per-scenario evidence layout under `.artifacts/qa/<run-id>/ui-XX/`:
 
 ## 5. Preconditions (apply to every scenario)
 
-- Fresh QA bootstrap; `bootstrap-manifest.json` saved and `bootstrap.env` exported. `AGH_HOME`, daemon HTTP port, UDS socket, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME`, `AGH_WEB_API_PROXY_TARGET` all set.
+- Fresh QA bootstrap; `bootstrap-manifest.json` saved and `bootstrap.env` exported. `COMPOZY_HOME`, daemon HTTP port, UDS socket, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME`, `COMPOZY_WEB_API_PROXY_TARGET` all set.
 - `make verify` is green on the SUT branch (per the Critical Rules). In particular `make web-build` and `make web-typecheck` MUST be green so the embedded `dist/` is up to date.
-- Daemon running: `agh status -o json` reports `status="running"`.
+- Daemon running: `compozy status -o json` reports `status="running"`.
 - For `real-claude-code` scenarios: direct `claude` auth comes from the
   effective Claude home for the lane (operator `HOME` by default; isolated
-  `PROVIDER_HOME` only for explicit isolated-home scenarios); `agh provider
+  `PROVIDER_HOME` only for explicit isolated-home scenarios); `compozy provider
   show claude` reports the expected ACP command.
 - Workspace seed: `$LAB/workspace/` with a `README.md` (≥3 paragraphs), `src/file_a.go`, `src/file_b.go`, and a `generated_long_file.txt` (~2MB) for streaming-volume scenarios.
-- Playwright test binary built with the daemon binary path; `AGH_TEST_DAEMON_BIN` set when running against a pre-built binary.
+- Playwright test binary built with the daemon binary path; `COMPOZY_TEST_DAEMON_BIN` set when running against a pre-built binary.
 - Browser preferences neutral: no extensions, no system zoom override, system locale `en-US`, prefers-reduced-motion `no-preference` for default scenarios; UI-12 explicitly toggles `prefers-reduced-motion: reduce`.
 
 ## 6. Cleanup (applies to every scenario)
 
 - `runtime.dispose()` in the Playwright fixture (kills the daemon child via SIGINT then SIGKILL with a 10s grace per `web/e2e/fixtures/runtime.ts:414-427`).
 - Verify no orphan subprocesses (`pgrep -f claude-agent-acp` returns empty before tearing down the worktree).
-- Archive evidence directory before deleting the temp `AGH_HOME`.
-- Run `goleak.VerifyNone` equivalent on the daemon shutdown path through `agh daemon stop`-style supervised mode when the scenario explicitly enables it.
+- Archive evidence directory before deleting the temp `COMPOZY_HOME`.
+- Run `goleak.VerifyNone` equivalent on the daemon shutdown path through `compozy daemon stop`-style supervised mode when the scenario explicitly enables it.
 - Tear down the worktree only after evidence artifacts are written.
 
 ## 7. Mandatory scenarios
@@ -186,12 +186,12 @@ preconditions:
   - bootstrap-manifest written; daemon launched in launch mode by Playwright runtime (`web/e2e/fixtures/runtime.ts:112-173`)
   - SPA served from embedded `web/dist` at `runtime.url("/")`
 docs_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/CLAUDE.md
-  - /Users/pedronauck/Dev/compozy/agh/DESIGN.md
+  - /Users/pedronauck/Dev/compozy/compozy/web/CLAUDE.md
+  - /Users/pedronauck/Dev/compozy/compozy/DESIGN.md
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/index.tsx:20-167
-  - /Users/pedronauck/Dev/compozy/agh/web/src/components/connection-indicator.tsx:23-52
-  - /Users/pedronauck/Dev/compozy/agh/web/src/lib/vite-api-proxy-target.ts:1-22
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/index.tsx:20-167
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/components/connection-indicator.tsx:23-52
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/lib/vite-api-proxy-target.ts:1-22
 steps:
   - |
     Subtest A — connected:
@@ -222,7 +222,7 @@ steps:
 expected:
   - Loading skeleton (`home-loading` + `home-daemon-skeleton` + `home-metric-skeleton`) is visible during the initial fetch and disappears within 10s on a healthy daemon.
   - Connected pill is `tone=success`; daemon card carries `data-status` derived from real `getDaemonStatus` payload (NOT a placeholder).
-  - Vite proxy target was the value from `bootstrap.env` (`AGH_WEB_API_PROXY_TARGET`), proven by inspecting `runtime.url("/")` → host:port and the network HAR — every `/api/*` request goes there.
+  - Vite proxy target was the value from `bootstrap.env` (`COMPOZY_WEB_API_PROXY_TARGET`), proven by inspecting `runtime.url("/")` → host:port and the network HAR — every `/api/*` request goes there.
   - Disconnected card uses the `Empty` primitive with `ServerOff` icon and the Disconnected indicator (`web/src/routes/_app/index.tsx:122-138`).
   - Error card uses the `Empty` primitive with `AlertTriangle` icon and the daemon error message (`web/src/routes/_app/index.tsx:48-61`).
 evidence:
@@ -259,12 +259,12 @@ preconditions:
     auth resolved from the effective Claude home for the lane)
   - SPA served from runtime.url("/"); workspace exists (use `Use this workspace globally` if onboarding fires)
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/agents.$name.sessions.$id.tsx:19-152
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/session-chat-runtime-provider.tsx:1-46
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/hooks/use-session-chat-runtime.ts:1-52
-  - /Users/pedronauck/Dev/compozy/agh/web/src/components/assistant-ui/session-thread.tsx:140-300
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/prompt.go:90-156
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/prompt.go:251-580
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/agents.$name.sessions.$id.tsx:19-152
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/session-chat-runtime-provider.tsx:1-46
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/hooks/use-session-chat-runtime.ts:1-52
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/components/assistant-ui/session-thread.tsx:140-300
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/prompt.go:90-156
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/prompt.go:251-580
 steps:
   - |
     await page.goto(runtime.url("/"));
@@ -324,12 +324,12 @@ expected:
   - `composer-send-button` POSTs to `/api/sessions/:id/prompt` with `Content-Type: application/json`; response is `text/event-stream`.
   - DOM token length grows monotonically as deltas arrive — proves no buffer-then-flush regression in `assistant-ui`.
   - Final chat view contains the model reply; `processing-indicator` (`web/src/components/assistant-ui/session-thread.tsx:281` proximity) is hidden after `finish`.
-  - `events.db` contains ordered rows from this scenario window with schema `agh.session.event.v1`.
+  - `events.db` contains ordered rows from this scenario window with schema `compozy.session.event.v1`.
   - After reload, the chat view re-mounts the persisted transcript via `sessionTranscriptOptions` (`web/src/systems/session/lib/query-options.ts`); content matches the pre-reload final text.
 evidence:
   - ui-02-network.har (POST /prompt SSE response stream)
   - ui-02-screenshots/{thinking,streaming,after-finish,after-reload}.png
-  - events.json from `agh session events $sessionId -o jsonl`
+  - events.json from `compozy session events $sessionId -o jsonl`
   - ui-02-summary.json (token-length samples)
 failure_signatures:
   - Single full-text snap at the end with no monotonic growth — the SPA buffers the entire message instead of rendering deltas (regression of `useChatRuntime` wiring at `web/src/systems/session/hooks/use-session-chat-runtime.ts:36-49`).
@@ -360,17 +360,17 @@ provider: real-claude-code
 preconditions:
   - UI-02 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/prompt.go:104
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/session_stream.go:69-100
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/handlers.go:521
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/hooks/use-session-chat-runtime.ts:34-49
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/prompt.go:104
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/session_stream.go:69-100
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/handlers.go:521
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/hooks/use-session-chat-runtime.ts:34-49
 steps:
   - Create session and start a prompt that produces ≥30s of output (e.g. "Recursively summarize every file under src/ and produce a 200-line report").
   - After ~3s of streaming, capture the partial chat-view text length L1 and the last event id L_id from the SSE network frames (Playwright network event listener).
   - page.reload({ waitUntil: "domcontentloaded" }).
   - Wait for the chat-view to remount; assert the partial text is at least L1 (no regression to empty), then assert it continues to grow.
   - Wait for `finish`; capture final text length L2 and the chat-view text C2.
-  - Compare with `agh session transcript $S -o json`: full transcript text equals C2 modulo whitespace; no duplicate sentences inside a 200-char rolling window (regex sniff for the same 80-char substring appearing twice).
+  - Compare with `compozy session transcript $S -o json`: full transcript text equals C2 modulo whitespace; no duplicate sentences inside a 200-char rolling window (regex sniff for the same 80-char substring appearing twice).
 expected:
   - Step 2: SSE TCP connection from the closing tab is observable as closed in the daemon access log; daemon log records `prompt active, request context detached` (or equivalent) — proves `prompt.go:104` (`context.WithoutCancel`) detached the prompt.
   - Step 3-4: After remount, the SPA reissues `GET /api/sessions/:id/stream` with `Last-Event-ID` derived from the persisted transcript; only events with `sequence > L_id` are streamed (`session_stream.go:77-100`).
@@ -407,16 +407,16 @@ provider: real-claude-code
 preconditions:
   - UI-02 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/chat-header.tsx:163
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/sessions.go:43-50
-  - /Users/pedronauck/Dev/compozy/agh/internal/acp/client.go:594-610
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/chat-header.tsx:163
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/sessions.go:43-50
+  - /Users/pedronauck/Dev/compozy/compozy/internal/acp/client.go:594-610
 steps:
   - Start a long prompt as in UI-03.
   - After 3s of streaming, click `getByTestId("stop-button")` (the chat header Stop control). Capture wall-clock t_click.
   - Watch for the chat-view to flip into a cancelled state (`processing-indicator` hidden, no further deltas, an explicit "stopped" / "canceled" affordance or pill visible — pull the canonical text from `chat-header.tsx`).
   - Capture wall-clock t_state when stop_reason text becomes visible. Assert (t_state - t_click) ≤ 2.0s.
   - Issue follow-up prompt; assert it works (session is still alive — Stop only cancels the in-flight prompt, not the session). Note: when the chat header Stop action is wired to the broader session stop path it MAY end the session; the scenario asserts whichever invariant the implementation guarantees and documents that contract here.
-  - Inspect `agh session events $S --type agent_event -o json | jq '.[-3:]'` and confirm at least one terminal event carries `stop_reason == "canceled"` (or maps via `aiSDKFinishReason("canceled")` to `"other"` per `internal/api/httpapi/prompt.go:569-580`).
+  - Inspect `compozy session events $S --type agent_event -o json | jq '.[-3:]'` and confirm at least one terminal event carries `stop_reason == "canceled"` (or maps via `aiSDKFinishReason("canceled")` to `"other"` per `internal/api/httpapi/prompt.go:569-580`).
 expected:
   - Stop control is reachable via keyboard (Tab order); Enter/Space activates it.
   - Network HAR shows `POST /api/sessions/:id/prompt/cancel` returning 2xx within ≤500ms.
@@ -454,9 +454,9 @@ preconditions:
   - UI-02 preconditions
   - workspace seed includes `README.md` and `src/file_a.go` (real files for the read tool)
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/tool-call-card.tsx
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/tool-renderers/{bash,read,edit,write,search,generic,expanded-tool-content}.tsx
-  - /Users/pedronauck/Dev/compozy/agh/internal/transcript/transcript.go:239-318
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/tool-call-card.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/tool-renderers/{bash,read,edit,write,search,generic,expanded-tool-content}.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/internal/transcript/transcript.go:239-318
 steps:
   - Create a session, send: "Read README.md, then read src/file_a.go, then write a one-paragraph summary to summary.md."
   - Wait for at least three tool-call cards to render (`getByTestId("tool-call-card")`).
@@ -464,14 +464,14 @@ steps:
   - Snapshot the full DOM textContent. Run `match(/compozy_claim_[A-Za-z0-9_-]+/g)` and assert null match. Run `match(/sk-(ant|prod)-[A-Za-z0-9_-]+/g)` and assert null match (scopes any provider key that might leak through prompt metadata).
   - Multi-turn proof: after the first turn, the operator sends a follow-up "Now show me the summary you wrote." The agent reads summary.md; the new tool card appears; the older cards remain in their original positions (no re-order).
 expected:
-  - Each tool card emits the SSE sequence `tool-input-start` → `tool-input-available` → `tool-output-available` (cross-check with `agh session events $S --type tool_call,tool_result -o json`).
+  - Each tool card emits the SSE sequence `tool-input-start` → `tool-input-available` → `tool-output-available` (cross-check with `compozy session events $S --type tool_call,tool_result -o json`).
   - Cards are keyboard-toggleable: `aria-expanded` flips between true/false.
   - DOM scan for `compozy_claim_*` returns 0 matches across the entire session lifecycle (rendered or hidden subtrees).
   - Cards preserve order across follow-up turns (turn change does not reorder past tool cards).
 evidence:
   - ui-05-screenshots/{collapsed,expanded,after-followup}.png
   - ui-05-dom-needle-scan.json (counts per regex; all 0)
-  - tool_calls.json from `agh session events`
+  - tool_calls.json from `compozy session events`
 failure_signatures:
   - DOM contains a raw `compozy_claim_` token — release blocker (CLAUDE.md "claim_token redaction is non-negotiable"). Cross-link to ACP-18.
   - Tool card always expanded with no collapse affordance — regression of `tool-card-trigger` toggle.
@@ -500,12 +500,12 @@ provider: mock-acp
 preconditions:
   - Seed memory store with ≥3 memories of mixed types (`session`, `workspace`, `global`) and ≥2 distinct kinds (`snapshot`, `transcript`); use `runtime.requestOperatorJSON` to POST seeds via `/api/memory` (UDS) ahead of UI navigation.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/knowledge.tsx:1-60
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/knowledge/components/knowledge-list-panel.tsx:1-180
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/knowledge/components/knowledge-detail-panel.tsx
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/knowledge/components/knowledge-delete-dialog.tsx
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/knowledge/hooks/use-knowledge-actions.ts
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/settings/memory.tsx:193 (consolidate trigger)
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/knowledge.tsx:1-60
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/knowledge/components/knowledge-list-panel.tsx:1-180
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/knowledge/components/knowledge-detail-panel.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/knowledge/components/knowledge-delete-dialog.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/knowledge/hooks/use-knowledge-actions.ts
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/settings/memory.tsx:193 (consolidate trigger)
 steps:
   - await page.goto(runtime.url("/knowledge"));
   - await expect(page.getByTestId("knowledge-shell")).toBeVisible();
@@ -549,10 +549,10 @@ provider: mock-acp
 preconditions:
   - daemon running with default config; SPA on /settings/general
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/settings/general.tsx:60-300
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/settings/components/settings-restart-banner.tsx:23-100
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/settings/components/settings-page-actions.tsx
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/settings/components/settings-save-bar.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/settings/general.tsx:60-300
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/settings/components/settings-restart-banner.tsx:23-100
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/settings/components/settings-page-actions.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/settings/components/settings-save-bar.tsx
 steps:
   - await page.goto(runtime.url("/settings/general"));
   - await expect(page.getByTestId("settings-shell")).toBeVisible();
@@ -582,7 +582,7 @@ steps:
       ).toMatch(/Daemon restarted successfully|Restart succeeded/);
 expected:
   - Hot-apply: no restart banner; UDS reports the new value; daemon process did NOT restart (PID unchanged via `runtime.process.pid`).
-  - Restart-required: banner visible with `tone=warning` while polling, then `tone=success` on completion; daemon PID DID change (or `agh status` reports a fresh started_at).
+  - Restart-required: banner visible with `tone=warning` while polling, then `tone=success` on completion; daemon PID DID change (or `compozy status` reports a fresh started_at).
   - The "Restart now" button is keyboard-reachable; pressing Enter triggers the same flow.
 evidence:
   - ui-07-screenshots/{hot-apply-after-save,restart-banner,restart-success}.png
@@ -614,9 +614,9 @@ provider: mock-acp
 preconditions:
   - Seed at least one bridge config via `runtime.requestOperatorJSON("/api/bridges", { method: "POST", ... })` ahead of navigation; pick a bridge type whose adapter is available in the test build (per `internal/transport`).
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/bridges/components/bridge-list-panel.tsx
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/bridges/components/bridge-detail-panel.tsx
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/bridges/components/bridge-test-delivery-dialog.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/bridges/components/bridge-list-panel.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/bridges/components/bridge-detail-panel.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/bridges/components/bridge-test-delivery-dialog.tsx
 steps:
   - await page.goto(runtime.url("/bridges"));
   - await expect(page.getByTestId(/bridge-list/i)).toBeVisible();
@@ -658,14 +658,14 @@ provider: real-claude-code
 preconditions:
   - UI-02 preconditions; `/api/agent/spawn` available (covered by ACP-08)
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/agents.$name.sessions.$id.tsx
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/session.$id.tsx:1-56
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/session-inspector.tsx:77-120
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/types.ts:11
-  - /Users/pedronauck/Dev/compozy/agh/internal/session/spawn.go:14-200
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/agents.$name.sessions.$id.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/session.$id.tsx:1-56
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/session-inspector.tsx:77-120
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/types.ts:11
+  - /Users/pedronauck/Dev/compozy/compozy/internal/session/spawn.go:14-200
 steps:
   - Create parent session P via the UI (UI-02 flow).
-  - From inside the parent agent transcript context, run a prompt that the agent will satisfy by spawning a child via the kernel CLI: "Spawn a worker child via `agh spawn --agent claude --ttl-seconds 600 --role worker -o json` and tell me its session id." (Or post `POST /api/agent/spawn` directly from the runner with the parent's identity headers and assert the SPA UI reflects it.)
+  - From inside the parent agent transcript context, run a prompt that the agent will satisfy by spawning a child via the kernel CLI: "Spawn a worker child via `compozy spawn --agent claude --ttl-seconds 600 --role worker -o json` and tell me its session id." (Or post `POST /api/agent/spawn` directly from the runner with the parent's identity headers and assert the SPA UI reflects it.)
   - Capture the child id C from the response.
   - Navigate to the parent's session permalink (or to the lineage view in the inspector). Assert the child appears in a lineage component (`SessionInspector` or sidebar — pick the surface the implementation actually exposes; if no lineage UI exists today, mark this scenario `unsupported_today` and link to the TechSpec follow-up rather than asserting a fictional control — truthful UI invariant).
   - Click the child entry (or use `runtime.url(`/session/${C}`)` permalink) → assert the SPA redirects via `session.$id.tsx:22-30` to `/agents/${agent_name}/sessions/${C}` and renders the child transcript.
@@ -704,9 +704,9 @@ provider: mock-acp
 preconditions:
   - Seed tasks + task_runs in mixed states via `runtime.requestOperatorJSON("/api/tasks", ...)` and `/api/task-runs/...` per `internal/api/contract/tasks.go`. At least one leased run with `lease_until` in the future; one pending; one completed; one failed.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/tasks.tsx:1-50
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/tasks.$id.tsx:1-40
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/tasks/components/tasks-detail-runs-panel.tsx:1-200
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/tasks.tsx:1-50
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/tasks.$id.tsx:1-40
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/tasks/components/tasks-detail-runs-panel.tsx:1-200
 steps:
   - await page.goto(runtime.url("/tasks"));
   - await expect(page.getByTestId("tasks-shell")).toBeVisible();
@@ -736,7 +736,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: ui-11-truthful-ui-capability-flag
-title: When the daemon does NOT advertise a capability (e.g. AGH Network disabled), the corresponding sidebar entry / settings panel / shortcut MUST NOT render
+title: When the daemon does NOT advertise a capability (e.g. Compozy Network disabled), the corresponding sidebar entry / settings panel / shortcut MUST NOT render
 theme: web.truthful_ui
 coverage:
   primary:
@@ -748,18 +748,18 @@ risk: high
 live: false
 provider: mock-acp
 preconditions:
-  - Boot daemon with config that disables AGH Network (e.g. `[network] enabled = false` in the rendered config). Or seed a settings response in which a known capability flag is OFF.
+  - Boot daemon with config that disables Compozy Network (e.g. `[network] enabled = false` in the rendered config). Or seed a settings response in which a known capability flag is OFF.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app.tsx:30-60
-  - /Users/pedronauck/Dev/compozy/agh/web/src/components/app-sidebar.tsx:96-119
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/network.tsx:35-70 (disabled state)
-  - /Users/pedronauck/Dev/compozy/agh/internal/config/network.go (capability flag)
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app.tsx:30-60
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/components/app-sidebar.tsx:96-119
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/network.tsx:35-70 (disabled state)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/config/network.go (capability flag)
 steps:
   - Visit `/`. Assert sidebar nav entries match the documented set when network is enabled.
-  - Verify `agh status -o json` includes the flag set (`network.enabled = false`) by `runtime.requestOperatorJSON("/api/daemon/status")`.
+  - Verify `compozy status -o json` includes the flag set (`network.enabled = false`) by `runtime.requestOperatorJSON("/api/daemon/status")`.
   - Visit `/network` directly. Assert the route renders an explicit "Network is disabled" empty state (`network-disabled-state` test id from `web/src/routes/_app/network.tsx`), NOT a populated workspace.
   - Visit any settings panel that gates on a known capability (`/settings/network`); assert the disabled state surface OR the panel still renders for configuration (which one is the truthful behavior depends on the implementation — assert exactly the implemented surface).
-  - **DX-cliff audit**: walk the entire static route tree (`web/src/routeTree.gen.ts`) — for each route, capture its rendered DOM and grep for any `<a>` / `<button>` whose target / handler points to an endpoint that does NOT exist in `web/src/generated/agh-openapi.d.ts`. Flag every orphan as a release blocker.
+  - **DX-cliff audit**: walk the entire static route tree (`web/src/routeTree.gen.ts`) — for each route, capture its rendered DOM and grep for any `<a>` / `<button>` whose target / handler points to an endpoint that does NOT exist in `web/src/generated/compozy-openapi.d.ts`. Flag every orphan as a release blocker.
   - **Static audit (extra)**: run `grep -RIn "TODO\|placeholder\|FIXME" web/src/{routes,systems,components}/ --include='*.tsx'` and assert the count of UI-visible TODOs is 0.
 expected:
   - When network is disabled: sidebar still allows navigating to `/network` (so deep links don't break), but the route shows the disabled empty state. There is NO control on the home dashboard, no shortcut anywhere else, that pretends network is on.
@@ -772,7 +772,7 @@ evidence:
 failure_signatures:
   - `/network` route renders a populated workspace despite the flag being off — capability gate regression.
   - Sidebar offers a disabled action that does nothing on click — DX-cliff (release blocker per truthful-UI invariant).
-  - Orphan control points to an OperationID not present in `agh-openapi.d.ts` — codegen drift or static UI regression.
+  - Orphan control points to an OperationID not present in `compozy-openapi.d.ts` — codegen drift or static UI regression.
 cleanup:
   - re-enable network in config; runtime.dispose().
 ```
@@ -797,10 +797,10 @@ preconditions:
   - UI-02 preconditions
   - axe-core injected via `@axe-core/playwright`
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/components/connection-indicator.tsx:38-52 (aria-live=polite)
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/session-resume-failure.tsx:34 (aria-live=assertive)
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/agent/components/agent-sessions-list.tsx:136 (aria-live=polite)
-  - /Users/pedronauck/Dev/compozy/agh/DESIGN.md (color/contrast tokens)
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/components/connection-indicator.tsx:38-52 (aria-live=polite)
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/session-resume-failure.tsx:34 (aria-live=assertive)
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/agent/components/agent-sessions-list.tsx:136 (aria-live=polite)
+  - /Users/pedronauck/Dev/compozy/compozy/DESIGN.md (color/contrast tokens)
 steps:
   - Navigate the SPA from the home dashboard through onboarding (if not yet completed) → sessions list → new session → chat. Use only Tab / Shift+Tab / Enter / Space / Escape — no mouse.
   - At each focus stop, screenshot the focused element; assert a visible `outline` / `box-shadow:none` (per DESIGN.md flat-depth rule, focus uses `outline` instead of shadow, color `--color-accent`).
@@ -853,9 +853,9 @@ provider: mock-acp
 preconditions:
   - Workspace seeded with at least one session and one task (mock-acp fixtures)
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app.tsx
-  - /Users/pedronauck/Dev/compozy/agh/web/src/components/app-sidebar.tsx
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/session-inspector.tsx (responsive sheet pattern via `Sheet` primitive)
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/components/app-sidebar.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/session-inspector.tsx (responsive sheet pattern via `Sheet` primitive)
 steps:
   - For each viewport in [{w:1440,h:900}, {w:1024,h:768}, {w:768,h:1024}, {w:390,h:844}]:
       - page.setViewportSize({...});
@@ -895,9 +895,9 @@ risk: medium
 live: false
 provider: mock-acp
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/DESIGN.md
-  - /Users/pedronauck/Dev/compozy/agh/packages/ui/src/tokens.css (--color-accent #E8572A, --color-canvas #141312, --color-canvas-deep #0E0E0F)
-  - /Users/pedronauck/Dev/compozy/agh/web/src/styles.css
+  - /Users/pedronauck/Dev/compozy/compozy/DESIGN.md
+  - /Users/pedronauck/Dev/compozy/compozy/packages/ui/src/tokens.css (--color-accent #E8572A, --color-canvas #141312, --color-canvas-deep #0E0E0F)
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/styles.css
 steps:
   - For each primary route (home, chat, knowledge, tasks, settings/general, settings/hooks-extensions, network, bridges, automation jobs, automation triggers):
       - Walk every element via `document.querySelectorAll('*')`; for each element: get `window.getComputedStyle(el)`. Reject the page if any element with non-zero text/icon content has `box-shadow !== "none"` AND is not inside a `[data-allow-shadow]` opt-in (the only documented exception is the marketing site sticky header — which does not apply to the SPA).
@@ -937,9 +937,9 @@ provider: real-claude-code
 preconditions:
   - UI-02 preconditions
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/hooks/use-session-chat-runtime.ts:34-52
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/session_stream.go:69-100
-  - /Users/pedronauck/Dev/compozy/agh/internal/api/core/handlers.go:521
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/hooks/use-session-chat-runtime.ts:34-52
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/session_stream.go:69-100
+  - /Users/pedronauck/Dev/compozy/compozy/internal/api/core/handlers.go:521
 steps:
   - Create session and start a long prompt (≥60s of expected output).
   - After 5s of streaming, simulate tab hidden:
@@ -948,7 +948,7 @@ steps:
   - Foreground the tab:
       `await page.evaluate(() => Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true }) && document.dispatchEvent(new Event('visibilitychange')));`
   - Watch the chat-view: tokens that were emitted while hidden should now render (caught up via after_seq) without duplicating any earlier text.
-  - At `finish`, compare DOM textContent vs `agh session transcript $S -o json`: must be byte-equal modulo whitespace.
+  - At `finish`, compare DOM textContent vs `compozy session transcript $S -o json`: must be byte-equal modulo whitespace.
   - Duplicate-window scan: same regex as UI-03 (no 80-char substring repeated with offset ≥ 200 chars).
 expected:
   - Network HAR: a single SSE EventSource (or fetch-stream) reconnect happens at the visibility transition; the request includes `Last-Event-ID` derived from the last delta the SPA had.
@@ -983,11 +983,11 @@ provider: mock-acp
 preconditions:
   - daemon running; SPA reachable
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/lib/api-client.ts:24-65
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes/__root.tsx:23 (Toaster)
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/permission-prompt.tsx:30
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/session/hooks/use-session-create-dialog.ts:185
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/workspace/hooks/use-workspace-setup-content.ts:71
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/lib/api-client.ts:24-65
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes/__root.tsx:23 (Toaster)
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/permission-prompt.tsx:30
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/hooks/use-session-create-dialog.ts:185
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/workspace/hooks/use-workspace-setup-content.ts:71
 steps:
   - For each error class:
       - Mock the relevant HTTP route via `page.route(...)` to return the typed error envelope (status code + `{error: "<reason>", code: "<stable_code>"}` per `internal/api/core/error_paths_test.go`).
@@ -1028,9 +1028,9 @@ provider: real-claude-code
 preconditions:
   - Seed (a) a real Claude Code session that triggers a synthetic prompt with `PromptSyntheticMeta` carrying a fake claim_token (per ACP-18 fixture) AND (b) one task_run row with a known `claim_token_hash`.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md (Security Invariants)
-  - /Users/pedronauck/Dev/compozy/agh/internal/acp/types.go:175-184
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems/tasks/components/tasks-detail-runs-panel.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (Security Invariants)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/acp/types.go:175-184
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/tasks/components/tasks-detail-runs-panel.tsx
 steps:
   - Visit each primary route after triggering the seeded synthetic prompt:
       - /, /agents/claude/sessions/$ID (during streaming, after finish), /knowledge, /tasks, /tasks/$ID, /settings/{general, hooks-extensions, vault}, /network.
@@ -1049,11 +1049,11 @@ cleanup:
   - delete seeded data; runtime.dispose().
 ```
 
-### UI-18 — COPY.md vocabulary scrape: no `recipe`, `workflow`, `procedure`, `playbook` for AGH artifacts; canonical `capability` enforced
+### UI-18 — COPY.md vocabulary scrape: no `recipe`, `workflow`, `procedure`, `playbook` for Compozy artifacts; canonical `capability` enforced
 
 ```yaml qa-scenario
 id: ui-18-copy-vocabulary
-title: Every visible UI string passes the COPY.md canonical-term gate; AGH artifacts are called `capability`; backend nouns match the runtime vocabulary
+title: Every visible UI string passes the COPY.md canonical-term gate; Compozy artifacts are called `capability`; backend nouns match the runtime vocabulary
 theme: web.copy
 coverage:
   primary:
@@ -1066,8 +1066,8 @@ provider: mock-acp
 preconditions:
   - SPA serving from runtime.url("/"); workspace seeded
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/COPY.md
-  - /Users/pedronauck/Dev/compozy/agh/docs/_memory/glossary.md
+  - /Users/pedronauck/Dev/compozy/compozy/COPY.md
+  - /Users/pedronauck/Dev/compozy/compozy/docs/_memory/glossary.md
 steps:
   - Walk every primary route (same list as UI-13) and capture document.body.innerText.
   - Assemble a single text blob; run forbidden-word regex (case-insensitive, word-boundary-anchored): `/\b(recipe|workflow|procedure|playbook)\b/g`.
@@ -1104,12 +1104,12 @@ risk: high
 live: false
 provider: mock-acp
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/src/generated/agh-openapi.d.ts
-  - /Users/pedronauck/Dev/compozy/agh/web/src/routes
-  - /Users/pedronauck/Dev/compozy/agh/web/src/systems
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/generated/compozy-openapi.d.ts
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/routes
+  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems
 steps:
   - **Static audit**:
-      - For each `useMutation`/`useQuery` call across `web/src/`, extract the API path (literal or template-built). Cross-reference with the operation list in `web/src/generated/agh-openapi.d.ts`. Any path that does not resolve to an operation is a release blocker (codegen drift).
+      - For each `useMutation`/`useQuery` call across `web/src/`, extract the API path (literal or template-built). Cross-reference with the operation list in `web/src/generated/compozy-openapi.d.ts`. Any path that does not resolve to an operation is a release blocker (codegen drift).
       - Run `grep -RIn 'TODO\|FIXME\|XXX' web/src/{routes,systems,components}/ --include='*.tsx' --include='*.ts' | grep -v '\.test\.\|stories'`; assert count == 0 for human-visible files (excluding tests and stories).
       - Run `grep -RIn 'fake\|mock-only\|temporary' web/src/{routes,systems,components}/ --include='*.tsx' | grep -v '\.test\.\|stories\|mocks/'`; assert count == 0.
   - **Runtime audit**:
@@ -1147,11 +1147,11 @@ live: conditional
 provider: real-claude-code
 preconditions:
   - UI-02 preconditions
-  - `make test-e2e-web` lane reachable (Playwright + daemon binary built); `AGH_TEST_DAEMON_BIN` set
+  - `make test-e2e-web` lane reachable (Playwright + daemon binary built); `COMPOZY_TEST_DAEMON_BIN` set
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/web/playwright.config.ts:9-29
-  - /Users/pedronauck/Dev/compozy/agh/Makefile:29-30 (test-e2e-web target)
-  - /Users/pedronauck/Dev/compozy/agh/web/e2e/fixtures/runtime.ts:1-615
+  - /Users/pedronauck/Dev/compozy/compozy/web/playwright.config.ts:9-29
+  - /Users/pedronauck/Dev/compozy/compozy/Makefile:29-30 (test-e2e-web target)
+  - /Users/pedronauck/Dev/compozy/compozy/web/e2e/fixtures/runtime.ts:1-615
 steps:
   - Run `make test-e2e-web` with the lab's bootstrap.env exported; the live spec MUST be skipped automatically when `ANTHROPIC_API_KEY` is absent (use `test.skip(!process.env.ANTHROPIC_API_KEY, "...")` at the top of the spec).
   - Inside the spec: create a session, send a single short prompt ("Read README.md and reply with one sentence"), wait for `finish`.
@@ -1187,7 +1187,7 @@ cleanup:
 - **PermissionPrompt with timeout**: `defaultPermissionWait = 5*time.Minute` (per `internal/acp/client.go:27`); the SPA must surface a deadline indicator on the prompt card (extract from the implementation; if absent, mark as TechSpec follow-up rather than asserting a fictional control).
 - **Concurrent two prompts on same session**: covered by ACP-15 on the daemon side; the SPA composer should be disabled while a prompt is in flight (`canPrompt` from `useSessionPageControls`).
 - **Long workspace path**: workspace pill should truncate with `title` attr for hover; visual check at UI-13 mobile size.
-- **`X-AGH-Workspace-ID` mismatch via deep link**: when the operator navigates to a session id that belongs to another workspace, the `_app/agents.$name.sessions.$id.tsx:107-112` toast fires "Session not found" and redirects to `/agents/$name`. Re-test after authenticating against a workspace switcher.
+- **`X-Compozy-Workspace-ID` mismatch via deep link**: when the operator navigates to a session id that belongs to another workspace, the `_app/agents.$name.sessions.$id.tsx:107-112` toast fires "Session not found" and redirects to `/agents/$name`. Re-test after authenticating against a workspace switcher.
 
 ## 9. Integration surfaces
 
@@ -1231,7 +1231,7 @@ cleanup:
 
 ## 11. Fixtures
 
-- **Bootstrap manifest**: produced by `agh-qa-bootstrap`; includes unique `AGH_HOME`, daemon ports, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME`, **`AGH_WEB_API_PROXY_TARGET`** (mandatory).
+- **Bootstrap manifest**: produced by `agh-qa-bootstrap`; includes unique `COMPOZY_HOME`, daemon ports, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME`, **`COMPOZY_WEB_API_PROXY_TARGET`** (mandatory).
 - **Workspace seed**: `$LAB/workspace/{README.md, src/file_a.go, src/file_b.go, generated_long_file.txt(~2MB)}` — same as `03-acp-sessions.md` ACP-16. Required for UI-02, UI-05, UI-09, UI-15, UI-20.
 - **Memory seed (UI-06)**: 3+ memories of mixed types/scopes via `runtime.requestOperatorJSON` POST; deleted in cleanup.
 - **Bridges seed (UI-08)**: 1 bridge with a known adapter and a malformed payload sample.
@@ -1249,36 +1249,36 @@ cleanup:
 
 ## 12. Citations
 
-- Repo-wide rules: `/Users/pedronauck/Dev/compozy/agh/CLAUDE.md` (Critical Rules; Workflow; Skill Dispatch; Design System; Copy System; CI/Release).
-- Backend invariants: `/Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md` — Architecture, Concurrency, Observability, Security Invariants.
-- Web rules: `/Users/pedronauck/Dev/compozy/agh/web/CLAUDE.md` (Design System, Copy System, Skill Dispatch, Frontend Architecture Rules).
-- Design tokens: `/Users/pedronauck/Dev/compozy/agh/DESIGN.md` and `/Users/pedronauck/Dev/compozy/agh/packages/ui/src/tokens.css`.
-- Copy system: `/Users/pedronauck/Dev/compozy/agh/COPY.md` and `/Users/pedronauck/Dev/compozy/agh/docs/_memory/glossary.md`.
-- Web SPA structure: `/Users/pedronauck/Dev/compozy/agh/web/src/{routes,systems,components,hooks,integrations,stores,lib}` (per `web/CLAUDE.md` Structure).
-- Embedded SPA: `/Users/pedronauck/Dev/compozy/agh/web/embed.go`.
-- Vite proxy: `/Users/pedronauck/Dev/compozy/agh/web/src/lib/vite-api-proxy-target.ts`.
+- Repo-wide rules: `/Users/pedronauck/Dev/compozy/compozy/CLAUDE.md` (Critical Rules; Workflow; Skill Dispatch; Design System; Copy System; CI/Release).
+- Backend invariants: `/Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md` — Architecture, Concurrency, Observability, Security Invariants.
+- Web rules: `/Users/pedronauck/Dev/compozy/compozy/web/CLAUDE.md` (Design System, Copy System, Skill Dispatch, Frontend Architecture Rules).
+- Design tokens: `/Users/pedronauck/Dev/compozy/compozy/DESIGN.md` and `/Users/pedronauck/Dev/compozy/compozy/packages/ui/src/tokens.css`.
+- Copy system: `/Users/pedronauck/Dev/compozy/compozy/COPY.md` and `/Users/pedronauck/Dev/compozy/compozy/docs/_memory/glossary.md`.
+- Web SPA structure: `/Users/pedronauck/Dev/compozy/compozy/web/src/{routes,systems,components,hooks,integrations,stores,lib}` (per `web/CLAUDE.md` Structure).
+- Embedded SPA: `/Users/pedronauck/Dev/compozy/compozy/web/embed.go`.
+- Vite proxy: `/Users/pedronauck/Dev/compozy/compozy/web/src/lib/vite-api-proxy-target.ts`.
 - Chat runtime:
-  - `/Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/agents.$name.sessions.$id.tsx:1-152`.
-  - `/Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/session-chat-runtime-provider.tsx:1-46`.
-  - `/Users/pedronauck/Dev/compozy/agh/web/src/systems/session/hooks/use-session-chat-runtime.ts:1-52`.
-  - `/Users/pedronauck/Dev/compozy/agh/web/src/components/assistant-ui/session-thread.tsx:1-300+`.
-- Tool rendering: `/Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/tool-call-card.tsx`, `/Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/tool-renderers/`.
-- Permission flow: `/Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/permission-prompt.tsx:1-60+`.
-- Inspector: `/Users/pedronauck/Dev/compozy/agh/web/src/systems/session/components/session-inspector.tsx`.
-- Knowledge: `/Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/knowledge.tsx`, `/Users/pedronauck/Dev/compozy/agh/web/src/systems/knowledge/`.
-- Settings: `/Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/settings/*.tsx`, `/Users/pedronauck/Dev/compozy/agh/web/src/systems/settings/components/settings-restart-banner.tsx:23-100`.
-- Bridges: `/Users/pedronauck/Dev/compozy/agh/web/src/systems/bridges/components/`.
-- Tasks: `/Users/pedronauck/Dev/compozy/agh/web/src/systems/tasks/components/tasks-detail-runs-panel.tsx`, `/Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/tasks*.tsx`.
-- Network: `/Users/pedronauck/Dev/compozy/agh/web/src/systems/network/components/network-workspace-shell.tsx`, `/Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/network.tsx`.
-- API client: `/Users/pedronauck/Dev/compozy/agh/web/src/lib/api-client.ts:1-65`, `/Users/pedronauck/Dev/compozy/agh/web/src/lib/api-contract.ts`.
-- Generated contract: `/Users/pedronauck/Dev/compozy/agh/web/src/generated/agh-openapi.d.ts`.
-- Connection indicator (`aria-live`): `/Users/pedronauck/Dev/compozy/agh/web/src/components/connection-indicator.tsx:23-52`.
-- Playwright runtime: `/Users/pedronauck/Dev/compozy/agh/web/e2e/fixtures/runtime.ts:1-615`, `/Users/pedronauck/Dev/compozy/agh/web/e2e/fixtures/test.ts:1-50`, `/Users/pedronauck/Dev/compozy/agh/web/e2e/fixtures/selectors.ts`.
-- Existing real-shape e2e specs (mock-driven baseline to avoid duplicating): `/Users/pedronauck/Dev/compozy/agh/web/e2e/{harness-smoke,session-onboarding,session-provider-override,settings,settings-transport,network,automation,bridges,tasks,tasks-coordinator-handoff,combined-flows,storybook-bootstrap}.spec.ts`.
-- Make targets: `/Users/pedronauck/Dev/compozy/agh/Makefile:29-30 (test-e2e-web)`, `:81-98 (web-dev/web-build/web-test)`.
+  - `/Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/agents.$name.sessions.$id.tsx:1-152`.
+  - `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/session-chat-runtime-provider.tsx:1-46`.
+  - `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/hooks/use-session-chat-runtime.ts:1-52`.
+  - `/Users/pedronauck/Dev/compozy/compozy/web/src/components/assistant-ui/session-thread.tsx:1-300+`.
+- Tool rendering: `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/tool-call-card.tsx`, `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/tool-renderers/`.
+- Permission flow: `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/permission-prompt.tsx:1-60+`.
+- Inspector: `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/session/components/session-inspector.tsx`.
+- Knowledge: `/Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/knowledge.tsx`, `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/knowledge/`.
+- Settings: `/Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/settings/*.tsx`, `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/settings/components/settings-restart-banner.tsx:23-100`.
+- Bridges: `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/bridges/components/`.
+- Tasks: `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/tasks/components/tasks-detail-runs-panel.tsx`, `/Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/tasks*.tsx`.
+- Network: `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/network/components/network-workspace-shell.tsx`, `/Users/pedronauck/Dev/compozy/compozy/web/src/routes/_app/network.tsx`.
+- API client: `/Users/pedronauck/Dev/compozy/compozy/web/src/lib/api-client.ts:1-65`, `/Users/pedronauck/Dev/compozy/compozy/web/src/lib/api-contract.ts`.
+- Generated contract: `/Users/pedronauck/Dev/compozy/compozy/web/src/generated/compozy-openapi.d.ts`.
+- Connection indicator (`aria-live`): `/Users/pedronauck/Dev/compozy/compozy/web/src/components/connection-indicator.tsx:23-52`.
+- Playwright runtime: `/Users/pedronauck/Dev/compozy/compozy/web/e2e/fixtures/runtime.ts:1-615`, `/Users/pedronauck/Dev/compozy/compozy/web/e2e/fixtures/test.ts:1-50`, `/Users/pedronauck/Dev/compozy/compozy/web/e2e/fixtures/selectors.ts`.
+- Existing real-shape e2e specs (mock-driven baseline to avoid duplicating): `/Users/pedronauck/Dev/compozy/compozy/web/e2e/{harness-smoke,session-onboarding,session-provider-override,settings,settings-transport,network,automation,bridges,tasks,tasks-coordinator-handoff,combined-flows,storybook-bootstrap}.spec.ts`.
+- Make targets: `/Users/pedronauck/Dev/compozy/compozy/Makefile:29-30 (test-e2e-web)`, `:81-98 (web-dev/web-build/web-test)`.
 - ACP backend cross-links:
-  - Detached prompt: `/Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/prompt.go:104`.
-  - Typed envelope state machine: `/Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/prompt.go:251-580`.
-  - Prompt cancel: `/Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/sessions.go:43-50`, `/Users/pedronauck/Dev/compozy/agh/internal/acp/client.go:594-610`.
-  - SSE poll/replay: `/Users/pedronauck/Dev/compozy/agh/internal/api/core/session_stream.go:69-100`, `/Users/pedronauck/Dev/compozy/agh/internal/api/core/handlers.go:521`.
-- QA framework references: `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md` (scenario shape, evidence-as-pass-criterion, transport-snapshot vs persisted-events parity); `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md` (hermetic env shield, async/cancel rigor, ≤2s cancel assertions).
+  - Detached prompt: `/Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/prompt.go:104`.
+  - Typed envelope state machine: `/Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/prompt.go:251-580`.
+  - Prompt cancel: `/Users/pedronauck/Dev/compozy/compozy/internal/api/httpapi/sessions.go:43-50`, `/Users/pedronauck/Dev/compozy/compozy/internal/acp/client.go:594-610`.
+  - SSE poll/replay: `/Users/pedronauck/Dev/compozy/compozy/internal/api/core/session_stream.go:69-100`, `/Users/pedronauck/Dev/compozy/compozy/internal/api/core/handlers.go:521`.
+- QA framework references: `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/openclaw-qa-patterns.md` (scenario shape, evidence-as-pass-criterion, transport-snapshot vs persisted-events parity); `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_references/hermes-qa-patterns.md` (hermetic env shield, async/cancel rigor, ≤2s cancel assertions).

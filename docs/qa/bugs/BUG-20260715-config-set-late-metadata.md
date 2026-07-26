@@ -11,20 +11,20 @@
 
 ## Summary
 
-`agh config set` used daemon process metadata as the only reachability decision for ordinary global writes. When early boot made the recorded daemon timestamp diverge from the process timestamp, a live daemon was treated as offline. The CLI wrote `config.toml` locally and reported `applied=true`, but emitted no apply record, did not advance the active generation, and left the Marketplace runtime on the previous feed.
+`compozy config set` used daemon process metadata as the only reachability decision for ordinary global writes. When early boot made the recorded daemon timestamp diverge from the process timestamp, a live daemon was treated as offline. The CLI wrote `config.toml` locally and reported `applied=true`, but emitted no apply record, did not advance the active generation, and left the Marketplace runtime on the previous feed.
 
 ## Reproduction
 
 1. Start a daemon whose early boot exceeds the process timestamp tolerance while its UDS status endpoint is healthy.
-2. Run `agh config set marketplace.catalog.base_url <second-feed> -o json`.
-3. Run `agh marketplace refresh --kind mcp -o json` and inspect apply history.
+2. Run `compozy config set marketplace.catalog.base_url <second-feed> -o json`.
+3. Run `compozy marketplace refresh --kind mcp -o json` and inspect apply history.
 
 **Expected:** A live PID with a reachable UDS `running` status is reconciled through the daemon. The result includes an apply record and active generation, and the next refresh uses the second feed.
 **Actual:** The CLI returned `lifecycle=live` and `applied=true` without an apply record. Apply history did not advance, and refresh continued to use the first feed.
 
 ## Evidence
 
-- Sanitized red/green replay: `/Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-config-reachability.json`.
+- Sanitized red/green replay: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-config-reachability.json`.
 - The canonical CLI regression failed before the shared reachability owner was used: `ReloadSettings was not called through the reachable daemon`.
 
 ## Fix

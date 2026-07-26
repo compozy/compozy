@@ -27,7 +27,7 @@ The structured HTTP/UDS contract already has an explicit `clear_owner` path, so 
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-owner-clear-not-persisted.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-owner-clear-not-persisted.dom.txt`
 - Detail after Save still rendered `Owner sess-b1c980b86709053d`; fresh Edit rendered `Exact session` selected with the same reference.
 
 ## Fix
@@ -40,5 +40,5 @@ The structured HTTP/UDS contract already has an explicit `clear_owner` path, so 
 ## Verification
 
 - **Passed 2026-07-13:** Bruno changed child `task-f6638f9897b1b0f8` from Exact session to Unassigned. The fresh detail rendered `Owner Unassigned`, and a separately reopened Edit modal kept `Unassigned` selected with a disabled, empty owner reference. The same replay passed on child `task-a090a4e5ba779d61`.
-- Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-owner-clear-fixed-detail.dom.txt`, `ch-task-owner-clear-fixed-fresh-edit.dom.txt`, and `ch-task-owner-clear-second-child-fixed.dom.txt`.
-- The subsequent real task-role activation/AGH-71 rollup is tracked independently; it is no longer blocked by owner clearing.
+- Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-owner-clear-fixed-detail.dom.txt`, `ch-task-owner-clear-fixed-fresh-edit.dom.txt`, and `ch-task-owner-clear-second-child-fixed.dom.txt`.
+- The subsequent real task-role activation/Compozy-71 rollup is tracked independently; it is no longer blocked by owner clearing.

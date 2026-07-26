@@ -26,8 +26,8 @@ MCP server names are public human-readable identities and may contain spaces. OA
 
 - Pre-fix browser callback reproduced the HTTP 400 after the fake authorization server completed PKCE.
 - The structured manual exchange exposed the owning error without revealing token material: `vault: unsupported secret ref: [REDACTED] OAuth MCP/value`.
-- Isolated red/green and live-replay record: `/Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json`.
-- Confirmed Web state: `/Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png`.
+- Isolated red/green and live-replay record: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json`.
+- Confirmed Web state: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png`.
 
 ## Fix
 

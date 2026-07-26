@@ -5,7 +5,7 @@ title: Refuse incompatible session event databases on reads
 persona: Bruno
 journey: J-operate-daemon-schema
 expected: Session event, transcript, watch, and ledger reads refuse legacy or ahead events.db files before querying or changing the database.
-entry_points: agh session events <session-id>; agh session history <session-id>; session ledger materialization
+entry_points: compozy session events <session-id>; compozy session history <session-id>; session ledger materialization
 qa_status: untested
 bug_ids:
 fix_status:

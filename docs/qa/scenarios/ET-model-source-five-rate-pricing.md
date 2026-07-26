@@ -17,7 +17,7 @@ overlaps: MS-042;MS-055;MS-056
 ---
 
 Register a local extension with `model.source` and `model.read`. Return one model row whose five rates
-are distinct, refresh it into the catalog, restart AGH, and compare native catalog and Host API
+are distinct, refresh it into the catalog, restart Compozy, and compare native catalog and Host API
 `models/list` payloads. Then return a negative or non-finite rate and require a failed, redacted source
 status without corrupting the last good row. Confirm `model.source`, `models/list`, `model.read`, and
 `model.write` identifiers and grants did not change.

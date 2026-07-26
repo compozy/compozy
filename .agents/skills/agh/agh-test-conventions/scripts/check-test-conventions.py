@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Heuristic checker for AGH Go test convention violations.
+"""Heuristic checker for Compozy Go test convention violations.
 
 Scans a single *_test.go file and reports likely violations to stderr.
 Exits 0 on success, 1 if violations were found.
@@ -110,7 +110,7 @@ def main() -> int:
         for v in violations:
             print(v, file=sys.stderr)
         return 1
-    print(f"OK: {args.file} passes the AGH test-shape heuristics.")
+    print(f"OK: {args.file} passes the Compozy test-shape heuristics.")
     return 0
 
 

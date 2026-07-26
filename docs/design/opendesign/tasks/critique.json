@@ -11,7 +11,7 @@
     "brand": { "score": 4, "notes": "Token block copied verbatim from agent-detail.html (packages/ui lineage); accent budget held (primary CTA + sanctioned live-state tints); flat depth, no side-stripes, no gradients; canonical RuntimeSelector geometry with 7-bar meter reused, not rebuilt." }
   },
   "checks": {
-    "plan_acceptance": "Tabs 7→3; pills ≤3 default; destructive verbs in overflow; operator tier (lease/heartbeat/claim-hash/seq/bridges/stream) only inside Inspect drawer; no set-status control (status is derived); no delete-run verb; nullable result renders em-dash placeholder; CLI hints use `agh task` singular.",
+    "plan_acceptance": "Tabs 7→3; pills ≤3 default; destructive verbs in overflow; operator tier (lease/heartbeat/claim-hash/seq/bridges/stream) only inside Inspect drawer; no set-status control (status is derived); no delete-run verb; nullable result renders em-dash placeholder; CLI hints use `compozy task` singular.",
     "os_head_contract": "All 7 heads (1 task-detail + 4 states + 2 run-detail) use w2head: back chevron, w2-crumbs trail (window-local, never workspace-prefixed), w2-status with tone dot, w2-vsep, w2-actions ≤2; zero matches for topbar|head__|breadcrumb__|legacy-pagehead|lp-icon across tasks/*.html.",
     "structure": "style 1/1, script 1/1, header/section tags balanced in all three files (grep-verified).",
     "states": "in_progress (task-detail.html) · blocked+approval, failed, needs_attention, completed (task-detail-states.html) · running, failed (task-run-detail.html).",

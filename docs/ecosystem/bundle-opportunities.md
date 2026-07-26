@@ -1,45 +1,45 @@
-# AGH Bundle Opportunities
+# Compozy Bundle Opportunities
 
 - **Language:** English · [Português (Brasil)](ptbr/bundle-opportunities.md)
 
-> Status: opportunity catalog and product-planning reference. This document does not claim that the integrations or bundles described below are currently available in AGH.
+> Status: opportunity catalog and product-planning reference. This document does not claim that the integrations or bundles described below are currently available in Compozy.
 
 ## Purpose
 
-AGH already supports extension-shipped bundle profiles that project a coordinated runtime shape. No first-party extension in this repository currently ships a bundle profile. The next product question covers both the integrations to add and the complete outcomes those integrations should support for technical and nontechnical users.
+Compozy already supports extension-shipped bundle profiles that project a coordinated runtime shape. No first-party extension in this repository currently ships a bundle profile. The next product question covers both the integrations to add and the complete outcomes those integrations should support for technical and nontechnical users.
 
 This catalog separates two layers:
 
 - **Extensions** provide reusable resources and service surfaces such as agents, providers, tools, hooks, skills, Loops, MCP servers, bridge adapters, and external-system connectors. An extension may also ship bundle definitions.
-- **Bundles** package an outcome for a persona by selecting and configuring agents, authored context, jobs, triggers, AGH Network channels, and bridge preset templates around already installed dependencies.
+- **Bundles** package an outcome for a persona by selecting and configuring agents, authored context, jobs, triggers, Compozy Network channels, and bridge preset templates around already installed dependencies.
 
-The catalog is intentionally broader than a roadmap. It is a source of candidates to validate, combine, reject, or sequence. Evidence codes point to the implementation boundary in AGH or to patterns observed in Hermes, Pi, OpenClaw, and Paperclip. External evidence supports the opportunity pattern; it does not prove that the corresponding AGH integration exists.
+The catalog is intentionally broader than a roadmap. It is a source of candidates to validate, combine, reject, or sequence. Evidence codes point to the implementation boundary in Compozy or to patterns observed in Hermes, Pi, OpenClaw, and Paperclip. External evidence supports the opportunity pattern; it does not prove that the corresponding Compozy integration exists.
 
 ## Runtime truth and fit model
 
 ### What a bundle profile can project today
 
-The current profile schema in AGH can project only:
+The current profile schema in Compozy can project only:
 
-- declared AGH Network channels, including one primary channel;
+- declared Compozy Network channels, including one primary channel;
 - packaged agents and their Soul and Heartbeat sidecars;
 - package-managed automation jobs;
 - package-managed automation triggers;
 - disabled bridge instances materialized from package-managed presets. Preset secret slots remain catalog and setup metadata; activation does not bind them.
 
-These resources are declared by an already installed owning extension. A bundle profile does **not** install another extension, resolve dependencies, bind an account or secret, run a dependency health check, or enable bridge delivery. Static skills, Loops, hooks, tools, and MCP server resources remain extension-scoped; activating one profile does not install or selectively scope those resources to that profile. See [AGH-1], [AGH-2], and [AGH-3].
+These resources are declared by an already installed owning extension. A bundle profile does **not** install another extension, resolve dependencies, bind an account or secret, run a dependency health check, or enable bridge delivery. Static skills, Loops, hooks, tools, and MCP server resources remain extension-scoped; activating one profile does not install or selectively scope those resources to that profile. See [Compozy-1], [Compozy-2], and [Compozy-3].
 
 This distinction matters in the catalog. A blueprint can be valuable without fitting the current activation schema end to end.
 
 ### Fit labels
 
 - **Current** — the blueprint can be represented by one installed owning extension, a configured ACP runtime/provider for each packaged agent, and the current profile projection. The owning extension may package static skills, Loops, hooks, tools, or MCP servers, but those resources remain extension-scoped rather than profile-scoped.
-- **Current with preinstalled dependencies** — the profile can project agents, AGH Network channels, jobs, triggers, and disabled bridge instances today, but every required connector and every static skill, Loop, hook, tool, or MCP server must already be installed, configured, authorized, and healthy. Those static resources remain extension-scoped, and bridge delivery still requires separate secret binding and enablement.
+- **Current with preinstalled dependencies** — the profile can project agents, Compozy Network channels, jobs, triggers, and disabled bridge instances today, but every required connector and every static skill, Loop, hook, tool, or MCP server must already be installed, configured, authorized, and healthy. Those static resources remain extension-scoped, and bridge delivery still requires separate secret binding and enablement.
 - **Platform evolution** — a trustworthy, portable version requires one or more unshipped platform features: dependency installation, dependency locking, profile-scoped static resources, provider service contracts, guided setup, OAuth/account selection, health checks, dry runs, update ownership, direct Loop targets from bundle automation, or transactional rollback.
 
 The second label is intentionally literal: **Current with installed, configured, authorized, and healthy dependencies (static skill/Loop/hook/tool/MCP resources remain extension-scoped; bridge delivery remains disabled until setup completes)**.
 
-Current bundle jobs target either a packaged agent or an explicit task configuration; current bundle triggers target a packaged agent. Neither profile schema can target a Loop directly. When a current-fit blueprint names a Loop, its automation targets an agent that has access to `agh__loop_run`; that agent starts the extension-scoped Loop. A direct job-to-Loop or trigger-to-Loop binding is platform evolution.
+Current bundle jobs target either a packaged agent or an explicit task configuration; current bundle triggers target a packaged agent. Neither profile schema can target a Loop directly. When a current-fit blueprint names a Loop, its automation targets an agent that has access to `compozy__loop_run`; that agent starts the extension-scoped Loop. A direct job-to-Loop or trigger-to-Loop binding is platform evolution.
 
 ## Design rules for a useful bundle
 
@@ -49,10 +49,10 @@ An outcome bundle should answer the following questions before it is considered 
 2. **First proof:** what small, inspectable result demonstrates value after setup?
 3. **Dependencies:** which extensions, provider accounts, local binaries, and secrets are required or optional?
 4. **Agents and authored context:** which roles exist, which persona, principles, and constraints each Soul expresses, and what bounded reentry guidance each Heartbeat supplies after a runtime wake? Operational authority belongs to `AGENT.md`, approvals, grants, and the runtime.
-5. **Skills and peer delegation:** which local procedural skills are needed, and which interpretive AGH Network Capabilities may be delegated to a peer?
+5. **Skills and peer delegation:** which local procedural skills are needed, and which interpretive Compozy Network Capabilities may be delegated to a peer?
 6. **Loop:** what deterministic goal, verification gate, terminal states, and budget define completion?
 7. **Automation:** which jobs and triggers observe state or start work, which agent or task each one targets, and how are retries, catch-up, and idempotency bounded?
-8. **AGH Network channels and external bridges:** where does the user coordinate inside AGH, where are results delivered externally, and how is identity mapped?
+8. **Compozy Network channels and external bridges:** where does the user coordinate inside Compozy, where are results delivered externally, and how is identity mapped?
 9. **Approvals:** what may be read automatically and what must be confirmed before mutation, sending, publishing, spending, or deletion?
 10. **Data boundary:** is each datum global-, workspace-, session-, or agent-scoped?
 11. **Failure behavior:** what pauses, escalates, or opens a circuit when a dependency is unavailable?
@@ -69,7 +69,7 @@ Candidates should be compared on more than market size:
 | Reuse | Several bundles can share the same extension contracts |
 | Safe autonomy | Read-only value arrives before broad mutation access |
 | Recurrence | The outcome benefits from jobs, triggers, or durable Loops; Heartbeat policy supplies bounded reentry guidance after a wake |
-| Delivery fit | The result arrives through the local AGH surface or external bridge where the persona already works |
+| Delivery fit | The result arrives through the local Compozy surface or external bridge where the persona already works |
 | Evidence | The bundle links every conclusion or action to source data |
 | Isolation | Client, family, tenant, and workspace data cannot cross boundaries |
 | Recovery | A failed run can resume, no-op, or escalate without duplicating side effects |
@@ -87,13 +87,13 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Outcome and first proof:** produce a cited morning brief with the day's calendar, urgent inbox items, outstanding commitments, and three suggested priorities. The first proof is a read-only brief delivered locally or through a chosen messaging bridge.
 - **Extensions:** calendar, email, tasks/reminders, contacts, documents, weather, and an optional messaging bridge.
 - **Agents and authored context:** a chief-of-staff agent whose Soul expresses a prioritization-and-drafting posture, plus an administrative researcher agent; runtime grants and approvals enforce authority. Heartbeat reentry guidance covers overdue commitments and connection diagnostics after a runtime wake without sending messages.
-- **Skills and task behaviors:** inbox triage, calendar preparation, commitment extraction, source citation, and concise briefing skills; trusted peers may optionally advertise calendar-read and task-read AGH Network Capabilities.
+- **Skills and task behaviors:** inbox triage, calendar preparation, commitment extraction, source citation, and concise briefing skills; trusted peers may optionally advertise calendar-read and task-read Compozy Network Capabilities.
 - **Loop:** collect current state, deduplicate commitments, rank by urgency and importance, verify every item against a source, render the brief, and stop with done, no-op, blocked, or failed.
 - **Jobs and triggers:** weekday morning job, evening preparation job, and optional calendar-change or high-priority-message triggers with deduplication.
-- **Channel and bridge:** local AGH Network channel by default; optional Telegram, WhatsApp, Slack, or email bridge preset.
+- **Channel and bridge:** local Compozy Network channel by default; optional Telegram, WhatsApp, Slack, or email bridge preset.
 - **Approvals:** no approval for read-only briefing; approval required before sending a reply, moving a meeting, creating an external task, or sharing personal data.
 - **Safety defaults:** read-only connections, one brief per period, no automatic catch-up flood, redaction of sensitive message bodies, workspace-scoped memory, and a cost ceiling.
-- **Current AGH fit:** **Platform evolution** — a portable version needs dependency installation, account setup, provider contracts, connection health checks, and a dry-run path.
+- **Current Compozy fit:** **Platform evolution** — a portable version needs dependency installation, account setup, provider contracts, connection health checks, and a dry-run path.
 - **Evidence:** [H-4], [OC-2], [OC-3], [PI-3].
 
 ### 2. family-command-center
@@ -105,10 +105,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** schedule reconciliation, age-appropriate summaries, grocery consolidation, document extraction, and privacy-aware notification.
 - **Loop:** gather household inputs, normalize people and times, detect conflicts, request missing information, verify the plan, and publish only after the organizer confirms.
 - **Jobs and triggers:** Sunday planning job, nightly next-day job, school-email trigger, and severe-weather trigger.
-- **Channel and bridge:** one private family AGH Network channel plus optional per-person direct-delivery bridges.
+- **Channel and bridge:** one private family Compozy Network channel plus optional per-person direct-delivery bridges.
 - **Approvals:** organizer approval before adding or changing events, sharing children's information, ordering items, or contacting third parties.
 - **Safety defaults:** private workspace, least-data summaries, no location tracking by default, quiet hours, per-recipient visibility, and no medical inference.
-- **Current AGH fit:** **Platform evolution** — setup, household identity mapping, per-recipient policy, connector installation, and profile-scoped resources are required.
+- **Current Compozy fit:** **Platform evolution** — setup, household identity mapping, per-recipient policy, connector installation, and profile-scoped resources are required.
 - **Evidence:** [H-4], [OC-3], [OC-7].
 
 ### 3. inbox-zero
@@ -123,7 +123,7 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Channel and bridge:** local review queue with optional Slack, Teams, Telegram, or email delivery bridge.
 - **Approvals:** required before send, delete, archive outside an approved rule, unsubscribe, or create a third-party task.
 - **Safety defaults:** start with a sample folder or label, retain original messages, cap batch size, never infer consent from silence, and stop on mailbox identity mismatch.
-- **Current AGH fit:** **Current with preinstalled dependencies** — the profile can project agents, jobs, and triggers; email tools, the triage skill, and the deterministic Loop remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`; any delivery bridge remains disabled until secrets are bound and setup explicitly enables it.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — the profile can project agents, jobs, and triggers; email tools, the triage skill, and the deterministic Loop remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`; any delivery bridge remains disabled until secrets are bound and setup explicitly enables it.
 - **Evidence:** [H-4], [OC-2], [OC-6].
 
 ### 4. travel-concierge
@@ -135,10 +135,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** itinerary planning, reservation extraction, timezone reconciliation, accessible-travel checks, and source citation.
 - **Loop:** collect constraints, build an itinerary, verify every booking fact, surface conflicts, obtain approval, and monitor confirmed plans.
 - **Jobs and triggers:** pre-trip checklist jobs, day-before brief, reservation-change trigger, and severe-disruption trigger.
-- **Channel and bridge:** private AGH Network travel channel with a mobile-messaging bridge.
+- **Channel and bridge:** private Compozy Network travel channel with a mobile-messaging bridge.
 - **Approvals:** mandatory before booking, cancellation, payment, sharing passport data, or messaging a host or provider.
 - **Safety defaults:** no autonomous purchase, minimize identity-document retention, no background location access, and expire trip-specific state after the retention window.
-- **Current AGH fit:** **Platform evolution** — travel provider contracts, guided setup, account linking, purchase policy, and data-retention controls are required.
+- **Current Compozy fit:** **Platform evolution** — travel provider contracts, guided setup, account linking, purchase policy, and data-retention controls are required.
 - **Evidence:** [H-4], [OC-3], [PI-3].
 
 ### 5. home-automation-concierge
@@ -150,10 +150,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** state interpretation, scene planning, energy summaries, device naming, and incident escalation.
 - **Loop:** inspect current state, validate device identity, simulate the proposed action, obtain approval, apply, verify observed state, and roll back when supported.
 - **Jobs and triggers:** daily status job, occupancy-independent energy job, device-offline trigger, and user-defined event triggers with cooldowns.
-- **Channel and bridge:** private local AGH Network channel plus an optional mobile-notification bridge.
+- **Channel and bridge:** private local Compozy Network channel plus an optional mobile-notification bridge.
 - **Approvals:** required for locks, alarms, doors, cameras, heating extremes, purchases, and any automation involving another person.
 - **Safety defaults:** read-only initial mode, explicit device allowlist, cooldown and idempotency keys, no occupancy inference in outbound messages, and a circuit breaker for repeated commands.
-- **Current AGH fit:** **Current with preinstalled dependencies** — a profile can project the agent, jobs, triggers, and a disabled bridge instance after the smart-home extension and its static resources are installed, configured, authorized, and healthy. Jobs and triggers target the agent, which starts the extension-scoped Loop through `agh__loop_run`; bridge delivery still requires separate secret binding and enablement.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — a profile can project the agent, jobs, triggers, and a disabled bridge instance after the smart-home extension and its static resources are installed, configured, authorized, and healthy. Jobs and triggers target the agent, which starts the extension-scoped Loop through `compozy__loop_run`; bridge delivery still requires separate secret binding and enablement.
 - **Evidence:** [H-6], [OC-7].
 
 ## Local business and regulated administration
@@ -167,10 +167,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** FAQ retrieval, intake, schedule lookup, quote drafting, language detection, and escalation.
 - **Loop:** authenticate bridge and customer identity, understand the request, answer from evidence, collect missing fields, propose a slot or next step, wait for approval where required, and confirm delivery.
 - **Jobs and triggers:** inbound-message and missed-call triggers, appointment reminder jobs, and end-of-day unresolved-lead digest.
-- **Channel and bridge:** one or more customer-facing bridges plus a private owner AGH Network channel.
+- **Channel and bridge:** one or more customer-facing bridges plus a private owner Compozy Network channel.
 - **Approvals:** required for nonstandard pricing, refunds, commitments outside policy, sensitive-data disclosure, or outbound marketing.
 - **Safety defaults:** no invented availability or prices, no automatic payment capture, quiet hours, per-customer session isolation, human fallback, and delivery idempotency.
-- **Current AGH fit:** **Platform evolution** — messaging-bridge setup, business-system dependencies, identity mapping, knowledge-source setup, and reusable provider contracts are required.
+- **Current Compozy fit:** **Platform evolution** — messaging-bridge setup, business-system dependencies, identity mapping, knowledge-source setup, and reusable provider contracts are required.
 - **Evidence:** [OC-3], [OC-5], [PC-4].
 
 ### 7. real-estate-agent-desk
@@ -182,10 +182,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** lead qualification, listing comparison, showing preparation, document checklist, and follow-up drafting.
 - **Loop:** ingest a lead or transaction change, resolve identity, gather facts, propose the next action, obtain approval, update the system of record, and verify delivery.
 - **Jobs and triggers:** new-lead trigger, showing reminder, daily pipeline job, and deadline-risk trigger.
-- **Channel and bridge:** CRM-linked workspace with a private AGH Network coordination channel and approved customer-messaging bridges.
+- **Channel and bridge:** CRM-linked workspace with a private Compozy Network coordination channel and approved customer-messaging bridges.
 - **Approvals:** required before client communication, offer language, document submission, pricing representation, or disclosure of protected information.
 - **Safety defaults:** evidence links for property facts, fair-housing policy checks, tenant/client isolation, no legal advice, and no signature or offer submission without a human.
-- **Current AGH fit:** **Platform evolution** — listings and CRM contracts, tenant identity, compliance gates, setup, and dependency installation are needed.
+- **Current Compozy fit:** **Platform evolution** — listings and CRM contracts, tenant identity, compliance gates, setup, and dependency installation are needed.
 - **Evidence:** [OC-2], [OC-3], [PC-2].
 
 ### 8. hospitality-guest-desk
@@ -197,10 +197,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** reservation lookup, multilingual FAQ, local recommendations, maintenance intake, and handoff.
 - **Loop:** verify guest and reservation, answer from policy, record the interaction, create a bounded request when needed, and confirm resolution or escalation.
 - **Jobs and triggers:** booking-created trigger, pre-arrival and checkout jobs, inbound-message trigger, and urgent-maintenance trigger.
-- **Channel and bridge:** guest-messaging bridges with a separate private operations AGH Network channel.
+- **Channel and bridge:** guest-messaging bridges with a separate private operations Compozy Network channel.
 - **Approvals:** required for refunds, compensation, access-code changes, emergency actions outside policy, and sharing guest data.
 - **Safety defaults:** reservation verification before disclosure, redacted access information, no autonomous refund, quiet-hour routing, and incident escalation.
-- **Current AGH fit:** **Platform evolution** — PMS/booking contracts, identity verification, multi-tenant setup, and provider-specific onboarding are required.
+- **Current Compozy fit:** **Platform evolution** — PMS/booking contracts, identity verification, multi-tenant setup, and provider-specific onboarding are required.
 - **Evidence:** [OC-3], [H-4], [PC-2].
 
 ### 9. clinic-admin-assistant
@@ -212,10 +212,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** form completeness, scheduling, policy-grounded FAQ, reminder drafting, and secure escalation.
 - **Loop:** verify patient identity and scope, inspect administrative records, flag missing items, draft an approved next step, and stop before any clinical interpretation.
 - **Jobs and triggers:** appointment reminder jobs, form-received trigger, cancellation trigger, and daily administrative exception report.
-- **Channel and bridge:** approved patient-communication bridge and a private staff AGH Network channel.
+- **Channel and bridge:** approved patient-communication bridge and a private staff Compozy Network channel.
 - **Approvals:** required before external messages beyond approved templates, record changes, billing commitments, or disclosure to another party.
 - **Safety defaults:** minimum necessary data, workspace isolation, no clinical inference, no emergency triage, immutable audit references, and immediate human escalation for medical content.
-- **Current AGH fit:** **Platform evolution** — regulated-data controls, identity, provider connectors, policy enforcement, setup, and compliance validation are prerequisites.
+- **Current Compozy fit:** **Platform evolution** — regulated-data controls, identity, provider connectors, policy enforcement, setup, and compliance validation are prerequisites.
 - **Evidence:** [OC-5], [PC-2].
 
 ### 10. legal-intake-coordinator
@@ -227,10 +227,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** structured intake, conflict-check input preparation, document classification, scheduling, and attorney handoff.
 - **Loop:** verify identity and consent, collect required fields, classify documents, identify missing information, prepare a factual summary, and route to a human decision.
 - **Jobs and triggers:** new-intake trigger, missing-document reminder, appointment preparation job, and retention-expiry job.
-- **Channel and bridge:** secure client-intake bridge plus a private firm AGH Network channel.
+- **Channel and bridge:** secure client-intake bridge plus a private firm Compozy Network channel.
 - **Approvals:** mandatory before any legal characterization, engagement communication, external filing, document signature, or third-party disclosure.
 - **Safety defaults:** no legal advice, privilege warning, tenant isolation, sensitive-data redaction, configurable retention, and no automated conflict decision.
-- **Current AGH fit:** **Platform evolution** — secure intake, regulated retention, identity, conflict-system integration, and policy controls are required.
+- **Current Compozy fit:** **Platform evolution** — secure intake, regulated retention, identity, conflict-system integration, and policy controls are required.
 - **Evidence:** [OC-5], [PC-2].
 
 ### 11. nonprofit-grant-desk
@@ -242,10 +242,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** eligibility extraction, source citation, narrative drafting, budget-table preparation, and requirement traceability.
 - **Loop:** discover or ingest an opportunity, extract requirements, verify eligibility against organization data, build a compliance matrix, draft only supported sections, request review, and stop before submission.
 - **Jobs and triggers:** weekly opportunity scan, new-opportunity trigger, deadline reminders, and post-award reporting reminders.
-- **Channel and bridge:** private grants AGH Network channel with an optional email or Slack digest bridge.
+- **Channel and bridge:** private grants Compozy Network channel with an optional email or Slack digest bridge.
 - **Approvals:** required before submitting, contacting a funder, committing match funds, changing a budget, or asserting outcomes.
 - **Safety defaults:** citation for every eligibility claim, no fabricated metrics, funder-domain allowlist, duplicate-application detection, and strict organization/workspace isolation.
-- **Current AGH fit:** **Platform evolution** — portable research, CRM/document dependencies, guided setup, deadline import, and source-verification policy are needed.
+- **Current Compozy fit:** **Platform evolution** — portable research, CRM/document dependencies, guided setup, deadline import, and source-verification policy are needed.
 - **Evidence:** [H-4], [OC-2], [PI-3].
 
 ## Marketing, brand, and creators
@@ -259,10 +259,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** audience research, claim verification, editorial structure, brand voice, SEO checks, accessibility, and asset prompting.
 - **Loop:** select a validated topic, research, create a brief, draft, review claims and brand fit, obtain approval, optionally publish, and measure after a defined interval.
 - **Jobs and triggers:** weekly planning job, source-change trigger, editorial calendar jobs, and post-publication measurement job.
-- **Channel and bridge:** editorial AGH Network channel with optional Slack/Teams approval bridge and CMS publishing bridge.
+- **Channel and bridge:** editorial Compozy Network channel with optional Slack/Teams approval bridge and CMS publishing bridge.
 - **Approvals:** required before publishing, changing a live page, using customer data, generating paid media, or making performance claims.
 - **Safety defaults:** source citations, no fabricated quotes or statistics, license-aware asset handling, destination-specific rate limits, and a hard publish gate.
-- **Current AGH fit:** **Platform evolution** — it needs dependency resolution, provider contracts, account setup, profile-scoped skills/Loops, sample-data mode, and publication health checks.
+- **Current Compozy fit:** **Platform evolution** — it needs dependency resolution, provider contracts, account setup, profile-scoped skills/Loops, sample-data mode, and publication health checks.
 - **Evidence:** [H-4], [OC-2], [OC-4], [PI-2].
 
 ### 13. creator-repurpose-studio
@@ -274,10 +274,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** transcription cleanup, chaptering, quote verification, clip selection, platform adaptation, captions, and accessibility.
 - **Loop:** ingest approved media, transcribe, align timestamps, identify self-contained segments, verify exact attribution, generate derivatives, request approval, and export.
 - **Jobs and triggers:** new-media trigger, scheduled repurpose job, publication reminders, and performance-review job.
-- **Channel and bridge:** creator AGH Network workspace channel with optional Discord, Telegram, or Slack review bridges and separate publishing bridges.
+- **Channel and bridge:** creator Compozy Network workspace channel with optional Discord, Telegram, or Slack review bridges and separate publishing bridges.
 - **Approvals:** required before public posting, voice or likeness synthesis, clipping a guest, monetization changes, or rights-sensitive reuse.
 - **Safety defaults:** source-only quotation, rights metadata, no voice cloning by default, private drafts, export watermarking when requested, and deletion controls for raw media.
-- **Current AGH fit:** **Platform evolution** — media provider contracts, provider setup, dependency installation, asset ownership, and profile-scoped processing resources are required.
+- **Current Compozy fit:** **Platform evolution** — media provider contracts, provider setup, dependency installation, asset ownership, and profile-scoped processing resources are required.
 - **Evidence:** [OC-1], [OC-2], [PI-2].
 
 ### 14. newsletter-studio
@@ -289,10 +289,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** source ranking, deduplication, summarization, link checking, editorial sequencing, subject-line drafting, and accessibility.
 - **Loop:** collect from approved sources, cluster duplicates, verify claims, draft sections, edit, check links and consent segments, obtain approval, send, and review outcomes.
 - **Jobs and triggers:** source collection job, issue deadline jobs, breaking-topic trigger with manual confirmation, and post-send analytics job.
-- **Channel and bridge:** editorial AGH Network channel plus an email-platform bridge and optional team-approval bridge.
+- **Channel and bridge:** editorial Compozy Network channel plus an email-platform bridge and optional team-approval bridge.
 - **Approvals:** required before adding a source outside the allowlist, sending, changing subscriber segments, or using sponsored claims.
 - **Safety defaults:** unsubscribe and consent integrity, no scraped personal addresses, bounded quotation, source links, send-test first, and duplicate-send protection.
-- **Current AGH fit:** **Current with preinstalled dependencies** — scheduling, agents, and triggers fit today; research, email, analytics, skills, and the Loop must be installed, configured, authorized, and healthy extension-wide. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`; bridge presets project disabled instances that require separate setup and enablement.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — scheduling, agents, and triggers fit today; research, email, analytics, skills, and the Loop must be installed, configured, authorized, and healthy extension-wide. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`; bridge presets project disabled instances that require separate setup and enablement.
 - **Evidence:** [H-4], [OC-2], [OC-3].
 
 ### 15. seo-growth-loop
@@ -304,10 +304,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** query clustering, page intent analysis, technical inspection, internal-link analysis, structured brief writing, and change verification.
 - **Loop:** gather property data, select an opportunity, inspect current pages, propose a bounded change, verify before/after evidence, request approval, publish or open an issue, and measure later.
 - **Jobs and triggers:** weekly opportunity job, crawl-error trigger, content-decay job, and post-change measurement job.
-- **Channel and bridge:** marketing AGH Network channel with CMS and issue-tracker bridges.
+- **Channel and bridge:** marketing Compozy Network channel with CMS and issue-tracker bridges.
 - **Approvals:** required before editing a live page, changing metadata at scale, publishing, or altering redirects.
 - **Safety defaults:** property allowlist, no ranking guarantees, no destructive bulk edits, change budget, source snapshots, and reversible patches where supported.
-- **Current AGH fit:** **Platform evolution** — analytics/crawler provider contracts, guided property selection, dependency setup, profile-scoped audit resources, and measurement state are needed.
+- **Current Compozy fit:** **Platform evolution** — analytics/crawler provider contracts, guided property selection, dependency setup, profile-scoped audit resources, and measurement state are needed.
 - **Evidence:** [OC-2], [OC-4], [PI-1].
 
 ### 16. community-manager
@@ -319,10 +319,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** conversation clustering, policy-grounded moderation, FAQ retrieval, event reminders, sentiment caution, and source-preserving summaries.
 - **Loop:** ingest bounded public/community events, filter private content, identify needs, answer only approved FAQs, escalate policy decisions, compile the brief, and verify citations.
 - **Jobs and triggers:** unanswered-question trigger, explicit mention trigger, event reminders, moderation-signal trigger, and weekly health job.
-- **Channel and bridge:** the external community bridge plus a private staff-review AGH Network channel.
+- **Channel and bridge:** the external community bridge plus a private staff-review Compozy Network channel.
 - **Approvals:** required for bans, deletions, public policy statements, direct outreach, or publishing member-derived insights externally.
 - **Safety defaults:** no private-message mining by default, role-aware visibility, anti-spam limits, human moderation authority, and no emotion or demographic profiling.
-- **Current AGH fit:** **Current with preinstalled dependencies** — the AGH Network channel, agents, jobs, triggers, and disabled bridge projection fit; moderation, analytics, and knowledge resources stay extension-scoped and must be installed, configured, authorized, and healthy. Jobs and triggers target a packaged agent that starts any required Loop through `agh__loop_run`.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — the Compozy Network channel, agents, jobs, triggers, and disabled bridge projection fit; moderation, analytics, and knowledge resources stay extension-scoped and must be installed, configured, authorized, and healthy. Jobs and triggers target a packaged agent that starts any required Loop through `compozy__loop_run`.
 - **Evidence:** [OC-3], [PC-4], [H-7].
 
 ## Sales, meetings, and customer success
@@ -336,10 +336,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** account research, CRM hygiene, meeting preparation, commitment extraction, follow-up drafting, and source citation.
 - **Loop:** reconcile CRM and communication state, identify a bounded next action, prepare evidence, draft, request approval, apply the approved update, and verify the system of record.
 - **Jobs and triggers:** daily pipeline job, meeting-soon trigger, post-meeting trigger, and stale-opportunity job.
-- **Channel and bridge:** private sales AGH Network channel plus CRM, email, and optional Slack/Teams bridges.
+- **Channel and bridge:** private sales Compozy Network channel plus CRM, email, and optional Slack/Teams bridges.
 - **Approvals:** required before sending, changing stage or forecast, creating a quote, sharing pricing, or enriching from a paid source.
 - **Safety defaults:** no bulk cold outreach, contact consent and suppression respected, CRM remains authority, per-account isolation, and evidence attached to stage suggestions.
-- **Current AGH fit:** **Platform evolution** — CRM and meeting provider contracts, identity resolution, account setup, dependency installation, and approval UX are required.
+- **Current Compozy fit:** **Platform evolution** — CRM and meeting provider contracts, identity resolution, account setup, dependency installation, and approval UX are required.
 - **Evidence:** [H-6], [OC-2], [PC-2].
 
 ### 18. meeting-to-action
@@ -351,10 +351,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** transcript alignment, decision extraction, action normalization, owner resolution, task drafting, and follow-up writing.
 - **Loop:** validate meeting and attendee scope, extract facts, separate decisions from proposals, draft actions, request owner confirmation, write approved records, and verify links.
 - **Jobs and triggers:** transcript-ready trigger, pre-meeting context job, post-meeting follow-up deadline, and overdue-action check.
-- **Channel and bridge:** meeting-specific AGH Network channel with task-system, CRM, Slack/Teams, and email bridges.
+- **Channel and bridge:** meeting-specific Compozy Network channel with task-system, CRM, Slack/Teams, and email bridges.
 - **Approvals:** required before assigning another person, creating or changing external tasks, updating CRM, or sending follow-up.
 - **Safety defaults:** transcript consent, no recording activation, source timestamps, uncertain-owner markers, participant visibility controls, and no sensitive-summary broadcast.
-- **Current AGH fit:** **Current with preinstalled dependencies** — profile resources fit after meeting, task, CRM, and static processing resources are installed, configured, authorized, and healthy extension-wide. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`; bridge presets remain disabled until separately configured and enabled.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — profile resources fit after meeting, task, CRM, and static processing resources are installed, configured, authorized, and healthy extension-wide. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`; bridge presets remain disabled until separately configured and enabled.
 - **Evidence:** [H-6], [OC-3], [PC-2].
 
 ### 19. customer-onboarding-pod
@@ -366,10 +366,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** scope extraction, stakeholder mapping, project setup, training selection, risk detection, and handoff summaries.
 - **Loop:** validate scope, build plan, obtain internal and customer approval, create milestones, monitor evidence, escalate blockers, verify completion, and hand off to success.
 - **Jobs and triggers:** contract-signed trigger, kickoff preparation, milestone reminders, telemetry review, and handoff job.
-- **Channel and bridge:** isolated customer workspace with an internal AGH Network channel and customer-approved messaging bridges.
+- **Channel and bridge:** isolated customer workspace with an internal Compozy Network channel and customer-approved messaging bridges.
 - **Approvals:** required before customer communication, plan commitment, account configuration, deadline change, or disclosure across customer workspaces.
 - **Safety defaults:** contract is authority, tenant isolation, no unsupported delivery promise, scoped product access, explicit handoff, and capped reminder frequency.
-- **Current AGH fit:** **Platform evolution** — cross-system dependency setup, customer workspace provisioning, identity mapping, and reusable lifecycle templates are needed.
+- **Current Compozy fit:** **Platform evolution** — cross-system dependency setup, customer workspace provisioning, identity mapping, and reusable lifecycle templates are needed.
 - **Evidence:** [PC-1], [PC-2], [OC-2].
 
 ### 20. churn-rescue-desk
@@ -381,10 +381,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** account timeline reconstruction, usage comparison, ticket clustering, billing-status interpretation, and intervention drafting.
 - **Loop:** gather permitted signals, verify identity and time windows, explain evidence, propose options, obtain account-owner approval, create an action, and measure the result.
 - **Jobs and triggers:** periodic health review, usage-drop trigger, repeated-ticket trigger, failed-payment trigger, and renewal-window job.
-- **Channel and bridge:** private success AGH Network channel with CRM and approved outreach bridges.
+- **Channel and bridge:** private success Compozy Network channel with CRM and approved outreach bridges.
 - **Approvals:** mandatory before contacting a customer, applying a discount, changing terms, or labeling an account at risk in the CRM.
 - **Safety defaults:** no demographic inference, no dark patterns, transparent evidence, configurable thresholds, tenant isolation, and human ownership of relationship decisions.
-- **Current AGH fit:** **Platform evolution** — provider contracts, identity reconciliation, risk-policy setup, dependency installation, and measurement state are required.
+- **Current Compozy fit:** **Platform evolution** — provider contracts, identity reconciliation, risk-policy setup, dependency installation, and measurement state are required.
 - **Evidence:** [PC-2], [OC-5].
 
 ### 21. customer-support-desk
@@ -396,10 +396,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** intent classification, duplicate detection, evidence retrieval, troubleshooting guidance, sentiment caution, and issue handoff.
 - **Loop:** authenticate ticket scope, reconstruct context, search approved evidence, draft or escalate, obtain approval where needed, send, verify delivery, and record outcome.
 - **Jobs and triggers:** new-ticket trigger, SLA threshold trigger, incident-cluster trigger, and daily unresolved-ticket digest.
-- **Channel and bridge:** support-system bridge plus a private team AGH Network channel; customer-facing delivery remains in the system of record.
+- **Channel and bridge:** support-system bridge plus a private team Compozy Network channel; customer-facing delivery remains in the system of record.
 - **Approvals:** required for refunds, account changes, security disclosures, policy exceptions, or responses unsupported by approved knowledge.
 - **Safety defaults:** start in draft-only mode, preserve ticket authority, redact secrets, isolate customer data, cap automated replies, and stop during suspected incidents.
-- **Current AGH fit:** **Platform evolution** — connector installation, account/tenant setup, knowledge indexing, approval UX, and reusable support-system contracts are required.
+- **Current Compozy fit:** **Platform evolution** — connector installation, account/tenant setup, knowledge indexing, approval UX, and reusable support-system contracts are required.
 - **Evidence:** [OC-3], [PC-2], [PC-4].
 
 ## Commerce, finance, and administration
@@ -413,10 +413,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** order reconciliation, inventory risk, refund triage, review clustering, KPI explanation, and action drafting.
 - **Loop:** collect bounded operational data, reconcile IDs, identify exceptions, verify against source systems, propose actions, obtain approval, apply selected mutations, and confirm.
 - **Jobs and triggers:** daily brief, low-stock trigger, high-value refund trigger, fulfillment-delay trigger, and weekly trend review.
-- **Channel and bridge:** private operations AGH Network channel with commerce, support, and owner-messaging bridges.
+- **Channel and bridge:** private operations Compozy Network channel with commerce, support, and owner-messaging bridges.
 - **Approvals:** required for refunds, discounts, price changes, supplier orders, customer outreach, or product publication.
 - **Safety defaults:** store remains authority, money and inventory mutations default off, per-order idempotency, fraud decisions stay human, and no customer-data reuse for unrelated marketing.
-- **Current AGH fit:** **Platform evolution** — commerce/provider contracts, secret setup, dependency resolution, transaction policy, and health checks are needed.
+- **Current Compozy fit:** **Platform evolution** — commerce/provider contracts, secret setup, dependency resolution, transaction policy, and health checks are needed.
 - **Evidence:** [H-5], [OC-5], [PC-3].
 
 ### 23. finance-close-lite
@@ -428,10 +428,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** transaction matching, document extraction, duplicate detection, variance explanation, and checklist management.
 - **Loop:** import a bounded period, normalize records, match evidence, flag exceptions, request missing documents, obtain human disposition, and export an audit-linked close packet.
 - **Jobs and triggers:** month-end preparation, new-document trigger, overdue-receipt reminders, and close-deadline job.
-- **Channel and bridge:** private finance AGH Network channel with accounting and secure-document bridges.
+- **Channel and bridge:** private finance Compozy Network channel with accounting and secure-document bridges.
 - **Approvals:** mandatory before ledger mutation, payment, filing, classification override, or external communication.
 - **Safety defaults:** read-only by default, accountant remains authority, source-linked output, no tax or investment advice, immutable period snapshots, and strict workspace access.
-- **Current AGH fit:** **Platform evolution** — financial provider contracts, secure identity, policy, reconciliation state, guided setup, and compliance validation are required.
+- **Current Compozy fit:** **Platform evolution** — financial provider contracts, secure identity, policy, reconciliation state, guided setup, and compliance validation are required.
 - **Evidence:** [H-4], [OC-2], [OC-5].
 
 ### 24. invoice-chaser
@@ -443,10 +443,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** invoice-state reconciliation, contract-term extraction, communication timeline, reminder drafting, and escalation.
 - **Loop:** verify invoice and contact identity, inspect terms and conversation history, choose the allowed stage, draft, request approval, send, confirm delivery, and schedule the next check.
 - **Jobs and triggers:** due-date jobs, failed-payment trigger, promise-to-pay reminder, and weekly receivables summary.
-- **Channel and bridge:** private finance AGH Network channel plus an approved email/SMS bridge.
+- **Channel and bridge:** private finance Compozy Network channel plus an approved email/SMS bridge.
 - **Approvals:** required before every initial external send, escalation, fee mention, account hold, or collections handoff.
 - **Safety defaults:** no duplicate reminders, quiet hours and jurisdiction-aware cadence, dispute detection, stop on payment or reply, and full communication evidence.
-- **Current AGH fit:** **Current with preinstalled dependencies** — jobs, trigger templates, and agents fit; financial/email resources and the Loop must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`; bridge presets project disabled instances that require separate secret binding and enablement.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — jobs, trigger templates, and agents fit; financial/email resources and the Loop must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`; bridge presets project disabled instances that require separate secret binding and enablement.
 - **Evidence:** [H-4], [OC-2], [OC-5].
 
 ### 25. cash-runway-watch
@@ -458,10 +458,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** cash categorization, commitment extraction, scenario modeling, variance analysis, and provenance.
 - **Loop:** gather approved balances and commitments, validate freshness, compute scenarios, verify arithmetic, label uncertainty, publish the snapshot, and stop before taking financial action.
 - **Jobs and triggers:** weekly snapshot, material-balance change trigger, major-contract trigger, and stale-data alert.
-- **Channel and bridge:** private leadership AGH Network channel with spreadsheet and accounting bridges.
+- **Channel and bridge:** private leadership Compozy Network channel with spreadsheet and accounting bridges.
 - **Approvals:** required before changing assumptions used by others, sharing externally, moving funds, or initiating cost reductions.
 - **Safety defaults:** no prescriptive financial advice, explicit currency/time horizon, source links, stale-data block, scenario rather than certainty language, and no money movement.
-- **Current AGH fit:** **Platform evolution** — provider setup, typed financial data contracts, calculation verification, policy, and secure dependency management are needed.
+- **Current Compozy fit:** **Platform evolution** — provider setup, typed financial data contracts, calculation verification, policy, and secure dependency management are needed.
 - **Evidence:** [OC-5], [PC-1].
 
 ## People operations and education
@@ -475,10 +475,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** requisition-grounded intake, schedule coordination, document completeness, interview packet assembly, and respectful communication drafting.
 - **Loop:** verify requisition and candidate scope, collect required process data, propose schedule or next step, obtain approval, update the ATS, and confirm delivery.
 - **Jobs and triggers:** application-received trigger, interview reminder, feedback reminder, stage-stale job, and candidate-withdrawal trigger.
-- **Channel and bridge:** private hiring AGH Network channel plus ATS, calendar, email, and approved interview-team messaging bridges.
+- **Channel and bridge:** private hiring Compozy Network channel plus ATS, calendar, email, and approved interview-team messaging bridges.
 - **Approvals:** required before candidate rejection, advancement, compensation discussion, external contact, or sharing interview feedback.
 - **Safety defaults:** no protected-trait inference, no automated hiring verdict, role-based visibility, candidate retention policy, consistent approved templates, and audit links.
-- **Current AGH fit:** **Platform evolution** — ATS/provider contracts, identity mapping, policy enforcement, dependency setup, and regulated retention controls are needed.
+- **Current Compozy fit:** **Platform evolution** — ATS/provider contracts, identity mapping, policy enforcement, dependency setup, and regulated retention controls are needed.
 - **Evidence:** [PC-2], [OC-5].
 
 ### 27. employee-onboarding-coordinator
@@ -490,10 +490,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** checklist generation, policy retrieval, meeting scheduling, training selection, and manager handoff.
 - **Loop:** validate role and start date, build plan, obtain manager/HR approval, create allowed tasks, monitor evidence, escalate blockers, and close with an acknowledged handoff.
 - **Jobs and triggers:** hire-approved trigger, pre-start jobs, first-day and first-week jobs, access-delay trigger, and 30-day check.
-- **Channel and bridge:** isolated employee-onboarding AGH Network channel with HR, ticketing, calendar, and team-messaging bridges.
+- **Channel and bridge:** isolated employee-onboarding Compozy Network channel with HR, ticketing, calendar, and team-messaging bridges.
 - **Approvals:** required before granting access, sharing personnel data, changing employment terms, or sending policy statements.
 - **Safety defaults:** least privilege, no access grant by default, role-based visibility, no sensitive-data broadcast, deletion/retention policy, and manager ownership.
-- **Current AGH fit:** **Platform evolution** — HRIS and identity provider contracts, setup, access-policy integration, and workspace provisioning are required.
+- **Current Compozy fit:** **Platform evolution** — HRIS and identity provider contracts, setup, access-policy integration, and workspace provisioning are required.
 - **Evidence:** [PC-1], [PC-2], [OC-5].
 
 ### 28. study-coach
@@ -505,10 +505,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** syllabus extraction, spaced repetition, question generation, formative feedback, plan adjustment, and citation.
 - **Loop:** collect goals and constraints, assess knowledge with consent, plan, conduct one study unit, verify understanding, record reflection, and adjust without hiding uncertainty.
 - **Jobs and triggers:** daily study reminder, deadline trigger, spaced-repetition jobs, and weekly review.
-- **Channel and bridge:** private learner AGH Network channel with calendar, LMS, and flashcard bridges.
+- **Channel and bridge:** private learner Compozy Network channel with calendar, LMS, and flashcard bridges.
 - **Approvals:** required before submitting work, contacting an instructor, sharing learner data, or changing external deadlines.
 - **Safety defaults:** no cheating, age-appropriate privacy, workload caps, accessible format, no diagnosis of learning conditions, and explicit source attribution.
-- **Current AGH fit:** **Platform evolution** — LMS/provider contracts, learner setup, dependency resolution, progress state, and age/guardian policy are needed.
+- **Current Compozy fit:** **Platform evolution** — LMS/provider contracts, learner setup, dependency resolution, progress state, and age/guardian policy are needed.
 - **Evidence:** [H-2], [H-4], [OC-2].
 
 ### 29. research-desk
@@ -520,10 +520,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** query decomposition, source evaluation, citation capture, contradiction analysis, bounded quotation, and synthesis.
 - **Loop:** define the question, plan evidence needs, collect sources, assess quality, test contradictory explanations, synthesize, verify citations, and stop at budget or sufficiency.
 - **Jobs and triggers:** scheduled topic watch, source-change trigger, deadline reminders, and optional periodic evidence refresh.
-- **Channel and bridge:** research AGH Network channel with document and knowledge bridges plus an optional reviewer AGH Network channel.
+- **Channel and bridge:** research Compozy Network channel with document and knowledge bridges plus an optional reviewer Compozy Network channel.
 - **Approvals:** required before contacting subjects, purchasing data, publishing, or ingesting restricted/confidential sources.
 - **Safety defaults:** primary sources preferred, copyright limits, provenance for each claim, no citation fabrication, source-domain policy, and budgeted exploration.
-- **Current AGH fit:** **Current with preinstalled dependencies** — the agent roster, AGH Network channel, jobs, and triggers fit; search, research skills, citation tools, and the Loop must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — the agent roster, Compozy Network channel, jobs, and triggers fit; search, research skills, citation tools, and the Loop must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`.
 - **Evidence:** [H-2], [PI-1], [PI-3], [OC-2].
 
 ## Engineering and product
@@ -534,14 +534,14 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Outcome and first proof:** take one explicitly selected Linear issue, reproduce or validate it in the bound workspace, and publish a plan plus evidence back to the issue before any code mutation.
 - **Extensions:** Linear, GitHub, coding-agent bridge, workspace/filesystem, terminal and sandbox tools, CI status, and optional team messaging.
 - **Agents and authored context:** issue investigator, implementer, test reviewer, and PR reviewer; their Souls express issue-bound, repository-grounded working constraints, while task claims, grants, and approvals enforce authority. Heartbeat reentry guidance covers claimed-work context, CI evidence, review requests, and retry limits after a runtime wake.
-- **Skills and task behaviors:** issue reading/updating, repository exploration, implementation discipline, test placement, review, PR writing, and handoff; an optional peer may advertise a code-review AGH Network Capability.
+- **Skills and task behaviors:** issue reading/updating, repository exploration, implementation discipline, test placement, review, PR writing, and handoff; an optional peer may advertise a code-review Compozy Network Capability.
 - **Loop:** claim the issue, inspect dependencies, reproduce, plan, obtain any required approval, implement, run scoped verification, open or update a PR, request review, react to verdicts, update Linear, and stop only at a named terminal outcome.
 - **Jobs and triggers:** explicit issue-assignment or label trigger, PR-review trigger, CI-completion trigger, continuation run after rejection, and stale-claim task-event trigger.
-- **Channel and bridge:** issue-specific AGH Network channel with Linear and GitHub bridges; optional Slack/Teams notification bridge.
+- **Channel and bridge:** issue-specific Compozy Network channel with Linear and GitHub bridges; optional Slack/Teams notification bridge.
 - **Approvals:** required before destructive workspace operations, external PR creation where policy demands it, merging, release, changing issue scope, or exposing secrets.
 - **Safety defaults:** one issue and one workspace per activation, no auto-merge, no weakening tests to obtain green status, bounded retries and spend, sandbox policy, source-linked status updates, and idempotent issue comments.
-- **Current AGH fit:** **Current with preinstalled dependencies** — current profiles can project the agents, AGH Network channels, jobs, triggers, and disabled bridge instances; Linear/GitHub extensions and static skills, tools, MCP servers, hooks, and the Loop must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`.
-- **Evidence:** [AGH-1], [AGH-2], [H-5], [OC-4], [PI-3], [PC-2].
+- **Current Compozy fit:** **Current with preinstalled dependencies** — current profiles can project the agents, Compozy Network channels, jobs, triggers, and disabled bridge instances; Linear/GitHub extensions and static skills, tools, MCP servers, hooks, and the Loop must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`.
+- **Evidence:** [Compozy-1], [Compozy-2], [H-5], [OC-4], [PI-3], [PC-2].
 
 ### 31. pr-review-factory
 
@@ -552,10 +552,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** diff triage, code review, security review, test-quality review, documentation impact, and finding deduplication.
 - **Loop:** resolve the immutable revision, assign review scopes, collect findings, verify and deduplicate, rank by user impact, publish a review draft, obtain approval if required, and re-review only changed evidence.
 - **Jobs and triggers:** review-request trigger, new-commit trigger, CI-completion trigger, and stale-review reminder.
-- **Channel and bridge:** PR-specific AGH Network channel with a source-control review bridge and optional team-notification bridge.
+- **Channel and bridge:** PR-specific Compozy Network channel with a source-control review bridge and optional team-notification bridge.
 - **Approvals:** required before submitting blocking reviews, requesting changes as a represented human, modifying code, or merging.
 - **Safety defaults:** pin commit SHA, no duplicate comments, severity evidence, bounded reviewer fan-out, no auto-merge, and ignore unrelated workspace changes.
-- **Current AGH fit:** **Current with preinstalled dependencies** — agents, triggers, and jobs fit; source-control tools and all review skills and Loops must be installed, configured, authorized, and healthy extension-wide. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`; bridge presets remain disabled until separately configured and enabled.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — agents, triggers, and jobs fit; source-control tools and all review skills and Loops must be installed, configured, authorized, and healthy extension-wide. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`; bridge presets remain disabled until separately configured and enabled.
 - **Evidence:** [PI-3], [OC-2], [PC-2].
 
 ### 32. incident-response-room
@@ -567,10 +567,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** alert triage, log analysis, deployment comparison, runbook retrieval, stakeholder update drafting, and postmortem timeline.
 - **Loop:** validate the incident, establish scope, gather evidence, propose a reversible diagnostic or mitigation, obtain approval, execute, verify impact, communicate, and terminate or hand off explicitly.
 - **Jobs and triggers:** alert trigger, status-update cadence job, mitigation verification trigger, and post-incident review job.
-- **Channel and bridge:** dedicated incident AGH Network channel with observability, source-control, deployment, and communication bridges.
+- **Channel and bridge:** dedicated incident Compozy Network channel with observability, source-control, deployment, and communication bridges.
 - **Approvals:** mandatory before production mutation, rollback, traffic shift, status-page publication, customer communication, or secret access.
 - **Safety defaults:** read-only investigation first, one incident correlation key, mitigation budget, hard circuit breaker, no credential copying, explicit command hierarchy, and preserved audit timeline.
-- **Current AGH fit:** **Platform evolution** — safe provider contracts, incident-scoped setup, approval delivery, dependency resolution, and transactional action semantics are required.
+- **Current Compozy fit:** **Platform evolution** — safe provider contracts, incident-scoped setup, approval delivery, dependency resolution, and transactional action semantics are required.
 - **Evidence:** [OC-2], [OC-5], [PC-2].
 
 ### 33. release-manager
@@ -582,10 +582,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** change classification, release notes, dependency impact, artifact verification, docs impact, and rollback planning.
 - **Loop:** select revision, compute release scope, run required gates, resolve blockers, prepare artifacts and notes, obtain approval, publish in order, verify availability, and record evidence.
 - **Jobs and triggers:** release-candidate trigger, gate-completion triggers, scheduled maintenance-window job, and post-release verification.
-- **Channel and bridge:** release AGH Network channel with source-control, CI, registry, deployment, and announcement bridges.
+- **Channel and bridge:** release Compozy Network channel with source-control, CI, registry, deployment, and announcement bridges.
 - **Approvals:** required before tagging, publishing packages, deploying, changing release channels, or making public announcements.
 - **Safety defaults:** immutable revision, single-release lock, signed/checksummed artifacts where supported, no bypassed gate, rollback plan, and idempotent publication checks.
-- **Current AGH fit:** **Current with preinstalled dependencies** — the coordinator profile fits after source-control, CI, registry, deployment, and static release resources are installed, configured, authorized, and healthy. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`; any bridge preset remains disabled until separately configured and enabled.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — the coordinator profile fits after source-control, CI, registry, deployment, and static release resources are installed, configured, authorized, and healthy. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`; any bridge preset remains disabled until separately configured and enabled.
 - **Evidence:** [OC-2], [PI-1], [PC-2].
 
 ### 34. docs-drift-guardian
@@ -597,11 +597,11 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** contract discovery, generated/reference-doc distinction, copy consistency, link checking, and documentation patching.
 - **Loop:** identify changed behavior, locate owned documentation, compare claims to runtime evidence, draft the minimal correction, run docs gates, request review, and stop at done or no-op.
 - **Jobs and triggers:** contract-change trigger, release-candidate trigger, weekly drift scan, and failed-docs-build trigger.
-- **Channel and bridge:** repository AGH Network channel with source-control and issue-tracker bridges.
+- **Channel and bridge:** repository Compozy Network channel with source-control and issue-tracker bridges.
 - **Approvals:** required before public publishing, broad copy repositioning, or changing generated artifacts outside their generator.
 - **Safety defaults:** no prose-only source-of-truth tests, generated regions stay generator-owned, exact evidence links, narrow patches, and no unsupported present-tense claims.
-- **Current AGH fit:** **Current with preinstalled dependencies** — agents, jobs, triggers, and the AGH Network channel fit; documentation skills, code tools, hooks, and the Loop must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`.
-- **Evidence:** [AGH-1], [AGH-2], [PI-1], [OC-2].
+- **Current Compozy fit:** **Current with preinstalled dependencies** — agents, jobs, triggers, and the Compozy Network channel fit; documentation skills, code tools, hooks, and the Loop must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`.
+- **Evidence:** [Compozy-1], [Compozy-2], [PI-1], [OC-2].
 
 ### 35. security-audit-pipeline
 
@@ -612,10 +612,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** threat modeling, vulnerability review, dependency risk, secret handling, remediation guidance, and evidence verification.
 - **Loop:** confirm authorization and scope, establish attack surfaces, run bounded analysis, verify findings, rank by impact and likelihood, obtain disclosure approval, and create remediation records.
 - **Jobs and triggers:** explicit audit start, dependency-change trigger, high-risk-code trigger, and periodic authorized scan.
-- **Channel and bridge:** restricted security AGH Network channel with source-control and issue-tracker bridges.
+- **Channel and bridge:** restricted security Compozy Network channel with source-control and issue-tracker bridges.
 - **Approvals:** required before active exploitation, network scanning, secret access, issue publication, external disclosure, or code mutation.
 - **Safety defaults:** read-only first, target allowlist, no production exploitation, secret redaction, isolated artifacts, bounded tools, and human disclosure authority.
-- **Current AGH fit:** **Current with preinstalled dependencies** — current profiles can coordinate the team and schedule; security tools, hooks, skills, MCP servers, and Loops must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — current profiles can coordinate the team and schedule; security tools, hooks, skills, MCP servers, and Loops must be installed, configured, authorized, and healthy and remain extension-scoped. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`.
 - **Evidence:** [H-6], [OC-5], [PI-1].
 
 ### 36. design-parity-board
@@ -627,10 +627,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** reference extraction, deterministic capture, visual comparison, responsive review, accessibility inspection, and issue drafting.
 - **Loop:** pin reference and implementation revisions, capture matching states, compare structure and behavior, verify findings, request design adjudication for ambiguity, and publish evidence.
 - **Jobs and triggers:** story/route review trigger, design-reference update trigger, release-candidate job, and resolved-finding recheck.
-- **Channel and bridge:** design-review AGH Network channel with Figma, Storybook/browser, source-control, and issue bridges.
+- **Channel and bridge:** design-review Compozy Network channel with Figma, Storybook/browser, source-control, and issue bridges.
 - **Approvals:** required before changing design tokens, accepting intentional divergence, editing source, or closing design findings.
 - **Safety defaults:** deterministic viewport and data, no implementation-only parity claim, accessibility as a separate evidence lane, no invented reference behavior, and immutable capture metadata.
-- **Current AGH fit:** **Platform evolution** — design/provider contracts, visual evidence packaging, dependency setup, and a profile-scoped comparison Loop are required.
+- **Current Compozy fit:** **Platform evolution** — design/provider contracts, visual evidence packaging, dependency setup, and a profile-scoped comparison Loop are required.
 - **Evidence:** [PI-1], [OC-4].
 
 ### 37. data-quality-watch
@@ -642,10 +642,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** query validation, schema/change comparison, lineage analysis, anomaly explanation, and remediation planning.
 - **Loop:** validate alert, reproduce query, bound affected data, inspect lineage and recent changes, test hypotheses, propose repair, obtain approval, verify downstream recovery, and close.
 - **Jobs and triggers:** freshness and quality triggers, schema-change trigger, scheduled reconciliation, and post-repair verification.
-- **Channel and bridge:** restricted data-operations AGH Network channel with warehouse, orchestration, catalog, and issue bridges.
+- **Channel and bridge:** restricted data-operations Compozy Network channel with warehouse, orchestration, catalog, and issue bridges.
 - **Approvals:** required before running costly queries beyond budget, mutating data, backfilling, changing checks, or notifying external consumers.
 - **Safety defaults:** read-only queries first, query cost cap, sampled investigation, no PII export, lineage evidence, idempotent backfills, and rollback plan.
-- **Current AGH fit:** **Platform evolution** — typed data-provider contracts, cost controls, dependency setup, identity, and durable repair semantics are required.
+- **Current Compozy fit:** **Platform evolution** — typed data-provider contracts, cost controls, dependency setup, identity, and durable repair semantics are required.
 - **Evidence:** [OC-2], [PC-2].
 
 ### 38. open-source-maintainer
@@ -657,10 +657,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** issue deduplication, reproduction guidance, contribution policy, review routing, release notes, and community response drafting.
 - **Loop:** ingest bounded project changes, classify, gather evidence, propose maintainer actions, obtain approval, apply allowed labels/comments, and verify state.
 - **Jobs and triggers:** new-issue/PR triggers, CI-failure trigger, weekly health job, and release milestone job.
-- **Channel and bridge:** project AGH Network channel with source-control, CI, registry, and community bridges.
+- **Channel and bridge:** project Compozy Network channel with source-control, CI, registry, and community bridges.
 - **Approvals:** required before closing, rejecting, labeling sensitive reports, merging, releasing, or making governance statements.
 - **Safety defaults:** public-data boundary, no contributor profiling, rate limits, no auto-close by inactivity alone, security-report isolation, and transparent bot identity.
-- **Current AGH fit:** **Current with preinstalled dependencies** — the profile fits with source-control/community extensions and extension-scoped skills and Loops installed, configured, authorized, and healthy. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`; bridge presets remain disabled until separately configured and enabled.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — the profile fits with source-control/community extensions and extension-scoped skills and Loops installed, configured, authorized, and healthy. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`; bridge presets remain disabled until separately configured and enabled.
 - **Evidence:** [OC-2], [OC-4], [PI-2].
 
 ### 39. n8n-workflow-doctor
@@ -672,25 +672,25 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** graph inspection, node-contract lookup, execution analysis, idempotency review, and repair planning.
 - **Loop:** fetch workflow and bounded history, validate credentials without revealing values, reproduce safely where possible, isolate failure, propose repair, obtain approval, apply, and verify.
 - **Jobs and triggers:** failed-execution trigger, credential-health job, version-change trigger, and post-repair observation.
-- **Channel and bridge:** private automation AGH Network channel with n8n and issue-tracker bridges.
+- **Channel and bridge:** private automation Compozy Network channel with n8n and issue-tracker bridges.
 - **Approvals:** required before activation, mutation, credential rebinding, replaying side effects, or changing webhook exposure.
 - **Safety defaults:** read-only tools enabled first, secret values never returned, replay against test data, side-effect inventory, idempotency check, and production circuit breaker.
-- **Current AGH fit:** **Current with preinstalled dependencies** — the n8n MCP and its Loop must be installed, configured, authorized, and healthy separately, and its tools may be pruned. Jobs and triggers target a packaged agent that starts the Loop through `agh__loop_run`; profile-owned static resources and automatic dependency setup are not current.
+- **Current Compozy fit:** **Current with preinstalled dependencies** — the n8n MCP and its Loop must be installed, configured, authorized, and healthy separately, and its tools may be pruned. Jobs and triggers target a packaged agent that starts the Loop through `compozy__loop_run`; profile-owned static resources and automatic dependency setup are not current.
 - **Evidence:** [H-5], [OC-5].
 
 ### 40. paperclip-company-operator
 
-- **Persona:** an operator supervising a Paperclip company from an AGH workspace.
+- **Persona:** an operator supervising a Paperclip company from a Compozy workspace.
 - **Outcome and first proof:** produce a company-health brief covering goals, blocked issues, stale heartbeats, approvals, budget use, and agents needing attention.
 - **Extensions:** Paperclip HTTP/API adapter, optional messaging bridge, documents, and cost/telemetry export.
 - **Agents and authored context:** company observer, issue coordinator, and governance reviewer; their Souls express a Paperclip-as-authority posture and constraints against autonomous hiring or budget mutation, while runtime grants and approvals enforce authority. Heartbeat reentry guidance covers company-health evidence and adapter diagnostics after a runtime wake.
 - **Skills and task behaviors:** company inspection, issue lifecycle, budget interpretation, approval routing, run-state diagnosis, and handoff.
 - **Loop:** inspect one company, identify stalled or risky state, verify against Paperclip records, propose operator actions, obtain approval, apply allowed actions, and confirm state.
 - **Jobs and triggers:** periodic health job, stalled-issue trigger, approval-request trigger, budget-threshold trigger, and adapter failure alert.
-- **Channel and bridge:** company-specific AGH Network channel with Paperclip and optional Slack/Teams bridges.
+- **Channel and bridge:** company-specific Compozy Network channel with Paperclip and optional Slack/Teams bridges.
 - **Approvals:** required before agent creation or deletion, hiring, budget changes, issue reassignment, company import, or external messaging.
 - **Safety defaults:** one company per workspace binding, read-only first, Paperclip remains system of record, budget limits, no task ownership duplication, and idempotent updates.
-- **Current AGH fit:** **Platform evolution** — an official provider/adapter contract, company binding, setup, typed events, and authority mapping would be required.
+- **Current Compozy fit:** **Platform evolution** — an official provider/adapter contract, company binding, setup, typed events, and authority mapping would be required.
 - **Evidence:** [PC-1], [PC-2], [PC-3], [PC-4].
 
 ### 41. codebase-research-cell
@@ -702,26 +702,26 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** repository search and structured synthesis may be expressed in agent authored context rather than a separately activated skill.
 - **Loop:** the coordinator decomposes the question, dispatches bounded explorers, verifies evidence, resolves contradictions, synthesizes, and stops at done, blocked, or exhausted. This can be prompt-coordinated today; a deterministic packaged Loop would remain extension-scoped.
 - **Jobs and triggers:** optional explicit research trigger; no recurring job is required.
-- **Channel and bridge:** one workspace-scoped AGH Network research channel; no external bridge required.
+- **Channel and bridge:** one workspace-scoped Compozy Network research channel; no external bridge required.
 - **Approvals:** required before any write, network access outside policy, or expansion beyond the selected workspace.
 - **Safety defaults:** read-only tools, bounded child count and depth, no unrelated file access, evidence links, and no unsupported certainty.
-- **Current AGH fit:** **Current** — one owning extension can package the agents, authored context, declared AGH Network channel, optional agent-targeted trigger, and any static research skill or Loop needed. The configured ACP coding-agent runtime is a baseline prerequisite under the fit definition; static resources remain extension-scoped, and an agent starts any packaged Loop through `agh__loop_run`.
-- **Evidence:** [AGH-1], [PI-3].
+- **Current Compozy fit:** **Current** — one owning extension can package the agents, authored context, declared Compozy Network channel, optional agent-targeted trigger, and any static research skill or Loop needed. The configured ACP coding-agent runtime is a baseline prerequisite under the fit definition; static resources remain extension-scoped, and an agent starts any packaged Loop through `compozy__loop_run`.
+- **Evidence:** [Compozy-1], [PI-3].
 
 ### 42. workspace-standup-coordinator
 
-- **Persona:** a small AGH-operated team that needs a consistent internal status ritual.
+- **Persona:** a small Compozy-operated team that needs a consistent internal status ritual.
 - **Outcome and first proof:** collect structured status from packaged agents and publish one workspace-scoped standup with progress, blockers, handoffs, and explicit unknowns.
 - **Extensions:** none beyond the owning extension; an optional external team-messaging bridge can be omitted from the current form.
 - **Agents and authored context:** coordinator plus worker agents; their Souls express status vocabulary and constraints against claiming unverified completion, while task state remains authoritative. Heartbeat reentry guidance tells an eligible session how to reorient after a runtime wake; task APIs and session-health surfaces expose blockers and health.
 - **Skills and task behaviors:** status and handoff behavior can live in authored agent context; no separately activated static skill is required for the basic profile.
 - **Loop:** request status, wait within a bounded window, normalize replies, verify referenced work state, publish the summary, and stop. The basic implementation can be prompt/job coordinated without a profile-owned Loop.
 - **Jobs and triggers:** weekday standup job, blocker trigger, and optional end-of-day handoff job.
-- **Channel and bridge:** one declared AGH Network coordination channel; an optional bridge remains disabled until its extension is installed and its account, secrets, authorization, and health are configured.
+- **Channel and bridge:** one declared Compozy Network coordination channel; an optional bridge remains disabled until its extension is installed and its account, secrets, authorization, and health are configured.
 - **Approvals:** no approval for internal status collection; approval required before forwarding outside the workspace or reassigning work.
 - **Safety defaults:** workspace-only visibility, no raw claim tokens, no status authority transfer to the channel, bounded reminders, and clear missing-response markers.
-- **Current AGH fit:** **Current** — packaged agents, Soul/Heartbeat sidecars, AGH Network channels, jobs, and agent-targeted triggers are all current bundle-profile resources. The sidecars provide persona and wake/reentry context rather than operational authority or monitoring.
-- **Evidence:** [AGH-1], [AGH-3].
+- **Current Compozy fit:** **Current** — packaged agents, Soul/Heartbeat sidecars, Compozy Network channels, jobs, and agent-targeted triggers are all current bundle-profile resources. The sidecars provide persona and wake/reentry context rather than operational authority or monitoring.
+- **Evidence:** [Compozy-1], [Compozy-3].
 
 ### 43. agency-client-pod
 
@@ -732,10 +732,10 @@ Each flagship is detailed enough to support product discovery or a future TechSp
 - **Skills and task behaviors:** client briefing, status synthesis, scope traceability, risk reporting, deliverable review, and invoice preparation.
 - **Loop:** bind client workspace, gather approved evidence, compare to scope and milestones, draft internal report, obtain account-owner approval, deliver, and record acknowledgment.
 - **Jobs and triggers:** weekly report, milestone trigger, scope-change trigger, risk threshold, and invoice-cycle job.
-- **Channel and bridge:** isolated client workspace with an internal AGH Network channel and separate customer-facing bridges.
+- **Channel and bridge:** isolated client workspace with an internal Compozy Network channel and separate customer-facing bridges.
 - **Approvals:** required before client delivery, scope or deadline commitment, invoice issuance, production mutation, or sharing across workspaces.
 - **Safety defaults:** one client per workspace, no shared memory or caches, contract as authority, explicit bridge identity, approval before external send, and teardown on offboarding.
-- **Current AGH fit:** **Platform evolution** — transactional dependency setup, workspace provisioning, client identity, update ownership, and isolation checks are required for a reusable product.
+- **Current Compozy fit:** **Platform evolution** — transactional dependency setup, workspace provisioning, client identity, update ownership, and isolation checks are required for a reusable product.
 - **Evidence:** [PC-1], [PC-2], [OC-3].
 
 # Additional compact candidates
@@ -745,17 +745,17 @@ These candidates are deliberately shorter than the flagships. They are additiona
 Every compact row inherits this structural declaration unless the row says otherwise:
 
 - **Owner:** one candidate-specific owning extension, provisionally named from the candidate slug.
-- **Profile resources:** one packaged coordinator agent named `<candidate>-coordinator`, its authored `AGENT.md`, and any explicitly named agents, jobs, triggers, AGH Network channels, or bridge presets. Soul and Heartbeat sidecars may add persona and wake/reentry context, but never operational authority or monitoring.
+- **Profile resources:** one packaged coordinator agent named `<candidate>-coordinator`, its authored `AGENT.md`, and any explicitly named agents, jobs, triggers, Compozy Network channels, or bridge presets. Soul and Heartbeat sidecars may add persona and wake/reentry context, but never operational authority or monitoring.
 - **Dependencies:** every provider, connector, local binary, static skill, Loop, hook, tool, or MCP server named in “Composition.” A current-with-dependencies fit assumes each dependency is installed, configured, authorized, and healthy.
-- **Automation target:** every compact job or trigger targets `<candidate>-coordinator` unless the row names another packaged agent or an explicit task configuration. If the composition includes a Loop, the coordinator requires `agh__loop_run` and starts that extension-scoped Loop; direct bundle-automation targets for Loops remain platform evolution.
+- **Automation target:** every compact job or trigger targets `<candidate>-coordinator` unless the row names another packaged agent or an explicit task configuration. If the composition includes a Loop, the coordinator requires `compozy__loop_run` and starts that extension-scoped Loop; direct bundle-automation targets for Loops remain platform evolution.
 - **Bridge lifecycle:** a named bridge preset projects a disabled instance. Secret binding, account selection, health checks, authorization, and enablement remain separate setup steps.
 
 ## Personal and family
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 001 | personal-renewal-watch | Individual: surface subscriptions, documents, cards, and memberships before renewal. | Email/document extraction, calendar, finance read connector, reminder agent, weekly job, approval before cancellation. | Platform evolution | [H-4], [OC-2] |
-| 002 | household-grocery-planner | Household: merge meal constraints, pantry notes, and shared requests into one approved list. | Notes/tasks, calendar, grocery provider, planner agent, weekly job, family AGH Network channel, purchase approval. | Platform evolution | [H-4], [OC-7] |
+| 002 | household-grocery-planner | Household: merge meal constraints, pantry notes, and shared requests into one approved list. | Notes/tasks, calendar, grocery provider, planner agent, weekly job, family Compozy Network channel, purchase approval. | Platform evolution | [H-4], [OC-7] |
 | 003 | school-week-ahead | Parent or student: summarize assignments, events, forms, and supplies for the next seven days. | School email/LMS, calendar, documents, student-scoped agent, Sunday job, private delivery. | Platform evolution | [H-4], [OC-3] |
 | 004 | caregiver-checklist | Family caregiver: coordinate nonclinical appointments, documents, transport, and follow-ups. | Calendar, secure notes, reminders, transport info, coordinator agent, strict privacy approvals. | Platform evolution | [OC-5] |
 | 005 | household-document-vault | Household: classify warranties, receipts, policies, and renewal dates with provenance. | Document extraction, local knowledge store, librarian agent, expiry jobs, no external sharing. | Current with preinstalled dependencies | [OC-1], [OC-7] |
@@ -767,7 +767,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Local business and field service
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 011 | salon-booking-assistant | Salon owner: qualify requests, propose open slots, and draft confirmations. | WhatsApp/SMS, booking calendar, service catalog, receptionist agent, appointment trigger, approval. | Platform evolution | [OC-3], [PC-4] |
 | 012 | repair-shop-intake | Repair shop: turn messages and photos into a factual intake record and inspection appointment. | Messaging/media, CRM, calendar, document store, intake agent, no diagnostic promise. | Platform evolution | [OC-1], [OC-3] |
@@ -782,7 +782,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Marketing, brand, and growth
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 021 | campaign-brief-builder | Marketer: turn approved goals, audience evidence, and constraints into a reviewable campaign brief. | Analytics, CRM segments, docs, researcher/strategist agents, brief Loop, approval. | Platform evolution | [OC-2], [PI-3] |
 | 022 | social-calendar-editor | Social lead: create a destination-specific draft calendar with source and asset status. | Docs, social providers, asset store, strategist/editor agents, weekly job, publish gates. | Platform evolution | [H-4] |
@@ -797,7 +797,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Sales and customer success
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 031 | account-research-brief | Seller: prepare a cited account brief before a meeting. | CRM, web research, calendar, documents, research agent, meeting trigger, private delivery. | Current with preinstalled dependencies | [H-2], [OC-2] |
 | 032 | crm-hygiene-review | Revenue operations: report duplicate contacts, missing next steps, and inconsistent stages. | CRM read tools, identity matching, reviewer agent, weekly job, approval before merge/update. | Platform evolution | [OC-5] |
@@ -806,20 +806,20 @@ Every compact row inherits this structural declaration unless the row says other
 | 035 | expansion-signal-review | Account manager: surface evidence-backed expansion signals without automated targeting. | Product analytics, CRM, support, billing, analyst agent, human opportunity decision. | Platform evolution | [OC-5] |
 | 036 | partner-onboarding-coordinator | Partnerships lead: coordinate agreements, access, training, assets, and launch milestones. | CRM, contracts, identity requests, docs, calendar, lifecycle agents, approvals. | Platform evolution | [PC-1] |
 | 037 | channel-sales-digest | Channel manager: produce partner pipeline and blocker summaries from approved systems. | Partner portal/CRM, email, docs, analyst agent, weekly job, workspace isolation. | Platform evolution | [OC-2] |
-| 038 | sales-territory-handoff | Sales manager: prepare an auditable account handoff between representatives. | CRM, email/calendar metadata, documents, handoff Loop, manager approval, private AGH Network channel. | Platform evolution | [PC-2] |
+| 038 | sales-territory-handoff | Sales manager: prepare an auditable account handoff between representatives. | CRM, email/calendar metadata, documents, handoff Loop, manager approval, private Compozy Network channel. | Platform evolution | [PC-2] |
 | 039 | customer-qbr-builder | Success manager: draft a source-backed quarterly review with outcomes, gaps, and next decisions. | CRM, telemetry, support, docs/slides, analyst/editor agents, customer approval. | Platform evolution | [OC-2] |
 | 040 | lost-deal-learning-review | Revenue team: cluster closed-lost evidence and separate facts from seller hypotheses. | CRM, call notes, email metadata, research agent, monthly job, no employee scoring. | Platform evolution | [OC-5] |
 
 ## Support, service, and community
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 041 | support-kb-gap-finder | Support lead: find repeated solved questions that lack approved knowledge. | Support tickets, knowledge base, clustering agent, weekly job, draft-only article output. | Platform evolution | [PC-2] |
 | 042 | incident-ticket-cluster | Support/engineering: detect a likely shared incident across new tickets and status data. | Support, observability, product status, clustering trigger, human incident declaration. | Platform evolution | [OC-2] |
 | 043 | refund-review-queue | Support manager: assemble policy, payment, order, and conversation evidence for refund decisions. | Support, payments, commerce, policy docs, reviewer agent, explicit money approval. | Platform evolution | [OC-5] |
 | 044 | multilingual-support-drafter | Global support: draft policy-grounded replies in the customer's language with source parity. | Support bridge, translation, knowledge, reviewer agents, send approval. | Platform evolution | [OC-3] |
 | 045 | community-faq-curator | Community operator: propose FAQ updates from repeated public questions and accepted answers. | Discord/Slack/forum, knowledge store, curator agent, weekly job, moderator approval. | Current with preinstalled dependencies | [OC-3], [H-2] |
-| 046 | moderation-escalation-router | Community moderator: route policy-sensitive events to the right human role. | Community-bridge events, policy skill, role mapping, trigger targeting the default coordinator, private AGH Network review channel, no auto-ban. | Current with preinstalled dependencies | [OC-3], [OC-5] |
+| 046 | moderation-escalation-router | Community moderator: route policy-sensitive events to the right human role. | Community-bridge events, policy skill, role mapping, trigger targeting the default coordinator, private Compozy Network review channel, no auto-ban. | Current with preinstalled dependencies | [OC-3], [OC-5] |
 | 047 | developer-relations-digest | Developer relations: summarize SDK questions, bugs, examples, and requests across community surfaces. | GitHub, Discord/Slack, docs, issue tracker, analyst agent, weekly job. | Platform evolution | [OC-3], [OC-4] |
 | 048 | member-renewal-coordinator | Association/community: prepare consented renewal reminders and unresolved-benefit questions. | Membership CRM, billing, email, documents, staged jobs, send and billing approvals. | Platform evolution | [OC-5] |
 | 049 | volunteer-community-desk | Volunteer lead: coordinate shifts, questions, training, and urgent handoffs. | Forms, calendar, messaging, docs, coordinator agent, reminder jobs, private data policy. | Platform evolution | [H-4] |
@@ -827,7 +827,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Finance, procurement, and administration
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 051 | receipt-completeness-review | Finance admin: match uploaded receipts to transactions and flag gaps. | Bank/accounting read connector, document extraction, matching skill, monthly job. | Platform evolution | [OC-1] |
 | 052 | subscription-spend-review | Finance or IT: inventory recurring software spend, owners, usage evidence, and renewals. | Accounting, cards, SSO/app catalog, contracts, analyst agent, renewal jobs. | Platform evolution | [OC-5] |
@@ -842,7 +842,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Legal, compliance, and governance
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 061 | policy-acknowledgment-coordinator | Compliance lead: track approved policy distribution, acknowledgment, and exceptions. | HRIS/identity, documents, forms, reminder jobs, private escalation. | Platform evolution | [PC-2] |
 | 062 | privacy-request-intake | Privacy team: structure a data-subject request, verify required intake, and route it. | Secure forms, identity verification, case tracker, documents, deadline jobs, no auto-fulfillment. | Platform evolution | [OC-5] |
@@ -857,7 +857,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## People operations and workplace
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 071 | interview-packet-builder | Hiring team: assemble role-grounded interview packets and scorecard reminders. | ATS, docs, calendar, recruiter agent, interview trigger, no candidate ranking. | Platform evolution | [PC-2] |
 | 072 | candidate-scheduling-desk | Recruiter: resolve interviewer constraints and draft candidate scheduling options. | ATS, calendar, email, coordinator agent, approval before send. | Platform evolution | [OC-3] |
@@ -872,11 +872,11 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Education and training
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 081 | syllabus-to-calendar | Student: extract verified dates and requirements from a syllabus into a reviewable calendar plan. | Document extraction, calendar, planner agent, date verification, event-write approval. | Platform evolution | [OC-1] |
 | 082 | flashcard-curator | Learner: turn approved notes into source-linked flashcards and a spaced-review queue. | Notes/docs, flashcards, tutor agent, scheduled jobs, no graded-answer generation. | Platform evolution | [H-2], [H-4] |
-| 083 | reading-seminar-prep | Student or book group: prepare a cited reading guide, questions, and disputed interpretations. | Documents, notes, research agents, scheduled discussion job, private AGH Network channel. | Current with preinstalled dependencies | [PI-3] |
+| 083 | reading-seminar-prep | Student or book group: prepare a cited reading guide, questions, and disputed interpretations. | Documents, notes, research agents, scheduled discussion job, private Compozy Network channel. | Current with preinstalled dependencies | [PI-3] |
 | 084 | language-practice-coach | Language learner: run bounded practice, record corrections, and schedule review. | Speech/text provider, tutor agent, learning skill, daily job, privacy controls. | Platform evolution | [OC-1] |
 | 085 | course-material-accessibility-review | Instructor: flag accessibility gaps in approved course materials. | Document/media extraction, accessibility tools, reviewer agent, issue export. | Current with preinstalled dependencies | [PI-1] |
 | 086 | office-hours-coordinator | Instructor or teaching assistant: triage questions, schedule sessions, and surface common topics. | LMS, calendar, messaging, FAQ knowledge, coordinator agent, no grading authority. | Platform evolution | [OC-3] |
@@ -887,7 +887,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Creator and media operations
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 091 | podcast-guest-research | Podcast host: prepare a cited guest brief, topic map, and avoid-list. | Web research, calendar, CRM/notes, researcher agent, pre-recording job. | Current with preinstalled dependencies | [H-2], [OC-2] |
 | 092 | podcast-postproduction-desk | Producer: coordinate transcript, edit notes, chapters, assets, approval, and distribution. | Media tools, docs, asset store, publishing bridges, agents, lifecycle Loop. | Platform evolution | [OC-1] |
@@ -902,7 +902,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Nonprofit, association, and public-good operations
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 101 | donor-thank-you-desk | Nonprofit fundraiser: prepare consented, factually grounded acknowledgment drafts. | Donor CRM, payments, documents, email, drafting agent, send approval. | Platform evolution | [OC-5] |
 | 102 | volunteer-shift-coordinator | Volunteer manager: fill approved shifts, send reminders, and report gaps. | Forms/CRM, calendar, messaging, coordinator agent, reminder jobs. | Platform evolution | [H-4] |
@@ -917,7 +917,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Real estate, property, and hospitality
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 111 | listing-launch-coordinator | Real-estate team: track approved property facts, media, disclosures, publication destinations, and launch readiness. | Listings, CRM, docs, media, project tracker, agents, publication approval. | Platform evolution | [PC-2] |
 | 112 | showing-follow-up-desk | Agent: prepare personalized, factual follow-up drafts and log feedback after showings. | CRM, calendar, messaging, forms, follow-up trigger, send approval. | Platform evolution | [OC-3] |
@@ -932,7 +932,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Health administration and wellness
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 121 | appointment-prep-checklist | Patient or practice admin: assemble nonclinical documents, logistics, and questions before an appointment. | Calendar, secure docs, reminders, checklist agent, no medical interpretation. | Platform evolution | [H-4] |
 | 122 | referral-admin-tracker | Practice admin: track referral documents, scheduling state, and administrative follow-ups. | Secure case system, documents, calendar, messaging, deadline jobs. | Platform evolution | [PC-2] |
@@ -947,7 +947,7 @@ Every compact row inherits this structural declaration unless the row says other
 
 ## Research, knowledge, and analysis
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 131 | literature-watch | Researcher: report new primary literature matching a bounded query and explain relevance. | Academic search/RSS, citation store, research agent, scheduled job. | Current with preinstalled dependencies | [H-2], [H-4] |
 | 132 | evidence-map-builder | Analyst: map claims, supporting/contradicting sources, quality, and gaps. | Search/browser, documents, citation skill, skeptic agents, research Loop. | Current with preinstalled dependencies | [PI-3] |
@@ -956,13 +956,13 @@ Every compact row inherits this structural declaration unless the row says other
 | 135 | interview-synthesis-desk | Researcher: code approved interview transcripts into themes with traceable excerpts. | Transcript/docs, qualitative-analysis skill, researcher/reviewer agents, consent policy. | Current with preinstalled dependencies | [PI-3] |
 | 136 | patent-scouting-brief | Authorized researcher: summarize relevant public patents and citations without legal conclusions. | Patent search, browser, documents, research agent, primary-source links. | Platform evolution | [H-2] |
 | 137 | scientific-reproducibility-check | Research team: inspect methods, data availability, code, and stated limitations. | Papers/docs, repositories, sandbox tools, reviewer agents, no unsupported validity verdict. | Current with preinstalled dependencies | [PI-1] |
-| 138 | due-diligence-data-room-index | Authorized deal team: inventory and classify supplied documents with gaps and provenance. | Secure documents, extraction, indexer agents, strict workspace scope, private AGH Network review channel. | Platform evolution | [OC-1] |
+| 138 | due-diligence-data-room-index | Authorized deal team: inventory and classify supplied documents with gaps and provenance. | Secure documents, extraction, indexer agents, strict workspace scope, private Compozy Network review channel. | Platform evolution | [OC-1] |
 | 139 | expert-network-prep | Consultant: prepare source-backed expert interview questions and conflict notes. | CRM, web research, calendar, docs, researcher agent, outreach approval. | Platform evolution | [OC-5] |
 | 140 | knowledge-base-freshness-watch | Knowledge owner: flag pages whose sources, owners, links, or product facts appear stale. | Knowledge system, link checker, runtime/docs sources, reviewer agent, scheduled job. | Current with preinstalled dependencies | [OC-2] |
 
 ## Engineering, product, operations, security, and data
 
-| No. | Candidate | Persona and outcome | Likely composition | Current AGH fit | Evidence |
+| No. | Candidate | Persona and outcome | Likely composition | Current Compozy fit | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 | 141 | github-issue-triage | Maintainer: classify, deduplicate, request reproduction evidence, and suggest owners. | GitHub, workspace search, triage agents, issue trigger, comment approval. | Current with preinstalled dependencies | [OC-4] |
 | 142 | flaky-test-investigator | Engineer: correlate test failures, revisions, timing, and environment into a reproducible hypothesis. | CI, source control, workspace/sandbox, investigator agents, bounded reruns. | Current with preinstalled dependencies | [PI-3] |
@@ -1014,7 +1014,7 @@ The catalog should not be implemented from top to bottom. A smaller set of reusa
 
 4. **Safety and lifecycle**
    - Resource, service-interface, and security-grant diff before activation.
-   - Approval delivery through the user's chosen bridge or local operator surface.
+   - Approval delivery through the user's chosen bridge or local control surface.
    - Per-run and recurring cost limits.
    - Idempotency and duplicate-event handling.
    - Retry, catch-up, and circuit-breaker policy.
@@ -1027,7 +1027,7 @@ The catalog should not be implemented from top to bottom. A smaller set of reusa
 | ---: | --- | --- | --- |
 | 1 | personal-chief-of-staff | Read-only first proof; broad individual appeal; tests calendar, email, tasks, and delivery. | Workspace/mail/calendar, messaging, guided setup |
 | 2 | meeting-to-action | One bounded input and inspectable output; useful across sales, recruiting, product, and management. | Transcript, calendar, task system, approvals |
-| 3 | fix-linear-issue | Exercises the AGH premise across agent, CLI/API, bridge, deterministic Loop, review, and observable proof. | Linear, GitHub, coding runtime, CI |
+| 3 | fix-linear-issue | Exercises the Compozy premise across agent, CLI/API, bridge, deterministic Loop, review, and observable proof. | Linear, GitHub, coding runtime, CI |
 | 4 | customer-support-desk | Clear draft-only mode and measurable queue outcome. | Support platform, knowledge, messaging bridge, identity |
 | 5 | content-marketing-engine | Lets domain experts author bundle context while connector maintainers own integrations. | Research, docs, CMS, assets, approvals |
 | 6 | sales-pipeline-assistant | Recurring value with explicit source-of-record and send gates. | CRM, email, calendar, transcript |
@@ -1082,7 +1082,7 @@ Contracts should describe:
 - portable configuration fields;
 - test fixtures and compatibility evidence.
 
-This is a platform-evolution proposal. Provider service contracts must not be confused with current AGH Network Capabilities, which are interpretive peer offers rather than local provider interfaces.
+This is a platform-evolution proposal. Provider service contracts must not be confused with current Compozy Network Capabilities, which are interpretive peer offers rather than local provider interfaces.
 
 ## Setup schema and first-proof contract
 
@@ -1115,7 +1115,7 @@ Users should not need to understand each tool schema to make a safety decision. 
 - schedule;
 - expose over a network;
 - retain;
-- share across AGH Network channels or workspaces.
+- share across Compozy Network channels or workspaces.
 
 The summary must be derived from actual extension and resource declarations, not manually maintained marketing copy.
 
@@ -1141,12 +1141,12 @@ These controls are especially important for incident, finance, messaging, smart-
 
 A healthy catalog can separate:
 
-- **Official** — maintained and compatibility-tested by the AGH project.
+- **Official** — maintained and compatibility-tested by the Compozy project.
 - **Verified** — publisher identity, provenance, security scan, compatibility evidence, and support metadata have been checked.
 - **Community** — discoverable with explicit trust and maintenance caveats.
 - **Local** — private or unpublished development packages.
 
-Automated indexing can reduce publishing friction, but indexing is not verification. Listings should expose publisher, source revision, checksum/signature, requested resource, service, and security grants, dependencies, supported AGH versions, last verification, setup time, sample output, health checks, changelog, maintainer contact, and uninstall behavior.
+Automated indexing can reduce publishing friction, but indexing is not verification. Listings should expose publisher, source revision, checksum/signature, requested resource, service, and security grants, dependencies, supported Compozy versions, last verification, setup time, sample output, health checks, changelog, maintainer contact, and uninstall behavior.
 
 # Blueprint readiness checklist
 
@@ -1158,32 +1158,32 @@ A flagship should not enter implementation planning until its discovery work can
 - [ ] Every external dependency has an owner and a real integration path.
 - [ ] Agent Souls express persona, principles, and constraints without claiming operational authority.
 - [ ] Heartbeat sidecars define bounded wake/reentry guidance; jobs, triggers, task APIs, and runtime health surfaces own observation and health.
-- [ ] Jobs and triggers name an agent or task target and define retry, catch-up, deduplication, and circuit-breaker behavior; a current-fit Loop starts through an agent granted `agh__loop_run`.
-- [ ] AGH Network channel identity, external bridge identity, and tenant/workspace mapping are explicit.
+- [ ] Jobs and triggers name an agent or task target and define retry, catch-up, deduplication, and circuit-breaker behavior; a current-fit Loop starts through an agent granted `compozy__loop_run`.
+- [ ] Compozy Network channel identity, external bridge identity, and tenant/workspace mapping are explicit.
 - [ ] Every consequential action has an approval rule.
 - [ ] Data scope and retention are explicit.
 - [ ] Setup, health check, demo, dry run, and first proof are defined.
 - [ ] Update, deactivation, uninstall, and rollback ownership are defined.
-- [ ] CLI, HTTP, UDS, native tools, web, and official AGH skill impacts are analyzed.
+- [ ] CLI, HTTP, UDS, native tools, web, and official Compozy skill impacts are analyzed.
 - [ ] Documentation avoids presenting the opportunity as shipped behavior.
 
 # Evidence appendix
 
 ## How to read the evidence codes
 
-- AGH codes establish the current implementation boundary and therefore control fit labels.
+- Compozy codes establish the current implementation boundary and therefore control fit labels.
 - Hermes, Pi, OpenClaw, and Paperclip codes establish observed ecosystem, packaging, onboarding, automation, or community patterns.
-- An external implementation is not evidence that AGH has the same connector.
+- An external implementation is not evidence that Compozy has the same connector.
 - Paperclip's plugin specification is explicitly a proposed target layered over an early plugin runtime; [PC-3] is architecture inspiration, not a current-feature claim.
 - Counts and volatile marketplace metrics are intentionally omitted from opportunity reasoning unless dated.
 
-## AGH implementation evidence
+## Compozy implementation evidence
 
 | Code | Source | Relevant evidence |
 | --- | --- | --- |
-| AGH-1 | internal/extension/bundle.go | BundleProfile currently contains AGH Network channel declarations, packaged agents with Soul/Heartbeat sidecars, agent- or task-targeted jobs, agent-targeted triggers, and bridge presets. It has no direct Loop target fields. |
-| AGH-2 | internal/extension/manifest.go | Skills, Loops, agents, bundles, hooks, tools, and MCP servers are static extension resources; manifests also declare extension service interfaces under `capabilities.provides`, Host API actions, subprocess, security, and bridge metadata. |
-| AGH-3 | internal/bundles/service.go; internal/bundles/resource.go; internal/bundles/resource_projection.go | Bundle catalog, preview, activation, workspace/global scope, materialization, reconciliation, and owned-resource projection are current runtime responsibilities. Bridge presets materialize disabled instances; preset secret-slot declarations are setup metadata rather than bound secrets. |
+| Compozy-1 | internal/extension/bundle.go | BundleProfile currently contains Compozy Network channel declarations, packaged agents with Soul/Heartbeat sidecars, agent- or task-targeted jobs, agent-targeted triggers, and bridge presets. It has no direct Loop target fields. |
+| Compozy-2 | internal/extension/manifest.go | Skills, Loops, agents, bundles, hooks, tools, and MCP servers are static extension resources; manifests also declare extension service interfaces under `capabilities.provides`, Host API actions, subprocess, security, and bridge metadata. |
+| Compozy-3 | internal/bundles/service.go; internal/bundles/resource.go; internal/bundles/resource_projection.go | Bundle catalog, preview, activation, workspace/global scope, materialization, reconciliation, and owned-resource projection are current runtime responsibilities. Bridge presets materialize disabled instances; preset secret-slot declarations are setup metadata rather than bound secrets. |
 
 ## Hermes evidence
 
@@ -1226,12 +1226,12 @@ A flagship should not enter implementation planning until its discovery work can
 | PC-3 | [Plugin specification](https://github.com/paperclipai/paperclip/blob/master/doc/plugins/PLUGIN_SPEC.md); [plugin ideas](https://github.com/paperclipai/paperclip/blob/master/doc/plugins/ideas-from-opencode.md) | Proposed capability-gated plugins, tools, events, jobs, webhooks, managed resources, UI slots, and example integrations. |
 | PC-4 | [Paperclip Community](https://paperclip.community/); [community resources](https://paperclip.community/resources); [ClipHub](https://cliphub.fyi/); [awesome-paperclip](https://github.com/gsxdsm/awesome-paperclip) | Community plugins, messaging command centers, adapters, company-support tools, curated discovery, and automated registry patterns. |
 
-# AGH Impact Audit
+# Compozy Impact Audit
 
-- **Native tools:** no runtime impact. Checked `skills/agh/references/native-tools.md`, `internal/tools/builtin_ids.go`, and `internal/tools/builtin/bundles_resources.go`. Current native bundle management remains list/info/activate/deactivate/status; preview, update, and network settings remain structured CLI/HTTP/UDS fallbacks. This catalog adds no tool ID, descriptor, schema, digest, risk flag, availability diagnostic, capability gate, or fallback.
+- **Native tools:** no runtime impact. Checked `skills/compozy/references/native-tools.md`, `internal/tools/builtin_ids.go`, and `internal/tools/builtin/bundles_resources.go`. Current native bundle management remains list/info/activate/deactivate/status; preview, update, and network settings remain structured CLI/HTTP/UDS fallbacks. This catalog adds no tool ID, descriptor, schema, digest, risk flag, availability diagnostic, capability gate, or fallback.
 - **Extensibility and hooks:** no runtime impact. Checked `internal/extension/manifest.go`, `internal/extension/bundle.go`, `internal/bundles/service.go`, and `internal/bundles/resource_projection.go`. The document distinguishes extension-scoped static resources, profile-projected resources, disabled bridge instances, agent-targeted automation, and proposed future composition; it changes no extension, hook, provider, registry, bridge SDK, MCP, bundle, or config behavior.
 - **Workspace data isolation:** no runtime datum is added. Checked global/workspace scope and projection in `internal/bundles/model/model.go`, `internal/bundles/service.go`, `internal/bundles/resource.go`, `internal/bundles/resource_projection.go`, and `internal/bundles/resource_store.go`. Every candidate treats global/workspace/session/agent ownership as an implementation requirement, not existing proof.
-- **Official AGH skill:** no impact. Checked `skills/agh/SKILL.md`, `skills/agh/references/capabilities-and-bundles.md`, `skills/agh/references/tools-and-skills.md`, and `skills/agh/references/native-tools.md`. No public behavior, tool ID, CLI path, event, capability, bundle/resource contract, or memory/network/task semantic changed.
+- **Official Compozy skill:** no impact. Checked `skills/compozy/SKILL.md`, `skills/compozy/references/capabilities-and-bundles.md`, `skills/compozy/references/tools-and-skills.md`, and `skills/compozy/references/native-tools.md`. No public behavior, tool ID, CLI path, event, capability, bundle/resource contract, or memory/network/task semantic changed.
 
 # Web, docs, config, and QA impact
 
@@ -1247,4 +1247,4 @@ A flagship should not enter implementation planning until its discovery work can
 - **203 total bundle opportunities**
 - **15 compact-catalog domain groups**, with the detailed flagships spanning the same portfolio from personal use through engineering and operations
 
-These counts describe this document, not shipped AGH artifacts.
+These counts describe this document, not shipped Compozy artifacts.

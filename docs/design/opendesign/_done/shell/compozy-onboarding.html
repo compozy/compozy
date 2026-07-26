@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>AGH · First-run setup</title>
+<title>Compozy · First-run setup</title>
 <link rel="preconnect" href="https://rsms.me/" />
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -388,7 +388,7 @@ a{color:inherit;text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="M12 21V11"/><path d="m4 7 8 4 8-4"/></svg>
       </div>
       <div>
-        <div class="brand__name">AGH</div>
+        <div class="brand__name">Compozy</div>
         <div class="brand__sub">Agent workplace</div>
       </div>
     </div>
@@ -396,7 +396,7 @@ a{color:inherit;text-decoration:none}
     <div class="aside__lead">
       <span class="eyebrow">First-run setup</span>
       <h1>Let's get your workspace running.</h1>
-      <p>A few essentials before AGH can host agents. This takes about two minutes — you can refine everything later in Settings.</p>
+      <p>A few essentials before Compozy can host agents. This takes about two minutes — you can refine everything later in Settings.</p>
     </div>
 
     <nav class="stepper" id="stepper" aria-label="Setup steps">
@@ -417,7 +417,7 @@ a{color:inherit;text-decoration:none}
         </span>
         <span class="step__body">
           <span class="step__title">Workspaces</span>
-          <span class="step__desc">Add the folders AGH should operate inside.</span>
+          <span class="step__desc">Add the folders Compozy should operate inside.</span>
         </span>
       </button>
       <button class="step" data-step="3" role="tab">
@@ -443,7 +443,7 @@ a{color:inherit;text-decoration:none}
       <div class="stage__head-inner">
         <span class="eyebrow" id="stageEyebrow">Step 1 of 3</span>
         <h2 id="stageTitle">Choose your default model</h2>
-        <p id="stageLead">This is the provider and model new agents use unless you override it per agent. AGH talks to it through your chosen credentials.</p>
+        <p id="stageLead">This is the provider and model new agents use unless you override it per agent. Compozy talks to it through your chosen credentials.</p>
       </div>
     </div>
 
@@ -477,7 +477,7 @@ a{color:inherit;text-decoration:none}
 
         <div class="section">
           <div class="section__label"><span class="section__num">2</span><span class="eyebrow">Authentication</span></div>
-          <p class="section__hint">AGH needs credentials to reach <b id="authProvName" style="color:var(--muted);font-weight:500">your provider</b>. Use a local CLI you've already signed into, or paste an API key.</p>
+          <p class="section__hint">Compozy needs credentials to reach <b id="authProvName" style="color:var(--muted);font-weight:500">your provider</b>. Use a local CLI you've already signed into, or paste an API key.</p>
           <div class="auth-opts" id="authOpts">
             <button class="auth" type="button" data-auth="native_cli" aria-pressed="true">
               <span class="auth__radio"></span>
@@ -577,11 +577,11 @@ a{color:inherit;text-decoration:none}
   <div class="done__card">
     <div class="done__ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
     <h3>Your workspace is ready</h3>
-    <p>AGH is configured and your onboarding agent is standing by. Here's what we set up:</p>
+    <p>Compozy is configured and your onboarding agent is standing by. Here's what we set up:</p>
     <div class="done__sum" id="doneSum"></div>
     <div class="done__actions">
       <button class="btn btn--outline" id="restartBtn">Run setup again</button>
-      <button class="btn btn--primary btn--lg" id="launchBtn">Launch AGH →</button>
+      <button class="btn btn--primary btn--lg" id="launchBtn">Launch Compozy →</button>
     </div>
   </div>
 </div>
@@ -616,7 +616,7 @@ const REASONING = [
 ];
 const SUGGEST_FOLDERS = [
   {name:"compozy", path:"~/Dev/compozy"},
-  {name:"agh", path:"~/Dev/compozy/agh"},
+  {name:"compozy", path:"~/Dev/compozy/compozy"},
   {name:"notes", path:"~/Documents/notes"},
   {name:"scratch", path:"~/scratch"}
 ];
@@ -646,7 +646,7 @@ const AGENTS = [
 ];
 
 /* ---------------- State ---------------- */
-const LS = "agh-onboarding-v1";
+const LS = "compozy-onboarding-v1";
 const state = Object.assign({
   step:1, maxStep:1,
   provider:"openai", model:"GPT-5.1", reasoning:"medium",
@@ -930,8 +930,8 @@ ta.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){e.preventDef
 
 /* ---------------- Navigation ---------------- */
 const STEP_META = {
-  1:{eb:"Step 1 of 3", t:"Choose your default model", lead:"This is the provider and model new agents use unless you override it per agent. AGH talks to it through your chosen credentials.", hint:"Default model"},
-  2:{eb:"Step 2 of 3", t:"Add your workspaces", lead:"Workspaces are the folders AGH is allowed to read and operate in. Add at least one — every agent session is scoped to a workspace.", hint:"Workspaces"},
+  1:{eb:"Step 1 of 3", t:"Choose your default model", lead:"This is the provider and model new agents use unless you override it per agent. Compozy talks to it through your chosen credentials.", hint:"Default model"},
+  2:{eb:"Step 2 of 3", t:"Add your workspaces", lead:"Workspaces are the folders Compozy is allowed to read and operate in. Add at least one — every agent session is scoped to a workspace.", hint:"Workspaces"},
   3:{eb:"Step 3 of 3", t:"Meet your onboarding agent", lead:"Your onboarding agent finishes setup conversationally — choose the channels and agents your workspace starts with.", hint:"Onboarding chat"}
 };
 function stepValid(s){

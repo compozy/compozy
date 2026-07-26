@@ -5,8 +5,8 @@
 - **Build:** `62ab3bc` · **Environment:** fresh isolated lab at `http://127.0.0.1:40645`; provider behavior uses deterministic fake/sandbox endpoints unless stated otherwise.
 - **Started:** 2026-07-13T02:22:26Z · **Lab closed:** 2026-07-13T05:29:36Z · **Status:** charters settled and teardown clean; final global gate pending
 - **Plan:** [`2026-07-12-hermes-bridge-plan.md`](2026-07-12-hermes-bridge-plan.md)
-- **Bootstrap manifest:** `/home/pedronauck/dev/qa-labs/agh-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/bootstrap-manifest.json`
-- **Charter result ledger:** `/home/pedronauck/dev/qa-labs/agh-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json`
+- **Bootstrap manifest:** `/home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/bootstrap-manifest.json`
+- **Charter result ledger:** `/home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json`
 
 ## Result at a Glance
 
@@ -40,7 +40,7 @@ This is not release-ready yet: the strict Northstar auditor is red, the source-f
 | Precondition | Status | Evidence |
 |---|---|---|
 | Fresh isolated bootstrap and populated `northstar-pay` charter | Pass | bootstrap manifest and validated playbook under the lab QA output path |
-| `make test-e2e-runtime` | Historical fail; source-fixed | `BUG-20260712-goal-judge-fixture-model` fixed the stale Goal fixture. The separately approved `BUG-20260712-reasoning-evidence-attribution` harness fix now stamps and selects the daemon-provided AGH session owner; its concurrent shared-file regression and exact reasoning E2E pass under `-race`, including ten stress runs. The fresh complete lane remains reserved for the final source freeze. |
+| `make test-e2e-runtime` | Historical fail; source-fixed | `BUG-20260712-goal-judge-fixture-model` fixed the stale Goal fixture. The separately approved `BUG-20260712-reasoning-evidence-attribution` harness fix now stamps and selects the daemon-provided Compozy session owner; its concurrent shared-file regression and exact reasoning E2E pass under `-race`, including ten stress runs. The fresh complete lane remains reserved for the final source freeze. |
 | `make test-e2e-web` | Invalidated | The first run passed 62/70 but `BUG-0037` proved it served obsolete Web assets. `BUG-20260712-bridge-e2e-retired-route` updated the Bridge owner for the current catalog/detail routes; focused current-bundle Bridge scenarios pass 2/2. The fresh full-lane rerun is reserved for the final workflow gate. |
 | Browser driver | Pass with fallback | `browser-use` required a human Chrome remote-debugging approval. The charter-prescribed `agent-browser` fallback ran headless with a registered PID and captured the complete CH-web-bridge-setup journey. |
 | Deterministic provider boundary | Pass, qualified | Slack, Telegram, Discord, and WhatsApp used local fake APIs; provider extension binaries were rebuilt from current source before evidence. No result claims a live vendor account. |
@@ -65,7 +65,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 One action is one deliberate operator input or provider-console submission. Reading output, waiting, and daemon-owned `setWebhook` calls count as zero.
 
-| Provider / lane | Hermes baseline | AGH actions | Wall time | Delta / note | Evidence |
+| Provider / lane | Hermes baseline | Compozy actions | Wall time | Delta / note | Evidence |
 |---|---:|---:|---:|---|---|
 | Slack manifest | ≈7 | 8 | 1m57s | +1; dashboard import/install simulated; first fake-provider message at 04:46:06Z | `bridge-charter-results.json`; fake Slack log |
 | Telegram guided / structured CLI | ≈4 | 5 | 2m19s | +1; intended four-action path required a group+topic retry because of BUG-20260713-telegram-route-shapes. Three deliberate invalid-input probes preceded the timed valid path. | setup JSON and fake Telegram log |
@@ -111,14 +111,14 @@ All commands below were scoped to the owners named by the charters. No monorepo-
 ### BUG-20260712-reasoning-evidence-attribution: Runtime reasoning evidence had no stable invocation owner
 
 - **Symptom:** daemon-owned background ACP processes and the intended user session wrote into one per-agent diagnostics JSONL while their process-local ACP session IDs collided.
-- **Root cause:** production already supplied distinct `AGH_SESSION_ID` values, but the acpmock writer discarded that owner and the reasoning assertion projected the entire shared file.
-- **Fix:** the central writer stamps the process owner and rejects caller-forged ownership; readers select the API-returned AGH session ID exactly before semantic projection. No production launch, API, config, or memory behavior changed.
+- **Root cause:** production already supplied distinct `COMPOZY_SESSION_ID` values, but the acpmock writer discarded that owner and the reasoning assertion projected the entire shared file.
+- **Fix:** the central writer stamps the process owner and rejects caller-forged ownership; readers select the API-returned Compozy session ID exactly before semantic projection. No production launch, API, config, or memory behavior changed.
 - **Regression tests:** writer anti-forgery, real subprocess propagation, exact owner/order/fail-closed unit cases, and a concurrent two-process shared-JSONL daemon E2E all pass under `-race`; the exact reasoning owner also passes ten consecutive runs. The fresh full runtime lane remains the final completion proof.
 
 ### BUG-0037: Web E2E lane can serve a stale frontend bundle
 
 - **Symptom:** the 70-case browser lane reported eight failures while serving JavaScript older than the source tree.
-- **Root cause:** the lane rebuilt only when `web/dist/index.html` was absent, and reduced per-spec environments could discard `AGH_WEB_DIST_DIR`.
+- **Root cause:** the lane rebuilt only when `web/dist/index.html` was absent, and reduced per-spec environments could discard `COMPOZY_WEB_DIST_DIR`.
 - **Fix:** always build current Web sources before the lane and preserve only the machine-controlled E2E variables in reduced environments.
 - **Regression tests:** focused Mage 6/6 and Web runtime fixture 17/17 through Turbo.
 
@@ -142,13 +142,13 @@ The fresh Northstar replay reproduced the prior failure exactly enough to keep t
 ## Paper Cuts and Lab Deviations
 
 - The checked-in/ignored local provider executables were older than current source. Telegram health initially failed until the four channel binaries were rebuilt in both source and installed extension directories. Evidence after that point uses current binaries; this was classified as lab state, not a runtime bug.
-- The existing `./bin/agh` client was also stale and could not decode current `delivery_defaults.progress`. Current-source `go run ./cmd/agh bridge list --json` read back all six instances correctly; the stale artifact is not cited as product evidence.
+- The existing `./bin/compozy` client was also stale and could not decode current `delivery_defaults.progress`. Current-source `go run ./cmd/compozy bridge list --json` read back all six instances correctly; the stale artifact is not cited as product evidence.
 - Disabled verification intentionally skips external reachability; enabled HTTP verification returns structured fail records with HTTP 200, while the CLI maps a fail record to exit 1. The Web surfaced the record rather than equating transport success with setup success.
 - Generic secret binding still accepts `--secret-value` as a process argument. The revised public docs disclose this and prefer guided hidden input; a safer stdin/file source remains separate work.
 
 ## Human Verification and Production-Parity Qualification
 
-No live Slack, Telegram, Discord, WhatsApp, Teams, Google Chat, GitHub, or Linear credential was available. The deterministic evidence exercises AGH's public surfaces and provider wire contracts, but a release candidate should still spot-check one real Slack manifest/import, one Telegram BotFather registration, one Discord Interactions Endpoint, and one Meta webhook verification from a public callback. These checks must confirm vendor-console state and public Internet reachability; they must not replace the automated contract evidence.
+No live Slack, Telegram, Discord, WhatsApp, Teams, Google Chat, GitHub, or Linear credential was available. The deterministic evidence exercises Compozy's public surfaces and provider wire contracts, but a release candidate should still spot-check one real Slack manifest/import, one Telegram BotFather registration, one Discord Interactions Endpoint, and one Meta webhook verification from a public callback. These checks must confirm vendor-console state and public Internet reachability; they must not replace the automated contract evidence.
 
 ## Real-Scenario Evidence
 
@@ -163,22 +163,22 @@ No live Slack, Telegram, Discord, WhatsApp, Teams, Google Chat, GitHub, or Linea
 
 ## Documentation Outcome
 
-The user-requested Hermes comparison materially changed the docs rather than polishing prose. `setup.mdx` is now the shared operator hub; Slack, Telegram, Discord, WhatsApp, Teams, Google Chat, GitHub, and Linear each have a dedicated how-to; `operations.mdx` owns rotation/recovery/restart behavior; the overview includes a capability matrix; provider READMEs and the public/internal bridge-author guides now reach an install→create→bind→verify→route→send outcome. The docs retain AGH runtime truth, including fake/live boundaries, masking, disabled-first setup, and known CLI secret-input limits.
+The user-requested Hermes comparison materially changed the docs rather than polishing prose. `setup.mdx` is now the shared operator hub; Slack, Telegram, Discord, WhatsApp, Teams, Google Chat, GitHub, and Linear each have a dedicated how-to; `operations.mdx` owns rotation/recovery/restart behavior; the overview includes a capability matrix; provider READMEs and the public/internal bridge-author guides now reach an install→create→bind→verify→route→send outcome. The docs retain Compozy runtime truth, including fake/live boundaries, masking, disabled-first setup, and known CLI secret-input limits.
 
 ## Learnings
 
-- Nominal provider coverage is not documentation parity. Hermes is useful because it gives one clear entry point, provider-specific checkpoints, and recovery guidance; AGH now matches that information architecture while keeping stronger typed verification.
+- Nominal provider coverage is not documentation parity. Hermes is useful because it gives one clear entry point, provider-specific checkpoints, and recovery guidance; Compozy now matches that information architecture while keeping stronger typed verification.
 - A fixed conjunction of route dimensions cannot model providers with alternative identity shapes. Wizard defaults must be validated against every provider event family, not only the most specific happy path.
 - Fake-provider logs become much stronger evidence when paired with public API/CLI/Web readback and explicit secret-shaped-field detection.
 - Build freshness is part of E2E correctness. A green or red browser result against stale assets is not product evidence.
 - The strict scenario auditor correctly resists green-by-omission: a healthy PM turn is not autonomous collaboration when owned work, peer exchanges, artifacts, reviews, and disruptions never happen.
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
 - **Native tools:** no Task 10 tool ID, toolset, descriptor schema, digest, risk flag, or capability gate changed. Checked the generated native catalog and used CLI/HTTP/UDS public bridge controls; current-source decoding matches the daemon. Earlier bridge progress metadata remains covered by the focused projection owners.
 - **Extensibility and hooks:** all eight bundled bridge providers' setup/control/delivery contracts were checked through manifests, fake APIs, or exact owners. Public and internal bridge-author docs were expanded. No hook, bundle, MCP sidecar, or config key changed in Task 10. BUG-20260713-telegram-route-shapes identifies a future core routing-contract change rather than an adapter-local patch.
 - **Workspace data isolation:** every manual bridge instance was workspace-scoped to `ws_20b83d86cad594f0`; CLI, HTTP, UDS, Web, route/cache, GlobalDB, and daemon-E2E evidence kept instance/workspace identity intact. Focused GlobalDB and parent-cache owners prove cross-workspace isolation; no new global datum was introduced.
-- **Official AGH skill:** the bundled `skills/agh/` bridge operations reference was updated in the implementation tasks for progress, limits, and setup behavior. Task 10 introduced no new public command/tool/event requiring another skill change; the revised site docs and official skill were checked for contract consistency.
+- **Official Compozy skill:** the bundled `skills/compozy/` bridge operations reference was updated in the implementation tasks for progress, limits, and setup behavior. Task 10 introduced no new public command/tool/event requiring another skill change; the revised site docs and official skill were checked for contract consistency.
 
 ## Final Status
 
@@ -190,12 +190,12 @@ The user-requested Hermes comparison materially changed the docs rather than pol
 - **Verdict:** **not ready** — bridge contracts are broadly green under qualified fake-provider evidence, but Telegram routing, Northstar autonomy, the runtime gate, and the final global gate remain unresolved.
 
 [QA_BOOTSTRAP]
-manifest_path=/home/pedronauck/dev/qa-labs/agh-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/bootstrap-manifest.json
-lab_root=/home/pedronauck/dev/qa-labs/agh-hermes-bridge-task-10-20260713-022226-583543-lab
-runtime_home=/tmp/aghqa-e192b01b8545/runtime
+manifest_path=/home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/bootstrap-manifest.json
+lab_root=/home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab
+runtime_home=/tmp/compozyqa-e192b01b8545/runtime
 base_url=http://127.0.0.1:40645
-verification_report=/home/pedronauck/dev/qa-labs/agh-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/verification-report.md
-strict_audit=/home/pedronauck/dev/qa-labs/agh-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/qa-audit-report.json
-teardown_report=/home/pedronauck/dev/qa-labs/agh-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/teardown.json
+verification_report=/home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/verification-report.md
+strict_audit=/home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/qa-audit-report.json
+teardown_report=/home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/teardown.json
 health_status=teardown-clean
 [/QA_BOOTSTRAP]

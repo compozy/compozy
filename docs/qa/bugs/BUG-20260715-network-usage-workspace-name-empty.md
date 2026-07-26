@@ -18,7 +18,7 @@ Ada queried Network usage with the registered workspace name and received an emp
 - **Environment:** desktop / isolated local daemon / en-US
 
 1. Register workspace `bounds-lab` and settle at least one Live wake.
-2. Run `agh network usage --workspace bounds-lab -o json`.
+2. Run `compozy network usage --workspace bounds-lab -o json`.
 3. Compare with the same route addressed by canonical workspace ID.
 
 **Expected:** Both addresses return the same canonical workspace-scoped usage.

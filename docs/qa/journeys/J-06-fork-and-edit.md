@@ -33,7 +33,7 @@ journey:
   entry_points:
     - url: "web /loops/:name/editor (loop-editor)"
       origin: in-app-nav
-    - url: "CLI/native: agh loop create / agh__loop_create (file + agent authoring converge on the same definition)"
+    - url: "CLI/native: compozy loop create / compozy__loop_create (file + agent authoring converge on the same definition)"
       origin: direct
   actions:
     - step: 1

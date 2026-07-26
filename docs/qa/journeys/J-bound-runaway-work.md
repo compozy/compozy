@@ -42,7 +42,7 @@ journey:
   value_statement: "Failure is bounded by budgets, breakers, and liveness — the kernel never loops forever, never double-owns a run, and never kills healthy long work."
   personas: [Ada, Bruno]
   entry_points:
-    - url: "CLI: agh task next --wait -o json; agh task inspect <run-id> -o json; agh loop runs show <run-id> -o json"
+    - url: "CLI: compozy task next --wait -o json; compozy task inspect <run-id> -o json; compozy loop runs show <run-id> -o json"
       origin: direct
     - url: "HTTP/UDS: POST /api/agent/tasks/claim-next; task-run and loop-run listings"
       origin: direct

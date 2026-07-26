@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Marketplace · AGH</title>
+<title>Marketplace · Compozy</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -408,22 +408,22 @@
   // ---- one catalog per kind; state is "available" or "installed" ---------
   var DATA = {
     skills: [
-      { id:"git-flow", name:"git-flow", author:"@agh", version:"1.4.2", downloads:"3.4k", state:"installed", scope:"global", installedAgo:"2w ago",
+      { id:"git-flow", name:"git-flow", author:"@compozy", version:"1.4.2", downloads:"3.4k", state:"installed", scope:"global", installedAgo:"2w ago",
         desc:"Branch, review, and land PRs with the project's own checks as the gate." },
-      { id:"qa-bootstrap", name:"qa-bootstrap", author:"@agh", version:"2.1.0", updateTo:"2.2.0", downloads:"2.0k", state:"installed", scope:"workspace", installedAgo:"5d ago",
-        desc:"Spin an isolated AGH_HOME lab with ports, provider homes, and a bootstrap manifest." },
-      { id:"incident-triage", name:"incident-triage", author:"@agh", version:"0.6.0", downloads:"1.5k", state:"installed", scope:"workspace", installedAgo:"5d ago",
+      { id:"qa-bootstrap", name:"qa-bootstrap", author:"@compozy", version:"2.1.0", updateTo:"2.2.0", downloads:"2.0k", state:"installed", scope:"workspace", installedAgo:"5d ago",
+        desc:"Spin an isolated COMPOZY_HOME lab with ports, provider homes, and a bootstrap manifest." },
+      { id:"incident-triage", name:"incident-triage", author:"@compozy", version:"0.6.0", downloads:"1.5k", state:"installed", scope:"workspace", installedAgo:"5d ago",
         via:{ bundle:"ops-starter", href:"bundle-activation-detail.html?id=ops-starter" },
         desc:"Classify incoming incidents, open a session, and page the on-call agent." },
-      { id:"docs-sync", name:"docs-sync", author:"@agh", version:"0.9.1", downloads:"1.1k", state:"available",
+      { id:"docs-sync", name:"docs-sync", author:"@compozy", version:"0.9.1", downloads:"1.1k", state:"available",
         desc:"Keep packages/site docs aligned with OpenAPI and CLI help after contract changes." },
       { id:"spec-preflight", name:"spec-preflight", author:"@compozy", version:"1.0.3", downloads:"780", state:"available",
         desc:"Validate PRD and TechSpec inputs against the authoring playbook before drafting." },
-      { id:"dep-audit", name:"dep-audit", author:"@agh", version:"1.0.0", downloads:"940", state:"available",
+      { id:"dep-audit", name:"dep-audit", author:"@compozy", version:"1.0.0", downloads:"940", state:"available",
         desc:"Review dependency bumps against changelogs and known advisories." },
-      { id:"lockfile-hygiene", name:"lockfile-hygiene", author:"@agh", version:"0.4.1", downloads:"510", state:"available",
+      { id:"lockfile-hygiene", name:"lockfile-hygiene", author:"@compozy", version:"0.4.1", downloads:"510", state:"available",
         desc:"Detect drift between manifests and lockfiles before it lands." },
-      { id:"agh-ui-screenshot", name:"agh-ui-screenshot", author:"@agh", version:"1.3.0", downloads:"2.3k", state:"available",
+      { id:"agh-ui-screenshot", name:"agh-ui-screenshot", author:"@compozy", version:"1.3.0", downloads:"2.3k", state:"available",
         desc:"Deterministic PNG capture of Storybook stories and local UI URLs." },
       { id:"security-review", name:"security-review", author:"@community", version:"1.2.4", downloads:"1.2k", state:"available",
         desc:"Audit a diff for injection, authz, and secret-handling risks." }
@@ -446,15 +446,15 @@
         desc:"Read access to projects and events via Sentry's hosted MCP server over HTTP." }
     ],
     extensions: [
-      { id:"cost-guard", name:"cost-guard", author:"@agh", version:"0.3.2", downloads:"410", type:"hook", trust:"verified", state:"installed", enabled:true, source:"registry", installedAgo:"2d ago",
+      { id:"cost-guard", name:"cost-guard", author:"@compozy", version:"0.3.2", downloads:"410", type:"hook", trust:"verified", state:"installed", enabled:true, source:"registry", installedAgo:"2d ago",
         desc:"Cap token spend per workspace and pause agents that breach the budget." },
       { id:"session-trace", name:"session-trace", author:"@community", version:"1.0.1", updateTo:"1.1.0", downloads:"120", type:"tool", trust:"unverified", state:"installed", enabled:false, source:"local", installedAgo:"1w ago",
         desc:"Attach trace IDs to session events for downstream collectors." },
-      { id:"otel-bridge", name:"otel-bridge", author:"@agh", version:"0.6.0", downloads:"1.2k", type:"bridge", trust:"verified", state:"available",
+      { id:"otel-bridge", name:"otel-bridge", author:"@compozy", version:"0.6.0", downloads:"1.2k", type:"bridge", trust:"verified", state:"available",
         desc:"Export session and tool spans to an OpenTelemetry collector." },
       { id:"slack-notify", name:"slack-notify", author:"@community", version:"1.1.4", downloads:"840", type:"hook", trust:"unverified", warnings:2, state:"available",
         desc:"Post run summaries to a Slack channel when a loop finishes." },
-      { id:"audit-log", name:"audit-log", author:"@agh", version:"2.0.0", downloads:"2.1k", type:"hook", trust:"verified", state:"available",
+      { id:"audit-log", name:"audit-log", author:"@compozy", version:"2.0.0", downloads:"2.1k", type:"hook", trust:"verified", state:"available",
         desc:"Append-only audit trail for installs, policy changes, and destructive removes." }
     ],
     bundles: [
@@ -637,7 +637,7 @@
         gridEmpty.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg><b>No '+esc(K.label.toLowerCase())+' match this query</b><p>Nothing matches "'+esc(q)+'" in '+(tab==="installed"?"your installed "+esc(K.label.toLowerCase()):"the marketplace")+'.</p><button type="button" class="btn btn--sm" id="clear-search">Clear search</button></div>';
         document.getElementById("clear-search").onclick=function(){ q=""; input.value=""; render(); };
       } else {
-        gridEmpty.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">'+ICONS[kind].replace(/^<svg[^>]*>/,"").replace(/<\/svg>$/,"")+'</svg><b>No '+esc(K.label.toLowerCase())+' '+(kind==="bundles"?"active":"installed")+' yet</b><p>'+(kind==="bundles"?"A bundle activates a curated set of capabilities in one step.":"Everything you "+(kind==="bundles"?"activate":"install")+" from the marketplace shows up here.")+' You can also use <code>agh '+(kind==="mcps"?"mcp":kind)+' '+(kind==="bundles"?"activate":"install")+' &lt;name&gt;</code>.</p><button type="button" class="btn btn--sm" id="go-market">Browse the marketplace</button></div>';
+        gridEmpty.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">'+ICONS[kind].replace(/^<svg[^>]*>/,"").replace(/<\/svg>$/,"")+'</svg><b>No '+esc(K.label.toLowerCase())+' '+(kind==="bundles"?"active":"installed")+' yet</b><p>'+(kind==="bundles"?"A bundle activates a curated set of capabilities in one step.":"Everything you "+(kind==="bundles"?"activate":"install")+" from the marketplace shows up here.")+' You can also use <code>compozy '+(kind==="mcps"?"mcp":kind)+' '+(kind==="bundles"?"activate":"install")+' &lt;name&gt;</code>.</p><button type="button" class="btn btn--sm" id="go-market">Browse the marketplace</button></div>';
         document.getElementById("go-market").onclick=function(){ tab="market"; render(); };
       }
       live.textContent=q?("Search updated · 0 results"):"";
@@ -755,7 +755,7 @@
     document.getElementById("mcp-title").textContent="Install "+it.name;
     document.getElementById("mcp-eyebrow").textContent="MCP · "+it.transport+" · curated";
     document.getElementById("mcp-sub").textContent=remote
-      ? "Remote server. AGH writes the config, then runs the OAuth authorize step after install."
+      ? "Remote server. Compozy writes the config, then runs the OAuth authorize step after install."
       : "Required fields come from the curated feed. The server is written via settings MCP config.";
     var body=document.getElementById("mcp-body");
     var scopeField='<div class="field" style="margin-top:4px"><div class="field__label">Scope</div>'

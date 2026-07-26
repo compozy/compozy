@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell
 ---
 
-story: As an operator I point AGH at a real folder by browsing to it, review the defaults sessions will inherit, and commit once — without a half-registered workspace appearing while I am still looking around.
+story: As a person running agent work I point Compozy at a real folder by browsing to it, review the defaults sessions will inherit, and commit once — without a half-registered workspace appearing while I am still looking around.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.3 and F7), task_02, implemented 2026-07-25. Before this change the dialog offered a plain absolute-path input and called `POST /api/workspaces/resolve`; the onboarding wizard's directory browser registered a workspace the moment a folder was picked.
 

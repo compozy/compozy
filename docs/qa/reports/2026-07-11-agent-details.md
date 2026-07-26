@@ -76,11 +76,11 @@ None identified yet.
 
 ```text
 [QA_BOOTSTRAP]
-manifest_path=/Users/pedronauck/dev/qa-labs/agh-agent-details-task-09-20260711-190957-738761-lab/qa-artifacts/qa/bootstrap-manifest.json
-lab_root=/Users/pedronauck/dev/qa-labs/agh-agent-details-task-09-20260711-190957-738761-lab
-runtime_home=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-3a9e6b102541/runtime
+manifest_path=/Users/pedronauck/dev/qa-labs/compozy-agent-details-task-09-20260711-190957-738761-lab/qa-artifacts/qa/bootstrap-manifest.json
+lab_root=/Users/pedronauck/dev/qa-labs/compozy-agent-details-task-09-20260711-190957-738761-lab
+runtime_home=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-3a9e6b102541/runtime
 base_url=http://127.0.0.1:63173
-verification_report=/Users/pedronauck/dev/qa-labs/agh-agent-details-task-09-20260711-190957-738761-lab/qa-artifacts/qa/verification-report.md
+verification_report=/Users/pedronauck/dev/qa-labs/compozy-agent-details-task-09-20260711-190957-738761-lab/qa-artifacts/qa/verification-report.md
 health_status=fresh
 [/QA_BOOTSTRAP]
 ```
@@ -89,15 +89,15 @@ health_status=fresh
 
 - `CGO_ENABLED=1 go test -race ./internal/api/core -count=1`: pass.
 - Test-conventions checker for the canonical core regression: pass.
-- Turbo `@agh/ui` + web typecheck/test, forced uncached: 100 UI files / 508 tests and 381 web files / 3,135 tests passed.
-- React Doctor against `HEAD`: 100/100 for `@agh/ui` and `agh-web`.
+- Turbo `@compozy/ui` + web typecheck/test, forced uncached: 100 UI files / 508 tests and 381 web files / 3,135 tests passed.
+- React Doctor against `HEAD`: 100/100 for `@compozy/ui` and `compozy-web`.
 - `make test-e2e-web`: 70/70 pass after fresh-build and root-cause remediation.
 - `make test-e2e-runtime`: pass.
 - `make verify`: pass in detached clean worktree `/tmp/a9v-1`; the worktree was removed afterward.
 
 ## Teardown
 
-`/Users/pedronauck/dev/qa-labs/agh-agent-details-task-09-20260711-190957-738761-lab/qa-artifacts/qa/teardown.json` records `"clean": true`, no survivors, and all registered daemon/Vite/browser processes terminated. The later screenshot Storybook was also stopped and port 6006 verified free.
+`/Users/pedronauck/dev/qa-labs/compozy-agent-details-task-09-20260711-190957-738761-lab/qa-artifacts/qa/teardown.json` records `"clean": true`, no survivors, and all registered daemon/Vite/browser processes terminated. The later screenshot Storybook was also stopped and port 6006 verified free.
 
 ## Final Status
 

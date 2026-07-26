@@ -111,7 +111,7 @@ Seeded canonically under the lab knowledge root, with global files projected int
     "tagline": "Launch week for Northstar Pay Checkout across Brazil and Mexico",
     "stage": "Series A",
     "industry": "fintech-payments",
-    "registry_base_url": "https://registry.northstarpay.internal/agh"
+    "registry_base_url": "https://registry.northstarpay.internal/compozy"
   },
   "operator_persona": {
     "role": "Founder/PM",

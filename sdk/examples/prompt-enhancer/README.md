@@ -31,7 +31,7 @@ The build emits `dist/index.js`, which is used by both the persistent subprocess
 
 This example uses `@compozy/extension-sdk` through the repository's `workspace:*` dependency. Its
 `node_modules/@compozy/extension-sdk` entry resolves outside this extension root, and the built
-JavaScript keeps that runtime import. AGH's managed installer intentionally rejects dependency
+JavaScript keeps that runtime import. Compozy's managed installer intentionally rejects dependency
 symlinks that escape the source package.
 
 Use this directory to exercise the SDK from the repository checkout. Do not present it as an

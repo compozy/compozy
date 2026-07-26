@@ -9,7 +9,7 @@ audit across `docs/rfcs/`, `internal/network/`, `packages/site/content/protocol/
 ## Context
 
 Commit `76afabb8 feat: hard cut workspace isolation` performed a greenfield, zero-legacy rewrite of
-the AGH Network wire and routing grammar so every envelope carries `workspace_id` and every
+the Compozy Network wire and routing grammar so every envelope carries `workspace_id` and every
 conversation identity is workspace-qualified. The runtime
 contract _changed_, but no public user existed on the previous shape.
 
@@ -58,10 +58,10 @@ _invent a new one_.
 - The hard cut sweeps every surface in one commit. Renames of protocol version strings touch:
   - RFC files under `docs/rfcs/` (current contract + any historical archive marker).
   - Go constants under `internal/network/` (for example, `ProtocolV0`).
-  - Generated artifacts: `openapi/agh.json`, `web/src/generated/agh-openapi.d.ts`, runtime/API
+  - Generated artifacts: `openapi/compozy.json`, `web/src/generated/compozy-openapi.d.ts`, runtime/API
     reference pages.
   - Site content: `packages/site/content/protocol/**`, `packages/site/content/runtime/core/network/**`,
-    blog posts, landing components, `packages/slides/slides/agh-network/`.
+    blog posts, landing components, `packages/slides/slides/compozy-network/`.
   - Copy: `COPY.md`, `docs/_memory/glossary.md`.
   - Tests: any fixture pinning the protocol literal, including hard-cut truth tests.
 - Future versions (`v1`, `v2`, ...) describe work the runtime does **not yet implement** and which

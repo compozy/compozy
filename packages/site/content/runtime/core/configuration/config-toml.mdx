@@ -365,7 +365,7 @@ timeout = "10s"
 
 [marketplace.catalog]
 # Base directory containing mcp.json, extensions.json, and skills.json.
-base_url = "https://raw.githubusercontent.com/compozy/agh/main/catalog"
+base_url = "https://raw.githubusercontent.com/compozy/compozy/main/catalog"
 # A browse after this interval refreshes the affected kind before serving it.
 ttl = "1h"
 # Per-request deadline for fetching one catalog document.
@@ -1143,7 +1143,7 @@ Provider keys override built-ins with the same name or create a custom provider.
 | `auth_mode`           | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.                      | Declares whether auth belongs to the provider CLI, Compozy secret binding, or no auth.                                             |
 | `none_security`       | string                      | `local_transport`.                                                                | `local_transport`, `external_identity`, `public_readonly`. | Safety rationale required for `auth_mode = "none"`.                                                                                |
 | `env_policy`          | string                      | `filtered`.                                                                       | `filtered`, `isolated`.                                    | Controls which daemon environment variables the provider subprocess inherits.                                                      |
-| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                                    | Controls whether native CLI state comes from the operator home or an Compozy provider home.                                        |
+| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                                    | Controls whether native CLI state comes from the operator home or a Compozy provider home.                                         |
 | `auth_status_command` | string                      | empty.                                                                            | Shell-style command string.                                | Optional status probe run by `compozy provider auth status <provider>`.                                                            |
 | `auth_login_command`  | string                      | empty unless a built-in provider defines one.                                     | Shell-style command string.                                | Optional login command surfaced by `compozy provider auth login <provider>`; isolated homes print the required environment prefix. |
 | `session_mcp`         | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                           | Enables Compozy session MCP injection for providers that support it.                                                               |
@@ -1336,11 +1336,11 @@ invalid or incomplete document.
 This section is global-only because the projection and refresh service are global. Put it in
 `$COMPOZY_HOME/config.toml`; workspace overlays and workspace-scoped CLI/native writes are rejected.
 
-| Key        | Type     | Default                                                      | Validation                  | Effect                                                                             |
-| ---------- | -------- | ------------------------------------------------------------ | --------------------------- | ---------------------------------------------------------------------------------- |
-| `base_url` | URL      | `https://raw.githubusercontent.com/compozy/agh/main/catalog` | Absolute `http` or `https`. | Base directory for `mcp.json`, `extensions.json`, and `skills.json`; applies live. |
-| `ttl`      | duration | `1h`                                                         | Positive Go duration.       | Age after which the next browse refreshes that kind; applies live.                 |
-| `timeout`  | duration | `10s`                                                        | Positive Go duration.       | Deadline for one feed request; applies live.                                       |
+| Key        | Type     | Default                                                          | Validation                  | Effect                                                                             |
+| ---------- | -------- | ---------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
+| `base_url` | URL      | `https://raw.githubusercontent.com/compozy/compozy/main/catalog` | Absolute `http` or `https`. | Base directory for `mcp.json`, `extensions.json`, and `skills.json`; applies live. |
+| `ttl`      | duration | `1h`                                                             | Positive Go duration.       | Age after which the next browse refreshes that kind; applies live.                 |
+| `timeout`  | duration | `10s`                                                            | Positive Go duration.       | Deadline for one feed request; applies live.                                       |
 
 ```toml
 [marketplace.catalog]

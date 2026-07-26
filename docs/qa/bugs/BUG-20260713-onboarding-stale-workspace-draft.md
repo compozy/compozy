@@ -28,7 +28,7 @@ The in-app Browser retained an onboarding workspace selection created against an
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-final-replay-20260713-20260713-194432-535561-lab/qa-artifacts/qa/screenshots/rt-onboarding-stale-workspace-removal.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-final-replay-20260713-20260713-194432-535561-lab/qa-artifacts/qa/screenshots/rt-onboarding-stale-workspace-removal.dom.txt`
 
 ## Fix
 
@@ -38,5 +38,5 @@ The in-app Browser retained an onboarding workspace selection created against an
 
 ## Verification
 
-- Browser retest passed in the original live tab without restarting the lab. The stale control disappeared with zero alerts, the current catalog rehydrated `pedronauck`, the real current workspace retained normal deletion, and onboarding completed after adding exactly `agh3` and `bench-ops`. The dashboard rendered with active workspace `agh3` and exactly two workspaces.
-- Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-final-replay-20260713-20260713-194432-535561-lab/qa-artifacts/qa/screenshots/rt-onboarding-stale-workspace-removal-fixed.dom.txt`.
+- Browser retest passed in the original live tab without restarting the lab. The stale control disappeared with zero alerts, the current catalog rehydrated `pedronauck`, the real current workspace retained normal deletion, and onboarding completed after adding exactly `compozy3` and `bench-ops`. The dashboard rendered with active workspace `compozy3` and exactly two workspaces.
+- Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-final-replay-20260713-20260713-194432-535561-lab/qa-artifacts/qa/screenshots/rt-onboarding-stale-workspace-removal-fixed.dom.txt`.

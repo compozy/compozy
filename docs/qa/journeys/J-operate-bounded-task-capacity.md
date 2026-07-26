@@ -30,11 +30,11 @@ journey:
   value_statement: "Operators can bound concurrent workspace execution while agents keep excess work durable and make progress as capacity opens."
   personas: [Ada, Bruno]
   entry_points:
-    - url: "CLI: agh config set task.orchestration.max_active_runs_per_workspace; agh task next --wait -o json"
+    - url: "CLI: compozy config set task.orchestration.max_active_runs_per_workspace; compozy task next --wait -o json"
       origin: direct
     - url: "HTTP/UDS: POST /api/agent/tasks/claim-next"
       origin: direct
-    - url: "native tools: agh__config_set; agh__task_run_claim_next"
+    - url: "native tools: compozy__config_set; compozy__task_run_claim_next"
       origin: direct
   actions:
     - step: 1

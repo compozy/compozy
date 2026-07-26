@@ -38,7 +38,7 @@ journey:
   entry_points:
     - url: "web /settings/network and bundle/extension activation surfaces"
       origin: in-app-nav
-    - url: "config.toml; agh config/network/bundle verbs; HTTP/UDS settings, status, coordination, and bundle endpoints"
+    - url: "config.toml; compozy config/network/bundle verbs; HTTP/UDS settings, status, coordination, and bundle endpoints"
       origin: direct
   actions:
     - step: 1

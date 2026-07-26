@@ -5,7 +5,7 @@
             "name": "role-agent",
             "provider": "acpmock",
             "permissions": "approve-all",
-            "prompt": "Exercise configurable AGH background roles.",
+            "prompt": "Exercise configurable Compozy background roles.",
             "config_options": [
                 {
                     "id": "model",

@@ -4,14 +4,14 @@ area: ET
 title: Authorize a remote MCP server through the daemon
 persona: Ada
 journey: J-mcp-authorize-repair
-expected: `agh mcp authorize <name>` prints a live copyable URL, waits for a credential change, and exits successfully only when redacted status is `authenticated` with `token_present=true`; scope and workspace selectors target one exact server definition.
-entry_points: agh mcp authorize <name>; agh mcp authorize <name> --scope workspace --workspace <id>; agh mcp auth login <name>
+expected: `compozy mcp authorize <name>` prints a live copyable URL, waits for a credential change, and exits successfully only when redacted status is `authenticated` with `token_present=true`; scope and workspace selectors target one exact server definition.
+entry_points: compozy mcp authorize <name>; compozy mcp authorize <name> --scope workspace --workspace <id>; compozy mcp auth login <name>
 qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pending end-to-end authorization timeout semantics
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json; /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-047; ET-cli-mcp-auth-manual-exchange; ET-cli-mcp-install
 ---

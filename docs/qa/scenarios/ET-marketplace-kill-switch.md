@@ -5,13 +5,13 @@ title: Remove a pulled catalog entry from every surface
 persona: Vera
 journey: J-extension-policy-admin
 expected: An entry removed from the curated feed disappears from search, browse, and detail on web, CLI, and API after refresh (and within TTL without one), while the already-installed capability remains fully manageable.
-entry_points: agh marketplace refresh -o json; POST /api/marketplace/refresh; /marketplace; agh config set marketplace.catalog.base_url (isolated feed)
+entry_points: compozy marketplace refresh -o json; POST /api/marketplace/refresh; /marketplace; compozy config set marketplace.catalog.base_url (isolated feed)
 qa_status: untested
 bug_ids: BUG-20260715-marketplace-config-set-live; BUG-20260715-config-set-late-metadata
 fix_status: fixed
 retest_status: pending fail-closed OAuth catalog schema validation
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-kill-switch.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-kill-switch.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-cli-marketplace-refresh; MS-marketplace-catalog-live-config
 ---

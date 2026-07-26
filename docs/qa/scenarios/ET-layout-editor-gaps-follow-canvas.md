@@ -16,6 +16,6 @@ last_report:
 overlaps: MS-configure-window-manager
 ---
 
-story: As an operator, I can see what a gap or a snap band actually looks like before I save it.
+story: As a person running agent work, I can see what a gap or a snap band actually looks like before I save it.
 
 qa-impact: 2026-07-24 new behavior, replacing eight pixel number fields. Both the canvas and the maps project into one declared 1440×900 reference screen, which is stated on the canvas. Flag only; the next QA cycle owns live testing.

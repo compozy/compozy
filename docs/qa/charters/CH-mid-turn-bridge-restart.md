@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "Start a fake-provider turn, capture a material remote ACK, then terminate the daemon between streamed updates and terminal delivery while preserving the isolated AGH_HOME/GlobalDB."
+      - "Start a fake-provider turn, capture a material remote ACK, then terminate the daemon between streamed updates and terminal delivery while preserving the isolated COMPOZY_HOME/GlobalDB."
       - "On boot, race a new registration against reconciliation; it must remain inadmissible until every active row has produced its one standard visible terminal error."
       - "Use edit-capable and append-only/stale-anchor fixtures; no prior text or acknowledged prefix may be replayed, and the recovery must not depend on the old remote message still existing."
       - "Read delivery metrics before/after restart, then submit one fresh turn and confirm normal delivery in the same route."

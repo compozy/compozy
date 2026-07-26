@@ -25,7 +25,7 @@ The repaired activation path sends the first correlated synthetic turn, but when
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-repeated-synthetic-turns.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-repeated-synthetic-turns.dom.txt`
 - Session `sess-1e9a13013651c8b0`; task `task-f6638f9897b1b0f8`; run `run-be2c1d6592e2c043`; channel `coord-run-be2c1d6592e2c043`.
 - In-app Browser count on the fresh transcript: 14 `Use as Goal` actions and 15 visible Ask-mode references, with no active composer/user turns between the repeated responses.
 
@@ -39,4 +39,4 @@ The repaired activation path sends the first correlated synthetic turn, but when
 
 - Fresh child A bound one run to only `sess-0bb0f23ac1414396`; fresh child B bound one run to only `sess-64f9badf5a65dd2f`. Each real Cursor/Grok worker received one activation, claimed once, and completed once.
 - Two additional approval-gated controls retained one run before and after approval, then bound one real task-role session each and completed. No repeated assistant turns, duplicate run, or second session appeared.
-- Browser evidence: `agh71-faithful-child-b-one-run.dom.txt` and `task-approval-reuses-open-run-fixed.{dom.txt,json}` under the active post-onboarding-fix lab.
+- Browser evidence: `compozy71-faithful-child-b-one-run.dom.txt` and `task-approval-reuses-open-run-fixed.{dom.txt,json}` under the active post-onboarding-fix lab.

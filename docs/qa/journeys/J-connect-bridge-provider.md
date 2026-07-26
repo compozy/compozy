@@ -1,6 +1,6 @@
 # J-connect-bridge-provider — Connect a bridge provider and receive the first response
 
-An operator starts with an installed provider and finishes with a provider-visible AGH response.
+An operator starts with an installed provider and finishes with a provider-visible Compozy response.
 The journey branches by the provider's real setup surface: Slack uses a generated manifest;
 WhatsApp, Telegram, and Discord use guided setup; Teams, Google Chat, GitHub, and Linear use the
 generic disabled-create and binding flow. GitHub and Linear finish in an issue or Agent Session,
@@ -34,7 +34,7 @@ flowchart TD
     A --> T{Provider surface}
     T -->|chat provider| T1[Send inbound message; inspect route; run real send-test]
     T -->|GitHub / Linear| T2[Create supported comment or Agent Session event; observe reply]
-    T1 --> Z[True end: provider shows one real AGH response and structured read-back is ready]
+    T1 --> Z[True end: provider shows one real Compozy response and structured read-back is ready]
     T2 --> Z
     W3 -.->|abandon after repeated paste failures| X[Close setup before enabling]
     X -.->|resume| XR[Reopen disabled instance; existing bindings remain masked]
@@ -48,11 +48,11 @@ id: J-connect-bridge-provider
   value_statement: "I can follow the setup path that actually belongs to my provider and prove the bridge with a visible response."
   personas: [Tessa, Ada]
   entry_points:
-    - url: "agh bridge manifest slack; agh bridge setup whatsapp|telegram|discord; agh bridge create"
+    - url: "compozy bridge manifest slack; compozy bridge setup whatsapp|telegram|discord; compozy bridge create"
       origin: direct
     - url: "GET /api/bridges/providers/slack/manifest; bridge create/bind/register/verify/send-test HTTP or UDS routes"
       origin: direct
-    - url: "agh.network bridge setup guides"
+    - url: "compozy.com bridge setup guides"
       origin: external-share
   actions:
     - step: 1
@@ -69,9 +69,9 @@ id: J-connect-bridge-provider
       expected_observable: "Checks name pass, warn, fail, or skipped truthfully and public reachability is attempted only after enablement"
     - step: 5
       verb: "Create an inbound route and perform a real provider response"
-      expected_observable: "A chat message, issue comment, review comment, or Agent Activity shows the AGH response exactly once"
+      expected_observable: "A chat message, issue comment, review comment, or Agent Activity shows the Compozy response exactly once"
   goal:
-    observable: "The external provider contains a real AGH response, and bridge detail/routes agree with that provider identity after a fresh read."
+    observable: "The external provider contains a real Compozy response, and bridge detail/routes agree with that provider identity after a fresh read."
     side_effects: [bridge-instance-created-disabled, secrets-bound-write-only, provider-callback-configured, bridge-route-created, provider-message-delivered]
   true_end_state: "After re-reading the bridge and the provider surface, the instance is enabled and healthy or truthfully degraded, and the first response remains visible at the intended target."
   exit:

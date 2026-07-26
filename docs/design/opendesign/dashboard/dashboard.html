@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>Home · launch-hq · AGH</title>
+<title>Home · launch-hq · Compozy</title>
 <style>
   /* ============ tokens — verbatim from agents/agent-detail.html (packages/ui/src/tokens.css lineage) ============ */
   :root{
@@ -656,7 +656,7 @@
                 <div class="tile__v">60 days <span class="mono">events · usage · permissions</span></div></div>
             </div>
             <div class="code-block"><span class="c"># same view from the CLI</span>
-<span class="k">agh</span> observe overview <span class="c">-o json</span></div>
+<span class="k">compozy</span> observe overview <span class="c">-o json</span></div>
           </div>
         </div>
       </section>
@@ -814,7 +814,7 @@
 
   /* ---------- usage chart (single series, neutral data ink) ---------- */
   var winSel = 30;
-  try { winSel = parseInt(localStorage.getItem("agh-home-win"), 10) || 30; } catch(e){}
+  try { winSel = parseInt(localStorage.getItem("compozy-home-win"), 10) || 30; } catch(e){}
   function usageSlice(days){ return USAGE.slice(Math.max(0, USAGE.length - days)); }
 
   function renderUsage(){
@@ -896,7 +896,7 @@
     var b = ev.target.closest("[data-win]"); if (!b) return;
     winSel = parseInt(b.getAttribute("data-win"), 10);
     this.querySelectorAll("[data-win]").forEach(function(x){ x.setAttribute("aria-pressed", String(x === b)); });
-    try { localStorage.setItem("agh-home-win", String(winSel)); } catch(e){}
+    try { localStorage.setItem("compozy-home-win", String(winSel)); } catch(e){}
     renderUsage();
   });
 
@@ -963,14 +963,14 @@
   /* ---------- system expand ---------- */
   var sysToggle = document.getElementById("sysToggle");
   var sysOpen = false;
-  try { sysOpen = localStorage.getItem("agh-home-sys") === "1"; } catch(e){}
+  try { sysOpen = localStorage.getItem("compozy-home-sys") === "1"; } catch(e){}
   function applySys(){
     sysToggle.setAttribute("aria-expanded", String(sysOpen));
     document.getElementById("sysDetail").classList.toggle("is-open", sysOpen);
   }
   sysToggle.addEventListener("click", function(){
     sysOpen = !sysOpen;
-    try { localStorage.setItem("agh-home-sys", sysOpen ? "1" : "0"); } catch(e){}
+    try { localStorage.setItem("compozy-home-sys", sysOpen ? "1" : "0"); } catch(e){}
     applySys();
   });
   applySys();

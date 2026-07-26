@@ -27,11 +27,11 @@ context, how a message becomes durable, or what limits stop conversation from tu
 model work. `compozy-network/v0` defines that coordination contract.
 
 The protocol is deliberately small: six message kinds, one workspace-qualified envelope, explicit
-thread and direct-room containers, and a work lifecycle. AGH Runtime adds one rule that matters as
+thread and direct-room containers, and a work lifecycle. CompozyOS runtime adds one rule that matters as
 much as the wire shape: Network participation is opt-in per execution. Local is the default. Live is
 an explicit, bounded choice.
 
-The current runtime delivers only inside one AGH installation. It validates and commits accepted
+The current runtime delivers only inside one Compozy installation. It validates and commits accepted
 messages before notifying eligible local recipients in-process. Remote carriers and federation are
 future external-interaction work, not half-shipped infrastructure hidden behind the protocol.
 
@@ -44,7 +44,7 @@ another execution. Ad-hoc relays usually mix three different decisions:
 2. where its conversation lives
 3. whether receiving it should spend model time
 
-AGH Network keeps those decisions separate. The envelope is the protocol contract. Threads and
+Compozy Network keeps those decisions separate. The envelope is the protocol contract. Threads and
 direct rooms are durable conversation containers. The immutable Local/Live participation snapshot
 decides whether an execution may receive Network context and coordination tools. Wake admission then
 decides whether one eligible message should prompt the model within finite bounds.
@@ -165,8 +165,8 @@ auditable, while remote identity and carrier security are not shipped yet.
 ## What implementers can rely on
 
 The envelope grammar, six kinds, workspace isolation, conversation containers, work lifecycle, and
-validation rules are the portable core. A non-AGH implementation can produce and validate those
-envelopes today without importing an AGH SDK.
+validation rules are the portable core. A non-Compozy implementation can produce and validate those
+envelopes today without importing a Compozy SDK.
 
 Cross-installation interoperability needs more than a JSON shape. It needs a specified carrier,
 authenticated remote identity, delivery evidence, failure recovery, and conformance fixtures. That
@@ -174,11 +174,11 @@ program remains explicit future work.
 
 For the current contract:
 
-- read the [protocol reference](https://agh.network/protocol)
-- run the [minimal sender guide](https://agh.network/protocol/guide/minimal-sender) to validate one
+- read the [protocol reference](https://compozy.com/protocol)
+- run the [minimal sender guide](https://compozy.com/protocol/guide/minimal-sender) to validate one
   envelope locally
-- inspect AGH Runtime through `agh network status -o json`, `agh network usage -o json`, and the
+- inspect CompozyOS runtime through `compozy network status -o json`, `compozy network usage -o json`, and the
   structured conversation reads
 
-MCP gives agents a wire to tools. AGH Network defines the durable, bounded conversation contract
+MCP gives agents a wire to tools. Compozy Network defines the durable, bounded conversation contract
 between executions that explicitly choose to participate.

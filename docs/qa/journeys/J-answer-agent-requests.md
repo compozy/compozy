@@ -2,7 +2,7 @@
 
 An operator supervising a live session answers a native-tool approval prompt or an agent question
 exactly once and is never asked the same thing again: `allow_always`/`reject_always` persist a
-durable grant that survives daemon restart and is revocable, and `agh__clarify` blocks the agent
+durable grant that survives daemon restart and is revocable, and `compozy__clarify` blocks the agent
 until the operator answers (or the timeout resolves the explicit unanswered sentinel). Covers
 US-001 (D1, ADR-001) and US-002 (D7, ADR-001).
 
@@ -22,7 +22,7 @@ flowchart TD
     R --> F2[Matching call still auto-approves — grant is durable]
     F2 --> RV[Operator revokes via Web/CLI/native set surfaces]
     RV --> RP[Next matching call prompts again]
-    P --> C[Agent calls agh__clarify with ≤4 choices]
+    P --> C[Agent calls compozy__clarify with ≤4 choices]
     C --> Q[SSE question card + CLI/HTTP pending projection]
     Q -->|operator answers choice or free text| AN[Tool result carries the exact answer; turn unblocks]
     Q -->|nobody answers before timeout| TS[Unanswered sentinel Choice=nil Text empty Fallback=true — never a synthesized selection]
@@ -42,7 +42,7 @@ journey:
   entry_points:
     - url: "web session timeline (approval prompt / clarify question card via SSE)"
       origin: in-app-nav
-    - url: "CLI: agh tool approvals set|list|revoke; agh session clarify pending|answer"
+    - url: "CLI: compozy tool approvals set|list|revoke; compozy session clarify pending|answer"
       origin: direct
     - url: "HTTP/UDS: /api/tool-approval-grants; /api/workspaces/:workspace_id/sessions/:session_id/clarifications"
       origin: direct
@@ -57,7 +57,7 @@ journey:
       verb: "Set one explicit agent-wide and one tool-wide decision, then revoke"
       expected_observable: "Wider grants exist only through explicit set surfaces (no input_digest), list identically across Web/CLI/HTTP/UDS/native, and revocation restores prompting"
     - step: 4
-      verb: "Answer a live agh__clarify question"
+      verb: "Answer a live compozy__clarify question"
       expected_observable: "The card shows the exact question and ≤4 choices; the answer lands in the tool result and unblocks the turn; a timeout resolves the unanswered sentinel"
   goal:
     observable: "Zero re-prompts for remembered decisions; the clarify answer is inside the durable tool result"

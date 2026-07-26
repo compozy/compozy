@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell
 ---
 
-story: As an operator I define an agent on one screen and only open Advanced when this definition needs to differ from the runtime defaults.
+story: As a person running agent work I define an agent on one screen and only open Advanced when this definition needs to differ from the runtime defaults.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.1), task_03, implemented 2026-07-25. Before this change the dialog was a four-step wizard whose per-step gate could strand the operator on a step with no visible cause.
 

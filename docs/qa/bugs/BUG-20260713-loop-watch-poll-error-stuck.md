@@ -25,9 +25,9 @@ Stopping the real task-role `system` session correctly fired the workspace Trigg
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-trigger-system-stop-dispatch.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-trigger-delegated-looprun-after-window.dom.txt`
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-trigger-loop-watch-poll-stuck-stopped.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-trigger-system-stop-dispatch.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-trigger-delegated-looprun-after-window.dom.txt`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-trigger-loop-watch-poll-stuck-stopped.dom.txt`
 - Daemon log line 52381: coordinator `run.loop.looprun-56929015a03ab48d.g1.coordinator` failed `loop watch poll` because `gh repo view` and `git remote get-url origin` ran outside a git repository.
 - Trigger `trg-adaa781560301979`; automation run `run-69cff9e7ab61b043`; Loop run `looprun-56929015a03ab48d`.
 
@@ -40,4 +40,4 @@ Stopping the real task-role `system` session correctly fired the workspace Trigg
 ## Verification
 
 - Same-persona Trigger dispatch replay passed. Stopping the correlated real system session created exactly one additional delegated run, `looprun-4bc3d180d2edd5ba`. Its deterministic non-git watch-poll error automatically settled the run Failed at generation zero, rendered the bounded safe source cause and recovery with zero attempts, required no operator Stop, and did not create a duplicate run.
-- **Fresh 2026-07-14 control:** Browser-created Trigger `qa-generation-zero-replay-0714-0153` matched stopped user session `sess-19c9b67078687781` and delegated exactly `looprun-a52b84b65ffba9b6`. The run settled Failed in 0s at generation/attempt zero, retained the typed cause and recovery after reload, exposed no Stop action, and emitted only running → failed. Exact-name Trigger deletion restored the catalog to zero; the probe session was also deleted. Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/trigger-loop-generation-zero-replay-0714.dom.txt`.
+- **Fresh 2026-07-14 control:** Browser-created Trigger `qa-generation-zero-replay-0714-0153` matched stopped user session `sess-19c9b67078687781` and delegated exactly `looprun-a52b84b65ffba9b6`. The run settled Failed in 0s at generation/attempt zero, retained the typed cause and recovery after reload, exposed no Stop action, and emitted only running → failed. Exact-name Trigger deletion restored the catalog to zero; the probe session was also deleted. Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/trigger-loop-generation-zero-replay-0714.dom.txt`.

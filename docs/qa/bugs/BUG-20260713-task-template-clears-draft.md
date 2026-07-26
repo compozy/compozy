@@ -28,7 +28,7 @@ Bruno filled the title and description in the Simple Create task modal, then cha
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
+- `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/journey-log.jsonl`
 - Parent task `task-4b4a98ccf636c99b` was created only after entering the same fields a second time.
 
 ## Fix
@@ -41,4 +41,4 @@ Bruno filled the title and description in the Simple Create task modal, then cha
 ## Verification
 
 - **Passed 2026-07-13:** Bruno entered `QA retained template draft` and its authored description, selected `Break into steps`, switched Simple → Advanced → Simple, and observed both fields unchanged on every fresh DOM read. The modal was then cancelled, so the verification created no task.
-- Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-template-draft-fixed.dom.txt`.
+- Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-template-draft-fixed.dom.txt`.

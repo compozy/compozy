@@ -7,23 +7,23 @@
 
 ## Scope and environment
 
-The cycle walked CH-028 through CH-036 against one isolated daemon, exercised the three RuntimeSelector mounts, live Claude and Codex ACP negotiation, HTTP/UDS/CLI/native catalog and agent surfaces, config lifecycle, provider Settings canary, public documentation, and the bundled AGH skill.
+The cycle walked CH-028 through CH-036 against one isolated daemon, exercised the three RuntimeSelector mounts, live Claude and Codex ACP negotiation, HTTP/UDS/CLI/native catalog and agent surfaces, config lifecycle, provider Settings canary, public documentation, and the bundled Compozy skill.
 
 ```json
 {
   "schema_version": 1,
   "scenario_id": "model-selector-20260710-194713-914643",
-  "manifest_path": "/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/bootstrap-manifest.json",
-  "lab_root": "/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab",
-  "qa_output_path": "/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts",
-  "agh_home": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-a9ca00a24cc3/runtime",
+  "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/bootstrap-manifest.json",
+  "lab_root": "/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab",
+  "qa_output_path": "/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts",
+  "agh_home": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-a9ca00a24cc3/runtime",
   "http_base_url": "http://127.0.0.1:62339",
-  "uds_socket": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-a9ca00a24cc3/runtime/aghd.sock",
+  "uds_socket": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-a9ca00a24cc3/runtime/compozyd.sock",
   "web_url": "http://localhost:3001",
   "web_proxy_target": "http://127.0.0.1:62339",
   "browser": "agent-browser fallback; browser-use plugin cache unavailable",
   "playbook": "devtool-oss-launch",
-  "teardown_evidence": "/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/teardown.json",
+  "teardown_evidence": "/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/teardown.json",
   "teardown_clean": true
 }
 ```
@@ -42,7 +42,7 @@ The bootstrap smoke test and playbook validator passed after `BUG-0026` was fixe
 | CH-033 | Marina / J-22 | PASS | 430x932 Settings canary, truthful source status, Back + refresh; `BUG-0025` retest |
 | CH-034 | Sol / J-17 | PASS | named combobox/dialog/listbox/radiogroup and real favorite button in accessibility tree; keyboard/component contract and official E2E green |
 | CH-035 | Ada / J-21 | PASS | identical typed 422 codes over HTTP/UDS and CLI diagnostics |
-| CH-036 | Ada / J-18 | PASS | equivalent agent definitions via HTTP, UDS, CLI, and `agh__agent_create`; invalid native enum rejected before write |
+| CH-036 | Ada / J-18 | PASS | equivalent agent definitions via HTTP, UDS, CLI, and `compozy__agent_create`; invalid native enum rejected before write |
 
 All 29 J-17..J-22 tracker rows have a terminal `pass` verdict and point to this report. No native session-create or native agent read/update surface was invented.
 
@@ -57,18 +57,18 @@ The required highest-risk flow was driven through the documented fallback browse
 
 Screenshots:
 
-- `/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/screenshots/onboarding-claude-sonnet5-max.png`
-- `/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/screenshots/session-create-claude-sonnet5-max.png`
-- `/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/screenshots/session-created-claude-sonnet5-max.png`
-- `/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/screenshots/settings-claude-mobile-truthful-status.png`
+- `/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/screenshots/onboarding-claude-sonnet5-max.png`
+- `/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/screenshots/session-create-claude-sonnet5-max.png`
+- `/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/screenshots/session-created-claude-sonnet5-max.png`
+- `/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/screenshots/settings-claude-mobile-truthful-status.png`
 
 ## Structured-surface results
 
 - CLI, HTTP, and UDS returned the same Claude curated projection. `view=all` was a strict superset after curation excluded `claude-fable-5` from the curated view.
 - CLI, HTTP, and native curation persisted hidden/deprecated/featured/default-effort intent. Restart rehydration preserved the result.
-- `agh__provider_models_list|curate|refresh|status` were registered, callable, and successfully invoked with descriptor/schema digests and truthful availability diagnostics.
+- `compozy__provider_models_list|curate|refresh|status` were registered, callable, and successfully invoked with descriptor/schema digests and truthful availability diagnostics.
 - `GET /api/openai/v1/models?provider_id=claude` returned the curated canonical IDs.
-- HTTP, UDS, CLI, and `agh__agent_create` authored equivalent agent definitions with `reasoning_effort=max`; HTTP/UDS/CLI/AGENT.md fresh reads agreed.
+- HTTP, UDS, CLI, and `compozy__agent_create` authored equivalent agent definitions with `reasoning_effort=max`; HTTP/UDS/CLI/AGENT.md fresh reads agreed.
 - The agent default resolved to Max in `sess-d643ee43dd4744f2`; explicit Low won in `sess-67ce3ed24d8c637c`.
 
 ## Config lifecycle and deterministic errors
@@ -81,7 +81,7 @@ The isolated `[providers.claude.models.reasoning]` key was changed sequentially,
 - Off-contract `ultra` produced the same typed boundary code before provider startup.
 - Codex `gpt-does-not-exist` produced `model_unavailable` and enumerated the seven canonical choices.
 
-HTTP and UDS returned 422 for all three negotiation classes; `agh session new` preserved the same diagnostic codes. Claude's provider-owned custom option accepts arbitrary IDs by design, so its provisional custom-ID success is not an unknown-to-default fallback.
+HTTP and UDS returned 422 for all three negotiation classes; `compozy session new` preserved the same diagnostic codes. Claude's provider-owned custom option accepts arbitrary IDs by design, so its provisional custom-ID success is not an unknown-to-default fallback.
 
 ## Defects and fix-loop outcome
 
@@ -102,9 +102,9 @@ The strict auditor exited 2 and truthfully reported 0/11 task runs, 0/12 peer me
 
 Audit artifacts:
 
-- `/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/qa-audit-report.md`
-- `/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/provider-attempt.json`
-- `/Users/pedronauck/dev/qa-labs/agh-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/model-selector-evidence.md`
+- `/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/qa-audit-report.md`
+- `/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/provider-attempt.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/model-selector-evidence.md`
 
 ## Gates
 
@@ -116,12 +116,12 @@ Audit artifacts:
 - `make verify` — DEFERRED intentionally to the final whole-spec `$cy-final-verify` gate; it must run exactly once.
 - QA teardown — PASS: `teardown.json` records `clean: true`, `survivors: []`, and stopped daemon PID `55789`.
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
-- **Native tools:** all four `agh__provider_models_*` descriptors, schemas, digests, availability and invocation paths passed; `agh__agent_create` enum and rejection passed; no native session-create or general agent-read/update surface exists.
-- **Extensibility and hooks:** provider-model native toolset and bundled `skills/agh/` guidance passed; no extension/hook IDs changed in the QA fixes. Config lifecycle was exercised through `models.reasoning.apply` and curated-entry flags.
+- **Native tools:** all four `compozy__provider_models_*` descriptors, schemas, digests, availability and invocation paths passed; `compozy__agent_create` enum and rejection passed; no native session-create or general agent-read/update surface exists.
+- **Extensibility and hooks:** provider-model native toolset and bundled `skills/compozy/` guidance passed; no extension/hook IDs changed in the QA fixes. Config lifecycle was exercised through `models.reasoning.apply` and curated-entry flags.
 - **Workspace data isolation:** catalog/config data is global; agent definitions and sessions were workspace-scoped to `ws_9c974090799d4517`. HTTP, UDS, CLI, files, web and events all resolved the isolated workspace; no other workspace data appeared.
-- **Official AGH skill:** `skills/agh/` references matched the shipped curated/all, authoring, and reasoning behavior.
+- **Official Compozy skill:** `skills/compozy/` references matched the shipped curated/all, authoring, and reasoning behavior.
 
 ## Decision for a human
 

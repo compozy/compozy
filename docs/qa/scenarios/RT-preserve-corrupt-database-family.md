@@ -5,7 +5,7 @@ title: Preserve a corrupt database family
 persona: Bruno
 journey: J-operate-daemon-schema
 expected: Startup or a session read refuses the corrupt database with its path while the database, WAL, and SHM bytes remain identical and no quarantine or replacement file appears.
-entry_points: agh daemon start --foreground; agh session events <session-id>
+entry_points: compozy daemon start --foreground; compozy session events <session-id>
 qa_status: untested
 bug_ids:
 fix_status:

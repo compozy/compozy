@@ -33,7 +33,7 @@ Body content:
 
 - Frontmatter `type: qa-execution` (required by the loop phase detector).
 - `<critical>ALWAYS READ the in-scope docs/qa/scenarios/ files, open docs/qa/bugs/, and the cycle's charters in docs/qa/charters/ before executing.</critical>`
-- Activate `qa-execution` with `qa-docs-path=docs/qa`. For release-grade scope on the AGH runtime, also activate `real-scenario-qa` (playbook lab + operator kickoff + runtime observation).
+- Activate `qa-execution` with `qa-docs-path=docs/qa`. For release-grade scope on the Compozy runtime, also activate `real-scenario-qa` (playbook lab + operator kickoff + runtime observation).
 - Activate `agh-worktree-isolation` (unique `COMPOZY_HOME` + ports + tmux socket) when concurrency is signaled.
 - For UI features: drive Playwright via `browser-use:browser` with `agent-browser` fallback.
 - For CLI/API/agent-manageability features: exercise structured CLI output, HTTP/UDS routes, status/config discovery, deterministic errors, and compare persisted state.

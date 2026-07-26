@@ -35,7 +35,7 @@ journey:
       origin: in-app-nav
     - url: "web /loops/:name (loop-detail) › Run loop"
       origin: in-app-nav
-    - url: "CLI: agh loop run --name software-delivery --input slug=my-feature"
+    - url: "CLI: compozy loop run --name software-delivery --input slug=my-feature"
       origin: direct
   actions:
     - step: 1

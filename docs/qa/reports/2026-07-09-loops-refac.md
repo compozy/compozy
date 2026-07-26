@@ -46,40 +46,40 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 Fresh isolated lab created with `agh-qa-bootstrap`:
 
 - `SCENARIO_SLUG`: `loops-refac-task-16-20260709-20260709-034751-043179`
-- `WORKSPACE_PATH`: `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab`
-- `QA_OUTPUT_PATH`: `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts`
-- `BOOTSTRAP_MANIFEST`: `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/bootstrap-manifest.json`
-- `BOOTSTRAP_ENV`: `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/bootstrap.env`
-- `AGH_HOME`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6873f014d4f1/runtime`
-- `AGH_HTTP_PORT`: `49189`
-- `AGH_UDS_PATH`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6873f014d4f1/runtime/aghd.sock`
-- `TMUX_BRIDGE_SOCKET`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6873f014d4f1/runtime/tmux-bridge.sock`
-- `AGH_WEB_API_PROXY_TARGET`: `http://127.0.0.1:49189`
-- `PROVIDER_HOME`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6873f014d4f1/provider`
-- `PROVIDER_CODEX_HOME`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6873f014d4f1/provider/.codex`
+- `WORKSPACE_PATH`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab`
+- `QA_OUTPUT_PATH`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts`
+- `BOOTSTRAP_MANIFEST`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/bootstrap-manifest.json`
+- `BOOTSTRAP_ENV`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/bootstrap.env`
+- `COMPOZY_HOME`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-6873f014d4f1/runtime`
+- `COMPOZY_HTTP_PORT`: `49189`
+- `COMPOZY_UDS_PATH`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-6873f014d4f1/runtime/compozyd.sock`
+- `TMUX_BRIDGE_SOCKET`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-6873f014d4f1/runtime/tmux-bridge.sock`
+- `COMPOZY_WEB_API_PROXY_TARGET`: `http://127.0.0.1:49189`
+- `PROVIDER_HOME`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-6873f014d4f1/provider`
+- `PROVIDER_CODEX_HOME`: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-6873f014d4f1/provider/.codex`
 - `BROWSER_MODE`: `agent-browser`
 - `BROWSER_BLOCKER`: `browser-use skill not found in CODEX_HOME plugin cache`
-- `SCENARIO_CONTRACT`: `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/scenario-contract.json`
-- `BEHAVIORAL_CHARTER`: `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/behavioral-scenario-charter.yaml`
-- `JOURNEY_LOG`: `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/journey-log.jsonl`
-- `PROVIDER_ATTEMPT`: `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/provider-attempt.json`
-- `AUDIT_COMMAND`: `/Users/pedronauck/Dev/compozy/agh2/.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py`
+- `SCENARIO_CONTRACT`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/scenario-contract.json`
+- `BEHAVIORAL_CHARTER`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/behavioral-scenario-charter.yaml`
+- `JOURNEY_LOG`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/journey-log.jsonl`
+- `PROVIDER_ATTEMPT`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/provider-attempt.json`
+- `AUDIT_COMMAND`: `/Users/pedronauck/Dev/compozy/compozy2/.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py`
 - `REUSED_LAB`: `false`
 
 Bootstrap validation evidence:
 
 - Manifest read successfully and reports `schema_version: 1`, `status.reused_lab: false`, `status.health: fresh`.
-- Required files present under `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa`: `bootstrap-manifest.json`, `bootstrap.env`, `scenario-contract.json`, `behavioral-scenario-charter.yaml`, `journey-log.jsonl`, `provider-attempt.json`.
-- Runtime home exists and is isolated: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6873f014d4f1/runtime`.
-- Provider home exists and is isolated: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6873f014d4f1/provider`.
+- Required files present under `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa`: `bootstrap-manifest.json`, `bootstrap.env`, `scenario-contract.json`, `behavioral-scenario-charter.yaml`, `journey-log.jsonl`, `provider-attempt.json`.
+- Runtime home exists and is isolated: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-6873f014d4f1/runtime`.
+- Provider home exists and is isolated: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-6873f014d4f1/provider`.
 
 ```text
 [QA_BOOTSTRAP]
-manifest_path=/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/bootstrap-manifest.json
-lab_root=/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab
-runtime_home=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6873f014d4f1/runtime
+manifest_path=/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/bootstrap-manifest.json
+lab_root=/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab
+runtime_home=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-6873f014d4f1/runtime
 base_url=http://127.0.0.1:49189
-verification_report=/Users/pedronauck/Dev/compozy/agh2/docs/qa/reports/2026-07-09-loops-refac.md
+verification_report=/Users/pedronauck/Dev/compozy/compozy2/docs/qa/reports/2026-07-09-loops-refac.md
 health_status=fresh
 [/QA_BOOTSTRAP]
 ```
@@ -98,58 +98,58 @@ Lab scratch evidence stays in the fresh lab and is indexed here by absolute path
 ### BUG-0023 / Import Tool Retest
 
 - Before-fix reproduction:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/bug0020-tool-info.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/bug0020-tool-invoke-valid.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/import-tasks-relative-pattern.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/bug0020-tool-info.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/bug0020-tool-invoke-valid.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/import-tasks-relative-pattern.json`
 - After-fix retest:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/bug0020-tool-info-after-fix.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/bug0020-tool-invoke-after-fix.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/import-tasks-info-after-relative-fix.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/import-tasks-relative-pattern-after-fix.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/import-tasks-empty-pattern-after-fix.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/bug0020-tool-info-after-fix.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/bug0020-tool-invoke-after-fix.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/import-tasks-info-after-relative-fix.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/import-tasks-relative-pattern-after-fix.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/import-tasks-empty-pattern-after-fix.json`
 
 ### Software Delivery and Gating
 
 - `software-delivery` after import-policy fix:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/software-delivery-after-relative-fix-run.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/software-delivery-after-relative-fix-http-run.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/software-delivery-after-relative-fix-task-list.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/software-delivery-after-relative-fix-execute-task-get.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/software-delivery-after-relative-fix-run.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/software-delivery-after-relative-fix-http-run.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/software-delivery-after-relative-fix-task-list.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/software-delivery-after-relative-fix-execute-task-get.json`
 - Gating regression lane:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/session-gating-regressions.jsonl`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/session-gating-regressions.jsonl`
 
 ### Watch Events Runtime
 
 - Phase A wake + restart replay:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/watch-events-runtime-e2e.jsonl`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/watch-events-runtime-e2e.jsonl`
 - Phase B/C supported contracts, coordinator rows, and `event.post_record` redaction:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/watch-events-phase-bc-tests.jsonl`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/watch-events-phase-bc-tests.jsonl`
 
 ### Web E2E
 
 - Playwright onboarding:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/web-playwright-onboarding-complete.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/web-playwright-onboarding-complete.json`
 - Watch-events authoring form, no `force: true` actionability overrides:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/web-watch-events-editor-playwright.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/screenshots/web-watch-events-editor-playwright.png`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/web-watch-events-editor-playwright.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/screenshots/web-watch-events-editor-playwright.png`
 - Run-detail parked read-model panel:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/web-watch-events-run-detail-playwright.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/screenshots/web-watch-events-run-detail-playwright.png`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/web-watch-events-run-detail-playwright.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/screenshots/web-watch-events-run-detail-playwright.png`
 - Component and codec regression lane:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/web-watch-events-vitest-relpath.log`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/web-watch-events-vitest-relpath.log`
 
 ### Reviews Watch Smoke
 
-- `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-inspect-20260709.json`
-- `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-20260709-run.json`
-- `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-20260709-status.json`
-- `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-20260709-status-after-poll.json`
-- `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-20260709-stop.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-inspect-20260709.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-20260709-run.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-20260709-status.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-20260709-status-after-poll.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-20260709-stop.json`
 - BUG-0022 before/after evidence:
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-bug0022-before-after.log`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-after-fix-run.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-after-fix-status-after-poll.json`
-  - `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-after-fix-stop.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-bug0022-before-after.log`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-after-fix-run.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-after-fix-status-after-poll.json`
+  - `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/reviews-watch-after-fix-stop.json`
 
 ### Focused Verification Before Final Gate
 
@@ -178,12 +178,12 @@ Lab scratch evidence stays in the fresh lab and is indexed here by absolute path
 
 ## Paper Cuts
 
-- The daemon-served web bundle returned route-not-found for the editor deep link during browser QA, so the web E2E pass used the isolated Vite dev server with `AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:49189`. This is recorded as QA logistics, not a Task 16 product bug, because the target UI and proxy-backed API path were exercised successfully.
+- The daemon-served web bundle returned route-not-found for the editor deep link during browser QA, so the web E2E pass used the isolated Vite dev server with `COMPOZY_WEB_API_PROXY_TARGET=http://127.0.0.1:49189`. This is recorded as QA logistics, not a Task 16 product bug, because the target UI and proxy-backed API path were exercised successfully.
 - The run-detail Playwright fixture intentionally fulfilled SSE with an empty route; the browser console recorded a stream error while the read-model panel still rendered and asserted correctly.
 
 ## Runtime Errors Observed
 
-- `LP-003` / `LP-046`: after BUG-0023 and BUG-0021 fixes, `software-delivery` advances past `load_tasks` into `execute_task`, then stops at the isolated-lab provider prerequisite: `agent provider is required; run agh install or set agent.provider/defaults.provider`. This blocks full provider-backed terminal verification in this lab and is not filed as a product bug.
+- `LP-003` / `LP-046`: after BUG-0023 and BUG-0021 fixes, `software-delivery` advances past `load_tasks` into `execute_task`, then stops at the isolated-lab provider prerequisite: `agent provider is required; run compozy install or set agent.provider/defaults.provider`. This blocks full provider-backed terminal verification in this lab and is not filed as a product bug.
 - `LP-029`: initial `reviews-watch` smoke exposed BUG-0022 (`watch.pr` sent as raw `{{ .inputs.pr }}` to the extension). After the fix, the run advances past template rendering and reaches the next environment prerequisite: the lab workspace is not a git repository and lacks the real CodeRabbit/GitHub context needed for an end-to-end wake. That remaining blocker is not filed as a product bug.
 
 ## Human Verifications Needed
@@ -196,17 +196,17 @@ Lab scratch evidence stays in the fresh lab and is indexed here by absolute path
 
 None yet.
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
 - **Native tools:** Changed native-tool policy behavior, not IDs or schemas. `ext__dev_cycle__import_tasks` remains the same tool ID and descriptor, but enabled bundled extension source grants now resolve as trusted and callable. Descriptor/schema digests did not change. Evidence: BUG-0023 after-fix tool info/invoke logs plus daemon policy regression tests.
 - **Extensibility and hooks:** Changed daemon routing for bundled extension tools by adding source-trust handling and daemon-side workspace-root anchoring for the dev-cycle import tool. Watch-source specs now render runtime templates before extension polling. No hook IDs, capabilities, bundle manifests, MCP sidecars, config keys, or bridge SDKs changed. Watch-events phase B/C consumed existing hook/event families and filed no new extensibility bug.
 - **Workspace data isolation:** Relative `ext__dev_cycle__import_tasks` patterns are now scoped to the request workspace root via the daemon workspace resolver; escaping patterns are rejected with `scope_mismatch`. Watch-events runtime lanes exercised workspace-scoped readers and cross-workspace non-match behavior. No new persisted data class was introduced.
-- **Official AGH skill:** No `skills/agh/` update required for this fix-loop. Public behavior added by tasks 12/14 was already represented in the workstream docs/skill updates; this task changed daemon routing/policy and QA evidence only.
+- **Official Compozy skill:** No `skills/compozy/` update required for this fix-loop. Public behavior added by tasks 12/14 was already represented in the workstream docs/skill updates; this task changed daemon routing/policy and QA evidence only.
 
 ## Learnings
 
 - Use a real CSV parser for `docs/qa/state.csv`; Task 16 revalidated all rows at 16 columns after updates.
-- For web QA in isolated labs, prefer `make web-dev` with `AGH_WEB_API_PROXY_TARGET` from the bootstrap manifest when daemon-served static assets are stale or unavailable.
+- For web QA in isolated labs, prefer `make web-dev` with `COMPOZY_WEB_API_PROXY_TARGET` from the bootstrap manifest when daemon-served static assets are stale or unavailable.
 - `AB-009` remains useful for a future live-daemon browser seed; Task 16 covered actual wake/replay through runtime E2E and covered the UI-bearing changes through Playwright/component tests.
 - `watch-source` `watch` fields have the same runtime-template contract as action params; raw `node.WatchSpec` should not cross the extension boundary.
 
@@ -216,5 +216,5 @@ None yet.
 - `docs/qa/bugs/BUG-0023.md` updated to `fixed`.
 - `docs/qa/bugs/BUG-0022.md` filed and marked `fixed`.
 - Final `make verify` passed after the fix-loop and lint corrections.
-  - Evidence: `/Users/pedronauck/dev/qa-labs/agh-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/make-verify-final.log`
+  - Evidence: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/logs/make-verify-final.log`
   - Result: `DONE 12689 tests, 2 skipped in 396.066s`; `OK: all package boundaries respected`.

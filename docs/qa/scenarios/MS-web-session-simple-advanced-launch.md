@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell; NB-participation-controls-serialize
 ---
 
-story: As an operator I choose who runs and where, write the first message, and send one durable session-create request without losing access to runtime or advanced launch controls.
+story: As a person running agent work I choose who runs and where, write the first message, and send one durable session-create request without losing access to runtime or advanced launch controls.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.2), task_02, implemented 2026-07-25. Before this change the dialog was runtime-first: it had no workspace picker and no session name, and it always sent the active workspace.
 

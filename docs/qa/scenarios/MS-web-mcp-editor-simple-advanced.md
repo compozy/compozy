@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell; ET-web-mcp-remote-editor; ET-web-marketplace-installed-management
 ---
 
-story: As an operator I add an MCP server by saying how it runs and where, and only open Advanced when the process needs arguments, environment, or OAuth.
+story: As a person running agent work I add an MCP server by saying how it runs and where, and only open Advanced when the process needs arguments, environment, or OAuth.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.10–4.11), task_03, implemented 2026-07-25. Before this change every field was on one flat surface, the name was a disabled input on edit, and the transport was three equal cards even though `stdio` is the only local one.
 

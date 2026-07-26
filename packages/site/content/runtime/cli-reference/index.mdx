@@ -1,9 +1,9 @@
 ---
 title: CLI Reference
-description: Command tree, global options, configuration inputs, and common AGH CLI workflows.
+description: Command tree, global options, configuration inputs, and common Compozy CLI workflows.
 ---
 
-The `agh` CLI is the operator surface for the local AGH daemon. Use it to bootstrap the home
+The `compozy` CLI is the control surface for the local Compozy daemon. Use it to bootstrap the home
 directory, start the daemon, create durable sessions, inspect workspaces, manage skills and
 extensions, and query runtime state over the daemon socket.
 
@@ -14,7 +14,7 @@ extensions, and query runtime state over the daemon socket.
 
 <Mermaid
   chart={`flowchart TD
-  agh[agh]
+  compozy[compozy]
   runtime[Runtime process]
   work[Durable work]
   config[Project context]
@@ -22,7 +22,7 @@ extensions, and query runtime state over the daemon socket.
   observability[Observability]
   system[System setup]
 
-agh --> runtime
+compozy --> runtime
 runtime --> daemon[daemon]
 runtime --> status[status]
 runtime --> doctor[doctor]
@@ -31,26 +31,26 @@ runtime --> bridge[bridge]
 runtime --> mcp[mcp]
 runtime --> vault[vault]
 
-agh --> work
+compozy --> work
 work --> session[session]
 work --> task[task]
 work --> automation[automation]
 
-agh --> config
+compozy --> config
 config --> workspace[workspace]
 config --> agent[agent]
 
-agh --> capabilities
+compozy --> capabilities
 capabilities --> marketplace[marketplace]
 capabilities --> skill[skill]
 capabilities --> extension[extension]
 capabilities --> hooks[hooks]
 capabilities --> memory[memory]
 
-agh --> observability
+compozy --> observability
 observability --> observe[observe]
 
-agh --> system
+compozy --> system
 system --> install[install]
 system --> completion[completion]
 system --> whoami[whoami]
@@ -93,7 +93,7 @@ caption="The CLI groups commands by the runtime surface they operate: daemon pro
     href="/runtime/cli-reference/daemon"
     label="Daemon"
     title="Start and stop the background runtime"
-    description="Use this group for daemon lifecycle. Use `agh status` and `agh doctor` for runtime inspection."
+    description="Use this group for daemon lifecycle. Use `compozy status` and `compozy doctor` for runtime inspection."
     meta="Runtime process"
   />
   <RouteRow
@@ -191,41 +191,41 @@ caption="The CLI groups commands by the runtime surface they operate: daemon pro
     href="/runtime/cli-reference/network"
     label="Network"
     title="Inspect peers, channels, inboxes, and send envelopes"
-    description="Use this group when a session participates in AGH Network coordination."
+    description="Use this group when a session participates in Compozy Network coordination."
     meta="Coordination"
   />
   <RouteRow
     href="/runtime/cli-reference/observe"
     label="Observe"
     title="Query global observability streams"
-    description="Use this group for global event history and observability views. Runtime health moved to `agh status` and `agh doctor`."
+    description="Use this group for global event history and observability views. Runtime health moved to `compozy status` and `compozy doctor`."
     meta="Observability"
   />
   <RouteRow
     href="/runtime/cli-reference/completion"
     label="Completion"
     title="Generate shell completion scripts"
-    description="Use this group to install Bash, Zsh, Fish, or PowerShell completion for `agh`."
+    description="Use this group to install Bash, Zsh, Fish, or PowerShell completion for `compozy`."
     meta="Shell setup"
   />
   <RouteRow
     href="/runtime/cli-reference/install"
     label="Bootstrap"
-    title="Initialize ~/.agh and the default general agent"
-    description="Use this command when you are setting up AGH on one machine for the first time."
+    title="Initialize ~/.compozy and the default general agent"
+    description="Use this command when you are setting up Compozy on one machine for the first time."
     meta="First run"
   />
   <RouteRow
     href="/runtime/cli-reference/whoami"
     label="Identity"
     title="Inspect the agent identity exported into the current environment"
-    description="Use this command inside managed sessions or automation when you need the current AGH identity envelope."
+    description="Use this command inside managed sessions or automation when you need the current Compozy identity envelope."
     meta="Environment"
   />
   <RouteRow
     href="/runtime/cli-reference/version"
     label="Version"
-    title="Inspect the installed AGH build"
+    title="Inspect the installed Compozy build"
     description="Use this command to confirm the binary version before debugging or filing issues."
     meta="Build info"
   />
@@ -241,32 +241,32 @@ The current CLI has one persistent flag inherited by every user-facing command.
 | `-h, --help`          | n/a     | n/a                     | Added by Cobra for every command. Prints command usage and exits.                              |
 
 There is no global `--config`, `--log-level`, or `--socket` flag today. These settings come from
-the AGH home directory and `config.toml`.
+the Compozy home directory and `config.toml`.
 
-| Input                                        | Default                                       | Effect                                                                                                                                                       |
-| -------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `COMPOZY_HOME`                               | `~/.agh`                                      | Overrides the global AGH home directory. This changes the default config path, socket path, log path, session store, skill store, and memory store together. |
-| `~/.agh/config.toml`                         | created by `agh install`                      | Global configuration loaded by the daemon and most CLI commands before they contact the socket.                                                              |
-| `[daemon].socket`                            | `$COMPOZY_HOME/daemon.sock`                   | Overrides the Unix domain socket path used by daemon clients. Empty values fall back to the AGH home socket.                                                 |
-| `[log].level`                                | `info`                                        | Controls daemon structured logging. Accepted values are `debug`, `info`, `warn`, and `error`.                                                                |
-| `[http].host`, `[http].port`                 | `localhost`, `2123`                           | Controls the daemon HTTP/SSE bind address exposed behind the runtime.                                                                                        |
-| `COMPOZY_SESSION_ID`                         | injected into managed agent sessions          | Identifies the current AGH session for agent-side CLI calls and `agh whoami`.                                                                                |
-| `COMPOZY_SESSION_CHANNEL`, `COMPOZY_PEER_ID` | injected only for executions resolved as Live | Identify the immutable participation channel and daemon-owned peer identity for agent-side `agh network` calls.                                              |
-| `COMPOZY_AGENT`, `COMPOZY_AGENT_NAME`        | caller-provided when present                  | Read by `agh whoami`; current session launch code does not synthesize these values.                                                                          |
+| Input                                        | Default                                       | Effect                                                                                                                                                           |
+| -------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COMPOZY_HOME`                               | `~/.compozy`                                  | Overrides the global Compozy home directory. This changes the default config path, socket path, log path, session store, skill store, and memory store together. |
+| `~/.compozy/config.toml`                     | created by `compozy install`                  | Global configuration loaded by the daemon and most CLI commands before they contact the socket.                                                                  |
+| `[daemon].socket`                            | `$COMPOZY_HOME/daemon.sock`                   | Overrides the Unix domain socket path used by daemon clients. Empty values fall back to the Compozy home socket.                                                 |
+| `[log].level`                                | `info`                                        | Controls daemon structured logging. Accepted values are `debug`, `info`, `warn`, and `error`.                                                                    |
+| `[http].host`, `[http].port`                 | `localhost`, `2123`                           | Controls the daemon HTTP/SSE bind address exposed behind the runtime.                                                                                            |
+| `COMPOZY_SESSION_ID`                         | injected into managed agent sessions          | Identifies the current Compozy session for agent-side CLI calls and `compozy whoami`.                                                                            |
+| `COMPOZY_SESSION_CHANNEL`, `COMPOZY_PEER_ID` | injected only for executions resolved as Live | Identify the immutable participation channel and daemon-owned peer identity for agent-side `compozy network` calls.                                              |
+| `COMPOZY_AGENT`, `COMPOZY_AGENT_NAME`        | caller-provided when present                  | Read by `compozy whoami`; current session launch code does not synthesize these values.                                                                          |
 
-Example: run a separate AGH home for a demo without touching your normal daemon.
+Example: run a separate Compozy home for a demo without touching your normal daemon.
 
 ```bash
-COMPOZY_HOME="$PWD/.agh-demo" agh install
-COMPOZY_HOME="$PWD/.agh-demo" agh daemon start
-COMPOZY_HOME="$PWD/.agh-demo" agh status --output json
+COMPOZY_HOME="$PWD/.compozy-demo" compozy install
+COMPOZY_HOME="$PWD/.compozy-demo" compozy daemon start
+COMPOZY_HOME="$PWD/.compozy-demo" compozy status --output json
 ```
 
-Example: set the daemon socket and log level in `~/.agh/config.toml`.
+Example: set the daemon socket and log level in `~/.compozy/config.toml`.
 
 ```toml
 [daemon]
-socket = "~/.agh/custom-daemon.sock"
+socket = "~/.compozy/custom-daemon.sock"
 
 [log]
 level = "debug"
@@ -276,19 +276,19 @@ level = "debug"
 
 ### Start Daemon and Create a Session
 
-Use this sequence after `agh install` has created a global config and a default `general` agent.
+Use this sequence after `compozy install` has created a global config and a default `general` agent.
 
 ```bash
-agh daemon start
-agh workspace add "$PWD" --name current
-agh session new --workspace current --agent general --name first-run
+compozy daemon start
+compozy workspace add "$PWD" --name current
+compozy session new --workspace current --agent general --name first-run
 ```
 
 Then inspect the session and follow its event stream.
 
 ```bash
-agh session list
-agh session events sess_1234 --follow
+compozy session list
+compozy session events sess_1234 --follow
 ```
 
 The daemon start command waits until the socket responds. If a daemon is already running, it returns
@@ -300,15 +300,15 @@ Live sessions expose an explicit attach path. List eligible sessions with `--res
 ID, and use recap when you need a deterministic read-only reconstruction.
 
 ```bash
-agh session list --resumable
-agh session resume sess_1234
-agh session recap sess_1234
-agh session status sess_1234
+compozy session list --resumable
+compozy session resume sess_1234
+compozy session recap sess_1234
+compozy session status sess_1234
 ```
 
-`agh session resume` attaches to an eligible live session. It does not start a new provider
+`compozy session resume` attaches to an eligible live session. It does not start a new provider
 subprocess or rewrite transcript history. Terminal sessions stay available through
-`agh session recap`, `agh session events`, and `agh session history`.
+`compozy session recap`, `compozy session events`, and `compozy session history`.
 
 ### Manage Workspaces
 
@@ -316,31 +316,31 @@ Register a workspace when you want stable names, additional directories, or a wo
 agent.
 
 ```bash
-agh workspace add "$PWD" --name checkout-api --default-agent reviewer
-agh workspace list
-agh workspace info checkout-api
+compozy workspace add "$PWD" --name checkout-api --default-agent reviewer
+compozy workspace list
+compozy workspace info checkout-api
 ```
 
 Edit the registration when the project moves or its default agent changes.
 
 ```bash
-agh workspace edit checkout-api --name checkout
-agh workspace edit checkout --default-agent ""
-agh workspace remove checkout
+compozy workspace edit checkout-api --name checkout
+compozy workspace edit checkout --default-agent ""
+compozy workspace remove checkout
 ```
 
-`agh session new --workspace <name-or-id>` uses a registered workspace. `agh session new --cwd <absolute-path>` asks the daemon to use an absolute path directly and auto-register it when needed.
+`compozy session new --workspace <name-or-id>` uses a registered workspace. `compozy session new --cwd <absolute-path>` asks the daemon to use an absolute path directly and auto-register it when needed.
 
 ## Shell Completion
 
 Cobra generates completion scripts from the same command tree used for the reference pages.
 
-| Shell      | Setup                                                                   |
-| ---------- | ----------------------------------------------------------------------- |
-| Bash       | `agh completion bash > "$(brew --prefix)/etc/bash_completion.d/agh"`    |
-| Zsh        | `agh completion zsh > "$(brew --prefix)/share/zsh/site-functions/_agh"` |
-| Fish       | `agh completion fish > ~/.config/fish/completions/agh.fish`             |
-| PowerShell | `agh completion powershell > agh.ps1`                                   |
+| Shell      | Setup                                                                        |
+| ---------- | ---------------------------------------------------------------------------- |
+| Bash       | `compozy completion bash > "$(brew --prefix)/etc/bash_completion.d/compozy"` |
+| Zsh        | `compozy completion zsh > "$(brew --prefix)/share/zsh/site-functions/_agh"`  |
+| Fish       | `compozy completion fish > ~/.config/fish/completions/compozy.fish`          |
+| PowerShell | `compozy completion powershell > compozy.ps1`                                |
 
 See the generated completion pages for shell-specific notes:
 
@@ -352,7 +352,7 @@ See the generated completion pages for shell-specific notes:
 ## Full Command Tree
 
 ```text
-agh
+compozy
 |-- agent
 |   |-- info <name>
 |   `-- list
@@ -486,5 +486,5 @@ agh
     `-- remove <name-or-id>
 ```
 
-The hidden `agh doc` command is intentionally excluded from the user-facing tree. It exists only so
+The hidden `compozy doc` command is intentionally excluded from the user-facing tree. It exists only so
 the repository can regenerate these reference pages.

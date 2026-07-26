@@ -1,5 +1,5 @@
 /* ============================================================
-   AGH OS v2 — shell runtime
+   CompozyOS v2 — shell runtime
    Same window-manager engine as os/os.js; windows now render
    the existing route components with production tokens.
    ============================================================ */
@@ -71,12 +71,12 @@ const CATALOG = [
   { id: 'mesh-relay', kind: 'extension', name: 'mesh-relay', desc: 'Relay tasks to peer daemons on the network mesh.', ver: '0.3.0', installed: false },
 ];
 const WORKSPACES = [
-  { id: 'agh', name: 'agh', chip: 'AG', home: true, wallpaper: 'ember' },
+  { id: 'compozy', name: 'compozy', chip: 'CO', home: true, wallpaper: 'ember' },
   { id: 'branasio', name: 'branasio', chip: 'BR', home: false, wallpaper: 'mesh' },
   { id: 'labs', name: 'labs', chip: 'LA', home: false, wallpaper: 'carbon' },
 ];
 let APPROVALS = [
-  { id: 'a1', agent: 'webgen', text: 'Run <code>make deploy</code> in agh', detail: 'shell · outside sandbox' },
+  { id: 'a1', agent: 'webgen', text: 'Run <code>make deploy</code> in compozy', detail: 'shell · outside sandbox' },
   { id: 'a2', agent: 'infra', text: 'Write outside workspace: <code>/etc/hosts</code>', detail: 'fs · elevated path' },
 ];
 const SPARK_DATA = [11, 14, 9, 16, 12, 18, 15, 10, 17, 13, 19, 14, 16, 21];
@@ -136,11 +136,11 @@ const DOCK_ORDER = [
 const DOCK_APPS = DOCK_ORDER.filter(id => id !== 'sep');
 
 /* ---------------- state ---------------- */
-const LS_KEY = 'agh-os-v2';
+const LS_KEY = 'compozy-os-v2';
 const defaultSpace = (ws) => ({ wallpaper: WORKSPACES.find(w => w.id === ws)?.wallpaper || 'ember', open: {}, minimized: [] });
 let state = {
-  ws: 'agh',
-  spaces: { agh: defaultSpace('agh'), branasio: defaultSpace('branasio'), labs: defaultSpace('labs') },
+  ws: 'compozy',
+  spaces: { compozy: defaultSpace('compozy'), branasio: defaultSpace('branasio'), labs: defaultSpace('labs') },
   magnify: true,
   motion: 'full',
   sessionsView: 'recent',
@@ -824,7 +824,7 @@ function initJobs(win) {
 function initTriggers(win) {
   const triggers = [
     { name: 'on-push-main', src: 'github · push', target: 'task: verify branch', on: true },
-    { name: 'inbox-email', src: 'gmail · label agh', target: 'session: research', on: true },
+    { name: 'inbox-email', src: 'gmail · label compozy', target: 'session: research', on: true },
     { name: 'mesh-task-relay', src: 'network · peer', target: 'queue: infra', on: false },
   ];
   $('[data-trigger-rows]', win).innerHTML = triggers.map((t, i) => `
@@ -857,7 +857,7 @@ function initBridges(win) {
 
 function initKnowledge(win) {
   const bases = [
-    { name: 'agh-docs', docs: '214 docs', idx: 'indexed 1h ago' },
+    { name: 'compozy-docs', docs: '214 docs', idx: 'indexed 1h ago' },
     { name: 'runbooks', docs: '36 docs', idx: 'indexed yesterday' },
     { name: 'competitors', docs: '58 docs', idx: 'indexed Mon' },
   ];
@@ -916,7 +916,7 @@ function initNetwork(win) {
 function initVault(win) {
   const secrets = [
     { name: 'ANTHROPIC_API_KEY', scope: 'global', used: 'used 2m ago' },
-    { name: 'FAL_KEY', scope: 'ws:agh', used: 'used 1h ago' },
+    { name: 'FAL_KEY', scope: 'ws:compozy', used: 'used 1h ago' },
     { name: 'GH_TOKEN', scope: 'agent:webgen', used: 'used 09:02' },
   ];
   $('[data-secret-rows]', win).innerHTML = secrets.map(s => `
@@ -1064,7 +1064,7 @@ const MENUS = {
     { label: 'Cycle wallpaper', run: cycleWallpaper },
   ],
   help: [
-    { label: 'About AGH OS', run: () => toast({ title: 'AGH OS', body: 'The same routes you already use — Dashboard, Sessions, Tasks, Marketplace — now live as windows over one desktop.' }) },
+    { label: 'About CompozyOS', run: () => toast({ title: 'CompozyOS', body: 'The same routes you already use — Dashboard, Sessions, Tasks, Marketplace — now live as windows over one desktop.' }) },
     { label: 'Keyboard shortcuts', run: () => toast({ title: 'Shortcuts', body: '<code>⌘K</code> palette · <code>⌘N</code> new session · <code>⇧⌘S</code> spaces · <code>esc</code> close overlay' }) },
   ],
 };

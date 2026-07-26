@@ -19,15 +19,15 @@ The default Memory extractor produced a durable global candidate with `agent_tie
 
 1. Run a normal provider-backed session while the default memory extractor is enabled.
 2. Let the extractor return a global or workspace JSONL candidate with a non-empty `agent_tier`.
-3. Drain the extractor and inspect `agh memory extractor list-pending -o json`.
+3. Drain the extractor and inspect `compozy memory extractor list-pending -o json`.
 
 **Expected:** The extractor boundary returns a contract-valid candidate; `agent_tier` is empty outside `scope = "agent"`.
 **Actual:** The controller rejects the candidate with `memory controller: candidate frontmatter: agent tier requires agent scope` and records a DLQ item.
 
 ## Evidence
 
-- `/Users/pedronauck/dev/qa-labs/agh-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/archive/20260724T112506.161087000Z-20260724T112506.009718000Z-257.jsonl.processing.json`
-- `/Users/pedronauck/dev/qa-labs/agh-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/memory-extractor-status-after-source.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/archive/20260724T112506.161087000Z-20260724T112506.009718000Z-257.jsonl.processing.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/memory-extractor-status-after-source.json`
 
 ## Fix
 

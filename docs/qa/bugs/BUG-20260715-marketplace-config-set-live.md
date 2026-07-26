@@ -11,12 +11,12 @@
 
 ## Summary
 
-The documented `agh config set marketplace.catalog.*` surface rejected all three catalog keys as unsupported. After the CLI accepted the keys, the daemon still classified the reload as restart-required because its active/desired config diff omitted the Marketplace catalog entirely. Operators could not redirect discovery to an isolated feed or apply feed timing changes live as promised.
+The documented `compozy config set marketplace.catalog.*` surface rejected all three catalog keys as unsupported. After the CLI accepted the keys, the daemon still classified the reload as restart-required because its active/desired config diff omitted the Marketplace catalog entirely. Operators could not redirect discovery to an isolated feed or apply feed timing changes live as promised.
 
 ## Reproduction
 
 1. Start an isolated daemon and a valid local Marketplace catalog feed.
-2. Run `agh config set marketplace.catalog.base_url <feed-url> -o json`.
+2. Run `compozy config set marketplace.catalog.base_url <feed-url> -o json`.
 3. After accepting the path, change `marketplace.catalog.ttl` or `.timeout` while the daemon remains running.
 4. Inspect the structured lifecycle result and refresh the Marketplace catalog.
 
@@ -25,7 +25,7 @@ The documented `agh config set marketplace.catalog.*` surface rejected all three
 
 ## Evidence
 
-- Isolated lab note: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json`
+- Isolated lab note: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json`
 - Pre-fix CLI owner tests failed for `base_url`, `ttl`, and `timeout` in both path classification and the public config-set lifecycle.
 - Pre-fix Settings owner test returned no changed paths for a config whose three Marketplace catalog fields all changed.
 
@@ -41,4 +41,4 @@ The documented `agh config set marketplace.catalog.*` surface rejected all three
 - `go test -race ./internal/cli -count=1` passed.
 - `go test -race ./internal/settings -count=1` passed.
 - A rebuilt daemon accepted `marketplace.catalog.timeout=5s` with `lifecycle=live`, `applied=true`, `restart_required=false`, and advanced active generation 2 → 3 without another restart.
-- The immediately following `agh marketplace refresh -o json` loaded the isolated feed successfully with one MCP entry and non-stale outcomes for every feed-backed kind.
+- The immediately following `compozy marketplace refresh -o json` loaded the isolated feed successfully with one MCP entry and non-stale outcomes for every feed-backed kind.

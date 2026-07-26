@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
-<title>Sandbox · AGH</title>
+<title>Sandbox · Compozy</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -432,7 +432,7 @@
   </header>
   <div class="sheet__body" id="sheet-body"><!-- rendered --></div>
   <div class="sheet__foot">
-    <span class="mono" id="sheet-cli">agh config get sandboxes.daytona-eu</span>
+    <span class="mono" id="sheet-cli">compozy config get sandboxes.daytona-eu</span>
   </div>
 </aside>
 
@@ -550,19 +550,19 @@
       usage: 4, source: "global config",
       network: { allow_outbound: true, allow_public_ingress: false, allow_list: [], deny_list: [] },
       env: [], secret_env: [] },
-    { name: "local-restricted", backend: "local", sync_mode: "", persistence: "", runtime_root: "~/agh-sandbox",
+    { name: "local-restricted", backend: "local", sync_mode: "", persistence: "", runtime_root: "~/compozy-sandbox",
       usage: 1, source: "global config",
       network: { allow_outbound: false, allow_public_ingress: false, allow_list: ["github.com", "registry.npmjs.org"], deny_list: [] },
       env: [], secret_env: [] },
     { name: "daytona-eu", backend: "daytona", sync_mode: "session-bidirectional", persistence: "reuse", runtime_root: "/workspace",
       usage: 2, source: "global config",
       network: { allow_outbound: true, allow_public_ingress: false, allow_list: [], deny_list: [] },
-      daytona: { target: "eu", image: "ghcr.io/agh/runtime:1.4", auto_stop: 30, auto_archive: 1440 },
+      daytona: { target: "eu", image: "ghcr.io/compozy/runtime:1.4", auto_stop: 30, auto_archive: 1440 },
       env: ["NODE_ENV"], secret_env: ["DAYTONA_API_KEY"], secretRef: "vault:sandbox/daytona-eu/api_key" },
     { name: "daytona-archive", backend: "daytona", sync_mode: "session-bidirectional", persistence: "archive", runtime_root: "/workspace",
       usage: 0, source: "global config",
       network: { allow_outbound: true, allow_public_ingress: false, allow_list: [], deny_list: [] },
-      daytona: { target: "eu", image: "ghcr.io/agh/runtime:1.4", auto_stop: 15, auto_archive: 720 },
+      daytona: { target: "eu", image: "ghcr.io/compozy/runtime:1.4", auto_stop: 15, auto_archive: 720 },
       env: [], secret_env: [] }
   ];
 
@@ -908,7 +908,7 @@
 
     html += '<div class="sheet-sec"><div class="quiet-note">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>' +
-      '<span><code style="font-family:var(--font-mono);font-size:11px">daytona</code>, <code style="font-family:var(--font-mono);font-size:11px">network</code>, and <code style="font-family:var(--font-mono);font-size:11px">env</code> sub-fields are edited via <code style="font-family:var(--font-mono);font-size:11px">agh config set</code> and preserved on dialog saves.</span>' +
+      '<span><code style="font-family:var(--font-mono);font-size:11px">daytona</code>, <code style="font-family:var(--font-mono);font-size:11px">network</code>, and <code style="font-family:var(--font-mono);font-size:11px">env</code> sub-fields are edited via <code style="font-family:var(--font-mono);font-size:11px">compozy config set</code> and preserved on dialog saves.</span>' +
       '</div></div>';
 
     html += '<div class="sheet-sec" data-od-id="sandbox-sheet-danger"><div class="danger-zone"><div>' +
@@ -927,7 +927,7 @@
       '<span class="pill" data-mono="true" data-tone="' + backendTone(p) + '">' + esc(p.backend) + '</span>' +
       (p.name === DEFAULT_PROFILE ? ' <span class="pill">default</span>' : "");
     document.getElementById("sheet-sub").textContent = backendLabel(p);
-    document.getElementById("sheet-cli").textContent = "agh config get sandboxes." + p.name;
+    document.getElementById("sheet-cli").textContent = "compozy config get sandboxes." + p.name;
     var body = document.getElementById("sheet-body");
     body.innerHTML = sheetBodyMarkup(p);
     body.querySelectorAll("[data-sheet-delete]").forEach(function (btn) {
@@ -1010,7 +1010,7 @@
     p.persistence = document.getElementById("editor-persistence").value;
     p.runtime_root = document.getElementById("editor-root").value.trim();
     if (p.backend === "daytona" && !p.daytona) {
-      p.daytona = { target: "eu", image: "ghcr.io/agh/runtime:1.4", auto_stop: 30, auto_archive: 1440 };
+      p.daytona = { target: "eu", image: "ghcr.io/compozy/runtime:1.4", auto_stop: 30, auto_archive: 1440 };
     }
     if (!existing) PROFILES.push(p);
     closeEditor();

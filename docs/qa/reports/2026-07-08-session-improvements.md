@@ -13,11 +13,11 @@
 
 ```text
 [QA_BOOTSTRAP]
-manifest_path=/Users/pedronauck/dev/qa-labs/agh-session-improvements-20260708-182156-752360-lab/qa-artifacts/qa/bootstrap-manifest.json
-lab_root=/Users/pedronauck/dev/qa-labs/agh-session-improvements-20260708-182156-752360-lab
-runtime_home=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-07cd636345d5/runtime
+manifest_path=/Users/pedronauck/dev/qa-labs/compozy-session-improvements-20260708-182156-752360-lab/qa-artifacts/qa/bootstrap-manifest.json
+lab_root=/Users/pedronauck/dev/qa-labs/compozy-session-improvements-20260708-182156-752360-lab
+runtime_home=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-07cd636345d5/runtime
 base_url=http://127.0.0.1:60431
-report_path=/Users/pedronauck/Dev/compozy/agh/docs/qa/reports/2026-07-08-session-improvements.md
+report_path=/Users/pedronauck/Dev/compozy/compozy/docs/qa/reports/2026-07-08-session-improvements.md
 health_status=fresh
 [/QA_BOOTSTRAP]
 ```
@@ -92,7 +92,7 @@ the stable repo evidence and command outcomes.
 
 | Bug | Impact | Fix | Regression / replay evidence |
 |---|---|---|---|
-| BUG-0020 | Blocks-Completion | `ReadonlyThreadProvider` now remounts on transcript identity and virtualized rows render only up to the provider's committed message count; AGH errored tool parts validate through a sanitized dynamic-tool copy while preserving raw tool payloads; clear dialog/button test IDs match the E2E contract. | Focused web suite 96/96; `browser-switchback-fixed-clean-primary.png`; focused Playwright clear/delete test; full `make test-e2e-web` 62/62. |
+| BUG-0020 | Blocks-Completion | `ReadonlyThreadProvider` now remounts on transcript identity and virtualized rows render only up to the provider's committed message count; Compozy errored tool parts validate through a sanitized dynamic-tool copy while preserving raw tool payloads; clear dialog/button test IDs match the E2E contract. | Focused web suite 96/96; `browser-switchback-fixed-clean-primary.png`; focused Playwright clear/delete test; full `make test-e2e-web` 62/62. |
 
 ## Paper Cuts
 
@@ -105,9 +105,9 @@ the stable repo evidence and command outcomes.
 
 - BUG-0020 initially crashed the session route with
   `useClientLookup: Index 3 out of bounds (length: 3)` in `<ThreadMessageComponent>`.
-- A later E2E-web pass exposed AI SDK validation rejecting a persisted AGH `tool-*` error part that
+- A later E2E-web pass exposed AI SDK validation rejecting a persisted Compozy `tool-*` error part that
   carried raw `output`; the production normalizer now validates a sanitized copy and restores the
-  original AGH part for rendering.
+  original Compozy part for rendering.
 
 ## Human Verifications Needed
 
@@ -124,8 +124,8 @@ the stable repo evidence and command outcomes.
   the task used the `agent-browser` fallback.
 - `make test-e2e-web` is not a source-build command. Rebuild `web/dist` after web source changes
   before interpreting daemon-served Playwright evidence.
-- Persisted AGH tool parts are the product contract for session rendering; AI SDK validation must
-  be adapted through a validation copy, not by dropping AGH's raw tool payload.
+- Persisted Compozy tool parts are the product contract for session rendering; AI SDK validation must
+  be adapted through a validation copy, not by dropping Compozy's raw tool payload.
 
 ## Final Status
 

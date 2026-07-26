@@ -1,16 +1,16 @@
 <div align="center">
-  <img src="packages/site/public/icon-512.png" alt="AGH" width="96" height="96">
-  <h1>AGH</h1>
-  <p><strong>An open workplace for AI agents.</strong></p>
+  <img src="packages/site/public/icon-512.png" alt="Compozy" width="96" height="96">
+  <h1>CompozyOS</h1>
+  <p><strong>A local-first operating system for agent work.</strong></p>
   <p>
-    <a href="https://github.com/compozy/agh/actions/workflows/ci.yml">
-      <img src="https://github.com/compozy/agh/actions/workflows/ci.yml/badge.svg" alt="CI">
+    <a href="https://github.com/compozy/compozy/actions/workflows/ci.yml">
+      <img src="https://github.com/compozy/compozy/actions/workflows/ci.yml/badge.svg" alt="CI">
     </a>
-    <a href="https://github.com/compozy/agh/releases">
-      <img src="https://img.shields.io/github/v/release/compozy/agh?include_prereleases" alt="Release">
+    <a href="https://github.com/compozy/compozy/releases">
+      <img src="https://img.shields.io/github/v/release/compozy/compozy?include_prereleases" alt="Release">
     </a>
-    <a href="https://goreportcard.com/report/github.com/compozy/agh">
-      <img src="https://goreportcard.com/badge/github.com/compozy/agh" alt="Go Report Card">
+    <a href="https://goreportcard.com/report/github.com/compozy/compozy">
+      <img src="https://goreportcard.com/badge/github.com/compozy/compozy" alt="Go Report Card">
     </a>
     <a href="LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
@@ -18,21 +18,22 @@
   </p>
 </div>
 
-AGH is a local-first agent operating system. It runs the agent CLIs you already use — Claude Code, OpenClaw, Hermes, and others — as durable, inspectable sessions managed by a single background daemon, and connects them on the open `compozy-network/v0` so sessions can discover peers, share capabilities, and close work with receipts.
+Give agents work that keeps going after a terminal tab closes. CompozyOS connects durable sessions, tasks, loops, memory, permissions, automation, and an OS-style web shell through one local daemon. People can see and steer the work; agents can operate the same state through structured controls.
 
 The complete documentation lives at [compozy.com](https://compozy.com).
 
 <div align="center">
-  <img src="docs/design/screen.png" alt="AGH" width="100%">
+  <img src="docs/design/screen.png" alt="CompozyOS workspace" width="100%">
 </div>
 
 ## Highlights
 
-- **AGH Network.** Active sessions become peers — they discover each other, exchange typed envelopes on `compozy-network/v0` channels, and close work with receipts.
-- **Local-first durable runtime.** One Go binary and a background daemon keep sessions, events, and state in local SQLite — durable, resumable, and inspectable long after the terminal closes.
-- **Agent-manageable surfaces.** The same runtime state is exposed through CLI, HTTP/SSE, UDS, and a web UI, so agents operate AGH through structured controls instead of UI-only paths.
-- **Autonomy kernel.** Task runs, claim tokens, leases, and safe spawn keep multi-agent work observable and bounded.
-- **Extensible runtime.** Native Go tools, MCP, extensions, hooks, skills, and bridges plug into one daemon-owned tool registry.
+- **One connected system.** Sessions, work, memory, permissions, automation, tools, and the web shell share daemon-owned state instead of behaving like separate products.
+- **Local-first durability.** One Go binary and SQLite-backed daemon keep agent work resumable and inspectable long after the terminal closes.
+- **Shared control.** Web, CLI, HTTP/SSE, UDS, MCP, and native tools expose the same runtime state to people and agents.
+- **Built to be built on.** Extensions, hooks, skills, capabilities, bridges, SDKs, and tools plug into public runtime contracts.
+- **Bounded autonomy.** Task runs, claim tokens, leases, memory scopes, and safe spawn keep multi-agent work observable and recoverable.
+- **Compozy Network.** Sessions can discover peers, exchange typed envelopes on `compozy-network/v0`, share capabilities, and close work with receipts.
 
 ## Install
 
@@ -55,7 +56,7 @@ npm install -g @compozy/agh
 Go:
 
 ```bash
-go install github.com/compozy/agh@latest
+go install github.com/compozy/compozy@latest
 ```
 
 The full [Installation guide](https://compozy.com/runtime/core/getting-started/installation) covers the verified binary installer, Linux packages, and source builds.
@@ -78,18 +79,18 @@ See the [Quick Start](https://compozy.com/runtime/core/getting-started/quick-sta
 - [Quick Start](https://compozy.com/runtime/core/getting-started/quick-start)
 - [CLI reference](https://compozy.com/runtime/cli-reference)
 - [Extensions](https://compozy.com/runtime/core/extensions)
-- [AGH Network protocol](https://compozy.com/protocol)
-- [GitHub releases](https://github.com/compozy/agh/releases)
+- [Compozy Network protocol](https://compozy.com/protocol)
+- [GitHub releases](https://github.com/compozy/compozy/releases)
 
 ## Development
 
-AGH is a Go and Bun monorepo. Start the daemon with automatic Go rebuilds and the web UI with Vite HMR:
+CompozyOS is a Go and Bun monorepo. Start the daemon with automatic Go rebuilds and the web UI with Vite HMR:
 
 ```bash
 make dev
 ```
 
-The first successful build stops any daemon using the active `AGH_HOME` and takes over its lifecycle. A failed Go rebuild keeps the last successful daemon running; the next successful build replaces it. Vite uses the first available port starting at `3000`, and the daemon's web routes redirect to that live UI while API traffic stays on the daemon. Set `AGH_WEB_PORT` to require a specific web port. Press `Ctrl-C` to stop the owned daemon and both development processes, or use `make dev-daemon` when you only need the backend.
+The first successful build stops any daemon using the active `COMPOZY_HOME` and takes over its lifecycle. A failed Go rebuild keeps the last successful daemon running; the next successful build replaces it. Vite uses the first available port starting at `3000`, and the daemon's web routes redirect to that live UI while API traffic stays on the daemon. Set `COMPOZY_WEB_PORT` to require a specific web port. Press `Ctrl-C` to stop the owned daemon and both development processes, or use `make dev-daemon` when you only need the backend.
 
 Run the full verification gate before sending changes:
 
@@ -103,22 +104,22 @@ Contributions are welcome. Open an issue or pull request, and run `make verify` 
 
 ## Contributors
 
-Thanks to everyone who has contributed to AGH.
+Thanks to everyone who has contributed to Compozy.
 
-<a href="https://github.com/compozy/agh/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=compozy/agh" alt="Contributors" />
+<a href="https://github.com/compozy/compozy/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=compozy/compozy" alt="Contributors" />
 </a>
 
 ## License
 
-AGH is released under the [MIT License](LICENSE).
+Compozy is distributed under the [MIT License](LICENSE).
 
 ## Star history
 
-<a href="https://www.star-history.com/?repos=compozy%2Fagh&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=compozy%2Fcompozy&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=compozy/agh&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=compozy/agh&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=compozy/agh&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=compozy/compozy&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=compozy/compozy&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=compozy/compozy&type=date&legend=top-left" />
  </picture>
 </a>

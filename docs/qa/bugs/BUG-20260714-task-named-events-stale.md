@@ -33,6 +33,6 @@ The Task detail EventSource listened to only part of the durable Task stream voc
 ## Verification
 
 - The focused root-Turbo Web test passed 16/16.
-- Browser Task `task-5a7465009a4f277a` remained open while UDS-backed `agh task pause` emitted sequence 385. The page rendered `Paused`, the exact reason, and `Resume` in 380 ms without reload.
-- UDS-backed `agh task resume` emitted sequence 386. The same page removed the paused reason and restored `Pause` in 322 ms without reload.
+- Browser Task `task-5a7465009a4f277a` remained open while UDS-backed `compozy task pause` emitted sequence 385. The page rendered `Paused`, the exact reason, and `Resume` in 380 ms without reload.
+- UDS-backed `compozy task resume` emitted sequence 386. The same page removed the paused reason and restored `Pause` in 322 ms without reload.
 - The Task's pending run was canceled through the UI and the named Delete modal then removed the Task with `Task deleted.`

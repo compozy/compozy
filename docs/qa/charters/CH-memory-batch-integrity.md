@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-memory-batch-integrity
-  mission: "As Ada, abuse agh__memory_propose with ambiguous, duplicated, and mid-batch-failing operations and prove atomicity, deterministic rejection, prefix byte-stability, and next-session recall."
+  mission: "As Ada, abuse compozy__memory_propose with ambiguous, duplicated, and mid-batch-failing operations and prove atomicity, deterministic rejection, prefix byte-stability, and next-session recall."
   mode: strategy-based
   persona:
     name: Ada

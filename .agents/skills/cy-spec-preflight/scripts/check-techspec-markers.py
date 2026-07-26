@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Heuristic checker for the six AGH TechSpec quality markers.
+"""Heuristic checker for the six Compozy TechSpec quality markers.
 
 Source: docs/_memory/lessons/L-012-techspec-prose-only-rework.md.
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>Hooks · Settings · AGH</title>
+<title>Hooks · Settings · Compozy</title>
 <style>
   /* ============ tokens — verbatim from settings-general.html ============ */
   :root{
@@ -245,7 +245,7 @@
 
         <!-- ===== subhead (demoted page-head desc/meta) ===== -->
         <div class="subhead">
-          <span>Scripts AGH runs at key moments — before a session starts, after a tool call, when a job fires — and the notifications you get.</span><span class="dotsep"></span>
+          <span>Scripts Compozy runs at key moments — before a session starts, after a tool call, when a job fires — and the notifications you get.</span><span class="dotsep"></span>
           <span><b>8</b> hooks</span><span class="dotsep"></span>
           <span><b>6</b> on</span><span class="dotsep"></span>
           <span><b>3</b> notification presets</span>
@@ -262,7 +262,7 @@
           <div class="sec__head">
             <div>
               <h2 class="sec__title">Lifecycle hooks</h2>
-              <p class="sec__desc">Defined in your config file. Toggle one off to skip it — that saves right away; a restart is needed before AGH picks up newly added hooks.</p>
+              <p class="sec__desc">Defined in your config file. Toggle one off to skip it — that saves right away; a restart is needed before Compozy picks up newly added hooks.</p>
             </div>
           </div>
           <div class="listbar">
@@ -279,42 +279,42 @@
           <div class="reglist" id="hooks-list">
             <div class="reg-row" data-name="guard-writes tool.pre_call" data-state="on">
               <span class="reg-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span>
-              <div class="reg-main"><div class="reg-name">guard-writes</div><div class="reg-meta"><span class="pill" data-tone="info">tool.pre_call</span><span class="sep">·</span>blocking<span class="sep">·</span><span class="cmd">~/.agh/hooks/guard-writes.sh</span></div></div>
+              <div class="reg-main"><div class="reg-name">guard-writes</div><div class="reg-meta"><span class="pill" data-tone="info">tool.pre_call</span><span class="sep">·</span>blocking<span class="sep">·</span><span class="cmd">~/.compozy/hooks/guard-writes.sh</span></div></div>
               <div class="reg-ctl"><button class="switch" role="switch" aria-checked="true" data-hook aria-label="guard-writes"></button></div>
             </div>
             <div class="reg-row" data-name="notify-approvals permission.request" data-state="on">
               <span class="reg-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></span>
-              <div class="reg-main"><div class="reg-name">notify-approvals</div><div class="reg-meta"><span class="pill" data-tone="info">permission.request</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.agh/hooks/notify.sh</span></div></div>
+              <div class="reg-main"><div class="reg-name">notify-approvals</div><div class="reg-meta"><span class="pill" data-tone="info">permission.request</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.compozy/hooks/notify.sh</span></div></div>
               <div class="reg-ctl"><button class="switch" role="switch" aria-checked="true" data-hook aria-label="notify-approvals"></button></div>
             </div>
             <div class="reg-row" data-name="seed-context session.pre_create" data-state="on">
               <span class="reg-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></span>
-              <div class="reg-main"><div class="reg-name">seed-context</div><div class="reg-meta"><span class="pill" data-tone="info">session.pre_create</span><span class="sep">·</span>blocking<span class="sep">·</span><span class="cmd">~/.agh/hooks/seed-context.py</span></div></div>
+              <div class="reg-main"><div class="reg-name">seed-context</div><div class="reg-meta"><span class="pill" data-tone="info">session.pre_create</span><span class="sep">·</span>blocking<span class="sep">·</span><span class="cmd">~/.compozy/hooks/seed-context.py</span></div></div>
               <div class="reg-ctl"><button class="switch" role="switch" aria-checked="true" data-hook aria-label="seed-context"></button></div>
             </div>
             <div class="reg-row" data-name="on-job-done automation.job.post_fire" data-state="on">
               <span class="reg-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-              <div class="reg-main"><div class="reg-name">on-job-done</div><div class="reg-meta"><span class="pill" data-tone="info">automation.job.post_fire</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.agh/hooks/on-job-done.sh</span></div></div>
+              <div class="reg-main"><div class="reg-name">on-job-done</div><div class="reg-meta"><span class="pill" data-tone="info">automation.job.post_fire</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.compozy/hooks/on-job-done.sh</span></div></div>
               <div class="reg-ctl"><button class="switch" role="switch" aria-checked="true" data-hook aria-label="on-job-done"></button></div>
             </div>
             <div class="reg-row" data-name="flag-attention task.needs_attention" data-state="on">
               <span class="reg-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg></span>
-              <div class="reg-main"><div class="reg-name">flag-attention</div><div class="reg-meta"><span class="pill" data-tone="info">task.needs_attention</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.agh/hooks/flag-attention.sh</span></div></div>
+              <div class="reg-main"><div class="reg-name">flag-attention</div><div class="reg-meta"><span class="pill" data-tone="info">task.needs_attention</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.compozy/hooks/flag-attention.sh</span></div></div>
               <div class="reg-ctl"><button class="switch" role="switch" aria-checked="true" data-hook aria-label="flag-attention"></button></div>
             </div>
             <div class="reg-row" data-name="mirror-messages network.message.persisted" data-state="on">
               <span class="reg-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg></span>
-              <div class="reg-main"><div class="reg-name">mirror-messages</div><div class="reg-meta"><span class="pill" data-tone="info">network.message.persisted</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.agh/hooks/mirror.sh</span></div></div>
+              <div class="reg-main"><div class="reg-name">mirror-messages</div><div class="reg-meta"><span class="pill" data-tone="info">network.message.persisted</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.compozy/hooks/mirror.sh</span></div></div>
               <div class="reg-ctl"><button class="switch" role="switch" aria-checked="true" data-hook aria-label="mirror-messages"></button></div>
             </div>
             <div class="reg-row" data-name="crash-report agent.crashed" data-state="off">
               <span class="reg-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
-              <div class="reg-main"><div class="reg-name">crash-report</div><div class="reg-meta"><span class="pill" data-tone="info">agent.crashed</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.agh/hooks/crash-report.sh</span></div></div>
+              <div class="reg-main"><div class="reg-name">crash-report</div><div class="reg-meta"><span class="pill" data-tone="info">agent.crashed</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.compozy/hooks/crash-report.sh</span></div></div>
               <div class="reg-ctl"><button class="switch" role="switch" aria-checked="false" data-hook aria-label="crash-report"></button></div>
             </div>
             <div class="reg-row" data-name="audit-log event.post_record" data-state="off">
               <span class="reg-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
-              <div class="reg-main"><div class="reg-name">audit-log</div><div class="reg-meta"><span class="pill" data-tone="info">event.post_record</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.agh/hooks/audit.sh</span></div></div>
+              <div class="reg-main"><div class="reg-name">audit-log</div><div class="reg-meta"><span class="pill" data-tone="info">event.post_record</span><span class="sep">·</span>async<span class="sep">·</span><span class="cmd">~/.compozy/hooks/audit.sh</span></div></div>
               <div class="reg-ctl"><button class="switch" role="switch" aria-checked="false" data-hook aria-label="audit-log"></button></div>
             </div>
             <div class="reg-empty" id="hk-empty">No hooks match your search or filter.</div>

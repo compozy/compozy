@@ -28,9 +28,9 @@ journey:
   value_statement: "My everyday sessions become durable, recallable knowledge automatically, and every stage of that background pipeline is inspectable and truthful."
   personas: [Dora, Théo]
   entry_points:
-    - url: "any working session (web session thread or agh session prompt)"
+    - url: "any working session (web session thread or compozy session prompt)"
       origin: direct
-    - url: "agh memory dream trigger|status|show|retry; agh memory extractor status|list-pending"
+    - url: "compozy memory dream trigger|status|show|retry; compozy memory extractor status|list-pending"
       origin: direct
     - url: "POST /api/memory/dreams/trigger; GET /api/memory/dreams*; GET /api/memory/health"
       origin: direct

@@ -61,8 +61,8 @@ def cli_environment(manifest: dict) -> dict[str, str]:
     manifest_env = manifest.get("env", {})
     if not isinstance(manifest_env, dict):
         raise RuntimeError("bootstrap manifest env must be an object")
-    agh_home = str(manifest_env.get("COMPOZY_HOME", "")).strip()
-    if not agh_home:
+    compozy_home = str(manifest_env.get("COMPOZY_HOME", "")).strip()
+    if not compozy_home:
         raise RuntimeError("bootstrap manifest env is missing COMPOZY_HOME")
     env = os.environ.copy()
     for key in ("COMPOZY_HOME", "COMPOZY_UDS_PATH", "TMUX_BRIDGE_SOCKET"):
@@ -72,9 +72,9 @@ def cli_environment(manifest: dict) -> dict[str, str]:
     return env
 
 
-def run_agh(agh_bin: str, args: list[str], env: dict[str, str]) -> dict:
+def run_compozy(compozy_bin: str, args: list[str], env: dict[str, str]) -> dict:
     proc = subprocess.run(
-        [agh_bin, *args, "-o", "json"],
+        [compozy_bin, *args, "-o", "json"],
         check=False,
         capture_output=True,
         text=True,
@@ -152,11 +152,11 @@ def prepare_activation(
     workspace: Path,
     qa_output_path: Path,
     manifest_path: Path,
-    agh_bin: str,
+    compozy_bin: str,
     runner: CommandRunner | None = None,
     recorder: ActionRecorder | None = None,
 ) -> dict:
-    runner = runner or run_agh
+    runner = runner or run_compozy
     recorder = recorder or record_run_action
     manifest = read_object(manifest_path, "bootstrap manifest")
     manifest_env = manifest.get("env", {})
@@ -189,12 +189,12 @@ def prepare_activation(
     }
     write_evidence(evidence_path, evidence)
     try:
-        status = runner(agh_bin, ["scheduler", "status"], env)
+        status = runner(compozy_bin, ["scheduler", "status"], env)
         if scheduler_paused(status) and not owns_existing_pause:
             raise RuntimeError("scheduler is already paused; refusing to take ownership of the barrier")
         if not scheduler_paused(status):
             paused = runner(
-                agh_bin,
+                compozy_bin,
                 ["scheduler", "pause", "--reason", f"real-scenario kickoff barrier: {playbook_ref}"],
                 env,
             )
@@ -226,7 +226,7 @@ def prepare_activation(
                         channel,
                     ]
                 )
-            output = runner(agh_bin, args, env)
+            output = runner(compozy_bin, args, env)
             task_id, run_id = execution_ids(output, runtime_id)
             evidence["tasks"].append(
                 {"task_id": task_id, "run_id": run_id, "channel": channel, "output": output}
@@ -263,12 +263,12 @@ def release_activation(
     qa_output_path: Path,
     manifest_path: Path,
     kickoff_evidence: Path,
-    agh_bin: str,
+    compozy_bin: str,
     runner: CommandRunner | None = None,
     recorder: ActionRecorder | None = None,
 ) -> dict:
     del workspace
-    runner = runner or run_agh
+    runner = runner or run_compozy
     recorder = recorder or record_run_action
     manifest = read_object(manifest_path, "bootstrap manifest")
     manifest_env = manifest.get("env", {})
@@ -283,10 +283,10 @@ def release_activation(
     if evidence.get("status") != "prepared" or not evidence.get("scheduler_pause_owned"):
         raise RuntimeError("task activation is not prepared behind an owned scheduler barrier")
     env = cli_environment(manifest)
-    resumed = runner(agh_bin, ["scheduler", "resume"], env)
+    resumed = runner(compozy_bin, ["scheduler", "resume"], env)
     if scheduler_paused(resumed):
         raise RuntimeError("scheduler resume command still reports paused=true")
-    status = runner(agh_bin, ["scheduler", "status"], env)
+    status = runner(compozy_bin, ["scheduler", "status"], env)
     if scheduler_paused(status):
         raise RuntimeError("scheduler remained paused after release")
 
@@ -315,7 +315,7 @@ def main() -> int:
     parser.add_argument("--qa-output-path", required=True)
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--kickoff-evidence", default="")
-    parser.add_argument("--agh-bin", default=os.environ.get("COMPOZY_BIN", "compozy"))
+    parser.add_argument("--compozy-bin", default=os.environ.get("COMPOZY_BIN", "compozy"))
     args = parser.parse_args()
 
     workspace = Path(args.workspace).resolve()
@@ -324,7 +324,7 @@ def main() -> int:
     try:
         if args.phase == "prepare":
             result = prepare_activation(
-                workspace, qa_output_path, manifest_path, args.agh_bin
+                workspace, qa_output_path, manifest_path, args.compozy_bin
             )
         else:
             kickoff_evidence = (
@@ -337,7 +337,7 @@ def main() -> int:
                 qa_output_path,
                 manifest_path,
                 kickoff_evidence,
-                args.agh_bin,
+                args.compozy_bin,
             )
     except RuntimeError as err:
         print(str(err), file=sys.stderr)

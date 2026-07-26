@@ -43,7 +43,7 @@ and unsupported events.
 - A platform may expose features that its Compozy provider does not ingest. For example, the Discord
   HTTP provider does not open a Gateway connection and does not ingest ordinary `MESSAGE_UPDATE`.
 - A provider can acknowledge an unsupported or irrelevant webhook without creating a route. An HTTP
-  success from the platform boundary is not proof that an Compozy prompt was admitted.
+  success from the platform boundary is not proof that a Compozy prompt was admitted.
 - A progress acknowledgement can be intentionally side-effect-free. GitHub and Linear do this so
   tool status does not create issue noise.
 - Provider-native IDs, routes, and reply references remain the authority. Compozy does not fabricate a

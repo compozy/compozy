@@ -11,7 +11,7 @@ bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: BUG-20260714-keyboard-focus-invisible fixed
 retest_status: pending full-identity concurrent action state and extension Update routing
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json; /Users/pedronauck/Dev/compozy/agh/.tmp/bug-20260714-focus/focused.png
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json; /Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-search-fanout
 ---

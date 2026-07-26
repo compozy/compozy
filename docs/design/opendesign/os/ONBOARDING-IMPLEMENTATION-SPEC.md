@@ -1,4 +1,4 @@
-# AGH first run — onboarding as a shell panel
+# Compozy first run — onboarding as a shell panel
 
 **Scope.** The OS shell is delivered: menu bar, dock, window manager, desktops, ⌘K and window-scoped modals all ship from `web/src/systems/os`. Onboarding is the one surface still on the pre-OS layout — a full-page two-column wizard with its own chrome that renders *instead of* the desktop. This document covers only that change.
 
@@ -32,7 +32,7 @@ The panel borrows the window grammar without being a window.
 
 | Zone | Height | Contents |
 | --- | --- | --- |
-| Head | 52px | AGH mark · `Set up AGH` · flex · `Runs locally` chip |
+| Head | 52px | Compozy mark · `Set up Compozy` · flex · `Runs locally` chip |
 | Step strip | 44px | Two segments (`1 Runtime`, `2 Workspace`), each with a 2px progress rule; the slot the OS context strip occupies |
 | Body | animated | One pane per step; height measured from content, width 660px → 960px |
 | Footer | 58px | What will be saved (label + mono value) · `Back` · `Continue` \| `Finish setup` |
@@ -69,7 +69,7 @@ Auth mode defaults from the provider harness (`acp` → CLI, `pi_acp` → API ke
 | `systems/onboarding/index.ts` | Export the panel instead of the wizard |
 | `routes/_app/-app-preload.ts` | Unchanged — it already skips route preloading until `completed === true` |
 
-**Delete targets.** The wizard's `grid h-dvh md:grid-cols-[360px_1fr]` shell, its `<aside>` rail, the `Stepper` block, the page `<header>` (eyebrow + title + lead) and the page `<footer>`. `Stepper*` then has no consumer left in `web/` — decide keep-or-delete on the `@agh/ui` export in the same change rather than leaving it orphaned.
+**Delete targets.** The wizard's `grid h-dvh md:grid-cols-[360px_1fr]` shell, its `<aside>` rail, the `Stepper` block, the page `<header>` (eyebrow + title + lead) and the page `<footer>`. `Stepper*` then has no consumer left in `web/` — decide keep-or-delete on the `@compozy/ui` export in the same change rather than leaving it orphaned.
 
 ## States
 

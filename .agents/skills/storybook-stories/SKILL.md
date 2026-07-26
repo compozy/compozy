@@ -8,21 +8,21 @@ description: Create, update, or refactor Storybook stories following the project
 This skill enforces consistent Storybook story creation patterns across the application. It ensures that all components have proper documentation, interactive examples, and follow the established project structure.
 
 <critical_component_usage>
-**MANDATORY: Always Use Base UI Components from @agh/ui**
+**MANDATORY: Always Use Base UI Components from @compozy/ui**
 
 **CRITICAL REQUIREMENTS:**
 
-- ✅ **ALWAYS** import components from `@agh/ui` package (`packages/ui`)
+- ✅ **ALWAYS** import components from `@compozy/ui` package (`packages/ui`)
 - ✅ **ALWAYS** use existing base UI components instead of creating new ones from scratch
 - ✅ **ALWAYS** follow design system rules from `@.cursor/rules/react.mdc` and `@.cursor/rules/shadcn.mdc`
 - ✅ **ALWAYS** use design tokens (e.g., `bg-background`, `text-foreground`, `border-border`) instead of explicit colors
-- ❌ **NEVER** create components from scratch when a base component exists in `@agh/ui`
+- ❌ **NEVER** create components from scratch when a base component exists in `@compozy/ui`
 - ❌ **NEVER** use explicit color values (e.g., `bg-white`, `text-black`) - always use design tokens
 - ❌ **NEVER** duplicate component logic - compose from base components
 - ❌ **NEVER** set `tags: ["autodocs"]` or enable Storybook autodocs on any story meta (`packages/ui`, `web/src/components/ui`, or `web/src/systems/**`). Use `parameters.docs.description.component`, JSDoc on stories, and the Docs addon manually if needed.
 
 **Available Base Components:**
-All components from `packages/ui/src/components` are available via `@agh/ui`:
+All components from `packages/ui/src/components` are available via `@compozy/ui`:
 
 - Button, Card, Dialog, Input, Select, Badge, Avatar, Accordion, Alert, etc.
 - See `packages/ui/src/index.ts` for complete list of exports
@@ -44,8 +44,8 @@ All components from `packages/ui/src/components` are available via `@agh/ui`:
      - `web/.storybook` for `web/src/components/ui/**/*.stories.tsx` and `web/src/systems/**/components/stories/*.stories.tsx`
 
 2. **Component Imports**
-   - **MANDATORY**: Import base UI components from `@agh/ui`
-   - Use: `import { Button, Card, Dialog } from "@agh/ui";`
+   - **MANDATORY**: Import base UI components from `@compozy/ui`
+   - Use: `import { Button, Card, Dialog } from "@compozy/ui";`
    - Only import custom/domain-specific components from local files
    - Check `packages/ui/src/index.ts` to see available components before creating new ones
 
@@ -81,11 +81,11 @@ All components from `packages/ui/src/components` are available via `@agh/ui`:
 
 ## Example Template
 
-### Using Base UI Components from @agh/ui
+### Using Base UI Components from @compozy/ui
 
 ```tsx
 import type { Meta, StoryObj } from "@storybook/react";
-import { Button, Card, CardHeader, CardTitle, CardContent } from "@agh/ui";
+import { Button, Card, CardHeader, CardTitle, CardContent } from "@compozy/ui";
 import { MyCustomComponent } from "./my-custom-component";
 
 const meta: Meta<typeof MyCustomComponent> = {
@@ -95,7 +95,7 @@ const meta: Meta<typeof MyCustomComponent> = {
     layout: "centered",
     docs: {
       description: {
-        component: "A custom component that composes base UI components from @agh/ui.",
+        component: "A custom component that composes base UI components from @compozy/ui.",
       },
     },
   },
@@ -114,7 +114,7 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * Default usage showing the standard behavior
- * Uses base Button and Card components from @agh/ui
+ * Uses base Button and Card components from @compozy/ui
  */
 export const Default: Story = {
   args: {},
@@ -148,11 +148,11 @@ export const WithVariant: Story = {
 };
 ```
 
-### Story for Base UI Component (from @agh/ui)
+### Story for Base UI Component (from @compozy/ui)
 
 ```tsx
 import type { Meta, StoryObj } from "@storybook/react";
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 
 const meta: Meta<typeof Button> = {
   title: "components/ui/Button",
@@ -227,9 +227,9 @@ export const AllVariants: Story = {
 
 ### Component Usage
 
-- **Base Components First**: Always check `@agh/ui` for existing components before creating new ones
+- **Base Components First**: Always check `@compozy/ui` for existing components before creating new ones
 - **Composition Over Creation**: Compose complex components from base UI components
-- **Compound Components**: Always demonstrate the full structure (Parent + Children) when using compound components from `@agh/ui`
+- **Compound Components**: Always demonstrate the full structure (Parent + Children) when using compound components from `@compozy/ui`
 - **Design Tokens**: Always use design tokens (`bg-background`, `text-foreground`, etc.) instead of explicit colors
 
 ### Story Structure
@@ -258,8 +258,8 @@ export const Bad: Story = {
   render: () => <button className="bg-blue-500 text-white px-4 py-2 rounded">Click me</button>,
 };
 
-// ✅ GOOD: Using base Button from @agh/ui
-import { Button } from "@agh/ui";
+// ✅ GOOD: Using base Button from @compozy/ui
+import { Button } from "@compozy/ui";
 export const Good: Story = {
   args: {},
   render: () => <Button variant="default">Click me</Button>,

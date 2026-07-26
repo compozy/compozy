@@ -1,11 +1,11 @@
-# AGH Home Dashboard — Implementation TechSpec
+# Compozy Home Dashboard — Implementation TechSpec
 
 **Status:** READY FOR IMPLEMENTATION · 2026-07-23
 **Design source of truth:** `docs/design/opendesign/dashboard/dashboard.html` (approved prototype, edit — never regenerate)
 **Target surface:** home route `/` → OS window `dashboard` (`web/src/systems/os/apps/dashboard/`)
 **Supersedes:** the current minimal `DashboardWindow` (daemon status card + 4 lifetime metrics)
 
-This spec covers everything required — backend aggregates, API/contract/codegen co-ship, CLI parity, frontend data layer, component mapping to `@agh/ui`, states, interactions, and phased tasks — to implement the redesigned end-user home dashboard with maximum fidelity to the prototype.
+This spec covers everything required — backend aggregates, API/contract/codegen co-ship, CLI parity, frontend data layer, component mapping to `@compozy/ui`, states, interactions, and phased tasks — to implement the redesigned end-user home dashboard with maximum fidelity to the prototype.
 
 ---
 
@@ -15,8 +15,8 @@ This spec covers everything required — backend aggregates, API/contract/codege
 
 1. Replace the operator-scalar home with the 7-zone end-user dashboard: *what agents did, what needs you, what it costs*.
 2. **Truthful UI**: every widget maps to persisted daemon data. Metrics that need new aggregation get real backend work in this spec — nothing is invented to fill layout (PRODUCT anti-slop directive; verified rule "Dashboard must be truthful UI").
-3. **Agent-manageability**: every new aggregate ships on HTTP **and** UDS, plus a CLI verb with structured output (`agh observe overview -o json` — the prototype's System zone advertises exactly this).
-4. Reuse `@agh/ui` primitives; promote genuinely generic pieces into `packages/ui` instead of forking per-domain copies.
+3. **Agent-manageability**: every new aggregate ships on HTTP **and** UDS, plus a CLI verb with structured output (`compozy observe overview -o json` — the prototype's System zone advertises exactly this).
+4. Reuse `@compozy/ui` primitives; promote genuinely generic pieces into `packages/ui` instead of forking per-domain copies.
 
 **Non-goals**
 
@@ -50,7 +50,7 @@ Extracted from the prototype + standing verified rules. These are acceptance cri
 6. **Run controls map to live status**: Approve only on awaiting-approval, Retry only on failed-with-retryable-run, no invented controls.
 7. Flat depth model: panels are `bg-canvas-soft` + hairline borders + `radius-lg`; shadows only on overlays/tooltips.
 8. Reduced motion: count-up, pulse dots and tickers degrade per `prefers-reduced-motion`.
-9. Persisted UI state: usage window (`7|30|90`) and System fold persist (localStorage), same keys semantics as prototype (`agh-home-win`, `agh-home-sys`).
+9. Persisted UI state: usage window (`7|30|90`) and System fold persist (localStorage), same keys semantics as prototype (`compozy-home-win`, `compozy-home-sys`).
 
 ---
 
@@ -91,7 +91,7 @@ Every widget → source. **NEW** marks backend work this spec adds (§5). Fields
 
 ### 5.1 New endpoint: `GET /api/observe/overview`
 
-One workspace-scoped read model powering every **NEW** row above. Single endpoint (not five) because: the CLI advertises one verb (`agh observe overview`), the zones refresh together, and all aggregates share the same windowing/retention rules.
+One workspace-scoped read model powering every **NEW** row above. Single endpoint (not five) because: the CLI advertises one verb (`compozy observe overview`), the zones refresh together, and all aggregates share the same windowing/retention rules.
 
 Query params: `workspace` (optional; empty = global/home scope, mirroring `taskScopeForActiveWorkspace` semantics), `usage_window` (`7|30|90`, default 30).
 
@@ -203,14 +203,14 @@ Attention block composition (server-side, so CLI sees the same list): inbox lane
 
 ### 5.3 Wiring & co-ship (mandatory, one change)
 
-Per `agh-contract-codegen-coship` and the codegen pipeline (`cmd/agh-codegen`, `magefiles/codegen.go:12`):
+Per `agh-contract-codegen-coship` and the codegen pipeline (`cmd/compozy-codegen`, `magefiles/codegen.go:12`):
 
 1. DTOs in `internal/api/contract/observe_overview.go`.
 2. Handler `ObserveOverview` in `internal/api/core/` (new file, follows `task_read_handlers.go:222` pattern).
 3. Routes in **both** `internal/api/httpapi/routes.go` (observe group, near `:111`) and `internal/api/udsapi/routes.go` (near `:130`).
 4. OpenAPI operation + schemas in `internal/api/spec/registry_*` (observe registry).
-5. CLI: `agh observe overview [-o json|table] [--workspace] [--usage-window]` — new `internal/cli/observe_overview.go` + client method; JSON output is the raw `ObserveOverviewPayload`.
-6. `make codegen` regenerates `openapi/agh.json`, `web/src/generated/agh-openapi.d.ts`, `sdk/typescript/src/generated/contracts.ts`; `make codegen-check` gates drift.
+5. CLI: `compozy observe overview [-o json|table] [--workspace] [--usage-window]` — new `internal/cli/observe_overview.go` + client method; JSON output is the raw `ObserveOverviewPayload`.
+6. `make codegen` regenerates `openapi/compozy.json`, `web/src/generated/compozy-openapi.d.ts`, `sdk/typescript/src/generated/contracts.ts`; `make codegen-check` gates drift.
 
 ### 5.4 Existing endpoints reused (no changes)
 
@@ -237,7 +237,7 @@ web/src/systems/dashboard/
 ├── hooks/use-home-dashboard.ts       # composes overview + status + task dashboard + network + agents catalog + logs
 ├── hooks/use-home-live.ts            # stream subscriptions → cache invalidation
 ├── hooks/use-elapsed-ticker.ts       # 1s shared ticker for runcard elapsed
-├── lib/home-prefs-store.ts           # zustand persisted: usageWindow, systemOpen (keys: agh-home-win / agh-home-sys)
+├── lib/home-prefs-store.ts           # zustand persisted: usageWindow, systemOpen (keys: compozy-home-win / compozy-home-sys)
 └── components/                       # one file per zone component (≤500 lines each, split before writing)
 ```
 
@@ -249,7 +249,7 @@ Preload: extend `preloadHomeWorkspace` (`web/src/routes/_app/-app-preload.ts:44`
 
 Zone components are domain-prefixed (`Home*`) per the UI-reuse rule; anything generic gets promoted to `packages/ui` (story + test) instead of being forked.
 
-| Prototype element | Production component | `@agh/ui` primitives used |
+| Prototype element | Production component | `@compozy/ui` primitives used |
 |---|---|---|
 | `w2head` (44px, glyph + Live + New session) | OS window head + `useTopbarSlot` (already the pattern — `dashboard-window.tsx:35-40`) | `ConnectionIndicator`, `Button` (primary, opens the canonical start-session modal) |
 | `pagemeta` | `HomePageMeta` | `Time`, plain text — 12px `text-subtle`, hairline bottom |
@@ -265,7 +265,7 @@ Zone components are domain-prefixed (`Home*`) per the UI-reuse rule; anything ge
 | Per-agent share | `HomeAgentShare` | `StackedProgress` (neutral lightness ramp segments) + legend |
 | Zone 5a `agrow` table | `HomeAgentsPanel` — grid rows `1.1fr 52px 64px 52px 1fr`, sticky-free, runtime bar = `Progress` neutral | `Panel`, `OwnerAvatar`, mono numerics (`tabular-nums`), zero values `text-faint`, failed>0 `text-danger` |
 | Zone 5b activity feed | `HomeActivityFeed` — modeled on `activity-feed.tsx` (network) row anatomy; tone dots; "Earlier today" separator; quiet-events `Collapsible` ("N quieter events — tool calls and config reads") | `StatusDot`, `Collapsible`, `Time`, `Skeleton` rows |
-| Zone 7 `sysbar` + `tiles` | `HomeSystemPanel` — collapsed one-line bar (dot + "All systems normal" + mono summary) → `Collapsible` detail with 6 `MetadataTile`s + CLI hint `code-block` (`agh observe overview -o json`) | `Panel`, `Collapsible`, `MetadataTile`, `StatusDot` |
+| Zone 7 `sysbar` + `tiles` | `HomeSystemPanel` — collapsed one-line bar (dot + "All systems normal" + mono summary) → `Collapsible` detail with 6 `MetadataTile`s + CLI hint `code-block` (`compozy observe overview -o json`) | `Panel`, `Collapsible`, `MetadataTile`, `StatusDot` |
 | `tip` tooltip | recharts `Tooltip` content styled `bg-elevated border-line shadow-overlay`; non-chart hovers use `Tooltip` | `Tooltip` |
 
 Typography/geometry fidelity: KPI value `--text-kpi-value` (24px) at `--font-weight-display` (620); section labels `--text-section-head` uppercase; mono numerics `tabular-nums`; panel radius `--radius-lg`; page column `max-w-[1240px]` with `px-9 pt-6 pb-20` (within `--container-content-max`).
@@ -326,7 +326,7 @@ Prototype breakpoints, translated to Tailwind: `grid-2` collapses <1080px; KPIs 
 2. **`Sparkline`**: confirm current CSS-bar variant renders the KPI line-spark acceptably; if a line variant is added, it lives here (SVG path, `viz-line`/`viz-fill`), not in `web/`.
 3. No other primitive gaps: `Metric`, `MetricGrid`, `StackedProgress`, `StatusDot`, `Pill`, `PillGroup`, `KindChip`, `Progress`, `MetadataTile`, `Collapsible`, `DataSurface`, `SlidingNumber`, `Empty`, `Skeleton`, `Tooltip`, `Time`, `MonoId`, `OwnerAvatar` cover the rest (inventory: `packages/ui/src/index.ts`).
 
-Shadowing any `@agh/ui` export in `web/` is a blocked lint error (`compozy-ui-reuse/no-shadow-ui-primitive`) — domain components take `Home*` names.
+Shadowing any `@compozy/ui` export in `web/` is a blocked lint error (`compozy-ui-reuse/no-shadow-ui-primitive`) — domain components take `Home*` names.
 
 ---
 
@@ -350,7 +350,7 @@ Explicitly rejected: d3/visx (recharts is the repo standard), react-countup (Sli
 ## 9. Phased delivery
 
 **Phase 1 — Backend overview (blocks everything NEW)**
-Resolve the token-timestamp schema question (§5.2 flag) → store queries (+ migration if needed) → `observe.QueryOverview` + unit tests → contract DTO + handler + HTTP/UDS routes + spec registry + CLI verb → `make codegen`. *Gate:* `agh observe overview -o json` returns truthful data on a seeded home; `make codegen-check` clean.
+Resolve the token-timestamp schema question (§5.2 flag) → store queries (+ migration if needed) → `observe.QueryOverview` + unit tests → contract DTO + handler + HTTP/UDS routes + spec registry + CLI verb → `make codegen`. *Gate:* `compozy observe overview -o json` returns truthful data on a seeded home; `make codegen-check` clean.
 
 **Phase 2 — Frontend data layer**
 `systems/dashboard/` adapters, keys, options, `use-home-dashboard`, `use-home-live`, prefs store, preload wiring. *Gate:* hook-level tests (mock client) for composition, invalidation, workspace scoping.
@@ -385,12 +385,12 @@ Coverage floor 80% per package; no snapshot/prose tests.
 
 ---
 
-## 11. AGH Impact Audit
+## 11. Compozy Impact Audit
 
-- **Native tools:** no impact — no `agh__*` tool IDs, toolsets, descriptors, schemas, or capability gates change; checked the tool registry surfaces while adding only an observe read endpoint + CLI verb.
-- **Extensibility and hooks:** new read-only endpoint `/api/observe/overview` (HTTP+UDS) + CLI `agh observe overview` extend the agent-manageable surface; no hook events added or changed (existing `task.*`/`network.*`/hook event families are only *read*). Config lifecycle: reads the existing observability retention key; no new config keys.
+- **Native tools:** no impact — no `compozy__*` tool IDs, toolsets, descriptors, schemas, or capability gates change; checked the tool registry surfaces while adding only an observe read endpoint + CLI verb.
+- **Extensibility and hooks:** new read-only endpoint `/api/observe/overview` (HTTP+UDS) + CLI `compozy observe overview` extend the agent-manageable surface; no hook events added or changed (existing `task.*`/`network.*`/hook event families are only *read*). Config lifecycle: reads the existing observability retention key; no new config keys.
 - **Workspace data isolation:** every new aggregate is workspace-scoped (`workspace` param; global/home scope explicit); store queries filter `workspace_id`; SSE-driven cache invalidation keys include workspace id — tests in §10 assert no cross-workspace leakage in day buckets, agent share, and attention items.
-- **Official AGH skill:** update `skills/agh/` — document `agh observe overview` and the overview read model (public CLI/API surface change).
+- **Official Compozy skill:** update `skills/compozy/` — document `compozy observe overview` and the overview read model (public CLI/API surface change).
 
 **Web/Docs impact:** `web/` — this spec (routes `_app/index`, `systems/os/apps/dashboard`, new `systems/dashboard`, `packages/ui` Panel + tasks dashboard migration). `packages/site` — document the home dashboard + `observe overview` CLI/API in the runtime docs; screenshots refresh.
 

@@ -11,11 +11,11 @@
 
 ## Summary
 
-The operator CLI could apply `marketplace.catalog.ttl` and `marketplace.catalog.timeout` live, but the registered `agh__config_set` tool rejected both paths as `config_path_forbidden`. Agents could inspect and refresh Marketplace state but could not manage its non-sensitive fetch timing through the canonical config tool.
+The operator CLI could apply `marketplace.catalog.ttl` and `marketplace.catalog.timeout` live, but the registered `compozy__config_set` tool rejected both paths as `config_path_forbidden`. Agents could inspect and refresh Marketplace state but could not manage its non-sensitive fetch timing through the canonical config tool.
 
 ## Reproduction
 
-1. Resolve the live `agh__config_set` descriptor.
+1. Resolve the live `compozy__config_set` descriptor.
 2. Invoke it with `{"path":"marketplace.catalog.ttl","value":"0s"}` or a valid duration.
 3. Inspect the structured tool decision and the applied config.
 

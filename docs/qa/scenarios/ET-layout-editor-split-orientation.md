@@ -16,6 +16,6 @@ last_report:
 overlaps: MS-configure-window-manager; ET-layout-editor-split-weights
 ---
 
-story: As an operator, the button I press produces the shape it draws.
+story: As a person running agent work, the button I press produces the shape it draws.
 
 qa-impact: 2026-07-24 fixes a defect: "Split rows" mapped to the axis that divides width, so it produced columns. The axis vocabulary left the UI entirely and the mapping now has one owner with a regression asserted through the runtime projector. Flag only; the next QA cycle owns live testing.

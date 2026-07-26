@@ -6,7 +6,7 @@ The program's money journey (PRD G4 "under-a-minute scene"): an agent needs a ca
 flowchart TD
   A[Entry: Marketplace sidebar item mid-session] --> B[Default Skills kind: real cards at idle]
   A2[Entry: deep link /marketplace/$kind/$entryId] --> D
-  A3[Entry: docs guide agh.network/runtime/core/marketplace] --> B
+  A3[Entry: docs guide compozy.com/runtime/core/marketplace] --> B
   B --> C[RouteNav selects one kind; search filters its active scope]
   C -->|the active source fails| C2[The kind owns a recoverable error state]
   C2 --> C
@@ -52,7 +52,7 @@ journey:
       origin: in-app-nav
     - url: /marketplace/$kind/$entryId
       origin: direct
-    - url: agh.network/runtime/core/marketplace
+    - url: compozy.com/runtime/core/marketplace
       origin: external-share
   actions:
     - step: 1

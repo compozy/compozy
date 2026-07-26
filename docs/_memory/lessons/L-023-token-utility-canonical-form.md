@@ -121,7 +121,7 @@ narrative backticks).
   refs renamed to `--color-*` / `--duration-base` / `--ease-out`.
 - `packages/ui/src/lib/owner-palette.ts` — resolves `--color-avatar-*`.
 - `packages/ui/src/lib/utils.ts` — `customTwMerge` extended with every
-  AGH `--text-*` token so `cn("text-fg", "text-detail-h1")` keeps both
+  Compozy `--text-*` token so `cn("text-fg", "text-detail-h1")` keeps both
   size + color rather than collapsing to one group.
 
 ## Generalization

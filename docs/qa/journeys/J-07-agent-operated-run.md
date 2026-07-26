@@ -1,14 +1,14 @@
 # J-07 — Agent-operated run through structured surfaces
 
-The agent-manageability journey (PRD F12, primary persona "Autonomous agent", ADR Agent-Manageability). An ACP agent discovers a Loop, supplies its declared inputs, runs it, and monitors it to a terminal outcome **entirely through structured `agh__loop_*` tool output** — no human, no web UI. This is the "manageable by agents" half of AGH's core premise: every web action has a structured equivalent, output is deterministic, and the capability gates hold.
+The agent-manageability journey (PRD F12, primary persona "Autonomous agent", ADR Agent-Manageability). An ACP agent discovers a Loop, supplies its declared inputs, runs it, and monitors it to a terminal outcome **entirely through structured `compozy__loop_*` tool output** — no human, no web UI. This is the "manageable by agents" half of Compozy's core premise: every web action has a structured equivalent, output is deterministic, and the capability gates hold.
 
 ```mermaid
 flowchart TD
-    A[Entry: agent calls agh__loop_list / agh__loop_inspect] --> B[Discover the Loop + its declared input schema as structured output]
+    A[Entry: agent calls compozy__loop_list / compozy__loop_inspect] --> B[Discover the Loop + its declared input schema as structured output]
     B --> C{Service ready?}
     C -->|loop.Service not yet wired| C2[Unavailable ReasonDependencyMissing — deterministic, retryable]
-    C -->|ready| D[agh__loop_run with declared inputs — parity with CLI/HTTP/UDS run]
-    D --> E[Side effect: loop_run created; agent polls agh__loop_status]
+    C -->|ready| D[compozy__loop_run with declared inputs — parity with CLI/HTTP/UDS run]
+    D --> E[Side effect: loop_run created; agent polls compozy__loop_status]
     E --> F[Structured status value IS the state — one of the 11, never coerced]
     F --> G{Human gate reached?}
     G -->|agent tries to approve its OWN gate| H[Rejected: approve capability gate, no self-approval]
@@ -25,20 +25,20 @@ journey:
   value_statement: "An agent runs and monitors a Loop through structured, non-UI surfaces with deterministic output and enforced capability gates — proving web-UI-only control is never required."
   personas: [Ada]
   entry_points:
-    - url: "native tools: agh__loop_list / agh__loop_inspect / agh__loop_run / agh__loop_status / agh__loop_approve"
+    - url: "native tools: compozy__loop_list / compozy__loop_inspect / compozy__loop_run / compozy__loop_status / compozy__loop_approve"
       origin: in-app-nav
-    - url: "CLI: agh loop list|inspect|run|status|approve (UDS + HTTP parity)"
+    - url: "CLI: compozy loop list|inspect|run|status|approve (UDS + HTTP parity)"
       origin: direct
   actions:
     - step: 1
       verb: "Discover the Loop and its input schema"
-      expected_observable: "agh__loop_list / inspect return structured definition + declared-input schema; Unavailable(ReasonDependencyMissing) with a deterministic ReasonCode before the service is ready"
+      expected_observable: "compozy__loop_list / inspect return structured definition + declared-input schema; Unavailable(ReasonDependencyMissing) with a deterministic ReasonCode before the service is ready"
     - step: 2
       verb: "Run the Loop with declared inputs"
-      expected_observable: "agh__loop_run creates a loop_run; the native-tool output matches CLI/HTTP/UDS for the same inputs (no positional args)"
+      expected_observable: "compozy__loop_run creates a loop_run; the native-tool output matches CLI/HTTP/UDS for the same inputs (no positional args)"
     - step: 3
       verb: "Monitor to terminal via structured status"
-      expected_observable: "agh__loop_status returns one of the 11 states as the literal value — never inferred, never coerced"
+      expected_observable: "compozy__loop_status returns one of the 11 states as the literal value — never inferred, never coerced"
     - step: 4
       verb: "Attempt to approve (capability gate)"
       expected_observable: "The agent cannot approve its OWN gate; an operator or a different agent can"
@@ -71,7 +71,7 @@ e2e_backbone:
     - "E2E-runtime-5: start a loop from every surface (incl. agent native tool) and reach an identical terminal outcome (ADR-007)."
     - "E2E-runtime-8: an agent cannot approve its own gate; operator/another agent can (N-005)."
   integration:
-    - "Integration-27: match agh__loop_* tool output against HTTP/UDS state for the full verb set; enforce the approve capability gate with no self-approval; hash-form-only token redaction."
+    - "Integration-27: match compozy__loop_* tool output against HTTP/UDS state for the full verb set; enforce the approve capability gate with no self-approval; hash-form-only token redaction."
     - "Integration-28: return Unavailable(ReasonDependencyMissing) until loop.Service is ready, with deterministic ReasonCode contracts."
   followups:
     - "AB-003 — a CLI↔HTTP↔UDS↔native-tool full-verb parity harness for the agent surface (E2E-runtime-3 / Integration-27) is the highest-value automation; flag for a dedicated parity fixture."

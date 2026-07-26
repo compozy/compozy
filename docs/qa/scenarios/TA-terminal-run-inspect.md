@@ -11,7 +11,7 @@ bug_ids: BUG-20260714-terminal-task-run-reported-orphan
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/agh71-faithful-child-b-one-run.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/terminal-task-run-no-orphan-fixed.dom.txt
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/compozy71-faithful-child-b-one-run.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/terminal-task-run-no-orphan-fixed.dom.txt
 last_report: docs/qa/reports/2026-07-13-automation-features.md
 overlaps: TA-task-role-session-activation
 ---

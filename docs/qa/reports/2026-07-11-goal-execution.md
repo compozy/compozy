@@ -4,7 +4,7 @@
 - **Cadence tier:** full
 - **Build:** current Goal worktree (Codex round-8 `SHIP`) · **Environment:** two fresh isolated labs at `http://127.0.0.1:64489` and `http://127.0.0.1:49728`; browser driver `agent-browser`; playbook `consumer-saas-growth`
 - **Started:** 2026-07-11T13:11:57Z · **Status:** blocked — provider compatibility
-- **Bootstrap manifests:** `/Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-20260711-131157-346225-lab/qa-artifacts/qa/bootstrap-manifest.json` and `/Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-alpha-20260711-132716-618585-lab/qa-artifacts/qa/bootstrap-manifest.json`
+- **Bootstrap manifests:** `/Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-20260711-131157-346225-lab/qa-artifacts/qa/bootstrap-manifest.json` and `/Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-alpha-20260711-132716-618585-lab/qa-artifacts/qa/bootstrap-manifest.json`
 
 ## Personas
 
@@ -50,8 +50,8 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ### Provider attempts
 
-- Pass 1 opened live Codex session `sess-dd69a2fb7c3490e7` with `gpt-5.6-sol`, but the single kickoff returned HTTP 400: Codex CLI `0.144.1` was too old for the model. Strict audit returned exit 2; teardown completed with `clean: true` at `/Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-20260711-131157-346225-lab/qa-artifacts/qa/teardown.json`.
-- Pass 2 used a fresh lab and an isolated command override supplying Codex CLI `0.145.0-alpha.4` plus `codex-acp` `0.16.0`. Session `sess-97ad54efedba6242` opened, but the single kickoff returned the same HTTP 400 before any agent decision. Strict audit returned exit 2; teardown completed with `clean: true` at `/Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-alpha-20260711-132716-618585-lab/qa-artifacts/qa/teardown.json`.
+- Pass 1 opened live Codex session `sess-dd69a2fb7c3490e7` with `gpt-5.6-sol`, but the single kickoff returned HTTP 400: Codex CLI `0.144.1` was too old for the model. Strict audit returned exit 2; teardown completed with `clean: true` at `/Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-20260711-131157-346225-lab/qa-artifacts/qa/teardown.json`.
+- Pass 2 used a fresh lab and an isolated command override supplying Codex CLI `0.145.0-alpha.4` plus `codex-acp` `0.16.0`. Session `sess-97ad54efedba6242` opened, but the single kickoff returned the same HTTP 400 before any agent decision. Strict audit returned exit 2; teardown completed with `clean: true` at `/Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-alpha-20260711-132716-618585-lab/qa-artifacts/qa/teardown.json`.
 - The second pass materialized 4 workspaces, 7 workspace agents, 11 queued task runs, and all four playbook collaboration channels before kickoff. The browser reached the served Web app; evidence is indexed at `qa-artifacts/qa/screenshots/web-home.png` in the second lab.
 
 ## What Was Fixed
@@ -66,7 +66,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 | Persona | Where (journey/step) | Felt | Sharpness | Outcome |
 |---|---|---|---|---|
 | Priya Joshi | Playbook kickoff | Session creation succeeds, but the provider rejects the selected model only when the first prompt is sent | Blocks the entire live collaboration tour | Provider compatibility blocker; no product verdict inferred |
-| Operator | Direct browser diagnostics | A direct Playwright invocation can serve stale embedded assets unless `AGH_WEB_DIST_DIR` points at the freshly built `web/dist` | Misleading local failures | The authoritative `make test-e2e-web` lane sets the correct runtime contract |
+| Operator | Direct browser diagnostics | A direct Playwright invocation can serve stale embedded assets unless `COMPOZY_WEB_DIST_DIR` points at the freshly built `web/dist` | Misleading local failures | The authoritative `make test-e2e-web` lane sets the correct runtime contract |
 
 ## Runtime Errors Observed
 
@@ -97,12 +97,12 @@ None. This is an external provider compatibility prerequisite, not a product-sco
 - `make lint` — passed with zero issues.
 - Full monorepo `make verify` — the pre-round-9 fix loop passed with exit code 0; a fresh post-remediation run is pending. The Vite chunk-size advisory is the known non-blocking build advisory; lint reported no warnings or errors.
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
 - **Native tools:** No native tool IDs, toolsets, descriptors, schemas, digests, risk flags, or capability gates changed. Checked the Task recovery and Loop boot fixes; they alter delivery/activation timing behind existing task and Loop surfaces only.
 - **Extensibility and hooks:** Existing `task.recovered` observer delivery now receives the exact record returned by the committing transaction, identical to live SSE subscribers. Loop hook/watch observers share the boot-ready coordinator gate with the scheduler. No hook ID, capability, bundle, registry, bridge SDK, MCP sidecar, config lifecycle, or watch-event contract changed.
 - **Workspace data isolation:** Both fixes preserve existing scopes. `task.recovered` is emitted only from the exact task record loaded by task ID after its transactional cursor, and existing stream authorization remains the subscriber boundary. Loop recovery continues to use workspace-scoped durable cursors and the canonical cross-workspace E2E negative.
-- **Official AGH skill:** No update required for BUG-0033/0029. Public commands, tool IDs, hook names, Goal behavior, and operational guidance are unchanged; only correctness of existing boot and event-delivery contracts changed.
+- **Official Compozy skill:** No update required for BUG-0033/0029. Public commands, tool IDs, hook names, Goal behavior, and operational guidance are unchanged; only correctness of existing boot and event-delivery contracts changed.
 
 ## Final Status
 
@@ -113,14 +113,14 @@ None. This is an external provider compatibility prerequisite, not a product-sco
 
 ```yaml qa-bootstrap
 manifest_paths:
-  - /Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-20260711-131157-346225-lab/qa-artifacts/qa/bootstrap-manifest.json
-  - /Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-alpha-20260711-132716-618585-lab/qa-artifacts/qa/bootstrap-manifest.json
+  - /Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-20260711-131157-346225-lab/qa-artifacts/qa/bootstrap-manifest.json
+  - /Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-alpha-20260711-132716-618585-lab/qa-artifacts/qa/bootstrap-manifest.json
 lab_roots:
-  - /Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-20260711-131157-346225-lab
-  - /Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-alpha-20260711-132716-618585-lab
+  - /Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-20260711-131157-346225-lab
+  - /Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-alpha-20260711-132716-618585-lab
 runtime_homes:
-  - /Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-20260711-131157-346225-lab/.agh
-  - /Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-alpha-20260711-132716-618585-lab/.agh
+  - /Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-20260711-131157-346225-lab/.compozy
+  - /Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-alpha-20260711-132716-618585-lab/.compozy
 base_urls:
   - http://127.0.0.1:64489
   - http://127.0.0.1:49728
@@ -130,8 +130,8 @@ verification:
   task_race: pass-467
   make_verify: pending-post-round-9
 teardown:
-  - /Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-20260711-131157-346225-lab/qa-artifacts/qa/teardown.json
-  - /Users/pedronauck/dev/qa-labs/agh-goal-task-08-20260711-alpha-20260711-132716-618585-lab/qa-artifacts/qa/teardown.json
+  - /Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-20260711-131157-346225-lab/qa-artifacts/qa/teardown.json
+  - /Users/pedronauck/dev/qa-labs/compozy-goal-task-08-20260711-alpha-20260711-132716-618585-lab/qa-artifacts/qa/teardown.json
 teardown_clean: true
 blocker: public codex-acp 0.16.0 rejects gpt-5.6-sol before the first agent decision
 ```

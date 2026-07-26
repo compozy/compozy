@@ -21,7 +21,7 @@ const readmePath = resolve(siteRoot, "../../README.md");
 
 const homebrewInstallCommand = "brew install compozy/compozy/agh";
 const npmInstallCommand = "npm install -g @compozy/agh";
-const goInstallCommand = "go install github.com/compozy/agh@latest";
+const goInstallCommand = "go install github.com/compozy/compozy@latest";
 const verifiedInstallerCommand = "curl -fsSL https://compozy.com/install.sh | sh";
 const sourceInstallCommand = "go build -o ./bin/compozy .";
 const workspaceAddCommand = 'compozy workspace add "$PWD" --name current';

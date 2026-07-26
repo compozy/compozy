@@ -4,8 +4,8 @@
 - **Cadence tier:** Targeted release gate with one adjacent canary and one autonomous real-provider scenario.
 - **Build:** Source-freeze tree `55aa6b498297ad483d89d355b3febce60e6d7f68` from detached verification commit `2d129da2809b0edacb9624c317fd9bd54beb7d55` (parent `282366f84`).
 - **Execution window:** 2026-07-15–2026-07-16.
-- **Primary environment:** Fresh isolated lab `agh-marketplace-task11-final-20260715-20260716-011529-818379-lab`; daemon `http://127.0.0.1:54865`; Web proxy `AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:54865`.
-- **Autonomous environment:** Fresh isolated lab `agh-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab`; exactly one real-provider kickoff, 30-minute observation, clean teardown.
+- **Primary environment:** Fresh isolated lab `compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab`; daemon `http://127.0.0.1:54865`; Web proxy `COMPOZY_WEB_API_PROXY_TARGET=http://127.0.0.1:54865`.
+- **Autonomous environment:** Fresh isolated lab `compozy-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab`; exactly one real-provider kickoff, 30-minute observation, clean teardown.
 - **QA verdict:** **PASS after fixes**. The full source-freeze `make verify`, 42-finding review remediation, strict Northstar seal, and Phase D SHIP closure are complete.
 
 ## Personas
@@ -82,7 +82,7 @@ A daemon bound to `0.0.0.0` rejected automatic callback completion with HTTP 403
 
 ### CH-agent-marketplace-parity
 
-CLI JSON, HTTP, raw UDS, and `agh__marketplace_search` returned fixed `mcp / extension / skill / bundle` grouping and matching discovery fields. Lifecycle reads and mutations matched across the supported CLI/HTTP/UDS planes; the registered native tool remained intentionally read-only for Marketplace discovery. Unknown inputs produced deterministic 400/404 results, deleted legacy routes stayed 404, rejected installs wrote nothing, two-workspace OAuth stayed isolated, and bundle preview/activate/update cleared induced drift consistently.
+CLI JSON, HTTP, raw UDS, and `compozy__marketplace_search` returned fixed `mcp / extension / skill / bundle` grouping and matching discovery fields. Lifecycle reads and mutations matched across the supported CLI/HTTP/UDS planes; the registered native tool remained intentionally read-only for Marketplace discovery. Unknown inputs produced deterministic 400/404 results, deleted legacy routes stayed 404, rejected installs wrote nothing, two-workspace OAuth stayed isolated, and bundle preview/activate/update cleared induced drift consistently.
 
 ### CH-marketplace-under-a-minute
 
@@ -148,22 +148,22 @@ None. Policy A was explicitly selected: compatible busy capacity waits serially 
 
 ## Process Envelope
 
-- Primary manifest: `/Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/bootstrap-manifest.json`.
-- Primary runtime home: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-0193d4b83412/runtime`.
-- Primary provider home: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-0193d4b83412/provider`.
+- Primary manifest: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/bootstrap-manifest.json`.
+- Primary runtime home: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-0193d4b83412/runtime`.
+- Primary provider home: `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-0193d4b83412/provider`.
 - Primary evidence index: `qa-artifacts/qa/notes/` and `qa-artifacts/qa/web/` under the primary lab.
 - Primary teardown completed at 2026-07-16T06:57:05Z. `qa-artifacts/qa/teardown.json` records `clean=true`, `survivors=[]`, and termination of the registered daemon, Web, and two fixture-server PIDs.
 - Final redaction record: `qa-artifacts/qa/notes/final-redaction-scan.json`; no unexpected secret-class value was found outside the authorized fixture input or binary credential stores.
-- Northstar capacity lab: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab`; teardown completed at 2026-07-16T01:10:09Z with `clean=true` and `survivors=[]`.
+- Northstar capacity lab: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab`; teardown completed at 2026-07-16T01:10:09Z with `clean=true` and `survivors=[]`.
 - Focus capture: `.tmp/bug-20260714-focus/resting.png`, `.tmp/bug-20260714-focus/focused.png`, and `.tmp/bug-20260714-focus/teardown.json` (`clean=true`).
 - Runtime/Web E2E left no owned daemon, Playwright, browser, or watcher process after their lanes.
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
-- **Native tools:** `agh__marketplace_search` discovery parity and registration are verified. Marketplace catalog timing is now agent-manageable only for the safe `ttl`/`timeout` paths; `base_url` remains an explicit operator trust root. Native extension projection now uses the live registry. Generated descriptors and schemas are covered by codegen checks.
+- **Native tools:** `compozy__marketplace_search` discovery parity and registration are verified. Marketplace catalog timing is now agent-manageable only for the safe `ttl`/`timeout` paths; `base_url` remains an explicit operator trust root. Native extension projection now uses the live registry. Generated descriptors and schemas are covered by codegen checks.
 - **Extensibility and hooks:** Extension digests, provenance, policy, lifecycle, bundle preview/activate/update, MCP authorization, capability discovery, registry refresh, bridge projection, Vault refs, and config lifecycle were exercised. Hooks `enabled=false` remains independent of `required=true`. Official extension/skill/bundle state matched management surfaces.
 - **Workspace data isolation:** Marketplace discovery is global/catalog-scoped; installs, MCP config, OAuth tokens, canonical refs, bundle activation, sessions, Tasks, events, SSE/Web caches, and runtime reads were checked at their owning global/workspace/session scope. Homonymous MCP targets in two workspaces retained distinct credentials and refs with no cross-workspace leakage.
-- **Official AGH skill:** Marketplace, MCP, extension, bundle, config, and scheduler-capacity references in `skills/agh/` are updated to the verified public behavior. No undocumented native mutation surface is claimed.
+- **Official Compozy skill:** Marketplace, MCP, extension, bundle, config, and scheduler-capacity references in `skills/compozy/` are updated to the verified public behavior. No undocumented native mutation surface is claimed.
 
 ## Final Status
 

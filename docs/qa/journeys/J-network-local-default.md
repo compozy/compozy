@@ -1,6 +1,6 @@
 # Keep ordinary work Local while discovering the Network
 
-A solo builder encounters the Agent Network without being enrolled, starts ordinary work through each owner surface, and confirms that Local truly means no Network artifacts or activation. The value is confidence: AGH can advertise and explain the Network while normal sessions, tasks, Loops, automations, children, reviews, and detached work remain independent and cost nothing on that plane.
+A solo builder encounters the Agent Network without being enrolled, starts ordinary work through each owner surface, and confirms that Local truly means no Network artifacts or activation. The value is confidence: Compozy can advertise and explain the Network while normal sessions, tasks, Loops, automations, children, reviews, and detached work remain independent and cost nothing on that plane.
 
 ```mermaid
 flowchart TD
@@ -37,7 +37,7 @@ journey:
       origin: in-app-nav
     - url: "HTTP/UDS/CLI/native session, task, Loop, and automation create/start verbs"
       origin: direct
-    - url: "public Network runtime guides and bundled AGH skill"
+    - url: "public Network runtime guides and bundled Compozy skill"
       origin: search
   actions:
     - step: 1

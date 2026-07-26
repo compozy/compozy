@@ -10,7 +10,7 @@ What it does:
   4. With --confirm-posted, requires non-empty provider evidence, appends the journey row, and
      updates the manifest with KICKOFF_POSTED=true and KICKOFF_TIMESTAMP=<iso>.
 
-It does NOT call `compozy session prompt` itself. The caller renders, invokes the AGH CLI once, then
+It does NOT call `compozy session prompt` itself. The caller renders, invokes the Compozy CLI once, then
 confirms that exact call with --confirm-posted and its captured provider evidence.
 """
 

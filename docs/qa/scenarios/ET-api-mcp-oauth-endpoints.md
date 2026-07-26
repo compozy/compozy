@@ -11,7 +11,7 @@ bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
 retest_status: pending effective IPv4/IPv6 loopback callback origin and documented 503 outcome
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-non-loopback-callback.json; /Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-non-loopback-callback.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-047; ET-cli-mcp-auth-manual-exchange; ET-cli-mcp-authorize
 ---

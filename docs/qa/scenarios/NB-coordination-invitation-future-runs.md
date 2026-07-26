@@ -5,13 +5,13 @@ title: Coordination invitation accepts for future runs only
 persona: Bruno
 journey: J-enable-coordinated-conversations
 expected: On an active multi-agent run with coordination off and Network available, the invitation is visible, states that acceptance does not change the active run, accept enables workspace coordination for future runs, and dismiss persists via daemon invitation GET across reload.
-entry_points: web task run detail and kanban invitation; GET/PUT /api/workspaces/:id/network-coordination over HTTP/UDS; PUT /api/workspaces/:id/network-coordination/invitation; agh network coordination and invitation commands
+entry_points: web task run detail and kanban invitation; GET/PUT /api/workspaces/:id/network-coordination over HTTP/UDS; PUT /api/workspaces/:id/network-coordination/invitation; compozy network coordination and invitation commands
 qa_status: untested
 bug_ids: BUG-20260715-task-run-designation-hidden
 fix_status: fixed
 retest_status: pass
 fix_commits: pending final whole-diff commit
-evidence: docs/qa/evidence/2026-07-14-network-changes/ch-coordination-future-runs.md;/Users/pedronauck/dev/qa-labs/agh-network-coordination-future-runs-20260715-081644-086405-lab/qa-artifacts/qa/teardown.json
+evidence: docs/qa/evidence/2026-07-14-network-changes/ch-coordination-future-runs.md;/Users/pedronauck/dev/qa-labs/compozy-network-coordination-future-runs-20260715-081644-086405-lab/qa-artifacts/qa/teardown.json
 last_report: docs/qa/reports/2026-07-14-network-changes.md
 overlaps: NB-execution-participation-defaults
 ---

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AGH QA Scenario Contract",
+  "title": "Compozy QA Scenario Contract",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "release_grade", "scope_slug", "minimums", "enforcement"],

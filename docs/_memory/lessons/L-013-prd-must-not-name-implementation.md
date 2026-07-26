@@ -6,13 +6,13 @@
 
 ## Context
 
-In the `todo-api` smux pairing experiment, Pedro built an orchestrator role for one Claude pane that explicitly inspects PRDs and rejects any document that surfaces implementation choices. The orchestrator instruction was: _"PRD naming frameworks/storage engines/file formats — strip, push to TechSpec."_ Pedro adopted this as a generally-applied rule across AGH spec authoring.
+In the `todo-api` smux pairing experiment, Pedro built an orchestrator role for one Claude pane that explicitly inspects PRDs and rejects any document that surfaces implementation choices. The orchestrator instruction was: _"PRD naming frameworks/storage engines/file formats — strip, push to TechSpec."_ Pedro adopted this as a generally-applied rule across Compozy spec authoring.
 
 A PRD that names `PostgreSQL`, `react-query`, `OAuth 2.0`, `JWT`, `gRPC`, or specific HTTP error codes leaks implementation into the vision document. The implementer reads the PRD with framework constraints already locked in and stops asking "is this the right shape?" The TechSpec phase exists exactly to make those decisions — moving them earlier collapses two phases into one and removes the option to choose differently when the architecture surface comes into focus.
 
 ## Root cause
 
-LLM-authored PRDs default to "concrete and useful" framing because that's how product writing reads online. Real product writing is meant to ship a feature; AGH PRDs feed into a TechSpec that an architecture-aware reviewer will pressure-test. The PRD's job is to constrain the _user-observable_ surface, not the _implementation_ surface.
+LLM-authored PRDs default to "concrete and useful" framing because that's how product writing reads online. Real product writing is meant to ship a feature; Compozy PRDs feed into a TechSpec that an architecture-aware reviewer will pressure-test. The PRD's job is to constrain the _user-observable_ surface, not the _implementation_ surface.
 
 ## Rule
 
@@ -31,7 +31,7 @@ LLM-authored PRDs default to "concrete and useful" framing because that's how pr
 
 ## Operationalization
 
-`cy-spec-preflight` runs a regex pass over the PRD draft and surfaces any matching tokens. Items found are listed for the author to either justify (rare exception, e.g., when the PRD is _about_ AGH Network's wire format) or strip.
+`cy-spec-preflight` runs a regex pass over the PRD draft and surfaces any matching tokens. Items found are listed for the author to either justify (rare exception, e.g., when the PRD is _about_ Compozy Network's wire format) or strip.
 
 PRDs may name **product surfaces** (CLI verb, web route, doc page) when those are user-observable. They may not name the implementation behind those surfaces.
 
@@ -45,7 +45,7 @@ PRDs may name **product surfaces** (CLI verb, web route, doc page) when those ar
 
 ## Allowed exceptions
 
-- AGH Network protocol PRDs that are _about_ wire format (capability envelopes, carrier-neutral routing fields). The protocol IS the user-observable surface for that PRD.
+- Compozy Network protocol PRDs that are _about_ wire format (capability envelopes, carrier-neutral routing fields). The protocol IS the user-observable surface for that PRD.
 - AGENT.md / MEMORY.md / SKILL.md PRDs where the file format is the product.
 - PRDs scoped to a specific framework's ergonomics (e.g., a PRD about TanStack Query usage patterns inside `web/`).
 

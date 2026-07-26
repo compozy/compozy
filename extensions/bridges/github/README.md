@@ -1,6 +1,6 @@
 # GitHub Bridge Provider
 
-`extensions/bridges/github` connects one GitHub repository per bridge instance to AGH. It accepts
+`extensions/bridges/github` connects one GitHub repository per bridge instance to Compozy. It accepts
 signed issue-comment and pull-request review-comment webhooks and delivers replies through GitHub
 REST.
 
@@ -15,7 +15,7 @@ REST.
 
 ## Build and install
 
-Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+Released `compozy` artifacts do not include this provider executable. From a trusted Compozy source
 checkout, run this from the repository root with the daemon running:
 
 ```bash
@@ -40,7 +40,7 @@ compozy extension status github -o json
 {
   "mode": "pat",
   "repository": { "full_name": "acme/app" },
-  "bot_login": "agh-bot",
+  "bot_login": "compozy-bot",
   "webhook": {
     "public_url": "https://bridge.example.com/github/acme-app",
     "listen_addr": "127.0.0.1:18088",

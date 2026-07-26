@@ -3,11 +3,11 @@
 ## Document status
 
 - **Purpose:** explain why the implemented `agent-details` feature lost substantial visual and interaction quality relative to the approved OpenDesign references, then define the complete remediation required in product code, shared UI, specifications, workflow, tests, and visual evidence.
-- **Primary audience:** AGH product engineers, design-system maintainers, spec authors, reviewers, and QA operators.
+- **Primary audience:** Compozy product engineers, design-system maintainers, spec authors, reviewers, and QA operators.
 - **Document type:** explanation plus implementation guide.
 - **Normative visual inputs:** `agent-detail.html`, `agent-settings.html`, `agents-list.html`, and `provider-model-reasoning-selector.html`.
 - **Repository evidence:** claims about the archived spec and production implementation are taken from the supplied audit conversation. They are intentionally marked as **reported** when they cannot be independently revalidated from this Design Files workspace.
-- **Implementation prerequisite:** before changing production code, revalidate every reported path, API, component, and commit against the current AGH worktree. Revalidation may refine filenames; it must not weaken the behavioral or visual contracts defined here.
+- **Implementation prerequisite:** before changing production code, revalidate every reported path, API, component, and commit against the current Compozy worktree. Revalidation may refine filenames; it must not weaken the behavioral or visual contracts defined here.
 
 ## Executive decision
 
@@ -58,7 +58,7 @@ The supplied audit reports the following production and spec facts. These are su
 - The archived task checked screenshot parity but preserved only two implementation screenshots, with no rendered reference, side-by-side comparison, diff, comparison metadata, or review report.
 - Strong Visual Contract Mode was added after the original implementation and therefore did not protect that delivery.
 - A review identified the non-durable references but deferred the problem instead of blocking the feature.
-- The implementation already received an initial pass and a remediation pass, so AGH's two-touch rule requires the next intervention to be designed as a structural TechSpec rather than a third patch.
+- The implementation already received an initial pass and a remediation pass, so Compozy's two-touch rule requires the next intervention to be designed as a structural TechSpec rather than a third patch.
 
 ### 1.3 Newly confirmed provenance drift
 
@@ -207,7 +207,7 @@ The audit reports that `DetailHeader`, `Dialog`, `MetadataList`, `Metric`, `Lane
 Required correction:
 
 - map every reference anatomy region to an owner before coding;
-- use generic primitives from `@agh/ui`;
+- use generic primitives from `@compozy/ui`;
 - keep agent-specific composites in the agent system;
 - add missing variants to the owning primitive only when the need is generic;
 - add Storybook states that demonstrate the semantic contract, not just default rendering;
@@ -258,7 +258,7 @@ Every issue below must be closed by a specific workstream and acceptance artifac
 | AD-016 | P1 | Agent-card metadata is collapsed into an uppercase eyebrow. | Separate category, runtime identity, provenance, status, and actions using their correct type roles. |
 | AD-017 | P1 | Local spacing and type tuples drift from shared semantics. | Use exported tokens and primitives; remove local copies where a canonical owner exists. |
 | AD-018 | P0 | UI may imply unsupported controls or values. | Reconcile every reference element with daemon truth; remove or label unsupported states and record authorized deltas. |
-| AD-019 | P1 | Primitive reuse was not mapped before implementation. | Add a component ownership matrix to the TechSpec and enforce the `@agh/ui` reuse gate. |
+| AD-019 | P1 | Primitive reuse was not mapped before implementation. | Add a component ownership matrix to the TechSpec and enforce the `@compozy/ui` reuse gate. |
 | AD-020 | P1 | Shared primitive gaps, if any, are unproven. | Audit inventory first; add only generic gaps to `packages/ui` with story and behavior tests. |
 | AD-021 | P0 | Visual state coverage is undefined. | Freeze a deterministic state matrix for valid, invalid, loading, empty, error, dirty, conflict, responsive, and destructive flows. |
 | AD-022 | P0 | Behavioral tests can pass while hierarchy is wrong. | Add route, mutation, focus, dirty-state, metric-semantic, and workspace-isolation tests at their owning layers. |
@@ -266,7 +266,7 @@ Every issue below must be closed by a specific workstream and acceptance artifac
 | AD-024 | P1 | Responsive modal and detail behavior are not acceptance criteria. | Define compact detail, tab overflow, metric reflow, modal navigation reflow, and no-horizontal-scroll checks. |
 | AD-025 | P0 | Review can defer missing visual evidence. | Make missing provenance and parity bundles blocking in spec, task, review, and final verification workflows. |
 | AD-026 | P1 | QA tracking may still mark changed visual behavior as tested. | Reset affected agent scenarios to `untested`; add new content-addressed scenarios for new runtime-edit behavior. |
-| AD-027 | P1 | Public behavior changes may not propagate to docs and the official AGH skill. | Audit and update public routes, API/CLI/UDS guidance, and `skills/agh/` when contracts change. |
+| AD-027 | P1 | Public behavior changes may not propagate to docs and the official Compozy skill. | Audit and update public routes, API/CLI/UDS guidance, and `skills/compozy/` when contracts change. |
 | AD-028 | P0 | Workspace scope of metrics and runtime mutation is not proven. | Propagate and test `workspace_id` through route, query, cache, mutation, events, and store boundaries. |
 | AD-029 | P1 | List, detail, and settings may drift independently again. | Define shared agent presentation contracts and capture all three surfaces in one visual-contract suite. |
 | AD-030 | P1 | The old implementation can survive beside the redesign. | Execute explicit delete targets; do not keep compatibility layouts, aliases, or duplicate selectors. |
@@ -297,7 +297,7 @@ Required navigation behavior:
 6. A missing agent renders the canonical not-found state; it must not show an empty modal over a broken detail page.
 7. Permission or workspace mismatch uses the canonical access error and cannot leak whether an agent exists in another workspace.
 
-Do not implement this with a second, visually similar full-page settings route kept “for compatibility.” AGH is greenfield alpha; the old topology is a delete target.
+Do not implement this with a second, visually similar full-page settings route kept “for compatibility.” Compozy is greenfield alpha; the old topology is a delete target.
 
 ### 5.2 Detail page anatomy
 
@@ -400,7 +400,7 @@ Dirty-state contract:
 - Cancel and clean close discard no persisted state;
 - closing dirty settings asks for confirmation;
 - a failed save keeps the draft, exposes the field or form error, and allows retry;
-- successful save updates the detail cache and closes or remains open according to the established AGH form convention;
+- successful save updates the detail cache and closes or remains open according to the established Compozy form convention;
 - no production error is discarded.
 
 ### 5.7 Live runtime mutation
@@ -419,7 +419,7 @@ Required sequence:
 8. On transport or validation failure, restore the server-confirmed value and show a specific error.
 9. Never leave the closed trigger displaying an optimistic value that the server rejected.
 
-The exact concurrency primitive may be an ETag, revision, compare-and-swap token, or existing AGH version field. The implementation must reuse the current contract rather than invent a web-only versioning scheme.
+The exact concurrency primitive may be an ETag, revision, compare-and-swap token, or existing Compozy version field. The implementation must reuse the current contract rather than invent a web-only versioning scheme.
 
 ### 5.8 Agent list presentation
 
@@ -457,15 +457,15 @@ The TechSpec must validate and then use this ownership model:
 | Need | Preferred owner | Expected implementation posture |
 | --- | --- | --- |
 | Route top bar | existing web shell | Breadcrumbs and route actions only. |
-| Entity detail header | `@agh/ui` `DetailHeader` plus agent-domain slots | Reuse shared anatomy; agent system supplies status, metadata, and runtime action. |
-| Lane tabs | `@agh/ui` `LaneTabs` | URL/router state and accessible tab semantics. |
-| Metrics | `@agh/ui` `Metric` in an agent-domain grid | Shared typography and value semantics; domain controls the four metrics. |
-| Metadata rows | `@agh/ui` `MetadataList` | No local key/value visual clone. |
-| Status and validity | `@agh/ui` `Pill` | Semantic tones only. |
-| Settings overlay | `@agh/ui` dialog primitives plus agent settings composite | Shared focus and overlay behavior; domain owns sections and persistence. |
+| Entity detail header | `@compozy/ui` `DetailHeader` plus agent-domain slots | Reuse shared anatomy; agent system supplies status, metadata, and runtime action. |
+| Lane tabs | `@compozy/ui` `LaneTabs` | URL/router state and accessible tab semantics. |
+| Metrics | `@compozy/ui` `Metric` in an agent-domain grid | Shared typography and value semantics; domain controls the four metrics. |
+| Metadata rows | `@compozy/ui` `MetadataList` | No local key/value visual clone. |
+| Status and validity | `@compozy/ui` `Pill` | Semantic tones only. |
+| Settings overlay | `@compozy/ui` dialog primitives plus agent settings composite | Shared focus and overlay behavior; domain owns sections and persistence. |
 | Permissions | existing `RadioCard`/form primitives | No ad hoc selectable cards. |
 | Provider/model/reasoning | shared runtime selector | One component and data contract across agent create, settings, sessions, onboarding, and detail where supported. |
-| Buttons and icon actions | `@agh/ui` `Button` | Canonical sizes, focus, disabled, pending, and destructive variants. |
+| Buttons and icon actions | `@compozy/ui` `Button` | Canonical sizes, focus, disabled, pending, and destructive variants. |
 | Agent cards/rows | agent-domain composites | Shared list semantics; do not promote domain layout to generic UI prematurely. |
 
 Before adding any new component, inspect `packages/ui/src/index.ts` and the production recipes. If a generic primitive is missing, add it to `packages/ui` with a story and behavior test. If the need is specific to agents, add a domain-prefixed composite under the agent system.
@@ -512,7 +512,7 @@ The redesign must begin with a new TechSpec because the existing behavior has al
 - include every delete target;
 - include Web/Docs Impact;
 - include extensibility, agent-manageability, and config-lifecycle analysis;
-- include the AGH Impact Audit;
+- include the Compozy Impact Audit;
 - co-ship a test contract that assigns each invariant to an owning layer and canonical suite.
 
 ### 7.2 Required reference manifest
@@ -539,7 +539,7 @@ references:
     authorized_deltas: []
 ```
 
-The concrete schema may follow existing AGH conventions, but it must answer these questions unambiguously:
+The concrete schema may follow existing Compozy conventions, but it must answer these questions unambiguously:
 
 - Which bytes were approved?
 - Which state was rendered?
@@ -648,7 +648,7 @@ Actions:
 
 Exit criteria:
 
-- no local generic primitive shadows `@agh/ui`;
+- no local generic primitive shadows `@compozy/ui`;
 - selector consumers share option derivation and state semantics;
 - shared additions have stories and tests;
 - production source files remain below the architecture cap.
@@ -744,7 +744,7 @@ Actions:
 2. Generate side-by-side and diff artifacts.
 3. Resolve every structural mismatch.
 4. Reset or add QA scenarios as `untested`.
-5. Update public docs and the official AGH skill when behavior changes.
+5. Update public docs and the official Compozy skill when behavior changes.
 6. Run scoped frontend gates during iteration.
 7. Run `make verify` once at completion.
 8. Run the implementation peer-review loop until SHIP.
@@ -930,13 +930,13 @@ Classify each datum before implementation:
 
 ### 13.2 Agent-manageability
 
-Any newly supported runtime-default operation must be manageable outside the UI through the existing public AGH surfaces. The implementation audit must answer:
+Any newly supported runtime-default operation must be manageable outside the UI through the existing public Compozy surfaces. The implementation audit must answer:
 
 - Which HTTP endpoint reads and updates the runtime default?
 - Which UDS/CLI command exposes the same operation with structured output?
-- Is there an `agh__*` native tool for the operation, and if so, do its descriptor, schema digest, risk flags, and capability gates change?
+- Is there an `compozy__*` native tool for the operation, and if so, do its descriptor, schema digest, risk flags, and capability gates change?
 - How are conflicts and validation errors represented consistently across HTTP, UDS, CLI, and native tools?
-- Does the official AGH skill teach the new or changed path?
+- Does the official Compozy skill teach the new or changed path?
 
 If the operation already exists and only the UI begins consuming it, document “no contract change” with exact checked surfaces. Do not create a UI-only mutation path.
 
@@ -954,13 +954,13 @@ The TechSpec must verify whether runtime selection interacts with:
 
 The selector must consume registries and extension points. It must not hardcode a closed list of providers in the web feature.
 
-## 14. AGH cross-surface impact audit
+## 14. Compozy cross-surface impact audit
 
 The implementation plan and completion report must include this audit with concrete evidence:
 
 ### Native tools
 
-Likely impact depends on whether the agent runtime update contract changes. Check all `agh__*` agent-definition tools, toolsets, descriptors, I/O schemas, digests, risk flags, availability diagnostics, capability gates, and CLI/API fallbacks. If the backend contract is unchanged and the web only begins using it, record the exact tools inspected and why no update is required.
+Likely impact depends on whether the agent runtime update contract changes. Check all `compozy__*` agent-definition tools, toolsets, descriptors, I/O schemas, digests, risk flags, availability diagnostics, capability gates, and CLI/API fallbacks. If the backend contract is unchanged and the web only begins using it, record the exact tools inspected and why no update is required.
 
 ### Extensibility and hooks
 
@@ -970,9 +970,9 @@ Check provider and model registries, runtime-advertised options, extensions, hoo
 
 Agent definition, runtime default, session metrics, and last activity are workspace-scoped. Prove `workspace_id` propagation through CLI/HTTP/UDS, core/store queries, web query keys, mutation invalidation, SSE/events, and caches. Include cross-workspace negative tests.
 
-### Official AGH skill
+### Official Compozy skill
 
-Update `skills/agh/` if routes, tool IDs, CLI paths, runtime update semantics, provider/model/reasoning behavior, capabilities, or destructive settings behavior change. Otherwise name the inspected sections and explain why the public operating guidance remains accurate.
+Update `skills/compozy/` if routes, tool IDs, CLI paths, runtime update semantics, provider/model/reasoning behavior, capabilities, or destructive settings behavior change. Otherwise name the inspected sections and explain why the public operating guidance remains accurate.
 
 ## 15. QA tracker impact
 
@@ -1039,7 +1039,7 @@ The remediation is complete only when all statements below are true.
 
 ### Architecture
 
-- Generic primitives come from `@agh/ui`; agent-specific compositions remain in the agent system.
+- Generic primitives come from `@compozy/ui`; agent-specific compositions remain in the agent system.
 - No duplicate selector or obsolete full-page settings path remains.
 - No production file grows into a multi-responsibility god file.
 - Workspace scope is proven across data, cache, mutation, event, and aggregation boundaries.

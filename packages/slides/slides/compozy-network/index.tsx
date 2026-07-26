@@ -24,14 +24,14 @@ const styles = `
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  .agh-rise { opacity: 1; transform: translateY(0); }
+  .compozy-rise { opacity: 1; transform: translateY(0); }
 
   @media (prefers-reduced-motion: no-preference) {
-    .agh-rise   { animation: aghRise 200ms cubic-bezier(0.2, 0, 0, 1) both; }
-    .agh-rise-1 { animation-delay: 0ms;   }
-    .agh-rise-2 { animation-delay: 60ms;  }
-    .agh-rise-3 { animation-delay: 120ms; }
-    .agh-rise-4 { animation-delay: 180ms; }
+    .compozy-rise   { animation: aghRise 200ms cubic-bezier(0.2, 0, 0, 1) both; }
+    .compozy-rise-1 { animation-delay: 0ms;   }
+    .compozy-rise-2 { animation-delay: 60ms;  }
+    .compozy-rise-3 { animation-delay: 120ms; }
+    .compozy-rise-4 { animation-delay: 180ms; }
   }
 `;
 
@@ -90,7 +90,7 @@ const Footer = ({ pageNum, total }: { pageNum: number; total: number }) => (
           background: "var(--osd-accent)",
         }}
       />
-      AGH · 2026
+      Compozy · 2026
     </span>
     <span>
       {String(pageNum).padStart(2, "0")} / {String(total).padStart(2, "0")}
@@ -114,12 +114,12 @@ const Cover: Page = () => (
         justifyContent: "center",
       }}
     >
-      <div className="agh-rise agh-rise-1" style={{ marginBottom: 80 }}>
-        <Eyebrow>AGH · Network · Differentiator</Eyebrow>
+      <div className="compozy-rise compozy-rise-1" style={{ marginBottom: 80 }}>
+        <Eyebrow>Compozy · Network · Differentiator</Eyebrow>
       </div>
 
       <h1
-        className="agh-rise agh-rise-2"
+        className="compozy-rise compozy-rise-2"
         style={{
           fontFamily: "var(--osd-font-display)",
           fontSize: "var(--osd-size-hero)",
@@ -135,7 +135,7 @@ const Cover: Page = () => (
       </h1>
 
       <p
-        className="agh-rise agh-rise-3"
+        className="compozy-rise compozy-rise-3"
         style={{
           fontFamily: "var(--osd-font-body)",
           fontSize: "var(--osd-size-body)",
@@ -168,12 +168,12 @@ const Definition: Page = () => (
         flexDirection: "column",
       }}
     >
-      <div className="agh-rise agh-rise-1" style={{ marginBottom: 80 }}>
+      <div className="compozy-rise compozy-rise-1" style={{ marginBottom: 80 }}>
         <Eyebrow tone="label">What it is</Eyebrow>
       </div>
 
       <h2
-        className="agh-rise agh-rise-2"
+        className="compozy-rise compozy-rise-2"
         style={{
           fontFamily: "var(--osd-font-display)",
           fontSize: 96,
@@ -198,7 +198,7 @@ const Definition: Page = () => (
       </h2>
 
       <p
-        className="agh-rise agh-rise-3"
+        className="compozy-rise compozy-rise-3"
         style={{
           fontFamily: "var(--osd-font-body)",
           fontSize: "var(--osd-size-body)",
@@ -215,7 +215,7 @@ const Definition: Page = () => (
       </p>
 
       <div
-        className="agh-rise agh-rise-4"
+        className="compozy-rise compozy-rise-4"
         style={{
           display: "flex",
           gap: 16,
@@ -271,12 +271,12 @@ const Kinds: Page = () => (
         flexDirection: "column",
       }}
     >
-      <div className="agh-rise agh-rise-1" style={{ marginBottom: 80 }}>
+      <div className="compozy-rise compozy-rise-1" style={{ marginBottom: 80 }}>
         <Eyebrow>What you send</Eyebrow>
       </div>
 
       <h2
-        className="agh-rise agh-rise-2"
+        className="compozy-rise compozy-rise-2"
         style={{
           fontFamily: "var(--osd-font-display)",
           fontSize: 96,
@@ -290,7 +290,7 @@ const Kinds: Page = () => (
       </h2>
 
       <div
-        className="agh-rise agh-rise-3"
+        className="compozy-rise compozy-rise-3"
         style={{
           marginTop: 64,
           display: "grid",
@@ -338,7 +338,7 @@ const Kinds: Page = () => (
       </div>
 
       <p
-        className="agh-rise agh-rise-4"
+        className="compozy-rise compozy-rise-4"
         style={{
           fontFamily: "var(--osd-font-body)",
           fontSize: 28,
@@ -371,12 +371,12 @@ const Closing: Page = () => (
         justifyContent: "center",
       }}
     >
-      <div className="agh-rise agh-rise-1" style={{ marginBottom: 64 }}>
+      <div className="compozy-rise compozy-rise-1" style={{ marginBottom: 64 }}>
         <Eyebrow>Read the spec</Eyebrow>
       </div>
 
       <h2
-        className="agh-rise agh-rise-2"
+        className="compozy-rise compozy-rise-2"
         style={{
           fontFamily: "var(--osd-font-display)",
           fontSize: 128,
@@ -392,7 +392,7 @@ const Closing: Page = () => (
       </h2>
 
       <div
-        className="agh-rise agh-rise-3"
+        className="compozy-rise compozy-rise-3"
         style={{
           marginTop: 56,
           display: "inline-flex",
@@ -426,12 +426,12 @@ const Closing: Page = () => (
             letterSpacing: "-0.01em",
           }}
         >
-          agh.network/protocol
+          compozy.com/protocol
         </span>
       </div>
 
       <p
-        className="agh-rise agh-rise-4"
+        className="compozy-rise compozy-rise-4"
         style={{
           fontFamily: "var(--osd-font-body)",
           fontSize: "var(--osd-size-body)",
@@ -443,7 +443,7 @@ const Closing: Page = () => (
         }}
       >
         Every other agent tool stops at the single-runtime boundary. compozy-network/v0 is the open
-        agent network protocol — implementable outside AGH.
+        agent network protocol — implementable outside Compozy.
       </p>
 
       <Footer pageNum={4} total={TOTAL} />
@@ -451,5 +451,5 @@ const Closing: Page = () => (
   </>
 );
 
-export const meta: SlideMeta = { title: "AGH Network · compozy-network/v0" };
+export const meta: SlideMeta = { title: "Compozy Network · compozy-network/v0" };
 export default [Cover, Definition, Kinds, Closing] satisfies Page[];

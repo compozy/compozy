@@ -76,7 +76,7 @@ The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 - `.compozy/agents/<agent-id>.json` — one file per agent declared by the playbook (id, role, persona, system_prompt, workspace_id, workspace_path, skills, playbook_ref).
 - `.compozy/tasks/open-tasks.json` — array of open tasks with deterministic `runtime_id`, owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, channel, playbook_ref.
 - `.compozy/disruption-seeds.json` — playbook disruption_probe_seeds for downstream consumers.
-- `project/` — the only root registered with AGH for agents under test; it excludes `qa-artifacts/`, manifests, audit contracts, and provider evidence.
+- `project/` — the only root registered with Compozy for agents under test; it excludes `qa-artifacts/`, manifests, audit contracts, and provider evidence.
 - `project/workspaces/<workspace-name>/README.md` — per-workspace stub README.
 - `knowledge/<...>` — canonical copy of every knowledge file declared by the playbook.
 - `project/workspaces/<workspace-name>/knowledge/global/<...>` — every global knowledge file projected into each readable agent workspace.

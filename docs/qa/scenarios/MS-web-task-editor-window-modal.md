@@ -16,7 +16,7 @@ last_report:
 overlaps: MS-web-entity-modal-shell; TA-001; TA-004; ET-web-tasks-mode-url
 ---
 
-story: As an operator I create and edit tasks in a modal over the list I was reading, so the surface I came from stays visible and dismissal puts me back exactly where I was.
+story: As a person running agent work I create and edit tasks in a modal over the list I was reading, so the surface I came from stays visible and dismissal puts me back exactly where I was.
 
 The OS-shell migration (`feat: os shell implementation (#330)`) had converted both editors into full-window locations under the "route-backed modals become in-window locations" decision. That decision's own rule of thumb reserves internal navigation for wizard-class (`lg`/`xl`) flows; the task editor is a `--width-modal-md` single-entity form, so `MODAL-STANDARD.md` § Hosts puts it back on the dialog host. Restored 2026-07-25.
 

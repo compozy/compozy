@@ -1,6 +1,6 @@
 # Storybook URL grammar (isolation mode)
 
-## Servers AGH runs
+## Servers Compozy runs
 
 | Workspace | Port | Reason |
 | --- | --- | --- |
@@ -30,7 +30,7 @@ http://localhost:6007/index.json
 
 `scripts/list-stories.mjs` parses this index and emits one id per line.
 
-## Naming patterns observed in AGH
+## Naming patterns observed in Compozy
 
 | Pattern | Source | Example |
 | --- | --- | --- |

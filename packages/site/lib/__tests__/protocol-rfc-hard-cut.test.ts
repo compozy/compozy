@@ -164,14 +164,14 @@ describe("protocol RFC hard cut", () => {
     const rfc003 = readRepoFile("docs/rfcs/003_compozy-network-v0.md");
     expect(rfc003).toContain("**Status:** Current runtime contract");
     expect(rfc003).toContain("compozy-network/v0");
-    expect(rfc003).toContain("AGH Runtime in-process delivery");
+    expect(rfc003).toContain("The current CompozyOS runtime has no remote carrier");
     expect(rfc003).toContain("The durable commit is acceptance");
     expect(rfc003).not.toContain("RFC 006");
 
     const rfc004 = readRepoFile("docs/rfcs/004_compozy-network-v1.md");
     expect(rfc004).toContain("**Status:** Future draft profile");
     expect(rfc004).toContain("future auth/proofs/trust-profile work");
-    expect(rfc004).toContain("[RFC 003: AGH Network v0](003_compozy-network-v0.md)");
+    expect(rfc004).toContain("[RFC 003: Compozy Network v0](003_compozy-network-v0.md)");
     expect(rfc004).not.toContain("RFC 006");
   });
 

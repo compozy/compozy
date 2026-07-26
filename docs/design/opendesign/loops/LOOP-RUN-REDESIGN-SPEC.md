@@ -4,11 +4,11 @@
 - **Status:** Ready for implementation
 - **Scope:** the loop run detail page only (`/loop-runs/$runId`). Runs list, loop detail, and loop editor are out of scope.
 - **Canonical visual references:** `loops/loop-run-detail.html` (running) and `loops/loop-run-detail-states.html` (needs-approval · watching · paused · failed). Iterate on those files, don't regenerate.
-- **Authority chain:** daemon contract (`openapi/agh.json`, `internal/api/contract/loops.go`) > these prototypes > this spec > current `web/` code. On any conflict about *data*, the daemon wins; about *presentation*, the prototypes win.
+- **Authority chain:** daemon contract (`openapi/compozy.json`, `internal/api/contract/loops.go`) > these prototypes > this spec > current `web/` code. On any conflict about *data*, the daemon wins; about *presentation*, the prototypes win.
 
 ## 1. Why
 
-The shipped page (`web/src/systems/os/apps/loops/loop-run-detail-location.tsx` + `web/src/systems/loops/components/run-page/`) is operator-first: 5 policy-tagged meters, a DSL-shaped node spine with template refs, an embedded channel transcript, an 11-status legend, and a raw event rail. Under the Agent OS directive the page must read as a plain-language story for non-operators, while every operator fact stays reachable (Inspect drawer), and every rendered element stays truthful to the daemon.
+The shipped page (`web/src/systems/os/apps/loops/loop-run-detail-location.tsx` + `web/src/systems/loops/components/run-page/`) is people-first: 5 policy-tagged meters, a DSL-shaped node spine with template refs, an embedded channel transcript, an 11-status legend, and a raw event rail. Under the Agent OS directive the page must read as a plain-language story for non-operators, while every operator fact stays reachable (Inspect drawer), and every rendered element stays truthful to the daemon.
 
 Design principles locked with Pedro:
 
@@ -58,7 +58,7 @@ All paths relative to `web/src/systems/loops/` unless noted. Per greenfield poli
 | `use-loop-run-page.ts`, `hooks/use-loop-stream.ts`, `lib/loop-events.ts`, `lib/query-options.ts`, adapters | **Keep** | Same endpoints, SSE reducer, invalidation, token overlay (`Math.max`), keyed-by-runId reset, terminal auto-close. The redesign is a new presentation layer over the same view-model, plus the story adapter below. |
 | `lib/loop-timeline.ts` | **Rework** | Becomes `lib/loop-run-story.ts` — the event→story adapter (§5.3). |
 
-New components live in `components/run-page/` with the same naming convention; reuse `@agh/ui` primitives per repo rule (no shadowing).
+New components live in `components/run-page/` with the same naming convention; reuse `@compozy/ui` primitives per repo rule (no shadowing).
 
 ## 4. Data bindings (all first-class; nothing invented)
 

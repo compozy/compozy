@@ -5,7 +5,7 @@ title: Stall persistent Loop failures without sibling resets
 persona: Ada
 journey: J-bound-runaway-work
 expected: A two-node Loop with one repeatedly failing node and one healthy sibling stalls with circuit_breaker at the per-node limit regardless of terminal order; an unbounded failing watch also stalls, while a healthy watch remains watching.
-entry_points: `agh loop runs show <run-id> -o json`; `compozy__loop_status`; Loop run events over HTTP/SSE
+entry_points: `compozy loop runs show <run-id> -o json`; `compozy__loop_status`; Loop run events over HTTP/SSE
 qa_status: untested
 bug_ids:
 fix_status:

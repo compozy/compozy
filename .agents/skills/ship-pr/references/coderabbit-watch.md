@@ -31,7 +31,7 @@ Resolution order:
 
    No further bootstrapping is required — the watch daemon populates the rest.
 
-Slug conventions observed in the wild (from `compozy/agh/.compozy/tasks/`): `e2e-final`, `ui-final`, `final-qa`, `mem-v2`, `redesign-v2`, `site-copy`, `tailwind-refac`. Short, kebab-case, no version numbers unless they disambiguate.
+Slug conventions observed in the wild (from `compozy/compozy/.compozy/tasks/`): `e2e-final`, `ui-final`, `final-qa`, `mem-v2`, `redesign-v2`, `site-copy`, `tailwind-refac`. Short, kebab-case, no version numbers unless they disambiguate.
 
 ## 3. The recipe command
 

@@ -26,7 +26,7 @@ Queued runs accumulated starvation age while the scheduler was globally paused. 
 
 ## Evidence
 
-- Isolated lab: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-final-20260715-20260715-152506-977392-lab`.
+- Isolated lab: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-final-20260715-20260715-152506-977392-lab`.
 - Activation evidence: `qa-artifacts/qa/task-activation.json` and `journey-log.jsonl` show all 12 runs were queued behind the scheduler barrier at `2026-07-15T15:29:24Z`.
 - The one-kickoff barrier was confirmed and released at `2026-07-15T15:35:04Z`; tasks `task-northstar-pay-001`, `002`, `004`, and `008` later reported `run queued 8m4s without a claim after 10 escalation cycles`.
 - Mandatory teardown: `qa-artifacts/qa/teardown.json` records `clean=true`, no survivors, and completion at `2026-07-15T15:38:03Z`.

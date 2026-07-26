@@ -1,6 +1,6 @@
 # Telegram Reference Conformance Runtime
 
-`telegram-reference` is the provider-scoped bridge conformance runtime for AGH. It is not the production Telegram provider. Its job is to exercise the shared `internal/bridgesdk` runtime, Host API surface, and reusable harness contract that future provider binaries must satisfy.
+`telegram-reference` is the provider-scoped bridge conformance runtime for Compozy. It is not the production Telegram provider. Its job is to exercise the shared `internal/bridgesdk` runtime, Host API surface, and reusable harness contract that future provider binaries must satisfy.
 
 It demonstrates:
 

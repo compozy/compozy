@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AGH · Session-first sidebar</title>
+  <title>Compozy · Session-first sidebar</title>
   <link rel="preconnect" href="https://rsms.me" />
   <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -546,7 +546,7 @@
 </head>
 <body>
   <svg class="sr-only" aria-hidden="true">
-    <symbol id="agh-glyph" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#e8572a"/><path d="M11.5 21.5 16 10l4.5 11.5M13 18.2h6" fill="none" stroke="#17110f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="compozy-glyph" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#e8572a"/><path d="M11.5 21.5 16 10l4.5 11.5M13 18.2h6" fill="none" stroke="#17110f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
@@ -576,12 +576,12 @@
 
   <div class="shell" id="shell" data-sidebar-collapsed="false" data-od-id="session-sidebar-shell">
     <nav class="rail" aria-label="Workspaces" data-od-id="workspace-rail">
-      <a class="rail__logo" href="#dashboard" aria-label="AGH home" data-od-id="agh-home-link">
-        <svg viewBox="0 0 32 32" aria-hidden="true"><use href="#agh-glyph"/></svg>
+      <a class="rail__logo" href="#dashboard" aria-label="Compozy home" data-od-id="compozy-home-link">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><use href="#compozy-glyph"/></svg>
       </a>
       <button class="rail__item" type="button" data-home="true" aria-label="Home workspace: operator home" aria-pressed="false" title="operator home" data-od-id="workspace-home"><svg aria-hidden="true"><use href="#i-home"/></svg></button>
       <div class="rail__divider" aria-hidden="true"></div>
-      <button class="rail__item" type="button" aria-label="Workspace: agh" aria-pressed="true" title="agh" data-od-id="workspace-agh">A</button>
+      <button class="rail__item" type="button" aria-label="Workspace: compozy" aria-pressed="true" title="compozy" data-od-id="workspace-compozy">A</button>
       <button class="rail__item" type="button" aria-label="Workspace: runtime labs" aria-pressed="false" title="runtime labs" data-od-id="workspace-runtime">R</button>
       <button class="rail__item rail__add" type="button" aria-label="Add workspace" title="Add workspace" data-od-id="add-workspace"><svg aria-hidden="true"><use href="#i-plus"/></svg></button>
       <div class="rail__spacer"></div>
@@ -595,7 +595,7 @@
           <header class="side__header">
             <button class="workspace-switcher" type="button" aria-label="Switch workspace" data-od-id="workspace-switcher">
               <span class="workspace-switcher__mark">A</span>
-              <span class="workspace-switcher__name">agh</span>
+              <span class="workspace-switcher__name">compozy</span>
               <svg aria-hidden="true"><use href="#i-chevron-down"/></svg>
             </button>
           </header>
@@ -784,7 +784,7 @@
             </section>
 
             <aside class="inspector" aria-label="Session facts" data-od-id="session-inspector">
-              <section class="inspector__section"><h2>Session</h2><dl><div class="fact"><dt>ID</dt><dd><code>sess_9f4a2c</code></dd></div><div class="fact"><dt>Workspace</dt><dd>agh</dd></div><div class="fact"><dt>Provider</dt><dd>Claude Code</dd></div><div class="fact"><dt>Started</dt><dd>18 minutes ago</dd></div></dl></section>
+              <section class="inspector__section"><h2>Session</h2><dl><div class="fact"><dt>ID</dt><dd><code>sess_9f4a2c</code></dd></div><div class="fact"><dt>Workspace</dt><dd>compozy</dd></div><div class="fact"><dt>Provider</dt><dd>Claude Code</dd></div><div class="fact"><dt>Started</dt><dd>18 minutes ago</dd></div></dl></section>
               <section class="inspector__section"><h2>Runtime</h2><dl><div class="fact"><dt>State</dt><dd>active</dd></div><div class="fact"><dt>Badge</dt><dd>running</dd></div><div class="fact"><dt>Channel</dt><dd><code>release-review</code></dd></div><div class="fact"><dt>Attachable</dt><dd>yes</dd></div></dl></section>
             </aside>
           </div>
@@ -798,7 +798,7 @@
       <header class="session-dialog__head" data-od-id="new-session-dialog-head">
         <div class="session-dialog__title">
           <h2 id="new-session-title">Start a new session</h2>
-          <p id="new-session-description">Pick the agent and runtime for this session in agh.</p>
+          <p id="new-session-description">Pick the agent and runtime for this session in compozy.</p>
         </div>
         <button class="session-dialog__close" id="close-new-session" type="button" aria-label="Close new session dialog" title="Close"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
       </header>
@@ -920,9 +920,9 @@
         link.setAttribute("aria-current", "page");
         var route = link.dataset.route;
         title.textContent = route;
-        crumbAgent.textContent = "agh";
+        crumbAgent.textContent = "compozy";
         crumbSession.textContent = route;
-        pageAgent.textContent = "workspace agh";
+        pageAgent.textContent = "workspace compozy";
         pageStatus.dataset.status = "idle";
         pageStatus.querySelector("span:last-child").textContent = "Idle";
         announcement.textContent = route + " opened.";

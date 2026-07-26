@@ -28,7 +28,7 @@ You own all necessary non-backend edits for this remediation, primarily:
 - `web/src/routes/_app/agents*` and relevant route tests/preloading;
 - `web/src/systems/agent/**`, route stories/fixtures, and canonical agent tests;
 - `packages/ui/src/**` only for genuine generic primitive gaps, with colocated stories/tests and public export updates;
-- user-facing docs/official AGH skill/QA scenario files only when current public behavior actually changes and repository rules require them;
+- user-facing docs/official Compozy skill/QA scenario files only when current public behavior actually changes and repository rules require them;
 - durable visual contract evidence under an appropriate `.compozy/tasks/agent-details-remediation/evidence/visual/` root (or another canonical durable root required by the screenshot skill), including reference, implementation, side-by-side, diff, comparison JSON, and PASS `review.md` per row.
 
 Do not edit production Go, OpenAPI/backend DTOs, schema/migrations, generated backend clients, CLI/UDS/native tools, daemon/store/network code, or backend tests. If frontend truth depends on missing/incorrect backend behavior, record the exact missing contract, files/endpoints/types inspected, expected semantics, workspace-scope requirement, and a minimal controller action packet; continue every independent frontend/evidence task.
@@ -46,12 +46,12 @@ Close all applicable issue-register items AD-002, AD-005 through AD-030 after th
 - centered, bounded, one-scroll-owner settings dialog with Basics, Runtime, Instructions, Access, MCP servers, Danger zone, persistent header/footer, dirty/validation/save-failure/conflict/delete-confirmation flows, focus trap/return and safe Escape/Back behavior;
 - shared Provider · Model · Reasoning selector with truthful availability/reasoning/capability behavior, used in detail/settings without duplicate local selectors; pending/conflict/failure UI must retain server truth;
 - agent list row/card metadata typography separated by semantic role;
-- canonical `@agh/ui` primitives/tokens, no raw palette/magic tuple/shadow clone, no god files over 500 production lines;
+- canonical `@compozy/ui` primitives/tokens, no raw palette/magic tuple/shadow clone, no god files over 500 production lines;
 - responsive behavior and keyboard/WCAG 2.2 AA contracts;
 - explicit delete targets: old full-page settings layout/topbar actions/sidebar rail/local chrome/topbar-only identity/substitute metrics/duplicate selectors/obsolete tests/stale evidence;
 - QA tracker impact: reset/add content-addressed `untested` agent scenarios as required, without running scenario QA;
 - docs and `skills/agh/` impact resolved only from actual public behavior; use required writing skills before editing skills/instruction files;
-- full AGH Impact Audit evidence for native tools, extensibility/hooks/config lifecycle, workspace isolation, and official AGH skill. For backend-owned proof gaps, report them to controller rather than editing backend.
+- full Compozy Impact Audit evidence for native tools, extensibility/hooks/config lifecycle, workspace isolation, and official Compozy skill. For backend-owned proof gaps, report them to controller rather than editing backend.
 
 ## Visual contract
 
@@ -80,7 +80,7 @@ When done, provide a concise but complete report in the TUI with:
 3. tests/gates run with exact results;
 4. visual evidence root, contract IDs, PASS/FAIL counts, and inspected screenshots;
 5. any backend action packet for the controller;
-6. AGH Impact Audit and QA-tracker action;
+6. Compozy Impact Audit and QA-tracker action;
 7. uncertainty and remaining blockers, if any.
 
 Stop conditions: authentication/model rejection, unexpected unrelated dirty edits in a claimed file, repeated command failure after root-cause investigation, or a need to edit backend/contract files. In those cases, report exact evidence and wait; do not downgrade the model or switch tools.

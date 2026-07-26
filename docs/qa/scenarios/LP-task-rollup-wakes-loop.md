@@ -11,12 +11,12 @@ bug_ids: BUG-20260713-parent-task-rollup-missing
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/agh71-all-children-completed-parent-stuck.dom.txt
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/compozy71-all-children-completed-parent-stuck.dom.txt
 last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
 overlaps: LP-042
 ---
 
-The parent rollup event is the product boundary between AGH-71 and Loop
+The parent rollup event is the product boundary between Compozy-71 and Loop
 watch/trigger behavior.
 
 QA impact 2026-07-14: parent completion wake publication now survives request cancellation and dependent-reconciliation failure. The matching positive case plus disabled-Loop and unrelated-workspace negative controls remain required before promotion.

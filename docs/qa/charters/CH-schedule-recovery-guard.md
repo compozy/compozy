@@ -18,7 +18,7 @@ charter:
     must_try:
       - "Downtime shorter than grace under run_once_on_catchup → exactly one synthetic run, cursor advanced once; downtime beyond grace under skip_missed → grace-aware skip reason in history."
       - "A job whose prior fire is still running at the next due time → self_overlap skip recorded, next cycle normal."
-      - "Create jobs containing 'agh daemon restart', 'pkill -f agh', and service-manager variants via CLI and agh__automation_jobs_create → deterministic blocked-class errors, nothing persisted; a prose mention in a non-command field must be accepted."
+      - "Create jobs containing 'compozy daemon restart', 'pkill -f compozy', and service-manager variants via CLI and compozy__automation_jobs_create → deterministic blocked-class errors, nothing persisted; a prose mention in a non-command field must be accepted."
       - "Authoring surfaces expose the full catch-up policy set with non-negative grace; at-time schedules reject catch-up fields (TA-055)."
     must_avoid:
       - "Editing scheduler state directly; downtime is real daemon stop/start with timestamps."

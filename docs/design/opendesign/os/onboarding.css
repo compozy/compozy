@@ -1,5 +1,5 @@
 /* ============================================================
-   AGH OS — first-run onboarding
+   CompozyOS — first-run onboarding
    Loads AFTER os-v2.css + os-v2-apps.css and adds no tokens of
    its own: every colour, radius and duration below resolves to
    the shell's variables. Class names are disjoint from both

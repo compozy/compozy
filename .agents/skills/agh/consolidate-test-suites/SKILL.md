@@ -1,6 +1,6 @@
 ---
 name: consolidate-test-suites
-description: Use when adding, moving, reviewing, or auditing tests in AGH to identify the invariant, owning layer, and canonical suite before changing coverage. Do not use as a replacement for framework-specific testing skills or final verification gates.
+description: Use when adding, moving, reviewing, or auditing tests in Compozy to identify the invariant, owning layer, and canonical suite before changing coverage. Do not use as a replacement for framework-specific testing skills or final verification gates.
 ---
 
 # Consolidate Test Suites

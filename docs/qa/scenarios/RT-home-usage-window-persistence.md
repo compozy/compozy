@@ -4,7 +4,7 @@ area: RT
 title: Usage window and system fold persist across reloads
 persona: End user
 journey:
-expected: Selecting 7d/30d/90d in Usage & cost refetches the overview with `usage_window` and re-renders totals + chart; the choice and the System row fold state survive a full reload (localStorage `agh:home-prefs`); a window larger than `observability.retention_days` sets `truncated` and renders the retention footnote; cost figures render only with truthful provenance (mixed provenance → no cost, status unknown).
+expected: Selecting 7d/30d/90d in Usage & cost refetches the overview with `usage_window` and re-renders totals + chart; the choice and the System row fold state survive a full reload (localStorage `compozy:home-prefs`); a window larger than `observability.retention_days` sets `truncated` and renders the retention footnote; cost figures render only with truthful provenance (mixed provenance → no cost, status unknown).
 entry_points: web `/` Usage & cost zone + System row; `GET /api/observe/overview?usage_window=`
 qa_status: untested
 bug_ids:

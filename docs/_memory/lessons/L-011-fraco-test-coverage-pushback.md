@@ -17,7 +17,7 @@ This is the single most consistent correction Pedro issues against `cy-create-ta
 
 ## Root cause
 
-LLMs default to a "good-enough" test density: 1-2 unit tests per behavior, sometimes a single "integration smoke" entry. AGH's behavior count per task is materially higher (lease invariants, concurrency stress, failure-path cleanup, contract drift, security redaction). A lazy default produces tasks that pass `make verify` but leak issues into review rounds — exactly the pattern that drives 40%+ of CodeRabbit issues. → `lessons/L-002` for the test-shape side.
+LLMs default to a "good-enough" test density: 1-2 unit tests per behavior, sometimes a single "integration smoke" entry. Compozy's behavior count per task is materially higher (lease invariants, concurrency stress, failure-path cleanup, contract drift, security redaction). A lazy default produces tasks that pass `make verify` but leak issues into review rounds — exactly the pattern that drives 40%+ of CodeRabbit issues. → `lessons/L-002` for the test-shape side.
 
 ## Rule
 

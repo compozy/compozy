@@ -66,7 +66,7 @@ The evidence auditor initially counted only `.test.ts` and ignored the valid Rea
 
 ## Evidence
 
-- Lab root: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab`.
+- Lab root: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab`.
 - Provider stream: `qa-artifacts/qa/operator-kickoff.jsonl`.
 - Serial handoff: `qa-artifacts/qa/cli/tasks-serial-handoff.json` and `qa-artifacts/qa/api/tasks-serial-handoff.json`.
 - Capacity windows: `qa-artifacts/qa/cli/scheduler-capacity-window-2.json`, `qa-artifacts/qa/api/scheduler-capacity-window-2.json`, and `qa-artifacts/qa/runtime/scheduler-capacity-waiting.jsonl`.
@@ -74,22 +74,22 @@ The evidence auditor initially counted only `.test.ts` and ignored the valid Rea
 - Web evidence: `qa-artifacts/qa/web/tasks-final.png` and `qa-artifacts/qa/web/network-final.png`.
 - Recovery evidence: `qa-artifacts/qa/cli/growth-launch-pricing-recovery.json`, `pricing-compliance-verdict.json`, `release-control-canary-recovery.json`, and `canary-recovery-task.json`.
 - Pre-seal audit: `qa-artifacts/qa/qa-audit-report.json`; its deferred C12/C14 checks are closed by this final report and source-freeze gate.
-- Full source-freeze gate: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab/qa-artifacts/qa/final-make-verify.log`.
+- Full source-freeze gate: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab/qa-artifacts/qa/final-make-verify.log`.
 
 ## Process Envelope
 
 - Bootstrap manifest: `qa-artifacts/qa/bootstrap-manifest.json`.
-- Runtime workspace: `/Users/pedronauck/dev/qa-labs/agh-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab/project`; the repository root was never registered into the lab.
-- Browser session `northstar-capacity` was closed; the unrelated `agh-network-qa` session was untouched.
+- Runtime workspace: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-capacity-final-20260715-20260716-001326-274237-lab/project`; the repository root was never registered into the lab.
+- Browser session `northstar-capacity` was closed; the unrelated `compozy-network-qa` session was untouched.
 - Mandatory teardown completed at `2026-07-16T01:10:09Z`.
 - `qa-artifacts/qa/teardown.json` records `clean=true`, `survivors=[]`, and termination of the registered daemon and observer PIDs.
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
-- **Native tools:** No Marketplace/native-tool contract changed in this retest. Hosted `agh__network_send` safe error masking was checked against the more specific CLI diagnostic and remains unchanged.
+- **Native tools:** No Marketplace/native-tool contract changed in this retest. Hosted `compozy__network_send` safe error masking was checked against the more specific CLI diagnostic and remains unchanged.
 - **Extensibility and hooks:** No new extension, hook, capability, bundle, registry, bridge, MCP sidecar, or config lifecycle surface. Scheduler documentation now distinguishes compatible capacity wait from starvation.
 - **Workspace data isolation:** All Tasks, runs, sessions, Network messages, CLI/API reads, Web caches, and disruption evidence used only `ws_e8dd9b7b08652e8b`; no cross-workspace object appeared.
-- **Official AGH skill:** The task-orchestration references document serial capacity waiting and durable starvation semantics; no tool ID or public command changed.
+- **Official Compozy skill:** The task-orchestration references document serial capacity waiting and durable starvation semantics; no tool ID or public command changed.
 
 ## Final Seal
 

@@ -2,7 +2,7 @@
 
 - **Scope:** Task 40 session pipeline observability for the web return flow and stream telemetry.
 - **Cadence tier:** targeted
-- **Build:** local worktree `4ea584c41` + task_40 diff · **Environment:** isolated QA bootstrap lab, daemon-served local `web/dist` via `AGH_WEB_DIST_DIR`, Desktop Chrome headless, acpmock provider
+- **Build:** local worktree `4ea584c41` + task_40 diff · **Environment:** isolated QA bootstrap lab, daemon-served local `web/dist` via `COMPOZY_WEB_DIST_DIR`, Desktop Chrome headless, acpmock provider
 - **Started:** 2026-07-08T16:58:39Z · **Closed:** 2026-07-08T17:05:26Z · **Status:** closed
 
 ## Personas
@@ -25,10 +25,10 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ## Evidence
 
-- Bootstrap manifest: `/Users/pedronauck/dev/qa-labs/agh-session-observability-20260708-164634-393992-lab/qa-artifacts/qa/bootstrap-manifest.json`
-- Return-flow debug JSON: `/Users/pedronauck/dev/qa-labs/agh-session-observability-20260708-164634-393992-lab/qa-artifacts/qa/test-cases/session-observability/return-flow-debug-events.json`
-- Return-flow screenshot: `/Users/pedronauck/dev/qa-labs/agh-session-observability-20260708-164634-393992-lab/qa-artifacts/qa/test-cases/session-observability/return-flow.png`
-- QA runner command: `rtk env QA_OUTPUT_PATH=/Users/pedronauck/dev/qa-labs/agh-session-observability-20260708-164634-393992-lab/qa-artifacts AGH_WEB_DIST_DIR=/Users/pedronauck/Dev/compozy/agh/web/dist bun web/.tmp/session-observability-qa.ts`
+- Bootstrap manifest: `/Users/pedronauck/dev/qa-labs/compozy-session-observability-20260708-164634-393992-lab/qa-artifacts/qa/bootstrap-manifest.json`
+- Return-flow debug JSON: `/Users/pedronauck/dev/qa-labs/compozy-session-observability-20260708-164634-393992-lab/qa-artifacts/qa/test-cases/session-observability/return-flow-debug-events.json`
+- Return-flow screenshot: `/Users/pedronauck/dev/qa-labs/compozy-session-observability-20260708-164634-393992-lab/qa-artifacts/qa/test-cases/session-observability/return-flow.png`
+- QA runner command: `rtk env QA_OUTPUT_PATH=/Users/pedronauck/dev/qa-labs/compozy-session-observability-20260708-164634-393992-lab/qa-artifacts COMPOZY_WEB_DIST_DIR=/Users/pedronauck/Dev/compozy/compozy/web/dist bun web/.tmp/session-observability-qa.ts`
 
 Observed debug counters:
 
@@ -56,7 +56,7 @@ None recorded in this targeted telemetry probe.
 
 ## Runtime Errors Observed
 
-- The first local QA attempt used the daemon's embedded web-assets package, so the new web debug globals were absent. The run was repeated with `AGH_WEB_DIST_DIR=/Users/pedronauck/Dev/compozy/agh/web/dist`, which served the current task_40 bundle and produced the expected counters. This was a harness parity correction, not a product failure.
+- The first local QA attempt used the daemon's embedded web-assets package, so the new web debug globals were absent. The run was repeated with `COMPOZY_WEB_DIST_DIR=/Users/pedronauck/Dev/compozy/compozy/web/dist`, which served the current task_40 bundle and produced the expected counters. This was a harness parity correction, not a product failure.
 - The bootstrap manifest reported `BROWSER_BLOCKER=browser-use skill not found in CODEX_HOME plugin cache`; the probe used the Playwright/agent-browser-compatible harness instead.
 
 ## Human Verifications Needed

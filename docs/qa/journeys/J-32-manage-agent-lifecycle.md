@@ -24,7 +24,7 @@ journey:
   value_statement: "Operators and agents get one durable lifecycle contract through every public surface."
   personas: [Ada, Bruno]
   entry_points:
-    - url: agh agent duplicate|update|delete
+    - url: compozy agent duplicate|update|delete
       origin: direct
     - url: /agents/$name
       origin: in-app-nav

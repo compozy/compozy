@@ -1,11 +1,11 @@
 ---
 id: ET-workspace-host-api-mcp
 area: ET
-title: Operate one AGH workspace from an external MCP client
+title: Operate one Compozy workspace from an external MCP client
 persona: Ada
-journey: J-operate-agh-from-mcp-client
+journey: J-operate-compozy-from-mcp-client
 expected: A trusted MCP client lists sessions and creates a task through a workspace-bound stdio relay, the effects match the native HTTP API, workspace B data stays unreachable, and loopback HTTP rejects missing or incorrect bearer tokens.
-entry_points: agh mcp serve --workspace; MCP stdio client; MCP streamable HTTP client; native HTTP API
+entry_points: compozy mcp serve --workspace; MCP stdio client; MCP streamable HTTP client; native HTTP API
 qa_status: untested
 bug_ids:
 fix_status:
@@ -17,7 +17,7 @@ overlaps:
 ---
 
 Start an isolated daemon with two registered workspaces. From a third-party MCP client, spawn
-`agh mcp serve --workspace <workspace-a>` over stdio, list the advertised `compozy_host__*` tools, create
+`compozy mcp serve --workspace <workspace-a>` over stdio, list the advertised `compozy_host__*` tools, create
 one session and one task, and compare both with the native HTTP API. Confirm a relay bound to
 workspace B cannot list workspace A's session.
 
@@ -26,10 +26,10 @@ token and with an incorrect token, then connect with the exact token sourced fro
 environment variable. Confirm non-loopback startup is rejected and stopping the foreground process
 leaves no relay listener or registered façade principal.
 
-QA impact 2026-07-18: new workspace-bound MCP façade and public `agh mcp serve` CLI behavior.
+QA impact 2026-07-18: new workspace-bound MCP façade and public `compozy mcp serve` CLI behavior.
 Planning flag only; no QA session ran in this implementation slice.
 
-Phase C planning 2026-07-19: linked to J-operate-agh-from-mcp-client; settles US-010 (ADR-008).
+Phase C planning 2026-07-19: linked to J-operate-compozy-from-mcp-client; settles US-010 (ADR-008).
 
 Forensic evidence contract (SD-006) — each item cites timestamp, exact command, observed output:
 
@@ -39,4 +39,4 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 - Rejected tokenless and wrong-token non-stdio connections, the successful exact-token connection,
   and the workspace-B isolation probe.
 
-src: .compozy/tasks/hermes-comparison/_user_stories.md#us-010-drive-agh-from-any-mcp-client
+src: .compozy/tasks/hermes-comparison/_user_stories.md#us-010-drive-compozy-from-any-mcp-client

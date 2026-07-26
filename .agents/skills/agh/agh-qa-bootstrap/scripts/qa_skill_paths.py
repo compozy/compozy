@@ -1,4 +1,4 @@
-"""Repository-relative paths shared by the AGH QA bootstrap helpers."""
+"""Repository-relative paths shared by the Compozy QA bootstrap helpers."""
 
 from pathlib import Path
 

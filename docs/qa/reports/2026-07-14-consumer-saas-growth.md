@@ -4,7 +4,7 @@
 - **Cadence tier:** targeted
 - **Build:** `e9e5eb18792653310a9b65ffb33c07b72fb94f94` plus the reviewed uncommitted remediation · **Environment:** fresh isolated lab at `http://127.0.0.1:63966`; browser policy `browser-use`; playbook `consumer-saas-growth`
 - **Started:** 2026-07-14T19:51:23Z · **Ended:** 2026-07-14T20:17:03Z · **Status:** BLOCKED (live provider rate limit)
-- **Bootstrap manifest:** `/Users/pedronauck/dev/qa-labs/agh-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/bootstrap-manifest.json`
+- **Bootstrap manifest:** `/Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/bootstrap-manifest.json`
 
 ## Personas
 
@@ -101,9 +101,9 @@ None. The provider boundary determines when the blocked controls can be rerun, n
 - **Teardown:** `qa/teardown.json` records `clean: true`, no survivors, and the isolated daemon stopped.
 - **Verdict:** **BLOCKED** for provider-backed release/scenario acceptance. The independent session, workspace, Task, Loop-target, runtime E2E, and Web E2E controls pass, but they do not promote the blocked judge or `consumer-saas-growth` claims.
 
-## AGH Impact Audit
+## Compozy Impact Audit
 
-- **Native tools:** `agh__session_list` adds the exact public session `type` filter and its generated descriptor/catalog digest; the session and workspace list/remove paths were checked across native tools, CLI, HTTP, UDS, and the official references.
+- **Native tools:** `compozy__session_list` adds the exact public session `type` filter and its generated descriptor/catalog digest; the session and workspace list/remove paths were checked across native tools, CLI, HTTP, UDS, and the official references.
 - **Extensibility and hooks:** typed ACP judge metadata now crosses subprocess fixtures without substring routing; Task recovery/settlement hooks preserve post-commit publication ordering; Automation Loop targets keep their registry-backed workspace identity. Hermes bridge SDK/config lifecycle remains unchanged by the remediation after checking bridge boot and delivery surfaces.
 - **Workspace data isolation:** sessions remain workspace-scoped through catalog/SSE/delete paths; missing-workspace removal is serialized against session starts; Job Loop targets resolve global versus workspace identity once and reject mismatches; Task/Loop settlement propagates the owning `workspace_id`. Manual controls plus runtime/Web E2E cover list/read/event/cache boundaries without cross-workspace leakage.
-- **Official AGH skill:** `skills/agh/references/native-tools.md`, `runtime-operations.md`, and `tasks-and-orchestration.md` document the session type/list/remove, workspace reconciliation, and parent-rollup contracts shipped by the branch.
+- **Official Compozy skill:** `skills/compozy/references/native-tools.md`, `runtime-operations.md`, and `tasks-and-orchestration.md` document the session type/list/remove, workspace reconciliation, and parent-rollup contracts shipped by the branch.

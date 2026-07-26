@@ -16,12 +16,12 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "Bootstrap a fresh isolated lab with unique AGH_HOME/ports/provider home/tmux socket, register PIDs, export AGH_WEB_API_PROXY_TARGET, and execute eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every terminal path; cite teardown.json clean=true."
+      - "Bootstrap a fresh isolated lab with unique COMPOZY_HOME/ports/provider home/tmux socket, register PIDs, export COMPOZY_WEB_API_PROXY_TARGET, and execute eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every terminal path; cite teardown.json clean=true."
       - "Use Playwright/browser-use for Network Settings, save/dirty/restart states, ready/disabled/active summaries, and bundle activation confirmation at 375/768/1280 widths with keyboard-visible focus. Open the same settings/activation in two tabs and verify last-write/version conflict behavior without hiding the final state."
-      - "Apply config writes sequentially in the one QA home: valid Live durations/budgets, reload/restart round trip, removed keys, and over-ceiling values. Compare Web, config.toml, agh config/network -o json, HTTP, and UDS before and after restart."
+      - "Apply config writes sequentially in the one QA home: valid Live durations/budgets, reload/restart round trip, removed keys, and over-ceiling values. Compare Web, config.toml, compozy config/network -o json, HTTP, and UDS before and after restart."
       - "Disable around one active Live wake and one Local control, re-enable, then preview/activate/update a Live-requiring bundle. Exercise missing confirmation, repeated confirmation, changed digest, declared-channel inventory, and a real pre_resolve hook that allows, denies, narrows, and attempts to widen."
     must_avoid:
-      - "Parallel config writes against the same AGH_HOME, auto-confirming a changed digest, interpreting channel inventory as participation, or testing mailbox/remote transport/configurable spend caps."
+      - "Parallel config writes against the same COMPOZY_HOME, auto-confirming a changed digest, interpreting channel inventory as participation, or testing mailbox/remote transport/configurable spend caps."
 ```
 
 <!-- The charter is durable and immutable: re-run it in later cycles; each run's debrief belongs in the dated report. -->

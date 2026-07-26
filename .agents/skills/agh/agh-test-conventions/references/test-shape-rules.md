@@ -1,4 +1,4 @@
-# AGH Test Shape Rules
+# Compozy Test Shape Rules
 
 Verbatim canonical rules. Reviewers will quote these. Stay aligned.
 

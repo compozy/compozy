@@ -16,7 +16,7 @@ last_report:
 overlaps: LP-009;LP-014;LP-016;LP-044;LP-action-failure-detail
 ---
 
-story: As an end user I open a running loop and understand where it stands, what it is doing right now, what already happened, and what comes next — without operator vocabulary — and as an operator I still reach every mechanical fact through Inspect.
+story: As an end user I open a running loop and understand where it stands, what it is doing right now, what already happened, and what comes next — without operator vocabulary — and As a person running agent work I still reach every mechanical fact through Inspect.
 
 design: docs/design/opendesign/loops/loop-run-detail.html + loop-run-detail-states.html (LOOP-RUN-REDESIGN-SPEC.md)
 

@@ -1,4 +1,4 @@
-# UI Alignment Spec — `packages/ui` → AGH Design System
+# UI Alignment Spec — `packages/ui` → Compozy Design System
 
 **Date:** 2026-07-22 · **Authority:** `design-system/` (this folder) is the visual reference; `packages/ui/src/tokens.css` remains the token *source of truth* — every token change below lands there first and flows to `DESIGN.md` via `make codegen` (DESIGN.md is generated and currently in-sync; never hand-edit its token regions).
 **Scope:** visual alignment of the base kit (`packages/ui/src/**`) to the quality bar set by `design-system/ds-core.css` + chapters. Implementation follows repo workflow (designer agent, `agh-design` + `ui-craft`, Storybook capture via `agh-ui-screenshot`).
@@ -172,4 +172,4 @@ Every deletion follows the greenfield rule: hard cut, migrate call sites in the 
 
 **Verification:** every P0/P1 change ships a Storybook story diff captured with `agh-ui-screenshot` (before/after per component); `make codegen-check` green after token edits; `compozy-ui-reuse` lint stays green (no shadowed primitives); the DS chapter demos (`design-system/components.html`) are the visual parity reference — a changed primitive must read identical to its DS demo at 100% zoom.
 
-**AGH Impact Audit:** Native tools — no impact (pure UI kit + tokens; no `agh__*` surfaces touched). Extensibility and hooks — no impact (no extension/hook/config surfaces; `packages/ui` internal). Workspace data isolation — no impact (no data paths). Official AGH skill — no impact (no public behavior/CLI/tool change; visual-only). Web/Docs impact — `web/` consumers of renamed/merged primitives (`KpiCard`, `RouteState`, `Breadcrumb`, `DetailHeader`) migrate in the same change; `DESIGN.md` regenerates via codegen.
+**Compozy Impact Audit:** Native tools — no impact (pure UI kit + tokens; no `compozy__*` surfaces touched). Extensibility and hooks — no impact (no extension/hook/config surfaces; `packages/ui` internal). Workspace data isolation — no impact (no data paths). Official Compozy skill — no impact (no public behavior/CLI/tool change; visual-only). Web/Docs impact — `web/` consumers of renamed/merged primitives (`KpiCard`, `RouteState`, `Breadcrumb`, `DetailHeader`) migrate in the same change; `DESIGN.md` regenerates via codegen.

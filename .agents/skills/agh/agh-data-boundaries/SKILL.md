@@ -1,9 +1,9 @@
 ---
 name: agh-data-boundaries
-description: Data-boundary audit for AGH route loaders, TanStack Query caches, paginated catalogs, filters, ordering, totals, live streams, workspace-scoped reads, and their backend APIs. Use when adding, changing, or debugging those paths. Don't use for presentational-only UI or backend work with no public read-model impact.
+description: Data-boundary audit for Compozy route loaders, TanStack Query caches, paginated catalogs, filters, ordering, totals, live streams, workspace-scoped reads, and their backend APIs. Use when adding, changing, or debugging those paths. Don't use for presentational-only UI or backend work with no public read-model impact.
 ---
 
-# AGH Data Boundaries
+# Compozy Data Boundaries
 
 Preserve the owner's scope, order, completeness, identity, and continuity across every boundary.
 
@@ -21,7 +21,7 @@ Preserve the owner's scope, order, completeness, identity, and continuity across
 
 1. Trace each Web read through route, loader, option factory, query key, adapter, generated contract, transport, core/service, and store/projection.
 2. Trace each live read through durable source, projection cursor, transport frame, listener, cache writer, page merge, and view model.
-3. Include HTTP, UDS, CLI, native tools, Extension Host, and the official AGH skill whenever the contract is public.
+3. Include HTTP, UDS, CLI, native tools, Extension Host, and the official Compozy skill whenever the contract is public.
 4. Repair the first boundary that loses or guesses truth; remove downstream compensation made obsolete by that repair.
 
 *Done when:* scope, ordering, completeness, page metadata, and fences remain traceable without a client heuristic or hidden fallback.
@@ -47,7 +47,7 @@ Preserve the owner's scope, order, completeness, identity, and continuity across
 ### Step 5: Close every surface
 
 1. Co-ship contract, OpenAPI, generated TypeScript, CLI/UDS/native/Extension surfaces, docs, and `skills/compozy/` when public behavior changes.
-2. Complete the AGH Impact Audit for native tools, extensibility/hooks, workspace data isolation, and the official AGH skill.
+2. Complete the Compozy Impact Audit for native tools, extensibility/hooks, workspace data isolation, and the official Compozy skill.
 3. Flag user-visible behavior in `docs/qa/scenarios/`; declare a pure contributor-tooling change when no runtime surface changed.
 4. Run the touched lanes during iteration and the repository completion gate once after source freeze.
 

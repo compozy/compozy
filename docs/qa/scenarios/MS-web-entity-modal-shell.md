@@ -16,9 +16,9 @@ last_report:
 overlaps: NB-participation-controls-serialize; MS-030; ET-web-vault-opendesign-listing; TA-task-template-preserves-draft; MS-provider-detail-modal; MS-web-session-simple-advanced-launch; MS-web-workspace-add-directory-browser; MS-web-knowledge-edit-immutable-identity; NB-web-channel-fanout-policy; ET-web-vault-overwrite-confirmation; MS-web-task-editor-window-modal
 ---
 
-story: As an operator I configure runtime entities through modals that look and behave the same everywhere, so I can predict where the title, the disclosure toggle, the scope control, and the one primary action will be.
+story: As a person running agent work I configure runtime entities through modals that look and behave the same everywhere, so I can predict where the title, the disclosure toggle, the scope control, and the one primary action will be.
 
-Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §2 F1-F7), task_01, implemented 2026-07-25. The shared primitives are `EntityDialogHeader`, `EntityDialogFooter`, `EntityDialogBody` (including the `split` variant), `EntityModeToolbar`, `SecretField`, `ImmutableIdentity`, and the `dialogShellClass` host helper, all exported from `@agh/ui`.
+Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §2 F1-F7), task_01, implemented 2026-07-25. The shared primitives are `EntityDialogHeader`, `EntityDialogFooter`, `EntityDialogBody` (including the `split` variant), `EntityModeToolbar`, `SecretField`, `ImmutableIdentity`, and the `dialogShellClass` host helper, all exported from `@compozy/ui`.
 
 Coverage in task_01 is the foundation plus three surfaces: the task editor (R1 header restored, in-body description paragraph removed), the automation job/trigger editor (local `EditorHeader` deleted in favour of the shared primitive), and `SettingsEditorDialog` (vault create + sandbox profile create/edit chrome). The marketplace MCP install dialog now consumes the shared `SecretField` after its local copy was deleted.
 

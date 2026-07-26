@@ -1,6 +1,6 @@
 ---
 name: openclaw-qa-patterns
-description: openclaw QA framework reference — scenario template, qa-channel, frontier harness, live-vs-mock policy, qa coverage CLI, evidence rules. Adopted as inspiration for AGH final-qa.
+description: openclaw QA framework reference — scenario template, qa-channel, frontier harness, live-vs-mock policy, qa coverage CLI, evidence rules. Adopted as inspiration for Compozy final-qa.
 type: reference
 source: .resources/openclaw/
 ---
@@ -21,7 +21,7 @@ Multipass) that mount under the same `openclaw qa <runner>` root.
 >
 > source: `.resources/openclaw/docs/concepts/qa-e2e-automation.md` (line 11)
 
-QA is treated as an operator-shaped workflow, not as a test suite. Every run
+QA is treated As a person running agent work-shaped workflow, not as a test suite. Every run
 has an authored "QA mission" delivered to an in-character QA agent
 (`Dev C-3PO`) that reads the repo before acting, executes scenarios, and
 ends with a Worked / Failed / Blocked / Follow-up protocol report.
@@ -396,7 +396,7 @@ lines 211-229 (image PNG injected through `injectInboundMessage`) and
 `qa/scenarios/media/image-understanding-attachment.md` lines 48-53 (image
 PNG injected as `attachments` to `runAgentPrompt`).
 
-**Why this is interesting for AGH**:
+**Why this is interesting for Compozy**:
 
 1. **Programmatic test signals** — the same channel surface that a user types
    into is the surface a scenario injects into; there is no parallel "test
@@ -568,16 +568,16 @@ handling, action handlers, threading, directory/roster, group policy,
 status, registry, auth, auth-choice, catalog API, discovery, loader,
 runtime, plugin shape (`docs/help/testing.md` lines 720-774).
 
-## 9. Patterns AGH Should Adopt (verbatim or close)
+## 9. Patterns Compozy Should Adopt (verbatim or close)
 
 - **Pattern: Scenario-as-markdown + coverage frontmatter**
   - Why it matters: machines and humans read the same artifact. Coverage
     drift is detectable mechanically (`qa coverage`). Scenario IDs are
     stable; doc/code references travel with the scenario.
-  - AGH equivalent: a new `internal/qa/scenarios/<theme>/*.md` tree (or
+  - Compozy equivalent: a new `internal/qa/scenarios/<theme>/*.md` tree (or
     `.compozy/tasks/final-qa/scenarios/`), driven by a Go-side
     `qa-scenario-runner` that parses the same `qa-scenario` + `qa-flow` YAML
-    fences. Map `coverage.primary` IDs to AGH surfaces under
+    fences. Map `coverage.primary` IDs to Compozy surfaces under
     `internal/{daemon, autonomy, network, persist, transport, web, …}`.
 
 - **Pattern: synthetic transport (qa-channel) for deterministic agent
@@ -585,7 +585,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   - Why it matters: lets every scenario be expressed in the same vocabulary
     as a real channel, captures the transcript automatically, and drives the
     same SSE/UDS/HTTP surfaces production uses.
-  - AGH equivalent: a `qa-channel` extension under `internal/transport/qa`
+  - Compozy equivalent: a `qa-channel` extension under `internal/transport/qa`
     that synthesizes ACP-shaped events, Slack-class targets
     (`dm:<peer>` / `channel:<room>` / `thread:<room>/<thread>`), and exposes
     the same SSE/UDS event stream the web UI subscribes to. Inbound
@@ -596,7 +596,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   - Why it matters: every QA run starts in-character with the same mission
     framing; reports always end with worked/failed/blocked/follow-up, which
     reviewers can scan in seconds.
-  - AGH equivalent: ship `internal/qa/operator.yaml` with the AGH operator
+  - Compozy equivalent: ship `internal/qa/operator.yaml` with the Compozy operator
     persona/style and a kickoff body that maps the same four-bucket report
     contract. Reuse the Soul/Memory subsystem so the operator persona is a
     real Soul, not test config.
@@ -605,8 +605,8 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   - Why it matters: the same scenario file runs deterministically in CI,
     against record-replay protocol fixtures, and against real providers,
     without forking the test corpus.
-  - AGH equivalent: gate scenario flow on `env.providerMode` against the
-    AGH model registry. AGH already has a model registry under
+  - Compozy equivalent: gate scenario flow on `env.providerMode` against the
+    Compozy model registry. Compozy already has a model registry under
     `internal/model`; expose `mock-acp` (deterministic ACP server),
     `acp-replay` (recorded session fixtures), and `live` modes.
 
@@ -614,7 +614,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   - Why it matters: stops models from satisfying success criteria with
     plausible prose. Scenarios assert against the mock's
     `/debug/requests` log: `plannedToolName === 'read'` etc.
-  - AGH equivalent: AGH's autonomy kernel records every tool call into the
+  - Compozy equivalent: Compozy's autonomy kernel records every tool call into the
     `tool_calls` ledger (per `internal/autonomy`). Scenarios should assert
     against ledger rows: e.g. `select count(*) from tool_calls where
     session_id = ? and name = 'fs.read' and ts >= scenario_start_ts`.
@@ -622,7 +622,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
 - **Pattern: qa-channel reconnect / dedupe + duplicate-window assertions**
   - Why it matters: catches double-delivery regressions across restart and
     reconnect cycles, which mocks alone never see.
-  - AGH equivalent: scenarios assert that, after `daemon.restart` is forced
+  - Compozy equivalent: scenarios assert that, after `daemon.restart` is forced
     and the SSE bus reconnects, the EventStore has exactly one row for the
     marker text and no duplicates inside a configurable
     `duplicateWindowMs`.
@@ -630,7 +630,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
 - **Pattern: Convex-style pooled live credential leasing**
   - Why it matters: lets release PR / nightly / parallel maintainer runs
     share one ChatGPT / Claude / Gemini login without colliding.
-  - AGH equivalent: a `cred-broker` service or a thin SQLite-backed leasing
+  - Compozy equivalent: a `cred-broker` service or a thin SQLite-backed leasing
     table under `internal/qa/cred`; `acquire`/`heartbeat`/`release` APIs;
     pool kinds keyed by provider (`anthropic-api-key`, `claude-cli-oauth`,
     `gemini-cli`, etc.). Honor maintainer/CI role split.
@@ -638,7 +638,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
 - **Pattern: Frontier subset + bakeoff loop before regression**
   - Why it matters: cheap signal on whether a prompt/harness change regressed
     any provider family before the wider seed suite is even run.
-  - AGH equivalent: `make qa-frontier` target that runs `approval-turn-…`,
+  - Compozy equivalent: `make qa-frontier` target that runs `approval-turn-…`,
     `model-switch-…`, `discovery-report` against a fixed
     GPT→Claude→Gemini bakeoff order; gate the wider suite on a clean
     frontier pass.
@@ -648,7 +648,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   - Why it matters: the four-artifact contract is the same shape every QA
     consumer expects; CI parses summary, humans read the markdown, bug
     reports attach observed events, debugging reads the log.
-  - AGH equivalent: scenario runner writes `<lane>-qa-report.md`,
+  - Compozy equivalent: scenario runner writes `<lane>-qa-report.md`,
     `<lane>-qa-summary.json`, `<lane>-qa-observed-events.json` (events from
     the SSE bus), `<lane>-qa-output.log` under
     `.artifacts/qa/<run-id>/`. Redact bodies by default; opt-in capture
@@ -658,15 +658,15 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   - Why it matters: every behavior the QA suite protects has a single click
     to its spec and its implementation; scenario files become a living
     architecture map.
-  - AGH equivalent: scenarios MUST list at least one `docsRefs` entry under
+  - Compozy equivalent: scenarios MUST list at least one `docsRefs` entry under
     `packages/site/content/docs/...` and at least one `codeRefs` entry
     under `internal/...` or `web/...`.
 
 - **Pattern: Multipass / Docker disposable-VM lane**
   - Why it matters: a "works on Linux" guarantee without Docker leaking
     into the QA path; per-lane gateway workers.
-  - AGH equivalent: a `make qa-multipass` target that boots a disposable
-    Linux VM (or rootless container), builds AGH inside, runs the same
+  - Compozy equivalent: a `make qa-multipass` target that boots a disposable
+    Linux VM (or rootless container), builds Compozy inside, runs the same
     `qa suite` against it, then mounts artifacts back to the host. Reuses
     the same scenario file format.
 
@@ -674,7 +674,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   - Why it matters: catches "tool failed", "internal error", "as an AI"
     style transport-error bleed-through (e.g.
     `qa/scenarios/character/character-vibes-c3po.md` lines 60-69).
-  - AGH equivalent: every scenario can list `forbiddenNeedles[]`; the
+  - Compozy equivalent: every scenario can list `forbiddenNeedles[]`; the
     runner asserts these never appear in any outbound message (the full
     transport snapshot, not just the assertion target).
 
@@ -682,7 +682,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   - Why it matters: replaces a separate Playwright lane with one runner.
     `webOpenPage`, `webWait`, `webSnapshot`, `webEvaluate` are the only
     helpers needed for transcript-persistence proofs.
-  - AGH equivalent: AGH's web/ SPA already runs against the daemon HTTP
+  - Compozy equivalent: Compozy's web/ SPA already runs against the daemon HTTP
     API; scenarios should be able to drive a Chromium instance through a
     daemon-side helper instead of a separate test harness.
 
@@ -690,7 +690,7 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   no scenario-shaped IDs, no source paths in schema**
   - Why it matters: makes coverage IDs reusable across scenarios and stops
     scenarios from minting one-off tags.
-  - AGH equivalent: same regex; same Zod-style `superRefine` rejection of
+  - Compozy equivalent: same regex; same Zod-style `superRefine` rejection of
     duplicates; same prohibition of the old flat `coverage: [id]` list
     shape.
 
@@ -698,91 +698,91 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   - Why it matters: live tests by default copy creds into a temp test home
     so unit fixtures cannot mutate real `~/.openclaw`. Set
     `OPENCLAW_LIVE_USE_REAL_HOME=1` only when you intentionally need it.
-  - AGH equivalent: per the standing directive on worktree isolation, every
-    QA run sets a unique `AGH_HOME`; live runs additionally stage provider
+  - Compozy equivalent: per the standing directive on worktree isolation, every
+    QA run sets a unique `COMPOZY_HOME`; live runs additionally stage provider
     auth into `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` rather than reading
     `~/.codex` directly.
 
-## 10. Patterns AGH Should NOT Adopt
+## 10. Patterns Compozy Should NOT Adopt
 
 - **TS / Vitest-shaped scenario runtime**. The scenario flow language is
   embedded JavaScript expressions evaluated against a TS scope (`expr:`,
-  `lambda:`, `params:`). AGH is Go; the equivalent should be a
+  `lambda:`, `params:`). Compozy is Go; the equivalent should be a
   predeclared, typed expression language (or simply Go calls registered as
   named ops) — not a JS sandbox.
 
 - **`pnpm`-shaped command surface (`qa:lab:up`, `qa:lab:up:fast`,
-  `qa:lab:watch`, `qa:otel:smoke`)**. AGH should expose one canonical
-  `agh qa <subcommand>` plus `make` targets; do not import the four-way
+  `qa:lab:watch`, `qa:otel:smoke`)**. Compozy should expose one canonical
+  `compozy qa <subcommand>` plus `make` targets; do not import the four-way
   alias surface.
 
-- **Docker-backed two-pane "QA Lab" web UI as the operator flow**. AGH's
-  web UI is the operator surface; the scenario runner should drive it
+- **Docker-backed two-pane "QA Lab" web UI as the operator flow**. Compozy's
+  web UI is the control surface; the scenario runner should drive it
   in-process via the same HTTP/SSE the user uses. A separate dashboard is
   unnecessary.
 
 - **Bundled CLI auth mounting** (`OPENCLAW_DOCKER_AUTH_DIRS`,
   copying `.codex`, `.claude`, `.minimax` from host into container). This
-  is provider-CLI-specific debt and conflicts with AGH's
+  is provider-CLI-specific debt and conflicts with Compozy's
   PROVIDER_HOME-isolation directive (SD on provider-home isolation).
 
 - **Carbon / Sparkle / appcast / Parallels-guest plumbing**. openclaw QA
   has macOS/iOS/Android-app smoke layers (`docs/help/testing.md` lines
-  221-256). AGH is a single Go binary; this is irrelevant.
+  221-256). Compozy is a single Go binary; this is irrelevant.
 
 - **JS-only `extensions/qa-lab/src/...` runtime helpers as scenario
   vocabulary**. The helper names (`waitForOutboundMessage`,
   `formatTransportTranscript`, `state.getSnapshot`) are fine concepts but
-  the implementations are all TS/Node. AGH must rebuild them as Go.
+  the implementations are all TS/Node. Compozy must rebuild them as Go.
 
 - **Mintlify-specific docs-link rules** (the
-  `docs/CLAUDE.md` Mintlify root-relative no-`.md` rule). AGH uses
+  `docs/CLAUDE.md` Mintlify root-relative no-`.md` rule). Compozy uses
   Fumadocs at `packages/site`; do not import openclaw's Mintlify
   conventions verbatim.
 
 - **AIMock as a third provider mode**. openclaw is honest that it is
   additive and experimental ("does not replace the `mock-openai` scenario
-  dispatcher"). AGH should standardize on two modes (deterministic mock +
+  dispatcher"). Compozy should standardize on two modes (deterministic mock +
   live) and skip the third lane until there is a forcing function.
 
 - **`qa-channel` as a *bundled* plugin**. openclaw bundles qa-channel for
-  packaging convenience. AGH should ship the synthetic transport as a
+  packaging convenience. Compozy should ship the synthetic transport as a
   build-tag-gated extension or test-only artifact so the production
-  `agh` binary never advertises it (the npm tarball intentionally omits
-  qa-lab; AGH should match).
+  `compozy` binary never advertises it (the npm tarball intentionally omits
+  qa-lab; Compozy should match).
 
 - **Convex as the credential broker substrate**. Convex is an external
-  managed service. AGH's broker should be local first (SQLite-backed) and
+  managed service. Compozy's broker should be local first (SQLite-backed) and
   optionally remote later. Keep the *contract* (acquire / heartbeat /
   release / admin add/remove/list, role-split secrets, lease TTL,
   heartbeat interval) but not the substrate.
 
-## 11. Open Questions for AGH
+## 11. Open Questions for Compozy
 
 1. **Canonical event names for QA assertions**. openclaw asserts against the
    mock's `/debug/requests` log and the synthetic transport's
-   `state.getSnapshot().messages`. AGH's authoritative ledger is the
+   `state.getSnapshot().messages`. Compozy's authoritative ledger is the
    EventStore + tool-call ledger under `internal/persist`; what is the
    stable subset of event names (e.g. `agent.message.outbound`,
    `tool.call.completed`, `cron.run.completed`) that scenarios are allowed
    to query, and what is the minimal index needed so a duplicate-window
    assertion is O(1)?
 
-2. **Live credential leasing for AGH**. openclaw's broker uses Convex with a
+2. **Live credential leasing for Compozy**. openclaw's broker uses Convex with a
    maintainer/CI role split, kind partitioning, and a heartbeat protocol.
-   AGH needs an equivalent that respects the PROVIDER_HOME isolation rule
+   Compozy needs an equivalent that respects the PROVIDER_HOME isolation rule
    and that does not require an external SaaS. SQLite-backed local broker?
    Per-worktree env-var injection?
 
-3. **Bakeoff order for AGH-supported providers**. openclaw runs
-   GPT → Claude → Gemini in that order. AGH's primary support matrix
+3. **Bakeoff order for Compozy-supported providers**. openclaw runs
+   GPT → Claude → Gemini in that order. Compozy's primary support matrix
    includes Claude Code, OpenClaw, Hermes; what is the canonical bakeoff
-   order, and which AGH-equivalents of `approval-turn-tool-followthrough`,
+   order, and which Compozy-equivalents of `approval-turn-tool-followthrough`,
    `model-switch-tool-continuity`, and `source-docs-discovery-report`
    should gate harness changes?
 
 4. **Scenario flow runtime in Go**. openclaw evaluates inline JS with
-   `expr:` and `lambda:`. AGH must pick between (a) a Starlark / CEL-style
+   `expr:` and `lambda:`. Compozy must pick between (a) a Starlark / CEL-style
    expression language, (b) a fixed registry of named Go ops with typed
    args, (c) embedding YAML scenarios into Go test files via codegen. The
    answer drives whether scenarios live in `.md` or stay co-resident with
@@ -791,15 +791,15 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
 5. **Web QA inside the same scenario file vs. a separate Playwright lane**.
    openclaw drives Control UI through gateway-side `browser.request`
    helpers (`webOpenPage`, `webSnapshot`, `webEvaluate`) within the same
-   `qa-flow`. AGH's web/ SPA is React/Vite; should the scenario runner
+   `qa-flow`. Compozy's web/ SPA is React/Vite; should the scenario runner
    spawn Playwright/Chromium itself, or should the daemon expose an
    equivalent `browser.*` RPC that scenarios call?
 
 6. **Coverage ID taxonomy**. openclaw uses behavior-shaped IDs
    (`memory.recall`, `runtime.compaction`, `scheduling.cron`,
-   `channels.dm`). AGH has a different surface vocabulary (autonomy
-   kernel, ACP, AGH Network, soul, capabilities, hooks, registries,
-   bundles). What is the AGH coverage-ID list, and is it tied to package
+   `channels.dm`). Compozy has a different surface vocabulary (autonomy
+   kernel, ACP, Compozy Network, soul, capabilities, hooks, registries,
+   bundles). What is the Compozy coverage-ID list, and is it tied to package
    paths, behavior names, or both?
 
 ## Citations
@@ -815,13 +815,13 @@ runtime, plugin shape (`docs/help/testing.md` lines 720-774).
   kickoff task, theme directory definitions, coverage-ID rules.
 - `.resources/openclaw/qa/new-scenarios-2026-04.md` — round-2 scenario
   expansion list (10 candidates, top-3 promotion shortlist). Useful as a
-  template for AGH "follow-up scenarios".
+  template for Compozy "follow-up scenarios".
 - `.resources/openclaw/qa/frontier-harness-plan.md` — frontier subset (3
   scenarios), bakeoff order GPT→Claude→Gemini, tuning loop, scoring
   dimensions, manual personality lane.
 - `.resources/openclaw/qa/convex-credential-broker/README.md` — six HTTP
   endpoints, pool-by-kind, least-recently-leased selection, retention
-  policies, payload validation rules per kind. Defines the contract AGH
+  policies, payload validation rules per kind. Defines the contract Compozy
   should mirror.
 - `.resources/openclaw/qa/scenarios/agents/instruction-followthrough-repo-contract.md`
   — repo-contract followthrough; seeded `AGENT.md` / `SOUL.md` files;

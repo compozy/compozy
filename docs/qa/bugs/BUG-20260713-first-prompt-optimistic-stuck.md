@@ -17,7 +17,7 @@ Immediately after a fresh Cursor/Grok 4.5 session becomes usable, the first prom
 
 1. Open Agents and create a `general` session with Cursor Agent and `Grok 4.5 (High, Fast)`.
 2. Wait for the startup dialog to disappear and the session composer to render.
-3. Send `/goal Reply in exactly one sentence: "AGH keeps agent work local-first and durable." The goal is complete when the response contains both local-first and durable. Do not use tools or modify files.`
+3. Send `/goal Reply in exactly one sentence: "Compozy keeps agent work local-first and durable." The goal is complete when the response contains both local-first and durable. Do not use tools or modify files.`
 4. Observe the optimistic message and `Working…` state for more than 60 seconds.
 5. Compare the durable session inspection, Goal, and transcript reads.
 
@@ -43,11 +43,11 @@ Immediately after a fresh Cursor/Grok 4.5 session becomes usable, the first prom
 
 ## Verification
 
-- A temporary canonical diagnostic reproduced the exact authoritative transcript shape: two assistant-only `data-agh-event` rows (`hook.dispatch.start` and `hook.dispatch.complete`), `epoch=0`, `generation=0`, `max_sequence=2`, enabled destination composer, and no prior user/provider text. A forced Turbo run passed with zero prompt fetches before submit and exactly one after the first `/goal`.
+- A temporary canonical diagnostic reproduced the exact authoritative transcript shape: two assistant-only `data-compozy-event` rows (`hook.dispatch.start` and `hook.dispatch.complete`), `epoch=0`, `generation=0`, `max_sequence=2`, enabled destination composer, and no prior user/provider text. A forced Turbo run passed with zero prompt fetches before submit and exactly one after the first `/goal`.
 - The canonical replay was repeated under real `React.StrictMode` with an explicit fake EventSource open/cleanup/open lifecycle. It still reached exactly one prompt fetch, so neither the authoritative transcript shape nor StrictMode/SSE replay alone reproduces the live zero-fetch failure.
 - The rejected navigation patch was removed. No speculative prompt transport, navigation, router, backend, or startup change remains from this investigation.
 - The coupled local Stop failure is tracked separately as `BUG-20260713-stop-generation-local-stuck`; its correction does not claim to fix the missing prompt POST.
 - Browser network instrumentation first reproduced the failure with five non-transcript SSE connections and a sixth transcript connection, with the prompt queued before network dispatch.
 - After replacing only the three per-workspace catalog streams with `/api/sessions/catalog-stream`, fresh Cursor/Grok 4.5 session `sess-2a768148b6106dc3` held exactly four active streams: Vite console, workspace logs, one global catalog, and its transcript.
 - Its first `/goal` click at `1783993289004` started exactly one prompt POST four milliseconds later, completed with HTTP 202 at `1783993289030`, and produced approved Goal Run `looprun-a6a4368bf1fc8c49` with durable `status=complete` and Run `status=done`.
-- Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/network/catalog-global-goal-acceptance.json` and `qa/screenshots/catalog-global-goal-approved.png` in the same lab.
+- Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/network/catalog-global-goal-acceptance.json` and `qa/screenshots/catalog-global-goal-approved.png` in the same lab.

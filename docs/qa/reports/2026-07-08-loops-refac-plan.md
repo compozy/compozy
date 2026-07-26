@@ -92,11 +92,11 @@ Run in this order — highest-risk/silent-failure classes first, dependencies re
 Task 16 MUST NOT reuse a prior lab — a fresh, isolated pass:
 
 - **Bootstrap:** `agh-qa-bootstrap` skill; a **fresh lab per pass** (do not reuse an older loops lab). Persist the machine-readable QA bootstrap block: `bootstrap-manifest.json` path, lab root, runtime home, base URL, and verification evidence.
-- **Worktree isolation (mandatory — concurrency signaled):** unique `AGH_HOME`, unique daemon ports, unique `tmux-bridge` socket per worktree; the default home/port is forbidden. Activate `agh-worktree-isolation`.
+- **Worktree isolation (mandatory — concurrency signaled):** unique `COMPOZY_HOME`, unique daemon ports, unique `tmux-bridge` socket per worktree; the default home/port is forbidden. Activate `agh-worktree-isolation`.
 - **Provider-home policy:** matches the provider contract — bound-secret/brokered creds use `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` from the manifest; `native_cli` + `home_policy = operator` preserves the operator `HOME`/native login unless a scenario tests isolated provider-home.
-- **Isolated web QA:** export `AGH_WEB_API_PROXY_TARGET` **derived from the bootstrap manifest/env** — never hardcode `:2123`.
-- **Config writes:** `agh config set` and peers run **sequentially** per provider/runtime home — never parallelize config writes against one isolated home.
-- **Watch-events durability scenarios (CH-023, LP-041)** require killing and restarting the lab daemon with the same `AGH_HOME` so the parked run and ledger persist across the restart; capture cursor/`last_wake_at` before and after.
+- **Isolated web QA:** export `COMPOZY_WEB_API_PROXY_TARGET` **derived from the bootstrap manifest/env** — never hardcode `:2123`.
+- **Config writes:** `compozy config set` and peers run **sequentially** per provider/runtime home — never parallelize config writes against one isolated home.
+- **Watch-events durability scenarios (CH-023, LP-041)** require killing and restarting the lab daemon with the same `COMPOZY_HOME` so the parked run and ledger persist across the restart; capture cursor/`last_wake_at` before and after.
 
 ---
 
@@ -108,7 +108,7 @@ Every scenario verdict carries machine-checkable evidence paths recorded in `sta
 - **Restart replay (LP-041):** cursor/`seq` comparison pre- vs post-restart proving replay-from-cursor and exactly-once (no double-wake row).
 - **Gating (LP-046):** the session's sandbox/permission posture + narrowed tool set, and the deterministic widening **bind-error payload** for an out-of-profile tool.
 - **Import parity (LP-045):** the tool-call record + the load_tasks node output showing byte-identical graphs; the deterministic ErrValidation message across surfaces.
-- **Park read-model (LP-044):** `agh loop runs show -o json` showing subscriptions/cursors/last_wake_at, and the absent-block negative (a non-watch run renders nothing).
+- **Park read-model (LP-044):** `compozy loop runs show -o json` showing subscriptions/cursors/last_wake_at, and the absent-block negative (a non-watch run renders nothing).
 - **Redaction (LP-050):** the loop-facing event/output_ref + SSE + web run-detail proving record **content is absent** (only record_type/sequence/session correlation present).
 - **UI (LP-043/044):** Playwright artifacts (§7) + `agh-ui-screenshot` captures cited by task 12.
 

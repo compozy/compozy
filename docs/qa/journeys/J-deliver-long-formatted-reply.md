@@ -59,7 +59,7 @@ id: J-deliver-long-formatted-reply
   goal:
     observable: "All provider messages stay within their caps and reconstruct the intended reply exactly, with readable provider-specific formatting."
     side_effects: [formatted-wire-bodies-produced, ordered-provider-messages-created, final-remote-id-acknowledged]
-  true_end_state: "After all sends settle, the provider shows one complete logical reply in order and AGH records the final materialized message as the acknowledgement anchor."
+  true_end_state: "After all sends settle, the provider shows one complete logical reply in order and Compozy records the final materialized message as the acknowledgement anchor."
   exit:
     natural: "The teammate reads the full answer and continues the conversation."
   abandonment:

@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-clarify-answer-roundtrip
-  mission: "As Théo, answer live agh__clarify questions from every public surface, force the timeout sentinel, and verify pending state, receipts, isolation, and the keyboard path all tell the truth."
+  mission: "As Théo, answer live compozy__clarify questions from every public surface, force the timeout sentinel, and verify pending state, receipts, isolation, and the keyboard path all tell the truth."
   mode: charter-with-tour
   persona:
     name: Théo

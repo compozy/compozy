@@ -7,7 +7,7 @@ duplicate transition occurred.
 
 ```mermaid
 flowchart TD
-    E1[Entry: agh status or doctor] --> H[Read active subprocess health evidence]
+    E1[Entry: compozy status or doctor] --> H[Read active subprocess health evidence]
     E2[Entry: HTTP or UDS status/doctor] --> H
     H --> V{Failed verdict or process exit?}
     V -->|failed verdict| T{Escalation threshold positive and reached?}
@@ -33,7 +33,7 @@ journey:
   value_statement: "I can distinguish an unhealthy ACP subprocess from task state, repair the cause, and resume work without hidden restarts or duplicate transitions."
   personas: [Ada, Bruno]
   entry_points:
-    - url: "CLI: agh status; agh doctor --only runtime.subprocess_health"
+    - url: "CLI: compozy status; compozy doctor --only runtime.subprocess_health"
       origin: direct
     - url: "HTTP/UDS: GET /api/status and GET /api/doctor"
       origin: direct

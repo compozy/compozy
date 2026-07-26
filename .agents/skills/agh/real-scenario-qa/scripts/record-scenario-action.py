@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Append one structured QA scenario action to journey-log.jsonl.
 
-Mutating helper. Used by both the AGH runtime (when wired) and by the QA observer when it
+Mutating helper. Used by both the Compozy runtime (when wired) and by the QA observer when it
 needs to record an out-of-band signal (e.g., a deliverable artifact landing on disk).
 """
 

@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-consumer-saas-growth-runtime
-  mission: "As Priya Joshi, give one in-persona kickoff and observe AGH sustain a provider-backed seven-role activation sprint through owned Task runs, peer review, disruption recovery, and runnable deliverables."
+  mission: "As Priya Joshi, give one in-persona kickoff and observe Compozy sustain a provider-backed seven-role activation sprint through owned Task runs, peer review, disruption recovery, and runnable deliverables."
   mode: scenario-based
   persona:
     name: Priya Joshi

@@ -18,7 +18,7 @@ Once a packaged `coordinator` reached bundle validation, the domain returned the
 - **Environment:** desktop / wifi-fast / en-US, isolated `devtool-oss-launch` lab
 
 1. Activate a bundle profile that packages an agent named `coordinator`.
-2. Repeat through HTTP, UDS/CLI, and `agh__bundles_activate`.
+2. Repeat through HTTP, UDS/CLI, and `compozy__bundles_activate`.
 3. Inspect status, diagnostic code, and post-attempt activation/catalog state.
 
 **Expected:** HTTP and UDS return 422, CLI exits with its diagnostic exit class, native returns `agent_name_reserved`, and no state changes.
@@ -38,7 +38,7 @@ Once a packaged `coordinator` reached bundle validation, the domain returned the
 
 ## Verification
 
-- CLI/HTTP/UDS returned `agent_name_reserved`; HTTP and UDS returned 422 and named `.agh/bundles/<activation>/agents/coordinator/AGENT.md`.
-- A real Codex session invoked `agh__bundles_activate` once and received `agent_name_reserved: Unprocessable Entity`.
+- CLI/HTTP/UDS returned `agent_name_reserved`; HTTP and UDS returned 422 and named `.compozy/bundles/<activation>/agents/coordinator/AGENT.md`.
+- A real Codex session invoked `compozy__bundles_activate` once and received `agent_name_reserved: Unprocessable Entity`.
 - Activation and agent catalogs were byte-stable across every rejected attempt.
 - API core passed 1,346 `-race` tests, daemon passed 1,396, and repository lint passed.

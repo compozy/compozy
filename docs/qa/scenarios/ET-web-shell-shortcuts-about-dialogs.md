@@ -4,8 +4,8 @@ area: ET
 title: Read the keyboard reference and installation identity from the shell
 persona: Bruno
 journey:
-expected: Help → Keyboard shortcuts opens a shell-scoped dialog listing Shell, Window, Layout, and Desktops sections from the live window-manager registry — every action present, an unbound action shown with an em dash rather than omitted, live config overrides reflected — with a footer that opens Settings → Layouts; AGH → About AGH opens a dialog showing only fields `/api/status` publishes (version, status, started, pid, HTTP host:port, socket, user home dir, config file) and degrades honestly while the status query is pending or failing; both dialogs are keyboard-reachable, scroll within a capped height, close on Esc, and return focus to the desktop.
-entry_points: web desktop menubar Help menu; web desktop menubar AGH menu
+expected: Help → Keyboard shortcuts opens a shell-scoped dialog listing Shell, Window, Layout, and Desktops sections from the live window-manager registry — every action present, an unbound action shown with an em dash rather than omitted, live config overrides reflected — with a footer that opens Settings → Layouts; Compozy → About Compozy opens a dialog showing only fields `/api/status` publishes (version, status, started, pid, HTTP host:port, socket, user home dir, config file) and degrades honestly while the status query is pending or failing; both dialogs are keyboard-reachable, scroll within a capped height, close on Esc, and return focus to the desktop.
+entry_points: web desktop menubar Help menu; web desktop menubar Compozy menu
 qa_status: untested
 bug_ids:
 fix_status:

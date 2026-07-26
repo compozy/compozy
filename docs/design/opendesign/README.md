@@ -1,6 +1,6 @@
 # Open Design prototypes
 
-HTML prototypes and design handoffs for AGH web surfaces. Organized by product domain.
+HTML prototypes and design handoffs for Compozy web surfaces. Organized by product domain.
 
 **Canonical design system:** [`design-system/`](design-system/) — start at [`GUIDE.md`](design-system/GUIDE.md) / [`index.html`](design-system/index.html). On conflict: production (`packages/ui` + `web/`) > `design-system/` > older prototypes.
 
@@ -8,7 +8,7 @@ HTML prototypes and design handoffs for AGH web surfaces. Organized by product d
 | --- | --- | --- |
 | Design system | [`design-system/`](design-system/) | [`design-system/index.html`](design-system/index.html) |
 | Modals | [`modals/`](modals/) | [`modals/index.html`](modals/index.html) · contract [`MODAL-STANDARD.md`](modals/MODAL-STANDARD.md) |
-| OS shell | [`os/`](os/) | [`os/agh-os-v2.html`](os/agh-os-v2.html) |
+| OS shell | [`os/`](os/) | [`os/compozy-os-v2.html`](os/compozy-os-v2.html) |
 | Dashboard | [`dashboard/`](dashboard/) | [`dashboard/dashboard.html`](dashboard/dashboard.html) |
 | Tasks | [`tasks/`](tasks/) | [`tasks/task-detail.html`](tasks/task-detail.html) |
 | Settings | [`settings/`](settings/) | [`settings/settings-general.html`](settings/settings-general.html) |

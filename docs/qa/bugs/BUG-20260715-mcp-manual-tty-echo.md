@@ -11,11 +11,11 @@
 
 ## Summary
 
-The manual MCP authorization command read a pasted code or full redirect URL with a normal buffered terminal read. In an interactive TTY, the terminal therefore echoed the complete redirect URL, including its authorization code and state, before AGH printed the otherwise-redacted status payload.
+The manual MCP authorization command read a pasted code or full redirect URL with a normal buffered terminal read. In an interactive TTY, the terminal therefore echoed the complete redirect URL, including its authorization code and state, before Compozy printed the otherwise-redacted status payload.
 
 ## Reproduction
 
-1. Run `agh mcp auth login <name> --manual` in an interactive terminal.
+1. Run `compozy mcp auth login <name> --manual` in an interactive terminal.
 2. Paste a full loopback redirect URL containing a valid authorization code and state.
 3. Observe the terminal transcript before the final status payload.
 
@@ -24,7 +24,7 @@ The manual MCP authorization command read a pasted code or full redirect URL wit
 
 ## Evidence
 
-- Red/green and sanitized live replay: `/Users/pedronauck/dev/qa-labs/agh-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-manual-tty-redaction.json`.
+- Red/green and sanitized live replay: `/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-manual-tty-redaction.json`.
 - The pre-fix pseudo-terminal replay reproduced the complete echo. No sensitive value was copied into the durable QA artifact.
 
 ## Fix

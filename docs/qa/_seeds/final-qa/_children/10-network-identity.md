@@ -1,6 +1,6 @@
 ---
 name: 10-network-identity
-title: AGH Network Participation + Identity — Real-Provider QA Seed
+title: Compozy Network Participation + Identity — Real-Provider QA Seed
 description: Behavior-first QA seed for Local/Live participation, commit-first in-process delivery, bounded wakes, workspace isolation, identity authorization, and HTTP/UDS/CLI/Web parity.
 type: final-qa-child
 module: network-identity
@@ -15,7 +15,7 @@ references:
   - ../../../scenarios/NB-coordination-invitation-future-runs.md
 ---
 
-# 10 — AGH Network Participation + Identity
+# 10 — Compozy Network Participation + Identity
 
 ## 1. Module scope
 
@@ -67,7 +67,7 @@ Out of scope:
 
 ## 3. QA lab contract
 
-Start every pass with `agh-qa-bootstrap`. Use one fresh manifest and its generated `AGH_HOME`,
+Start every pass with `agh-qa-bootstrap`. Use one fresh manifest and its generated `COMPOZY_HOME`,
 workspace, HTTP/UDS endpoints, Web proxy target, provider home, evidence path, and teardown command.
 
 Rules:
@@ -208,5 +208,5 @@ Stop the affected lane and file a content-addressed bug when any of these occurs
   declared channels never enroll. Participation hooks may deny or narrow but cannot silently widen.
 - Workspace data isolation: owner snapshots, conversations, invitations, usage, wakes, SSE, and caches
   remain workspace-scoped.
-- Official AGH skill: `skills/agh/references/network.md`, task orchestration, runtime operations, and
+- Official Compozy skill: `skills/compozy/references/network.md`, task orchestration, runtime operations, and
   native-tool guidance match the observed public contract.

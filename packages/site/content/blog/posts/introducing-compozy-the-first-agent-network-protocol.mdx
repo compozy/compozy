@@ -35,14 +35,14 @@ CLI, HTTP/SSE, Unix domain socket, and web UI.
 ```bash
 $ brew install compozy/compozy/agh
 # or: npm install -g @compozy/agh
-# or: go install github.com/compozy/agh@latest
+# or: go install github.com/compozy/compozy@latest
 $ compozy install
 $ compozy daemon start
 ```
 
 Compozy is also the reference implementation of `compozy-network/v0`, the open agent network protocol the
 workplace runs on. The runtime keeps local work durable. The protocol lets those sessions discover
-peers, delegate work, exchange progress, and close the loop with receipts without importing an Compozy
+peers, delegate work, exchange progress, and close the loop with receipts without importing a Compozy
 SDK.
 
 <Callout tone="accent" eyebrow="Launch alpha">
@@ -417,7 +417,7 @@ durable session in a real repository.
 ```bash
 $ brew install compozy/compozy/agh
 # or: npm install -g @compozy/agh
-# or: go install github.com/compozy/agh@latest
+# or: go install github.com/compozy/compozy@latest
 $ compozy install
 $ compozy daemon start
 $ compozy workspace add "$PWD" --name current

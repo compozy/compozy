@@ -11,7 +11,7 @@ geometry, and visible states. A prototype is **lossy** on every other axis:
 demo data, fixture copy, placeholder brand marks, and simplified or omitted
 product content are artifacts of prototyping, not instructions. Content and
 data are owned by runtime truth, labels and copy by `COPY.md`, marks by the
-real brand inventory (`@agh/ui`), and existing product surfaces by their own
+real brand inventory (`@compozy/ui`), and existing product surfaces by their own
 contracts. Resolve divergences on those axes toward the canonical owner and
 record each as an authorized difference — never invent, delete, or rebrand
 product content to match the reference.

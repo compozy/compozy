@@ -6,7 +6,7 @@
 
 ## Context
 
-The Hermes track widened the `memory_operation_log` table to add `scope`, `workspace_root`, `filename` columns. In the historical pre-Goose implementation, fresh installs passed through `storepkg.EnsureSchema`, but existing databases retained the old five-column table and `agh memory write` failed with `no such column: scope`.
+The Hermes track widened the `memory_operation_log` table to add `scope`, `workspace_root`, `filename` columns. In the historical pre-Goose implementation, fresh installs passed through `storepkg.EnsureSchema`, but existing databases retained the old five-column table and `compozy memory write` failed with `no such column: scope`.
 
 CodeRabbit flagged it as Critical. The historical fix was migration v6 in the removed Go runner. The current implementation carries the lesson forward through per-stream declarative schemas and Goose SQL migrations.
 
@@ -22,7 +22,7 @@ A second contributor was two competing schema paths. The current architecture re
 
 ## Operationalization
 
-- Use `store.Apply` with the embedded `MigrationStream` for every SQLite owner; global and memory remain distinct streams in shared `agh.db`.
+- Use `store.Apply` with the embedded `MigrationStream` for every SQLite owner; global and memory remain distinct streams in shared `compozy.db`.
 - Run `make codegen` after editing the declarative source; inspect the appended SQL, Atlas sqlcheck output, refreshed `atlas.sum`, and regenerated sqlc code.
 - Keep existing migration bytes and checksums immutable; append the next gap-free five-digit version.
 - Extend the canonical fresh/reopen/ahead/integrity/equivalence suites and run `make codegen-check`.

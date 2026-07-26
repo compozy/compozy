@@ -20,7 +20,7 @@ Fix:
 
 1. Bump `--wait` from `2200` to `4000` and re-run.
 2. Confirm the Storybook process has loaded font assets (check `<storybook-host>/sb-common-assets/*` 200s in the network tab of a real browser visit).
-3. On corporate networks, verify external font CDNs are not blocked. AGH ships fonts locally via `@agh/ui`, but third-party deps may pull from CDNs.
+3. On corporate networks, verify external font CDNs are not blocked. Compozy ships fonts locally via `@compozy/ui`, but third-party deps may pull from CDNs.
 
 ## Symptom: `chrome-launcher` fails with "No usable sandbox"
 

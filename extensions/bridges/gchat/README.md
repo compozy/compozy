@@ -1,6 +1,6 @@
 # Google Chat Bridge Provider
 
-`extensions/bridges/gchat` connects AGH bridge instances to Google Chat through the Chat REST API. One provider subprocess can own multiple bridge instances with independent ingress modes, routing, credentials, and direct-message policies.
+`extensions/bridges/gchat` connects Compozy bridge instances to Google Chat through the Chat REST API. One provider subprocess can own multiple bridge instances with independent ingress modes, routing, credentials, and direct-message policies.
 
 It implements:
 
@@ -11,9 +11,9 @@ It implements:
 
 ## Outbound delivery
 
-Google Chat accepts messages up to 32,000 UTF-8 bytes. AGH measures the final text payload in bytes and splits larger replies on natural boundaries. Every chunk includes an `(N/M)` marker and stays in the original space and thread.
+Google Chat accepts messages up to 32,000 UTF-8 bytes. Compozy measures the final text payload in bytes and splits larger replies on natural boundaries. Every chunk includes an `(N/M)` marker and stays in the original space and thread.
 
-A non-terminal reply that grows past the limit keeps one bounded preview message. On the terminal update, AGH edits that message with the first chunk, posts the remaining chunks in order, and acknowledges the last Google Chat message name.
+A non-terminal reply that grows past the limit keeps one bounded preview message. On the terminal update, Compozy edits that message with the first chunk, posts the remaining chunks in order, and acknowledges the last Google Chat message name.
 
 ## Tool progress
 
@@ -34,7 +34,7 @@ The provider creates one plain-text progress message in the triggering space and
 
 ## Build and install
 
-Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+Released `compozy` artifacts do not include this provider executable. From a trusted Compozy source
 checkout, run this from the repository root with the daemon running:
 
 ```bash
