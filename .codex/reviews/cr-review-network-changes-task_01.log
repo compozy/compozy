@@ -1,0 +1,296 @@
+Notice: Detected codex environment. Use `coderabbit review --agent` for structured agent-friendly output.
+Connecting to CodeRabbit... 1s elapsed
+Preparing review... 4s elapsed
+────────────────────────────────────────
+CodeRabbit Review
+
+Diff      : uncommitted changes only
+Compare   : network-changes → main
+Directory : agh2
+────────────────────────────────────────
+
+(\(\
+(• .•)  Because, bugs shouldn't outnumber features.
+
+Preparing sandbox... 5s elapsed
+Preparing sandbox... 1m 01s elapsed - still working
+Summarizing changes... 1m 12s elapsed - still working
+Summarizing changes... 2m 01s elapsed - still working
+Summarizing changes... 3m 01s elapsed - still working
+Summarizing changes... 4m 01s elapsed - still working
+Finishing analysis tools... 4m 19s elapsed - still working
+Writing review comments... 4m 19s elapsed - still working
+Writing review comments... 5m 01s elapsed - still working
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/network/transport_test.go:24internal/network/transport_test.go:24-27]8;;
+
+  Assert the MaxQueueDepth validation error specifically.
+
+  Checking only err != nil allows unrelated constructor failures to
+  satisfy this regression. Assert the expected message or typed/sentinel
+  error.
+
+  As per path instructions, tests “MUST have specific error assertions
+  (ErrorContains, ErrorAs).”
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/store/globaldb/global_db_network_availability.go:82internal/store/globaldb/global_db_network_availability.go:82-87]8;;
+
+  Reject persisted availability records without provenance.
+
+  SetNetworkAvailability requires updatedBy, but the read mapper accepts
+  an empty value after trimming. Preserve the invariant when loading
+  persisted state.
+
+
+  Proposed fix
+
+  +	actor := strings.TrimSpace(updatedBy)
+  +	if actor == "" {
+  +		return store.NetworkAvailability{}, fmt.Errorf(
+  +			"store: network availability updated_by is required",
+  +		)
+  +	}
+   	return store.NetworkAvailability{
+   		Enabled:   enabled == 1,
+   		Epoch:     epoch,
+   		UpdatedAt: parsedUpdatedAt,
+  -		UpdatedBy: strings.TrimSpace(updatedBy),
+  +		UpdatedBy: actor,
+   	}, nil
+
+Writing review comments... 6m 48s elapsed - still working - 2 findings so far
+Writing review comments... 7m 48s elapsed - still working - 2 findings so far
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/config/merge_test.go:127internal/config/merge_test.go:127-133]8;;
+
+  Assert both live duration overlays.
+
+  The test writes coalesce_window and max_coalesce_window but never
+  verifies them, so dropping either during merge would still pass.
+
+
+  Proposed assertions
+
+   		if got, want := cfg.Network.Live.Limits.MaxWakes, 72; got != want {
+   			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Limits.MaxWakes = %d, want %d", got, want)
+   		}
+  +		if got, want := cfg.Network.Live.Defaults.CoalesceWindow, 750*time.Millisecond; got != want {
+  +			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Defaults.CoalesceWindow = %s, want %s", got, want)
+  +		}
+  +		if got, want := cfg.Network.Live.Limits.MaxCoalesceWindow, 6*time.Second; got != want {
+  +			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Limits.MaxCoalesceWindow = %s, want %s", got, want)
+  +		}
+
+  As per path instructions, tests must be able to fail when business logic
+  changes.
+
+
+
+
+  Also applies to: 152-157
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/daemon/native_tools_test.go:3264internal/daemon/native_tools_test.go:3264]8;;
+
+  Assert the resolved session ID, not the peer ID.
+
+  query.SessionID should equal remoteSessionID (sess-reviewer).
+  Expecting reviewer.sess-xyz preserves the old peer identity and rejects
+  correct peer-to-session resolution.
+
+
+  Proposed fix
+
+  -					query.SessionID != "reviewer.sess-xyz" ||
+  +					query.SessionID != remoteSessionID ||
+
+  As per path instructions, tests must verify behavior outcomes, not just
+  function calls.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/network/participation/resolver.go:222internal/network/participation/resolver.go:222-251]8;;
+
+  Preserve uniqueness when deriving channel IDs.
+
+  Lowercasing, character replacement, and truncation can map distinct run
+  IDs to the same channel—for example, IDs differing only by case or after
+  the first 58 normalized characters. This can merge unrelated run traffic.
+
+  Include a hash of the original ID whenever normalization changes or
+  truncates it, or append a short hash unconditionally.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/daemon/native_tools.go:1579internal/daemon/native_tools.go:1579]8;;
+
+  Do not persist peer_id as a session ID.
+
+  These paths pass input.PeerID directly into SessionID, although Lines
+  1497-1512 establish that peer and session IDs are distinct. When they
+  differ, list, update, and delete operations target the wrong subscription.
+
+  Either resolve the peer to its session first or change the public input
+  contract to session_id end-to-end.
+
+
+
+
+  Also applies to: 1646-1646, 1715-1715
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Security & Privacy]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/store/globaldb/schema/definitions/60_network.sql:31internal/store/globaldb/schema/definitions/60_network.sql:31-32]8;;
+
+  Bind session references to the same workspace.
+
+  These foreign keys only reference sessions(id), allowing a session from
+  workspace B to be associated with workspace A’s channel, thread, direct
+  room, subscription, or work item. Enforce (workspace_id, session_id)
+  against a corresponding unique session key or equivalent constraint.
+
+
+
+
+
+
+  Also applies to: 64-85, 110-131, 200-201
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/daemon/settings_runtime_applier.go:35internal/daemon/settings_runtime_applier.go:35]8;;
+
+  Persist availability before exposing the new active config.
+
+  Lines 29-33 publish next before this write runs. Concurrent readers can
+  therefore observe Network.Enabled changing while durable availability
+  still has the previous value—or briefly observe a config later rolled back
+  after a write failure.
+
+  Stage dependency changes against next, persist the availability
+  transition, then atomically publish the config. Any earlier side effects
+  must be compensated if a later step fails.
+
+
+
+
+  Also applies to: 94-100
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Performance & Scalability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/network/transport.go:105internal/network/transport.go:105]8;;
+
+  Continue enforcing the configured payload limit. The embedded server
+  should still honor cfg.MaxPayload instead of falling back to the NATS
+  maximum; keep the configured value and its bounds validation in place.
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/store/globaldb/global_db_network_preferences.go:73internal/store/globaldb/global_db_network_preferences.go:73]8;;
+
+  Include channel identity in the deterministic ordering.
+
+  When Channel is omitted, subscriptions with identical thread_id and
+  session_id in different channels tie, so limited results can vary
+  between executions.
+
+  -	sqlQuery += " ORDER BY thread_id DESC, session_id ASC"
+  +	sqlQuery += " ORDER BY channel ASC, thread_id DESC, session_id ASC"
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/store/globaldb/schema/definitions/72_task_runs.sql:142internal/store/globaldb/schema/definitions/72_task_runs.sql:142]8;;
+
+  Prevent negative token usage at the storage boundary.
+
+  tokens_used represents consumed tokens but currently permits negative
+  values.
+
+
+  Proposed constraint
+
+  -		tokens_used INTEGER NOT NULL DEFAULT 0,
+  +		tokens_used INTEGER NOT NULL DEFAULT 0 CHECK (tokens_used >= 0),
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/extension/host_api_network_pagination.go:13internal/extension/host_api_network_pagination.go:13-20]8;;
+
+  Do not reinterpret PeerID as SessionID. NetworkThreadsParams and
+  NetworkDirectsParams still expose PeerID, but these query builders now
+  pass it through as SessionID, which changes the public filter contract
+  and can return the wrong rows. Keep peer-based filtering or migrate the
+  parameter name and all call sites together.
+
+Writing review comments... 9m 56s elapsed - still working - 12 findings so far
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh2/internal/config/config_test.go:2404internal/config/config_test.go:2404-2422]8;;
+
+  Subtest names should follow the Should … convention.
+
+  The newly added table cases use imperative names (`"invalid live
+  default", "live default above ceiling", "invalid coalesce range"`),
+  which become the t.Run subtest labels at Line 2448. As per path
+  instructions, test cases MUST use the t.Run("Should...") pattern.
+
+
+  ✏️ Suggested naming
+
+  -			name: "invalid live default",
+  +			name: "Should reject invalid live default max wakes",
+  @@
+  -			name: "live default above ceiling",
+  +			name: "Should reject live default above ceiling",
+  @@
+  -			name: "invalid coalesce range",
+  +			name: "Should reject invalid coalesce range",
+
+Writing review comments... 10m 58s elapsed - still working - 13 findings so far
+Writing review comments... 11m 58s elapsed - still working - 13 findings so far
+Writing review comments... 12m 58s elapsed - still working - 13 findings so far
+Writing review comments... 13m 58s elapsed - still working - 13 findings so far
+Writing review comments... 14m 58s elapsed - still working - 13 findings so far
+
+────────────────────────────────────────
+Review complete
+13 findings ✔
+
+Major    7
+Minor    6
+
+189 files reviewed:
+- .agents/skills/cy-loop-tasks/scripts/_state_io.py
+- .agents/skills/cy-loop-tasks/scripts/test_scripts.py
+- internal/api/core/agent_channels_internal_test.go
+- internal/api/core/bundles.go
+- internal/api/core/conversions.go
+- internal/api/core/network.go
+- internal/api/core/network_channels.go
+- internal/api/core/network_conversation_lists.go
+- internal/api/core/network_conversations.go
+- internal/api/core/network_test.go
+... and 179 more files
+────────────────────────────────────────
+
+Print all AI prompts: coderabbit review --show-prompts
+
+CODEX_CODERABBIT_REVIEW_COMPLETE exit=0 head=08c1797bd11a8e2f8a51e99a8c8101d38b3386ba

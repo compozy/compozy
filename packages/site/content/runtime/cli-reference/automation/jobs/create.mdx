@@ -1,0 +1,50 @@
+---
+title: "agh automation jobs create"
+description: "Create an automation job"
+---
+
+## agh automation jobs create
+
+Create an automation job
+
+```
+agh automation jobs create [flags]
+```
+
+### Options
+
+```
+      --agent string                Agent definition name
+      --catch-up-policy string      Catch-up policy for recurring schedules: default, skip_missed, coalesce, replay, or run_once_on_catchup
+      --enabled                     Create the job enabled or disabled
+  -h, --help                        help for create
+      --misfire-grace-seconds int   Missed-fire grace in seconds for recurring schedules; 0 uses the daemon jitter default
+      --name string                 Job name
+      --prompt string               Prompt body to dispatch
+      --retry string                Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"
+      --schedule string             Schedule spec: <cron-expr>, every:<duration>, or at:<timestamp>
+      --scope string                Job scope: global or workspace
+      --workspace string            Workspace path, name, or ID (required when --scope=workspace)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh automation jobs create -o json
+```

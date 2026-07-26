@@ -1,0 +1,44 @@
+---
+title: "agh completion"
+description: "Generate the autocompletion script for the specified shell"
+---
+
+## agh completion
+
+Generate the autocompletion script for the specified shell
+
+### Synopsis
+
+Generate the autocompletion script for agh for the specified shell.
+See each sub-command's help for details on how to use the generated script.
+
+### Options
+
+```
+  -h, --help   help for completion
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                   | Description                                       |
+| ------------------------------------------------------------------------- | ------------------------------------------------- |
+| [agh completion bash](/runtime/cli-reference/completion/bash)             | Generate the autocompletion script for bash       |
+| [agh completion fish](/runtime/cli-reference/completion/fish)             | Generate the autocompletion script for fish       |
+| [agh completion powershell](/runtime/cli-reference/completion/powershell) | Generate the autocompletion script for powershell |
+| [agh completion zsh](/runtime/cli-reference/completion/zsh)               | Generate the autocompletion script for zsh        |

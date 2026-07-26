@@ -3,201 +3,213 @@ package httpapi
 import (
 	"io/fs"
 	"net/http"
-	"net/http/httptest"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
-	"testing/fstest"
-	"time"
-
-	"github.com/gin-gonic/gin"
-
-	"github.com/compozy/compozy/internal/api/core"
 )
 
-func TestNewStaticFSLoadsEmbeddedBundle(t *testing.T) {
-	t.Parallel()
-
-	staticFS, err := newStaticFS()
-	if err != nil {
-		t.Fatalf("newStaticFS() error = %v", err)
-	}
-
-	indexHTML, err := fs.ReadFile(staticFS, "index.html")
-	if err != nil {
-		t.Fatalf("ReadFile(index.html) error = %v", err)
-	}
-	if !strings.Contains(string(indexHTML), `<div id="app"></div>`) {
-		t.Fatalf("index.html = %q, want SPA shell", string(indexHTML))
-	}
-}
-
-func TestStaticFSFromRootRequiresIndexHTML(t *testing.T) {
-	t.Parallel()
-
-	_, err := staticFSFromRoot(fstest.MapFS{
-		"dist/assets/app.js": &fstest.MapFile{Data: []byte("console.log('ok')")},
-	}, "dist")
-	if err == nil || !strings.Contains(err.Error(), "missing index.html") {
-		t.Fatalf("staticFSFromRoot() error = %v, want missing index.html", err)
-	}
-}
-
 func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
-	t.Parallel()
+	t.Setenv(webDistDirEnvVar, "")
 
-	gin.SetMode(gin.TestMode)
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
-	engine := newStaticTestEngine(t)
-
-	rootResponse := performStaticRequest(t, engine, http.MethodGet, "/")
-	if rootResponse.Code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want %d; body=%s", rootResponse.Code, http.StatusOK, rootResponse.Body.String())
+	rootResp := performRequest(t, engine, http.MethodGet, "/", nil)
+	if rootResp.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d; body=%s", rootResp.Code, http.StatusOK, rootResp.Body.String())
 	}
-	if !strings.Contains(rootResponse.Body.String(), `<div id="app"></div>`) {
-		t.Fatalf("GET / body = %q, want SPA shell", rootResponse.Body.String())
+	if !strings.Contains(rootResp.Body.String(), `<div id="app"></div>`) {
+		t.Fatalf("GET / body = %q, want SPA shell", rootResp.Body.String())
 	}
 
-	deepLinkResponse := performStaticRequest(t, engine, http.MethodGet, "/workflows/daemon/tasks/task_08")
-	if deepLinkResponse.Code != http.StatusOK {
+	deepLinkResp := performRequest(t, engine, http.MethodGet, "/session/sess-001", nil)
+	if deepLinkResp.Code != http.StatusOK {
 		t.Fatalf(
-			"GET deep link status = %d, want %d; body=%s",
-			deepLinkResponse.Code,
+			"GET /session/sess-001 status = %d, want %d; body=%s",
+			deepLinkResp.Code,
 			http.StatusOK,
-			deepLinkResponse.Body.String(),
+			deepLinkResp.Body.String(),
 		)
 	}
-	if !strings.Contains(deepLinkResponse.Body.String(), `<div id="app"></div>`) {
-		t.Fatalf("GET deep link body = %q, want SPA shell", deepLinkResponse.Body.String())
+	if !strings.Contains(deepLinkResp.Body.String(), `<div id="app"></div>`) {
+		t.Fatalf("GET /session/sess-001 body = %q, want SPA shell", deepLinkResp.Body.String())
 	}
 }
 
 func TestStaticRoutesServeEmbeddedAssets(t *testing.T) {
-	t.Parallel()
+	t.Setenv(webDistDirEnvVar, "")
 
-	gin.SetMode(gin.TestMode)
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
-	staticFS := mustStaticFS(t)
-	engine := newStaticTestEngine(t)
-
-	requestPath, expectedBody := firstEmbeddedAsset(t, staticFS)
-	response := performStaticRequest(t, engine, http.MethodGet, requestPath)
-	if response.Code != http.StatusOK {
-		t.Fatalf(
-			"GET %s status = %d, want %d; body=%s",
-			requestPath,
-			response.Code,
-			http.StatusOK,
-			response.Body.String(),
-		)
+	requestPath, expected := firstEmbeddedAsset(t)
+	resp := performRequest(t, engine, http.MethodGet, requestPath, nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want %d; body=%s", requestPath, resp.Code, http.StatusOK, resp.Body.String())
 	}
-	if got := response.Body.String(); got != string(expectedBody) {
+	if got, want := resp.Body.String(), string(expected); got != want {
 		t.Fatalf("GET %s body mismatch", requestPath)
 	}
-	if strings.Contains(response.Body.String(), "<!doctype html>") {
+	if strings.Contains(resp.Body.String(), "<!doctype html>") {
 		t.Fatalf("GET %s returned SPA HTML instead of asset payload", requestPath)
 	}
 }
 
-func TestStaticRoutesBypassAPIAndMissingAssets(t *testing.T) {
-	t.Parallel()
+func TestStaticRoutesDoNotFallbackForMissingAssetsOrAPIRoutes(t *testing.T) {
+	t.Setenv(webDistDirEnvVar, "")
 
-	gin.SetMode(gin.TestMode)
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
-	engine := newStaticTestEngine(t)
-
-	missingAssetResponse := performStaticRequest(t, engine, http.MethodGet, "/assets/does-not-exist.js")
-	if missingAssetResponse.Code != http.StatusNotFound {
+	missingAssetResp := performRequest(t, engine, http.MethodGet, "/assets/does-not-exist.js", nil)
+	if missingAssetResp.Code != http.StatusNotFound {
 		t.Fatalf(
 			"GET missing asset status = %d, want %d; body=%s",
-			missingAssetResponse.Code,
+			missingAssetResp.Code,
 			http.StatusNotFound,
-			missingAssetResponse.Body.String(),
+			missingAssetResp.Body.String(),
 		)
 	}
-	if strings.Contains(missingAssetResponse.Body.String(), "<!doctype html>") {
-		t.Fatalf("GET missing asset body = %q, want plain 404", missingAssetResponse.Body.String())
+	if strings.Contains(missingAssetResp.Body.String(), "<!doctype html>") {
+		t.Fatalf("GET missing asset body = %q, want plain 404", missingAssetResp.Body.String())
 	}
 
-	directoryResponse := performStaticRequest(t, engine, http.MethodGet, "/assets")
-	if directoryResponse.Code != http.StatusNotFound {
-		t.Fatalf(
-			"GET /assets status = %d, want %d; body=%s",
-			directoryResponse.Code,
-			http.StatusNotFound,
-			directoryResponse.Body.String(),
-		)
-	}
-	if strings.Contains(directoryResponse.Body.String(), "<!doctype html>") {
-		t.Fatalf("GET /assets body = %q, want plain 404", directoryResponse.Body.String())
-	}
-
-	missingAPIResponse := performStaticRequest(t, engine, http.MethodGet, "/api/missing")
-	if missingAPIResponse.Code != http.StatusNotFound {
+	missingAPIResp := performRequest(t, engine, http.MethodGet, "/api/missing", nil)
+	if missingAPIResp.Code != http.StatusNotFound {
 		t.Fatalf(
 			"GET /api/missing status = %d, want %d; body=%s",
-			missingAPIResponse.Code,
+			missingAPIResp.Code,
 			http.StatusNotFound,
-			missingAPIResponse.Body.String(),
+			missingAPIResp.Body.String(),
 		)
 	}
-	if strings.Contains(missingAPIResponse.Body.String(), "<!doctype html>") {
-		t.Fatalf("GET /api/missing body = %q, want plain 404", missingAPIResponse.Body.String())
+	if strings.Contains(missingAPIResp.Body.String(), "<!doctype html>") {
+		t.Fatalf("GET /api/missing body = %q, want plain 404", missingAPIResp.Body.String())
 	}
 }
 
-func newStaticTestEngine(t *testing.T) *gin.Engine {
-	t.Helper()
+func TestStaticRoutesServeLocalWebDistOverride(t *testing.T) {
+	t.Run("Should serve AGH_WEB_DIST_DIR index and assets from disk", func(t *testing.T) {
+		distDir := writeLocalStaticDist(t, "local shell one", map[string]string{
+			"assets/local.js": "console.log('local asset');",
+		})
+		t.Setenv(webDistDirEnvVar, distDir)
 
-	engine := gin.New()
-	staticHandler := newStaticHandler(mustStaticFS(t), time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC))
-	RegisterRoutes(engine, core.NewHandlers(&core.HandlerConfig{TransportName: "test"}), staticHandler.serve)
-	return engine
+		homePaths := newTestHomePaths(t)
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+
+		rootResp := performRequest(t, engine, http.MethodGet, "/", nil)
+		if rootResp.Code != http.StatusOK {
+			t.Fatalf("GET / status = %d, want %d; body=%s", rootResp.Code, http.StatusOK, rootResp.Body.String())
+		}
+		if got := rootResp.Body.String(); !strings.Contains(got, "local shell one") {
+			t.Fatalf("GET / body = %q, want local override shell", got)
+		}
+
+		assetResp := performRequest(t, engine, http.MethodGet, "/assets/local.js", nil)
+		if assetResp.Code != http.StatusOK {
+			t.Fatalf(
+				"GET /assets/local.js status = %d, want %d; body=%s",
+				assetResp.Code,
+				http.StatusOK,
+				assetResp.Body.String(),
+			)
+		}
+		if got, want := assetResp.Body.String(), "console.log('local asset');"; got != want {
+			t.Fatalf("GET /assets/local.js body = %q, want %q", got, want)
+		}
+	})
 }
 
-func performStaticRequest(t *testing.T, engine http.Handler, method string, target string) *httptest.ResponseRecorder {
-	t.Helper()
+func TestStaticRoutesObserveLocalWebDistRewrite(t *testing.T) {
+	t.Run("Should serve rewritten AGH_WEB_DIST_DIR files without rebuilding Go", func(t *testing.T) {
+		distDir := writeLocalStaticDist(t, "local shell before", nil)
+		t.Setenv(webDistDirEnvVar, distDir)
 
-	request := httptest.NewRequestWithContext(t.Context(), method, target, http.NoBody)
-	request.Host = "example.com"
-	recorder := httptest.NewRecorder()
-	engine.ServeHTTP(recorder, request)
-	return recorder
+		homePaths := newTestHomePaths(t)
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+
+		before := performRequest(t, engine, http.MethodGet, "/", nil)
+		if got := before.Body.String(); before.Code != http.StatusOK || !strings.Contains(got, "local shell before") {
+			t.Fatalf("GET / before status = %d body = %q, want local shell before", before.Code, got)
+		}
+
+		indexPath := filepath.Join(distDir, "index.html")
+		if err := os.WriteFile(indexPath, []byte("<!doctype html><div>local shell after</div>"), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(index.html rewrite) error = %v", err)
+		}
+
+		after := performRequest(t, engine, http.MethodGet, "/", nil)
+		if got := after.Body.String(); after.Code != http.StatusOK || !strings.Contains(got, "local shell after") {
+			t.Fatalf("GET / after status = %d body = %q, want local shell after", after.Code, got)
+		}
+	})
 }
 
-func mustStaticFS(t *testing.T) fs.FS {
-	t.Helper()
+func TestStaticRoutesRejectMissingLocalWebDistIndex(t *testing.T) {
+	t.Run("Should fail clearly when AGH_WEB_DIST_DIR has no index", func(t *testing.T) {
+		distDir := t.TempDir()
+		t.Setenv(webDistDirEnvVar, distDir)
 
-	staticFS, err := newStaticFS()
-	if err != nil {
-		t.Fatalf("newStaticFS() error = %v", err)
-	}
-	return staticFS
+		_, err := newStaticFS()
+		if err == nil {
+			t.Fatal("newStaticFS() error = nil, want missing index error")
+		}
+		message := err.Error()
+		for _, want := range []string{webDistDirEnvVar, "index.html"} {
+			if !strings.Contains(message, want) {
+				t.Fatalf("newStaticFS() error = %q, want %q", message, want)
+			}
+		}
+	})
 }
 
-func firstEmbeddedAsset(t *testing.T, staticFS fs.FS) (string, []byte) {
+func firstEmbeddedAsset(t *testing.T) (string, []byte) {
 	t.Helper()
 
+	staticFS := mustStaticFS(t)
 	entries, err := fs.ReadDir(staticFS, "assets")
 	if err != nil {
-		t.Fatalf("ReadDir(assets) error = %v", err)
+		t.Fatalf("fs.ReadDir(assets) error = %v", err)
 	}
 
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
-		switch path.Ext(entry.Name()) {
+		switch ext := path.Ext(entry.Name()); ext {
 		case ".js", ".css":
 			assetPath := path.Join("assets", entry.Name())
-			assetBody, err := fs.ReadFile(staticFS, assetPath)
-			if err != nil {
-				t.Fatalf("ReadFile(%s) error = %v", assetPath, err)
+			data, readErr := fs.ReadFile(staticFS, assetPath)
+			if readErr != nil {
+				t.Fatalf("fs.ReadFile(%s) error = %v", assetPath, readErr)
 			}
-			return "/" + assetPath, assetBody
+			return "/" + assetPath, data
 		}
 	}
 
 	t.Fatal("expected at least one embedded .js or .css asset")
 	return "", nil
+}
+
+func writeLocalStaticDist(t *testing.T, indexMarker string, assets map[string]string) string {
+	t.Helper()
+
+	distDir := t.TempDir()
+	index := "<!doctype html><html><body><div>" + indexMarker + "</div></body></html>"
+	if err := os.WriteFile(filepath.Join(distDir, "index.html"), []byte(index), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(index.html) error = %v", err)
+	}
+	for name, body := range assets {
+		path := filepath.Join(distDir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%s) error = %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(%s) error = %v", name, err)
+		}
+	}
+	return distDir
 }

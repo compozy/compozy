@@ -1,0 +1,39 @@
+---
+title: "agh vault"
+description: "Manage encrypted daemon vault metadata and write-only secrets"
+---
+
+## agh vault
+
+Manage encrypted daemon vault metadata and write-only secrets
+
+### Options
+
+```
+  -h, --help   help for vault
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                 | Description                                  |
+| ------------------------------------------------------- | -------------------------------------------- |
+| [agh vault delete](/runtime/cli-reference/vault/delete) | Delete one vault secret                      |
+| [agh vault get](/runtime/cli-reference/vault/get)       | Show redacted metadata for one vault secret  |
+| [agh vault list](/runtime/cli-reference/vault/list)     | List redacted vault secret metadata          |
+| [agh vault put](/runtime/cli-reference/vault/put)       | Store one write-only vault secret from stdin |

@@ -1,0 +1,11 @@
+{
+    "pages": [
+        "index",
+        "how-to-use-these-docs",
+        "core",
+        "guides",
+        "use-cases",
+        "cli-reference",
+        "api-reference"
+    ]
+}

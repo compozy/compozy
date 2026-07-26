@@ -1,0 +1,19 @@
+{
+    "manifest_version": 1,
+    "generated_at": "2026-07-17T00:40:00Z",
+    "entries": [
+        {
+            "entry_id": "repository-orientation",
+            "name": "Repository Orientation",
+            "description": "Map an unfamiliar repository before changing it, with explicit ownership, invariants, and verification paths",
+            "version": "1.0.0",
+            "published_at": "2026-07-17T00:40:00Z",
+            "install_slug": "compozy/repository-orientation",
+            "artifact_url": "https://raw.githubusercontent.com/compozy/agh/main/catalog/artifacts/repository-orientation-v1.0.0.tar.gz",
+            "digest_sha256": "d78c05d9d3a1924f9c16af39b4040d81287b50ac2b35c677dc060c1a071dabdd",
+            "tier": "official",
+            "author": "Compozy",
+            "repository": "https://github.com/compozy/agh/tree/main/catalog/packages/repository-orientation"
+        }
+    ]
+}

@@ -1,0 +1,52 @@
+---
+title: "agh install"
+description: "Bootstrap AGH and create the default general agent"
+---
+
+## agh install
+
+Bootstrap AGH and create the default general agent
+
+```
+agh install [flags]
+```
+
+### Examples
+
+```
+  # Create ~/.agh/config.toml and ~/.agh/agents/general/AGENT.md
+  agh install
+
+  # Bootstrap non-interactively for automation
+  agh install --provider codex --model gpt-5.6-sol -o json
+```
+
+### Options
+
+```
+  -h, --help              help for install
+      --model string      Default model to configure without opening the wizard
+      --provider string   Default provider to configure without opening the wizard
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh install -o json
+```

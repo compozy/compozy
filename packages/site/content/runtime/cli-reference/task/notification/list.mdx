@@ -1,0 +1,44 @@
+---
+title: "agh task notification list"
+description: "List bridge terminal notification subscriptions for one task"
+---
+
+## agh task notification list
+
+List bridge terminal notification subscriptions for one task
+
+```
+agh task notification list <task-id> [flags]
+```
+
+### Options
+
+```
+      --bridge string      Filter by bridge instance ID
+  -h, --help               help for list
+      --last int           Show only the most recent N subscriptions
+      --scope string       Filter by bridge scope: global or workspace
+      --workspace string   Filter by workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task notification list <task-id> -o json
+```

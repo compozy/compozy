@@ -1,0 +1,59 @@
+---
+title: "agh automation triggers"
+description: "Manage automation triggers"
+---
+
+## agh automation triggers
+
+Manage automation triggers
+
+```
+agh automation triggers [flags]
+```
+
+### Options
+
+```
+      --cursor string      Continue after this automation trigger cursor
+      --enabled            Filter by enabled state; use --enabled=false for disabled triggers
+      --event string       Filter by activation event
+  -h, --help               help for triggers
+      --limit int          Maximum triggers per page (default 50)
+      --loop string        Filter by loop target name
+      --query string       Search triggers by definition or filter fields
+      --scope string       Filter by scope: global or workspace
+      --source string      Filter by definition source: config, package, or dynamic
+      --workspace string   Filter by workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh automation triggers -o json
+```
+
+## Subcommands
+
+| Command                                                                               | Description                                 |
+| ------------------------------------------------------------------------------------- | ------------------------------------------- |
+| [agh automation triggers create](/runtime/cli-reference/automation/triggers/create)   | Create an automation trigger                |
+| [agh automation triggers delete](/runtime/cli-reference/automation/triggers/delete)   | Delete an automation trigger                |
+| [agh automation triggers get](/runtime/cli-reference/automation/triggers/get)         | Show one automation trigger                 |
+| [agh automation triggers history](/runtime/cli-reference/automation/triggers/history) | Show run history for one automation trigger |
+| [agh automation triggers update](/runtime/cli-reference/automation/triggers/update)   | Update an automation trigger                |

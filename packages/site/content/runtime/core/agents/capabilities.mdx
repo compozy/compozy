@@ -1,0 +1,374 @@
+---
+title: Agent Capabilities
+description: Author capability catalogs, validate supported layouts, and understand how AGH projects each capability into discovery and transfer.
+---
+
+AGH uses one capability model end to end. A capability is authored locally in the agent directory,
+normalized by the runtime, advertised briefly in `greet`, returned richly through explicit `whois`,
+and transferred explicitly through `kind:"capability"` when a peer shares a portable capability
+document. There is no separate authoring format: the same structured capability is the authoring
+artifact, the discovery artifact, and the transfer artifact.
+
+<OperatorNote>
+  Capability catalogs are optional. An agent without one still loads and still joins the network. It
+  advertises `peer_card.capabilities = []` and still claims `artifacts_supported = ["capability"]`
+  because transfer support is protocol-level, not tied to catalog size.
+</OperatorNote>
+
+## Why capabilities
+
+`AGENT.md` covers identity, the startup prompt, and runtime configuration. It does not describe
+what the agent is useful for when another peer is deciding whom to call. The capability catalog
+closes that gap without leaking how the agent works.
+
+A capability is an **outcome**, not a tool, MCP server, or prompt fragment. The model is
+intentionally soft:
+
+- the `summary` is a one-line hook that appears in peer listings
+- the `outcome` explains what success looks like to the caller
+- optional fields (`version`, `context_needed`, `artifacts_expected`, `execution_outline`,
+  `constraints`, `examples`, `requirements`) fill in the rest only when the caller asks for rich
+  discovery or a peer ships the full capability document
+
+This shape separates two concerns: callers see what they can delegate, while the agent's
+implementation details stay private.
+
+## Supported layouts
+
+Use exactly one of these layouts per agent directory. AGH never merges layouts or formats.
+
+| Layout      | Path                                                   | Best for                               |
+| ----------- | ------------------------------------------------------ | -------------------------------------- |
+| Single-file | `<agent-dir>/capabilities.toml` or `capabilities.json` | Small catalogs reviewed in one place.  |
+| Directory   | `<agent-dir>/capabilities/<id>.toml` or `<id>.json`    | One file per capability, easy to grep. |
+
+The loader rejects these combinations as hard errors:
+
+- both `capabilities.toml` and `capabilities.json` in the same agent directory
+- a single-file catalog alongside a `capabilities/` directory
+- mixed `.toml` and `.json` files inside the same `capabilities/` directory
+
+## Capability schema
+
+Each capability is a record with three required fields, seven optional lists or strings, and one
+runtime-derived field. Field names are identical in TOML and JSON.
+
+| Field                | Type         | Authored | Notes                                                                             |
+| -------------------- | ------------ | -------- | --------------------------------------------------------------------------------- |
+| `id`                 | string       | required | Unique within the agent. Use a slug such as `build-site`. Whitespace is trimmed.  |
+| `summary`            | string       | required | One short sentence used in brief discovery. Target `<= 160` UTF-8 characters.     |
+| `outcome`            | string       | required | What a successful delegation looks like to the caller.                            |
+| `version`            | string       | optional | Free-form version tag, for example `1.2.0`. Must not normalize to blank when set. |
+| `context_needed`     | string array | optional | Inputs the caller should provide.                                                 |
+| `artifacts_expected` | string array | optional | Artifacts the capability is likely to produce.                                    |
+| `execution_outline`  | string array | optional | Coarse steps or phases the caller can expect.                                     |
+| `constraints`        | string array | optional | Hard limits (for example, `"No mocks"` or `"Read-only workspace"`).               |
+| `examples`           | string array | optional | Concrete cases where this capability fits.                                        |
+| `requirements`       | string array | optional | Other `capability.id` values this capability depends on. Entries must be unique.  |
+| `digest`             | string       | derived  | Runtime-computed canonical digest. Must not appear in authored files.             |
+
+Authoring and normalization rules:
+
+- `id` should use a stable slug. Capability IDs only need to be unique inside one agent directory;
+  on the network, the effective identifier is `peer_id + capability_id`.
+- AGH trims surrounding whitespace in scalar strings and list entries before validation.
+- `version` is optional, but if authored it must not normalize to blank.
+- `requirements` targets other `capability.id` values. AGH validates the list syntactically but
+  does not require every referenced ID to exist in the same local catalog, because referenced
+  capabilities may belong to another daemon-local peer.
+- `requirements` entries must be non-empty and unique after normalization. AGH canonicalizes them
+  before computing the runtime digest.
+- `digest` is runtime-owned. Authors do not write it in TOML or JSON files, and strict parsing
+  rejects unknown fields such as `digest`.
+- JSON and TOML use the same field names. Unknown fields are errors, and JSON input must end
+  cleanly with no trailing data.
+
+## Single-file catalog
+
+Single-file mode groups every capability for an agent under one top-level `capabilities` array.
+
+```toml title="capabilities.toml"
+[[capabilities]]
+id = "collect-failing-tests"
+summary = "Collect the exact failing package path and test output."
+outcome = "A normalized incident bundle for a debugging follow-up."
+context_needed = ["repo", "failing command"]
+artifacts_expected = ["incident bundle"]
+
+[[capabilities]]
+id = "fix-go-migration-tests"
+summary = "Repair failing Go migration tests and explain the change."
+outcome = "A validated patch summary with the corrected assertions."
+version = "1.2.0"
+context_needed = ["repo", "incident bundle"]
+artifacts_expected = ["patch summary", "verification notes"]
+execution_outline = ["inspect failure", "patch assertions", "rerun targeted tests"]
+constraints = ["Keep fixes scoped to the reported failure"]
+examples = ["sessiondb migration regressions"]
+requirements = ["collect-failing-tests"]
+```
+
+```json title="capabilities.json"
+{
+  "capabilities": [
+    {
+      "id": "collect-failing-tests",
+      "summary": "Collect the exact failing package path and test output.",
+      "outcome": "A normalized incident bundle for a debugging follow-up.",
+      "context_needed": ["repo", "failing command"],
+      "artifacts_expected": ["incident bundle"]
+    },
+    {
+      "id": "fix-go-migration-tests",
+      "summary": "Repair failing Go migration tests and explain the change.",
+      "outcome": "A validated patch summary with the corrected assertions.",
+      "version": "1.2.0",
+      "context_needed": ["repo", "incident bundle"],
+      "requirements": ["collect-failing-tests"]
+    }
+  ]
+}
+```
+
+## Directory catalog
+
+Directory mode keeps one capability per file. The top-level shape of each file is a single
+capability record, not a catalog wrapper.
+
+```text
+~/.agh/agents/release-curator/
+  AGENT.md
+  capabilities/
+    collect-failing-tests.json
+    fix-go-migration-tests.json
+```
+
+```json title="capabilities/fix-go-migration-tests.json"
+{
+  "id": "fix-go-migration-tests",
+  "summary": "Repair failing Go migration tests and explain the change.",
+  "outcome": "A validated patch summary with the corrected assertions.",
+  "version": "1.2.0",
+  "context_needed": ["repo", "incident bundle"],
+  "artifacts_expected": ["patch summary", "verification notes"],
+  "execution_outline": ["inspect failure", "patch assertions", "rerun targeted tests"],
+  "constraints": ["Keep fixes scoped to the reported failure"],
+  "examples": ["sessiondb migration regressions"],
+  "requirements": ["collect-failing-tests"]
+}
+```
+
+Directory-mode rules:
+
+- The filename basename (the name without `.toml` or `.json`) must match the normalized `id`.
+- Every file in the directory must use the same format. Mixing `.toml` and `.json` is rejected.
+- Dotfiles, nested directories, and files with other extensions are ignored.
+- No manifest file is needed; the directory listing itself is the catalog.
+
+## Validation rules
+
+AGH normalizes surrounding whitespace in every string field and list entry before checking the
+rules. After normalization:
+
+| Rule                             | Violation                                                                          |
+| -------------------------------- | ---------------------------------------------------------------------------------- |
+| Required fields present          | Missing `id`, `summary`, or `outcome` fails with `… is required`.                  |
+| Unique `id`                      | Duplicate IDs across entries fail with `duplicate capability id`.                  |
+| Directory basename matches `id`  | `capabilities/review-pr.json` with `id = "review-copy"` fails.                     |
+| Single layout per agent          | `capabilities.toml` plus `capabilities/` fails with `mixed capability layouts`.    |
+| Single single-file format        | `capabilities.toml` plus `capabilities.json` fails with `multiple catalog files`.  |
+| Single directory format          | Mixing `.toml` and `.json` inside `capabilities/` fails with `mixed file formats`. |
+| Unknown fields                   | Any unknown TOML or JSON key fails parsing, including authored `digest`.           |
+| Clean JSON                       | Trailing JSON values after the document fail parsing.                              |
+| `version` not blank when present | A `version` value that normalizes to empty fails validation.                       |
+| `requirements` entries valid     | Blank entries or duplicates after normalization fail validation.                   |
+
+Local validation does not resolve `requirements` targets. A capability can declare a requirement
+that lives on another peer; unresolved local targets are accepted as remote references. Every other
+validation error is a hard failure at load time. There is no warning mode.
+
+## Runtime digest
+
+AGH computes the `digest` field itself after normalization. The runtime canonicalizes the structured
+capability document — trimmed scalars, canonicalized `requirements`, stable field ordering — and
+hashes it into a content-addressed identifier. Two capability files with the same normalized content
+produce the same `digest`; any meaningful change produces a new one.
+
+Operators do not write or edit the `digest`. It surfaces in three places:
+
+- rich `whois` catalogs, so callers can detect whether a cached capability is still current
+- `kind:"capability"` transfer payloads, where the receiver verifies the transmitted digest against
+  the canonical document before caching or forwarding
+- daemon HTTP/UDS capability catalog payloads, alongside the typed capability fields
+
+See [Capability Discovery](/protocol/capability-discovery) for the wire rules and
+[Capability Envelope](/protocol/message-kinds/#capability) for the transfer contract.
+
+## No-catalog behavior
+
+Omitting the catalog is not an error. When an agent directory has no supported capability file or
+directory:
+
+- the agent still loads normally
+- `peer_card.capabilities` is emitted as an empty array, never `null`
+- `peer_card.ext["agh.capabilities_brief"]` is omitted entirely
+- `whois` with `agh.include=["capability_catalog"]` returns `"capabilities": []`
+- the local peer card still advertises `artifacts_supported = ["capability"]` because transfer
+  support is protocol-level, not dependent on catalog size
+
+<OperatorNote>
+  "No catalog" and "empty catalog" look identical on the wire: receivers cannot distinguish an agent
+  that never declared capabilities from one whose catalog file exists but is empty after
+  normalization. Treat both as "nothing offered".
+</OperatorNote>
+
+## How capabilities surface on the network
+
+The local catalog is the runtime source of truth. AGH projects it into three distinct wire roles
+using the same structured capability document — detail levels differ, but the concept does not.
+
+| Role                | Where it appears                                                       | What it carries                                        |
+| ------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| Brief discovery     | `peer_card.capabilities` and `peer_card.ext["agh.capabilities_brief"]` | IDs plus one-line summaries.                           |
+| Rich discovery      | `whois` response envelope `ext["agh.capability_catalog"]`              | Full records with outcomes, optionals, and `digest`.   |
+| Capability transfer | `kind:"capability"` envelope `body.capability`                         | One full structured capability with required `digest`. |
+
+Brief discovery is always on when a catalog exists. Rich discovery is returned only when the caller
+explicitly asks for it by including `capability_catalog` in the `whois` request's `agh.include`
+extension. Capability transfer is a separate explicit act: a peer emits a `kind:"capability"`
+envelope when it wants to hand the authoritative, digest-bound record to another peer.
+
+Daemon HTTP, UDS, and CLI payloads expose the same brief and rich views as typed fields
+(`peer_card.capabilities`, `capability_catalog`). Consumers should read those typed surfaces
+instead of raw `agh.capabilities_brief` or `agh.capability_catalog` blobs in API-visible `ext`.
+
+See [Capability Discovery](/protocol/capability-discovery) for the full wire-level contract,
+envelope keys, filtering rules, and worked examples across all three roles.
+
+## Authoring patterns
+
+### Declare a single capability
+
+Use single-file TOML when the catalog is short and easy to read in one place.
+
+```toml title="capabilities.toml"
+[[capabilities]]
+id = "build-site"
+summary = "Build the landing page."
+outcome = "A finished landing page."
+```
+
+### Split capabilities across one file each
+
+Use directory mode when each capability deserves its own context and examples.
+
+```text
+~/.agh/agents/designer/
+  AGENT.md
+  capabilities/
+    build-site.json
+    review-copy.json
+    audit-accessibility.json
+```
+
+```json title="capabilities/audit-accessibility.json"
+{
+  "id": "audit-accessibility",
+  "summary": "Audit a page for accessibility regressions.",
+  "outcome": "A prioritized accessibility report with quick wins and blockers.",
+  "context_needed": ["page URL or screenshot", "target WCAG level"],
+  "artifacts_expected": ["Markdown report"],
+  "constraints": ["No DOM mutation"]
+}
+```
+
+### Declare a capability with version and requirements
+
+Version the capability when callers need to pin to a specific evolution, and reference other
+capabilities the agent composes.
+
+```toml title="capabilities.toml"
+[[capabilities]]
+id = "collect-failing-tests"
+summary = "Collect the exact failing package path and test output."
+outcome = "A normalized incident bundle for a debugging follow-up."
+
+[[capabilities]]
+id = "fix-go-migration-tests"
+summary = "Repair failing Go migration tests and explain the change."
+outcome = "A validated patch summary with the corrected assertions."
+version = "1.2.0"
+requirements = ["collect-failing-tests"]
+```
+
+AGH loads the catalog, trims and validates the fields, canonicalizes `requirements`, and computes
+a runtime `digest` for `fix-go-migration-tests`.
+
+### Ask another peer for its full catalog
+
+A caller requests rich discovery by adding `agh.include` to a `whois` request envelope. The peer
+returns the full catalog, including each capability's runtime `digest`, in
+`agh.capability_catalog`.
+
+```json title="whois request ext"
+{
+  "agh.include": ["capability_catalog"]
+}
+```
+
+```json title="whois response ext"
+{
+  "agh.capability_catalog": {
+    "capabilities": [
+      {
+        "id": "build-site",
+        "summary": "Build the landing page.",
+        "outcome": "A finished landing page.",
+        "execution_outline": ["Inspect", "Build"]
+      }
+    ]
+  }
+}
+```
+
+Add `agh.capability_ids` to narrow the response to specific IDs. The full request/response shape
+lives in [Capability Discovery](/protocol/capability-discovery).
+
+### Transfer a capability explicitly
+
+When a caller needs the authoritative document — to cache, adapt, or delegate — the sender emits a
+`kind:"capability"` envelope with the full structured capability and its runtime digest. Receivers
+verify the digest against the canonical document before caching or forwarding.
+
+```json title="capability envelope body"
+{
+  "capability": {
+    "id": "fix-go-migration-tests",
+    "summary": "Repair failing Go migration tests and explain the change.",
+    "outcome": "A validated patch summary with the corrected assertions.",
+    "version": "1.2.0",
+    "digest": "sha256:9f19a533e236700a29866cb9bf0af2d022785faed82ad050f33bd6e29816f052",
+    "context_needed": ["repo", "incident bundle"],
+    "requirements": ["collect-failing-tests"]
+  }
+}
+```
+
+A `kind:"capability"` envelope MUST carry a conversation surface (`surface:"thread"` with
+`thread_id`, or `surface:"direct"` with `direct_id`), a target peer in `to`, and a `work_id`. The
+capability participates in the same lifecycle rules as a directed `say` envelope with `work_id`. See
+[Capability Envelope](/protocol/message-kinds/#capability) and
+[Work Lifecycle](/protocol/interactions) for the contract.
+
+## Related pages
+
+- [Agent Definitions](/runtime/core/agents/definitions) covers the `AGENT.md` sibling of a
+  capability catalog.
+- [AGENT.md](/runtime/core/configuration/agent-md) lists the sidecars AGH recognizes
+  alongside an agent directory.
+- [Peer Discovery](/protocol/peer-discovery) covers how `PeerCard` carries capability IDs and the
+  brief projection on the wire.
+- [Capability Discovery](/protocol/capability-discovery) documents the `whois` extensions, filter
+  rules, and envelope contract used by all three capability roles.
+- [Capability Envelope](/protocol/message-kinds/#capability) documents the `kind:"capability"`
+  transfer envelope.

@@ -1,0 +1,54 @@
+---
+title: Task Promotion
+description: Promote a Network thread into durable task intent without granting peers task mutation authority.
+---
+
+Thread promotion is the explicit transition from a Network conversation to the task domain. It is
+not peer task ingress and it does not grant a remote participant authority over an existing task or
+run.
+
+## Promote a thread
+
+Use the CLI when a public discussion has become durable work:
+
+```bash
+agh network threads promote \
+  --channel builders \
+  --thread thread_release_check_20260416 \
+  --origin-message msg_thread_root \
+  --title "Validate release migration gates" \
+  -o json
+```
+
+Agents can perform the same transition with `agh__task_promote_from_thread`. HTTP and UDS clients
+use `POST /api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task`.
+
+Promotion creates a draft task and a durable origin link containing the workspace, channel, thread,
+origin message, digest, and source message IDs. Thread detail responses expose the resulting
+`task_links`.
+
+## Authority boundary
+
+Promotion does not start a run, select Live participation, or let a Network peer update, cancel,
+enqueue, claim, lease, complete, or review the task. Those operations remain behind the normal
+session-bound task APIs and actor policy.
+
+The conversation channel is correlation evidence only. Start the task separately and choose its
+participation explicitly when needed:
+
+```bash
+agh task start task-123 \
+  --network live \
+  --network-channel-strategy run \
+  -o json
+```
+
+`work_id` and `task_runs.id` remain distinct identities. Network lifecycle messages cannot claim or
+settle a task run.
+
+## Related pages
+
+- [Public Threads](/runtime/core/network/threads)
+- [Participation, Channels, and Peers](/runtime/core/network/channels-and-peers)
+- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases)
+- [Task-Run Coordination Conversations](/runtime/core/autonomy/coordination-channels)

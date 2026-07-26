@@ -1,0 +1,54 @@
+---
+title: "agh task run"
+description: "Manage task runs"
+---
+
+## agh task run
+
+Manage task runs
+
+```
+agh task run [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for run
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task run -o json
+```
+
+## Subcommands
+
+| Command                                                                       | Description                                             |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------- |
+| [agh task run attach-session](/runtime/cli-reference/task/run/attach-session) | Attach an existing session to a claimed or starting run |
+| [agh task run cancel](/runtime/cli-reference/task/run/cancel)                 | Cancel a task run                                       |
+| [agh task run complete](/runtime/cli-reference/task/run/complete)             | Complete a running task run                             |
+| [agh task run enqueue](/runtime/cli-reference/task/run/enqueue)               | Enqueue a task run                                      |
+| [agh task run fail](/runtime/cli-reference/task/run/fail)                     | Fail a task run                                         |
+| [agh task run list](/runtime/cli-reference/task/run/list)                     | List runs for a task                                    |
+| [agh task run recover](/runtime/cli-reference/task/run/recover)               | Recover one needs_attention task run                    |
+| [agh task run show](/runtime/cli-reference/task/run/show)                     | Show a task run                                         |
+| [agh task run start](/runtime/cli-reference/task/run/start)                   | Start a claimed task run                                |

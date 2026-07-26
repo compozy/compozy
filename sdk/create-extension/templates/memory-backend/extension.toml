@@ -1,0 +1,18 @@
+[extension]
+name = "__EXTENSION_NAME__"
+version = "0.1.0"
+description = "AGH memory backend scaffold"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["memory.backend"]
+
+[actions]
+requires = ["sessions/list"]
+
+[subprocess]
+command = "node"
+args = ["dist/index.js"]
+
+[security]
+capabilities = ["memory.read", "memory.write", "session.read"]

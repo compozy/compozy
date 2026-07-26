@@ -1,0 +1,353 @@
+---
+title: GitHub Setup
+description: Connect one repository's issue and review comments through PAT or GitHub App authentication.
+---
+
+This guide connects comments in one GitHub repository to an AGH workspace agent. New issue comments
+and pull-request review comments become bridge messages; AGH replies through GitHub REST to the same
+issue or review thread.
+
+## How the GitHub bridge behaves
+
+| Surface                                  | AGH behavior                                                                                                                                                               |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Issue and pull-request timeline comments | Ingests newly created `issue_comment` events and creates, updates, or deletes issue comments. GitHub models pull-request timeline comments through the Issues API too.     |
+| Pull-request review comments             | Ingests newly created `pull_request_review_comment` events and can reply to, update, or delete review comments.                                                            |
+| Other repository events                  | `ping` receives `pong`; unsupported event types are acknowledged and ignored. Issue state changes, review submissions, reactions, and ordinary issue edits are not routed. |
+| Repository scope                         | One bridge instance owns one `owner/repository`. The route group is that full repository name.                                                                             |
+| Tool progress                            | Acknowledged without writing progress comments or reactions to GitHub.                                                                                                     |
+
+## Choose an authentication path
+
+| Path             | Required bindings                         | Best fit                                                                                     |
+| ---------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Fine-grained PAT | `webhook_secret`, `token`                 | One operator-owned repository and a fast initial setup.                                      |
+| GitHub App       | `webhook_secret`, `app_id`, `private_key` | An installation-owned identity, multiple installations, or organization-managed permissions. |
+
+Use an explicit `provider_config.mode` of `pat` or `app`. The runtime can infer an unambiguous binding
+set, but an explicit mode makes audits and remediation clearer.
+
+## Fastest supported path
+
+Use `pat` for the first repository proof:
+
+1. Create a fine-grained PAT limited to one repository.
+2. Create one repository webhook with a unique signing secret.
+3. Create the AGH bridge disabled with explicit `mode: "pat"` and `repository.full_name`.
+4. Bind `webhook_secret` and `token`.
+5. Verify configuration, enable, and inspect runtime health.
+6. Create one issue comment and confirm the AGH route.
+7. Reply through `send-test` and confirm the remote GitHub comment ID.
+
+Move to GitHub App mode when installation-owned identity and organization-managed permissions are
+requirements, not as an unproven first step.
+
+## Before you start
+
+- Admin access to the target repository, or permission to register/install a GitHub App.
+- A stable public HTTPS callback and local provider listener.
+- The exact repository full name, such as `acme/app`.
+- An AGH workspace whose default agent should receive comments.
+
+Before configuring GitHub, prove that the locally built provider is installed and visible in the
+daemon catalog:
+
+```bash
+PROVIDER=github
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
+
+The provider only accepts JSON webhook bodies up to 1 MiB and verifies `X-Hub-Signature-256` over
+the exact bytes GitHub sent.
+
+## Step 1: Expose the webhook endpoint
+
+```text
+GitHub → https://bridge.example.com/github/acme-app
+       → reverse proxy or tunnel
+       → http://127.0.0.1:18088/github/acme-app
+```
+
+Use `provider_config.webhook.listen_addr` as shown below, or set
+`AGH_BRIDGE_GITHUB_LISTEN_ADDR=127.0.0.1:18088` in the daemon environment. One provider process uses
+one listener address. Multiple repositories can share a path only when each payload selects exactly
+one configured repository and the selected instance's secret verifies it.
+
+## Step 2A: Create a PAT with narrow repository access
+
+For PAT mode:
+
+1. Open GitHub **Settings → Developer settings → Personal access tokens → Fine-grained tokens**.
+2. Create a token limited to the target repository.
+3. Grant **Issues: Read and write** for issue/PR timeline comments.
+4. Grant **Pull requests: Read and write** for pull-request review-comment replies and updates.
+5. Copy the token when GitHub displays it.
+
+GitHub's REST reference lists the fine-grained permission on each
+[issue-comment endpoint](https://docs.github.com/en/rest/issues/comments) and
+[review-comment endpoint](https://docs.github.com/en/rest/pulls/comments). If your organization
+requires approval for fine-grained tokens, wait for approval before expecting runtime health to pass.
+
+## Step 2B: Register and install a GitHub App
+
+For App mode:
+
+1. Under the owning account or organization, open **Settings → Developer settings → GitHub Apps** and
+   select **New GitHub App**.
+2. Set the webhook URL to the AGH public callback and create a high-entropy webhook secret.
+3. Under repository permissions, grant write access to **Issues** and **Pull requests**.
+4. Subscribe to **Issue comment** and **Pull request review comment** events.
+5. Save the app and record its numeric **App ID**.
+6. Generate a private key and download the PEM file.
+7. Install the app on the target account, limiting repository access to the repository configured in
+   this bridge when possible.
+
+GitHub's [App registration guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app)
+and [permission guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app)
+track the current UI. A GitHub App has one app-level webhook; do not also create a duplicate repository
+webhook for the same events unless you intentionally want duplicate deliveries.
+
+App delivery needs an installation ID. Configure it when known, or let the provider learn it from an
+accepted app webhook before the first outbound send.
+
+## Step 3: Create the bridge disabled
+
+GitHub has no guided `agh bridge setup` command. PAT example:
+
+```bash
+agh bridge create \
+  --scope workspace \
+  --workspace-id ws_8f33a913d23c4fd1 \
+  --platform github \
+  --extension github \
+  --display-name "GitHub acme/app" \
+  --enabled=false \
+  --include-group \
+  --include-thread \
+  --provider-config '{
+    "mode": "pat",
+    "repository": {"full_name": "acme/app"},
+    "bot_login": "agh-bot",
+    "webhook": {
+      "public_url": "https://bridge.example.com/github/acme-app",
+      "listen_addr": "127.0.0.1:18088",
+      "path": "/github/acme-app"
+    }
+  }' \
+  -o json
+```
+
+App example:
+
+```json
+{
+  "mode": "app",
+  "installation_id": 9001,
+  "repository": { "full_name": "acme/app" },
+  "webhook": {
+    "public_url": "https://bridge.example.com/github/acme-app",
+    "listen_addr": "127.0.0.1:18088",
+    "path": "/github/acme-app"
+  }
+}
+```
+
+`repository.owner` plus `repository.name` is equivalent to `repository.full_name`; do not provide
+contradictory values. `bot_login` suppresses comments authored by the configured bot. When omitted,
+a successful runtime identity probe can fill it.
+
+Copy the returned bridge ID:
+
+```bash
+BRIDGE_ID=brg_123
+```
+
+## Step 4: Bind the selected credentials
+
+Both modes need the same webhook secret configured on GitHub:
+
+```bash
+printf '%s' "$GITHUB_WEBHOOK_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
+  --secret-ref "vault:bridges/$BRIDGE_ID/webhook_secret" \
+  --kind secret \
+  --secret-value-stdin
+```
+
+PAT mode:
+
+```bash
+printf '%s' "$GITHUB_TOKEN" | agh bridge secret-bindings put "$BRIDGE_ID" token \
+  --secret-ref "vault:bridges/$BRIDGE_ID/token" \
+  --kind token \
+  --secret-value-stdin
+```
+
+GitHub App mode:
+
+```bash
+printf '%s' "$GITHUB_APP_ID" | agh bridge secret-bindings put "$BRIDGE_ID" app_id \
+  --secret-ref "vault:bridges/$BRIDGE_ID/app_id" \
+  --kind credential \
+  --secret-value-stdin
+
+agh bridge secret-bindings put "$BRIDGE_ID" private_key \
+  --secret-ref "vault:bridges/$BRIDGE_ID/private_key" \
+  --kind private-key \
+  --secret-value-file "/secure/path/github-app-private-key.pem"
+```
+
+The App ID must be numeric. The private key must be an RSA key encoded as PKCS#1 or PKCS#8 PEM.
+
+<OperatorNote>
+  Stdin keeps short-lived PATs and identifiers out of AGH process arguments. The file form is safer
+  for multiline PEM material and places only the path in argv. Restrict file permissions and remove
+  temporary copies after the write; see [Bridge
+  operations](/runtime/core/bridges/operations#rotate-a-credential).
+</OperatorNote>
+
+## Step 5: Configure the webhook for PAT mode
+
+Skip this section when the GitHub App webhook already points to AGH.
+
+1. Open the repository **Settings → Webhooks → Add webhook**.
+2. Set **Payload URL** to `provider_config.webhook.public_url`.
+3. Select **Content type: application/json**.
+4. Set **Secret** to the same value bound as `webhook_secret`.
+5. Choose **Let me select individual events**.
+6. Enable **Issue comments** and **Pull request review comments** only.
+7. Keep **Active** selected and add the webhook.
+
+GitHub sends a `ping` immediately. Check the webhook's **Recent Deliveries** tab for an HTTP success.
+The official [webhook creation guide](https://docs.github.com/en/webhooks/using-webhooks/creating-webhooks)
+shows the current repository and GitHub App paths.
+
+## Step 6: Understand what verify proves
+
+```bash
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+GitHub currently reports `provider.identity` as `skipped` in this control command. While disabled,
+webhook reachability is also `skipped`. The command still validates shared webhook configuration and
+returns explicit records instead of implying that a live GitHub login occurred.
+
+Enable the provider so runtime initialization can perform the actual authentication probe:
+
+```bash
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+Inspect bridge status and degradation after enablement. App mode without an installation ID can
+validate its local key and report ready, but it cannot deliver until an installation is available.
+
+## Step 7: Establish a route and reply
+
+Create a new issue comment in the configured repository. For review-thread routing, create a new
+pull-request review comment. AGH ingests only the `created` action.
+
+```bash
+agh bridge routes "$BRIDGE_ID" -o json
+```
+
+Use the returned thread target for a real delivery:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH GitHub connection check" \
+  --group-id "acme/app" \
+  --thread-id "<thread-id-from-route>" \
+  --mode reply \
+  --json
+```
+
+Confirm the response appears on the intended issue or review thread and that the returned
+`remote_message_id` matches the created GitHub comment.
+
+## Configuration reference
+
+| Field                                  | Requirement / fallback          | Purpose                                                                                         |
+| -------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `mode`                                 | yes in docs                     | `pat` or `app`; explicit is preferred even when bindings allow inference.                       |
+| `repository.full_name`                 | yes, or owner + name            | Exact `owner/repository` owned by the instance.                                                 |
+| `repository.owner` / `repository.name` | alternative                     | Structured form of the same repository identity.                                                |
+| `installation_id`                      | App delivery                    | GitHub App installation used to mint installation tokens. May be learned from webhook metadata. |
+| `bot_login`                            | no                              | Self-comment suppression identity.                                                              |
+| `webhook.public_url`                   | yes for setup/verification      | Full public HTTPS webhook URL.                                                                  |
+| `webhook.listen_addr`                  | `AGH_BRIDGE_GITHUB_LISTEN_ADDR` | Local provider listener.                                                                        |
+| `webhook.path`                         | `/github`                       | Local path; shared paths remain repository-scoped.                                              |
+
+The GitHub API base URL is an operator-owned process setting. Instance config cannot redirect bound
+credentials to another host.
+
+## Known limits
+
+- One bridge instance owns one repository.
+- Only newly created issue comments and pull-request review comments are ingested.
+- Tool progress has no GitHub side effect.
+- GitHub App mode does not implement an OAuth user flow; it uses an App JWT and installation token.
+- `agh bridge verify` does not perform the live identity call for this provider; runtime health does.
+
+## Troubleshooting
+
+| Symptom                                          | What to check                                                                                                                      |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Webhook shows a failed delivery                  | Inspect GitHub **Recent Deliveries**, confirm `application/json`, public path reachability, and the exact webhook secret.          |
+| Webhook returns success but AGH creates no route | Confirm the event is a newly created issue comment or PR review comment and the payload repository matches `repository.full_name`. |
+| PAT runtime health is unauthorized               | Confirm token approval, repository access, Issues write, and Pull requests write permissions.                                      |
+| App runtime rejects the private key              | Bind the downloaded RSA PEM unchanged and verify the numeric App ID belongs to the same app.                                       |
+| App first delivery says installation is missing  | Set `installation_id` or trigger an accepted app webhook from the installed repository first.                                      |
+| Bot replies trigger another agent turn           | Set `bot_login` to the login GitHub uses for the bot/app-authored comment.                                                         |
+| Review reply fails while issue comments work     | Add Pull requests write permission and approve the updated GitHub App installation permissions.                                    |
+| Duplicate AGH turns appear                       | Do not configure both an app webhook and a repository webhook for the same events unless one is intentionally disabled.            |
+
+## Security notes
+
+- Prefer a fine-grained PAT limited to the target repository, or a GitHub App installed only where
+  needed.
+- Use a different high-entropy webhook secret per independent integration boundary.
+- Store the App private key and PAT only through AGH secret bindings.
+- Subscribe only to the two event families the provider consumes.
+
+## Rotate GitHub credentials
+
+### PAT mode
+
+Create a replacement fine-grained token with the same repository and permission boundary. Disable
+the bridge, replace `token`, enable, inspect runtime health, and prove both issue and review delivery
+before revoking the old token.
+
+### GitHub App mode
+
+Generate a new private key on the same GitHub App, replace `private_key`, and verify that the App ID
+and installation still align. Delete the old GitHub App key only after a real installed-repository
+delivery succeeds.
+
+Rotating `webhook_secret` requires changing GitHub and the AGH binding in the same disabled window.
+
+## Completion checklist
+
+- The GitHub extension is installed, enabled, and healthy in the provider catalog.
+- The bridge owns exactly the intended `owner/repository`.
+- The webhook subscribes only to supported issue-comment and review-comment families.
+- PAT or GitHub App permissions allow the exact comment operations in use.
+- Runtime health performs the live authentication proof omitted by the short-lived control check.
+- A real created comment establishes the expected route.
+- `send-test` returns the remote issue or review comment ID.
+- App mode has an installation ID before outbound delivery is considered complete.
+- The bridge returns to `ready` after one restart.
+
+## Related docs
+
+- [Bridge setup](/runtime/core/bridges/setup)
+- [Operate and repair bridges](/runtime/core/bridges/operations)
+- [Message routing](/runtime/core/bridges/routing)
+- [Bridge delivery and progress](/runtime/core/bridges/progress)
+- [Bridge CLI reference](/runtime/cli-reference/bridge)

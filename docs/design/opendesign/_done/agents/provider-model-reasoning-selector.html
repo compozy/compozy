@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RuntimeSelector · Design references · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* ── tokens: verbatim from agent-detail.html (canonical PMR reference) ── */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+    --spring:cubic-bezier(.3,1.35,.35,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --overlay:var(--shadow-overlay);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .mono{font-family:var(--font-mono);font-size:12px}
+  :is(.btn,.rz__track,.rz__label,.mrow,.rail__item):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  .topbar{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas)}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb a:hover{color:var(--fg-strong)}
+  .crumb b{color:var(--fg-strong);font-weight:560;white-space:nowrap}
+  .crumb svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .topbar__trailing{display:flex;align-items:center;gap:8px;margin-left:auto}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+
+  .page{max-width:1080px;margin:0 auto;padding:32px 40px 96px}
+  .dh{display:flex;align-items:flex-start;gap:24px;padding-bottom:26px;border-bottom:1px solid var(--line);margin-bottom:36px}
+  .dh__main{min-width:0;flex:1}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .dh__name{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);margin-top:6px}
+  .dh__sub{font-size:13.5px;color:var(--muted);margin-top:8px;max-width:72ch;line-height:1.6}
+  .dh__sub .mono{font-size:12px;color:var(--fg)}
+  .dh__actions{margin-left:auto;display:flex;align-items:center;flex:none;padding-top:6px}
+  .dh__actions .pmr-host{position:relative}
+
+  .notice{display:flex;align-items:flex-start;gap:9px;margin:18px 0 0;padding:10px 13px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12px;color:var(--muted);max-width:72ch;line-height:1.55}
+  .notice svg{width:14px;height:14px;color:var(--warning);flex:none;margin-top:2px}
+  .notice b{color:var(--fg);font-weight:560}
+
+  .section{margin-bottom:44px}
+  .section__label{display:flex;align-items:center;gap:8px;padding-bottom:12px;font-size:11px;font-weight:600;letter-spacing:-.005em;color:var(--subtle);text-transform:uppercase}
+  .stage{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);padding:24px 26px}
+  .stage h3{font-size:13px;font-weight:560;color:var(--fg-strong);letter-spacing:-.012em}
+  .stage p{font-size:12.5px;color:var(--muted);margin-top:5px;max-width:66ch;line-height:1.55}
+  .stage__control{margin-top:18px;display:flex;align-items:center;gap:10px}
+  .kbd{font-family:var(--font-mono);font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 5px}
+
+  .rzpanel{background:var(--canvas-tint);border:1px solid var(--line-soft);border-radius:var(--radius-lg);padding:20px 22px;margin-top:16px}
+  .rzpanel:first-of-type{margin-top:20px}
+  .wire{display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft);
+    font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums}
+  .wire__k{color:var(--subtle)}
+  .wire__v{color:var(--fg);font-weight:560}
+  .wire__v.flash{animation:wireflash .6s var(--ease)}
+  @keyframes wireflash{0%{color:var(--accent-strong)}100%{color:var(--fg)}}
+
+  .vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .vcard{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:18px 20px}
+  .vcard h3{font-size:12.5px;font-weight:560;color:var(--fg-strong);letter-spacing:-.01em}
+  .vcard p{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+  .vcard__control{margin-top:16px;display:flex;align-items:center}
+
+  .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .card{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft)}
+  .card__copy{flex:1;min-width:0}
+  .card__copy b{display:block;font-size:12.5px;font-weight:560;color:var(--fg-strong);margin-bottom:3px;letter-spacing:-.01em}
+  .card__copy span{font-size:12px;color:var(--muted);line-height:1.55}
+  .card__copy .mono{font-size:11px;color:var(--fg)}
+  .card__badge{flex:none;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:2px 6px;margin-top:1px}
+
+  /* ── Provider · Model · Reasoning trigger — parity with agent-detail.html / trigger.tsx ── */
+  .pmr{display:inline-flex;align-items:stretch;height:34px;background:var(--elevated);border:1px solid var(--line-strong);
+    border-radius:var(--radius-md);box-shadow:var(--highlight),0 1px 2px rgba(0,0,0,.3);position:relative;user-select:none;
+    transition:border-color var(--dur) var(--ease)}
+  .pmr[data-open="true"]{border-color:var(--accent-dim)}
+  .pmr--sm{height:30px}
+  .pmr[data-readonly="true"]{opacity:.6;cursor:not-allowed}
+  .pmr[data-readonly="true"] .pmr__seg,.pmr[data-readonly="true"] .pmr__chev{pointer-events:none}
+  .pmr__seg{display:inline-flex;align-items:center;gap:8px;padding:0 12px;background:transparent;border:0;cursor:pointer;
+    position:relative;transition:background var(--dur-fast) var(--ease);white-space:nowrap}
+  .pmr--sm .pmr__seg{gap:7px;padding:0 10px}
+  .pmr__seg:hover{background:var(--btn-hover)}
+  .pmr__seg:first-child{border-radius:var(--radius-md) 0 0 var(--radius-md)}
+  .pmr__seg+.pmr__seg::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:1px;background:var(--line-strong)}
+  .pmr__glyph{width:20px;height:20px;border-radius:var(--radius-xs);background:var(--canvas);display:grid;place-items:center;
+    color:var(--fg);flex:none;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;padding:3px}
+  .pmr__glyph[data-fill="true"]{padding:0}
+  .pmr__glyph svg{width:100%;height:100%;display:block}
+  .pmr__prov{font-size:12.5px;font-weight:540;color:var(--fg)}
+  .pmr__model{font-size:12.5px;font-weight:560;color:var(--fg-strong);max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .pmr__model--empty{color:var(--muted);font-weight:500}
+  .pmr__rz{display:inline-flex;align-items:center;gap:7px}
+  .pmr__rzlabel{font-size:12px;font-weight:520;color:var(--muted)}
+  .pmr__chev{display:grid;place-items:center;padding:0 9px 0 5px;color:var(--faint);background:transparent;border:0;cursor:pointer;
+    border-radius:0 var(--radius-md) var(--radius-md) 0;transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+  .pmr__chev:hover{background:var(--btn-hover);color:var(--fg)}
+  .pmr__chev svg{width:13px;height:13px;transition:transform var(--dur) var(--ease)}
+  .pmr[data-open="true"] .pmr__chev svg{transform:rotate(180deg)}
+  .pmr__warn{display:grid;place-items:center;color:var(--warning);padding-left:4px}
+  .pmr__warn svg{width:13px;height:13px}
+
+  /* intensity meter — 7 canonical bars (intensity-meter.tsx) */
+  .meter{display:inline-flex;align-items:flex-end;gap:1.5px;height:12px}
+  .meter i{width:2.5px;border-radius:1px;background:var(--faint);transition:background var(--dur) var(--ease)}
+  .meter i:nth-child(1){height:3px}.meter i:nth-child(2){height:4.5px}.meter i:nth-child(3){height:6px}
+  .meter i:nth-child(4){height:7.5px}.meter i:nth-child(5){height:9px}.meter i:nth-child(6){height:10.5px}
+  .meter i:nth-child(7){height:12px}
+  .meter i.on{background:var(--accent-strong)}
+  .meter--hollow i{background:var(--line-strong)}
+
+  /* ── popup — parity with agent-detail.html ── */
+  .pop{position:fixed;z-index:90;width:min(528px,calc(100vw - 24px));background:var(--canvas-soft);border:1px solid var(--line);
+    border-radius:var(--radius-lg);box-shadow:var(--overlay);display:none;flex-direction:column;overflow:hidden;
+    max-height:min(520px,82vh)}
+  .pop[data-show="true"]{display:flex;animation:pop .13s var(--ease)}
+  @keyframes pop{from{opacity:0;transform:translateY(-4px) scale(.99)}to{opacity:1;transform:none}}
+  .pop__head{display:flex;align-items:center;gap:9px;height:44px;padding:0 12px;border-bottom:1px solid var(--line-soft);flex:none}
+  .pop__search{flex:1;display:flex;align-items:center;gap:9px;min-width:0}
+  .pop__search svg{width:15px;height:15px;color:var(--subtle);flex:none}
+  .pop__search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--fg-strong);font-size:13.5px;font-family:inherit}
+  .pop__search input::placeholder{color:var(--subtle)}
+  .pop__refresh{width:26px;height:26px;border-radius:var(--radius);display:grid;place-items:center;background:transparent;border:0;color:var(--subtle);cursor:pointer;flex:none;transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pop__refresh:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .pop__refresh svg{width:14px;height:14px;transition:transform .5s var(--ease)}
+  .pop__refresh.spin svg{transform:rotate(360deg)}
+  .pop__mid{display:flex;min-height:0;flex:1}
+  .rail{width:52px;flex:none;border-right:1px solid var(--line-soft);padding:6px 0;display:flex;flex-direction:column;gap:2px;overflow-y:auto;background:rgba(0,0,0,.12)}
+  .rail::-webkit-scrollbar{width:0}
+  .rail__item{position:relative;width:40px;height:36px;margin:0 auto;border-radius:var(--radius-md);display:grid;place-items:center;background:transparent;border:0;cursor:pointer;color:var(--muted);transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+  .rail__item:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .rail__item[data-active="true"]{background:var(--row-selected);color:var(--fg-strong)}
+  .rail__item[data-active="true"]::before{content:"";position:absolute;left:-6px;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--accent)}
+  .rail__item[data-dim="true"]{opacity:.42}
+  .rail__item svg{width:15px;height:15px}
+  .rail__logo{width:20px;height:20px;display:grid;place-items:center;overflow:hidden;border-radius:var(--radius-xs);color:var(--fg)}
+  .rail__logo svg{width:100%!important;height:100%!important;display:block}
+  .rail__sep{height:1px;background:var(--line-soft);margin:4px 10px}
+  .rail__gear{margin-top:auto}
+  .list{flex:1;min-width:0;overflow-y:auto;padding:5px 5px 6px}
+  .grp__head{display:flex;align-items:center;gap:8px;padding:9px 10px 5px;position:sticky;top:0;background:linear-gradient(var(--canvas-soft),var(--canvas-soft) 70%,transparent);z-index:1}
+  .grp__name{font-size:11px;font-weight:600;letter-spacing:.01em;color:var(--subtle)}
+  .grp__harness{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 5px}
+  .grp__avail{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:520}
+  .grp__avail .dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+  .av-live{color:var(--success)} .av-stale{color:var(--warning)} .av-off{color:var(--danger)}
+  .mrow{display:flex;align-items:center;gap:11px;width:100%;padding:8px 10px;border-radius:var(--radius-md);background:transparent;border:0;cursor:pointer;text-align:left;transition:background var(--dur-fast) var(--ease)}
+  .mrow:hover,.mrow[data-hl="true"]{background:var(--row-hover)}
+  .mrow[data-sel="true"]{background:var(--accent-tint)}
+  .mrow[data-disabled="true"]{cursor:not-allowed;opacity:.5}
+  .mrow[data-disabled="true"]:hover{background:transparent}
+  .mrow__glyph{width:28px;height:28px;border-radius:var(--radius-sm);background:var(--elevated);display:grid;place-items:center;color:var(--fg);flex:none;box-shadow:inset 0 0 0 1px var(--line-soft);overflow:hidden;padding:5px}
+  .mrow__glyph[data-fill="true"]{padding:0}
+  .mrow__glyph svg{width:100%;height:100%;display:block}
+  .mrow[data-sel="true"] .mrow__glyph{box-shadow:inset 0 0 0 1px var(--accent-dim)}
+  .mrow__main{min-width:0;flex:1}
+  .mrow__top{display:flex;align-items:center;gap:8px;min-width:0}
+  .mrow__name{font-size:13px;font-weight:560;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.008em}
+  .mrow__sub{margin-top:2px;display:flex;align-items:center;gap:7px;font-size:11px;color:var(--faint);flex-wrap:wrap}
+  .mrow__sub .provref{color:var(--subtle)}
+  .chip{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px;color:var(--subtle);font-variant-numeric:tabular-nums}
+  .chip svg{width:11px;height:11px;color:var(--faint)}
+  .chip--rz{color:var(--accent-strong)}
+  .chip--rz svg{color:var(--accent-strong)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+  .mrow__right{display:flex;align-items:center;gap:10px;flex:none}
+  .mrow__reason{font-size:10.5px;font-weight:520;color:var(--warning);white-space:nowrap}
+  .mrow__star{width:20px;height:20px;border-radius:var(--radius);display:grid;place-items:center;background:transparent;border:0;color:var(--faint);cursor:pointer;opacity:0;transition:opacity var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .mrow__star svg{width:13px;height:13px;display:block}
+  .mrow:hover .mrow__star{opacity:.6}
+  .mrow__star:hover{opacity:1;color:var(--warning)}
+  .mrow__star[data-fav="true"]{opacity:1;color:var(--subtle)}
+  .mrow__star[data-fav="true"]:hover{color:var(--warning)}
+  .custom-row{margin:4px 5px 2px;padding:9px 10px;border-radius:var(--radius-md);border:1px dashed var(--line-strong);color:var(--muted);font-size:12.5px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:color var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .custom-row:hover{color:var(--fg-strong);border-color:var(--accent-dim)}
+  .custom-row svg{width:14px;height:14px}
+  .list__empty{padding:38px 20px;text-align:center;color:var(--subtle);font-size:12.5px}
+
+  /* reasoning footer chrome (head row identical to reasoning-bar.tsx) */
+  .rzbar{flex:none;border-top:1px solid var(--line-soft);padding:14px 16px 16px;background:rgba(0,0,0,.12)}
+  .rzbar__head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .rzbar__label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+  .rzbar__for{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rzbar__src{margin-left:auto;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 5px}
+  .rzbar__none{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--subtle);padding:2px 1px}
+  .rzbar__none svg{width:15px;height:15px;color:var(--faint);flex:none}
+  .rzbar__none b{color:var(--muted);font-weight:500}
+
+  /* ── reasoning range selector — quiet control, not a banner ── */
+  .rz{--rz-h:16px;--rz-thumb:20px;position:relative;user-select:none;touch-action:none}
+  .rz--lg{--rz-h:20px;--rz-thumb:26px}
+  .rz__labels{position:relative;height:18px;margin-bottom:8px}
+  .rz--lg .rz__labels{height:20px;margin-bottom:10px}
+  .rz__label{position:absolute;top:0;transform:translateX(-50%);border:0;background:none;cursor:pointer;padding:0 2px;
+    font-size:11px;font-weight:540;line-height:18px;color:var(--muted);white-space:nowrap;border-radius:var(--radius-xs);
+    transition:color var(--dur) var(--ease)}
+  .rz__label[data-edge]{transform:none}
+  .rz--lg .rz__label{font-size:12px;line-height:20px}
+  .rz__label:hover{color:var(--fg)}
+  .rz__label[data-on="true"]{color:var(--fg-strong)}
+  .rz__track{position:relative;height:var(--rz-h);border-radius:var(--radius-pill);background:var(--canvas);cursor:pointer;outline:none;
+    box-shadow:inset 0 0 0 1px var(--line-soft),inset 0 1px 2px rgba(0,0,0,.25)}
+  .rz__track::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
+  .rz__track:focus-visible{box-shadow:inset 0 0 0 1px var(--line-soft),0 0 0 1px var(--line-strong)}
+  .rz__fill{position:absolute;left:2px;top:2px;bottom:2px;border-radius:var(--radius-pill);background:var(--accent);
+    width:calc(var(--rz-p)*(100% - var(--rz-h)) + var(--rz-h) - 4px);
+    transition:width .34s var(--spring),background var(--dur) var(--ease)}
+  .rz[data-default="true"] .rz__fill{background:var(--btn-fill)}
+  .rz__stop{position:absolute;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;border-radius:50%;background:var(--faint);pointer-events:none}
+  .rz__thumb{position:absolute;top:calc((var(--rz-h) - var(--rz-thumb))/2);width:var(--rz-thumb);height:var(--rz-thumb);border-radius:50%;
+    left:calc(var(--rz-p)*(100% - var(--rz-h)) + (var(--rz-h) - var(--rz-thumb))/2);
+    background:#ffffff;box-shadow:0 0 0 2px rgba(0,0,0,.25),0 1px 3px rgba(0,0,0,.4);cursor:grab;
+    transition:left .34s var(--spring),transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+  .rz__track:hover .rz__thumb{box-shadow:0 0 0 2px rgba(0,0,0,.25),0 0 0 5px var(--accent-tint),0 1px 3px rgba(0,0,0,.4)}
+  .rz[data-default="true"] .rz__track:hover .rz__thumb{box-shadow:0 0 0 2px rgba(0,0,0,.25),0 0 0 5px var(--surface-glaze),0 1px 3px rgba(0,0,0,.4)}
+  .rz.is-dragging .rz__thumb{cursor:grabbing;transform:scale(1.05);
+    box-shadow:0 0 0 2px rgba(0,0,0,.25),0 0 0 6px var(--accent-tint-strong),0 2px 5px rgba(0,0,0,.45)}
+  .rz.is-dragging .rz__thumb,.rz.is-dragging .rz__fill{transition:none}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+  @media(max-width:720px){
+    .page{padding:22px 18px 64px}
+    .dh{flex-direction:column}
+    .dh__actions{margin-left:0}
+    .cards{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<header class="topbar" data-od-id="reference-topbar">
+  <div class="crumb">
+    <a href="../systems/design-system.html">Design references</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    <b>RuntimeSelector</b>
+  </div>
+  <div class="topbar__trailing">
+    <a class="btn" href="agent-detail.html" data-od-id="link-agent-detail">agent-detail reference</a>
+  </div>
+</header>
+
+<main class="page" data-od-id="runtime-selector-page">
+  <div class="dh" data-od-id="reference-header">
+    <div class="dh__main">
+      <div class="eyebrow">Production transcription · Runtime</div>
+      <h1 class="dh__name">Provider, model, and reasoning are one control.</h1>
+      <p class="dh__sub">This page mirrors <span class="mono">web/src/systems/runtime/components/runtime-selector</span> — the segmented trigger, the catalog popup, and the reasoning control share one focus lifecycle. Reasoning effort is picked with a range selector: drag the thumb, click a stop, or use arrow keys.</p>
+      <div class="notice" data-od-id="contract-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span><b>Contract.</b> Each trigger segment is a real button that deep-links focus into the popup dialog: provider → rail, model → search + list, reasoning → range selector. The selector emits the canonical effort enum or <span class="mono">""</span> for provider default. Escape closes and restores focus to the opening segment.</span>
+      </div>
+    </div>
+    <div class="dh__actions" data-od-id="header-runtime-selector">
+      <div class="pmr-host" id="header-pmr-mount"></div>
+    </div>
+  </div>
+
+  <section class="section" data-od-id="sec-interactive">
+    <h2 class="section__label">Interactive reference</h2>
+    <article class="stage" data-od-id="stage-default">
+      <h3>Default value</h3>
+      <p>Codex and GPT-5.4 with medium reasoning. Open the provider, model, reasoning, or chevron segment — focus lands on the matching region so the operator's intent is preserved.</p>
+      <div class="stage__control">
+        <div class="pmr-host" id="mount-default"></div>
+        <span class="kbd">⌘K</span>
+      </div>
+    </article>
+  </section>
+
+  <section class="section" data-od-id="sec-reasoning-slider">
+    <h2 class="section__label">Reasoning effort — range selector</h2>
+    <article class="stage" data-od-id="stage-reasoning">
+      <h3>Drag, click, or arrow through the model's advertised levels</h3>
+      <p>Stops adapt to the model: <b style="color:var(--fg)">Default</b> (provider decides) is always first, followed by the selectable subset the provider advertises via config or ACP. The fill stays neutral on Default and turns accent once an explicit effort is pinned.</p>
+
+      <div class="rzpanel" data-od-id="slider-config">
+        <div class="rzbar__head">
+          <span class="rzbar__label">Reasoning effort</span>
+          <span class="rzbar__for">Codex · GPT-5.4</span>
+          <span class="rzbar__src">config</span>
+        </div>
+        <div id="rz-demo-config"></div>
+        <div class="wire"><span class="wire__k">reasoning_effort:</span><span class="wire__v" id="wire-config">"high"</span></div>
+      </div>
+
+      <div class="rzpanel" data-od-id="slider-acp">
+        <div class="rzbar__head">
+          <span class="rzbar__label">Reasoning effort</span>
+          <span class="rzbar__for">OpenCode · GPT-5.4</span>
+          <span class="rzbar__src">acp</span>
+        </div>
+        <div id="rz-demo-acp"></div>
+        <div class="wire"><span class="wire__k">reasoning_effort:</span><span class="wire__v" id="wire-acp">""</span></div>
+      </div>
+    </article>
+  </section>
+
+  <section class="section" data-od-id="sec-variants">
+    <h2 class="section__label">Trigger variants and states</h2>
+    <div class="vgrid">
+      <article class="vcard" data-od-id="variant-small">
+        <h3>Small</h3>
+        <p>30px trigger for dense toolbars. Same anatomy, tighter segment padding.</p>
+        <div class="vcard__control"><div class="pmr-host" id="mount-small"></div></div>
+      </article>
+      <article class="vcard" data-od-id="variant-compact">
+        <h3>Compact</h3>
+        <p>Provider glyph and chevron only — the popup carries model and reasoning.</p>
+        <div class="vcard__control"><div class="pmr-host" id="mount-compact"></div></div>
+      </article>
+      <article class="vcard" data-od-id="variant-no-model">
+        <h3>No model selected</h3>
+        <p>An empty model is not a blank segment; the placeholder names the next action.</p>
+        <div class="vcard__control"><div class="pmr-host" id="mount-nomodel"></div></div>
+      </article>
+      <article class="vcard" data-od-id="variant-readonly">
+        <h3>Read-only</h3>
+        <p>Value stays legible while edits are disabled — identity is never erased.</p>
+        <div class="vcard__control"><div class="pmr-host" id="mount-readonly"></div></div>
+      </article>
+      <article class="vcard" data-od-id="variant-warning">
+        <h3>Needs sign in</h3>
+        <p>Auth problems surface on the trigger as a warning affordance, not silence.</p>
+        <div class="vcard__control"><div class="pmr-host" id="mount-warn"></div></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" data-od-id="sec-rules">
+    <h2 class="section__label">State and data rules</h2>
+    <div class="cards">
+      <article class="card"><div class="card__copy"><b>Canonical 7-position vocabulary</b><span><span class="mono">none · minimal · low · medium · high · xhigh · max</span> — the meter position is canonical, so Medium always fills 4 of 7 bars. <span class="mono">""</span> is outside the set and means provider default.</span></div><span class="card__badge">types.ts</span></article>
+      <article class="card"><div class="card__copy"><b>Adaptive stops</b><span>The range selector renders Default plus only the levels the model advertises (config or ACP). Models without selectable effort get an explanatory note, never an empty control.</span></div><span class="card__badge">per model</span></article>
+      <article class="card"><div class="card__copy"><b>Provider-qualified favorites</b><span>Persistence keys combine provider and model identity, so the same model ID from two providers never collides. Loaded-empty catalogs purge stale entries; loading never destroys them.</span></div><span class="card__badge">provider:model</span></article>
+      <article class="card"><div class="card__copy"><b>Focus ownership</b><span>Search receives focus on generic open. Segment clicks deep-link: provider focuses the rail, reasoning focuses the selector track. Escape returns focus to the segment that opened the popup.</span></div><span class="card__badge">no focus loss</span></article>
+    </div>
+  </section>
+</main>
+
+<!-- single shared popup instance -->
+<div class="pop" id="pop" data-show="false" role="dialog" aria-label="Select provider, model and reasoning">
+  <div class="pop__head">
+    <label class="pop__search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+      <input id="pop-search" type="text" placeholder="Search models, providers…" autocomplete="off" spellcheck="false" aria-label="Search models and providers" />
+    </label>
+    <button class="pop__refresh" id="pop-refresh" title="Refresh catalog" aria-label="Refresh model catalog">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
+    </button>
+  </div>
+  <div class="pop__mid">
+    <div class="rail" id="pop-rail"></div>
+    <div class="list" id="pop-list"></div>
+  </div>
+  <div class="rzbar" id="pop-rz"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- canonical reasoning vocabulary (runtime-selector/types.ts) ----------
+  var HARNESS = { acp:"cli", pi_acp:"api key" };
+  var EFFORT_ORDER = ["none","minimal","low","medium","high","xhigh","max"];
+  var EFFORT_LABEL = { none:"None", minimal:"Minimal", low:"Low", medium:"Medium", high:"High", xhigh:"Extra high", max:"Max" };
+  function effortPos(e){ var i=EFFORT_ORDER.indexOf(e); return i<0?0:i+1; } // 1..7
+
+  // ---------- grounded data (mirrors internal/config/provider.go + model-catalog) ----------
+  var PROVIDERS = [
+    { id:"codex",      name:"Codex",         harness:"acp",    auth:"ready"  },
+    { id:"claude",     name:"Claude Code",   harness:"acp",    auth:"ready"  },
+    { id:"gemini",     name:"Gemini CLI",    harness:"acp",    auth:"ready"  },
+    { id:"opencode",   name:"OpenCode",      harness:"acp",    auth:"ready"  },
+    { id:"cursor",     name:"Cursor Agent",  harness:"acp",    auth:"ready"  },
+    { id:"openrouter", name:"OpenRouter",    harness:"pi_acp", auth:"ready"  },
+    { id:"xai",        name:"xAI",           harness:"pi_acp", auth:"ready"  },
+    { id:"groq",       name:"Groq",          harness:"pi_acp", auth:"ready"  },
+    { id:"moonshot",   name:"Moonshot",      harness:"pi_acp", auth:"ready"  },
+    { id:"zai",        name:"z.ai",          harness:"pi_acp", auth:"signin" }
+  ];
+  var PROV = {}; PROVIDERS.forEach(function(p){ PROV[p.id]=p; });
+
+  var MODELS = [
+    { id:"gpt-5.4",        provider:"codex", name:"GPT-5.4",        ctx:400000, cin:1.25, cout:10, tools:true, reasoning:true,  efforts:["minimal","low","medium","high","xhigh"], def:"medium", src:"config", avail:"live", fav:true,  recent:true },
+    { id:"gpt-5.4-mini",   provider:"codex", name:"GPT-5.4 Mini",   ctx:400000, cin:0.25, cout:2,  tools:true, reasoning:true,  efforts:["minimal","low","medium","high","xhigh"], def:"low",    src:"config", avail:"live" },
+    { id:"gpt-5.3",        provider:"codex", name:"GPT-5.3",        ctx:256000, cin:1.1,  cout:9,  tools:true, reasoning:true,  efforts:["low","medium","high","xhigh"],           def:"medium", src:"config", avail:"stale" },
+    { id:"opus-4.6",       provider:"claude", name:"Opus 4.6",      ctx:200000, cin:15,   cout:75, tools:true, reasoning:true,  efforts:[], avail:"live", fav:true, recent:true },
+    { id:"sonnet-4.6",     provider:"claude", name:"Sonnet 4.6",    ctx:200000, cin:3,    cout:15, tools:true, reasoning:true,  efforts:[], avail:"live", recent:true },
+    { id:"haiku-4.5",      provider:"claude", name:"Haiku 4.5",     ctx:200000, cin:1,    cout:5,  tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"gemini-2.5-pro", provider:"gemini", name:"Gemini 2.5 Pro",ctx:1000000,cin:1.25, cout:10, tools:true, reasoning:true,  efforts:[], avail:"live" },
+    { id:"oc-gpt-5.4",     provider:"opencode", name:"GPT-5.4",     ctx:400000, cin:null, cout:null, tools:true, reasoning:true, efforts:["low","medium","high"], def:"medium", src:"acp", avail:"live" },
+    { id:"oc-sonnet",      provider:"opencode", name:"Sonnet 4.6",  ctx:200000, cin:null, cout:null, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"cursor-auto",    provider:"cursor", name:"Auto",          ctx:null,   cin:null, cout:null, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"or-deepseek-v3", provider:"openrouter", name:"DeepSeek V3",     ctx:128000, cin:0.27, cout:1.1, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"or-deepseek-r1", provider:"openrouter", name:"DeepSeek R1",     ctx:128000, cin:0.55, cout:2.2, tools:true, reasoning:true,  efforts:[], avail:"live" },
+    { id:"or-llama-3.3",   provider:"openrouter", name:"Llama 3.3 70B",   ctx:128000, cin:0.12, cout:0.3, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"or-qwen-2.5",    provider:"openrouter", name:"Qwen 2.5 Coder",  ctx:128000, cin:0.18, cout:0.5, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"grok-4",         provider:"xai", name:"Grok 4",           ctx:256000, cin:3,    cout:15, tools:true, reasoning:true,  efforts:[], avail:"live" },
+    { id:"groq-llama-3.3", provider:"groq", name:"Llama 3.3 70B",   ctx:128000, cin:0.59, cout:0.79, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"groq-r1-distill",provider:"groq", name:"R1 Distill 70B",  ctx:128000, cin:0.75, cout:0.99, tools:true, reasoning:true,  efforts:[], avail:"live" },
+    { id:"kimi-k2",        provider:"moonshot", name:"Kimi K2",     ctx:256000, cin:0.6,  cout:2.5, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"glm-4.6",        provider:"zai", name:"GLM-4.6",          ctx:200000, cin:0.6,  cout:2.2, tools:true, reasoning:false, efforts:[], avail:"unavailable", reason:"Sign in" }
+  ];
+  var MODEL = {}; MODELS.forEach(function(m){ MODEL[m.id]=m; });
+
+  // ---------- svg helpers ----------
+  function icon(name){
+    var p = {
+      chev:'<path d="m6 9 6 6 6-6"/>',
+      warn:'<path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+      tools:'<path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3Z"/>',
+      brain:'<path d="M9.5 3A2.5 2.5 0 0 0 7 5.5 2.5 2.5 0 0 0 5 8a2.5 2.5 0 0 0 .5 4.5V19a2 2 0 0 0 4 0V5.5A2.5 2.5 0 0 0 9.5 3Z"/><path d="M14.5 3A2.5 2.5 0 0 1 17 5.5 2.5 2.5 0 0 1 19 8a2.5 2.5 0 0 1-.5 4.5V19a2 2 0 0 1-4 0V5.5A2.5 2.5 0 0 1 14.5 3Z"/>',
+      plus:'<path d="M12 5v14M5 12h14"/>',
+      star:'<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1L12 2Z"/>',
+      gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
+      all:'<rect x="3" y="4" width="8" height="8" rx="1.5"/><rect x="13" y="4" width="8" height="8" rx="1.5"/><rect x="3" y="14" width="8" height="6" rx="1.5"/><rect x="13" y="14" width="8" height="6" rx="1.5"/>'
+    }[name];
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+  }
+  function starSvg(fill){ return '<svg viewBox="0 0 24 24" fill="'+(fill?'currentColor':'none')+'" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+icon('star').replace(/<svg[^>]*>|<\/svg>/g,'')+'</svg>'; }
+
+  // ---------- real AGH brand logos (packages/ui/src/logos) ----------
+  var LOGO = {
+    codex:{ vb:"0 0 721 721", inner:'<path fill="currentColor" d="M304.246 294.611V249.028C304.246 245.189 305.687 242.309 309.044 240.392L400.692 187.612C413.167 180.415 428.042 177.058 443.394 177.058C500.971 177.058 537.44 221.682 537.44 269.182C537.44 272.54 537.44 276.379 536.959 280.218L441.954 224.558C436.197 221.201 430.437 221.201 424.68 224.558L304.246 294.611ZM518.245 472.145V363.224C518.245 356.505 515.364 351.707 509.608 348.349L389.174 278.296L428.519 255.743C431.877 253.826 434.757 253.826 438.115 255.743L529.762 308.523C556.154 323.879 573.905 356.505 573.905 388.171C573.905 424.636 552.315 458.225 518.245 472.141V472.145ZM275.937 376.182L236.592 353.152C233.235 351.235 231.794 348.354 231.794 344.515V238.956C231.794 187.617 271.139 148.749 324.4 148.749C344.555 148.749 363.264 155.468 379.102 167.463L284.578 222.164C278.822 225.521 275.942 230.319 275.942 237.039V376.186L275.937 376.182ZM360.626 425.122L304.246 393.455V326.283L360.626 294.616L417.002 326.283V393.455L360.626 425.122ZM396.852 570.989C376.698 570.989 357.989 564.27 342.151 552.276L436.674 497.574C442.431 494.217 445.311 489.419 445.311 482.699V343.552L485.138 366.582C488.495 368.499 489.936 371.379 489.936 375.219V480.778C489.936 532.117 450.109 570.985 396.852 570.985V570.989ZM283.134 463.99L191.486 411.211C165.094 395.854 147.343 363.229 147.343 331.562C147.343 294.616 169.415 261.509 203.48 247.593V356.991C203.48 363.71 206.361 368.508 212.117 371.866L332.074 441.437L292.729 463.99C289.372 465.907 286.491 465.907 283.134 463.99ZM277.859 542.68C223.639 542.68 183.813 501.895 183.813 451.514C183.813 447.675 184.294 443.836 184.771 439.997L279.295 494.698C285.051 498.056 290.812 498.056 296.568 494.698L417.002 425.127V470.71C417.002 474.549 415.562 477.429 412.204 479.346L320.557 532.126C308.081 539.323 293.206 542.68 277.854 542.68H277.859ZM396.852 599.776C454.911 599.776 503.37 558.513 514.41 503.812C568.149 489.896 602.696 439.515 602.696 388.176C602.696 354.587 588.303 321.962 562.392 298.45C564.791 288.373 566.231 278.296 566.231 268.224C566.231 199.611 510.571 148.267 446.274 148.267C433.322 148.267 420.846 150.184 408.37 154.505C386.775 133.392 357.026 119.958 324.4 119.958C266.342 119.958 217.883 161.22 206.843 215.921C153.104 229.837 118.557 280.218 118.557 331.557C118.557 365.146 132.95 397.771 158.861 421.283C156.462 431.36 155.022 441.437 155.022 451.51C155.022 520.123 210.682 571.466 274.978 571.466C287.931 571.466 300.407 569.549 312.883 565.228C334.473 586.341 364.222 599.776 396.852 599.776Z"/>' },
+    claude:{ vb:"0 0 256 257", inner:'<path fill="#D97757" d="m50.228 170.321 50.357-28.257.843-2.463-.843-1.361h-2.462l-8.426-.518-28.775-.778-24.952-1.037-24.175-1.296-6.092-1.297L0 125.796l.583-3.759 5.12-3.434 7.324.648 16.202 1.101 24.304 1.685 17.629 1.037 26.118 2.722h4.148l.583-1.685-1.426-1.037-1.101-1.037-25.147-17.045-27.22-18.017-14.258-10.37-7.713-5.25-3.888-4.925-1.685-10.758 7-7.713 9.397.649 2.398.648 9.527 7.323 20.35 15.75L94.817 91.9l3.889 3.24 1.555-1.102.195-.777-1.75-2.917-14.453-26.118-15.425-26.572-6.87-11.018-1.814-6.61c-.648-2.723-1.102-4.991-1.102-7.778l7.972-10.823L71.42 0 82.05 1.426l4.472 3.888 6.61 15.101 10.694 23.786 16.591 32.34 4.861 9.592 2.592 8.879.973 2.722h1.685v-1.556l1.36-18.211 2.528-22.36 2.463-28.776.843-8.1 4.018-9.722 7.971-5.25 6.222 2.981 5.12 7.324-.713 4.73-3.046 19.768-5.962 30.98-3.889 20.739h2.268l2.593-2.593 10.499-13.934 17.628-22.036 7.778-8.749 9.073-9.657 5.833-4.601h11.018l8.1 12.055-3.628 12.443-11.342 14.388-9.398 12.184-13.48 18.147-8.426 14.518.778 1.166 2.01-.194 30.46-6.481 16.462-2.982 19.637-3.37 8.88 4.148.971 4.213-3.5 8.62-20.998 5.184-24.628 4.926-36.682 8.685-.454.324.519.648 16.526 1.555 7.065.389h17.304l32.21 2.398 8.426 5.574 5.055 6.805-.843 5.184-12.962 6.611-17.498-4.148-40.83-9.721-14-3.5h-1.944v1.167l11.666 11.406 21.387 19.314 26.767 24.887 1.36 6.157-3.434 4.86-3.63-.518-23.526-17.693-9.073-7.972-20.545-17.304h-1.36v1.814l4.73 6.935 25.017 37.59 1.296 11.536-1.814 3.76-6.481 2.268-7.13-1.297-14.647-20.544-15.1-23.138-12.185-20.739-1.49.843-7.194 77.448-3.37 3.953-7.778 2.981-6.48-4.925-3.436-7.972 3.435-15.749 4.148-20.544 3.37-16.333 3.046-20.285 1.815-6.74-.13-.454-1.49.194-15.295 20.999-23.267 31.433-18.406 19.702-4.407 1.75-7.648-3.954.713-7.064 4.277-6.286 25.47-32.405 15.36-20.092 9.917-11.6-.065-1.686h-.583L44.07 198.125l-12.055 1.555-5.185-4.86.648-7.972 2.463-2.593 20.35-13.999-.064.065Z"/>' },
+    gemini:{ vb:"0 0 296 298", inner:'<defs><linearGradient id="gm-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4285F4"/><stop offset=".45" stop-color="#9B72CB"/><stop offset=".75" stop-color="#D96570"/><stop offset="1" stop-color="#F6C013"/></linearGradient></defs><path fill="url(#gm-g)" d="M141.201 4.886c2.282-6.17 11.042-6.071 13.184.148l5.985 17.37a184.004 184.004 0 0 0 111.257 113.049l19.304 6.997c6.143 2.227 6.156 10.91.02 13.155l-19.35 7.082a184.001 184.001 0 0 0-109.495 109.385l-7.573 20.629c-2.241 6.105-10.869 6.121-13.133.025l-7.908-21.296a184 184 0 0 0-109.02-108.658l-19.698-7.239c-6.102-2.243-6.118-10.867-.025-13.132l20.083-7.467A183.998 183.998 0 0 0 133.291 26.28l7.91-21.394Z"/>' },
+    cursor:{ vb:"0 0 466.73 532.09", inner:'<path fill="currentColor" d="M457.43 125.94 244.42 2.96a22.127 22.127 0 0 0-22.12 0L9.3 125.94C3.55 129.26 0 135.4 0 142.05v247.99c0 6.65 3.55 12.79 9.3 16.11l213.01 122.98a22.127 22.127 0 0 0 22.12 0l213.01-122.98c5.75-3.32 9.3-9.46 9.3-16.11V142.05c0-6.65-3.55-12.79-9.3-16.11h-.01Zm-13.38 26.05L238.42 508.15c-1.39 2.4-5.06 1.42-5.06-1.36V273.58c0-4.66-2.49-8.97-6.53-11.31L24.87 145.67c-2.4-1.39-1.42-5.06 1.36-5.06h411.26c5.84 0 9.49 6.33 6.57 11.39h-.01Z"/>' },
+    openrouter:{ vb:"0 0 24 24", inner:'<path fill="currentColor" d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/>' },
+    xai:{ vb:"0 0 841.89 595.28", inner:'<path fill="currentColor" d="m557.09 211.99 8.31 326.37h66.56l8.32-445.18zM640.28 56.91H538.72L379.35 284.53l50.78 72.52zM201.61 538.36h101.56l50.79-72.52-50.79-72.53zM201.61 211.99l228.52 326.37h101.56L303.17 211.99z"/>' },
+    groq:{ vb:"0 0 201 201", fill:true, inner:'<path fill="#F54F35" d="M0 0h201v201H0V0Z"/><path fill="#FEFBFB" d="m128 49 1.895 1.52C136.336 56.288 140.602 64.49 142 73c.097 1.823.148 3.648.161 5.474l.03 3.247.012 3.482.017 3.613c.01 2.522.016 5.044.02 7.565.01 3.84.041 7.68.072 11.521.007 2.455.012 4.91.016 7.364l.038 3.457c-.033 11.717-3.373 21.83-11.475 30.547-4.552 4.23-9.148 7.372-14.891 9.73l-2.387 1.055c-9.275 3.355-20.3 2.397-29.379-1.13-5.016-2.38-9.156-5.17-13.234-8.925 3.678-4.526 7.41-8.394 12-12l3.063 2.375c5.572 3.958 11.135 5.211 17.937 4.625 6.96-1.384 12.455-4.502 17-10 4.174-6.784 4.59-12.222 4.531-20.094l.012-3.473c.003-2.414-.005-4.827-.022-7.241-.02-3.68 0-7.36.026-11.04-.003-2.353-.008-4.705-.016-7.058l.025-3.312c-.098-7.996-1.732-13.21-6.681-19.47-6.786-5.458-13.105-8.211-21.914-7.792-7.327 1.188-13.278 4.7-17.777 10.601C75.472 72.012 73.86 78.07 75 85c2.191 7.547 5.019 13.948 12 18 5.848 3.061 10.892 3.523 17.438 3.688l2.794.103c2.256.082 4.512.147 6.768.209v16c-16.682.673-29.615.654-42.852-10.848-8.28-8.296-13.338-19.55-13.71-31.277.394-9.87 3.93-17.894 9.562-25.875l1.688-2.563C84.698 35.563 110.05 34.436 128 49Z"/>' },
+    moonshot:{ vb:"0 0 1024 1024", inner:'<g transform="translate(0,1024) scale(0.1,-0.1)" fill="currentColor" stroke="none"><path d="M1595 10228 c-360 -40 -727 -206 -1000 -452 -330 -297 -541 -714 -585 -1161 -8 -78 -10 -1110 -8 -3570 4 -3236 5 -3465 21 -3545 62 -302 159 -531 324 -763 79 -111 288 -318 401 -397 241 -169 506 -277 792 -322 126 -19 7034 -19 7160 0 286 45 551 153 792 322 113 79 322 286 401 397 173 243 283 511 329 803 19 126 19 7034 0 7160 -46 292 -156 560 -329 803 -79 111 -287 317 -403 399 -112 80 -307 182 -440 231 -113 42 -288 82 -422 96 -123 14 -6915 13 -7033 -1z m1729 -2534 c14 -14 16 -120 16 -1015 l0 -999 633 0 632 0 470 1001 c258 551 475 1008 483 1015 11 12 94 14 484 12 422 -3 472 -5 481 -19 8 -13 -35 -116 -198 -470 -371 -810 -527 -1143 -562 -1198 -90 -141 -250 -266 -408 -321 -50 -17 -47 -18 305 -22 345 -5 358 -5 455 -31 121 -32 265 -100 357 -168 153 -114 288 -291 348 -458 68 -186 63 -99 67 -1375 3 -867 1 -1162 -8 -1172 -16 -19 -978 -21 -997 -2 -9 9 -12 334 -12 1400 0 763 -4 1388 -9 1388 -4 0 -16 -30 -26 -67 -35 -128 -89 -219 -189 -318 -72 -72 -108 -99 -176 -133 -164 -81 -87 -76 -1167 -80 l-963 -3 0 -1080 c0 -726 -3 -1087 -10 -1100 -10 -18 -26 -19 -498 -19 -366 0 -491 3 -500 12 -17 17 -17 5209 0 5226 9 9 133 12 494 12 425 0 484 -2 498 -16z"/></g>' },
+    zai:{ vb:"0 0 30 30", inner:'<path fill="currentColor" d="M15.47 7.1l-1.3 1.85c-.2.29-.54.47-.9.47h-7.1V7.09H15.47Z"/><path fill="currentColor" d="M24.3 7.1L13.14 22.91H5.7L16.86 7.1H24.3Z"/><path fill="currentColor" d="M14.53 22.91l1.31-1.86c.2-.29.54-.47.9-.47h7.09v2.33H14.53Z"/>' }
+  };
+  function glyphSVG(id){
+    var L = LOGO[id];
+    if(!L){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>'; }
+    return '<svg viewBox="'+L.vb+'" xmlns="http://www.w3.org/2000/svg">'+L.inner+'</svg>';
+  }
+  function glyphFill(id){ return !!(LOGO[id] && LOGO[id].fill); }
+  function glyphTile(cls, id){ return '<span class="'+cls+'" data-fill="'+glyphFill(id)+'">'+glyphSVG(id)+'</span>'; }
+
+  function fmtCtx(t){ if(t==null) return null; if(t>=1000000) return (t/1000000)+"M"; if(t>=1000) return Math.round(t/1000)+"k"; return String(t); }
+  function fmtCost(m){ if(m.cin==null) return null; return "$"+m.cin+"/"+m.cout; }
+  function meterHTML(level, hollow){ // level: 0..7 canonical position; hollow => all faint
+    var n = level|0, out='<span class="meter'+(hollow?' meter--hollow':'')+'">';
+    for(var i=1;i<=7;i++){ out+='<i class="'+((!hollow && i<=n)?'on':'')+'"></i>'; }
+    return out+'</span>';
+  }
+
+  // ---------- reasoning range selector ----------
+  function makeSlider(host, cfg){
+    var order = (cfg.levels||[]).slice().sort(function(a,b){ return effortPos(a)-effortPos(b); });
+    var values = [""].concat(order);
+    var last = values.length - 1;
+    var el = document.createElement('div');
+    el.className = 'rz'+(cfg.size==='lg'?' rz--lg':'');
+    var labels = '', stops = '';
+    values.forEach(function(v,i){
+      var p = last>0 ? i/last : 0;
+      var pos = 'left:calc('+p+'*(100% - var(--rz-h)) + var(--rz-h)/2)';
+      // Edge labels anchor flush with the track ends; middle labels center on stops.
+      var lpos = pos, edge = '';
+      if(i===0){ lpos='left:0'; edge=' data-edge="start"'; }
+      else if(i===last){ lpos='right:0'; edge=' data-edge="end"'; }
+      labels += '<button type="button" class="rz__label"'+edge+' data-idx="'+i+'" style="'+lpos+'">'+(v===""?"Default":EFFORT_LABEL[v])+'</button>';
+      stops  += '<i class="rz__stop" style="'+pos+'"></i>';
+    });
+    el.innerHTML = '<div class="rz__labels">'+labels+'</div>'
+      + '<div class="rz__track" role="slider" tabindex="0" aria-orientation="horizontal"'
+      + ' aria-label="Reasoning effort for '+(cfg.model||"model")+'" aria-valuemin="0" aria-valuemax="'+last+'">'
+      +   '<div class="rz__fill"></div>'+stops+'<div class="rz__thumb"></div>'
+      + '</div>';
+    host.innerHTML = '';
+    host.appendChild(el);
+    var track = el.querySelector('.rz__track');
+    var labelEls = el.querySelectorAll('.rz__label');
+    var idx = Math.max(0, values.indexOf(cfg.value||""));
+
+    function markNearest(i){
+      el.setAttribute('data-default', i===0 ? "true" : "false");
+      Array.prototype.forEach.call(labelEls, function(l,k){ l.setAttribute('data-on', k===i ? "true":"false"); });
+    }
+    function paint(){
+      el.style.setProperty('--rz-p', last>0 ? idx/last : 0);
+      markNearest(idx);
+      track.setAttribute('aria-valuenow', String(idx));
+      track.setAttribute('aria-valuetext', idx===0 ? 'Provider default ('+(EFFORT_LABEL[cfg.def]||'auto')+')' : EFFORT_LABEL[values[idx]]);
+    }
+    function commit(i){
+      i = Math.max(0, Math.min(last, i));
+      var changed = i!==idx;
+      idx = i; paint();
+      if(changed && typeof cfg.onChange==='function') cfg.onChange(values[idx]);
+    }
+    Array.prototype.forEach.call(labelEls, function(l){
+      l.addEventListener('click', function(){ commit(parseInt(l.getAttribute('data-idx'),10)); track.focus(); });
+    });
+    function pFrom(ev){
+      var r = track.getBoundingClientRect(), pad = r.height/2;
+      return Math.max(0, Math.min(1, (ev.clientX - r.left - pad) / Math.max(1, r.width - 2*pad)));
+    }
+    var drag = null;
+    track.addEventListener('pointerdown', function(ev){
+      if(ev.button) return;
+      drag = { sx: ev.clientX, engaged:false };
+      track.setPointerCapture(ev.pointerId);
+    });
+    track.addEventListener('pointermove', function(ev){
+      if(!drag) return;
+      if(!drag.engaged){
+        if(Math.abs(ev.clientX - drag.sx) < 3) return;
+        drag.engaged = true; el.classList.add('is-dragging');
+      }
+      var p = pFrom(ev);
+      el.style.setProperty('--rz-p', p);
+      markNearest(Math.round(p*last));
+    });
+    function endDrag(ev){
+      if(!drag) return;
+      drag = null; el.classList.remove('is-dragging');
+      commit(Math.round(pFrom(ev)*last));
+      track.focus();
+    }
+    track.addEventListener('pointerup', endDrag);
+    track.addEventListener('pointercancel', function(){ if(drag){ drag=null; el.classList.remove('is-dragging'); paint(); } });
+    track.addEventListener('keydown', function(e){
+      if(e.key==='ArrowRight'||e.key==='ArrowUp'){ e.preventDefault(); commit(idx+1); }
+      else if(e.key==='ArrowLeft'||e.key==='ArrowDown'){ e.preventDefault(); commit(idx-1); }
+      else if(e.key==='Home'){ e.preventDefault(); commit(0); }
+      else if(e.key==='End'){ e.preventDefault(); commit(last); }
+    });
+    paint();
+    return { el: el, set: function(v){ idx = Math.max(0, values.indexOf(v||"")); paint(); } };
+  }
+
+  // ---------- component state ----------
+  var instances = {};
+  var LS = { fav:"agh:pmr:fav", recent:"agh:pmr:recent" };
+  function load(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+  function save(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+  var favSet = load(LS.fav, {}), recentList = load(LS.recent, null);
+  if(!recentList){ recentList = MODELS.filter(function(m){return m.recent;}).map(function(m){return m.id;}); }
+  MODELS.forEach(function(m){ if(m.fav) favSet[m.id]=true; });
+
+  function reasoningStateFor(m){
+    if(m.efforts && m.efforts.length) return { mode:"levels", levels:m.efforts, def:m.def||m.efforts[0], src:m.src };
+    if(m.reasoning) return { mode:"supported-nolevels" };
+    return { mode:"none" };
+  }
+
+  // ---------- trigger render ----------
+  function renderTrigger(inst){
+    var sel = inst.sel, m = MODEL[sel.model], p = PROV[m.provider];
+    var rz = reasoningStateFor(m);
+    var pAvail = p.auth!=="ready" || m.avail==="unavailable";
+    var showRz = rz.mode==="levels" && !inst.compact;
+    var html = '';
+    html += '<button class="pmr__seg" type="button" data-focus="provider" aria-label="Provider: '+p.name+'" aria-haspopup="dialog">'
+          +   glyphTile('pmr__glyph', p.id)
+          +   (inst.compact ? '' : '<span class="pmr__prov">'+p.name+'</span>')
+          + '</button>';
+    if(!inst.compact){
+      html += '<button class="pmr__seg" type="button" data-focus="model" aria-label="Model: '+m.name+'" aria-haspopup="dialog">'
+            +   '<span class="pmr__model">'+m.name+'</span>'
+            + '</button>';
+    }
+    if(showRz){
+      var cur = sel.reasoning || rz.def;
+      var isDefault = !sel.reasoning;
+      html += '<button class="pmr__seg" type="button" data-focus="reasoning" aria-label="Reasoning: '+(isDefault?'provider default':EFFORT_LABEL[cur])+'" aria-haspopup="dialog">'
+            +   '<span class="pmr__rz">'+ meterHTML(isDefault?0:effortPos(cur), isDefault)
+            +   '<span class="pmr__rzlabel">'+(isDefault?"Default":EFFORT_LABEL[cur])+'</span></span>'
+            + '</button>';
+    }
+    if(pAvail){
+      html += '<span class="pmr__warn" role="img" aria-label="'+(m.reason||"Needs sign in")+'" title="'+(m.reason||"Needs sign in")+'">'+icon('warn')+'</span>';
+    }
+    html += '<button class="pmr__chev" type="button" data-focus="'+(inst.compact?'provider':'model')+'" aria-label="Open runtime selector" aria-haspopup="dialog">'+icon('chev')+'</button>';
+    inst.trigger.innerHTML = html;
+    Array.prototype.forEach.call(inst.trigger.querySelectorAll('[data-focus]'), function(seg){
+      seg.addEventListener('click', function(e){ e.stopPropagation(); openPopup(inst, seg.getAttribute('data-focus')); });
+    });
+  }
+
+  function mount(mountId, opts){
+    var host = document.getElementById(mountId);
+    if(!host) return null;
+    var inst = {
+      id: mountId,
+      compact: !!opts.compact,
+      sel: { provider:opts.provider, model:opts.model, reasoning:(opts.reasoning||"") },
+      opts: opts
+    };
+    var trig = document.createElement('div');
+    trig.className = 'pmr' + (opts.small?' pmr--sm':'');
+    trig.setAttribute('data-open','false');
+    trig.setAttribute('data-od-id','pmr-trigger-'+mountId);
+    trig.setAttribute('role','group');
+    trig.setAttribute('tabindex','-1');
+    inst.trigger = trig;
+    host.appendChild(trig);
+    instances[mountId] = inst;
+    renderTrigger(inst);
+    return inst;
+  }
+
+  // ---------- static state variants (no popup wiring) ----------
+  function staticTrigger(hostId, build){
+    var host = document.getElementById(hostId);
+    if(!host) return;
+    var d = document.createElement('div');
+    d.className = 'pmr';
+    d.setAttribute('data-open','false');
+    build(d);
+    host.appendChild(d);
+  }
+  staticTrigger('mount-nomodel', function(d){
+    d.setAttribute('role','group');
+    d.setAttribute('aria-label','Runtime: Codex, select model');
+    d.innerHTML = '<button class="pmr__seg" type="button" aria-label="Provider: Codex">'+glyphTile('pmr__glyph','codex')+'<span class="pmr__prov">Codex</span></button>'
+      + '<button class="pmr__seg" type="button" aria-label="Model: select model"><span class="pmr__model pmr__model--empty">Select model</span></button>'
+      + '<button class="pmr__chev" type="button" aria-label="Open runtime selector">'+icon('chev')+'</button>';
+  });
+  staticTrigger('mount-readonly', function(d){
+    d.setAttribute('role','group');
+    d.setAttribute('data-readonly','true');
+    d.setAttribute('aria-disabled','true');
+    d.setAttribute('aria-label','Runtime: Codex, GPT-5.4, high reasoning (read-only)');
+    d.innerHTML = '<button class="pmr__seg" type="button" aria-disabled="true" aria-label="Provider: Codex">'+glyphTile('pmr__glyph','codex')+'<span class="pmr__prov">Codex</span></button>'
+      + '<button class="pmr__seg" type="button" aria-disabled="true" aria-label="Model: GPT-5.4"><span class="pmr__model">GPT-5.4</span></button>'
+      + '<button class="pmr__seg" type="button" aria-disabled="true" aria-label="Reasoning: High"><span class="pmr__rz">'+meterHTML(effortPos('high'), false)+'<span class="pmr__rzlabel">High</span></span></button>'
+      + '<button class="pmr__chev" type="button" aria-disabled="true" aria-label="Open runtime selector">'+icon('chev')+'</button>';
+  });
+  staticTrigger('mount-warn', function(d){
+    d.setAttribute('role','group');
+    d.setAttribute('aria-label','Runtime: z.ai, GLM-4.6 — provider needs sign in');
+    d.innerHTML = '<button class="pmr__seg" type="button" aria-label="Provider: z.ai">'+glyphTile('pmr__glyph','zai')+'<span class="pmr__prov">z.ai</span></button>'
+      + '<button class="pmr__seg" type="button" aria-label="Model: GLM-4.6"><span class="pmr__model">GLM-4.6</span></button>'
+      + '<span class="pmr__warn" role="img" aria-label="Provider needs sign in" title="Provider needs sign in">'+icon('warn')+'</span>'
+      + '<button class="pmr__chev" type="button" aria-label="Open runtime selector">'+icon('chev')+'</button>';
+  });
+
+  // ---------- popup ----------
+  var pop = document.getElementById('pop');
+  var popList = document.getElementById('pop-list');
+  var popRail = document.getElementById('pop-rail');
+  var popRz = document.getElementById('pop-rz');
+  var popSearch = document.getElementById('pop-search');
+  var popRefresh = document.getElementById('pop-refresh');
+  var active = null;
+  var railFilter = "all";
+  var query = "";
+  var hlIndex = -1;
+  var visibleRows = [];
+
+  function openPopup(inst, focus){
+    active = inst;
+    railFilter = "all"; query = ""; popSearch.value = ""; hlIndex = -1;
+    inst.trigger.setAttribute('data-open','true');
+    renderRail(); renderList(); renderRz();
+    positionPopup(inst.trigger);
+    pop.setAttribute('data-show','true');
+    setTimeout(function(){
+      if(focus==="reasoning"){ var t=popRz.querySelector('.rz__track'); if(t){ t.focus(); return; } }
+      if(focus==="provider"){ var a=popRail.querySelector('.rail__item[data-rail="'+MODEL[inst.sel.model].provider+'"]'); if(a){ a.focus(); return; } }
+      popSearch.focus();
+    }, 20);
+    document.addEventListener('mousedown', onDocDown, true);
+  }
+  function closePopup(){
+    if(!active) return;
+    active.trigger.setAttribute('data-open','false');
+    pop.setAttribute('data-show','false');
+    document.removeEventListener('mousedown', onDocDown, true);
+    active = null;
+  }
+  function onDocDown(e){ if(!pop.contains(e.target) && active && !active.trigger.contains(e.target)) closePopup(); }
+
+  function positionPopup(anchor){
+    var r = anchor.getBoundingClientRect();
+    var wasShown = pop.getAttribute('data-show')==='true';
+    pop.style.visibility='hidden'; pop.setAttribute('data-show','true');
+    var pw = pop.offsetWidth, ph = pop.offsetHeight;
+    pop.style.visibility='';
+    if(!wasShown) pop.setAttribute('data-show','false');
+    var left = r.left, top = r.bottom + 6;
+    left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
+    if(top + ph > window.innerHeight - 12){ top = Math.max(12, r.top - ph - 6); }
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+  }
+
+  function renderRail(){
+    var searching = query.trim().length>0;
+    var html = '';
+    html += railBtn('all', icon('all'), "All models", railFilter==="all");
+    html += railBtn('fav', starSvg(false), "Favorites", railFilter==="fav");
+    html += '<div class="rail__sep"></div>';
+    PROVIDERS.forEach(function(p){
+      var dim = p.auth!=="ready";
+      html += '<button class="rail__item" type="button" data-rail="'+p.id+'" data-active="'+(railFilter===p.id)+'" data-dim="'+dim+'" title="'+p.name+(dim?" · needs sign in":"")+'">'+glyphTile('rail__logo', p.id)+'</button>';
+    });
+    html += '<button class="rail__item rail__gear" type="button" data-rail="__settings" title="Provider settings">'+icon('gear')+'</button>';
+    popRail.innerHTML = html;
+    popRail.style.opacity = searching ? '.45' : '1';
+    popRail.style.pointerEvents = searching ? 'none' : 'auto';
+    Array.prototype.forEach.call(popRail.querySelectorAll('.rail__item'), function(b){
+      b.addEventListener('click', function(){
+        var v=b.getAttribute('data-rail');
+        if(v==="__settings"){ flashSettings(); return; }
+        railFilter = v; hlIndex=-1; renderRail(); renderList(); popSearch.focus();
+      });
+    });
+  }
+  function railBtn(id, svg, title, isActive){
+    return '<button class="rail__item" type="button" data-rail="'+id+'" data-active="'+isActive+'" title="'+title+'">'+svg+'</button>';
+  }
+  function flashSettings(){
+    var g = popRail.querySelector('.rail__gear'); if(!g) return;
+    g.style.color='var(--accent-strong)'; setTimeout(function(){ g.style.color=''; }, 500);
+  }
+
+  function matchQ(m,p){
+    var q=query.trim().toLowerCase(); if(!q) return true;
+    var hay=(m.name+" "+p.name+" "+m.id+" "+m.provider).toLowerCase();
+    return q.split(/\s+/).every(function(tok){ return hay.indexOf(tok)>=0; });
+  }
+
+  function renderList(){
+    var searching = query.trim().length>0;
+    visibleRows = [];
+    var html = '';
+    if(!searching && (railFilter==="all" || railFilter==="fav")){
+      var favModels = MODELS.filter(function(m){ return favSet[m.id]; });
+      var pinned = railFilter==="fav" ? favModels
+                 : dedupe(recentList.map(function(id){return MODEL[id];}).filter(Boolean).concat(favModels));
+      if(pinned.length){
+        html += groupHead(railFilter==="fav" ? "Favorites" : "Recent & favorites", null, null);
+        pinned.forEach(function(m){ html += rowHTML(m); visibleRows.push(m.id); });
+      }
+      if(railFilter==="fav"){ finishList(html); return; }
+    }
+    var provs = PROVIDERS.filter(function(p){ return railFilter==="all"||railFilter==="fav" ? true : p.id===railFilter; });
+    provs.forEach(function(p){
+      var ms = MODELS.filter(function(m){ return m.provider===p.id && matchQ(m,p); });
+      if(!ms.length) return;
+      html += groupHead(p.name, p.harness, providerAvail(p, ms));
+      ms.forEach(function(m){ html += rowHTML(m); visibleRows.push(m.id); });
+    });
+    if(!searching){
+      html += '<div class="custom-row" role="button" tabindex="0" data-custom="1" data-od-id="custom-model">'+icon('plus')+'Use a custom model ID…</div>';
+    }
+    if(!visibleRows.length){
+      html = '<div class="list__empty">No models match “'+escapeHTML(query.trim())+'”.<br>Try a provider name, or a shorter query.</div>';
+    }
+    finishList(html);
+  }
+  function finishList(html){
+    popList.innerHTML = html;
+    Array.prototype.forEach.call(popList.querySelectorAll('.mrow'), function(row){
+      var id=row.getAttribute('data-model');
+      row.addEventListener('click', function(e){
+        if(e.target.closest('.mrow__star')) return;
+        if(row.getAttribute('data-disabled')==="true") return;
+        pickModel(id);
+      });
+      var star=row.querySelector('.mrow__star');
+      if(star){ star.addEventListener('click', function(e){ e.stopPropagation(); toggleFav(id); }); }
+    });
+    var custom = popList.querySelector('[data-custom]');
+    if(custom){ custom.addEventListener('click', function(){ custom.textContent='Custom model ID: type it in the search box above ↑'; popSearch.focus(); }); }
+    paintHighlight();
+  }
+  function providerAvail(p, ms){
+    if(p.auth==="signin") return {cls:"av-off", label:"Sign in"};
+    if(ms.some(function(m){return m.avail==="stale";})) return {cls:"av-stale", label:"Stale"};
+    return {cls:"av-live", label:"Live"};
+  }
+  function groupHead(name, harness, avail){
+    var h = '<div class="grp"><div class="grp__head"><span class="grp__name">'+name+'</span>';
+    if(harness) h += '<span class="grp__harness">'+HARNESS[harness]+'</span>';
+    if(avail) h += '<span class="grp__avail '+avail.cls+'"><span class="dot"></span>'+avail.label+'</span>';
+    return h + '</div></div>';
+  }
+  function rowHTML(m){
+    var p = PROV[m.provider];
+    var sel = active && active.sel.model===m.id;
+    var disabled = m.avail==="unavailable" || p.auth==="signin";
+    var chips = '';
+    var ctx = fmtCtx(m.ctx); if(ctx) chips += '<span class="chip">'+ctx+'</span>';
+    var cost = fmtCost(m); if(cost){ if(chips) chips+='<span class="dotsep"></span>'; chips += '<span class="chip">'+cost+'</span>'; }
+    if(m.tools){ if(chips) chips+='<span class="dotsep"></span>'; chips += '<span class="chip">'+icon('tools')+'tools</span>'; }
+    if(m.efforts && m.efforts.length){ if(chips) chips+='<span class="dotsep"></span>'; chips += '<span class="chip chip--rz">'+icon('brain')+(m.efforts.length)+' levels</span>'; }
+    else if(m.reasoning){ if(chips) chips+='<span class="dotsep"></span>'; chips += '<span class="chip">'+icon('brain')+'reasoning</span>'; }
+    var right = '';
+    if(disabled) right += '<span class="mrow__reason">'+(m.reason||"Sign in")+'</span>';
+    right += '<span class="mrow__star" role="button" tabindex="0" data-fav="'+(!!favSet[m.id])+'" aria-label="Toggle favorite">'+starSvg(!!favSet[m.id])+'</span>';
+    return '<div class="mrow" role="button" tabindex="0" data-model="'+m.id+'" data-sel="'+sel+'" data-disabled="'+disabled+'" data-od-id="model-'+m.id+'">'
+         +   glyphTile('mrow__glyph', m.provider)
+         +   '<span class="mrow__main"><span class="mrow__top"><span class="mrow__name">'+m.name+'</span></span>'
+         +     '<span class="mrow__sub"><span class="provref">'+p.name+'</span><span class="dotsep"></span>'+chips+'</span></span>'
+         +   '<span class="mrow__right">'+right+'</span>'
+         + '</div>';
+  }
+
+  // ---------- reasoning footer (range selector) ----------
+  function renderRz(){
+    if(!active) return;
+    var m = MODEL[active.sel.model];
+    var rz = reasoningStateFor(m);
+    if(rz.mode==="none"){
+      popRz.innerHTML = '<div class="rzbar__none">'+icon('brain')+'<span>This model doesn’t use reasoning effort; the provider handles it.</span></div>';
+      return;
+    }
+    if(rz.mode==="supported-nolevels"){
+      popRz.innerHTML = '<div class="rzbar__none">'+icon('brain')+'<span><b>Reasoning is on.</b> '+PROV[m.provider].name+' doesn’t expose selectable effort for '+m.name+'.</span></div>';
+      return;
+    }
+    popRz.innerHTML = '<div class="rzbar__head"><span class="rzbar__label">Reasoning effort</span>'
+      + '<span class="rzbar__for">'+PROV[m.provider].name+' · '+m.name+'</span>'
+      + '<span class="rzbar__src">'+(rz.src==="acp"?"ACP":"catalog")+'</span></div>'
+      + '<div class="rzbar__slider"></div>';
+    makeSlider(popRz.querySelector('.rzbar__slider'), {
+      levels: rz.levels, def: rz.def, value: active.sel.reasoning, model: m.name,
+      onChange: function(v){ setReasoning(v); }
+    });
+  }
+
+  // ---------- mutations ----------
+  function pickModel(id){
+    var m = MODEL[id]; if(!m) return;
+    active.sel.provider = m.provider;
+    active.sel.model = id;
+    var rz = reasoningStateFor(m);
+    if(rz.mode!=="levels" || (active.sel.reasoning && rz.levels.indexOf(active.sel.reasoning)<0)){
+      active.sel.reasoning = "";
+    }
+    recentList = dedupeIds([id].concat(recentList)).slice(0,6); save(LS.recent, recentList);
+    renderList(); renderRz(); renderTrigger(active);
+    positionPopup(active.trigger);
+  }
+  // The slider already animated itself — only the trigger re-renders, so the
+  // spring motion in the popup is never interrupted by an innerHTML rebuild.
+  function setReasoning(val){
+    active.sel.reasoning = val || "";
+    renderTrigger(active);
+    positionPopup(active.trigger);
+  }
+  function toggleFav(id){
+    if(favSet[id]) delete favSet[id]; else favSet[id]=true;
+    save(LS.fav, favSet); renderList();
+  }
+
+  // ---------- keyboard ----------
+  function paintHighlight(){
+    var rows = popList.querySelectorAll('.mrow');
+    Array.prototype.forEach.call(rows, function(r,i){ r.setAttribute('data-hl', i===hlIndex ? "true":"false"); });
+    if(hlIndex>=0 && rows[hlIndex]){
+      var r = rows[hlIndex], top = r.offsetTop, h = r.offsetHeight;
+      var st = popList.scrollTop, vh = popList.clientHeight;
+      if(top < st) popList.scrollTop = top - 6;
+      else if(top + h > st + vh) popList.scrollTop = top + h - vh + 6;
+    }
+  }
+  function moveHL(dir){
+    var rows = popList.querySelectorAll('.mrow'); if(!rows.length) return;
+    var enabled = []; Array.prototype.forEach.call(rows,function(r,i){ if(r.getAttribute('data-disabled')!=="true") enabled.push(i); });
+    if(!enabled.length) return;
+    if(hlIndex<0){ hlIndex = enabled[0]; }
+    else{
+      var pos = enabled.indexOf(hlIndex);
+      if(pos<0){ hlIndex=enabled[0]; }
+      else { pos = (pos + dir + enabled.length) % enabled.length; hlIndex = enabled[pos]; }
+    }
+    paintHighlight();
+  }
+  document.addEventListener('keydown', function(e){
+    if((e.metaKey||e.ctrlKey) && (e.key==="k"||e.key==="K")){ e.preventDefault(); var i=instances["header-pmr-mount"]; if(pop.getAttribute('data-show')==="true") closePopup(); else if(i) openPopup(i,'model'); return; }
+    if(pop.getAttribute('data-show')!=="true") return;
+    if(e.key==="Escape"){ e.preventDefault(); closePopup(); return; }
+    if(e.target && e.target.closest && e.target.closest('.rz')) return; // the slider owns its own keys
+    if(e.key==="ArrowDown"){ e.preventDefault(); moveHL(1); return; }
+    if(e.key==="ArrowUp"){ e.preventDefault(); moveHL(-1); return; }
+    if(e.key==="Enter"){ var rows=popList.querySelectorAll('.mrow'); if(hlIndex>=0&&rows[hlIndex]){ e.preventDefault(); var id=rows[hlIndex].getAttribute('data-model'); if(rows[hlIndex].getAttribute('data-disabled')!=="true") pickModel(id); } return; }
+  });
+  popSearch.addEventListener('input', function(){ query = popSearch.value; hlIndex=-1; renderRail(); renderList(); });
+  popRefresh.addEventListener('click', function(){ popRefresh.classList.add('spin'); setTimeout(function(){ popRefresh.classList.remove('spin'); renderList(); }, 520); });
+
+  // ---------- utils ----------
+  function dedupe(arr){ var seen={},out=[]; arr.forEach(function(m){ if(m&&!seen[m.id]){seen[m.id]=1;out.push(m);} }); return out; }
+  function dedupeIds(arr){ var seen={},out=[]; arr.forEach(function(id){ if(!seen[id]){seen[id]=1;out.push(id);} }); return out; }
+  function escapeHTML(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+
+  window.addEventListener('resize', function(){ if(active) positionPopup(active.trigger); });
+  window.addEventListener('scroll', function(){ if(active) positionPopup(active.trigger); }, true);
+
+  // ---------- page wiring ----------
+  mount('header-pmr-mount', { provider:'codex', model:'gpt-5.4', reasoning:'medium' });
+  mount('mount-default',    { provider:'codex', model:'gpt-5.4', reasoning:'' });
+  mount('mount-small',      { provider:'claude', model:'opus-4.6', reasoning:'', small:true });
+  mount('mount-compact',    { provider:'gemini', model:'gemini-2.5-pro', reasoning:'', compact:true });
+
+  function wireChip(id, v){
+    var el = document.getElementById(id);
+    el.textContent = v==="" ? '""' : '"'+v+'"';
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }
+  makeSlider(document.getElementById('rz-demo-config'), {
+    levels:["minimal","low","medium","high","xhigh"], def:"medium", value:"high", size:"lg", model:"GPT-5.4",
+    onChange:function(v){ wireChip('wire-config', v); }
+  });
+  makeSlider(document.getElementById('rz-demo-acp'), {
+    levels:["low","medium","high"], def:"medium", value:"", model:"GPT-5.4 (OpenCode)",
+    onChange:function(v){ wireChip('wire-acp', v); }
+  });
+})();
+</script>
+</body>
+</html>

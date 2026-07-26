@@ -1,0 +1,52 @@
+---
+title: "agh vault list"
+description: "List redacted vault secret metadata"
+---
+
+## agh vault list
+
+List redacted vault secret metadata
+
+```
+agh vault list [flags]
+```
+
+### Examples
+
+```
+  # List session-scoped vault entries
+  agh vault list --prefix vault:sessions/sess_123/
+
+  # List all provider vault entries as JSON
+  agh vault list --namespace providers -o json
+```
+
+### Options
+
+```
+  -h, --help               help for list
+      --namespace string   Vault namespace filter
+      --prefix string      Vault ref prefix, for example vault:sessions/<session_id>/
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh vault list -o json
+```

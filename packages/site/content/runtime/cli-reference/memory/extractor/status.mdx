@@ -1,0 +1,41 @@
+---
+title: "agh memory extractor status"
+description: "Show Memory v2 extractor runtime status"
+---
+
+## agh memory extractor status
+
+Show Memory v2 extractor runtime status
+
+```
+agh memory extractor status [flags]
+```
+
+### Options
+
+```
+  -h, --help             help for status
+      --session string   Filter extractor status by session
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory extractor status -o json
+```

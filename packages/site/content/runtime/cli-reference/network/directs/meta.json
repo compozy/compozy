@@ -1,0 +1,4 @@
+{
+    "title": "Directs",
+    "pages": ["index", "list", "messages", "resolve", "show"]
+}

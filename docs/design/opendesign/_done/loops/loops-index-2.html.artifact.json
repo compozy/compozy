@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "Loops · AGH — feature screen map",
+  "entry": "loops-index-2.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "primary": true,
+  "createdAt": "2026-06-21T15:07:57.311Z",
+  "updatedAt": "2026-06-21T15:07:57.314Z",
+  "designSystemId": "linear-app",
+  "metadata": {
+    "identifier": "loops-index",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

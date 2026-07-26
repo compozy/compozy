@@ -1,0 +1,39 @@
+version: "1.2"
+
+# Espelha os path_filters do .coderabbit.yaml.
+# ignorePaths usa glob patterns (**, *), um por linha, SEM o prefixo "!".
+ignorePaths:
+  - "docs/design/**"
+  - "**/*.md"
+  - "**/*.yaml"
+  - "**/*.yml"
+  - "**/*.json"
+  - "**/*.toml"
+  - "**/*.xml"
+  - "**/*.mdc"
+  - "**/*.mdx"
+  - "**/*.lock"
+  - "**/*.sum"
+  - ".cursor/**"
+  - ".git/**"
+  - ".claude/**"
+  - ".vscode/**"
+  - ".agents/**"
+  - ".taskmaster/**"
+  - "**/fixtures/**"
+  - "test/testdata/**"
+  # Generated / binary artifacts — gated by `make codegen-check`, not line-reviewable
+  - "**/generated/**"
+  - "**/*.d.ts"
+  - "**/*.gz"
+  # Storybook fixtures + Playwright harness — verified by capture/e2e, not code review
+  - "**/*.stories.tsx"
+  - "web/e2e/**"
+
+# Skip PRs whose title contains these keywords (case-insensitive).
+ignoredTitleKeywords: []
+
+# Additional base branches to review besides the defaults.
+baseBranches: []
+
+automatedReviewActive: true

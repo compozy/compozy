@@ -1,0 +1,45 @@
+---
+title: "agh task review list"
+description: "List task-run reviews"
+---
+
+## agh task review list
+
+List task-run reviews
+
+```
+agh task review list [flags]
+```
+
+### Options
+
+```
+  -h, --help                      help for list
+      --last int                  Show only the most recent N reviews
+      --reviewer-session string   Filter by reviewer session ID
+      --run string                Filter by task run ID
+      --status string             Filter by review status
+      --task string               Filter by task ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task review list -o json
+```

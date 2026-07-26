@@ -1,0 +1,38 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "redaction-probe",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You emit deterministic redaction boundary evidence.",
+            "turns": [
+                {
+                    "name": "emit-planted-secret",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "emit redaction evidence"
+                    },
+                    "steps": [
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "tool-redaction-probe",
+                            "title": "redaction_probe",
+                            "tool_kind": "read",
+                            "raw_input": {
+                                "message": "provider leaked sk-ant-api03-aghredactionfixture1234567890",
+                                "claim_token_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                                "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                                "run_id": "62f82910-18ca-4f2e-aa4a-54dcde9fe761"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "provider leaked sk-ant-api03-aghredactionfixture1234567890"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

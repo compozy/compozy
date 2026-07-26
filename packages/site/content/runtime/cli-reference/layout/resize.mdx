@@ -1,0 +1,48 @@
+---
+title: "agh layout resize"
+description: "Resize one shared split boundary"
+---
+
+## agh layout resize
+
+Resize one shared split boundary
+
+```
+agh layout resize [flags]
+```
+
+### Options
+
+```
+      --actor-id string    Optional actor identifier
+      --boundary int       Zero-based boundary between adjacent children
+      --client string      Connected presentation client ID
+      --delta float        Normalized weight transferred from right to left
+  -h, --help               help for resize
+      --origin string      Command origin label (default "cli")
+      --revision uint      Expected workspace revision
+      --split string       Split node ID
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh layout resize -o json
+```

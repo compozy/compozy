@@ -1,0 +1,308 @@
+---
+title: Envelope Specification
+description: Reference for the AGH Network v0 JSON envelope, conversation surface fields, work lifecycle correlation, validation order, schema, and annotated examples.
+icon: FileText
+---
+
+Every AGH Network message is a UTF-8 JSON object called an envelope. The envelope carries routing,
+conversation surface, work lifecycle correlation, freshness, extensibility, and trust placeholders.
+The `body` field carries the kind-specific payload.
+
+This page is normative unless a section is marked as an example.
+
+## Wire contract
+
+An implementation MUST encode each message as a JSON object. The JSON object MUST contain these
+required top-level fields:
+
+- `protocol`
+- `id`
+- `workspace_id`
+- `kind`
+- `channel`
+- `from`
+- `ts`
+- `body`
+
+Conversation-bearing kinds (`say`, `capability`, `receipt`, `trace`) additionally require an
+explicit conversation surface. See [Conversation surface fields](#conversation-surface-fields)
+below.
+
+The current AGH reference implementation also serializes `to` and `proof` as nullable fields. A
+portable sender SHOULD include them explicitly as `null` when no target or proof is present.
+
+## Fields
+
+| Field          | Type           | Required    | Rule                                                                                                                                                                                                                                                                                       |
+| -------------- | -------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `protocol`     | string         | Yes         | MUST be `agh-network/v0`.                                                                                                                                                                                                                                                                  |
+| `id`           | string         | Yes         | MUST identify this envelope uniquely within the sender's replay window. UUIDs are RECOMMENDED.                                                                                                                                                                                             |
+| `workspace_id` | string         | Yes         | MUST be the stable workspace ID that scopes the channel, peers, conversation containers, and work.                                                                                                                                                                                         |
+| `kind`         | string         | Yes         | MUST be one of `greet`, `whois`, `say`, `capability`, `receipt`, or `trace`. `direct` is not a kind.                                                                                                                                                                                       |
+| `channel`      | string         | Yes         | MUST match `[a-z0-9][a-z0-9_-]{0,63}`.                                                                                                                                                                                                                                                     |
+| `surface`      | string or null | Conditional | MUST be `"thread"` or `"direct"` on conversation-bearing kinds. MUST be absent on `greet` and `whois`.                                                                                                                                                                                     |
+| `thread_id`    | string or null | Conditional | REQUIRED when `surface == "thread"`. MUST be absent otherwise. Matches `^thread_[a-z0-9][a-z0-9_-]{2,95}$`.                                                                                                                                                                                |
+| `direct_id`    | string or null | Conditional | REQUIRED when `surface == "direct"`. MUST be absent otherwise. Matches `^direct_[a-f0-9]{32}$`.                                                                                                                                                                                            |
+| `from`         | string         | Yes         | MUST be the sender Peer ID and MUST match `[a-z0-9][a-z0-9._-]{0,127}`.                                                                                                                                                                                                                    |
+| `to`           | string or null | Conditional | REQUIRED on `capability` and on `say` carrying `work_id`. Otherwise MUST be a Peer ID when the message is directed to one peer and MAY be `null` or omitted for broadcast messages.                                                                                                        |
+| `work_id`      | string or null | Conditional | REQUIRED on `capability`, `receipt`, and `trace`. MAY appear on `say` when the message is part of a single lifecycle-bearing work unit. MUST be absent on `greet` and `whois`. After trimming, occupies 1–128 UTF-8 bytes and MUST NOT contain `/`, `\`, ASCII control characters, or DEL. |
+| `reply_to`     | string         | Conditional | REQUIRED on `whois` responses. MAY reference the envelope ID being answered by other response-like messages.                                                                                                                                                                               |
+| `trace_id`     | string         | Optional    | MAY carry an end-to-end trace correlation ID across systems.                                                                                                                                                                                                                               |
+| `causation_id` | string         | Optional    | MAY identify the envelope that caused this envelope to be emitted.                                                                                                                                                                                                                         |
+| `ts`           | integer        | Yes         | MUST be Unix time in seconds, set by the sender.                                                                                                                                                                                                                                           |
+| `expires_at`   | integer        | Optional    | MAY set Unix time in seconds after which receivers MUST reject the message as expired.                                                                                                                                                                                                     |
+| `body`         | object         | Yes         | MUST be a JSON object matching the message kind.                                                                                                                                                                                                                                           |
+| `proof`        | object or null | Reserved    | MAY be `null` in v0. v0 receivers MUST NOT require cryptographic proof processing.                                                                                                                                                                                                         |
+| `ext`          | object         | Optional    | MAY contain extension keys. Receivers MUST ignore unknown extension keys they do not understand.                                                                                                                                                                                           |
+
+## Conversation surface fields
+
+A conversation-bearing envelope carries one explicit conversation container:
+
+| Surface            | Required field | Container meaning                                                                                                                                        |
+| ------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surface:"thread"` | `thread_id`    | Public N-to-N conversation inside one workspace channel. Readable through channel-scoped history; prompt delivery is participant-bounded in AGH Runtime. |
+| `surface:"direct"` | `direct_id`    | Restricted two-party conversation inside one workspace channel. Visible to the two room peers and the daemon's audit path.                               |
+
+`thread_id` and `direct_id` are mutually exclusive on a single envelope. Setting both is a
+validation failure.
+
+`direct_id` is deterministic: the runtime resolves the selected peers to stable session IDs, sorts
+the pair, and hashes
+`agh-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>` with SHA-256.
+One session pair maps to exactly one direct room per workspace channel. Two sessions opening the
+same direct room observe the same `direct_id`.
+
+Direct rooms describe restricted runtime visibility — not cryptographic privacy. RFC 004 Trust Mode
+signs `surface`, `thread_id`, `direct_id`, and `work_id` when present, but signing covers integrity
+and authenticity, not confidentiality.
+
+AGH Runtime records public-thread participants from senders and directed `to` targets. A
+non-directed thread envelope is not treated as a channel-wide prompt fan-out; the runtime delivers it
+only to recorded participants for that thread.
+
+`greet` and `whois` are discovery messages. They MUST NOT carry `surface`, `thread_id`, `direct_id`,
+or `work_id`. Implementations MUST reject discovery envelopes that include any of those fields.
+
+## Validation order
+
+Receivers SHOULD validate envelopes in this order:
+
+1. Parse JSON and require a top-level object.
+2. Validate required envelope fields, `protocol`, `workspace_id`, `kind`, `channel`, and Peer ID grammar.
+3. Validate freshness with `expires_at` or a bounded replay-age policy.
+4. Validate `surface`, `thread_id`, `direct_id`, and `work_id` against the [kind rules](/protocol/message-kinds).
+5. Validate the body shape for the declared `kind`.
+6. Apply routing rules for `to`, `workspace_id`, `channel`, conversation container, and the local peer set.
+7. Apply work lifecycle rules when `work_id` is present.
+8. Deliver the message or emit a `receipt` when a receipt is appropriate.
+
+The AGH reference implementation rejects messages with `expires_at` at or before receiver time. When
+`expires_at` is absent, it rejects messages older than the configured replay age. The default replay
+age is 300 seconds.
+
+## JSON schema
+
+This schema captures the core envelope shape. Kind-specific body schemas are listed on the message
+kind pages.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agh.dev/schemas/network/v0/envelope.schema.json",
+  "title": "AGH Network v0 Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "id", "workspace_id", "kind", "channel", "from", "ts", "body"],
+  "properties": {
+    "protocol": {
+      "const": "agh-network/v0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workspace_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["greet", "whois", "say", "capability", "receipt", "trace"]
+    },
+    "channel": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "surface": {
+      "type": ["string", "null"],
+      "enum": ["thread", "direct", null]
+    },
+    "thread_id": {
+      "type": ["string", "null"],
+      "pattern": "^thread_[a-z0-9][a-z0-9_-]{2,95}$"
+    },
+    "direct_id": {
+      "type": ["string", "null"],
+      "pattern": "^direct_[a-f0-9]{32}$"
+    },
+    "from": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "to": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "work_id": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "reply_to": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "causation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expires_at": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "body": {
+      "type": "object"
+    },
+    "proof": {
+      "type": ["object", "null"]
+    },
+    "ext": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}
+```
+
+## Annotated envelope
+
+This informative example posts a `say` reply inside a public thread, opens lifecycle-bearing work,
+and targets one reviewer.
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_01jz8f6m6x4f4s8e9b2c3d4e5f",
+  "workspace_id": "ws_alpha",
+  "kind": "say",
+  "channel": "builders",
+  "surface": "thread",
+  "thread_id": "thread_migration_check_20260416",
+  "from": "ops-coordinator.session-42",
+  "to": "patch-worker.session-19",
+  "work_id": "work_migration_check_20260416",
+  "trace_id": "trace_release_20260416",
+  "causation_id": "msg_01jz8f5p4q0n3a2b1c9d8e7f6a",
+  "ts": 1776366000,
+  "expires_at": 1776366300,
+  "body": {
+    "text": "Run the migration smoke test against the staging branch and report blockers.",
+    "intent": "request",
+    "artifacts": [
+      {
+        "type": "git-ref",
+        "repo": "github.com/acme/app",
+        "ref": "refs/heads/staging"
+      }
+    ]
+  },
+  "proof": null,
+  "ext": {
+    "acme.priority": "high"
+  }
+}
+```
+
+| Field          | Annotation                                                                             |
+| -------------- | -------------------------------------------------------------------------------------- |
+| `protocol`     | Selects the v0 protocol profile.                                                       |
+| `id`           | Identifies this envelope for deduplication and correlation.                            |
+| `kind`         | `say` is the default conversation kind in v0.                                          |
+| `channel`      | Scopes routing and discovery to `builders`.                                            |
+| `surface`      | Names the conversation container shape.                                                |
+| `thread_id`    | Names the specific public thread within `builders`.                                    |
+| `from`         | Names the sender peer.                                                                 |
+| `to`           | Targets the reviewer peer without restricting visibility — the thread is still public. |
+| `work_id`      | Opens or continues lifecycle-bearing work bound to this thread.                        |
+| `trace_id`     | Lets observability systems connect this message to a wider release trace.              |
+| `causation_id` | Points to the prior envelope that caused this message.                                 |
+| `ts`           | Sender timestamp in Unix seconds.                                                      |
+| `expires_at`   | Receiver rejects the message after this time.                                          |
+| `body`         | Carries the kind-specific request payload.                                             |
+| `proof`        | Reserved for trust profiles; null in v0.                                               |
+| `ext`          | Namespaced extension data. Unknown keys are ignored by receivers.                      |
+
+## Direct-room envelope
+
+This informative example sends the same kind of reply, but inside a restricted direct room. The
+`surface` and container ID switch; everything else stays a `say`.
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_01jz8f7p2nq2c5b1n8m3kqdv7w",
+  "workspace_id": "ws_alpha",
+  "kind": "say",
+  "channel": "builders",
+  "surface": "direct",
+  "direct_id": "direct_99401d24bee62651d189e5a561785466",
+  "from": "ops-coordinator.session-42",
+  "to": "patch-worker.session-19",
+  "work_id": "work_migration_check_20260416_review",
+  "trace_id": "trace_release_20260416",
+  "ts": 1776366260,
+  "body": {
+    "text": "Continuing the review privately so we can paste internal log lines.",
+    "intent": "handoff"
+  },
+  "proof": null
+}
+```
+
+The two peers still see the message; channel members who are not part of this direct room do not.
+
+## Extension rules
+
+Extension keys SHOULD be namespaced with an organization or profile prefix, such as
+`acme.priority`. A sender MUST NOT require a receiver to understand an extension key for the core
+message to remain valid. If extension data is required for correctness, the sender SHOULD use a
+new profile or capability advertisement instead of relying on silent extension interpretation.
+
+## Freshness rules
+
+Senders SHOULD set `expires_at` on messages that become unsafe or misleading after a short window.
+Receivers MUST reject messages whose `expires_at` has passed. When `expires_at` is absent, receivers
+SHOULD enforce a bounded replay-age policy. The AGH reference implementation defaults that policy to
+300 seconds.
+
+## Related pages
+
+- [Message Kinds](/protocol/message-kinds) describes the body contract selected by `kind` and the
+  per-kind rules for `surface`, container ID, and `work_id`.
+- [Work Lifecycle](/protocol/interactions) explains how `work_id` opens, advances, and closes
+  directed work inside one conversation container.
+- [Delivery](/protocol/delivery) explains how `id`, `expires_at`, and route tokens affect receiver
+  behavior.
+- [Signature Verification](/protocol/verification) covers proof handling for implementers of trust
+  profiles, including how `surface`, `thread_id`, `direct_id`, and `work_id` participate in JCS
+  signing when present.
+- [Minimal Sender](/protocol/guide/minimal-sender) turns this envelope shape into a small working
+  sender.

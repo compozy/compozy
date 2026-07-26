@@ -1,0 +1,43 @@
+---
+title: "agh agent"
+description: "Inspect AGH agent definitions"
+---
+
+## agh agent
+
+Inspect AGH agent definitions
+
+### Options
+
+```
+  -h, --help   help for agent
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                       | Description                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------ |
+| [agh agent create](/runtime/cli-reference/agent/create)       | Create a global or workspace-local agent definition    |
+| [agh agent delete](/runtime/cli-reference/agent/delete)       | Durably delete an agent definition                     |
+| [agh agent duplicate](/runtime/cli-reference/agent/duplicate) | Duplicate an agent definition without exposing secrets |
+| [agh agent heartbeat](/runtime/cli-reference/agent/heartbeat) | Inspect and manage agent HEARTBEAT.md files            |
+| [agh agent info](/runtime/cli-reference/agent/info)           | Show one agent definition                              |
+| [agh agent list](/runtime/cli-reference/agent/list)           | List installed agent definitions                       |
+| [agh agent soul](/runtime/cli-reference/agent/soul)           | Inspect and manage agent SOUL.md files                 |
+| [agh agent update](/runtime/cli-reference/agent/update)       | Update an agent definition for future sessions         |

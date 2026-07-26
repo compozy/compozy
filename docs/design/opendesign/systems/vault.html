@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Vault · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* tokens — verbatim from systems/design-system.html (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    --focus-ring-inset:inset 0 0 0 1px var(--line-strong);
+    --z-menu:30; --z-scrim:60; --z-sheet:61; --z-modal:62; --z-toast:70;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input,textarea{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  code,kbd,pre,.mono,.count-chip,.pill[data-mono="true"],.listing-row__name b:not(.sans),.listing-row__meta .k,
+  .listing-card__title b:not(.sans),.tile__v .mono,.sheet__ref,.filter-chip__val[data-mono]{
+    font-family:var(--font-mono);-webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal;font-variant-numeric:tabular-nums}
+  :is(.btn,.pill-group__item,.filter-menu__item,.filter-chip__op,.filter-chip__val,.filter-chip__x,.copybtn,
+    .sheet__close,.head-close,.breadcrumb__link,.listing-row,.listing-card):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  a.listing-row:focus-visible,a.listing-card:focus-visible{box-shadow:var(--focus-ring-inset)}
+
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+  /* topbar — canonical three-zone route chrome (design-system.html §04) */
+  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;
+    min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas);min-width:0;flex:none}
+  .topbar__context{min-width:0;overflow:hidden}
+  .topbar__trailing{display:flex;align-items:center;justify-content:flex-end;gap:8px;justify-self:end;min-width:0}
+  .breadcrumb{min-width:0;overflow:hidden}
+  .breadcrumb__list{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;list-style:none;white-space:nowrap;color:var(--muted)}
+  .breadcrumb__item{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:none}
+  .breadcrumb__item:last-child{min-width:0;flex:1 1 auto;overflow:hidden}
+  .breadcrumb__link,.breadcrumb__page{display:inline-flex;align-items:center;min-width:0;border-radius:var(--radius-sm);padding:2px 6px;
+    font-size:13px;line-height:18px;letter-spacing:-.006em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .breadcrumb__link{color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .breadcrumb__link:hover{background:var(--row-hover);color:var(--fg)}
+  .breadcrumb__page{color:var(--fg-strong)}
+  .breadcrumb__separator{display:inline-flex;color:var(--faint);flex:none}
+  .breadcrumb__separator svg{width:12px;height:12px}
+  .breadcrumb__home svg{width:14px;height:14px;flex:none}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--destructive{background:var(--danger-tint);border-color:transparent;color:var(--danger)}
+  .btn--destructive:hover{background:var(--danger-tint);border-color:transparent;color:var(--danger);opacity:.9}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn:disabled{cursor:not-allowed;opacity:.5}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+
+  /* page head — PH1 index (design-system.html §08) */
+  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;min-width:0}
+  .head__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;
+    border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px}
+  .head__icon svg{width:12px;height:12px}
+  .head__main{min-width:0;flex:1}
+  .head__titlerow{display:flex;align-items:center;gap:10px;min-width:0}
+  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25}
+  .count-chip{display:inline-flex;align-items:center;min-height:19px;padding:1px 6px;border-radius:var(--radius-xs);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:11px;font-weight:500;color:var(--muted)}
+  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle);max-width:72ch}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+
+  /* listing toolbar (design-system.html §09) */
+  .listing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+  .listing-toolbar__leading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1;min-width:0}
+  .listing-toolbar__trailing{display:flex;align-items:center;gap:10px;margin-left:auto;flex:none}
+  .search{display:flex;align-items:center;gap:8px;height:26px;min-width:220px;width:220px;padding:0 8px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--canvas-soft);color:var(--fg);font-size:13px;flex:none}
+  .search svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-size:13px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .search .kbd{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;line-height:1;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 4px;flex:none;background:var(--canvas-soft)}
+  .search:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+
+  .filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;position:relative}
+  .filter-add{position:relative}
+  .filter-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:var(--z-menu);width:220px;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .filter-menu__item{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 8px;border:0;border-radius:var(--radius);background:transparent;color:var(--fg);font-size:12.5px;cursor:pointer;text-align:left}
+  .filter-menu__item:hover,.filter-menu__item:focus{background:var(--row-hover);outline:none}
+  .filter-menu__item svg{width:12px;height:12px;color:var(--muted);flex:none}
+  .filter-submenu{position:absolute;top:0;left:calc(100% + 4px);z-index:calc(var(--z-menu) + 1);width:230px;max-height:260px;overflow:auto;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .filter-chip{display:inline-flex;align-items:stretch;width:fit-content;border-radius:var(--radius);overflow:hidden}
+  .filter-chip > *{border:1px solid var(--line);background:var(--canvas);color:var(--fg);font-size:11px;line-height:1;display:inline-flex;align-items:center;height:22px;padding:0 8px;margin:0}
+  .filter-chip > * + *{border-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
+  .filter-chip > *:first-child{border-radius:var(--radius) 0 0 var(--radius);gap:6px}
+  .filter-chip > *:last-child{border-radius:0 var(--radius) var(--radius) 0}
+  .filter-chip__label{font-weight:500}
+  .filter-chip__op{color:var(--muted);background:transparent;cursor:pointer}
+  .filter-chip__val{background:transparent;cursor:pointer;max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .filter-chip__val:hover,.filter-chip__op:hover{background:var(--row-hover)}
+  .filter-chip__x{width:22px;padding:0;justify-content:center;cursor:pointer;color:var(--muted);background:transparent}
+  .filter-chip__x:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .filter-chip__x svg{width:12px;height:12px}
+
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;cursor:pointer;
+    transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item svg{width:12px;height:12px}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+
+  /* write-only note — quiet, above the list */
+  .sec-note{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;color:var(--subtle)}
+  .sec-note svg{width:13px;height:13px;color:var(--faint);flex:none}
+
+  /* rows (design-system.html §10) */
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .listing-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:12px 16px;width:100%;
+    border:0;border-bottom:1px solid var(--line-soft);background:transparent;text-align:left;cursor:pointer;
+    transition:background var(--dur) var(--ease);color:inherit;font-size:inherit;letter-spacing:inherit}
+  .listing-row:last-child{border-bottom:0}
+  .listing-row:hover{background:var(--row-hover)}
+  .listing-row[data-selected="true"]{background:var(--row-selected)}
+  .listing-row__icon{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-row__icon svg{width:16px;height:16px}
+  .listing-row__main{min-width:0}
+  .listing-row__name{display:flex;align-items:center;gap:8px;min-width:0}
+  .listing-row__name b{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong);letter-spacing:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__meta{margin-top:4px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--faint);flex-wrap:wrap}
+  .listing-row__meta .k{font-size:10px;color:var(--subtle)}
+  .listing-row__trail{display:flex;align-items:center;gap:12px;flex:none}
+  .row-actions{display:flex;align-items:center;gap:4px}
+  .row-actions .btn{height:26px;width:26px;padding:0;justify-content:center;color:var(--muted)}
+  .row-actions .btn:hover{color:var(--fg-strong);background:var(--btn-hover);border-color:transparent}
+  .row-actions .btn[data-danger]:hover{color:var(--danger);background:var(--danger-tint)}
+
+  /* cards (design-system.html §11) */
+  .listing-card-grid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media (min-width:720px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (min-width:1100px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .listing-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:var(--radius-lg);border:0;text-align:left;
+    background:var(--canvas-soft);min-width:0;cursor:pointer;transition:background var(--dur) var(--ease);color:inherit;font-size:inherit;letter-spacing:inherit}
+  .listing-card:hover{background:var(--elevated)}
+  .listing-card__head{display:flex;align-items:flex-start;gap:10px;min-width:0;width:100%}
+  .listing-card__icon{width:24px;height:24px;border-radius:var(--radius);background:var(--surface-glaze);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-card__icon svg{width:13px;height:13px}
+  .listing-card__title{min-width:0;flex:1}
+  .listing-card__title b{display:block;font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong);letter-spacing:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-card__eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle);margin-top:4px}
+  .listing-card__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--line);margin-top:auto;width:100%}
+  .listing-card__foot-meta{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
+
+  .pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:fit-content;flex:none;
+    height:19px;padding:0 8px;border-radius:var(--radius-xs);white-space:nowrap;line-height:1;
+    font-size:11px;font-weight:500;letter-spacing:-.005em;background:var(--neutral-tint);color:var(--muted)}
+  .pill[data-mono="true"]{font-size:10.5px;font-weight:600;letter-spacing:0}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .pill[data-tone="accent"]{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+  /* empty + skeleton */
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 24px;
+    border-radius:var(--radius-lg);text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle);box-sizing:content-box}
+  .empty b{font-size:18px;font-weight:500;color:var(--fg-strong);letter-spacing:-.022em}
+  .empty p{font-size:13px;max-width:28rem;line-height:1.6;color:var(--muted)}
+  .empty .btn{margin-top:4px}
+  .skeleton-rows{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .skeleton-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line-soft)}
+  .skeleton-row:last-child{border-bottom:0}
+  .sk{border-radius:var(--radius);background:linear-gradient(90deg,var(--elevated) 0%,var(--surface-glaze) 50%,var(--elevated) 100%);
+    background-size:200% 100%;animation:shimmer 1.4s var(--ease) infinite}
+  .sk-avatar{width:34px;height:34px;border-radius:var(--radius-md)}
+  .sk-line{height:12px}
+  .sk-trail{display:flex;align-items:center;gap:10px}
+  .sk-pill{width:58px;height:19px;border-radius:var(--radius-xs)}
+  .sk-icon{width:26px;height:26px;border-radius:var(--radius)}
+  @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+  .copybtn{display:inline-grid;place-items:center;width:18px;height:18px;border:0;background:transparent;color:var(--faint);border-radius:var(--radius-xxs);cursor:pointer;flex:none}
+  .copybtn:hover{color:var(--fg);background:var(--row-hover)}
+  .copybtn svg{width:11px;height:11px}
+
+  /* detail sheet — Inspect drawer lineage (task-run-detail.html) */
+  .scrim{position:fixed;inset:0;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .2s var(--ease);z-index:var(--z-scrim)}
+  .scrim.is-open{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;top:0;right:0;bottom:0;width:min(520px,calc(100vw - 24px));display:flex;flex-direction:column;
+    background:var(--canvas);border-left:1px solid var(--line);box-shadow:var(--shadow-overlay);
+    transform:translateX(103%);transition:transform .2s var(--ease);z-index:var(--z-sheet)}
+  .sheet.is-open{transform:translateX(0)}
+  .sheet__head{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 16px;border-bottom:1px solid var(--line);flex:none}
+  .sheet__well{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-md);background:var(--accent-tint);color:var(--accent-strong)}
+  .sheet__well svg{width:16px;height:16px}
+  .sheet__eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+  .sheet__title{margin-top:2px;font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em;word-break:break-all}
+  .sheet__ref{margin-top:5px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);min-width:0}
+  .sheet__ref span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sheet__close{margin-left:auto;display:inline-grid;place-items:center;width:26px;height:26px;flex:none;border:0;background:transparent;
+    color:var(--muted);border-radius:var(--radius-sm);cursor:pointer}
+  .sheet__close:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .sheet__close svg{width:14px;height:14px}
+  .sheet__body{flex:1;min-height:0;overflow-y:auto;padding:18px 20px}
+  .sheet__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-top:1px solid var(--line-soft);flex:none}
+  .sheet__foot .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+  .tile{padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--input-fill)}
+  .tile__l{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:6px}
+  .tile__v{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:510;color:var(--fg);min-width:0}
+  .tile__v .mono{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .quiet-note{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .quiet-note svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .sheet-sec{margin-bottom:18px}
+  .sheet-sec__t{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:10px}
+  .value-row{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--input-fill)}
+  .value-row__mask{font-family:var(--font-mono);font-size:13px;letter-spacing:.22em;color:var(--faint);flex:1}
+  .field{margin-bottom:14px}
+  .field:last-child{margin-bottom:0}
+  .field__label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--fg);margin-bottom:6px}
+  .field__label .req{font-size:10.5px;color:var(--subtle);font-weight:400}
+  .field__hint{font-size:11.5px;color:var(--subtle);margin-top:6px;line-height:1.5}
+  .input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);font-size:12.5px;outline:none}
+  .input.mono{font-family:var(--font-mono);font-size:12px}
+  .input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .replace-row{display:flex;gap:8px}
+  .replace-row .input{flex:1}
+  .danger-zone{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:var(--radius-md);
+    border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);background:var(--danger-tint)}
+  .danger-zone b{font-size:12.5px;font-weight:560;color:var(--danger);display:block}
+  .danger-zone p{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.45}
+
+  /* create modal — agent-detail.html modal lineage */
+  .modal-scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(2px);display:grid;place-items:center;padding:28px;z-index:var(--z-modal)}
+  .modal{width:min(460px,100%);background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);
+    display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;max-height:92vh}
+  .modal__head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 16px;border-bottom:1px solid var(--line-soft)}
+  .head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+    background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+  .head-icon svg{width:17px;height:17px}
+  .head-txt{flex:1;min-width:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+  .modal__title{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em;margin-top:3px}
+  .modal__sub{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+  .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .head-close svg{width:16px;height:16px}
+  .modal__body{overflow-y:auto;padding:18px 20px;min-height:0}
+  .modal__foot{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .modal__foot .foot-note{flex:1;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--subtle);min-width:0}
+  .modal__foot .foot-note svg{width:13px;height:13px;color:var(--faint);flex:none}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:var(--z-toast);display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);font-size:12.5px;color:var(--fg)}
+  .toast svg{width:14px;height:14px;color:var(--success)}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+  @media(max-width:920px){
+    .page{padding:22px 18px 64px}
+    .search{min-width:140px;width:160px}
+    .listing-row{grid-template-columns:34px minmax(0,1fr);row-gap:8px}
+    .listing-row__trail{grid-column:2;justify-content:flex-start;gap:8px}
+  }
+  @media(max-width:560px){
+    .head__title{font-size:1.25rem}
+    .listing-toolbar{gap:8px}
+    .search{width:100%;min-width:0;flex:1 1 100%}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+
+    <header class="topbar" data-od-id="vault-topbar">
+      <div class="topbar__context">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <ol class="breadcrumb__list">
+            <li class="breadcrumb__item"><a class="breadcrumb__link breadcrumb__home" href="#" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a></li>
+            <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+            <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Vault</span></li>
+          </ol>
+        </nav>
+      </div>
+      <div></div>
+      <div class="topbar__trailing" data-od-id="vault-topbar-actions">
+        <button type="button" class="btn btn--ghost btn--sm" id="btn-refresh" data-od-id="vault-refresh">Refresh</button>
+        <button type="button" class="btn btn--primary btn--sm" id="btn-new" data-od-id="vault-new-secret">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          New secret
+        </button>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+
+        <header class="head" data-od-id="vault-head">
+          <span class="head__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          </span>
+          <div class="head__main">
+            <div class="head__titlerow">
+              <h1 class="head__title" tabindex="-1">Vault</h1>
+              <span class="count-chip" id="head-count">7</span>
+            </div>
+            <div class="head__meta">
+              <span>Write-only secrets; the daemon returns redacted metadata only.</span>
+              <span class="dotsep"></span>
+              <span id="meta-sessions">1 session-scoped</span>
+              <span class="dotsep"></span>
+              <span id="meta-providers">2 provider-scoped</span>
+            </div>
+          </div>
+        </header>
+
+        <div class="listing-toolbar" data-od-id="vault-toolbar">
+          <div class="listing-toolbar__leading">
+            <label class="search" data-od-id="vault-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <input id="search-input" type="search" placeholder="Filter by ref prefix" aria-label="Filter by vault ref prefix" autocomplete="off" spellcheck="false" />
+              <span class="kbd">/</span>
+            </label>
+            <div class="filters" id="filters-root" data-od-id="vault-filters"></div>
+          </div>
+          <div class="listing-toolbar__trailing">
+            <div class="pill-group" role="group" aria-label="View mode" data-od-id="vault-view-toggle" id="view-toggle">
+              <button type="button" class="pill-group__item" data-view="rows" aria-pressed="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Rows
+              </button>
+              <button type="button" class="pill-group__item" data-view="cards" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Cards
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p class="sec-note" id="sec-note" data-od-id="vault-sec-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span id="sec-note-text">7 redacted metadata entries — values are write-only and never leave the daemon.</span>
+        </p>
+
+        <div id="list-root" data-od-id="vault-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── secret detail sheet ── -->
+<div class="scrim" id="sheet-scrim"></div>
+<aside class="sheet" id="secret-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" data-od-id="vault-secret-sheet">
+  <header class="sheet__head">
+    <span class="sheet__well" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+    </span>
+    <div style="min-width:0;flex:1">
+      <div class="sheet__eyebrow">Vault secret</div>
+      <div class="sheet__title" id="sheet-title">webhook_secret</div>
+      <div class="sheet__ref">
+        <span id="sheet-ref">vault:automation/nightly-deploy/webhook_secret</span>
+        <button type="button" class="copybtn" id="sheet-copy" aria-label="Copy vault reference">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        </button>
+      </div>
+    </div>
+    <button type="button" class="sheet__close" id="sheet-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+  </header>
+  <div class="sheet__body">
+    <div class="tiles" data-od-id="vault-sheet-tiles">
+      <div class="tile"><div class="tile__l">Namespace</div><div class="tile__v" id="sheet-ns"><span class="pill" data-mono="true">automation</span></div></div>
+      <div class="tile"><div class="tile__l">Kind</div><div class="tile__v"><span class="mono" id="sheet-kind">webhook_secret</span></div></div>
+      <div class="tile"><div class="tile__l">Created</div><div class="tile__v" id="sheet-created">May 12, 2026</div></div>
+      <div class="tile"><div class="tile__l">Updated</div><div class="tile__v" id="sheet-updated">2 days ago</div></div>
+    </div>
+
+    <div class="sheet-sec" data-od-id="vault-sheet-value">
+      <div class="sheet-sec__t">Value</div>
+      <div class="value-row">
+        <span class="value-row__mask" aria-hidden="true">••••••••••••</span>
+        <span class="pill" data-tone="success">present</span>
+        <span class="pill" data-mono="true">write-only</span>
+      </div>
+      <p class="field__hint">The daemon never returns secret values. Reads expose redacted metadata only.</p>
+    </div>
+
+    <div class="sheet-sec" data-od-id="vault-sheet-replace">
+      <div class="sheet-sec__t">Replace value</div>
+      <div class="replace-row">
+        <input class="input mono" id="replace-input" type="password" placeholder="Stored without plaintext readback" autocomplete="off" spellcheck="false" aria-label="New secret value" />
+        <button type="button" class="btn" id="replace-save" disabled>Store</button>
+      </div>
+      <p class="field__hint">Re-storing overwrites the value in place — the rotate path. Kind metadata is preserved.</p>
+    </div>
+
+    <div class="sheet-sec" data-od-id="vault-sheet-danger">
+      <div class="danger-zone">
+        <div>
+          <b>Delete secret</b>
+          <p>Configs that reference this ref will fail to resolve it at spawn time.</p>
+        </div>
+        <button type="button" class="btn btn--destructive btn--sm" id="sheet-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+  <div class="sheet__foot">
+    <span class="mono" id="sheet-cli">agh vault put vault:automation/nightly-deploy/webhook_secret --value-stdin</span>
+  </div>
+</aside>
+
+<!-- ── new secret modal ── -->
+<div class="modal-scrim hide" id="create-scrim" data-od-id="vault-create-scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="create-title" data-od-id="vault-create-modal">
+    <header class="modal__head">
+      <span class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      </span>
+      <div class="head-txt">
+        <div class="eyebrow">Vault</div>
+        <h2 class="modal__title" id="create-title">New vault secret</h2>
+        <p class="modal__sub">Stores a write-only secret value and returns redacted metadata.</p>
+      </div>
+      <button type="button" class="head-close" data-close-create aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </header>
+    <div class="modal__body">
+      <div class="field" data-od-id="vault-field-ref">
+        <label class="field__label" for="create-ref">Ref <span class="req">required</span></label>
+        <input class="input mono" id="create-ref" value="vault:sessions/" placeholder="vault:sessions/" autocomplete="off" spellcheck="false" />
+        <p class="field__hint" id="create-ref-hint">Namespace is the first path segment after <span class="mono">vault:</span>.</p>
+      </div>
+      <div class="field" data-od-id="vault-field-kind">
+        <label class="field__label" for="create-kind">Kind <span class="req">optional</span></label>
+        <input class="input mono" id="create-kind" placeholder="api_key" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="field" data-od-id="vault-field-value">
+        <label class="field__label" for="create-value">Secret value <span class="req">required</span></label>
+        <input class="input mono" id="create-value" type="password" placeholder="Stored without plaintext readback" autocomplete="off" spellcheck="false" />
+      </div>
+    </div>
+    <footer class="modal__foot">
+      <span class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Write-only after save
+      </span>
+      <button type="button" class="btn btn--ghost" data-close-create>Cancel</button>
+      <button type="button" class="btn btn--primary" id="create-save" disabled>Store secret</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ── delete confirm ── -->
+<div class="modal-scrim hide" id="delete-scrim" data-od-id="vault-delete-scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-title" data-od-id="vault-delete-modal">
+    <header class="modal__head">
+      <span class="head-icon" style="background:var(--danger-tint);color:var(--danger);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 24%,transparent)" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+      </span>
+      <div class="head-txt">
+        <div class="eyebrow" style="color:var(--danger)">Vault</div>
+        <h2 class="modal__title" id="delete-title">Delete vault secret?</h2>
+        <p class="modal__sub" id="delete-sub">Configs that reference this ref will fail to resolve it at spawn time.</p>
+      </div>
+      <button type="button" class="head-close" data-close-delete aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </header>
+    <div class="modal__body">
+      <div class="field" id="delete-typed-field">
+        <label class="field__label" for="delete-typed">Type the ref to confirm</label>
+        <input class="input mono" id="delete-typed" autocomplete="off" spellcheck="false" placeholder="vault:namespace/path" />
+        <p class="field__hint" id="delete-typed-hint">vault:automation/nightly-deploy/webhook_secret</p>
+      </div>
+    </div>
+    <footer class="modal__foot">
+      <span class="foot-note" style="flex:1"></span>
+      <button type="button" class="btn btn--ghost" data-close-delete>Cancel</button>
+      <button type="button" class="btn btn--destructive" id="delete-confirm" disabled>Delete secret</button>
+    </footer>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var KEY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>';
+  var COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  var TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
+  var CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>';
+
+  /* Sample inventory — refs mirror real AGH vault namespaces (providers, mcp, bridges, automation, sessions). */
+  var SECRETS = [
+    { ref: "providers/anthropic/api_key",  kind: "api_key",        created: "Apr 03, 2026", updated: "Jun 21" },
+    { ref: "providers/openai/api_key",     kind: "api_key",        created: "Apr 03, 2026", updated: "May 09" },
+    { ref: "mcp/ws/launch-hq/github-local/env/github_personal_access_token", kind: "env", created: "May 12, 2026", updated: "Jul 02" },
+    { ref: "mcp/ws/launch-hq/linear/oauth/client-secret", kind: "oauth_client_secret", created: "May 20, 2026", updated: "May 20" },
+    { ref: "bridges/slack-ops/bot_token",  kind: "bot_token",      created: "Jun 02, 2026", updated: "Jun 30" },
+    { ref: "automation/nightly-deploy/webhook_secret", kind: "webhook_secret", created: "May 12, 2026", updated: "Jul 15" },
+    { ref: "sessions/sess_product_brief/scoped_token", kind: "token", created: "Jul 16, 2026", updated: "Jul 16" }
+  ];
+
+  var FILTER_FIELDS = [
+    { key: "namespace", label: "Namespace" },
+    { key: "kind", label: "Kind" }
+  ];
+
+  var state = {
+    view: "rows",
+    query: "",
+    filters: [],          /* {id, field, value} — op is always "is" */
+    menuOpen: false,
+    submenuField: null,
+    pageState: "ready",   /* ready | loading | empty */
+    selectedRef: null
+  };
+
+  function parseParams() {
+    var p = new URLSearchParams(window.location.search);
+    var s = p.get("state");
+    if (s === "loading" || s === "empty" || s === "error") state.pageState = s;
+    var v = p.get("view");
+    if (v === "rows" || v === "cards") state.view = v;
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c];
+    });
+  }
+  function uid() { return "f_" + Math.random().toString(36).slice(2, 9); }
+  function ns(secret) { return secret.ref.split("/")[0]; }
+  function leaf(secret) { var parts = secret.ref.split("/"); return parts[parts.length - 1]; }
+  function nsTone(namespace) { return namespace === "sessions" ? "info" : "neutral"; }
+
+  function inventory() {
+    if (state.pageState === "empty" || state.pageState === "loading") return [];
+    return SECRETS.slice();
+  }
+
+  function optionsFor(fieldKey) {
+    var set = {};
+    SECRETS.forEach(function (s) { set[fieldKey === "namespace" ? ns(s) : s.kind] = true; });
+    return Object.keys(set).sort();
+  }
+
+  function filtered() {
+    var q = state.query.trim().toLowerCase();
+    return inventory().filter(function (s) {
+      if (q && s.ref.toLowerCase().indexOf(q) === -1 && s.kind.toLowerCase().indexOf(q) === -1) return false;
+      return state.filters.every(function (chip) {
+        if (chip.field === "namespace") return ns(s) === chip.value;
+        if (chip.field === "kind") return s.kind === chip.value;
+        return true;
+      });
+    }).sort(function (a, b) { return a.ref.localeCompare(b.ref); });
+  }
+
+  /* ── filters ── */
+  function renderFilters() {
+    var root = document.getElementById("filters-root");
+    if (state.pageState !== "ready") { root.innerHTML = ""; return; }
+    var used = state.filters.map(function (c) { return c.field; });
+    var html = '<div class="filter-add">';
+    html += '<button type="button" class="btn btn--ghost btn--sm" id="filter-add-btn" aria-haspopup="menu" aria-expanded="' + state.menuOpen + '">';
+    html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18"/><path d="M7 12h10"/><path d="M10 19h4"/></svg> Filter</button>';
+    if (state.menuOpen) {
+      html += '<div class="filter-menu" role="menu">';
+      var shown = 0;
+      FILTER_FIELDS.forEach(function (f) {
+        if (used.indexOf(f.key) !== -1) return;
+        shown++;
+        html += '<button type="button" class="filter-menu__item" data-add-field="' + f.key + '" role="menuitem">' + esc(f.label) + '</button>';
+      });
+      if (!shown) html += '<div class="filter-menu__item" style="color:var(--subtle);cursor:default">No more fields</div>';
+      html += '</div>';
+      if (state.submenuField) {
+        html += '<div class="filter-submenu">';
+        optionsFor(state.submenuField).forEach(function (opt) {
+          html += '<button type="button" class="filter-menu__item" data-pick-value="' + esc(opt) + '"><span class="mono" style="font-size:11px">' + esc(opt) + '</span></button>';
+        });
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+    state.filters.forEach(function (chip) {
+      var field = FILTER_FIELDS.find(function (f) { return f.key === chip.field; });
+      html += '<div class="filter-chip" role="group">';
+      html += '<span class="filter-chip__label">' + esc(field.label) + '</span>';
+      html += '<span class="filter-chip__op">is</span>';
+      html += '<span class="filter-chip__val" data-mono style="font-family:var(--font-mono);font-size:10.5px">' + esc(chip.value) + '</span>';
+      html += '<button type="button" class="filter-chip__x" data-chip-remove="' + chip.id + '" aria-label="Remove ' + esc(field.label) + ' filter">';
+      html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
+      html += '</div>';
+    });
+    root.innerHTML = html;
+
+    var addBtn = document.getElementById("filter-add-btn");
+    if (addBtn) addBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      state.menuOpen = !state.menuOpen;
+      state.submenuField = null;
+      renderFilters();
+    });
+    root.querySelectorAll("[data-add-field]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.submenuField = btn.getAttribute("data-add-field");
+        renderFilters();
+      });
+    });
+    root.querySelectorAll("[data-pick-value]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.filters.push({ id: uid(), field: state.submenuField, value: btn.getAttribute("data-pick-value") });
+        state.menuOpen = false; state.submenuField = null;
+        renderAll();
+      });
+    });
+    root.querySelectorAll("[data-chip-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute("data-chip-remove");
+        state.filters = state.filters.filter(function (c) { return c.id !== id; });
+        renderAll();
+      });
+    });
+  }
+
+  /* ── list ── */
+  function rowMarkup(s) {
+    return '<button type="button" class="listing-row" data-open="' + esc(s.ref) + '" data-od-id="vault-row-' + esc(ns(s)) + '-' + esc(leaf(s)) + '">' +
+      '<span class="listing-row__icon" aria-hidden="true">' + KEY_ICON + '</span>' +
+      '<span class="listing-row__main">' +
+        '<span class="listing-row__name"><b title="vault:' + esc(s.ref) + '">vault:' + esc(s.ref) + '</b>' +
+        '<span class="pill" data-mono="true">' + esc(s.kind || "--") + '</span></span>' +
+        '<span class="listing-row__meta"><span>present</span><span class="dotsep"></span><span>updated ' + esc(s.updated) + '</span></span>' +
+      '</span>' +
+      '<span class="listing-row__trail">' +
+        '<span class="pill" data-mono="true" data-tone="' + nsTone(ns(s)) + '">' + esc(ns(s)) + '</span>' +
+        '<span class="row-actions">' +
+          '<span class="btn btn--icon" data-copy-ref="vault:' + esc(s.ref) + '" role="button" tabindex="0" aria-label="Copy vault reference">' + COPY_ICON + '</span>' +
+          '<span class="btn btn--icon" data-delete="' + esc(s.ref) + '" data-danger role="button" tabindex="0" aria-label="Delete secret">' + TRASH_ICON + '</span>' +
+        '</span>' +
+      '</span>' +
+    '</button>';
+  }
+
+  function cardMarkup(s) {
+    return '<button type="button" class="listing-card" data-open="' + esc(s.ref) + '" data-od-id="vault-card-' + esc(ns(s)) + '-' + esc(leaf(s)) + '">' +
+      '<span class="listing-card__head">' +
+        '<span class="listing-card__icon" aria-hidden="true">' + KEY_ICON + '</span>' +
+        '<span class="listing-card__title"><b title="vault:' + esc(s.ref) + '">vault:' + esc(s.ref) + '</b>' +
+        '<span class="listing-card__eyebrow">updated ' + esc(s.updated) + '</span></span>' +
+      '</span>' +
+      '<span class="listing-card__foot">' +
+        '<span class="listing-card__foot-meta">' +
+          '<span class="pill" data-mono="true" data-tone="' + nsTone(ns(s)) + '">' + esc(ns(s)) + '</span>' +
+          '<span class="pill" data-mono="true">' + esc(s.kind || "--") + '</span>' +
+        '</span>' +
+        '<span class="btn btn--ghost btn--sm" data-delete="' + esc(s.ref) + '" role="button" tabindex="0" aria-label="Delete ' + esc(s.ref) + '">' + TRASH_ICON + ' Delete</span>' +
+      '</span>' +
+    '</button>';
+  }
+
+  function skeletonMarkup() {
+    var rows = "";
+    for (var i = 0; i < 5; i++) {
+      rows += '<div class="skeleton-row"><div class="sk sk-avatar"></div>' +
+        '<div><div class="sk sk-line" style="width:46%;margin-bottom:8px"></div><div class="sk sk-line" style="width:24%;height:10px"></div></div>' +
+        '<div class="sk-trail"><div class="sk sk-pill"></div><div class="sk sk-icon"></div></div></div>';
+    }
+    return '<div class="skeleton-rows" aria-busy="true" aria-label="Loading secrets">' + rows + '</div>';
+  }
+
+  function emptyMarkup(kind) {
+    if (kind === "zero") {
+      return '<div class="empty" data-od-id="vault-empty">' + KEY_ICON.replace('stroke-width="2"', 'stroke-width="1.6"') +
+        '<b>No vault secrets</b><p>Vault metadata appears here after a write-only secret is stored.</p>' +
+        '<button type="button" class="btn btn--primary" data-empty-new>New secret</button></div>';
+    }
+    if (kind === "error") {
+      return '<div class="empty" data-od-id="vault-error">' + KEY_ICON.replace('stroke-width="2"', 'stroke-width="1.6"') +
+        '<b>Unable to load vault metadata</b><p>The daemon stopped responding before it returned the secret list. Existing secrets were not changed.</p>' +
+        '<button type="button" class="btn" data-retry>Retry</button></div>';
+    }
+    return '<div class="empty" data-od-id="vault-no-match">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>' +
+      '<b>No secrets match</b><p>Try a different search or clear filters.</p>' +
+      '<button type="button" class="btn" data-clear-filters>Clear filters</button></div>';
+  }
+
+  function renderList() {
+    var root = document.getElementById("list-root");
+    var note = document.getElementById("sec-note");
+    if (state.pageState === "loading") { root.innerHTML = skeletonMarkup(); note.classList.add("hide"); return; }
+    if (state.pageState === "empty")   { root.innerHTML = emptyMarkup("zero"); note.classList.add("hide"); bindListEvents(root); return; }
+    if (state.pageState === "error")   { root.innerHTML = emptyMarkup("error"); note.classList.add("hide"); bindListEvents(root); return; }
+    note.classList.remove("hide");
+    var items = filtered();
+    document.getElementById("head-count").textContent = String(SECRETS.length);
+    var nSessions = SECRETS.filter(function (s) { return ns(s) === "sessions"; }).length;
+    var nProviders = SECRETS.filter(function (s) { return ns(s) === "providers"; }).length;
+    document.getElementById("meta-sessions").textContent = nSessions + " session-scoped";
+    document.getElementById("meta-providers").textContent = nProviders + " provider-scoped";
+    document.getElementById("sec-note-text").textContent =
+      SECRETS.length + " redacted metadata entries — values are write-only and never leave the daemon.";
+    if (!items.length) { root.innerHTML = emptyMarkup("nomatch"); return; }
+    if (state.view === "cards") {
+      root.innerHTML = '<div class="listing-card-grid">' + items.map(cardMarkup).join("") + '</div>';
+    } else {
+      root.innerHTML = '<div class="list">' + items.map(rowMarkup).join("") + '</div>';
+    }
+    bindListEvents(root);
+  }
+
+  function bindListEvents(root) {
+    root.querySelectorAll("[data-open]").forEach(function (el) {
+      el.addEventListener("click", function () { openSheet(el.getAttribute("data-open")); });
+    });
+    root.querySelectorAll("[data-copy-ref]").forEach(function (el) {
+      bindAction(el, function () { copyText(el.getAttribute("data-copy-ref"), el); });
+    });
+    root.querySelectorAll("[data-delete]").forEach(function (el) {
+      bindAction(el, function () { deleteSecret(el.getAttribute("data-delete")); });
+    });
+    root.querySelectorAll("[data-empty-new]").forEach(function (el) {
+      el.addEventListener("click", function (e) { e.stopPropagation(); openCreate(); });
+    });
+    root.querySelectorAll("[data-clear-filters]").forEach(function (el) {
+      el.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.filters = []; state.query = "";
+        document.getElementById("search-input").value = "";
+        renderAll();
+      });
+    });
+    root.querySelectorAll("[data-retry]").forEach(function (el) {
+      el.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.pageState = "loading";
+        renderList();
+        setTimeout(function () { state.pageState = "ready"; renderAll(); }, 700);
+      });
+    });
+  }
+
+  /* nested action targets inside <button> rows are spans with role=button */
+  function bindAction(el, fn) {
+    el.addEventListener("click", function (e) { e.stopPropagation(); fn(); });
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); fn(); }
+    });
+  }
+
+  function syncViewToggle() {
+    document.querySelectorAll("#view-toggle .pill-group__item").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", btn.getAttribute("data-view") === state.view ? "true" : "false");
+    });
+  }
+
+  function renderAll() { syncViewToggle(); renderFilters(); renderList(); }
+
+  /* ── sheet ── */
+  var sheetScrim = document.getElementById("sheet-scrim");
+  var sheet = document.getElementById("secret-sheet");
+
+  function openSheet(ref) {
+    var s = SECRETS.find(function (x) { return x.ref === ref; });
+    if (!s) return;
+    state.selectedRef = ref;
+    document.getElementById("sheet-title").textContent = leaf(s);
+    document.getElementById("sheet-ref").textContent = "vault:" + s.ref;
+    document.getElementById("sheet-ns").innerHTML = '<span class="pill" data-mono="true" data-tone="' + nsTone(ns(s)) + '">' + esc(ns(s)) + '</span>';
+    document.getElementById("sheet-kind").textContent = s.kind;
+    document.getElementById("sheet-created").textContent = s.created;
+    document.getElementById("sheet-updated").textContent = s.updated;
+    document.getElementById("sheet-cli").textContent = "agh vault put vault:" + s.ref + " --value-stdin";
+    document.getElementById("replace-input").value = "";
+    document.getElementById("replace-save").disabled = true;
+    setSheet(true);
+  }
+  function setSheet(open) {
+    sheet.classList.toggle("is-open", open);
+    sheetScrim.classList.toggle("is-open", open);
+    if (open) document.getElementById("sheet-close").focus();
+  }
+  document.getElementById("sheet-close").addEventListener("click", function () { setSheet(false); });
+  sheetScrim.addEventListener("click", function () { setSheet(false); });
+  document.getElementById("sheet-copy").addEventListener("click", function () {
+    copyText(document.getElementById("sheet-ref").textContent, document.getElementById("sheet-copy"));
+  });
+  var replaceInput = document.getElementById("replace-input");
+  replaceInput.addEventListener("input", function () {
+    document.getElementById("replace-save").disabled = !replaceInput.value.trim();
+  });
+  document.getElementById("replace-save").addEventListener("click", function () {
+    var s = SECRETS.find(function (x) { return x.ref === state.selectedRef; });
+    if (s) s.updated = "just now";
+    replaceInput.value = "";
+    document.getElementById("replace-save").disabled = true;
+    toast("Stored vault metadata for vault:" + (s ? s.ref : ""));
+    renderAll();
+  });
+  document.getElementById("sheet-delete").addEventListener("click", function () {
+    if (state.selectedRef) { setSheet(false); requestDelete(state.selectedRef); }
+  });
+
+  /* ── create modal ── */
+  var createScrim = document.getElementById("create-scrim");
+  function openCreate() {
+    createScrim.classList.remove("hide");
+    document.getElementById("create-ref").focus();
+  }
+  function closeCreate() {
+    createScrim.classList.add("hide");
+    document.getElementById("create-ref").value = "vault:sessions/";
+    document.getElementById("create-kind").value = "";
+    document.getElementById("create-value").value = "";
+    validateCreate();
+  }
+  function validateCreate() {
+    var ref = document.getElementById("create-ref").value.trim();
+    var value = document.getElementById("create-value").value.trim();
+    var hint = document.getElementById("create-ref-hint");
+    var refBad = ref.length > 0 && ref.indexOf("vault:") !== 0;
+    hint.textContent = refBad ? "Vault refs must start with vault:." :
+      "Namespace is the first path segment after vault:.";
+    hint.style.color = refBad ? "var(--danger)" : "";
+    var ok = ref.indexOf("vault:") === 0 && ref.length > "vault:".length && value.length > 0;
+    document.getElementById("create-save").disabled = !ok;
+  }
+  ["create-ref", "create-kind", "create-value"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", validateCreate);
+  });
+  document.getElementById("btn-new").addEventListener("click", openCreate);
+  createScrim.querySelectorAll("[data-close-create]").forEach(function (btn) {
+    btn.addEventListener("click", closeCreate);
+  });
+  createScrim.addEventListener("click", function (e) { if (e.target === createScrim) closeCreate(); });
+  document.getElementById("create-save").addEventListener("click", function () {
+    var raw = document.getElementById("create-ref").value.trim();
+    if (raw.indexOf("vault:") !== 0) return;
+    var ref = raw.replace(/^vault:/, "");
+    var kind = document.getElementById("create-kind").value.trim();
+    if (!ref) return;
+    SECRETS.push({ ref: ref, kind: kind, created: "Jul 17, 2026", updated: "just now" });
+    closeCreate();
+    toast("Stored vault metadata for vault:" + ref);
+    renderAll();
+  });
+
+  /* ── delete flow — session-scoped confirms simply; cross-scope requires the typed ref ── */
+  var deleteScrim = document.getElementById("delete-scrim");
+  var pendingDelete = null;
+
+  function requestDelete(ref) {
+    var s = SECRETS.find(function (x) { return x.ref === ref; });
+    if (!s) return;
+    pendingDelete = ref;
+    var isSession = ns(s) === "sessions";
+    document.getElementById("delete-title").textContent = isSession ? "Delete session vault secret?" : "Delete vault secret?";
+    document.getElementById("delete-sub").textContent = isSession
+      ? "vault:" + ref
+      : "Configs that reference this ref will fail to resolve it at spawn time.";
+    document.getElementById("delete-typed-field").classList.toggle("hide", isSession);
+    document.getElementById("delete-typed-hint").textContent = "vault:" + ref;
+    document.getElementById("delete-typed").value = "";
+    var confirmBtn = document.getElementById("delete-confirm");
+    confirmBtn.textContent = isSession ? "Confirm" : "Delete secret";
+    confirmBtn.disabled = !isSession;
+    deleteScrim.classList.remove("hide");
+    if (!isSession) document.getElementById("delete-typed").focus(); else confirmBtn.focus();
+  }
+  function closeDelete() { deleteScrim.classList.add("hide"); pendingDelete = null; }
+  document.getElementById("delete-typed").addEventListener("input", function (e) {
+    document.getElementById("delete-confirm").disabled = e.target.value.trim() !== "vault:" + pendingDelete;
+  });
+  deleteScrim.querySelectorAll("[data-close-delete]").forEach(function (btn) {
+    btn.addEventListener("click", closeDelete);
+  });
+  deleteScrim.addEventListener("click", function (e) { if (e.target === deleteScrim) closeDelete(); });
+  document.getElementById("delete-confirm").addEventListener("click", function () {
+    if (!pendingDelete) return;
+    var i = SECRETS.findIndex(function (x) { return x.ref === pendingDelete; });
+    if (i !== -1) {
+      var ref = SECRETS[i].ref;
+      SECRETS.splice(i, 1);
+      toast("Deleted vault secret vault:" + ref);
+    }
+    closeDelete();
+    renderAll();
+  });
+
+  function deleteSecret(ref) { requestDelete(ref); }
+
+  function copyText(text, el) {
+    if (navigator.clipboard) navigator.clipboard.writeText(text).catch(function () {});
+    if (el) {
+      var prev = el.innerHTML;
+      el.innerHTML = CHECK_ICON.replace("<svg ", '<svg style="color:var(--success)" ');
+      setTimeout(function () { el.innerHTML = prev; }, 1200);
+    }
+  }
+
+  var toastTimer = null;
+  function toast(msg) {
+    var prev = document.querySelector(".toast");
+    if (prev) prev.remove();
+    var el = document.createElement("div");
+    el.className = "toast";
+    el.setAttribute("role", "status");
+    el.innerHTML = CHECK_ICON + esc(msg);
+    document.body.appendChild(el);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.remove(); }, 2600);
+  }
+
+  /* ── toolbar events ── */
+  document.getElementById("search-input").addEventListener("input", function (e) {
+    state.query = e.target.value;
+    renderList();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
+      e.preventDefault();
+      document.getElementById("search-input").focus();
+    }
+    if (e.key === "Escape") {
+      if (!deleteScrim.classList.contains("hide")) { closeDelete(); return; }
+      if (!createScrim.classList.contains("hide")) { closeCreate(); return; }
+      if (sheet.classList.contains("is-open")) { setSheet(false); return; }
+      if (state.menuOpen) { state.menuOpen = false; state.submenuField = null; renderFilters(); }
+    }
+  });
+  document.addEventListener("click", function () {
+    if (state.menuOpen) { state.menuOpen = false; state.submenuField = null; renderFilters(); }
+  });
+  document.querySelectorAll("#view-toggle .pill-group__item").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.view = btn.getAttribute("data-view");
+      renderAll();
+    });
+  });
+  document.getElementById("btn-refresh").addEventListener("click", function () {
+    var root = document.getElementById("list-root");
+    root.innerHTML = skeletonMarkup();
+    setTimeout(renderAll, 600);
+  });
+
+  parseParams();
+  renderAll();
+})();
+</script>
+</body>
+</html>

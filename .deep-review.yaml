@@ -1,0 +1,66 @@
+# Repo config for the deep-review skill (.agents/skills/deep-review) — the
+# skill-native replacement for .coderabbit.yaml. Keys live at the top level
+# (no `reviews:` nesting); any key absent here falls back to its
+# .coderabbit.yaml counterpart, so both files can coexist during migration.
+#
+# Keys (all optional):
+#   profile                  chill | assertive — finding noise gate (--profile flag wins)
+#   path_filters             globs over repo-relative paths; `!pat` excludes, bare
+#                            patterns (when present) restrict review to their matches
+#                            and beat any exclude. Built-in excludes (locks, vendor,
+#                            node_modules, dist, generated, testdata, fixtures,
+#                            snapshots, logs) always apply on top.
+#   path_instructions        per-glob review instructions — highest-precedence rubric source
+#   request_changes_workflow gate publish-mode review events on open Critical/Major findings
+
+profile: chill
+
+request_changes_workflow: true
+
+path_filters:
+  # Prose, config, and data files — not line-reviewable source
+  - "!docs/design/**/*"
+  - "!**/*.md"
+  - "!**/*.mdc"
+  - "!**/*.mdx"
+  - "!**/*.yaml"
+  - "!**/*.yml"
+  - "!**/*.json"
+  - "!**/*.toml"
+  - "!**/*.xml"
+  - "!**/*.gz"
+  # Editor / agent tooling trees
+  - "!.cursor/**"
+  - "!.claude/**"
+  - "!.vscode/**"
+  - "!.agents/**"
+  # Competitor/reference corpora are research inputs, not shipped AGH source.
+  - "!.resources/**"
+  # Storybook fixtures + Playwright harness — verified by capture/e2e, not code review
+  - "!**/*.stories.tsx"
+  - "!web/e2e/**"
+
+path_instructions:
+  - path: "**/*_test.go"
+    instructions: |-
+      # Test Review Requirements
+
+      ## Critical Patterns to ENFORCE:
+      - MUST use t.Run("Should...") pattern for ALL test cases
+      - MUST test meaningful business logic, not trivial operations
+      - MUST have specific error assertions (ErrorContains, ErrorAs)
+      - MUST avoid redundant validation tests across packages
+
+      ## Anti-Patterns to REJECT:
+      - Constructor tests that only check != nil
+      - Getter/setter tests without business logic
+      - Tests with 90% mock setup, 10% actual testing
+      - Weak assertions like assert.Error(t, err) without message validation
+      - Tests that verify Go standard library functionality
+      - Duplicate test scenarios across packages
+
+      ## Must Check:
+      - Focus on critical paths: workflow execution, state management, error handling
+      - Verify tests can fail when business logic changes
+      - Check for shared test utilities usage to avoid duplication
+      - Ensure tests verify behavior outcomes, not just function calls

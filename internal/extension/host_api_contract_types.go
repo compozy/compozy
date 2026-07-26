@@ -1,0 +1,117 @@
+package extensionpkg
+
+import extensioncontract "github.com/compozy/agh/internal/extension/contract"
+
+type hostAPISessionsListParams = extensioncontract.SessionsListParams
+
+type hostAPISessionCreateParams = extensioncontract.SessionsCreateParams
+
+type hostAPISessionPromptParams = extensioncontract.SessionsPromptParams
+
+type hostAPISessionTargetParams = extensioncontract.SessionTargetParams
+
+type hostAPISessionEventsParams = extensioncontract.SessionEventsParams
+
+type hostAPISandboxListParams = extensioncontract.SandboxListParams
+
+type hostAPISandboxInfoParams = extensioncontract.SandboxInfoParams
+
+type hostAPISandboxExecParams = extensioncontract.SandboxExecParams
+
+type hostAPIMemoryStoreParams = extensioncontract.MemoryStoreParams
+
+type hostAPIMemoryRecallParams = extensioncontract.MemoryRecallParams
+
+type hostAPIMemoryForgetParams = extensioncontract.MemoryForgetParams
+
+type hostAPIListLogsParams = extensioncontract.ListLogsParams
+
+type hostAPISkillsListParams = extensioncontract.SkillsListParams
+
+type hostAPISessionSummary = extensioncontract.SessionSummary
+
+type hostAPISessionStatus = extensioncontract.SessionStatus
+
+type hostAPISessionEvent = extensioncontract.SessionEvent
+
+type hostAPISessionCreateResult = extensioncontract.SessionCreateResult
+
+type hostAPISessionPromptResult = extensioncontract.SessionPromptResult
+
+type hostAPISandboxListResult = extensioncontract.SandboxListResult
+
+type hostAPISandboxSummary = extensioncontract.SandboxSummary
+
+type hostAPISandboxInfoResult = extensioncontract.SandboxInfoResult
+
+type hostAPISandboxExecResult = extensioncontract.SandboxExecResult
+
+type hostAPIMemoryRecallEntry = extensioncontract.MemoryRecallEntry
+
+type hostAPISkillSummary = extensioncontract.SkillSummary
+
+type hostAPIAutomationJobsParams = extensioncontract.AutomationJobsParams
+
+type hostAPIAutomationTriggersParams = extensioncontract.AutomationTriggersParams
+
+type hostAPIAutomationRunsParams = extensioncontract.AutomationRunsParams
+
+type hostAPIAutomationTargetParams = extensioncontract.AutomationTargetParams
+
+type hostAPIAutomationJobCreateParams = extensioncontract.AutomationJobCreateParams
+
+type hostAPIAutomationJobUpdateParams = extensioncontract.AutomationJobUpdateParams
+
+type hostAPIAutomationJobTriggerParams = extensioncontract.AutomationJobTriggerParams
+
+type hostAPIAutomationJobRunsParams = extensioncontract.AutomationJobRunsParams
+
+type hostAPIAutomationTriggerCreateParams = extensioncontract.AutomationTriggerCreateParams
+
+type hostAPIAutomationTriggerUpdateParams = extensioncontract.AutomationTriggerUpdateParams
+
+type hostAPIAutomationTriggerRunsParams = extensioncontract.AutomationTriggerRunsParams
+
+type hostAPIAutomationTriggerFireParams = extensioncontract.AutomationTriggerFireParams
+
+type hostAPITasksParams = extensioncontract.TasksParams
+
+type hostAPITaskTargetParams = extensioncontract.TaskTargetParams
+
+type hostAPITaskTimelineParams = extensioncontract.TaskTimelineParams
+
+type hostAPITaskTreeParams = extensioncontract.TaskTreeParams
+
+type hostAPITaskDashboardParams = extensioncontract.TaskDashboardParams
+
+type hostAPITaskInboxParams = extensioncontract.TaskInboxParams
+
+type hostAPITaskCreateParams = extensioncontract.TaskCreateParams
+
+type hostAPITaskUpdateParams = extensioncontract.TaskUpdateParams
+
+type hostAPITaskCancelParams = extensioncontract.TaskCancelParams
+
+type hostAPITaskRunsParams = extensioncontract.TaskRunsParams
+
+type hostAPITaskRunGetParams = extensioncontract.TaskRunGetParams
+
+type hostAPITaskRunEnqueueParams = extensioncontract.TaskRunEnqueueParams
+
+type hostAPITaskRunStartParams = extensioncontract.TaskRunStartParams
+
+type hostAPITaskRunAttachSessionParams = extensioncontract.TaskRunAttachSessionParams
+
+type hostAPITaskRunCompleteParams = extensioncontract.TaskRunCompleteParams
+
+type hostAPITaskRunFailParams = extensioncontract.TaskRunFailParams
+
+type hostAPITaskRunCancelParams = extensioncontract.TaskRunCancelParams
+
+type hostAPIResourcesListParams = extensioncontract.ResourcesListParams
+
+type hostAPIResourceGetParams = extensioncontract.ResourceGetParams
+
+type hostAPIResourcesSnapshotParams = extensioncontract.ResourcesSnapshotParams
+
+type hostAPIResourceRecord = extensioncontract.ResourceRecord

@@ -1,0 +1,47 @@
+---
+title: "agh memory promote"
+description: "Promote a memory entry across Memory v2 scopes"
+---
+
+## agh memory promote
+
+Promote a memory entry across Memory v2 scopes
+
+```
+agh memory promote <filename> --from <scope[:tier]> --to <scope[:tier]> [flags]
+```
+
+### Options
+
+```
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+      --dry-run             Ask for a promotion decision without applying it
+      --from string         Source scope: global, workspace, agent:workspace, or agent:global
+  -h, --help                help for promote
+      --scope string        Memory scope: global, workspace, or agent
+      --to string           Destination scope: global, workspace, agent:workspace, or agent:global
+      --workspace string    Workspace ID or path for workspace-bound memory
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory promote <filename> --from <scope[:tier]> --to <scope[:tier]> -o json
+```

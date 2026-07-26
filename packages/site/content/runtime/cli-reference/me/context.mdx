@@ -1,0 +1,50 @@
+---
+title: "agh me context"
+description: "Inspect the bounded situation context for the current agent session"
+---
+
+## agh me context
+
+Inspect the bounded situation context for the current agent session
+
+```
+agh me context [flags]
+```
+
+### Examples
+
+```
+  # Show the bounded situation context injected for this session
+  agh me context
+
+  # Read the context payload as JSON
+  agh me context -o json
+```
+
+### Options
+
+```
+  -h, --help   help for context
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh me context -o json
+```

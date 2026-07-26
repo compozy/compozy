@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "provider-model-reasoning-selector.html",
+  "entry": "provider-model-reasoning-selector.html",
+  "renderer": "html",
+  "status": "canonical",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-05T15:54:30.625Z",
+  "updatedAt": "2026-07-14T19:30:00.000Z",
+  "metadata": {
+    "inferred": false,
+    "reconciled": true,
+    "productionAuthority": "web/src/systems/runtime/components/runtime-selector",
+    "reasoningLevels": 7
+  }
+}

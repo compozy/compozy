@@ -1,0 +1,41 @@
+---
+title: "agh automation suggestions accept"
+description: "Accept a suggestion and create its Job"
+---
+
+## agh automation suggestions accept
+
+Accept a suggestion and create its Job
+
+```
+agh automation suggestions accept <id> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for accept
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace path, name, or ID
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh automation suggestions accept <id> -o json
+```

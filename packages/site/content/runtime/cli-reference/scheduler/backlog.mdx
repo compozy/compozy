@@ -1,0 +1,43 @@
+---
+title: "agh scheduler backlog"
+description: "List queued runs visible to scheduler dispatch"
+---
+
+## agh scheduler backlog
+
+List queued runs visible to scheduler dispatch
+
+```
+agh scheduler backlog [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for backlog
+      --include-paused     Include queued runs blocked by task pause
+      --last int           Maximum queued runs to return (default 50)
+      --workspace string   Filter queued runs by workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh scheduler backlog -o json
+```

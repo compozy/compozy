@@ -1,0 +1,29 @@
+#:schema https://json.schemastore.org/any.json
+
+root = "."
+tmp_dir = ".tmp/air"
+
+[build]
+cmd = "bash ./scripts/build-air.sh"
+entrypoint = ["bash", "./scripts/dev-daemon.sh", "./.tmp/air/agh"]
+include_ext = ["go", "gz", "json", "md", "mjs", "sql", "sum", "tmpl", "toml", "yaml", "yml"]
+include_dir = ["cmd", "extensions", "internal", "skills"]
+include_file = ["go.mod", "go.sum"]
+exclude_dir = [".tmp", "node_modules", "testdata", "vendor"]
+exclude_regex = ["(^|/)testdata/", "_test\\.go$"]
+exclude_unchanged = true
+delay = 300
+stop_on_error = false
+send_interrupt = true
+kill_delay = "12s"
+rerun = false
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = false
+
+[screen]
+clear_on_rebuild = false
+keep_scroll = true

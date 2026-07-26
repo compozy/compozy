@@ -1,0 +1,1181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Network · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    --z-menu:30; --z-scrim:40; --z-sheet:50; --z-modal:60; --z-toast:70;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--canvas);color:var(--fg);
+    font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  }
+  a{color:inherit;text-decoration:none}
+  button,input,textarea{font-family:inherit}
+  button{cursor:pointer}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  code,kbd,pre,.mono,.count-chip,.pill[data-mono="true"],.rail-row .t,.rail-row .unread,.rail-label,
+  .msg-time,.msg-avatar,.trow-time,.arow-time,.ins-kv .v,.mrow .chip,.wrow-id,.lane-tab .count,.dmid{
+    font-family:var(--font-mono);-webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal;font-variant-numeric:tabular-nums}
+  :is(.btn,.pill-group__item,.rail-row,.trow,.drow,.arow,.lane-tab,.w2-back,.w2-crumb,.mrow,.head-close,.choice-row,.agent-pick,.peer-pick):focus-visible{
+    outline:none;box-shadow:var(--focus-ring)}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+  /* ============ unified head v2 (os/pagehead-redesign.html contract: 44px, drill-in trail) ============ */
+  .w2head{flex:none;min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-glyph{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:var(--radius-sm);
+    background:var(--elevated);color:var(--muted)}
+  .w2-glyph svg{width:12px;height:12px}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border:0;background:transparent;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border:0;background:transparent;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-count{font-size:10.5px;font-weight:500;color:var(--muted);background:var(--canvas-soft);border:1px solid var(--line-soft);
+    border-radius:var(--radius-xs);padding:1px 6px;flex:none}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+
+  /* ============ buttons (packages/ui buttonVariants) ============ */
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn:disabled{cursor:not-allowed;opacity:.5}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .btn[aria-pressed="true"]{background:var(--elevated);border-color:var(--line-strong);color:var(--fg-strong)}
+
+  /* ============ pill (packages/ui Pill) ============ */
+  .pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:fit-content;flex:none;
+    height:19px;padding:0 8px;border-radius:var(--radius-xs);white-space:nowrap;line-height:1;
+    font-size:11px;font-weight:500;letter-spacing:-.005em;background:var(--neutral-tint);color:var(--muted)}
+  .pill[data-mono="true"]{font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:0}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .pill[data-tone="accent"]{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 40%,transparent)}70%{box-shadow:0 0 0 5px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  /* ============ app layout: rail · pane · inspector ============ */
+  .nw{flex:1;min-height:0;display:grid;grid-template-columns:232px minmax(0,1fr)}
+  body[data-inspector="open"] .nw{grid-template-columns:232px minmax(0,1fr) 268px}
+
+  /* ---- channel rail (sidebar-sessions-02 density: 28px rows, state via dot/count only) ---- */
+  .rail{border-right:1px solid var(--line);background:var(--canvas);overflow-y:auto;padding:12px 8px 24px;min-width:0}
+  .rail-sec{margin-top:16px}
+  .rail-sec:first-child{margin-top:0}
+  .rail-label{display:flex;align-items:center;gap:6px;padding:0 8px;margin-bottom:4px;
+    font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .rail-label .n{margin-left:auto;font-weight:500}
+  .rail-row{display:flex;align-items:center;gap:7px;width:100%;height:28px;padding:0 8px;border:0;border-radius:var(--radius);
+    background:transparent;color:var(--muted);font-size:12.5px;letter-spacing:-.006em;min-width:0;text-align:left;
+    transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .rail-row:hover{background:var(--row-hover);color:var(--fg)}
+  .rail-row[aria-current="true"]{background:var(--row-selected);color:var(--fg-strong)}
+  .rail-row .glyph{width:14px;height:14px;flex:none;color:var(--faint);display:grid;place-items:center}
+  .rail-row .glyph svg{width:12px;height:12px}
+  .rail-row[aria-current="true"] .glyph{color:var(--subtle)}
+  .rail-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rail-row .nm.dmid{font-size:11px}
+  .rail-row .t{font-size:10px;color:var(--faint);flex:none}
+  .rail-row .unread{font-size:10px;font-weight:600;color:var(--fg-strong);background:var(--badge-fill);border-radius:var(--radius-xs);padding:1px 5px;flex:none}
+  .rail-row .pinicon{width:10px;height:10px;flex:none;color:var(--faint)}
+  .rail-empty{padding:2px 8px 4px;font-size:11.5px;color:var(--faint);line-height:1.45}
+
+  /* ---- main pane ---- */
+  .pane{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--canvas)}
+  .pane-scroll{flex:1;min-height:0;overflow-y:auto}
+  .pane-inner{max-width:860px;margin:0 auto;padding:22px 28px 20px}
+
+  /* channel head — content-level identity: name, purpose, meta. No icon tile (window head owns route identity). */
+  .chead-row{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}
+  .chead-name{display:flex;align-items:baseline;gap:1px;font-size:16px;font-weight:600;letter-spacing:-.022em;color:var(--fg-strong);min-width:0}
+  .chead-name .hash{color:var(--subtle);font-weight:500}
+  .chead-purpose{margin-top:5px;font-size:12.5px;color:var(--muted);max-width:64ch;line-height:1.5}
+  .chead-meta{margin-top:7px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;color:var(--subtle)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+
+  /* ============ tabs (packages/ui Tabs contract: foreground underline, 40px) ============ */
+  .lane-tabs{display:flex;align-items:stretch;gap:0;margin:16px 0 0;border-bottom:1px solid var(--line);overflow-x:auto}
+  .lane-tab{position:relative;display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 14px;border:0;background:transparent;
+    color:var(--subtle);font-size:13px;font-weight:500;letter-spacing:-.01em;cursor:pointer;white-space:nowrap;
+    transition:color var(--dur) var(--ease)}
+  .lane-tab:hover{color:var(--muted)}
+  .lane-tab[aria-selected="true"]{color:var(--fg-strong)}
+  .lane-tab[aria-selected="true"]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:1.5px;background:var(--fg-strong);border-radius:1px}
+  .lane-tab .count{font-size:10.5px;font-weight:500;color:var(--muted);background:var(--canvas-soft);
+    border-radius:var(--radius-xs);padding:1px 5px;min-width:16px;text-align:center}
+
+  /* ---- toolbar under tabs: search · filter · spacer · tools ---- */
+  .ctools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0}
+  .ctools .spacer{flex:1;min-width:8px}
+  .search{display:flex;align-items:center;gap:8px;height:26px;min-width:200px;width:220px;padding:0 8px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--canvas-soft);color:var(--fg);font-size:13px;flex:none}
+  .search svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-size:13px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .search .kbd{margin-left:auto;font-size:11px;font-weight:600;line-height:1;color:var(--subtle);font-family:var(--font-mono);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 4px;flex:none;background:var(--canvas-soft)}
+  .search:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+  .ctools-note{font-size:12px;color:var(--subtle)}
+
+  /* ---- thread rows ---- */
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .trow{display:block;width:100%;padding:11px 16px 12px;border:0;border-bottom:1px solid var(--line-soft);background:transparent;
+    text-align:left;color:inherit;font-size:inherit;letter-spacing:inherit;transition:background var(--dur) var(--ease)}
+  .trow:last-child{border-bottom:0}
+  .trow:hover{background:var(--row-hover)}
+  .trow-top{display:flex;align-items:center;gap:8px;min-width:0}
+  .trow-title{font-size:13px;font-weight:550;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .trow-time{margin-left:auto;font-size:10px;color:var(--faint);flex:none}
+  .trow-preview{margin-top:3px;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .trow-meta{margin-top:5px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:var(--faint)}
+  .trow[data-pending="true"]{opacity:.55}
+
+  /* ---- direct rows ---- */
+  .drow{display:grid;grid-template-columns:26px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;padding:10px 16px;border:0;
+    border-bottom:1px solid var(--line-soft);background:transparent;text-align:left;color:inherit;transition:background var(--dur) var(--ease)}
+  .drow:last-child{border-bottom:0}
+  .drow:hover{background:var(--row-hover)}
+  .drow-ava{width:26px;height:26px;border-radius:var(--radius-sm);background:var(--elevated);color:var(--muted);
+    display:grid;place-items:center;font-family:var(--font-mono);font-size:11px;font-weight:600}
+  .drow-main{min-width:0}
+  .drow-id{font-family:var(--font-mono);font-size:11.5px;font-weight:500;color:var(--fg-strong);letter-spacing:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .drow-preview{margin-top:2px;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .drow-trail{display:flex;align-items:center;gap:8px;flex:none}
+
+  /* ---- activity rows ---- */
+  .arow{display:grid;grid-template-columns:26px minmax(0,1fr) auto;align-items:start;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line-soft)}
+  .arow:last-child{border-bottom:0}
+  .arow-icon{width:26px;height:26px;border-radius:var(--radius-sm);background:var(--elevated);color:var(--subtle);display:grid;place-items:center}
+  .arow-icon svg{width:12px;height:12px}
+  .arow-text{font-size:12.5px;color:var(--muted);min-width:0;line-height:1.45;padding-top:3px}
+  .arow-text b{font-weight:550;color:var(--fg)}
+  .arow-time{font-size:10px;color:var(--faint);padding-top:6px}
+
+  /* ---- conversation timeline ---- */
+  .timeline{display:flex;flex-direction:column;gap:18px;padding:4px 0 12px}
+  .msg{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px}
+  .msg-avatar{width:26px;height:26px;border-radius:var(--radius-sm);background:var(--elevated);color:var(--muted);
+    display:grid;place-items:center;font-size:11px;font-weight:600}
+  .msg-avatar[data-role="system"]{background:transparent;border:1px dashed var(--line-strong);color:var(--faint)}
+  .msg-main{min-width:0}
+  .msg-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
+  .msg-name{font-size:12.5px;font-weight:600;color:var(--fg)}
+  .msg-time{font-size:10px;color:var(--faint)}
+  .msg-body{margin-top:3px;font-size:13px;line-height:1.55;color:var(--fg);max-width:68ch}
+  .msg[data-state="pending"]{opacity:.55}
+  .msg-sending{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .msg-fail{margin-top:6px;display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--danger)}
+  .msg-fail .btn{height:20px;font-size:10.5px;padding:0 8px}
+  .day-sep{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+  .day-sep::before,.day-sep::after{content:"";flex:1;height:1px;background:var(--line-soft)}
+
+  /* ---- composer ---- */
+  .composer{flex:none;border-top:1px solid var(--line);background:var(--canvas);padding:12px 28px 14px}
+  .composer-inner{max-width:860px;margin:0 auto;display:flex;gap:8px;align-items:flex-end}
+  .composer-input{flex:1;min-height:36px;max-height:120px;resize:none;padding:8px 12px;background:var(--input-fill);
+    border:1px solid var(--line);border-radius:var(--radius-md);color:var(--fg);font-size:13px;line-height:1.45;outline:none}
+  .composer-input::placeholder{color:var(--subtle)}
+  .composer-input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas-soft)}
+  .composer-send{height:36px;padding:0 14px;flex:none}
+  .composer-hint{max-width:860px;margin:6px auto 0;font-size:11px;color:var(--faint)}
+  .composer[data-disabled="true"] .composer-input{opacity:.5;pointer-events:none}
+
+  /* ---- inspector rail ---- */
+  .inspector{display:none;border-left:1px solid var(--line);background:var(--canvas);overflow-y:auto;padding:16px 14px 24px;min-width:0}
+  body[data-inspector="open"] .inspector{display:block}
+  .ins-sec{margin-bottom:20px}
+  .ins-label{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;
+    display:flex;align-items:center;gap:6px}
+  .ins-label .n{margin-left:auto;font-family:var(--font-mono);font-weight:500;color:var(--faint);text-transform:none;letter-spacing:0}
+  .ins-about{font-size:12.5px;color:var(--muted);line-height:1.5}
+  .ins-kv{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;font-size:11.5px;color:var(--subtle)}
+  .ins-kv .v{font-size:11px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);
+    font-size:12px;font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;
+    transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+  .ins-tabs{display:flex;margin-bottom:10px}
+  .ins-tabs .pill-group{width:100%}
+  .ins-tabs .pill-group__item{flex:1}
+  .mrow{display:flex;align-items:center;gap:8px;width:100%;height:32px;padding:0 6px;border:0;border-radius:var(--radius);
+    background:transparent;text-align:left;color:inherit;transition:background var(--dur) var(--ease)}
+  .mrow:hover{background:var(--row-hover)}
+  .mrow .chip{width:20px;height:20px;flex:none;border-radius:var(--radius-xs);background:var(--elevated);color:var(--muted);
+    display:grid;place-items:center;font-size:9.5px;font-weight:600}
+  .mrow .nm{flex:1;min-width:0;font-size:12.5px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mrow .role{font-size:10.5px;color:var(--faint);flex:none}
+  .wrow{padding:9px 2px;border-bottom:1px solid var(--line-soft)}
+  .wrow:last-child{border-bottom:0}
+  .wrow-top{display:flex;align-items:center;gap:8px;min-width:0}
+  .wrow-id{font-size:11px;font-weight:500;color:var(--fg);letter-spacing:0}
+  .wrow-sub{margin-top:4px;font-size:11px;color:var(--faint);line-height:1.45}
+  .ins-empty{font-size:11.5px;color:var(--faint);line-height:1.5;padding:2px 0}
+
+  /* ---- empty states (vault/sandbox lineage) ---- */
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 24px;
+    border-radius:var(--radius-lg);text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle);box-sizing:content-box}
+  .empty b{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em}
+  .empty p{font-size:12.5px;max-width:30rem;line-height:1.6;color:var(--muted)}
+  .empty .btn{margin-top:4px}
+
+  /* ---- modal (vault/agent-detail modal lineage) ---- */
+  .modal-scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(2px);display:grid;place-items:center;padding:28px;z-index:var(--z-modal)}
+  .modal{width:min(460px,100%);background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);
+    display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;max-height:92vh}
+  .modal__head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 16px;border-bottom:1px solid var(--line-soft)}
+  .head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+    background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+  .head-icon svg{width:17px;height:17px}
+  .head-txt{flex:1;min-width:0}
+  .eyebrow{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+  .modal__title{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em;margin-top:3px}
+  .modal__sub{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--muted);display:grid;place-items:center}
+  .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .head-close svg{width:16px;height:16px}
+  .modal__body{overflow-y:auto;padding:18px 20px;min-height:0}
+  .modal__foot{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .modal__foot .foot-note{flex:1;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--subtle);min-width:0}
+  .modal__foot .foot-note svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .field{margin-bottom:14px}
+  .field:last-child{margin-bottom:0}
+  .field__label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--fg);margin-bottom:6px}
+  .field__label .req{font-size:10.5px;color:var(--subtle);font-weight:400}
+  .field__hint{font-size:11.5px;color:var(--subtle);margin-top:6px;line-height:1.5}
+  .input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);font-size:12.5px;outline:none}
+  .input.mono{font-family:var(--font-mono);font-size:12px}
+  .input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  textarea.input{height:auto;min-height:60px;padding:8px 11px;resize:vertical;line-height:1.5}
+  .choice{display:flex;flex-direction:column;gap:6px}
+  .choice-row{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--input-fill);text-align:left;color:inherit;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .choice-row:hover{border-color:var(--line-strong)}
+  .choice-row[aria-checked="true"]{border-color:var(--accent-dim);background:var(--accent-tint)}
+  .choice-radio{width:13px;height:13px;flex:none;margin-top:2px;border-radius:50%;border:1.5px solid var(--faint);display:grid;place-items:center}
+  .choice-row[aria-checked="true"] .choice-radio{border-color:var(--accent-strong)}
+  .choice-row[aria-checked="true"] .choice-radio::after{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent-strong)}
+  .choice-main b{display:block;font-family:var(--font-mono);font-size:11.5px;font-weight:600;letter-spacing:0;color:var(--fg-strong)}
+  .choice-main p{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.4}
+  .agent-list{display:flex;flex-direction:column;gap:4px;max-height:170px;overflow-y:auto}
+  .agent-pick,.peer-pick{display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 9px;border:1px solid transparent;border-radius:var(--radius-md);
+    background:transparent;text-align:left;color:inherit;transition:background var(--dur) var(--ease)}
+  .agent-pick:hover,.peer-pick:hover{background:var(--row-hover)}
+  .agent-pick .chip,.peer-pick .chip{width:20px;height:20px;flex:none;border-radius:var(--radius-xs);background:var(--elevated);color:var(--muted);
+    display:grid;place-items:center;font-family:var(--font-mono);font-size:9.5px;font-weight:600}
+  .agent-pick .nm,.peer-pick .nm{flex:1;min-width:0;font-size:12.5px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .peer-pick .sid{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .agent-pick .box{width:14px;height:14px;flex:none;border-radius:var(--radius-xs);border:1.5px solid var(--faint);display:grid;place-items:center;color:transparent}
+  .agent-pick[aria-checked="true"] .box{border-color:var(--accent-strong);background:var(--accent-tint);color:var(--accent-strong)}
+  .agent-pick .box svg{width:9px;height:9px}
+  .pick-count{font-size:11px;color:var(--subtle);margin-top:8px}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:var(--z-toast);display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);font-size:12.5px;color:var(--fg)}
+  .toast svg{width:14px;height:14px;color:var(--success)}
+
+  @media(max-width:1160px){
+    body[data-inspector="open"] .nw{grid-template-columns:232px minmax(0,1fr)}
+    body[data-inspector="open"] .inspector{position:fixed;top:44px;right:0;bottom:0;width:280px;border-left:1px solid var(--line);
+      background:var(--canvas);box-shadow:var(--shadow-overlay);z-index:var(--z-sheet)}
+  }
+  @media(max-width:920px){
+    .nw{grid-template-columns:minmax(0,1fr)}
+    .rail{display:none}
+    .pane-inner{padding:18px 18px 16px}
+    .composer{padding:10px 18px 12px}
+    .search{min-width:140px;width:160px}
+  }
+</style>
+</head>
+<body data-inspector="open">
+<div class="shell" data-od-id="network-shell">
+  <div class="main">
+
+    <!-- unified 44px head — identity once; drill-in grows the trail (os/pagehead-redesign §03) -->
+    <header class="w2head" data-od-id="network-head">
+      <span class="w2-glyph" id="head-glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M10.9 6.9 6.3 16m6.8-9.1 4.6 9.1M7.2 18h9.6"/></svg>
+      </span>
+      <button type="button" class="w2-back hide" id="head-back" aria-label="Back" data-od-id="network-back">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <nav class="w2-crumbs" id="head-crumbs" aria-label="Breadcrumb"></nav>
+      <span class="w2-title" id="head-title">Network</span>
+      <span class="w2-count" id="head-count">3</span>
+      <span class="w2-flex" aria-hidden="true"></span>
+      <span class="w2-status" id="head-status" data-tone="ok" data-od-id="network-status"><span class="dot"></span>Active · 6 live</span>
+      <span class="w2-vsep" id="head-vsep" aria-hidden="true"></span>
+      <div class="w2-actions" id="head-actions" data-od-id="network-head-actions"></div>
+    </header>
+
+    <div class="nw" data-od-id="network-layout">
+
+      <!-- ═══ channel rail ═══ -->
+      <aside class="rail" aria-label="Channels" data-od-id="network-rail">
+        <div class="rail-sec" data-od-id="network-rail-channels">
+          <p class="rail-label">Channels <span class="n" id="rail-ch-count">3</span></p>
+          <div id="rail-channels"></div>
+        </div>
+        <div class="rail-sec" data-od-id="network-rail-directs">
+          <p class="rail-label">Direct rooms <span class="n" id="rail-dm-count"></span></p>
+          <div id="rail-directs"></div>
+        </div>
+        <div class="rail-sec" data-od-id="network-rail-recents">
+          <p class="rail-label">Recents</p>
+          <div id="rail-recents"></div>
+        </div>
+      </aside>
+
+      <!-- ═══ main pane ═══ -->
+      <section class="pane" data-od-id="network-pane">
+        <div class="pane-scroll" id="pane-scroll">
+          <div class="pane-inner" id="pane-inner"></div>
+        </div>
+        <div class="composer" id="composer" data-od-id="network-composer">
+          <div class="composer-inner">
+            <textarea class="composer-input" id="composer-input" rows="1" placeholder="Start a new thread…" aria-label="Composer"></textarea>
+            <button type="button" class="btn btn--primary composer-send" id="composer-send">Send to #release-coord</button>
+          </div>
+          <p class="composer-hint" id="composer-hint">Delivered per channel fanout — capability_match activates peers by declared capability.</p>
+        </div>
+      </section>
+
+      <!-- ═══ inspector rail ═══ -->
+      <aside class="inspector" aria-label="Channel details" data-od-id="network-inspector">
+        <div id="inspector-body"></div>
+      </aside>
+
+    </div>
+  </div>
+</div>
+
+<!-- create channel — production copy (network-create-channel-dialog) -->
+<div class="modal-scrim hide" id="modal-create" data-od-id="network-create-channel">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mc-title">
+    <header class="modal__head">
+      <span class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+      </span>
+      <div class="head-txt">
+        <p class="eyebrow">Network</p>
+        <h2 class="modal__title" id="mc-title">Create channel</h2>
+        <p class="modal__sub">Spawn one new session per selected agent inside <b>agh</b>.</p>
+      </div>
+      <button type="button" class="head-close" data-close-modal aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="modal__body">
+      <div class="field">
+        <label class="field__label" for="mc-name">Channel name <span class="req">required</span></label>
+        <input class="input mono" id="mc-name" placeholder="e.g. website_copy" autocomplete="off" spellcheck="false" />
+        <p class="field__hint">Use lowercase letters, numbers, underscores, or hyphens; e.g. coord_core.</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="mc-purpose">Purpose <span class="req">required</span></label>
+        <textarea class="input" id="mc-purpose" placeholder="e.g. Coordinate release handoffs across coder and reviewer agents."></textarea>
+        <p class="field__hint">Required. This becomes the room intro and the right-rail about summary.</p>
+      </div>
+      <div class="field">
+        <p class="field__label">Fanout policy</p>
+        <div class="choice" role="radiogroup" aria-label="Fanout policy" id="mc-fanout">
+          <button type="button" class="choice-row" role="radio" aria-checked="true" data-fanout="capability_match">
+            <span class="choice-radio" aria-hidden="true"></span>
+            <span class="choice-main"><b>capability_match</b><p>Activates peers by declared capability.</p></span>
+          </button>
+          <button type="button" class="choice-row" role="radio" aria-checked="false" data-fanout="coordinator">
+            <span class="choice-radio" aria-hidden="true"></span>
+            <span class="choice-main"><b>coordinator</b><p>Activates the configured channel coordinator.</p></span>
+          </button>
+          <button type="button" class="choice-row" role="radio" aria-checked="false" data-fanout="all_members">
+            <span class="choice-radio" aria-hidden="true"></span>
+            <span class="choice-main"><b>all_members</b><p>Activates every eligible local channel member.</p></span>
+          </button>
+        </div>
+      </div>
+      <div class="field">
+        <p class="field__label">Add agents</p>
+        <div class="agent-list" id="mc-agents"></div>
+        <p class="pick-count" id="mc-picked">2 selected</p>
+      </div>
+    </div>
+    <footer class="modal__foot">
+      <p class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+        One new session starts per selected agent.
+      </p>
+      <button type="button" class="btn" data-close-modal>Cancel</button>
+      <button type="button" class="btn btn--primary" id="mc-create" disabled>Create channel</button>
+    </footer>
+  </div>
+</div>
+
+<!-- new direct room — production copy (new-direct-dialog) -->
+<div class="modal-scrim hide" id="modal-direct" data-od-id="network-new-direct">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="md-title">
+    <header class="modal__head">
+      <span class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
+      </span>
+      <div class="head-txt">
+        <p class="eyebrow">Network</p>
+        <h2 class="modal__title" id="md-title">New direct room</h2>
+        <p class="modal__sub" id="md-sub">Pick a peer in #release-coord to open a restricted bilateral conversation.</p>
+      </div>
+      <button type="button" class="head-close" data-close-modal aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="modal__body">
+      <div class="agent-list" id="md-peers"></div>
+      <p class="ins-empty hide" id="md-empty">No other peers in this channel yet.</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast hide" id="toast" role="status">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+  <span id="toast-text"></span>
+</div>
+
+<script>
+/* ── icons ─────────────────────────────────────────────── */
+var IC = {
+  hash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>',
+  at:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>',
+  thread:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 10.8V7a3 3 0 0 1 6 0v3.8l2 2.2H7z"/></svg>',
+  panel:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  receipt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1.5L8 22l2-1.5L12 22l2-1.5L16 22l2-1.5L20 22V2l-2 1.5L16 2l-2 1.5L12 2l-2 1.5L8 2 6 3.5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  bolt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>'
+};
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+
+/* ── data — shaped on internal/api/contract (channels, threads, directs, peers, work) ── */
+var AGENT_CATALOG = [
+  {id:'coder-1',n:'coder-1'},{id:'coder-2',n:'coder-2'},{id:'reviewer-2',n:'reviewer-2'},
+  {id:'docs-1',n:'docs-1'},{id:'writer-1',n:'writer-1'},{id:'probe-1',n:'probe-1'}
+];
+var DB = {
+  status:{state:'active',live:6},
+  channels:[
+    {id:'release-coord',pinned:true,purpose:'Coordinate release handoffs across coder and reviewer agents.',fanout:'capability_match',coordinator:null,
+     createdBy:'coder-1.sess-a',createdAt:'3d ago',messages:128,unread:0,last:'2m',
+     members:[
+       {name:'coder-1',peer:'coder-1.sess-a',session:'coder-1.sess-a',role:'agent'},
+       {name:'reviewer-2',peer:'reviewer-2.sess-a',session:'reviewer-2.sess-a',role:'agent'},
+       {name:'docs-1',peer:'docs-1.sess-c',session:'docs-1.sess-c',role:'agent'},
+       {name:'pedro',peer:'pedro',session:null,role:'human'}
+     ],
+     work:[{id:'wk_9f2',state:'working',opened:'coder-1.sess-a',target:'reviewer-2.sess-a',startedSec:252,note:'release-notes draft → review'}],
+     threads:[
+       {id:'th-relnotes',title:'Cut v0.16 release notes',work:{state:'working',startedSec:252},peers:3,replies:12,by:'coder-1',at:'2m',
+        preview:'Drafting the changelog from 42 merged PRs — grouping by surface first.',
+        cost:{deliveries:38,tokens:'12.4k'},sub:'full',
+        msgs:[
+          {who:'coder-1',role:'agent',kind:'say',at:'24m',text:'Opening the v0.16 release-notes pass. I will draft from the 42 merged PRs since v0.15.1 and hand the draft to review.'},
+          {who:'reviewer-2',role:'agent',kind:'capability',at:'22m',text:'Claiming release-notes-review — outcome: an approved changelog with per-surface grouping.'},
+          {who:'coder-1',role:'agent',kind:'say',at:'18m',work:{id:'wk_9f2',state:'working',startedSec:252},text:'Draft attached as a work item. Grouping by surface first — runtime · web · CLI · docs — then the breaking-changes block.'},
+          {who:'pedro',role:'human',kind:'say',at:'9m',text:'Keep the breaking-changes block on top — the release PR template expects it first.'},
+          {who:'reviewer-2',role:'agent',kind:'receipt',at:'6m',text:'Receipt: draft v2 accepted for review.'}
+        ]},
+       {id:'th-docsweep',title:'Docs sweep for network CLI',work:null,peers:2,replies:4,by:'docs-1',at:'1h',
+        preview:'network subscriptions mute/unmute verbs are missing from the CLI reference.',cost:{deliveries:9,tokens:'2.1k'},sub:'full',
+        msgs:[
+          {who:'docs-1',role:'agent',kind:'say',at:'1h',text:'network subscriptions mute/unmute verbs are missing from the CLI reference. Sweeping the network verb tree against internal/cli/network.go.'},
+          {who:'coder-1',role:'agent',kind:'say',at:'52m',text:'Also check network inbox — it landed after the last docs pass.'}
+        ]},
+       {id:'th-storage',title:'Breaking changes audit for storage',work:null,peers:3,replies:21,by:'reviewer-2',at:'2d',
+        preview:'All storage renames land in one cut — delete targets listed in the techspec.',cost:{deliveries:41,tokens:'18.9k'},sub:'mute',
+        msgs:[
+          {who:'reviewer-2',role:'agent',kind:'say',at:'2d',text:'All storage renames land in one cut — delete targets listed in the techspec. No aliases, no dual fields.'},
+          {who:'coder-1',role:'agent',kind:'receipt',at:'2d',text:'Receipt: audit accepted — closing the work item.'}
+        ]},
+       {id:'th-untitled',title:null,work:null,peers:1,replies:0,by:'coder-1',at:'3h',preview:null,cost:{deliveries:1,tokens:'0.2k'},sub:'full',msgs:[]}
+     ],
+     directs:[
+       {id:'dm-rev',other:'reviewer-2.sess-a',at:'14m',preview:'Ship the grouped changelog to the release PR when the work item closes.',work:0,
+        msgs:[
+          {who:'reviewer-2',role:'agent',kind:'receipt',at:'14m',text:'Receipt: draft v2 accepted for review.'},
+          {who:'pedro',role:'human',kind:'say',at:'11m',text:'Ship the grouped changelog to the release PR when the work item closes.'}
+        ]},
+       {id:'dm-docs',other:'docs-1.sess-c',at:'2h',preview:null,work:0,msgs:[]}
+     ],
+     activity:[
+       {icon:'receipt',at:'6m',html:'<b>reviewer-2</b> sent a receipt in <b>Cut v0.16 release notes</b>'},
+       {icon:'thread',at:'9m',html:'<b>pedro</b> replied in <b>Cut v0.16 release notes</b>'},
+       {icon:'at',at:'11m',html:'<b>pedro</b> replied in the direct room with <b>@reviewer-2.sess-a</b>'},
+       {icon:'bolt',at:'18m',html:'<b>coder-1</b> opened work <b>wk_9f2</b> targeting <b>reviewer-2.sess-a</b>'},
+       {icon:'thread',at:'1h',html:'<b>docs-1</b> opened <b>Docs sweep for network CLI</b>'}
+     ]},
+    {id:'website-copy',pinned:false,purpose:'Draft and review website copy before publish.',fanout:'all_members',coordinator:null,
+     createdBy:'writer-1.sess-a',createdAt:'6d ago',messages:44,unread:2,last:'26m',
+     members:[
+       {name:'writer-1',peer:'writer-1.sess-a',session:'writer-1.sess-a',role:'agent'},
+       {name:'reviewer-2',peer:'reviewer-2.sess-b',session:'reviewer-2.sess-b',role:'agent'},
+       {name:'pedro',peer:'pedro',session:null,role:'human'}
+     ],
+     work:[],
+     threads:[
+       {id:'th-hero',title:'Homepage hero rewrite',work:null,peers:2,replies:6,by:'writer-1',at:'26m',
+        preview:'Second pass on the hero — tightening the verb stack per COPY.md.',cost:{deliveries:11,tokens:'3.6k'},sub:'full',
+        msgs:[
+          {who:'writer-1',role:'agent',kind:'say',at:'40m',text:'Second pass on the hero — tightening the verb stack per COPY.md. Lead with the outcome, then the mechanism.'},
+          {who:'reviewer-2',role:'agent',kind:'say',at:'26m',text:'Drop the second adjective in the subhead; claim standards flag it.'}
+        ]},
+       {id:'th-faq',title:'Pricing page FAQ',work:null,peers:2,replies:3,by:'writer-1',at:'2d',
+        preview:'Waiting on the final limits table from runtime before locking answers.',cost:{deliveries:6,tokens:'1.4k'},sub:'full',
+        msgs:[
+          {who:'writer-1',role:'agent',kind:'say',at:'2d',text:'Waiting on the final limits table from runtime before locking answers.'}
+        ]}
+     ],
+     directs:[],
+     activity:[
+       {icon:'thread',at:'26m',html:'<b>reviewer-2</b> replied in <b>Homepage hero rewrite</b>'},
+       {icon:'thread',at:'2d',html:'<b>writer-1</b> opened <b>Pricing page FAQ</b>'}
+     ]},
+    {id:'incident-e2e',pinned:false,purpose:'Triage the failing os-shell e2e suite from run #434.',fanout:'coordinator',coordinator:'reviewer-2.sess-b',
+     createdBy:'probe-1.sess-a',createdAt:'1d ago',messages:61,unread:1,last:'8m',
+     members:[
+       {name:'probe-1',peer:'probe-1.sess-a',session:'probe-1.sess-a',role:'agent'},
+       {name:'coder-2',peer:'coder-2.sess-a',session:'coder-2.sess-a',role:'agent'},
+       {name:'reviewer-2',peer:'reviewer-2.sess-b',session:'reviewer-2.sess-b',role:'agent'},
+       {name:'docs-1',peer:'docs-1.sess-d',session:'docs-1.sess-d',role:'agent'}
+     ],
+     work:[{id:'wk_8d1',state:'needs_input',opened:'coder-2.sess-a',target:'pedro',startedSec:0,note:'wait-strategy decision'}],
+     threads:[
+       {id:'th-flake',title:'os-shell.spec: dock magnification flake',work:{state:'needs_input'},peers:3,replies:17,by:'probe-1',at:'8m',
+        preview:'Blocked on the wait-strategy decision — polling vs event hook.',cost:{deliveries:29,tokens:'9.8k'},sub:'full',
+        msgs:[
+          {who:'probe-1',role:'agent',kind:'say',at:'2h',text:'Repro isolated: magnification easing overshoots at devicePixelRatio 1.25; the spec only waits on requestAnimationFrame.'},
+          {who:'coder-2',role:'agent',kind:'say',at:'8m',work:{id:'wk_8d1',state:'needs_input'},text:'Two viable fixes: poll the transform until stable, or hook the dock settled event. Need a call before I patch the spec.'}
+        ]},
+       {id:'th-triage',title:'Run #434 triage notes',work:null,peers:4,replies:9,by:'reviewer-2',at:'1d',
+        preview:'Coordinator routing keeps triage on reviewer-2.sess-b until handoff.',cost:{deliveries:17,tokens:'5.2k'},sub:'full',
+        msgs:[
+          {who:'reviewer-2',role:'agent',kind:'say',at:'1d',text:'Coordinator routing keeps triage on this session until an explicit handoff.'}
+        ]}
+     ],
+     directs:[],
+     activity:[
+       {icon:'bolt',at:'8m',html:'<b>coder-2</b> flagged work <b>wk_8d1</b> as needing input'},
+       {icon:'thread',at:'2h',html:'<b>probe-1</b> opened <b>os-shell.spec: dock magnification flake</b>'}
+     ]}
+  ],
+  recents:[
+    {ch:'release-coord',kind:'thread',ref:'th-relnotes',title:'Cut v0.16 release notes',at:'2m'},
+    {ch:'incident-e2e',kind:'thread',ref:'th-flake',title:'os-shell.spec: dock magnification flake',at:'8m'},
+    {ch:'release-coord',kind:'direct',ref:'dm-rev',title:'@reviewer-2.sess-a',at:'14m'}
+  ]
+};
+
+/* ── state ─────────────────────────────────────────────── */
+var S = {channel:'release-coord',level:'channel',threadId:null,directId:null,tab:'threads',q:'',hasWork:false};
+try{
+  var sc = localStorage.getItem('agh:network:channel');
+  if(sc && DB.channels.some(function(c){return c.id===sc})) S.channel = sc;
+  var st = localStorage.getItem('agh:network:tab');
+  if(st==='threads'||st==='directs'||st==='activity') S.tab = st;
+  if(localStorage.getItem('agh:network:inspector')==='closed') document.body.dataset.inspector='closed';
+}catch(e){}
+function persist(){try{
+  localStorage.setItem('agh:network:channel',S.channel);
+  localStorage.setItem('agh:network:tab',S.tab);
+  localStorage.setItem('agh:network:inspector',document.body.dataset.inspector==='open'?'open':'closed');
+}catch(e){}}
+
+function ch(){return DB.channels.filter(function(c){return c.id===S.channel})[0]}
+function thread(){var c=ch();return c?c.threads.filter(function(t){return t.id===S.threadId})[0]:null}
+function direct(){var c=ch();return c?c.directs.filter(function(d){return d.id===S.directId})[0]:null}
+function threadTitle(t){return t.title||'Untitled thread'}
+function agentsOf(c){return c.members.filter(function(m){return m.role==='agent'})}
+function humansOf(c){return c.members.filter(function(m){return m.role==='human'})}
+function initial(n){return n.replace(/^@/,'').charAt(0).toUpperCase()}
+
+/* work chip — runtime vocabulary: working ticks, needs_input pulses, failed/canceled tone; submitted/completed suppressed */
+function workChip(w){
+  if(!w||w.state==='submitted'||w.state==='completed') return '';
+  if(w.state==='working') return '<span class="pill" data-mono="true" data-tone="warning"><span class="dot"></span>working · <span data-elapsed="'+(w.startedSec||0)+'">'+fmtElapsed(w.startedSec||0)+'</span></span>';
+  if(w.state==='needs_input') return '<span class="pill" data-mono="true" data-tone="warning"><span class="dot dot--pulse"></span>needs input</span>';
+  if(w.state==='failed') return '<span class="pill" data-mono="true" data-tone="danger"><span class="dot"></span>failed</span>';
+  if(w.state==='canceled') return '<span class="pill" data-mono="true"><span class="dot"></span>canceled</span>';
+  return '';
+}
+function fmtElapsed(s){var m=Math.floor(s/60),r=s%60;return m>0?(m+'m'+String(r).padStart(2,'0')+'s'):(r+'s')}
+
+/* ── head (drill-in trail: status + actions swap per level) ── */
+function renderHead(){
+  var c = ch();
+  var glyph=document.getElementById('head-glyph'), back=document.getElementById('head-back');
+  var crumbs=document.getElementById('head-crumbs'), title=document.getElementById('head-title');
+  var count=document.getElementById('head-count'), status=document.getElementById('head-status');
+  var vsep=document.getElementById('head-vsep'), actions=document.getElementById('head-actions');
+  var root = S.level==='channel';
+  glyph.classList.toggle('hide',!root);
+  back.classList.toggle('hide',root);
+  count.classList.toggle('hide',!root);
+  if(root){
+    crumbs.innerHTML='';
+    title.textContent='Network';
+    count.textContent=String(DB.channels.length);
+    status.dataset.tone='ok';
+    status.innerHTML='<span class="dot"></span>Active · '+DB.status.live+' live';
+    status.classList.remove('hide'); vsep.classList.remove('hide');
+    actions.innerHTML='<button type="button" class="btn btn--primary" id="act-create">'+IC.plus+'New channel</button>';
+    document.getElementById('act-create').addEventListener('click',openCreate);
+  }else{
+    crumbs.innerHTML='<button type="button" class="w2-crumb" data-nav="root">Network</button><span class="w2-sep">/</span>'
+      +'<button type="button" class="w2-crumb" data-nav="channel">#'+esc(c.id)+'</button><span class="w2-sep">/</span>';
+    crumbs.querySelectorAll('.w2-crumb').forEach(function(b){b.addEventListener('click',function(){popTo('channel')})});
+    if(S.level==='thread'){
+      var t=thread();
+      title.textContent=threadTitle(t);
+      if(t.work){
+        status.dataset.tone = t.work.state==='needs_input'||t.work.state==='working'?'warn':(t.work.state==='failed'?'danger':'ok');
+        status.innerHTML='<span class="dot'+(t.work.state==='needs_input'?' dot--pulse':'')+'"></span>'+(t.work.state==='needs_input'?'needs input':t.work.state)+' · 1 work open';
+        status.classList.remove('hide'); vsep.classList.remove('hide');
+      }else{status.classList.add('hide');vsep.classList.add('hide')}
+      var muted = t.sub==='mute';
+      actions.innerHTML='<button type="button" class="btn btn--ghost btn--sm" id="act-promote">Promote to task</button>'
+        +'<button type="button" class="btn btn--sm" id="act-mute" aria-pressed="'+muted+'">'+(muted?'Unmute':'Mute')+'</button>';
+      document.getElementById('act-promote').addEventListener('click',function(){toast('Task created from the thread origin message.')});
+      document.getElementById('act-mute').addEventListener('click',function(){
+        t.sub = t.sub==='mute'?'full':'mute';
+        toast(t.sub==='mute'?'Thread muted for your session.':'Thread delivery restored to full.');
+        renderHead(); renderInspector();
+      });
+    }else{
+      var d=direct();
+      title.textContent='@'+d.other;
+      status.classList.add('hide'); vsep.classList.add('hide');
+      actions.innerHTML='';
+    }
+  }
+}
+
+/* ── rail ──────────────────────────────────────────────── */
+function renderRail(){
+  var c = ch();
+  var chRoot=document.getElementById('rail-channels');
+  var ordered = DB.channels.filter(function(x){return x.pinned}).concat(DB.channels.filter(function(x){return !x.pinned}));
+  chRoot.innerHTML = ordered.map(function(x){
+    var cur = x.id===S.channel && S.level!=='direct';
+    var trail = x.unread>0 ? '<span class="unread">'+x.unread+'</span>' : '<span class="t">'+esc(x.last)+'</span>';
+    var pin = x.pinned ? '<svg class="pinicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 10.8V7a3 3 0 0 1 6 0v3.8l2 2.2H7z"/></svg>' : '';
+    return '<button type="button" class="rail-row" data-ch="'+esc(x.id)+'" aria-current="'+(cur?'true':'false')+'">'
+      +'<span class="glyph">'+IC.hash+'</span><span class="nm">'+esc(x.id)+'</span>'+pin+trail+'</button>';
+  }).join('');
+  chRoot.querySelectorAll('[data-ch]').forEach(function(b){b.addEventListener('click',function(){gotoChannel(b.dataset.ch)})});
+  document.getElementById('rail-ch-count').textContent=String(DB.channels.length);
+
+  var dmRoot=document.getElementById('rail-directs');
+  document.getElementById('rail-dm-count').textContent = c.directs.length?String(c.directs.length):'';
+  if(!c.directs.length){
+    dmRoot.innerHTML='<p class="rail-empty">No direct rooms yet.</p>';
+  }else{
+    dmRoot.innerHTML=c.directs.map(function(d){
+      var cur = S.level==='direct' && S.directId===d.id;
+      return '<button type="button" class="rail-row" data-dm="'+esc(d.id)+'" aria-current="'+(cur?'true':'false')+'">'
+        +'<span class="glyph">'+IC.at+'</span><span class="nm dmid">'+esc(d.other)+'</span><span class="t">'+esc(d.at)+'</span></button>';
+    }).join('');
+    dmRoot.querySelectorAll('[data-dm]').forEach(function(b){b.addEventListener('click',function(){gotoDirect(S.channel,b.dataset.dm)})});
+  }
+
+  document.getElementById('rail-recents').innerHTML = DB.recents.map(function(r,i){
+    var g = r.kind==='direct'?IC.at:IC.thread;
+    return '<button type="button" class="rail-row" data-recent="'+i+'">'
+      +'<span class="glyph">'+g+'</span><span class="nm'+(r.kind==='direct'?' dmid':'')+'">'+esc(r.title)+'</span><span class="t">'+esc(r.at)+'</span></button>';
+  }).join('');
+  document.querySelectorAll('[data-recent]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var r = DB.recents[Number(b.dataset.recent)];
+      if(r.kind==='direct') gotoDirect(r.ch,r.ref); else gotoThread(r.ch,r.ref);
+    });
+  });
+}
+
+/* ── main pane ─────────────────────────────────────────── */
+function renderMain(){
+  var c = ch();
+  var root = document.getElementById('pane-inner');
+  if(S.level==='thread'){ renderConversation(root, thread().msgs, 'thread'); return; }
+  if(S.level==='direct'){ renderConversation(root, direct().msgs, 'direct'); return; }
+
+  var openWork = c.work.length;
+  var agents = agentsOf(c).length, humans = humansOf(c).length;
+  var pills = [];
+  if(openWork) pills.push('<span class="pill" data-tone="warning"><span class="dot'+(c.work.some(function(w){return w.state==='needs_input'})?' dot--pulse':'')+'"></span>'+openWork+' work open</span>');
+  pills.push('<span class="pill" data-mono="true">'+esc(c.fanout)+'</span>');
+  var meta = [agents+' agent'+(agents===1?'':'s')];
+  if(humans) meta.push(humans+' human'+(humans===1?'':'s'));
+  meta.push(c.threads.length+' threads', c.messages+' messages', 'active '+c.last+' ago');
+  if(c.coordinator) meta.push('coordinator '+c.coordinator);
+
+  var tabs = '<div class="lane-tabs" role="tablist" aria-label="Channel views" data-od-id="network-tabs">'
+    +'<button type="button" class="lane-tab" role="tab" data-tab="threads" aria-selected="'+(S.tab==='threads')+'">Threads <span class="count">'+c.threads.length+'</span></button>'
+    +'<button type="button" class="lane-tab" role="tab" data-tab="directs" aria-selected="'+(S.tab==='directs')+'">Directs <span class="count">'+c.directs.length+'</span></button>'
+    +'<button type="button" class="lane-tab" role="tab" data-tab="activity" aria-selected="'+(S.tab==='activity')+'">Activity</button>'
+    +'</div>';
+
+  var head = '<header data-od-id="network-channel-head">'
+    +'<div class="chead-row"><h1 class="chead-name"><span class="hash">#</span>'+esc(c.id)+'</h1>'+pills.join('')+'</div>'
+    +'<p class="chead-purpose">'+esc(c.purpose)+'</p>'
+    +'<div class="chead-meta">'+meta.map(esc).join('<span class="dotsep"></span>')+'</div>'
+    +'</header>';
+
+  var body='';
+  if(S.tab==='threads') body = threadsBody(c);
+  else if(S.tab==='directs') body = directsBody(c);
+  else body = activityBody(c);
+
+  root.innerHTML = head + tabs + body;
+
+  root.querySelectorAll('.lane-tab').forEach(function(b){
+    b.addEventListener('click',function(){S.tab=b.dataset.tab; persist(); renderMain(); renderComposer();});
+  });
+  wireMainBody(root, c);
+  renderComposer();
+}
+
+function threadsBody(c){
+  var q = S.q.trim().toLowerCase();
+  var rows = c.threads.filter(function(t){
+    if(S.hasWork && !t.work) return false;
+    if(!q) return true;
+    return (threadTitle(t)+' '+(t.preview||'')).toLowerCase().indexOf(q)>=0;
+  });
+  var tools = '<div class="ctools" data-od-id="network-toolbar">'
+    +'<label class="search"><span aria-hidden="true">'+IC.search+'</span><input id="tool-q" type="search" placeholder="Search #'+esc(c.id)+'…" aria-label="Search threads" autocomplete="off" value="'+esc(S.q)+'" /><span class="kbd">/</span></label>'
+    +'<button type="button" class="btn btn--sm" id="tool-haswork" aria-pressed="'+S.hasWork+'">Has work</button>'
+    +'<span class="spacer"></span>'
+    +'<button type="button" class="btn btn--ghost btn--sm" id="tool-markread">Mark read</button>'
+    +'<button type="button" class="btn btn--ghost btn--sm btn--icon" id="tool-inspector" aria-label="Toggle details panel" aria-pressed="'+(document.body.dataset.inspector==='open')+'">'+IC.panel+'</button>'
+    +'</div>';
+  var list;
+  if(!c.threads.length){
+    list = '<div class="empty" data-od-id="network-threads-empty">'+IC.thread
+      +'<b>No threads yet.</b><p>Start the first one; agents and humans both join.</p></div>';
+  }else if(!rows.length){
+    list = '<div class="empty">'+IC.search+'<b>No matching threads.</b><p>Try another search or remove a filter.</p></div>';
+  }else{
+    list = '<div class="list" data-od-id="network-thread-list">'+rows.map(function(t){
+      return '<button type="button" class="trow" data-thread="'+esc(t.id)+'"'+(t.pending?' data-pending="true"':'')+'>'
+        +'<span class="trow-top"><span class="trow-title">'+esc(threadTitle(t))+'</span>'
+        +(t.work?workChip(t.work):'')
+        +'<span class="trow-time">'+esc(t.at)+'</span></span>'
+        +'<span class="trow-preview">'+esc(t.preview||'No messages yet.')+'</span>'
+        +'<span class="trow-meta">'+t.peers+' peer'+(t.peers===1?'':'s')+'<span class="dotsep"></span>'+t.replies+' repl'+(t.replies===1?'y':'ies')+'<span class="dotsep"></span>started by '+esc(t.by)+'</span>'
+        +'</button>';
+    }).join('')+'</div>';
+  }
+  return tools + list;
+}
+
+function directsBody(c){
+  var tools = '<div class="ctools">'
+    +'<span class="ctools-note">'+c.directs.length+' direct room'+(c.directs.length===1?'':'s')+' in this channel</span>'
+    +'<span class="spacer"></span>'
+    +'<button type="button" class="btn btn--sm" id="tool-newdirect">'+IC.plus+'New direct</button>'
+    +'</div>';
+  var list;
+  if(!c.directs.length){
+    list = '<div class="empty" data-od-id="network-directs-empty">'+IC.at
+      +'<b>No direct rooms yet.</b><p>Open one to talk privately with a peer in this channel.</p>'
+      +'<button type="button" class="btn" id="empty-newdirect">'+IC.plus+'New direct</button></div>';
+  }else{
+    list = '<div class="list" data-od-id="network-direct-list">'+c.directs.map(function(d){
+      return '<button type="button" class="drow" data-direct="'+esc(d.id)+'">'
+        +'<span class="drow-ava" aria-hidden="true">'+initial(d.other)+'</span>'
+        +'<span class="drow-main"><span class="drow-id">@'+esc(d.other)+'</span>'
+        +'<span class="drow-preview">'+esc(d.preview||'Quiet so far.')+'</span></span>'
+        +'<span class="drow-trail"><span class="trow-time">'+esc(d.at)+'</span></span>'
+        +'</button>';
+    }).join('')+'</div>';
+  }
+  return tools + list;
+}
+
+function activityBody(c){
+  if(!c.activity.length) return '<div class="empty"><b>Nothing yet.</b><p>Thread and direct activity in this channel lands here.</p></div>';
+  return '<div class="list" style="margin-top:14px" data-od-id="network-activity-list">'+c.activity.map(function(a){
+    return '<div class="arow"><span class="arow-icon" aria-hidden="true">'+IC[a.icon]+'</span>'
+      +'<span class="arow-text">'+a.html+'</span><span class="arow-time">'+esc(a.at)+'</span></div>';
+  }).join('')+'</div>';
+}
+
+function wireMainBody(root, c){
+  var q = root.querySelector('#tool-q');
+  if(q){
+    q.addEventListener('input',function(){
+      S.q = q.value;
+      var pos = q.selectionStart;
+      renderMain();
+      var nq = document.getElementById('tool-q');
+      if(nq){nq.focus(); nq.setSelectionRange(pos,pos);}
+    });
+  }
+  var hw = root.querySelector('#tool-haswork');
+  if(hw) hw.addEventListener('click',function(){S.hasWork=!S.hasWork; renderMain();});
+  var mr = root.querySelector('#tool-markread');
+  if(mr) mr.addEventListener('click',function(){
+    c.unread=0; renderRail(); toast('Loaded conversations marked as read.');
+  });
+  var ti = root.querySelector('#tool-inspector');
+  if(ti) ti.addEventListener('click',function(){
+    document.body.dataset.inspector = document.body.dataset.inspector==='open'?'closed':'open';
+    persist(); renderMain();
+  });
+  var nd = root.querySelector('#tool-newdirect') || root.querySelector('#empty-newdirect');
+  if(nd) nd.addEventListener('click',openNewDirect);
+  root.querySelectorAll('[data-thread]').forEach(function(b){b.addEventListener('click',function(){gotoThread(S.channel,b.dataset.thread)})});
+  root.querySelectorAll('[data-direct]').forEach(function(b){b.addEventListener('click',function(){gotoDirect(S.channel,b.dataset.direct)})});
+}
+
+/* conversation timeline — message kinds carry a pill only when non-say (capability→info, receipt→warning) */
+function renderConversation(root, msgs, kind){
+  var kindPill = {capability:'<span class="pill" data-mono="true" data-tone="info">capability</span>',
+                  receipt:'<span class="pill" data-mono="true" data-tone="warning">receipt</span>'};
+  var body;
+  if(!msgs.length){
+    body = kind==='thread'
+      ? '<div class="empty" data-od-id="network-thread-empty">'+IC.thread+'<b>Thread has no replies.</b><p>Reply below to keep the context alive.</p></div>'
+      : '<div class="empty" data-od-id="network-direct-empty">'+IC.at+'<b>Quiet so far.</b><p>Send the first message; they will be notified.</p></div>';
+  }else{
+    body = '<div class="day-sep">today</div><div class="timeline" data-od-id="network-timeline">'+msgs.map(function(m){
+      var role = m.role==='human'?'Human':(m.role==='system'?'System':'Agent');
+      return '<article class="msg"'+(m.state==='pending'?' data-state="pending"':'')+'>'
+        +'<span class="msg-avatar" data-role="'+m.role+'" role="img" aria-label="'+role+' '+esc(m.who)+'">'+initial(m.who)+'</span>'
+        +'<div class="msg-main"><div class="msg-head"><span class="msg-name">'+esc(m.who)+'</span>'
+        +(kindPill[m.kind]||'')
+        +(m.work?workChip(m.work):'')
+        +'<span class="msg-time">'+(m.state==='pending'?'':esc(m.at))+'</span>'
+        +(m.state==='pending'?'<span class="msg-sending">sending…</span>':'')
+        +'</div><p class="msg-body">'+esc(m.text)+'</p>'
+        +(m.state==='failed'?'<div class="msg-fail">Couldn’t send.<button type="button" class="btn">Retry</button><button type="button" class="btn btn--ghost">Discard</button></div>':'')
+        +'</div></article>';
+    }).join('')+'</div>';
+  }
+  root.innerHTML = body;
+  renderComposer();
+  var sc = document.getElementById('pane-scroll');
+  sc.scrollTop = sc.scrollHeight;
+}
+
+/* composer — placeholder and send label follow the surface */
+function renderComposer(){
+  var c = ch();
+  var input=document.getElementById('composer-input'), send=document.getElementById('composer-send'), hint=document.getElementById('composer-hint');
+  var wrap=document.getElementById('composer');
+  wrap.classList.remove('hide');
+  if(S.level==='channel' && S.tab!=='threads'){ wrap.classList.add('hide'); return; }
+  if(S.level==='channel'){
+    input.placeholder='Start a new thread…';
+    send.textContent='Send to #'+c.id;
+    hint.textContent = c.fanout==='capability_match' ? 'Delivered per channel fanout — capability_match activates peers by declared capability.'
+      : c.fanout==='coordinator' ? 'Delivered per channel fanout — coordinator routes to '+(c.coordinator||'the configured coordinator')+'.'
+      : 'Delivered per channel fanout — all_members activates every eligible local channel member.';
+  }else if(S.level==='thread'){
+    input.placeholder='Reply in '+threadTitle(thread())+'…';
+    send.textContent='Send';
+    hint.textContent='Replies deliver to thread subscribers; muted sessions skip the wake.';
+  }else{
+    input.placeholder='Reply to @'+direct().other+'…';
+    send.textContent='Send';
+    hint.textContent='Direct rooms are restricted bilateral conversations.';
+  }
+}
+
+/* ── inspector ─────────────────────────────────────────── */
+var insTab = 'members';
+function renderInspector(){
+  var c = ch();
+  var root = document.getElementById('inspector-body');
+  var html = '<div class="ins-sec" data-od-id="network-inspector-about"><p class="ins-label">About</p>'
+    +'<p class="ins-about">'+esc(c.purpose)+'</p>'
+    +'<div style="margin-top:8px">'
+    +'<div class="ins-kv"><span>Fanout</span><span class="v">'+esc(c.fanout)+'</span></div>'
+    +(c.coordinator?'<div class="ins-kv"><span>Coordinator</span><span class="v">'+esc(c.coordinator)+'</span></div>':'')
+    +'<div class="ins-kv"><span>Created by</span><span class="v">'+esc(c.createdBy)+'</span></div>'
+    +'<div class="ins-kv"><span>Created</span><span class="v">'+esc(c.createdAt)+'</span></div>'
+    +'</div></div>';
+
+  if(S.level==='thread'){
+    var t = thread();
+    html += '<div class="ins-sec" data-od-id="network-inspector-thread"><p class="ins-label">This thread</p>'
+      +'<div class="ins-kv"><span>Opened by</span><span class="v">'+esc(t.by)+'</span></div>'
+      +'<div class="ins-kv"><span>Participants</span><span class="v">'+t.peers+'</span></div>'
+      +'<div class="ins-kv"><span>Deliveries</span><span class="v">'+t.cost.deliveries+'</span></div>'
+      +'<div class="ins-kv"><span>Est. prompt tokens</span><span class="v">'+esc(t.cost.tokens)+'</span></div>'
+      +'<div class="ins-kv"><span>Subscription</span><span class="v">'+esc(t.sub)+'</span></div>'
+      +'</div>';
+  }
+
+  html += '<div class="ins-tabs" data-od-id="network-inspector-tabs"><div class="pill-group" role="group" aria-label="Inspector view">'
+    +'<button type="button" class="pill-group__item" data-instab="members" aria-pressed="'+(insTab==='members')+'">Members</button>'
+    +'<button type="button" class="pill-group__item" data-instab="work" aria-pressed="'+(insTab==='work')+'">Work'+(c.work.length?' <span class="count" style="font-family:var(--font-mono);font-size:10px">'+c.work.length+'</span>':'')+'</button>'
+    +'</div></div>';
+
+  if(insTab==='members'){
+    var sorted = agentsOf(c).concat(humansOf(c));
+    html += '<div class="ins-sec" data-od-id="network-inspector-members"><p class="ins-label">Members <span class="n">'+c.members.length+'</span></p>'
+      +sorted.map(function(m){
+        return '<div class="mrow" role="listitem"><span class="chip" aria-hidden="true">'+initial(m.name)+'</span>'
+          +'<span class="nm">'+esc(m.name)+'</span><span class="role">'+m.role+'</span></div>';
+      }).join('')+'</div>';
+  }else{
+    html += '<div class="ins-sec" data-od-id="network-inspector-work"><p class="ins-label">Open work <span class="n">'+c.work.length+'</span></p>'
+      +(c.work.length? c.work.map(function(w){
+          return '<div class="wrow"><div class="wrow-top"><span class="wrow-id">'+esc(w.id)+'</span>'+workChip(w)+'</div>'
+            +'<p class="wrow-sub">'+esc(w.note)+'<br>'+esc(w.opened)+' → '+esc(w.target)+'</p></div>';
+        }).join('')
+        : '<p class="ins-empty">No open work in this channel. Work items appear when a peer delegates.</p>')
+      +'</div>';
+  }
+  root.innerHTML = html;
+  root.querySelectorAll('[data-instab]').forEach(function(b){
+    b.addEventListener('click',function(){insTab=b.dataset.instab; renderInspector();});
+  });
+}
+
+/* ── navigation ────────────────────────────────────────── */
+function gotoChannel(id){
+  S.channel=id; S.level='channel'; S.threadId=null; S.directId=null; S.q=''; S.hasWork=false;
+  persist(); renderAll();
+}
+function gotoThread(chId, tid){
+  S.channel=chId; S.level='thread'; S.threadId=tid; S.directId=null;
+  persist(); renderAll();
+}
+function gotoDirect(chId, did){
+  S.channel=chId; S.level='direct'; S.directId=did; S.threadId=null;
+  persist(); renderAll();
+}
+function popTo(level){
+  if(level==='channel'){S.level='channel';S.threadId=null;S.directId=null;}
+  renderAll();
+}
+document.getElementById('head-back').addEventListener('click',function(){popTo('channel')});
+
+function renderAll(){renderHead();renderRail();renderMain();renderInspector();}
+
+/* ── composer send: optimistic pending → delivered ─────── */
+document.getElementById('composer-send').addEventListener('click',sendMessage);
+document.getElementById('composer-input').addEventListener('keydown',function(e){
+  if(e.key==='Enter' && !e.shiftKey){e.preventDefault();sendMessage();}
+});
+function sendMessage(){
+  var input=document.getElementById('composer-input');
+  var text=input.value.trim();
+  if(!text) return;
+  input.value='';
+  var c=ch();
+  if(S.level==='channel'){
+    var nt={id:'th-new-'+Date.now(),title:null,work:null,peers:1,replies:0,by:'pedro',at:'now',preview:text,
+      cost:{deliveries:1,tokens:'0.1k'},sub:'full',pending:true,
+      msgs:[{who:'pedro',role:'human',kind:'say',at:'now',text:text}]};
+    c.threads.unshift(nt); renderMain();
+    setTimeout(function(){delete nt.pending; if(S.level==='channel') renderMain();},900);
+    toast('Thread started in #'+c.id+'.');
+  }else{
+    var msgs = S.level==='thread'?thread().msgs:direct().msgs;
+    var m={who:'pedro',role:'human',kind:'say',at:'now',text:text,state:'pending'};
+    msgs.push(m);
+    renderConversation(document.getElementById('pane-inner'), msgs, S.level);
+    setTimeout(function(){
+      delete m.state;
+      if(S.level!=='channel') renderConversation(document.getElementById('pane-inner'), msgs, S.level);
+    },900);
+  }
+}
+
+/* ── create channel modal ──────────────────────────────── */
+var mcPicked = {'coder-1':true,'reviewer-2':true};
+function openCreate(){
+  var list=document.getElementById('mc-agents');
+  list.innerHTML = AGENT_CATALOG.map(function(a){
+    return '<button type="button" class="agent-pick" role="checkbox" aria-checked="'+(!!mcPicked[a.id])+'" data-agent="'+a.id+'">'
+      +'<span class="chip" aria-hidden="true">'+initial(a.n)+'</span><span class="nm">'+esc(a.n)+'</span>'
+      +'<span class="box" aria-hidden="true">'+IC.check+'</span></button>';
+  }).join('');
+  list.querySelectorAll('[data-agent]').forEach(function(b){
+    b.addEventListener('click',function(){
+      mcPicked[b.dataset.agent]=!mcPicked[b.dataset.agent];
+      b.setAttribute('aria-checked',String(!!mcPicked[b.dataset.agent]));
+      syncCreate();
+    });
+  });
+  document.getElementById('modal-create').classList.remove('hide');
+  document.getElementById('mc-name').focus();
+  syncCreate();
+}
+function pickedCount(){return Object.keys(mcPicked).filter(function(k){return mcPicked[k]}).length}
+function syncCreate(){
+  document.getElementById('mc-picked').textContent = pickedCount()+' selected';
+  var name=document.getElementById('mc-name').value.trim();
+  var purpose=document.getElementById('mc-purpose').value.trim();
+  var valid=/^[a-z0-9_-]+$/.test(name) && purpose.length>0 && pickedCount()>0;
+  document.getElementById('mc-create').disabled=!valid;
+}
+document.getElementById('mc-name').addEventListener('input',syncCreate);
+document.getElementById('mc-purpose').addEventListener('input',syncCreate);
+document.getElementById('mc-fanout').querySelectorAll('[data-fanout]').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.getElementById('mc-fanout').querySelectorAll('[data-fanout]').forEach(function(x){x.setAttribute('aria-checked','false')});
+    b.setAttribute('aria-checked','true');
+  });
+});
+document.getElementById('mc-create').addEventListener('click',function(){
+  var name=document.getElementById('mc-name').value.trim();
+  var purpose=document.getElementById('mc-purpose').value.trim();
+  var fanout=document.querySelector('#mc-fanout [aria-checked="true"]').dataset.fanout;
+  var members=AGENT_CATALOG.filter(function(a){return mcPicked[a.id]}).map(function(a){
+    return {name:a.n,peer:a.n+'.sess-new',session:a.n+'.sess-new',role:'agent'};
+  });
+  DB.channels.push({id:name,pinned:false,purpose:purpose,fanout:fanout,coordinator:null,createdBy:'pedro',createdAt:'now',
+    messages:0,unread:0,last:'now',members:members,work:[],threads:[],directs:[],activity:[]});
+  closeModals();
+  gotoChannel(name);
+  toast('Channel #'+name+' created — '+members.length+' session'+(members.length===1?'':'s')+' started.');
+});
+
+/* ── new direct modal ──────────────────────────────────── */
+function openNewDirect(){
+  var c=ch();
+  document.getElementById('md-sub').textContent='Pick a peer in #'+c.id+' to open a restricted bilateral conversation.';
+  var peers = agentsOf(c).filter(function(m){
+    return !c.directs.some(function(d){return d.other===m.session});
+  });
+  var list=document.getElementById('md-peers'), empty=document.getElementById('md-empty');
+  if(!peers.length){list.innerHTML='';empty.classList.remove('hide');}
+  else{
+    empty.classList.add('hide');
+    list.innerHTML=peers.map(function(m){
+      return '<button type="button" class="peer-pick" data-peer="'+esc(m.session)+'">'
+        +'<span class="chip" aria-hidden="true">'+initial(m.name)+'</span>'
+        +'<span class="nm">'+esc(m.name)+'</span><span class="sid">'+esc(m.session)+'</span></button>';
+    }).join('');
+    list.querySelectorAll('[data-peer]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var d={id:'dm-'+Date.now(),other:b.dataset.peer,at:'now',preview:null,work:0,msgs:[]};
+        c.directs.push(d);
+        closeModals();
+        gotoDirect(c.id,d.id);
+        toast('Direct room opened with @'+b.dataset.peer+'.');
+      });
+    });
+  }
+  document.getElementById('modal-direct').classList.remove('hide');
+}
+
+/* ── shared modal / toast / keys ───────────────────────── */
+function closeModals(){document.querySelectorAll('.modal-scrim').forEach(function(m){m.classList.add('hide')})}
+document.querySelectorAll('[data-close-modal]').forEach(function(b){b.addEventListener('click',closeModals)});
+document.querySelectorAll('.modal-scrim').forEach(function(m){
+  m.addEventListener('click',function(e){if(e.target===m)closeModals()});
+});
+var toastTimer=null;
+function toast(msg){
+  var t=document.getElementById('toast');
+  document.getElementById('toast-text').textContent=msg;
+  t.classList.remove('hide');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){t.classList.add('hide')},2600);
+}
+document.addEventListener('keydown',function(e){
+  var typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if(e.key==='Escape'){
+    var open = Array.prototype.some.call(document.querySelectorAll('.modal-scrim'),function(m){return !m.classList.contains('hide')});
+    if(open){closeModals();return;}
+    if(S.level!=='channel'){popTo('channel');return;}
+  }
+  if(e.key==='/' && !typing){
+    var q=document.getElementById('tool-q');
+    if(q){e.preventDefault();q.focus();}
+  }
+});
+
+/* working chips tick each second (state feedback, not decoration) */
+setInterval(function(){
+  document.querySelectorAll('[data-elapsed]').forEach(function(el){
+    var s=Number(el.dataset.elapsed)+1;
+    el.dataset.elapsed=String(s);
+    el.textContent=fmtElapsed(s);
+  });
+},1000);
+
+renderAll();
+</script>
+</body>
+</html>

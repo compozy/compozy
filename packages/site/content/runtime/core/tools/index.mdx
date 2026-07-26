@@ -1,0 +1,155 @@
+---
+title: Tool Registry
+description: How AGH exposes daemon-owned tools to operators and managed agents through one policy-checked registry.
+---
+
+The tool registry is the runtime surface that lets AGH expose structured actions without turning
+every capability into a one-off prompt convention. Tools have stable IDs, JSON schemas,
+availability diagnostics, policy checks, redaction rules, and invocation events.
+
+Use this page when you need to understand what a tool is, how agents discover tools, and how the
+operator CLI relates to the session-bound MCP tool surface.
+
+<OperatorNote label="Agent-manageable surface">
+  Tools are the canonical path for agents to manage AGH from inside a session. The web UI can show
+  state, but agents should discover and invoke tools through structured registry surfaces.
+</OperatorNote>
+
+## In one sentence
+
+An AGH tool is a daemon-owned action with a typed input schema, a typed result, policy enforcement,
+and an audit trail.
+
+## Why AGH has tools
+
+Agent sessions need more than text prompts. They need to inspect runtime state, claim work, extend
+leases, read memory, search skills, inspect hooks, and report progress without scraping prose or
+calling private Go functions.
+
+The registry gives those actions one shape:
+
+- discover what exists
+- inspect the schema before calling it
+- invoke through daemon policy
+- redact sensitive input fields
+- record enough evidence for operators to audit what happened
+
+## Discovery path
+
+<Workflow>
+  <WorkflowStep title="List or search the registry">
+    Operators use the CLI. Managed agents use the hosted MCP tool surface.
+
+    ```bash
+    agh tool list -o json
+    agh tool search memory --limit 5 -o json
+    ```
+
+    What happened: AGH returned operator-visible descriptors and availability diagnostics for the
+    current scope.
+
+  </WorkflowStep>
+
+  <WorkflowStep title="Inspect the tool before invoking it">
+    ```bash
+    agh tool info agh__skill_view -o json
+    ```
+
+    What happened: AGH returned the descriptor, input schema, output shape, policy requirements, and
+    diagnostics for one tool ID.
+
+  </WorkflowStep>
+
+  <WorkflowStep title="Invoke through daemon policy">
+    ```bash
+    agh tool invoke agh__tool_info --input '{"tool_id":"agh__skill_view"}' -o json
+    ```
+
+    What happened: AGH validated JSON input, applied policy, dispatched the daemon-owned tool, and
+    returned a structured result.
+
+  </WorkflowStep>
+</Workflow>
+
+## Tool surfaces
+
+| Surface                            | Actor                               | Purpose                                                                       |
+| ---------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
+| `agh tool list/search/info/invoke` | Operator or script                  | Inspect and invoke operator-visible registry tools.                           |
+| `agh toolsets list/info`           | Operator or script                  | Inspect grouped tool exposure and expansion diagnostics.                      |
+| Hosted MCP tools                   | Managed agent session               | Let an agent discover and invoke session-scoped tools without shell scraping. |
+| HTTP/UDS API                       | Web UI, integrations, local tooling | Share the same daemon handler contract behind CLI and browser surfaces.       |
+
+## Default discovery tools
+
+The normal managed-agent path starts with discovery, not blind invocation. These canonical IDs help
+agents orient and inspect the registry:
+
+- `agh__bootstrap`
+- `agh__catalog`
+- `agh__tool_search`
+- `agh__tool_info`
+- `agh__skill_search`
+- `agh__skill_view`
+
+For a bare managed session, hosted MCP projects the full availability-gated callable catalog. AGH
+does not add an automatic bootstrap/catalog allowlist over that hosted projection. Agent
+definitions, session lineage, disabled sources, denylists, and approval/risk gates still narrow or
+block invocation.
+
+`agh__tool_list` returns only the currently callable projection. `agh__tool_search` and
+`agh__tool_info` are diagnostic: they can return known descriptors with callable or denied status so
+an agent can explain whether a tool is absent, unavailable, or policy-denied before falling back to
+CLI or HTTP.
+
+These are canonical AGH ToolIDs. They are stable for registry, policy, CLI, and descriptor use, but
+the active agent harness owns the actual invocation name. Managed agents should search or load by
+capability plus canonical ID, then call the tool reference surfaced by the harness exactly as
+returned.
+
+The expected pattern is:
+
+<Mermaid
+  chart={`flowchart LR
+    ToolSearch["Resolve canonical agh__tool_search"] --> ToolInfo["Resolve canonical agh__tool_info"]
+    ToolInfo --> Invoke["Invoke returned tool reference"]
+    SkillSearch["Resolve canonical agh__skill_search"] --> SkillView["Resolve canonical agh__skill_view"]`}
+  caption="Managed agents should discover tools and skills before invoking a runtime action."
+/>
+
+That sequence lets the agent inspect available actions and schemas before it commits to a call.
+
+## What belongs in the tool registry
+
+Good tool candidates:
+
+- runtime state inspection
+- task claim, heartbeat, completion, failure, and release
+- task bridge notification subscription management
+- memory show/search/write operations
+- Memory v2 operational/admin actions that already exist on CLI/API surfaces
+- provider model catalog list/curation/refresh/status
+- skill and capability discovery
+- hook, automation, and extension lifecycle operations
+- extension bundle activation and desired-state resource inspection
+- MCP server probe/status diagnostics that keep login/logout on operator surfaces
+- bridge and network diagnostics
+
+Poor tool candidates:
+
+- UI-only convenience flows with no daemon state
+- arbitrary shell escape hatches
+- hidden aliases for behavior that already has a canonical primitive
+- raw secret retrieval
+
+## Related pages
+
+- [Toolsets](/runtime/core/tools/toolsets) explains grouped exposure.
+- [Policy and Invocation](/runtime/core/tools/policy-and-invocation) explains validation, approvals,
+  sensitive fields, and diagnostics.
+- [Oversized Tool Results](/runtime/core/tools/result-artifacts) explains previews, retained result
+  artifacts, paging, workspace isolation, and retention.
+- [Agent Definitions](/runtime/core/agents/definitions) explains how tools fit into agent startup.
+- [SKILL.md Format](/runtime/core/skills/skill-md) explains how skills teach agents when to use
+  tools.
+- [Tool CLI Reference](/runtime/cli-reference/tool) is the generated command reference.

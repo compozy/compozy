@@ -1,0 +1,42 @@
+---
+title: "agh mcp auth status"
+description: "Show redacted remote MCP auth status"
+---
+
+## agh mcp auth status
+
+Show redacted remote MCP auth status
+
+```
+agh mcp auth status [server] [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for status
+      --scope string       MCP server scope: global or workspace (default "global")
+      --workspace string   Workspace ID for workspace scope
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh mcp auth status [server] -o json
+```

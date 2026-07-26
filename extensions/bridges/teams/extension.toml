@@ -1,0 +1,61 @@
+[extension]
+name = "teams"
+version = "0.1.0"
+description = "Production Microsoft Teams bridge provider built on internal/bridgesdk"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "teams"
+display_name = "Microsoft Teams"
+
+[[bridge.secret_slots]]
+name = "app_id"
+description = "Microsoft bot application ID"
+required = true
+
+[[bridge.secret_slots]]
+name = "app_password"
+description = "Microsoft bot application password"
+required = true
+
+[[bridge.secret_slots]]
+name = "app_tenant_id"
+description = "Optional Microsoft Entra tenant ID for single-tenant pinning"
+required = false
+
+[bridge.config_schema]
+schema = "agh.bridge.teams"
+version = "1"
+
+[actions]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
+
+[subprocess]
+command = "./bin/teams"
+args = ["serve"]
+
+[subprocess.env]
+AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH = "{{env:AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH}}"
+AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH = "{{env:AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH}}"
+AGH_BRIDGE_ADAPTER_STATE_PATH = "{{env:AGH_BRIDGE_ADAPTER_STATE_PATH}}"
+AGH_BRIDGE_ADAPTER_DELIVERY_PATH = "{{env:AGH_BRIDGE_ADAPTER_DELIVERY_PATH}}"
+AGH_BRIDGE_ADAPTER_INGEST_PATH = "{{env:AGH_BRIDGE_ADAPTER_INGEST_PATH}}"
+AGH_BRIDGE_ADAPTER_STARTS_PATH = "{{env:AGH_BRIDGE_ADAPTER_STARTS_PATH}}"
+AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH}}"
+AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
+AGH_BRIDGE_TEAMS_LISTEN_ADDR = "{{env:AGH_BRIDGE_TEAMS_LISTEN_ADDR}}"
+AGH_BRIDGE_TEAMS_SERVICE_URL = "{{env:AGH_BRIDGE_TEAMS_SERVICE_URL}}"
+AGH_BRIDGE_TEAMS_OPENID_METADATA_URL = "{{env:AGH_BRIDGE_TEAMS_OPENID_METADATA_URL}}"
+AGH_BRIDGE_TEAMS_TOKEN_URL = "{{env:AGH_BRIDGE_TEAMS_TOKEN_URL}}"
+AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING = "{{env:AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING}}"
+
+[security]
+capabilities = ["bridge.read", "bridge.write"]

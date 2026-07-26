@@ -1,0 +1,44 @@
+---
+title: "agh provider models list"
+description: "List provider model catalog entries"
+---
+
+## agh provider models list
+
+List provider model catalog entries
+
+```
+agh provider models list [provider] [flags]
+```
+
+### Options
+
+```
+      --all             Include hidden and deprecated catalog models
+  -h, --help            help for list
+      --include-stale   Include stale source rows
+      --refresh         Refresh sources before listing models
+      --source string   Filter by catalog source id
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh provider models list [provider] -o json
+```

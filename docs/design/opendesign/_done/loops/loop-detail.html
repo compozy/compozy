@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>software-delivery · Loop · AGH</title>
+<style>
+  :root{
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f; --accent-tint:rgba(232,87,42,.10);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05); --btn-fill:rgba(255,255,255,.04);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1); --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit}
+  ::selection{background:var(--accent-tint)}
+  /* content-only reference — the workspace rail + nav panel live in the app shell, not here */
+  .shell{height:100vh}
+
+  /* main */
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:10px;height:48px;padding:0 18px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas)}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb a:hover{color:var(--fg-strong)}
+  .crumb b{color:var(--fg-strong);font-weight:560}
+  .crumb svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .topbar__spacer{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:var(--radius);font-size:12.5px;font-weight:520;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:rgba(255,255,255,.07);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--icon{width:28px;padding:0;justify-content:center}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 80px}
+
+  /* detail header */
+  .dh{display:flex;align-items:flex-start;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--line);margin-bottom:24px}
+  .dh__icon{width:42px;height:42px;border-radius:var(--radius-lg);display:grid;place-items:center;flex:none;background:var(--elevated);color:var(--muted)}
+  .dh__icon svg{width:21px;height:21px}
+  .dh__main{min-width:0;flex:1}
+  .dh__namerow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .dh__name{font-size:22px;font-weight:560;letter-spacing:-.028em;color:var(--fg-strong)}
+  .tag{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
+  .dh__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--subtle)}
+  .dh__meta .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .dh__meta .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint)}
+  .dh__actions{display:flex;gap:8px;flex:none}
+
+  /* layout */
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px}
+  .section{margin-bottom:28px}
+  .section__label{display:flex;align-items:center;gap:8px;padding-bottom:10px;font-size:10.5px;font-weight:600;letter-spacing:.04em;color:var(--subtle);text-transform:uppercase}
+  .section__label .spacer{flex:1}
+  .section__label .act{font-size:11px;font-weight:520;color:var(--muted);text-transform:none;letter-spacing:0;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+  .section__label .act:hover{color:var(--fg-strong)}
+  .section__label .act svg{width:12px;height:12px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+
+  /* contract */
+  .kv{display:flex;flex-direction:column}
+  .kv__row{padding:14px 16px;border-top:1px solid var(--line-soft)}
+  .kv__row:first-child{border-top:0}
+  .kv__row .k{font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .kv__row .v{font-size:13px;line-height:1.55;color:var(--fg)}
+  .kv__row .v code{font-family:var(--font-mono);font-size:12px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 6px;color:var(--fg)}
+  .verif{display:flex;flex-direction:column;gap:7px;margin-top:8px}
+  .vrow{display:flex;align-items:flex-start;gap:10px}
+  .vrow .vt{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:3px 7px;border-radius:var(--radius-xs);flex:none;background:var(--badge-fill);color:var(--subtle);min-width:88px;text-align:center}
+  .vrow .vx{min-width:0}
+  .vrow .vx b{font-size:12.5px;color:var(--fg-strong);font-weight:520}
+  .vrow .vx .vm{font-family:var(--font-mono);font-size:11px;color:var(--subtle);margin-top:2px}
+  .tstates{display:flex;gap:7px;flex-wrap:wrap}
+  .tchip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);border:1px solid var(--line-soft);border-radius:var(--radius);padding:4px 10px;background:var(--canvas-tint)}
+  .tchip .d{width:6px;height:6px;border-radius:50%;background:var(--c,var(--neutral))}
+
+  /* read-only DAG */
+  .graph{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:16px;scrollbar-width:thin}
+  .gnode{display:flex;flex-direction:column;gap:4px;min-width:124px;padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-tint);flex:none}
+  .gnode .gt{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .gnode--gate .gt{color:var(--warning)}
+  .gnode .gl{font-size:12.5px;font-weight:520;color:var(--fg-strong);letter-spacing:-.01em}
+  .gnode .gk{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .garrow{display:flex;align-items:center;color:var(--faint);flex:none;padding:0 4px;align-self:center}
+  .garrow svg{width:18px;height:18px}
+  .gcluster{display:flex;flex-direction:column;gap:5px;flex:none;align-self:center}
+  .gbranch{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--muted);border:1px solid var(--line-soft);border-radius:var(--radius-sm);background:var(--canvas-soft);padding:5px 9px;min-width:124px}
+  .gbranch .bd{width:5px;height:5px;border-radius:50%;background:var(--subtle);flex:none}
+  .graph-note{font-size:11.5px;color:var(--subtle);line-height:1.5;padding:0 16px 14px}
+  .graph-note b{color:var(--fg);font-weight:520}
+  .graph-note .rev{color:var(--accent-strong)}
+
+  /* recent runs */
+  .runs{display:flex;flex-direction:column}
+  .runrow{display:grid;grid-template-columns:120px 96px 1fr 92px 78px 16px;gap:14px;align-items:center;padding:11px 16px;border-top:1px solid var(--line-soft);cursor:pointer;transition:background var(--dur) var(--ease)}
+  .runrow:first-child{border-top:0}
+  .runrow:hover{background:var(--row-hover)}
+  .rid{font-family:var(--font-mono);font-size:11.5px;color:var(--fg)}
+  .rcell{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .rmeta{font-size:11.5px;color:var(--subtle)}
+  .rchev{color:var(--faint);justify-self:end}.rchev svg{width:14px;height:14px}
+
+  /* status pill */
+  .pill{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--radius-xs);font-size:11px;font-weight:520;width:max-content}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  /* live */
+  .pill--queued{background:var(--info-tint);color:var(--info)}
+  .pill--running{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill--watching{background:var(--info-tint);color:var(--info)}
+  .pill--needs-approval{background:var(--warning-tint);color:var(--warning)}
+  .pill--paused{background:var(--neutral-tint);color:var(--muted)}
+  /* terminal */
+  .pill--done{background:var(--success-tint);color:var(--success)}
+  .pill--no_op{background:var(--neutral-tint);color:var(--muted)}
+  .pill--blocked{background:var(--warning-tint);color:var(--warning)}
+  .pill--failed{background:var(--danger-tint);color:var(--danger)}
+  .pill--exhausted{background:var(--warning-tint);color:var(--warning)}
+  .pill--stalled{background:var(--neutral-tint);color:var(--muted)}
+  .pill .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 34%,transparent)}55%{box-shadow:0 0 0 4px transparent}}
+  @media (prefers-reduced-motion:reduce){.dot--pulse{animation:none}}
+
+  /* right rail */
+  .rail-sec{margin-bottom:24px}
+  .inp{display:flex;flex-direction:column}
+  .inprow{padding:11px 14px;border-top:1px solid var(--line-soft)}
+  .inprow:first-child{border-top:0}
+  .inprow__top{display:flex;align-items:center;gap:7px}
+  .inprow__name{font-family:var(--font-mono);font-size:12px;color:var(--fg-strong)}
+  .req{color:var(--muted);font-weight:600}
+  .typ{margin-left:auto;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 6px}
+  .inprow__desc{font-size:11.5px;color:var(--subtle);margin-top:5px;line-height:1.45}
+  .inprow__def{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);margin-top:5px}
+
+  /* start bindings — declared kinds are read-only DSL facts; rows are attached automations */
+  .startdecl{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:12px 14px}
+  .startdecl .sk{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
+  .startdecl .from{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .bindrow{padding:11px 14px;border-top:1px solid var(--line-soft)}
+  .bindrow__top{display:flex;align-items:center;gap:8px;min-width:0}
+  .bindrow__dot{width:6px;height:6px;border-radius:50%;background:var(--success);flex:none}
+  .bindrow--off .bindrow__dot{background:var(--neutral)}
+  .bindrow__name{font-family:var(--font-mono);font-size:12px;color:var(--fg-strong);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bindrow--off .bindrow__name{color:var(--muted)}
+  .bindrow__kind{margin-left:auto;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 6px;flex:none}
+  .bindrow__meta{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);margin-top:5px;padding-left:14px}
+  .bindrow--off .bindrow__meta{color:var(--faint)}
+  .bind-empty{font-size:11.5px;color:var(--subtle);line-height:1.5;padding:12px 14px;border-top:1px solid var(--line-soft)}
+  .bind-ctas{display:flex;gap:8px;padding:11px 14px;border-top:1px solid var(--line-soft)}
+  .bind-ctas .btn{height:26px;font-size:12px;padding:0 10px}
+  .bind-ctas .btn svg{width:12px;height:12px}
+
+  .lim{display:flex;flex-direction:column;padding:4px 14px}
+  .limrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft)}
+  .limrow:first-child{border-top:0}
+  .limrow .lk{font-size:12px;color:var(--subtle)}
+  .limrow .lv{font-family:var(--font-mono);font-size:11.5px;color:var(--fg);font-variant-numeric:tabular-nums}
+  .limrow .lv .ceil{color:var(--faint)}
+  .lim-note{font-size:11px;color:var(--faint);line-height:1.5;padding:12px 14px 13px;border-top:1px solid var(--line-soft)}
+
+  .vers{display:flex;flex-direction:column;padding:4px 14px}
+  .verrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:12.5px}
+  .verrow:first-child{border-top:0}
+  .verrow .vn{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-strong)}
+  .verrow .vcur{font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--success);background:var(--success-tint);border-radius:var(--radius-xs);padding:2px 6px}
+  .verrow .vd{margin-left:auto;font-size:11px;color:var(--faint)}
+
+  .stat4{display:grid;grid-template-columns:1fr 1fr}
+  .st{padding:13px 14px;border-top:1px solid var(--line-soft)}
+  .st:nth-child(-n+2){border-top:0}
+  .st:nth-child(odd){border-right:1px solid var(--line-soft)}
+  .st__v{font-size:19px;font-weight:560;color:var(--fg-strong);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .st__l{font-size:10.5px;color:var(--faint);margin-top:3px;letter-spacing:.02em}
+
+  @media(max-width:1080px){.layout{grid-template-columns:1fr}}
+  @media(max-width:920px){.dh{flex-wrap:wrap}.dh__actions{order:3;width:100%}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <header class="topbar">
+      <nav class="crumb">
+        <a href="loops-catalog.html">Loops</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <b>software-delivery</b>
+      </nav>
+      <div class="topbar__spacer"></div>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>View DSL</button>
+      <button class="btn btn--icon" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+
+        <!-- DETAIL HEADER -->
+        <div class="dh">
+          <span class="dh__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+          <div class="dh__main">
+            <div class="dh__namerow">
+              <span class="dh__name">software-delivery</span>
+              <span class="tag">Built-in</span>
+              <span class="tag">v4 · published</span>
+            </div>
+            <div class="dh__meta">
+              <span class="mono">agh.loop/v1</span><span class="dotsep"></span>
+              <span>Engineering</span><span class="dotsep"></span>
+              <span>8 nodes</span><span class="dotsep"></span>
+              <span>edited 5d ago · Pedro</span>
+            </div>
+          </div>
+          <div class="dh__actions">
+            <a class="btn" href="loop-configure.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="8" x2="20" y2="8"/><circle cx="9" cy="8" r="2.2"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2.2"/></svg>Configure</a>
+            <a class="btn" href="loop-editor.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Fork &amp; edit</a>
+            <a class="btn btn--primary" href="loop-run-form.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run loop</a>
+          </div>
+        </div>
+
+        <div class="layout">
+          <!-- MAIN COLUMN -->
+          <div>
+            <p style="font-size:13.5px;line-height:1.6;color:var(--muted);max-width:72ch;margin-bottom:28px">Orchestrates the tasks you already authored outside the Loop (via the spec skills, as today): loads them from <code style="font-family:var(--font-mono);font-size:12px">.compozy/tasks/&lt;slug&gt;</code>, executes them in dependency order, reviews and remediates what fails, and verifies against the project's own checks. Spec authoring stays outside; as a built-in it runs with zero authoring.</p>
+
+            <!-- CONTRACT -->
+            <section class="section">
+              <div class="section__label">Contract</div>
+              <div class="panelbox">
+                <div class="kv">
+                  <div class="kv__row"><div class="k">Goal</div><div class="v">Ship every authored task under <code>.compozy/tasks/{{ .inputs.slug }}</code> · implemented, reviewed to acceptance, and verified by the project's own checks.</div></div>
+                  <div class="kv__row"><div class="k">Definition of done</div><div class="v">All loaded tasks reached a terminal state, the acceptance judge approved with evidence, and the project verification passed.</div></div>
+                  <div class="kv__row"><div class="k">Gate criteria</div><div class="v">
+                    <div class="verif">
+                      <div class="vrow"><span class="vt">agent-judge</span><div class="vx"><b>review · acceptance</b><div class="vm">rubric · aggregate diff vs each task's acceptance and the DoD, cite evidence, emit blocking_issue ids · verdict revise_until_clean · max_revisions 3</div></div></div>
+                      <div class="vrow"><span class="vt">command</span><div class="vx"><b>verify · project check</b><div class="vm">{{ .inputs.verify_command }} · expect exit_zero · empty = disabled · verdict fixed_passes</div></div></div>
+                      <div class="vrow"><span class="vt">human</span><div class="vx"><b>approve · merge</b><div class="vm">"Approve the delivered work for {{ .inputs.slug }} into {{ .inputs.target_branch }}?" · verdict fixed_passes</div></div></div>
+                    </div>
+                  </div></div>
+                  <div class="kv__row"><div class="k">Terminal outcomes</div><div class="v">
+                    <div class="tstates">
+                      <span class="tchip"><span class="d" style="--c:var(--success)"></span>done</span>
+                      <span class="tchip" title="Ran, nothing to do"><span class="d" style="--c:var(--neutral)"></span>no_op</span>
+                      <span class="tchip" title="External dependency prevents progress"><span class="d" style="--c:var(--warning)"></span>blocked</span>
+                      <span class="tchip"><span class="d" style="--c:var(--danger)"></span>failed</span>
+                      <span class="tchip"><span class="d" style="--c:var(--warning)"></span>exhausted</span>
+                      <span class="tchip"><span class="d" style="--c:var(--neutral)"></span>stalled</span>
+                    </div>
+                  </div></div>
+                  <div class="kv__row"><div class="k">Concurrency</div><div class="v"><code>forbid</code> · a second start while a run is active is rejected with the active run id; <code>queue</code> and <code>allow</code> are per-loop opt-ins.</div></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- BODY GRAPH -->
+            <section class="section">
+              <div class="section__label">Body · DAG<span class="spacer"></span><a class="act" href="loop-editor.html">Open in builder <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a></div>
+              <div class="panelbox">
+                <div class="graph">
+                  <div class="gnode"><span class="gt">source</span><span class="gl">slug</span><span class="gk">input</span></div>
+                  <span class="garrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="17" y2="12"/><polyline points="12 6 18 12 12 18"/></svg></span>
+                  <div class="gnode"><span class="gt">source</span><span class="gl">load_tasks</span><span class="gk">file-import</span></div>
+                  <span class="garrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="17" y2="12"/><polyline points="12 6 18 12 12 18"/></svg></span>
+                  <div class="gnode"><span class="gt">control · fan-out</span><span class="gl">implement</span><span class="gk">batch 1 · seq · ≤64</span></div>
+                  <span class="garrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="17" y2="12"/><polyline points="12 6 18 12 12 18"/></svg></span>
+                  <div class="gcluster">
+                    <div class="gbranch"><span class="bd"></span>task_01 · schema migration</div>
+                    <div class="gbranch"><span class="bd"></span>task_02 · store method</div>
+                    <div class="gbranch"><span class="bd"></span>task_03 · api handler</div>
+                    <div class="gbranch"><span class="bd"></span>task_04 · contract test</div>
+                  </div>
+                  <span class="garrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="17" y2="12"/><polyline points="12 6 18 12 12 18"/></svg></span>
+                  <div class="gnode"><span class="gt">control</span><span class="gl">collect</span><span class="gk">join</span></div>
+                  <span class="garrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="17" y2="12"/><polyline points="12 6 18 12 12 18"/></svg></span>
+                  <div class="gnode gnode--gate"><span class="gt">control · gate</span><span class="gl">review</span><span class="gk">agent-judge</span></div>
+                  <span class="garrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="17" y2="12"/><polyline points="12 6 18 12 12 18"/></svg></span>
+                  <div class="gnode gnode--gate"><span class="gt">control · gate</span><span class="gl">verify · DoD</span><span class="gk">command</span></div>
+                  <span class="garrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="17" y2="12"/><polyline points="12 6 18 12 12 18"/></svg></span>
+                  <div class="gnode gnode--gate"><span class="gt">control · gate</span><span class="gl">approve</span><span class="gk">human</span></div>
+                </div>
+                <div class="graph-note">Read-only view. <b>load_tasks</b> imports the tasks you authored outside the Loop; <b>implement</b> fans out over them one task per agent session (<span class="rev">batch_size 1</span>), sequential in dependency order (<span class="rev">max_parallel 1</span>, <span class="rev">max_fan_out 64</span>), running each through <b>execute_task</b> (<span class="rev">run-agent</span>). After <b>collect</b>, the acceptance <b>review</b>, the <b>verify</b> definition-of-done gate, and the human <b>approve</b> gate decide between a next generation (<span class="rev">revise</span>) and a terminal outcome. Remediation is the failed-only re-attempt, not a node.</div>
+              </div>
+            </section>
+
+            <!-- RECENT RUNS -->
+            <section class="section">
+              <div class="section__label">Recent runs<span class="spacer"></span><a class="act" href="runs.html">All runs <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a></div>
+              <div class="panelbox runs">
+                <a class="runrow" href="run-detail.html">
+                  <span class="pill pill--running"><span class="dot dot--pulse"></span>running</span>
+                  <span class="rid">r-8f3a2b</span>
+                  <span class="rmeta">schedule · 0 3 * * *</span>
+                  <span class="rcell">2 gens</span>
+                  <span class="rcell">14m</span>
+                  <span class="rchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+                </a>
+                <a class="runrow" href="run-detail.html">
+                  <span class="pill pill--done"><span class="dot"></span>done</span>
+                  <span class="rid">r-7c1d44</span>
+                  <span class="rmeta">cli · Pedro</span>
+                  <span class="rcell">1 gen</span>
+                  <span class="rcell">6m 02s</span>
+                  <span class="rchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+                </a>
+                <a class="runrow" href="run-detail.html">
+                  <span class="pill pill--exhausted"><span class="dot"></span>exhausted</span>
+                  <span class="rid">r-6b9e10</span>
+                  <span class="rmeta">manual · Pedro</span>
+                  <span class="rcell">50 gens</span>
+                  <span class="rcell">42m</span>
+                  <span class="rchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+                </a>
+                <a class="runrow" href="run-detail.html">
+                  <span class="pill pill--done"><span class="dot"></span>done</span>
+                  <span class="rid">r-5a2f8c</span>
+                  <span class="rmeta">http · Pedro</span>
+                  <span class="rcell">2 gens</span>
+                  <span class="rcell">11m 40s</span>
+                  <span class="rchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+                </a>
+              </div>
+            </section>
+          </div>
+
+          <!-- RIGHT RAIL -->
+          <aside>
+            <section class="rail-sec">
+              <div class="section__label">Declared inputs</div>
+              <div class="panelbox inp">
+                <div class="inprow">
+                  <div class="inprow__top"><span class="inprow__name">slug</span><span class="req">*</span><span class="typ">string</span></div>
+                  <div class="inprow__desc">Task slug under <code style="font-family:var(--font-mono)">.compozy/tasks</code>. Tasks are authored outside the loop.</div>
+                </div>
+                <div class="inprow">
+                  <div class="inprow__top"><span class="inprow__name">implementer</span><span class="typ">agent</span></div>
+                  <div class="inprow__desc">Agent that implements each task.</div>
+                  <div class="inprow__def">default: code_implementer</div>
+                </div>
+                <div class="inprow">
+                  <div class="inprow__top"><span class="inprow__name">verify_command</span><span class="typ">string</span></div>
+                  <div class="inprow__desc">The project's own check. Empty disables the verify gate.</div>
+                  <div class="inprow__def">default: "" (empty = disabled)</div>
+                </div>
+                <div class="inprow">
+                  <div class="inprow__top"><span class="inprow__name">auto_commit</span><span class="typ">bool</span></div>
+                  <div class="inprow__desc">Commit each task after it verifies.</div>
+                  <div class="inprow__def">default: false</div>
+                </div>
+                <div class="inprow">
+                  <div class="inprow__top"><span class="inprow__name">target_branch</span><span class="typ">string</span></div>
+                  <div class="inprow__desc">Branch the approved work targets.</div>
+                  <div class="inprow__def">default: main</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="rail-sec">
+              <div class="section__label">Start bindings</div>
+              <div class="panelbox">
+                <div class="startdecl">
+                  <span class="sk">manual</span><span class="sk">cli</span><span class="sk">http</span><span class="sk">uds</span><span class="sk">native_tool</span><span class="sk">schedule</span>
+                  <span class="from">declared</span>
+                </div>
+                <div class="bindrow">
+                  <div class="bindrow__top"><span class="bindrow__dot" title="Enabled"></span><span class="bindrow__name">nightly · 0 3 * * *</span><span class="bindrow__kind">schedule</span></div>
+                  <div class="bindrow__meta">next in 6h · slug from job payload</div>
+                </div>
+                <!-- Empty state (no attached automations):
+                <div class="bind-empty">Runs manually. This loop also declares a schedule start: attach an automation to run it hands-free.</div>
+                -->
+                <div class="bind-ctas">
+                  <button class="btn" title="Opens the job sheet pre-targeted at this loop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Add schedule</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="rail-sec">
+              <div class="section__label">Limits &amp; budget</div>
+              <div class="panelbox">
+                <div class="lim">
+                  <div class="limrow"><span class="lk">Iteration cap</span><span class="lv">50 <span class="ceil">/ 100</span></span></div>
+                  <div class="limrow"><span class="lk">Token budget</span><span class="lv">off <span class="ceil">/ 20M</span></span></div>
+                  <div class="limrow"><span class="lk">Wall clock</span><span class="lv">off <span class="ceil">/ 7d</span></span></div>
+                  <div class="limrow"><span class="lk">On exceeded</span><span class="lv">halt <span class="ceil">→ exhausted</span></span></div>
+                  <div class="limrow"><span class="lk">Cost (USD)</span><span class="lv">— <span class="ceil">display-only</span></span></div>
+                  <div class="limrow"><span class="lk">No-progress window</span><span class="lv">3 <span class="ceil">/ 10</span></span></div>
+                  <div class="limrow"><span class="lk">Fan-out breadth</span><span class="lv">≤ tasks <span class="ceil">/ 64</span></span></div>
+                  <div class="limrow"><span class="lk">Gate max revisions</span><span class="lv">3 <span class="ceil">/ 10</span></span></div>
+                </div>
+                <div class="lim-note">Left value is the per-loop default. The right value is the daemon ceiling, a hard backstop that can't be raised. Token and wall-clock budgets are off unless set (0 = unlimited); a set budget is enforced: checked before each node dispatch and at every generation boundary. On exceeded, <span style="font-family:var(--font-mono)">on_exceeded: halt</span> ends the run as exhausted; <span style="font-family:var(--font-mono)">escalate</span> pauses it as needs-approval. Fan-out breadth is bounded by the number of loaded tasks. Cost is display-only, not an enforced cap.</div>
+              </div>
+            </section>
+
+            <section class="rail-sec">
+              <div class="section__label">Versions</div>
+              <div class="panelbox">
+                <div class="vers">
+                  <div class="verrow"><span class="vn">v4</span><span class="vcur">current</span><span class="vd">5d ago · Pedro</span></div>
+                  <div class="verrow"><span class="vn">v3</span><span class="vd">3w ago · Pedro</span></div>
+                  <div class="verrow"><span class="vn">v2</span><span class="vd">2mo ago · system</span></div>
+                  <div class="verrow"><span class="vn">v1</span><span class="vd">shipped built-in</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="rail-sec">
+              <div class="section__label">Last 30 days</div>
+              <div class="panelbox stat4">
+                <div class="st"><div class="st__v">92%</div><div class="st__l">Success rate</div></div>
+                <div class="st"><div class="st__v">48</div><div class="st__l">Total runs</div></div>
+                <div class="st"><div class="st__v">1.9</div><div class="st__l">Avg generations</div></div>
+                <div class="st"><div class="st__v">8m</div><div class="st__l">Median duration</div></div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

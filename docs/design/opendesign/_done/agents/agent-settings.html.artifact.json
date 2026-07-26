@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "agent-settings.html",
+  "entry": "agent-settings.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-09T16:47:27.543Z",
+  "updatedAt": "2026-07-09T16:47:27.543Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

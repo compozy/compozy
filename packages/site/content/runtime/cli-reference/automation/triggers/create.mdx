@@ -1,0 +1,52 @@
+---
+title: "agh automation triggers create"
+description: "Create an automation trigger"
+---
+
+## agh automation triggers create
+
+Create an automation trigger
+
+```
+agh automation triggers create [flags]
+```
+
+### Options
+
+```
+      --agent string                  Agent definition name
+      --enabled                       Create the trigger enabled or disabled
+      --endpoint-slug string          Public endpoint slug for webhook events
+      --event string                  Trigger event name
+      --filter stringArray            Exact-match filter(s): key=value or comma-separated key=value pairs
+  -h, --help                          help for create
+      --name string                   Trigger name
+      --prompt string                 Prompt template body
+      --retry string                  Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"
+      --scope string                  Trigger scope: global or workspace
+      --webhook-id string             Stable webhook identifier override for webhook events
+      --webhook-secret-value string   Write-only webhook secret value
+      --workspace string              Workspace path, name, or ID (required when --scope=workspace)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh automation triggers create -o json
+```

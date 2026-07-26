@@ -1,0 +1,52 @@
+{
+    "extension": {
+        "name": "clarify-tool",
+        "version": "0.1.0",
+        "description": "Proves extension-host clarification round trips",
+        "min_agh_version": "0.5.0"
+    },
+    "capabilities": {
+        "provides": ["tool.provider"]
+    },
+    "actions": {
+        "requires": ["clarify/ask"]
+    },
+    "subprocess": {
+        "command": "./bin/clarify-tool"
+    },
+    "resources": {
+        "tools": {
+            "ask": {
+                "description": "Ask the operator one bounded clarification question",
+                "risk": "read",
+                "read_only": true,
+                "requires_interaction": false,
+                "concurrency_safe": true,
+                "visibility": "model",
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "ask"
+                },
+                "input_schema": {
+                    "type": "object",
+                    "required": ["question"],
+                    "properties": {
+                        "question": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "choices": {
+                            "type": "array",
+                            "maxItems": 4,
+                            "items": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            }
+        }
+    }
+}

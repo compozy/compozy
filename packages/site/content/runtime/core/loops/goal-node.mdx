@@ -1,0 +1,147 @@
+---
+title: Goal node reference
+description: The exact agh.loop/v1 Goal action schema, judge contract, session and retry rules, lint codes, and approval grants.
+---
+
+A `goal` action advances a durable convergence cycle: one managed agent session works toward an
+objective, one or more judges evaluate the current result, and AGH either completes the node,
+starts another turn, or records a typed control boundary. Use this page when you author or review a
+Goal node. For the rest of the Loop document, see the
+[agh.loop/v1 DSL reference](/runtime/core/loops/dsl-reference).
+
+## Complete shape
+
+```yaml
+- id: converge_fix
+  class: action
+  kind: goal
+  session:
+    mode: continuous
+  retry:
+    max_attempts: 2
+    on_failure: fresh_session
+  params:
+    agent: "{{ .inputs.implementer }}"
+    objective: "Make `make verify` pass without changing unrelated packages."
+    judge:
+      - id: checks_green
+        type: command
+        check: make verify
+        expect: exit_zero
+      - id: scope_is_clean
+        type: agent-judge
+        agent: "{{ .inputs.reviewer }}"
+        rubric: "The change satisfies the objective and stays inside the requested scope."
+    max_turns: 20
+    on_exhausted: escalate
+    output_schema:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [complete, blocked]
+```
+
+`session` defaults to `{ mode: continuous }`. `params.on_exhausted` defaults to `halt`. The
+compiler materializes both defaults in the executed-definition snapshot, so restart and recovery
+use the same resolved values that the Run started with.
+
+## Fields
+
+| Path                   | Required | Values                         | Contract                                                                                                   |
+| ---------------------- | -------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `id`                   | yes      | Loop node ID                   | Lowercase snake case. Continuous handle labels must remain unique across Goal nodes.                       |
+| `class`                | yes      | `action`                       | A Goal is a reserved first-party action kind.                                                              |
+| `kind`                 | yes      | `goal`                         | Selects the durable Goal executor rather than a tool-registry action.                                      |
+| `params.agent`         | yes      | Agent name or template         | Resolves the managed worker profile.                                                                       |
+| `params.objective`     | yes      | Non-empty string               | The convergence objective supplied to work and judge prompts.                                              |
+| `params.judge`         | yes      | One or more supported criteria | Evaluates each completed work turn. Criterion IDs are required and unique.                                 |
+| `params.max_turns`     | yes      | Positive integer               | Initial turn limit. An approved turn extension adds this pinned amount; it does not reset the counter.     |
+| `params.on_exhausted`  | no       | `halt` or `escalate`           | `halt` ends the Run `exhausted`; `escalate` parks the Run in `needs-approval`. Default: `halt`.            |
+| `params.output_schema` | yes      | JSON Schema                    | Its `status` property must include `blocked`, so the action can represent a truthful blocked result.       |
+| `session.mode`         | no       | `continuous`                   | Reuses one durable binding across turns. Default when `session` is absent.                                 |
+| `session.isolated`     | no       | `true`                         | Selects an isolated session instead of continuous mode. The two session strategies are mutually exclusive. |
+| `session.handle`       | no       | Display label                  | Continuous binding identity is hashed with node and fan-out item identity; the label is display metadata.  |
+| `retry.max_attempts`   | no       | Positive integer               | Total pre-submission attempts, including the first. This is not `retry.max`.                               |
+| `retry.on_failure`     | no       | `fresh_session`                | Valid only with continuous mode and `max_attempts >= 2`.                                                   |
+
+### Judge criteria
+
+Goal v1 accepts three criterion types:
+
+| Type          | Required fields                       | Behavior                                                                                   |
+| ------------- | ------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `command`     | `id`, `type`, `check`                 | Runs the exact authored command. `expect` defaults to `exit_zero`.                         |
+| `agent-judge` | `id`, `type`, `agent`, rubric/prompt  | Asks the selected judge to return a structured verdict and blocking issues.                |
+| `extension`   | `id`, `type`, `tool`, optional inputs | Calls the configured extension judge through the pinned executed-definition tool snapshot. |
+
+`human` criteria are unsupported for a Goal node. A Goal cannot keep its worker lease while
+waiting for a human criterion. Use `on_exhausted: escalate` or another typed Goal boundary when an
+operator decision is required.
+
+`check` belongs only to `command` criteria. It is an authored shell command in a Loop definition.
+Text entered through a conversational `/goal` `verify:` clause is different: AGH adds that text to
+the synthetic agent-judge rubric and never converts it into a command. See
+[Operate a Goal from a session](/runtime/core/loops/goals#verification-and-constraints).
+
+## Session and retry semantics
+
+Continuous mode preserves the same durable binding across work turns. When the provider reports
+context usage, the checkpoint records `known`; absent telemetry is `unknown`; a compaction attempt
+that still needs a newer report is `pending`. These states are runtime evidence, not authored
+values.
+
+`retry.on_failure: fresh_session` is a bounded pre-submission policy. It applies only when AGH proves
+that the external prompt effect did not start, such as a failed session preparation or prompt-slot
+admission. Each rejection consumes one attempt and advances `prompt_attempt`. Once the durable work
+claim starts, AGH never retries or replays that prompt. Recovery after context exhaustion creates a
+new continuation turn that inspects current state.
+
+Continuous Goal nodes cannot run beneath a `fan-out` ancestor whose `max_parallel` is greater than
+one. A `collect` boundary ends that ancestor check. This prevents concurrent branches from claiming
+one continuous binding.
+
+## Exhaustion and approval grants
+
+Approval grants are checkpoint-local and monotonic. They authorize one specific re-entry; they are
+not a general budget override.
+
+| Boundary                                 | Grant kind / scope              | What approval authorizes                                                                                  |
+| ---------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Turn limit with `on_exhausted: escalate` | `turn-extension` / `turn-limit` | Adds the node's pinned `max_turns` to the current limit and enqueues one successor segment.               |
+| Budget crossed after work started        | `budget` / `settle-current`     | Closes only that turn: required compact/judge/persist work. It cannot start another work prompt.          |
+| Budget crossed before work               | `budget` / `work-and-settle`    | Allows one recorded candidate turn plus the compact/judge/persist work required to settle that same turn. |
+| Session-origin reseed confirmation       | `reseed` / `rotate-binding`     | Creates and activates one successor binding while the origin session remains the Goal owner.              |
+| Boundary-safe pause                      | `plain-resume` / `reactivate`   | Enqueues one successor segment without changing the turn limit or budget.                                 |
+
+The base Loop budget remains authoritative. `on_exceeded: halt` is terminal `exhausted` and cannot
+receive a budget grant. `on_exceeded: escalate` selects `settle-current` or `work-and-settle` from
+the durable checkpoint phase. See [Loop guardrails](/runtime/core/loops/guardrails).
+
+## Lint codes
+
+The shared daemon linter returns these Goal-specific codes:
+
+| Code                                      | Meaning                                                                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `goal_objective_required`                 | `params.objective` is empty.                                                             |
+| `goal_judge_required`                     | Judge list, ID, supported type, or type-specific required field is missing.              |
+| `goal_human_judge_unsupported`            | A `human` criterion was authored.                                                        |
+| `goal_max_turns_required`                 | `params.max_turns` is below 1.                                                           |
+| `goal_output_status_missing_blocked`      | The output schema cannot represent `status: blocked`.                                    |
+| `goal_on_exhausted_invalid`               | Exhaustion policy is neither `halt` nor `escalate`.                                      |
+| `session_spec_ambiguous`                  | Session does not select exactly isolated or continuous mode.                             |
+| `continuous_forbids_parallel`             | A continuous Goal sits beneath parallel fan-out without a collect boundary.              |
+| `continuous_handle_reused`                | Two continuous Goal nodes reuse one display handle label.                                |
+| `retry_max_unsupported`                   | Retired `retry.max` was used; author `retry.max_attempts`.                               |
+| `retry_fresh_session_requires_continuous` | Fresh-session retry lacks continuous mode or at least two total pre-submission attempts. |
+
+Validate before publishing:
+
+```bash
+agh loop validate --file .agh/loops/my-loop.yaml -o json
+```
+
+The visual editor uses the same validate route and linter codes. It does not maintain a separate
+Goal schema.

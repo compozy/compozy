@@ -1,0 +1,385 @@
+---
+title: Session Lifecycle
+description: How AGH creates, activates, stops, and classifies one durable runtime session.
+---
+
+A session is the runtime object AGH manages. It ties together:
+
+- one ACP-compatible agent subprocess
+- one workspace boundary
+- one per-session SQLite event store
+- one permission policy
+- one durable AGH session ID
+
+That AGH session ID stays stable across stop and resume cycles, even when the underlying ACP
+session ID changes.
+
+<OperatorNote>
+  The lifecycle state machine is strict. Live transitions are only `starting -> active ->
+  stopping -> stopped`. If AGH later repairs stale metadata after a crash, that is a recovery
+  step on read, not a live extra state transition.
+</OperatorNote>
+
+## State machine
+
+<Mermaid
+  chart={`stateDiagram-v2
+[*] --> starting: create
+stopped --> starting: resume
+starting --> active: agent ready
+active --> stopping: stop requested
+active --> stopping: shutdown or process exit
+stopping --> stopped: finalization complete`}
+  caption="AGH creates or resumes a session into `starting`, activates it once the ACP driver is ready, and finalizes it through `stopping` before it becomes durable `stopped` state."
+/>
+
+| State      | Meaning                                                                                                                                              | Valid live transition |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `starting` | AGH has durably allocated the session ID, prepared its storage, and published the catalog record while provider startup continues in the background. | `starting -> active`  |
+| `active`   | The agent is ready to accept prompts and emit events. This is the only state that accepts live prompts and approvals.                                | `active -> stopping`  |
+| `stopping` | AGH has accepted a stop request and is draining the session toward a terminal state.                                                                 | `stopping -> stopped` |
+| `stopped`  | Final metadata is written, the session recorder is closed, and the session can be listed, inspected, or resumed later.                               | none                  |
+
+## Creating a session
+
+Create a new session from the CLI:
+
+```bash
+agh session new \
+  --agent general \
+  --cwd "$PWD" \
+  --name code-review \
+  --provider codex \
+  --model gpt-5.6-sol \
+  --reasoning-effort high \
+  --prompt "Review the current changes and report correctness risks."
+```
+
+Create the same session over HTTP:
+
+```bash
+curl -X POST http://localhost:2123/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_name": "general",
+    "name": "code-review",
+    "workspace_path": "/absolute/path/to/repo",
+    "provider": "codex",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "prompt": "Review the current changes and report correctness risks."
+  }'
+```
+
+`name` is optional for user sessions. With `roles.auto_title.enabled = true`, AGH starts one bounded
+title pass after the first assistant response is persisted, then stores a successful title in
+session metadata and the catalog. An explicit name always wins any race. If generation is disabled
+or fails, the session remains unnamed; daemon-managed session types are never eligible. Configure
+the title pass agent, provider, model, reasoning, and fallback routes under `[roles.auto_title]`.
+
+The request must include exactly one of:
+
+- `workspace`: a registered workspace name or ID
+- `workspace_path`: an absolute filesystem path
+
+Behind that request, AGH:
+
+1. Resolves the workspace and agent definition.
+2. Creates `~/.agh/sessions/<session-id>/`.
+3. Opens `events.db` for the session.
+4. Persists `starting` metadata and the workspace catalog row.
+5. If `prompt` contains non-whitespace content, trims it and stages it in the session input queue.
+6. Returns HTTP/UDS `201 Created` with that durable session.
+7. Spawns the ACP subprocess and initializes the JSON-RPC connection in the background.
+8. Creates or loads the ACP session.
+9. Transitions the AGH session from `starting` to `active`.
+10. Dispatches the staged prompt as the normal first user turn.
+
+Prompt staging is part of durable admission. If the queue rejects the prompt, AGH removes the new
+session, its catalog row, and its session directory instead of returning `201`. Omitting `prompt`,
+sending an empty string, or sending only whitespace keeps create-only behavior and does not enqueue
+a turn. The selected provider, model, and reasoning effort are fixed for the session and apply before
+its first prompt is dispatched.
+
+`agh session new` waits for step 9 by default so interactive callers receive an active session or a
+startup error. Add `--no-wait` to return the durable `starting` record immediately. HTTP/UDS callers
+always receive the accepted record and should read session detail until it becomes `active` or
+durably `stopped`. A failed background start persists `failure.kind=startup_failure`; it does not
+delete the accepted session or its diagnostic evidence. A staged first prompt remains queued after
+startup failure and is dispatched once after an explicit resume activates the session. Deleting the
+session removes that queued input with the rest of the session state.
+
+## Running an active session
+
+Once a session is `active`, prompts are accepted through the CLI or HTTP transport:
+
+```bash
+agh session prompt sess-1234 "Explain how the stop path works."
+```
+
+```bash
+curl -N -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/prompt \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Explain how the stop path works."}'
+```
+
+Two operational details matter here:
+
+- AGH records a `user_message` event before it hands the prompt to ACP, so persisted history keeps the prompt even if prompt startup fails later.
+- One session processes one prompt turn at a time. Stop logic waits for in-flight prompt setup to finish before it asks the ACP driver to stop the subprocess.
+- Long-running prompts stay healthy through runtime activity supervision. AGH updates
+  `activity.last_activity_at` on real ACP events and metadata-only waiting heartbeats, then emits
+  lower-frequency `runtime_progress` and `runtime_warning` events for clients.
+- AGH also maintains a separate metadata-only [session health](/runtime/core/sessions/health)
+  record (`state`, `health`, `attachable`, `eligible_for_wake`). Activity supervision feeds
+  health, but the two are distinct authorities — supervision owns timers and persisted progress
+  events, health is consumed by `HEARTBEAT.md` wake decisions and the
+  `agh session health|status|inspect` surfaces.
+
+### Busy input modes
+
+An active session still processes one prompt turn at a time, but AGH accepts explicit busy-input
+modes so operators and agents do not have to guess what happens when a prompt is already running.
+`session.busy_input.default_mode` defaults to `queue`; `session.busy_input.queue_cap` bounds
+the persisted queue.
+
+| Mode        | CLI                                            | HTTP shape                                                                                        | Result                                                                                                                                                     |
+| ----------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queue`     | `agh session prompt <id> "<text>" --queue`     | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"..."}`     | Persists the input in FIFO order and returns `202` with `queue_entry_id`, position, and generation.                                                        |
+| `interrupt` | `agh session prompt <id> "<text>" --interrupt` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","message":"..."}` | Cancels the active turn through the session cancellation path, advances the queue generation, drops stale queued input, and starts the replacement prompt. |
+| `steer`     | `agh session prompt <id> "<text>" --steer`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"..."}`                        | Stages steering text for the next ACP `tool_result` boundary and reports `fallback_mode_if_no_tool_result: "queue"`.                                       |
+
+Queued entries can be canceled when the caller has the queue entry id:
+
+```bash
+agh session prompt sess-1234 --cancel queue_entry_1234
+```
+
+```bash
+curl -X DELETE \
+  http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/prompt/queue/queue_entry_1234
+```
+
+`POST /api/workspaces/:workspace/sessions/:id/interrupt` is the dedicated cancel-current-turn
+operation when the caller wants to interrupt without supplying a replacement prompt. Every busy-input
+transition writes transcript marker evidence for recap, replay, and audit: queued, accepted,
+interrupted, steered, and dropped stale input are visible instead of being hidden client behavior.
+
+A dedicated interrupt followed by `steer` preserves the canceled authored prompt once and submits
+it with the explicit correction as the next generation-fenced input. A second steer cannot reuse
+that salvage. The `--interrupt` mode shown above supplies a plain replacement prompt, so it discards
+the canceled text instead of composing it into the replacement.
+
+### Runtime activity supervision
+
+Activity supervision is designed for prompts that may run for hours. It treats inactivity as the
+failure mode, not total elapsed time.
+
+For each active prompt turn, AGH tracks:
+
+- turn ID and source
+- turn start time
+- last activity time, kind, and detail
+- current tool and tool call ID when known
+- last progress notification time
+- idle and elapsed seconds
+
+Short heartbeats keep `last_activity_at` fresh in session metadata and health output. They do not
+enter the persisted event stream. `runtime_progress` events are persisted only at
+`session.supervision.progress_notify_interval`, and `runtime_warning` is persisted once when
+`session.supervision.inactivity_warning_after` is crossed.
+
+When `session.supervision.inactivity_timeout` is crossed, AGH cancels the prompt cooperatively. If
+the prompt does not finish within `session.supervision.timeout_cancel_grace`, the session is stopped
+with stop reason `timeout`.
+
+## Stopping a session
+
+Stop a running session from the CLI:
+
+```bash
+agh session stop sess-1234
+```
+
+Stop it over HTTP:
+
+```bash
+curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stop
+```
+
+The stop path is cooperative first and forceful only when needed:
+
+1. `active -> stopping`
+2. wait for any in-flight prompt setup to finish
+3. send ACP `session/cancel`
+4. wait for the subprocess to exit
+5. escalate through the subprocess shutdown path if it does not exit cleanly
+6. classify the stop reason
+7. record a terminal `session_stopped` event
+8. close the recorder and write final metadata
+9. `stopping -> stopped`
+
+Stopping preserves the session directory, catalog row, metadata, events, and resume eligibility.
+
+### Timeout behavior
+
+AGH has separate timeout concepts:
+
+| Timeout                                    | What it protects                                                                        |
+| ------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `session.limits.timeout`                   | Optional wall-clock session limit. `0s` disables it.                                    |
+| `session.supervision.inactivity_timeout`   | Prompt inactivity limit. Long-running prompts remain healthy if activity continues.     |
+| `session.supervision.timeout_cancel_grace` | Grace period after inactivity timeout cancel before AGH stops the session as `timeout`. |
+| ACP driver stop timeout                    | Subprocess shutdown escalation after cooperative stop.                                  |
+| Session lifecycle timeout                  | Recorder close and final cleanup work during stop.                                      |
+
+The important distinction is that inactivity timeout is not wall-clock timeout. A long prompt can
+run beyond `inactivity_timeout` as long as AGH keeps observing real activity or controlled waiting
+heartbeats.
+
+## Stop reasons
+
+The session manager currently emits these persisted stop classifications:
+
+| Stop reason       | When AGH uses it                                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `completed`       | The agent finished normally.                                                                                                      |
+| `user_canceled`   | A normal user stop request.                                                                                                       |
+| `max_iterations`  | A user stop request carried `max_iterations` detail.                                                                              |
+| `loop_detected`   | A user stop request carried `loop_detected` detail.                                                                               |
+| `budget_exceeded` | A user stop request carried `budget_exceeded` detail.                                                                             |
+| `timeout`         | Runtime supervision detected inactivity, prompt cancel did not complete within the configured grace, and AGH stopped the session. |
+| `error`           | Start or stop failed, or the process exited unexpectedly without a crash wait error.                                              |
+| `agent_crashed`   | The subprocess exited with a wait error, or AGH repaired stale `active`/`stopping` metadata after a daemon crash.                 |
+| `hook_stopped`    | A required lifecycle hook denied continuation.                                                                                    |
+| `shutdown`        | The daemon shut the session down.                                                                                                 |
+
+Inspect the current session state and stop classification at any time:
+
+```bash
+agh session status sess-1234
+```
+
+## Removing persisted history
+
+Remove a session only when its durable history is no longer needed:
+
+```bash
+agh session remove sess-1234
+```
+
+```bash
+curl -X DELETE http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234
+```
+
+Removal stops an active session first, deletes its durable catalog row and session directory, and
+emits a workspace-scoped catalog deletion signal. A successful removal is not resumable and later
+status or detail reads return session not found. If deletion fails before the directory is removed,
+AGH preserves or restores catalog truth instead of reporting a partially deleted session.
+
+## Failure diagnostics
+
+Stop reasons answer "why did the AGH session stop?" Failure diagnostics answer "what kind of
+lifecycle failure did AGH classify, and what evidence is available?" When a lifecycle failure occurs,
+AGH persists a `failure` object with:
+
+- `kind`: stable machine-readable failure kind
+- `summary`: bounded redacted diagnostic text
+- `crash_bundle_path`: path to a redacted crash bundle when AGH captured one
+
+The same failure object is exposed through session status, session list JSON, session SSE terminal
+events, and `agh status`.
+
+```bash
+agh session status sess-1234 -o json | jq '.session.failure'
+```
+
+Current failure kinds are:
+
+| Failure kind           | Meaning                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------- |
+| `startup_failure`      | AGH could not finish preparing, launching, initializing, or resuming the provider. |
+| `handshake_failure`    | The subprocess launched but ACP initialization did not complete.                   |
+| `load_session_failure` | ACP `session/load` failed while resuming an existing provider session.             |
+| `protocol_failure`     | ACP returned a structured protocol/request error outside a prompt-specific path.   |
+| `prompt_failure`       | ACP prompt submission or prompt streaming failed.                                  |
+| `cancellation`         | The operation was canceled by user action or context cancellation.                 |
+| `permission_failure`   | A lifecycle hook or permission boundary denied continuation.                       |
+| `process_exit`         | The provider subprocess exited unexpectedly or returned a wait error.              |
+| `transport_failure`    | The ACP stdio transport closed or failed while AGH expected protocol traffic.      |
+| `timeout`              | Runtime supervision or lifecycle timeout expired.                                  |
+| `unknown_failure`      | AGH had an error but no more specific kind was available.                          |
+
+Crash bundles are written under `~/.agh/logs/crash-bundles/` by default. They are JSON documents
+with schema `agh.session_crash_bundle.v1`, session identity, provider identity, failure kind,
+process metadata, error text, and captured stderr when available. Bundle contents are bounded and
+redacted before they are written, and files are created with owner-only permissions.
+
+## Crash repair and restart behavior
+
+AGH repairs stale metadata the next time it reads a stopped session after an unclean daemon exit.
+That repair is what makes status, list, and resume safe after a crash:
+
+- stale `active` becomes `stopped` with `agent_crashed`, `process_exit`, and detail `daemon crashed while session active`
+- stale `stopping` becomes `stopped` with `agent_crashed`, `process_exit`, and detail `stop did not complete`
+- stale `starting` becomes `stopped` with `error`, `startup_failure`, and detail `start did not complete`
+
+During daemon boot, AGH also inspects stopped sessions whose stop reason is `agent_crashed` or
+`error`. If the final persisted turn was interrupted, AGH appends repair events to terminalize the
+transcript: dangling tool calls receive interrupted tool results, then the turn receives a terminal
+error event. The repair is append-only; AGH does not truncate, delete, or resequence session events.
+
+### Provider context recovery
+
+When the runtime reactivates an existing AGH session, it first asks the provider to load the saved
+ACP session. If the provider does not support `session/load`, or the saved ACP session no longer
+exists, AGH starts a fresh provider session and stages a pruned projection of that AGH session's
+persisted transcript. The projection is prepended to the next prompt the provider accepts; resume
+does not issue an autonomous prompt or rewrite the original authored message.
+
+This fallback appends a durable `session_recovered` transcript marker with the summary `Context
+rebuilt from log.` Successful ACP loads do not add the marker or replay persisted messages. Replay
+uses only the current session's event store, including when different workspaces contain sessions
+with similar content.
+
+This repair happens before recap and replay. The repaired session keeps the same AGH session ID.
+Operators and agents can inspect or run the same transcript repair explicitly:
+
+```bash
+agh session repair <session-id> --dry-run
+agh session repair <session-id>
+```
+
+## What gets persisted
+
+Every session owns a directory under `~/.agh/sessions/<session-id>/`:
+
+- `meta.json`: durable session metadata such as state, workspace, session CWD, stop reason, failure diagnostics, and ACP session ID
+- `events.db`: persisted event, token usage, and hook-run history
+
+That durable store is what makes [resume attach](/runtime/core/sessions/resume), [event replay](/runtime/core/sessions/events), deterministic recap, and [approval audit](/runtime/core/sessions/permissions) possible.
+
+## Session types
+
+AGH records why a session exists:
+
+| Type          | Meaning                                                                  |
+| ------------- | ------------------------------------------------------------------------ |
+| `user`        | Normal interactive work created by a person or client.                   |
+| `dream`       | Background memory consolidation work.                                    |
+| `system`      | Internal AGH-managed work.                                               |
+| `coordinator` | Managed autonomy coordinator for workspace-scoped coordinated task runs. |
+| `spawned`     | Child session created by an agent through safe spawn.                    |
+
+Dream sessions are special for permissions: they always start with `approve-all`.
+
+Coordinator sessions are root lineage rows. They are created only after executable coordinated work
+is enqueued, not when a task is merely created. Spawned sessions record parent, root, depth, role,
+TTL, and permission metadata so AGH can reap children when their TTL expires or their parent stops.
+
+## Next steps
+
+- Use [Resume Attach and Replay](/runtime/core/sessions/resume) when you need to attach to a resumable live session or reconstruct prior work.
+- Use [Event Streaming](/runtime/core/sessions/events) when you need the exact stored and streamed session record.
+- Use [Runtime Autonomy](/runtime/core/autonomy) for coordinator, task lease, and safe-spawn behavior.
+- Use [Permissions](/runtime/core/sessions/permissions) when you need to control or approve agent actions.

@@ -1,0 +1,192 @@
+{
+    "extension": {
+        "name": "dev-cycle",
+        "version": "0.1.0",
+        "description": "First-party developer Loops for task delivery and CodeRabbit review remediation.",
+        "min_agh_version": "0.0.9"
+    },
+    "capabilities": {
+        "provides": ["tool.provider", "loop.watch_source"]
+    },
+    "resources": {
+        "loops": ["loops"],
+        "agents": ["agents"],
+        "tools": {
+            "import_tasks": {
+                "display_title": "Import Compozy task files",
+                "description": "Parse a Compozy task manifest and task markdown files into ordered pending task payloads.",
+                "handler": "import_tasks",
+                "risk": "read",
+                "read_only": true,
+                "concurrency_safe": true,
+                "visibility": "model",
+                "input_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["pattern"],
+                    "properties": {
+                        "pattern": { "type": "string", "minLength": 1 }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["tasks", "count"],
+                    "properties": {
+                        "tasks": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                    "id",
+                                    "number",
+                                    "title",
+                                    "path",
+                                    "body",
+                                    "body_ref",
+                                    "blocks"
+                                ],
+                                "properties": {
+                                    "id": { "type": "string" },
+                                    "number": { "type": "integer" },
+                                    "title": { "type": "string" },
+                                    "path": { "type": "string" },
+                                    "body": { "type": "string" },
+                                    "body_ref": { "type": "string" },
+                                    "blocks": {
+                                        "type": "array",
+                                        "items": { "type": "string" }
+                                    }
+                                }
+                            }
+                        },
+                        "count": { "type": "integer", "minimum": 0 }
+                    }
+                },
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "import_tasks"
+                }
+            },
+            "coderabbit_fetch_unresolved": {
+                "display_title": "Fetch CodeRabbit unresolved review threads",
+                "description": "Fetch unresolved CodeRabbit PR review threads for a GitHub pull request.",
+                "handler": "coderabbit_fetch_unresolved",
+                "risk": "read",
+                "read_only": true,
+                "concurrency_safe": true,
+                "visibility": "model",
+                "input_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["pr"],
+                    "properties": {
+                        "pr": {
+                            "oneOf": [
+                                { "type": "integer", "minimum": 1 },
+                                { "type": "string", "minLength": 1 }
+                            ]
+                        },
+                        "include_nitpicks": {
+                            "oneOf": [
+                                { "type": "boolean", "default": false },
+                                { "type": "string", "enum": ["true", "false"] }
+                            ]
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "required": ["pr", "unresolved_count", "issues"],
+                    "properties": {
+                        "pr": { "type": "string" },
+                        "unresolved_count": { "type": "integer", "minimum": 0 },
+                        "issues": { "type": "array", "items": { "type": "object" } }
+                    }
+                },
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "coderabbit_fetch_unresolved"
+                }
+            },
+            "coderabbit_resolve_threads": {
+                "display_title": "Resolve CodeRabbit review threads",
+                "description": "Resolve CodeRabbit review threads after fixes have been applied.",
+                "handler": "coderabbit_resolve_threads",
+                "risk": "mutating",
+                "read_only": false,
+                "concurrency_safe": false,
+                "visibility": "model",
+                "input_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["pr"],
+                    "properties": {
+                        "pr": {
+                            "oneOf": [
+                                { "type": "integer", "minimum": 1 },
+                                { "type": "string", "minLength": 1 }
+                            ]
+                        },
+                        "issues": { "type": "array", "items": { "type": "object" } },
+                        "results": { "type": "array", "items": { "type": "object" } }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "required": ["pr", "resolved_count", "resolved_threads"],
+                    "properties": {
+                        "pr": { "type": "string" },
+                        "resolved_count": { "type": "integer", "minimum": 0 },
+                        "resolved_threads": { "type": "array", "items": { "type": "string" } }
+                    }
+                },
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "coderabbit_resolve_threads"
+                }
+            },
+            "git_push": {
+                "display_title": "Push current branch",
+                "description": "Push the current or selected branch after verifying that HEAD advanced.",
+                "handler": "git_push",
+                "risk": "open_world",
+                "read_only": false,
+                "open_world": true,
+                "concurrency_safe": false,
+                "visibility": "model",
+                "input_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "remote": { "type": "string", "default": "origin" },
+                        "branch": { "type": "string" },
+                        "require_head_advanced": { "type": "boolean", "default": false },
+                        "expected_head": { "type": "string" }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "required": ["remote", "branch", "head"],
+                    "properties": {
+                        "remote": { "type": "string" },
+                        "branch": { "type": "string" },
+                        "head": { "type": "string" },
+                        "pushed": { "type": "boolean" }
+                    }
+                },
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "git_push"
+                }
+            }
+        }
+    },
+    "subprocess": {
+        "command": "{{agh_executable}}",
+        "args": ["__internal", "extension-provider", "dev-cycle"],
+        "health_check_interval": "30s",
+        "shutdown_timeout": "5s"
+    }
+}

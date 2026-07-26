@@ -1,0 +1,58 @@
+[extension]
+name = "whatsapp"
+version = "0.1.0"
+description = "Production WhatsApp bridge provider built on internal/bridgesdk"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "whatsapp"
+display_name = "WhatsApp"
+
+[[bridge.secret_slots]]
+name = "access_token"
+description = "WhatsApp Cloud API access token"
+required = true
+
+[[bridge.secret_slots]]
+name = "app_secret"
+description = "Meta app secret used for webhook signature verification"
+required = true
+
+[[bridge.secret_slots]]
+name = "verify_token"
+description = "Meta webhook verify token for challenge-response handshakes"
+required = true
+
+[bridge.config_schema]
+schema = "agh.bridge.whatsapp"
+version = "1"
+
+[actions]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
+
+[subprocess]
+command = "./bin/whatsapp"
+args = ["serve"]
+
+[subprocess.env]
+AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH = "{{env:AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH}}"
+AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH = "{{env:AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH}}"
+AGH_BRIDGE_ADAPTER_STATE_PATH = "{{env:AGH_BRIDGE_ADAPTER_STATE_PATH}}"
+AGH_BRIDGE_ADAPTER_DELIVERY_PATH = "{{env:AGH_BRIDGE_ADAPTER_DELIVERY_PATH}}"
+AGH_BRIDGE_ADAPTER_INGEST_PATH = "{{env:AGH_BRIDGE_ADAPTER_INGEST_PATH}}"
+AGH_BRIDGE_ADAPTER_STARTS_PATH = "{{env:AGH_BRIDGE_ADAPTER_STARTS_PATH}}"
+AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH}}"
+AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
+AGH_BRIDGE_WHATSAPP_LISTEN_ADDR = "{{env:AGH_BRIDGE_WHATSAPP_LISTEN_ADDR}}"
+AGH_BRIDGE_WHATSAPP_API_BASE_URL = "{{env:AGH_BRIDGE_WHATSAPP_API_BASE_URL}}"
+
+[security]
+capabilities = ["bridge.read", "bridge.write"]

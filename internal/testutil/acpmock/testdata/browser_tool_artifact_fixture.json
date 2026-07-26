@@ -1,0 +1,50 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "tool-artifact-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You emit one retained tool-result reference for browser E2E verification.",
+            "turns": [
+                {
+                    "name": "retained-tool-result",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "exercise tool artifact recovery"
+                    },
+                    "steps": [
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "tool-artifact-e2e-009",
+                            "title": "agh__memory_recall",
+                            "tool_kind": "read",
+                            "raw_input": {
+                                "query": "release verification evidence"
+                            },
+                            "status": "completed",
+                            "content_text": "E2E-009 bounded retained-result preview",
+                            "raw_output": {
+                                "preview": "E2E-009 bounded retained-result preview",
+                                "truncated": true,
+                                "artifacts": [
+                                    {
+                                        "uri": "agh://tool-artifacts/art_c82d7447711d610d6c0d8fd52b8c8ee99f051a81e62f51bf052eaad467fca444",
+                                        "name": "tool-result.json",
+                                        "mime_type": "application/vnd.agh.tool-result+json",
+                                        "bytes": 140084,
+                                        "sha256": "c82d7447711d610d6c0d8fd52b8c8ee99f051a81e62f51bf052eaad467fca444"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Retained result is ready for page-back."]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

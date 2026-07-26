@@ -1,0 +1,47 @@
+---
+title: "agh agent heartbeat inspect"
+description: "Inspect one agent's resolved Heartbeat policy"
+---
+
+## agh agent heartbeat inspect
+
+Inspect one agent's resolved Heartbeat policy
+
+```
+agh agent heartbeat inspect <agent> [flags]
+```
+
+### Examples
+
+```
+  agh agent heartbeat inspect coder --workspace checkout-api --json
+```
+
+### Options
+
+```
+  -h, --help               help for inspect
+      --workspace string   Resolve the agent from a workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh agent heartbeat inspect <agent> -o json
+```

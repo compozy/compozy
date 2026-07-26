@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "systems/sandbox.html",
+  "entry": "systems/sandbox.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-18T01:19:21.234Z",
+  "updatedAt": "2026-07-18T01:19:21.234Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

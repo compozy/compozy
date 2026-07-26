@@ -1,0 +1,55 @@
+---
+title: "agh task child create"
+description: "Create a child task beneath a parent"
+---
+
+## agh task child create
+
+Create a child task beneath a parent
+
+```
+agh task child create <parent-id> [flags]
+```
+
+### Options
+
+```
+      --auto-enqueue-on-ready             Auto-enqueue the child run once dependencies complete
+      --description string                Child task description
+  -h, --help                              help for create
+      --id string                         Explicit child task ID
+      --identifier string                 Human-friendly child task identifier
+      --metadata string                   Optional child metadata JSON
+      --network string                    Network participation mode: local or live
+      --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
+      --network-channel string            Named channel id when strategy is named
+      --network-channel-strategy string   Live channel strategy: named, run, or loop_run
+      --owner-kind string                 Optional child owner kind
+      --owner-ref string                  Optional child owner reference
+      --priority string                   Child task priority: low, medium, high, or urgent
+      --scope string                      Child task scope: global or workspace
+      --title string                      Child task title
+      --workspace string                  Workspace path, name, or ID (required when --scope=workspace)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task child create <parent-id> -o json
+```

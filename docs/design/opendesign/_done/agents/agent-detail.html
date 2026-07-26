@@ -1,0 +1,1883 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>release-captain · Agents · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --overlay:var(--shadow-overlay);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    --focus-ring-inset:inset 0 0 0 1px var(--line-strong);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input,textarea{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  code,kbd,pre,.mono,.pill[data-mono="true"],.metric__v,.sess-count,.table{
+    -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
+  :is(.btn,.lane-tab,.pill-group__item,.menu button,.head-close):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas);min-width:0}
+  .topbar__trailing{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb a:hover{color:var(--fg-strong)}
+  .crumb b{color:var(--fg-strong);font-weight:560;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:28ch}
+  .crumb svg{width:13px;height:13px;color:var(--faint);flex:none}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn--danger{background:var(--danger-tint);border-color:transparent;color:var(--danger)}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .btn--spin svg{animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:24px 36px 80px}
+
+  .banner{display:flex;align-items:flex-start;gap:10px;margin-bottom:18px;padding:12px 14px;border-radius:var(--radius-md);
+    background:var(--warning-tint);border:1px solid color-mix(in srgb,var(--warning) 22%,transparent)}
+  .banner svg{width:16px;height:16px;color:var(--warning);flex:none;margin-top:1px}
+  .banner__title{font-size:12.5px;font-weight:560;color:var(--warning);margin-bottom:4px}
+  .banner__item{font-size:12px;color:var(--muted);line-height:1.5}
+  .banner__item code{font-family:var(--font-mono);font-size:11px;color:var(--fg)}
+
+  .dh{display:flex;align-items:center;gap:14px;padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:0}
+  .dh__icon{width:42px;height:42px;border-radius:var(--radius-lg);display:grid;place-items:center;flex:none;background:var(--elevated);color:var(--muted);box-shadow:var(--highlight)}
+  .dh__icon svg{width:21px;height:21px}
+  .dh__main{min-width:0;flex:1}
+  .dh__namerow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .dh__name{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong)}
+  .dh__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--muted)}
+  .dh__meta .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+  .dh__actions{display:flex;align-items:center;gap:8px;flex:none}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;width:max-content;background:var(--neutral-tint);color:var(--muted)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .pill[data-mono="true"]{font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:0}
+  .pill[data-tone="success"],.pill--success{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"],.pill--warning{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"],.pill--danger{background:var(--danger-tint);color:var(--danger)}
+  .pill[data-tone="info"],.pill--info{background:var(--info-tint);color:var(--info)}
+  .pill[data-tone="neutral"],.pill--neutral{background:var(--neutral-tint);color:var(--muted)}
+
+  .lane-tabs{display:flex;align-items:stretch;gap:0;margin:0 0 22px;border-bottom:1px solid var(--line);overflow-x:auto}
+  .lane-tab{position:relative;display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 14px;border:0;background:transparent;
+    color:var(--subtle);font-size:13px;font-weight:500;letter-spacing:-.01em;cursor:pointer;white-space:nowrap;
+    transition:color var(--dur) var(--ease)}
+  .lane-tab:hover{color:var(--muted)}
+  .lane-tab[aria-selected="true"]{color:var(--fg-strong)}
+  .lane-tab[aria-selected="true"]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--accent);border-radius:1px}
+  .lane-tab .sess-count{font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--muted);background:var(--canvas-soft);
+    border-radius:var(--radius-xs);padding:1px 5px;min-width:16px;text-align:center}
+  .lane-tab .live{font-size:10.5px;font-weight:600;color:var(--success)}
+
+  .panel{display:none}
+  .panel.is-active{display:block}
+
+  .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:24px}
+  .metric{padding:14px 16px;border-radius:var(--radius-lg);background:var(--canvas-soft);border:1px solid var(--line)}
+  .metric__l{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px}
+  .metric__v{font-family:var(--font-mono);font-size:22px;font-weight:560;letter-spacing:-.03em;color:var(--fg-strong);font-variant-numeric:tabular-nums;line-height:1}
+  .metric__v[data-tone="success"]{color:var(--success)}
+  .metric__v[data-tone="danger"]{color:var(--danger)}
+  .metric__d{margin-top:6px;font-size:11.5px;color:var(--muted)}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;align-items:start}
+  .section{margin-bottom:24px}
+  .section__label{display:flex;align-items:center;gap:8px;padding-bottom:10px;font-size:11px;font-weight:600;letter-spacing:-.005em;color:var(--subtle);text-transform:uppercase}
+  .section__label .spacer{flex:1}
+  .section__label .act{font-size:11px;font-weight:520;color:var(--muted);text-transform:none;letter-spacing:0;display:inline-flex;align-items:center;gap:5px;cursor:pointer;background:none;border:0;padding:0;font-family:inherit}
+  .section__label .act:hover{color:var(--fg-strong)}
+  .section__label .act svg{width:12px;height:12px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+
+  .kv{display:flex;flex-direction:column}
+  .kv__row{padding:14px 16px;border-top:1px solid var(--line-soft)}
+  .kv__row:first-child{border-top:0}
+  .kv__k{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .kv__v{font-size:13px;line-height:1.55;color:var(--fg)}
+  .kv__v code,.mono{font-family:var(--font-mono);font-size:12px}
+  .muted-val{color:var(--muted)}
+
+  .sess-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--line-soft);color:inherit}
+  .sess-row:first-child{border-top:0}
+  .sess-row:hover{background:var(--row-hover)}
+  .sess-row__title{font-size:13px;font-weight:500;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sess-row__meta{margin-top:3px;font-family:var(--font-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .empty-line{padding:16px 18px;font-size:12.5px;color:var(--muted)}
+
+  .notice{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:8px 12px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12px;color:var(--muted)}
+  .notice svg{width:14px;height:14px;color:var(--warning);flex:none}
+
+  .taglist{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px}
+  .mcp-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 16px;border-top:1px solid var(--line-soft)}
+  .mcp-row:first-child{border-top:0}
+  .mcp-row__name{font-family:var(--font-mono);font-size:12.5px;font-weight:500;color:var(--fg-strong)}
+  .mcp-row__cmd{margin-top:4px;font-family:var(--font-mono);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mcp-row__env{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+
+  .file-tabs{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 12px;border-radius:var(--radius-xs);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;cursor:pointer;
+    transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+  .pill-group__item .miss{font-size:10px;font-weight:600;color:var(--warning);background:var(--warning-tint);border-radius:var(--radius-xs);padding:1px 5px}
+
+  .prose{padding:18px 20px;font-size:13.5px;line-height:1.65;color:var(--muted)}
+  .prose h3{font-size:14px;font-weight:560;color:var(--fg-strong);margin:16px 0 8px;letter-spacing:-.01em}
+  .prose h3:first-child{margin-top:0}
+  .prose p{margin:0 0 10px}
+  .prose ul{margin:0 0 10px;padding-left:1.2em}
+  .prose li{margin-bottom:4px}
+  .prose code{font-family:var(--font-mono);font-size:12px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 5px;color:var(--fg)}
+  .file-meta{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line-soft);font-size:12px;color:var(--muted)}
+  .file-meta .mono{font-family:var(--font-mono);font-size:11px}
+  .editor-wrap{padding:12px 16px}
+  .editor{width:100%;min-height:220px;padding:12px 14px;border-radius:var(--radius-md);border:1px solid var(--line);
+    background:var(--elevated);color:var(--fg);font-family:var(--font-mono);font-size:12px;line-height:1.55;resize:vertical;outline:none}
+  .editor:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .editor-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .editor-foot .pad{flex:1}
+  .diag-inline{padding:0 16px 12px;display:flex;flex-direction:column;gap:8px}
+  .diag-item{padding:10px 12px;border-radius:var(--radius-md);background:var(--danger-tint);border:1px solid color-mix(in srgb,var(--danger) 22%,transparent);font-size:12px;color:var(--danger)}
+  .diag-item code{font-family:var(--font-mono);font-size:11px;color:var(--fg)}
+
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 24px;text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle);box-sizing:content-box}
+  .empty b{font-size:18px;font-weight:500;color:var(--fg-strong);letter-spacing:-.022em}
+  .empty p{font-size:13px;max-width:28rem;line-height:1.6;color:var(--muted)}
+  .empty .btn{margin-top:4px}
+
+  .table-wrap{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .table th{text-align:left;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle);
+    padding:10px 14px;border-bottom:1px solid var(--line);background:var(--canvas-tint)}
+  .table td{padding:12px 14px;border-top:1px solid var(--line-soft);color:var(--fg);vertical-align:middle}
+  .table tr:first-child td{border-top:0}
+  .table tbody tr{cursor:pointer;transition:background var(--dur) var(--ease)}
+  .table tbody tr:hover{background:var(--row-hover)}
+  .table .mono{font-family:var(--font-mono);font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--muted)}
+  .table .title{font-weight:500;color:var(--fg-strong)}
+
+  .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}
+  .toolbar .spacer{flex:1}
+
+  .menu{position:fixed;z-index:60;min-width:190px;padding:5px;background:var(--elevated);border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow-overlay)}
+  .menu button{display:flex;align-items:center;gap:9px;width:100%;padding:7px 9px;border:0;background:transparent;color:var(--fg);font-size:12.5px;text-align:left;border-radius:var(--radius-sm);cursor:pointer}
+  .menu button:hover{background:var(--row-hover)}
+  .menu button svg{width:14px;height:14px;color:var(--subtle);flex:none}
+  .menu button.is-danger{color:var(--danger)}
+  .menu button.is-danger svg{color:var(--danger)}
+  .menu__sep{height:1px;margin:4px 2px;background:var(--line-soft)}
+
+  .scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:grid;place-items:center;padding:28px;z-index:40}
+  .modal{width:min(440px,100%);background:var(--canvas-soft);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+  .modal__head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 16px;border-bottom:1px solid var(--line-soft)}
+  .head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;background:var(--surface-glaze);color:var(--muted)}
+  .head-icon svg{width:17px;height:17px}
+  .head-txt{flex:1;min-width:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .modal__title{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em;margin-top:3px}
+  .modal__sub{font-size:13px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+  .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .head-close svg{width:16px;height:16px}
+  .modal__body{overflow-y:auto;padding:18px 20px 20px;min-height:0}
+  .modal__foot{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .foot-pad{flex:1}
+  .field{margin-bottom:0}
+  .field__label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--fg);margin-bottom:6px}
+  .input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);font-size:12.5px;outline:none}
+  .input.mono{font-family:var(--font-mono);font-size:12px}
+  .input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);font-size:12.5px;color:var(--fg)}
+
+  .sk{border-radius:var(--radius);background:linear-gradient(90deg,var(--elevated) 0%,var(--surface-glaze) 50%,var(--elevated) 100%);
+    background-size:200% 100%;animation:shimmer 1.4s var(--ease) infinite}
+  @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+  @media(max-width:1080px){
+    .layout{grid-template-columns:1fr}
+    .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media(max-width:720px){
+    .page{padding:22px 18px 64px}
+    .dh{flex-direction:column}
+    .dh__actions{width:100%;flex-wrap:wrap}
+    .metrics{grid-template-columns:1fr 1fr}
+    .table-wrap{overflow-x:auto}
+  }
+
+  /* ── Edit settings modal (create-redesign header/footer + sidebar body) ── */
+  .settings-scrim{position:fixed;inset:0;background:rgba(0,0,0,.62);backdrop-filter:blur(2px);display:grid;place-items:center;padding:28px;z-index:45}
+  .smodal{
+    width:min(780px,100%); height:min(720px,92vh);
+    background:var(--canvas-soft); border:1px solid var(--line); border-radius:14px;
+    box-shadow:var(--shadow-overlay); display:grid; grid-template-rows:auto 1fr auto; overflow:hidden;
+  }
+  .smodal__head{display:flex;align-items:flex-start;gap:16px;padding:20px 24px 18px;border-bottom:1px solid var(--line-soft)}
+  .smodal .head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+    background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+  .smodal .head-icon svg{width:18px;height:18px}
+  .smodal .head-txt{flex:1;min-width:0}
+  .smodal .eyebrow{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+  .smodal__title{font-size:16px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em;margin-top:3px}
+  .smodal__sub{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:64ch}
+  .smodal .head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);
+    background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+  .smodal .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .smodal .head-close svg{width:16px;height:16px}
+  .smodal .head-meta{display:flex;align-items:center;gap:8px;margin-right:4px;margin-top:2px}
+  .smodal__body{display:grid;grid-template-columns:196px 1fr;min-height:0}
+  .smodal .snav{overflow-y:auto;padding:14px 12px;border-right:1px solid var(--line-soft);background:var(--canvas-tint);display:flex;flex-direction:column;gap:2px}
+  .smodal .snav__item{display:flex;align-items:center;height:32px;padding:0 10px;border-radius:var(--radius-md);border:0;background:transparent;
+    color:var(--muted);font-size:12.5px;font-weight:500;cursor:pointer;text-align:left;width:100%}
+  .smodal .snav__item:hover{background:var(--row-hover);color:var(--fg)}
+  .smodal .snav__item[aria-current="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+  .smodal .snav__item--danger{color:var(--danger)}
+  .smodal .snav__item--danger:hover,.smodal .snav__item--danger[aria-current="true"]{background:var(--danger-tint);color:var(--danger);box-shadow:none}
+  .smodal .snav__sep{height:1px;background:var(--line);margin:8px 6px}
+  .smodal .form{overflow-y:auto;padding:22px 24px 28px;min-width:0}
+  .smodal .settings-main{max-width:none}
+  .smodal .spanel__title{font-size:15px;font-weight:600;letter-spacing:-.018em;color:var(--fg-strong);margin-bottom:6px}
+  .smodal .spanel__title--danger{color:var(--danger)}
+  .smodal .spanel__intro{font-size:12.5px;color:var(--muted);margin-bottom:20px;line-height:1.55}
+  .smodal .spanel .field{margin-bottom:18px}
+  .smodal .spanel .field:last-child{margin-bottom:0}
+  .smodal .field__label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--fg);margin-bottom:6px}
+  .smodal .field__hint{font-size:11.5px;color:var(--subtle);margin-top:6px;line-height:1.5}
+  .smodal .input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);font-size:12.5px;outline:none}
+  .smodal .input.mono{font-family:var(--font-mono);font-size:12px}
+  .smodal .input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .smodal .input:disabled{color:var(--muted);cursor:not-allowed}
+  .smodal .textarea{width:100%;min-height:200px;padding:11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);font-size:12.5px;line-height:1.65;outline:none;resize:vertical;font-family:var(--font-mono)}
+  .smodal .textarea:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .smodal .select-btn{width:100%;height:32px;padding:0 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    color:var(--fg);background:var(--elevated);border:1px solid var(--line);border-radius:var(--radius-md);font-size:12.5px;cursor:pointer;text-align:left}
+  .smodal .select-btn svg{width:14px;height:14px;color:var(--subtle);flex:none}
+  .smodal .select-btn__text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-mono);font-size:12px}
+  .smodal .radio-card-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .smodal .radio-card{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--canvas-tint);cursor:pointer;text-align:left}
+  .smodal .radio-card:hover{background:var(--row-hover);border-color:var(--line-strong)}
+  .smodal .radio-card[aria-checked="true"]{background:var(--elevated);border-color:var(--line-strong);box-shadow:var(--highlight)}
+  .smodal .radio-card__dot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--line-strong);flex:none;margin-top:2px;position:relative}
+  .smodal .radio-card[aria-checked="true"] .radio-card__dot{border-color:var(--accent)}
+  .smodal .radio-card[aria-checked="true"] .radio-card__dot::after{content:"";position:absolute;inset:2.5px;border-radius:50%;background:var(--accent)}
+  .smodal .radio-card__body b{display:block;font-size:12.5px;font-weight:500;color:var(--fg-strong);margin-bottom:2px}
+  .smodal .radio-card__body small{display:block;font-size:11.5px;color:var(--muted);line-height:1.4}
+  .smodal .token-field__chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:19px;align-items:center}
+  .smodal .token-empty{font-size:12px;color:var(--subtle)}
+  .smodal .token-chip{padding-right:4px}
+  .smodal .token-chip__x{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:50%}
+  .smodal .token-chip__x svg{width:9px;height:9px}
+  .smodal .token-field__add{display:flex;gap:8px}
+  .smodal .token-field__add .input{flex:1}
+  .smodal .panelbox{background:var(--canvas-tint);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+  .smodal .mcp-row{padding:14px 16px;border-top:1px solid var(--line-soft)}
+  .smodal .mcp-row:first-child{border-top:0}
+  .smodal .mcp-row__head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .smodal .mcp-row__name{font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--fg-strong)}
+  .smodal .mcp-row__cmd{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-bottom:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .smodal .mcp-row__envs{display:flex;flex-wrap:wrap;gap:6px}
+  .smodal .hairline{height:1px;background:var(--line);margin:12px 0 18px}
+  .smodal__foot{display:flex;align-items:center;gap:12px;padding:14px 24px;border-top:1px solid var(--line-soft);background:var(--canvas-soft)}
+  .smodal .foot-note{flex:1;font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:7px;min-width:0}
+  .smodal .foot-note svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .smodal .foot-note b{color:var(--muted);font-weight:500}
+  .btn--outline{background:transparent;border-color:var(--line);color:var(--fg)}
+  .btn--outline:hover{background:var(--row-hover)}
+  .btn--primary:disabled{opacity:.5;cursor:not-allowed}
+  .nest-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px);display:grid;place-items:center;padding:28px;z-index:55}
+  .select-menu{position:fixed;z-index:70;min-width:170px;padding:5px;background:var(--elevated);border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow-overlay)}
+  .select-menu button{display:flex;align-items:center;gap:9px;width:100%;padding:7px 9px;border:0;background:transparent;color:var(--fg);font-size:12.5px;text-align:left;border-radius:var(--radius-sm);cursor:pointer}
+  .select-menu button:hover{background:var(--row-hover)}
+  .select-menu .check-slot{width:14px;height:14px;flex:none}
+  .select-menu .mono{font-family:var(--font-mono);font-size:12px}
+  button.act{appearance:none;background:transparent;border:0;font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:inherit;padding:0}
+  @media(max-width:820px){
+    .settings-scrim{padding:12px}
+    .smodal{height:95vh}
+    .smodal__body{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    .smodal .snav{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line-soft)}
+    .smodal .snav__sep{display:none}
+    .smodal .radio-card-group{grid-template-columns:1fr}
+  }
+
+  /* ── Provider · Model · Reasoning selector (from provider-model-reasoning-selector) ── */
+  /* ============ THE COMPONENT — button group trigger ============ */
+  .pmr{display:inline-flex;align-items:stretch;height:34px;background:var(--elevated);border:1px solid var(--line-strong);
+    border-radius:var(--radius-md);box-shadow:var(--highlight),0 1px 2px rgba(0,0,0,.3);position:relative;user-select:none}
+  .pmr[data-open="true"]{border-color:var(--accent-dim)}
+  .pmr__seg{display:inline-flex;align-items:center;gap:8px;padding:0 12px;background:transparent;border:0;cursor:pointer;
+    position:relative;transition:background var(--dur-fast) var(--ease);white-space:nowrap}
+  .pmr__seg:hover{background:var(--btn-hover)}
+  .pmr__seg:first-child{border-radius:var(--radius-md) 0 0 var(--radius-md)}
+  .pmr__seg+.pmr__seg::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:1px;background:var(--line-strong)}
+  .pmr__seg--role{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);position:absolute;top:-16px;left:2px;opacity:0;transition:opacity var(--dur) var(--ease);pointer-events:none}
+  .pmr__glyph{width:20px;height:20px;border-radius:var(--radius-xs);background:var(--canvas);display:grid;place-items:center;
+    color:var(--fg);flex:none;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;padding:3px}
+  .pmr__glyph[data-fill="true"]{padding:0}
+  .pmr__glyph svg{width:100%;height:100%;display:block}
+  .pmr__prov{font-size:12.5px;font-weight:540;color:var(--fg)}
+  .pmr__model{font-size:12.5px;font-weight:560;color:var(--fg-strong);max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .pmr__rz{display:inline-flex;align-items:center;gap:7px}
+  .pmr__rzlabel{font-size:12px;font-weight:520;color:var(--muted)}
+  .pmr__chev{display:grid;place-items:center;padding:0 9px 0 5px;color:var(--faint)}
+  .pmr__chev svg{width:13px;height:13px;transition:transform var(--dur) var(--ease)}
+  .pmr[data-open="true"] .pmr__chev svg{transform:rotate(180deg)}
+  .pmr__warn{display:grid;place-items:center;color:var(--warning);margin-left:-2px}
+  .pmr__warn svg{width:13px;height:13px}
+
+  /* intensity meter (reasoning) — signal-strength bars, one accent */
+  .meter{display:inline-flex;align-items:flex-end;gap:1.5px;height:12px}
+  .meter i{width:2.5px;border-radius:1px;background:var(--faint);transition:background var(--dur) var(--ease)}
+  .meter i:nth-child(1){height:4px}.meter i:nth-child(2){height:6px}.meter i:nth-child(3){height:8px}
+  .meter i:nth-child(4){height:10px}.meter i:nth-child(5){height:12px}
+  .meter i.on{background:var(--accent-strong)}
+  .meter--hollow i{background:var(--line-strong)}
+
+  /* ============ popup ============ */
+  .pop{position:fixed;z-index:90;width:528px;background:var(--canvas-soft);border:1px solid var(--line);
+    border-radius:var(--radius-lg);box-shadow:var(--overlay);display:none;flex-direction:column;overflow:hidden;
+    max-height:min(520px,82vh)}
+  .pop[data-show="true"]{display:flex;animation:pop .13s var(--ease)}
+  @keyframes pop{from{opacity:0;transform:translateY(-4px) scale(.99)}to{opacity:1;transform:none}}
+
+  .pop__head{display:flex;align-items:center;gap:9px;height:44px;padding:0 12px;border-bottom:1px solid var(--line-soft);flex:none}
+  .pop__search{flex:1;display:flex;align-items:center;gap:9px;min-width:0}
+  .pop__search svg{width:15px;height:15px;color:var(--subtle);flex:none}
+  .pop__search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--fg-strong);font-size:13.5px;font-family:inherit}
+  .pop__search input::placeholder{color:var(--subtle)}
+  .kbd{font-family:var(--font-mono);font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 5px;flex:none}
+  .pop__refresh{width:26px;height:26px;border-radius:var(--radius);display:grid;place-items:center;background:transparent;border:0;color:var(--subtle);cursor:pointer;flex:none;transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pop__refresh:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .pop__refresh svg{width:14px;height:14px;transition:transform .5s var(--ease)}
+  .pop__refresh.spin svg{transform:rotate(360deg)}
+
+  .pop__mid{display:flex;min-height:0;flex:1}
+  /* rail */
+  .rail{width:52px;flex:none;border-right:1px solid var(--line-soft);padding:6px 0;display:flex;flex-direction:column;gap:2px;overflow-y:auto;background:rgba(0,0,0,.12)}
+  .rail::-webkit-scrollbar{width:0}
+  .rail__item{position:relative;width:40px;height:36px;margin:0 auto;border-radius:var(--radius-md);display:grid;place-items:center;background:transparent;border:0;cursor:pointer;color:var(--muted);transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+  .rail__item:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .rail__item[data-active="true"]{background:var(--row-selected);color:var(--fg-strong)}
+  .rail__item[data-active="true"]::before{content:"";position:absolute;left:-6px;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--accent)}
+  .rail__item[data-dim="true"]{opacity:.42}
+  .rail__glyph{font-family:var(--font-mono);font-size:10px;font-weight:600}
+  .rail__item svg{width:15px;height:15px}
+  .rail__logo{width:20px;height:20px;display:grid;place-items:center;overflow:hidden;border-radius:var(--radius-xs);color:var(--fg)}
+  .rail__logo svg{width:100%!important;height:100%!important;display:block}
+  .rail__sep{height:1px;background:var(--line-soft);margin:4px 10px}
+  .rail__gear{margin-top:auto}
+
+  /* list */
+  .list{flex:1;min-width:0;overflow-y:auto;padding:5px 5px 6px}
+  .grp__head{display:flex;align-items:center;gap:8px;padding:9px 10px 5px;position:sticky;top:0;background:linear-gradient(var(--canvas-soft),var(--canvas-soft) 70%,transparent);z-index:1}
+  .grp__name{font-size:11px;font-weight:600;letter-spacing:.01em;color:var(--subtle)}
+  .grp__harness{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 5px}
+  .grp__avail{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:520}
+  .grp__avail .dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+  .av-live{color:var(--success)} .av-stale{color:var(--warning)} .av-off{color:var(--danger)}
+
+  .mrow{display:flex;align-items:center;gap:11px;width:100%;padding:8px 10px;border-radius:var(--radius-md);background:transparent;border:0;cursor:pointer;text-align:left;transition:background var(--dur-fast) var(--ease)}
+  .mrow:hover,.mrow[data-hl="true"]{background:var(--row-hover)}
+  .mrow[data-sel="true"]{background:var(--accent-tint)}
+  .mrow[data-disabled="true"]{cursor:not-allowed;opacity:.5}
+  .mrow[data-disabled="true"]:hover{background:transparent}
+  .mrow__glyph{width:28px;height:28px;border-radius:var(--radius-sm);background:var(--elevated);display:grid;place-items:center;color:var(--fg);flex:none;box-shadow:inset 0 0 0 1px var(--line-soft);overflow:hidden;padding:5px}
+  .mrow__glyph[data-fill="true"]{padding:0}
+  .mrow__glyph svg{width:100%;height:100%;display:block}
+  .mrow[data-sel="true"] .mrow__glyph{box-shadow:inset 0 0 0 1px var(--accent-dim)}
+  .mrow__main{min-width:0;flex:1}
+  .mrow__top{display:flex;align-items:center;gap:8px;min-width:0}
+  .mrow__name{font-size:13px;font-weight:560;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.008em}
+  .mrow__badge{font-family:var(--font-mono);font-size:8.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent-strong);background:var(--accent-tint);border-radius:var(--radius-xxs);padding:1px 4px;flex:none}
+  .mrow__sub{margin-top:2px;display:flex;align-items:center;gap:7px;font-size:11px;color:var(--faint);flex-wrap:wrap}
+  .mrow__sub .provref{color:var(--subtle)}
+  .chip{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px;color:var(--subtle);font-variant-numeric:tabular-nums}
+  .chip svg{width:11px;height:11px;color:var(--faint)}
+  .chip--rz{color:var(--accent-strong)}
+  .chip--rz svg{color:var(--accent-strong)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none}
+  .mrow__right{display:flex;align-items:center;gap:10px;flex:none}
+  .mrow__reason{font-size:10.5px;font-weight:520;color:var(--warning);white-space:nowrap}
+  .mrow__star{width:20px;height:20px;border-radius:var(--radius);display:grid;place-items:center;background:transparent;border:0;color:var(--faint);cursor:pointer;opacity:0;transition:opacity var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .mrow__star svg{width:13px;height:13px;display:block}
+  .mrow:hover .mrow__star{opacity:.6}
+  .mrow__star:hover{opacity:1;color:var(--warning)}
+  .mrow__star[data-fav="true"]{opacity:1;color:var(--subtle)}
+  .mrow__star[data-fav="true"]:hover{color:var(--warning)}
+  .mrow__check{color:var(--accent);display:grid;place-items:center;width:16px}
+  .mrow__check svg{width:15px;height:15px}
+  .custom-row{margin:4px 5px 2px;padding:9px 10px;border-radius:var(--radius-md);border:1px dashed var(--line-strong);color:var(--muted);font-size:12.5px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:color var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .custom-row:hover{color:var(--fg-strong);border-color:var(--accent-dim)}
+  .custom-row svg{width:14px;height:14px}
+  .list__empty{padding:38px 20px;text-align:center;color:var(--subtle);font-size:12.5px}
+
+  /* reasoning footer */
+  .rzbar{flex:none;border-top:1px solid var(--line-soft);padding:11px 13px;background:rgba(0,0,0,.12)}
+  .rzbar__head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .rzbar__label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+  .rzbar__for{font-family:var(--font-mono);font-size:10.5px;color:var(--faint)}
+  .rzbar__src{margin-left:auto;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 5px}
+  .rzseg{display:flex;gap:2px;padding:2px;background:var(--canvas);border:1px solid var(--line-soft);border-radius:var(--radius-md)}
+  .rzseg__b{flex:1;display:inline-flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border-radius:var(--radius-sm);background:transparent;border:0;cursor:pointer;color:var(--muted);transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+  .rzseg__b:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .rzseg__b[data-on="true"]{background:var(--accent-tint-strong);color:var(--accent-strong)}
+  .rzseg__b span{font-size:11px;font-weight:540}
+  .rzseg__def{flex:0 0 auto;padding-left:9px;padding-right:9px}
+  .rzseg__dot{width:11px;height:11px;border-radius:50%;box-shadow:inset 0 0 0 1.5px currentColor}
+  .rzbar__none{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--subtle);padding:2px 1px}
+  .rzbar__none svg{width:15px;height:15px;color:var(--faint);flex:none}
+
+
+  .dh__actions{margin-left:auto;display:flex;align-items:center;flex:none;padding-top:2px}
+  .dh__actions .pmr-host{position:relative}
+  .smodal .pmr-host{position:relative;display:inline-flex}
+  .smodal .field--pmr .field__label{margin-bottom:8px}
+
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <header class="topbar" data-od-id="agent-detail-topbar">
+      <div class="crumb">
+        <a href="agents-list.html" data-od-id="back-agents">Agents</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        <b>release-captain</b>
+      </div>
+      <div class="topbar__trailing">
+        <button type="button" class="btn btn--primary btn--sm" id="btn-new-session" data-od-id="new-session">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New session
+        </button>
+        <button type="button" class="btn btn--sm" id="btn-edit-settings" data-od-id="edit-settings">Edit settings</button>
+        <button type="button" class="btn btn--icon btn--ghost" id="btn-overflow" aria-haspopup="menu" aria-expanded="false" aria-label="More actions" data-od-id="overflow-menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page" data-od-id="agent-detail-page">
+        <div class="banner" data-od-id="diagnostics-banner" id="diagnostics-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div>
+            <div class="banner__title">Agent definition has problems</div>
+            <div class="banner__item"><code>schema</code> · Invalid permissions value <code>approve-reads-extra</code> at <code>permissions</code></div>
+          </div>
+        </div>
+
+        <div class="dh" data-od-id="agent-detail-header">
+          <div class="dh__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="dh__main">
+            <div class="dh__namerow">
+              <h1 class="dh__name">release-captain</h1>
+              <span class="pill pill--success" data-od-id="status-pill"><span class="dot"></span>Active</span>
+              <span class="pill pill--warning" data-od-id="invalid-pill">Invalid</span>
+            </div>
+            <div class="dh__meta">
+              <span class="mono" id="dh-category">Engineering / Release</span>
+            </div>
+          </div>
+          <div class="dh__actions" data-od-id="agent-runtime-selector">
+            <div class="pmr-host" id="header-pmr-mount"></div>
+          </div>
+        </div>
+
+        <div class="lane-tabs" role="tablist" aria-label="Agent detail" data-od-id="agent-tabs">
+          <button type="button" class="lane-tab" role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview</button>
+          <button type="button" class="lane-tab" role="tab" id="tab-instructions" aria-controls="panel-instructions" aria-selected="false" data-tab="instructions">Instructions</button>
+          <button type="button" class="lane-tab" role="tab" id="tab-configuration" aria-controls="panel-configuration" aria-selected="false" data-tab="configuration">Configuration</button>
+          <button type="button" class="lane-tab" role="tab" id="tab-sessions" aria-controls="panel-sessions" aria-selected="false" data-tab="sessions">
+            Sessions
+            <span class="sess-count">6</span>
+            <span class="live">2 live</span>
+          </button>
+        </div>
+
+        <!-- Overview -->
+        <section class="panel is-active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" data-od-id="panel-overview">
+          <div class="metrics" data-od-id="overview-metrics">
+            <div class="metric"><div class="metric__l">Active</div><div class="metric__v" data-tone="success">2</div><div class="metric__d">of 6 sessions</div></div>
+            <div class="metric"><div class="metric__l">Runtime</div><div class="metric__v">4h 12m</div><div class="metric__d">elapsed across sessions</div></div>
+            <div class="metric"><div class="metric__l">Failed</div><div class="metric__v" data-tone="danger">1</div><div class="metric__d">stopped with failure</div></div>
+            <div class="metric"><div class="metric__l">Last activity</div><div class="metric__v" style="font-size:16px">2m ago</div><div class="metric__d">from live sessions</div></div>
+          </div>
+
+          <div class="layout">
+            <div>
+              <section class="section" data-od-id="sec-runtime">
+                <div class="section__label">Runtime <span class="spacer"></span>
+                  <button type="button" class="act" data-open-settings="runtime">Edit <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+                </div>
+                <div class="panelbox">
+                  <div class="kv">
+                    <div class="kv__row"><div class="kv__k">Command</div><div class="kv__v"><span class="muted-val">Default</span></div></div>
+                    <div class="kv__row"><div class="kv__k">Permissions</div><div class="kv__v"><code>approve-reads</code></div></div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="section" data-od-id="sec-live-sessions">
+                <div class="section__label">Live sessions <span class="spacer"></span>
+                  <button type="button" class="act" data-goto-tab="sessions">View all <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+                </div>
+                <div class="panelbox" id="live-sessions">
+                  <a class="sess-row" href="#">
+                    <div>
+                      <div class="sess-row__title">cut v2.14.0 release</div>
+                      <div class="sess-row__meta">12/40 iter · 22m</div>
+                    </div>
+                    <span class="pill pill--success"><span class="dot"></span>Active</span>
+                  </a>
+                  <a class="sess-row" href="#">
+                    <div>
+                      <div class="sess-row__title">draft changelog</div>
+                      <div class="sess-row__meta">3/20 iter · 4m</div>
+                    </div>
+                    <span class="pill pill--success"><span class="dot"></span>Active</span>
+                  </a>
+                </div>
+              </section>
+            </div>
+
+            <aside data-od-id="at-a-glance">
+              <section class="section">
+                <div class="section__label">At a glance</div>
+                <div class="panelbox">
+                  <div class="kv">
+                    <div class="kv__row"><div class="kv__k">MCP servers</div><div class="kv__v"><code>github</code> · <code>linear</code></div></div>
+                    <div class="kv__row"><div class="kv__k">Tools</div><div class="kv__v">6 allow · 2 deny</div></div>
+                    <div class="kv__row"><div class="kv__k">Toolsets</div><div class="kv__v">1</div></div>
+                    <div class="kv__row"><div class="kv__k">Prompt</div><div class="kv__v">~312 words</div></div>
+                  </div>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </section>
+
+        <!-- Instructions -->
+        <section class="panel" id="panel-instructions" role="tabpanel" aria-labelledby="tab-instructions" data-od-id="panel-instructions" hidden>
+          <div class="file-tabs">
+            <div class="pill-group" role="group" aria-label="Instruction files" data-od-id="file-tabs">
+              <button type="button" class="pill-group__item" data-file="agent" aria-pressed="true">AGENT.md</button>
+              <button type="button" class="pill-group__item" data-file="soul" aria-pressed="false">SOUL.md</button>
+              <button type="button" class="pill-group__item" data-file="heartbeat" aria-pressed="false">HEARTBEAT.md <span class="miss">missing</span></button>
+            </div>
+            <span class="spacer" style="flex:1"></span>
+            <button type="button" class="btn btn--sm btn--ghost" id="instr-edit-link" data-open-settings="instructions" data-od-id="instructions-edit">Edit ›</button>
+          </div>
+
+          <div class="file-panel is-active" id="file-agent" data-od-id="file-agent">
+            <div class="panelbox">
+              <div class="file-meta"><span>~312 words</span><span class="dotsep"></span><span>Read-only here</span></div>
+              <div class="prose">
+                <h3>Role</h3>
+                <p>You are <code>release-captain</code>, the operator agent for cutting and shipping AGH releases. You coordinate changelog drafts, version bumps, and release notes against the current workspace.</p>
+                <h3>Operating rules</h3>
+                <ul>
+                  <li>Prefer verified daemon state over assumptions. Read session and git status before proposing a cut.</li>
+                  <li>Never invent metrics or claim a release shipped unless the runtime confirms it.</li>
+                  <li>Keep permissions at approve-reads unless the operator raises them for a specific cut.</li>
+                </ul>
+                <h3>Outputs</h3>
+                <p>Produce concrete next steps: files to touch, PR title, and the exact <code>agh</code> commands the operator should run.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-panel hide" id="file-soul" data-od-id="file-soul">
+            <div class="panelbox">
+              <div class="file-meta">
+                <span class="pill pill--success" data-mono="true">valid</span>
+                <span class="pill pill--info">enabled</span>
+                <span class="pill pill--success">active</span>
+                <span class="dotsep"></span>
+                <span class="mono">agents/release-captain/SOUL.md</span>
+              </div>
+              <div class="editor-wrap">
+                <textarea class="editor" id="soul-editor" spellcheck="false"># Soul - release-captain
+
+Be precise, calm, and ops-forward. Prefer short checklists over essays.
+Never invent release status. If a gate is red, say so and stop.
+Speak in sentence case. No exclamation marks.</textarea>
+              </div>
+              <div class="editor-foot">
+                <button type="button" class="btn btn--sm" id="soul-validate">Validate</button>
+                <span class="pad"></span>
+                <button type="button" class="btn btn--sm" id="soul-save" disabled>Save</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-panel hide" id="file-heartbeat" data-od-id="file-heartbeat">
+            <div class="empty" data-od-id="heartbeat-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              <b>No HEARTBEAT.md</b>
+              <p>This agent has no heartbeat policy. Create one to schedule wake checks.</p>
+              <button type="button" class="btn btn--sm" id="create-heartbeat">Create HEARTBEAT.md</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Configuration -->
+        <section class="panel" id="panel-configuration" role="tabpanel" aria-labelledby="tab-configuration" data-od-id="panel-configuration" hidden>
+          <section class="section" data-od-id="cfg-runtime">
+            <div class="section__label">Runtime <span class="spacer"></span>
+              <button type="button" class="act" data-open-settings="runtime">Edit ›</button>
+            </div>
+            <div class="panelbox">
+              <div class="kv">
+                <div class="kv__row"><div class="kv__k">Command</div><div class="kv__v"><span class="muted-val">Default</span></div></div>
+                <div class="kv__row"><div class="kv__k">Permissions</div><div class="kv__v"><code>approve-reads</code></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section" data-od-id="cfg-access">
+            <div class="section__label">Access <span class="spacer"></span>
+              <button type="button" class="act" data-open-settings="access">Edit ›</button>
+            </div>
+            <div class="panelbox">
+              <div class="kv__row" style="border-top:0">
+                <div class="kv__k">Tools</div>
+                <div class="taglist" style="padding:8px 0 0">
+                  <span class="pill" data-mono="true">Bash</span>
+                  <span class="pill" data-mono="true">Read</span>
+                  <span class="pill" data-mono="true">Edit</span>
+                  <span class="pill" data-mono="true">Write</span>
+                  <span class="pill" data-mono="true">Glob</span>
+                  <span class="pill" data-mono="true">Grep</span>
+                </div>
+              </div>
+              <div class="kv__row">
+                <div class="kv__k">Deny tools</div>
+                <div class="taglist" style="padding:8px 0 0">
+                  <span class="pill pill--danger" data-mono="true">WebFetch</span>
+                  <span class="pill pill--danger" data-mono="true">Bash(rm:*)</span>
+                </div>
+              </div>
+              <div class="kv__row">
+                <div class="kv__k">Toolsets</div>
+                <div class="taglist" style="padding:8px 0 0">
+                  <span class="pill" data-mono="true">agh-core</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section" data-od-id="cfg-mcp">
+            <div class="section__label">MCP servers <span class="spacer"></span>
+              <button type="button" class="act" data-open-settings="mcp">Edit ›</button>
+            </div>
+            <div class="panelbox">
+              <div class="mcp-row">
+                <div>
+                  <div class="mcp-row__name">github</div>
+                  <div class="mcp-row__cmd">npx -y @modelcontextprotocol/server-github</div>
+                  <div class="mcp-row__env"><span class="pill" data-mono="true">GITHUB_TOKEN</span></div>
+                </div>
+                <span class="pill" data-tone="info" data-mono="true">stdio</span>
+              </div>
+              <div class="mcp-row">
+                <div>
+                  <div class="mcp-row__name">linear</div>
+                  <div class="mcp-row__cmd">https://mcp.linear.app/sse</div>
+                  <div class="mcp-row__env"><span class="pill" data-mono="true">LINEAR_API_KEY</span></div>
+                </div>
+                <span class="pill" data-tone="info" data-mono="true">sse</span>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- Sessions -->
+        <section class="panel" id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions" data-od-id="panel-sessions" hidden>
+          <div class="metrics" data-od-id="sessions-metrics">
+            <div class="metric"><div class="metric__l">Active</div><div class="metric__v" data-tone="success">2</div></div>
+            <div class="metric"><div class="metric__l">Runtime</div><div class="metric__v">4h 12m</div></div>
+            <div class="metric"><div class="metric__l">Failed</div><div class="metric__v" data-tone="danger">1</div></div>
+            <div class="metric"><div class="metric__l">Total</div><div class="metric__v">6</div></div>
+          </div>
+
+          <div class="toolbar" data-od-id="sessions-filter">
+            <div class="pill-group" role="group" aria-label="Session filter" id="session-filter">
+              <button type="button" class="pill-group__item" data-filter="all" aria-pressed="true">All</button>
+              <button type="button" class="pill-group__item" data-filter="active" aria-pressed="false">Active</button>
+              <button type="button" class="pill-group__item" data-filter="failed" aria-pressed="false">Failed</button>
+              <button type="button" class="pill-group__item" data-filter="done" aria-pressed="false">Done</button>
+            </div>
+          </div>
+
+          <div class="table-wrap" data-od-id="sessions-table">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Session</th>
+                  <th>Status</th>
+                  <th>Duration</th>
+                  <th>Iterations</th>
+                  <th>Last activity</th>
+                </tr>
+              </thead>
+              <tbody id="sessions-body"></tbody>
+            </table>
+          </div>
+          <div class="empty hide" id="sessions-empty" data-od-id="sessions-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <b id="sessions-empty-title">No sessions for this agent</b>
+            <p id="sessions-empty-desc">Start a session to see it here.</p>
+            <button type="button" class="btn btn--sm" id="sessions-empty-cta">New session</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim hide" id="delete-scrim" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+  <div class="modal">
+    <div class="modal__head">
+      <div class="head-icon" style="background:var(--danger-tint);color:var(--danger)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+      </div>
+      <div class="head-txt">
+        <div class="eyebrow" style="color:var(--danger)">Destructive</div>
+        <h2 class="modal__title" id="delete-title">Delete agent</h2>
+        <p class="modal__sub">This removes the agent definition for release-captain. Existing session records are kept.</p>
+      </div>
+      <button type="button" class="head-close" id="delete-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal__body">
+      <div class="field">
+        <label class="field__label" for="delete-confirm">Type release-captain to confirm</label>
+        <input class="input mono" id="delete-confirm" autocomplete="off" />
+      </div>
+    </div>
+    <div class="modal__foot">
+      <button type="button" class="btn btn--ghost" id="delete-cancel">Cancel</button>
+      <span class="foot-pad"></span>
+      <button type="button" class="btn btn--danger" id="delete-submit" disabled>Delete agent</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="settings-scrim hide" id="settings-scrim" data-od-id="agent-settings-modal">
+  <div class="smodal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <header class="smodal__head">
+      <div class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+      <div class="head-txt">
+        <div class="eyebrow">Agents · Settings</div>
+        <h2 class="smodal__title" id="settings-title">Edit release-captain</h2>
+        <p class="smodal__sub">Update the agent definition used for new sessions. Runtime, instructions, and access apply on save — existing sessions keep their current config.</p>
+      </div>
+      <div class="head-meta"><span class="pill pill--warning hide" id="settings-dirty-pill">Unsaved</span></div>
+      <button type="button" class="head-close" id="settings-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </header>
+    <div class="smodal__body">
+      <nav class="snav" aria-label="Settings sections">
+        <button type="button" class="snav__item" data-settings-section="basics" aria-current="true">Basics</button>
+        <button type="button" class="snav__item" data-settings-section="runtime">Runtime</button>
+        <button type="button" class="snav__item" data-settings-section="instructions">Instructions</button>
+        <button type="button" class="snav__item" data-settings-section="access">Access</button>
+        <button type="button" class="snav__item" data-settings-section="mcp">MCP servers</button>
+        <div class="snav__sep"></div>
+        <button type="button" class="snav__item snav__item--danger" data-settings-section="danger">Danger zone</button>
+      </nav>
+      <div class="form" id="settings-form">
+        <div class="settings-main">
+          <section class="spanel" data-settings-panel="basics">
+            <h3 class="spanel__title">Basics</h3>
+            <div class="field"><label class="field__label" for="s-name">Name</label><input class="input mono" id="s-name" value="release-captain" disabled /><div class="field__hint">Renaming is not supported.</div></div>
+            <div class="field"><label class="field__label" for="s-category">Category path</label><input class="input" id="s-category" value="Engineering / Release" autocomplete="off" spellcheck="false" /><div class="field__hint">Slash-separated path used for grouping in the agents list.</div></div>
+          </section>
+          <section class="spanel hide" data-settings-panel="runtime">
+            <h3 class="spanel__title">Runtime</h3>
+            <p class="spanel__intro">Default provider, model, and reasoning for new sessions. The live control in the page header applies the same change immediately.</p>
+            <div class="field field--pmr"><label class="field__label">Provider · Model · Reasoning</label><div class="pmr-host" id="settings-pmr-mount"></div></div>
+            <div class="field"><label class="field__label" for="s-command">Command</label><input class="input mono" id="s-command" value="" /><div class="field__hint">Default applies when empty.</div></div>
+            <div class="field"><label class="field__label">Permissions</label>
+              <div class="radio-card-group" id="s-permission-group" role="radiogroup">
+                <button type="button" class="radio-card" data-value="inherit" role="radio" aria-checked="false"><span class="radio-card__dot"></span><span class="radio-card__body"><b>Inherit</b><small>Use the workspace default policy.</small></span></button>
+                <button type="button" class="radio-card" data-value="deny_all" role="radio" aria-checked="false"><span class="radio-card__dot"></span><span class="radio-card__body"><b>Deny all</b><small>Block every tool call.</small></span></button>
+                <button type="button" class="radio-card" data-value="approve_reads" role="radio" aria-checked="true"><span class="radio-card__dot"></span><span class="radio-card__body"><b>Approve reads</b><small>Auto-approve reads; ask for writes.</small></span></button>
+                <button type="button" class="radio-card" data-value="approve_all" role="radio" aria-checked="false"><span class="radio-card__dot"></span><span class="radio-card__body"><b>Approve all</b><small>Auto-approve every tool call.</small></span></button>
+              </div>
+            </div>
+          </section>
+          <section class="spanel hide" data-settings-panel="instructions">
+            <h3 class="spanel__title">Instructions</h3>
+            <div class="field"><label class="field__label" for="s-instructions">AGENT.md prompt</label><textarea class="textarea" id="s-instructions" spellcheck="false">You are the release captain for this repository. Before cutting a release, verify that CI is green on the target branch, changelog entries are up to date, and no open blocker issues remain in the current milestone. Coordinate version bumps across affected packages, tag the release following semantic versioning, and publish release notes summarizing user-facing changes. Watch the deploy pipeline through completion and confirm health checks pass in the target environment. If a rollback is needed, revert the tag, notify the on-call channel, and open an incident note. Always confirm with a human before force-pushing tags or deleting branches.</textarea></div>
+          </section>
+          <section class="spanel hide" data-settings-panel="access">
+            <h3 class="spanel__title">Access</h3>
+            <div class="field"><label class="field__label">Tools</label><div class="token-field__chips" id="s-chips-tools"></div><div class="token-field__add"><input class="input mono" id="s-input-tools" placeholder="Add tool (e.g. Bash)" autocomplete="off" /><button type="button" class="btn btn--sm btn--outline" data-s-add="tools" data-s-input="s-input-tools">Add</button></div></div>
+            <div class="field"><label class="field__label">Deny tools</label><div class="token-field__chips" id="s-chips-denyTools"></div><div class="token-field__add"><input class="input mono" id="s-input-denyTools" placeholder="Add pattern (e.g. Bash(rm:*))" autocomplete="off" /><button type="button" class="btn btn--sm btn--outline" data-s-add="denyTools" data-s-input="s-input-denyTools">Add</button></div></div>
+            <div class="field"><label class="field__label">Toolsets</label><div class="token-field__chips" id="s-chips-toolsets"></div><div class="token-field__add"><input class="input mono" id="s-input-toolsets" placeholder="Add toolset (e.g. agh-core)" autocomplete="off" /><button type="button" class="btn btn--sm btn--outline" data-s-add="toolsets" data-s-input="s-input-toolsets">Add</button></div></div>
+          </section>
+          <section class="spanel hide" data-settings-panel="mcp">
+            <h3 class="spanel__title">MCP servers</h3>
+            <p class="spanel__intro">MCP servers are defined in the agent file.</p>
+            <div class="panelbox">
+              <div class="mcp-row"><div class="mcp-row__head"><span class="mcp-row__name">github</span><span class="pill" data-mono="true">stdio</span></div><div class="mcp-row__cmd">npx -y @modelcontextprotocol/server-github</div><div class="mcp-row__envs"><span class="pill" data-mono="true">GITHUB_TOKEN</span></div></div>
+              <div class="mcp-row"><div class="mcp-row__head"><span class="mcp-row__name">linear</span><span class="pill" data-mono="true">sse</span></div><div class="mcp-row__cmd">https://mcp.linear.app/sse?workspace=agh-labs&amp;channel=…</div><div class="mcp-row__envs"><span class="pill" data-mono="true">LINEAR_API_KEY</span></div></div>
+            </div>
+          </section>
+          <section class="spanel hide" data-settings-panel="danger">
+            <h3 class="spanel__title spanel__title--danger">Danger zone</h3>
+            <div class="hairline"></div>
+            <p class="spanel__intro">Deleting an agent removes its definition file from the workspace. Existing session records are kept.</p>
+            <button type="button" class="btn btn--danger" id="s-btn-delete">Delete agent</button>
+          </section>
+        </div>
+      </div>
+    </div>
+    <footer class="smodal__foot">
+      <div class="foot-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span id="settings-foot-note">Edits apply to <b>new sessions</b> — running sessions keep their current config.</span></div>
+      <button type="button" class="btn btn--outline" id="settings-cancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="settings-save" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Save changes</button>
+    </footer>
+  </div>
+</div>
+
+<div class="nest-scrim hide" id="settings-unsaved-scrim" role="dialog" aria-modal="true" aria-labelledby="settings-unsaved-title">
+  <div class="modal" style="grid-template-rows:auto auto">
+    <div class="modal__head" style="border-bottom:0">
+      <div class="head-icon" style="background:var(--warning-tint);color:var(--warning)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      <div class="head-txt"><h2 class="modal__title" id="settings-unsaved-title">Discard unsaved changes?</h2><p class="modal__sub">Your edits to release-captain will be lost.</p></div>
+      <button type="button" class="head-close" id="settings-unsaved-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal__foot">
+      <button type="button" class="btn btn--ghost" id="settings-unsaved-keep">Keep editing</button>
+      <span class="foot-pad"></span>
+      <button type="button" class="btn btn--danger" id="settings-unsaved-discard">Discard changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- single shared popup instance -->
+<div class="pop" id="pop" data-show="false" role="dialog" aria-label="Select provider, model and reasoning">
+  <div class="pop__head">
+    <label class="pop__search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+      <input id="pop-search" type="text" placeholder="Search models, providers…" autocomplete="off" spellcheck="false" />
+    </label>
+    <button class="pop__refresh" id="pop-refresh" title="Refresh catalog" aria-label="Refresh model catalog">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
+    </button>
+  </div>
+  <div class="pop__mid">
+    <div class="rail" id="pop-rail"></div>
+    <div class="list" id="pop-list"></div>
+  </div>
+  <div class="rzbar" id="pop-rz"></div>
+</div>
+
+<div class="toast hide" id="toast" role="status"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- grounded data (mirrors internal/config/provider.go + model-catalog) ----------
+  var HARNESS = { acp:"cli", pi_acp:"api key" };
+  var EFFORT_ORDER = ["minimal","low","medium","high","xhigh"];      // canonical 5-level enum
+  var EFFORT_LABEL = { minimal:"Minimal", low:"Low", medium:"Medium", high:"High", xhigh:"Extra high" };
+
+  var PROVIDERS = [
+    { id:"codex",      name:"Codex",         glyph:"Cx", harness:"acp",    auth:"ready"  },
+    { id:"claude",     name:"Claude Code",   glyph:"Cl", harness:"acp",    auth:"ready"  },
+    { id:"gemini",     name:"Gemini CLI",    glyph:"Gm", harness:"acp",    auth:"ready"  },
+    { id:"opencode",   name:"OpenCode",      glyph:"Oc", harness:"acp",    auth:"ready"  },
+    { id:"cursor",     name:"Cursor Agent",  glyph:"Cu", harness:"acp",    auth:"ready"  },
+    { id:"openrouter", name:"OpenRouter",    glyph:"OR", harness:"pi_acp", auth:"ready"  },
+    { id:"xai",        name:"xAI",           glyph:"xA", harness:"pi_acp", auth:"ready"  },
+    { id:"groq",       name:"Groq",          glyph:"Gq", harness:"pi_acp", auth:"ready"  },
+    { id:"moonshot",   name:"Moonshot",      glyph:"Ms", harness:"pi_acp", auth:"ready"  },
+    { id:"zai",        name:"z.ai",          glyph:"zi", harness:"pi_acp", auth:"signin" }
+  ];
+  var PROV = {}; PROVIDERS.forEach(function(p){ PROV[p.id]=p; });
+
+  // each model: id, provider, name, ctx(tokens), cin/cout ($/Mtok|null), tools, reasoning(supports),
+  //             efforts[](selectable subset), def(default effort), src('config'|'acp'), avail, reason, fav, recent
+  var MODELS = [
+    // Codex — the only provider shipping static effort levels
+    { id:"gpt-5.4",        provider:"codex", name:"GPT-5.4",        ctx:400000, cin:1.25, cout:10, tools:true, reasoning:true,  efforts:["minimal","low","medium","high","xhigh"], def:"medium", src:"config", avail:"live", fav:true,  recent:true },
+    { id:"gpt-5.4-mini",   provider:"codex", name:"GPT-5.4 Mini",   ctx:400000, cin:0.25, cout:2,  tools:true, reasoning:true,  efforts:["minimal","low","medium","high","xhigh"], def:"low",    src:"config", avail:"live" },
+    { id:"gpt-5.3",        provider:"codex", name:"GPT-5.3",        ctx:256000, cin:1.1,  cout:9,  tools:true, reasoning:true,  efforts:["low","medium","high","xhigh"],           def:"medium", src:"config", avail:"stale" },
+    // Claude Code — supports_reasoning, but no selectable effort (provider decides)
+    { id:"opus-4.6",       provider:"claude", name:"Opus 4.6",      ctx:200000, cin:15,   cout:75, tools:true, reasoning:true,  efforts:[], avail:"live", fav:true, recent:true },
+    { id:"sonnet-4.6",     provider:"claude", name:"Sonnet 4.6",    ctx:200000, cin:3,    cout:15, tools:true, reasoning:true,  efforts:[], avail:"live", recent:true },
+    { id:"haiku-4.5",      provider:"claude", name:"Haiku 4.5",     ctx:200000, cin:1,    cout:5,  tools:true, reasoning:false, efforts:[], avail:"live" },
+    // Gemini CLI
+    { id:"gemini-2.5-pro", provider:"gemini", name:"Gemini 2.5 Pro",ctx:1000000,cin:1.25, cout:10, tools:true, reasoning:true,  efforts:[], avail:"live" },
+    // OpenCode — effort levels advertised at runtime via ACP config_options
+    { id:"oc-gpt-5.4",     provider:"opencode", name:"GPT-5.4",     ctx:400000, cin:null, cout:null, tools:true, reasoning:true, efforts:["low","medium","high"], def:"medium", src:"acp", avail:"live" },
+    { id:"oc-sonnet",      provider:"opencode", name:"Sonnet 4.6",  ctx:200000, cin:null, cout:null, tools:true, reasoning:false, efforts:[], avail:"live" },
+    // Cursor Agent
+    { id:"cursor-auto",    provider:"cursor", name:"Auto",          ctx:null,   cin:null, cout:null, tools:true, reasoning:false, efforts:[], avail:"live" },
+    // OpenRouter (api key) — large upstream catalog
+    { id:"or-deepseek-v3", provider:"openrouter", name:"DeepSeek V3",     ctx:128000, cin:0.27, cout:1.1, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"or-deepseek-r1", provider:"openrouter", name:"DeepSeek R1",     ctx:128000, cin:0.55, cout:2.2, tools:true, reasoning:true,  efforts:[], avail:"live" },
+    { id:"or-llama-3.3",   provider:"openrouter", name:"Llama 3.3 70B",   ctx:128000, cin:0.12, cout:0.3, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"or-qwen-2.5",    provider:"openrouter", name:"Qwen 2.5 Coder",  ctx:128000, cin:0.18, cout:0.5, tools:true, reasoning:false, efforts:[], avail:"live" },
+    // xAI
+    { id:"grok-4",         provider:"xai", name:"Grok 4",           ctx:256000, cin:3,    cout:15, tools:true, reasoning:true,  efforts:[], avail:"live" },
+    // Groq (fast inference)
+    { id:"groq-llama-3.3", provider:"groq", name:"Llama 3.3 70B",   ctx:128000, cin:0.59, cout:0.79, tools:true, reasoning:false, efforts:[], avail:"live" },
+    { id:"groq-r1-distill",provider:"groq", name:"R1 Distill 70B",  ctx:128000, cin:0.75, cout:0.99, tools:true, reasoning:true,  efforts:[], avail:"live" },
+    // Moonshot
+    { id:"kimi-k2",        provider:"moonshot", name:"Kimi K2",     ctx:256000, cin:0.6,  cout:2.5, tools:true, reasoning:false, efforts:[], avail:"live" },
+    // z.ai — provider needs auth → unavailable
+    { id:"glm-4.6",        provider:"zai", name:"GLM-4.6",          ctx:200000, cin:0.6,  cout:2.2, tools:true, reasoning:false, efforts:[], avail:"unavailable", reason:"Sign in" }
+  ];
+  var MODEL = {}; MODELS.forEach(function(m){ MODEL[m.id]=m; });
+
+  // ---------- svg helpers ----------
+  function icon(name){
+    var p = {
+      chev:'<path d="m6 9 6 6 6-6"/>',
+      warn:'<path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+      check:'<path d="M20 6 9 17l-5-5"/>',
+      tools:'<path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3Z"/>',
+      brain:'<path d="M9.5 3A2.5 2.5 0 0 0 7 5.5 2.5 2.5 0 0 0 5 8a2.5 2.5 0 0 0 .5 4.5V19a2 2 0 0 0 4 0V5.5A2.5 2.5 0 0 0 9.5 3Z"/><path d="M14.5 3A2.5 2.5 0 0 1 17 5.5 2.5 2.5 0 0 1 19 8a2.5 2.5 0 0 1-.5 4.5V19a2 2 0 0 1-4 0V5.5A2.5 2.5 0 0 1 14.5 3Z"/>',
+      plus:'<path d="M12 5v14M5 12h14"/>',
+      star:'<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1L12 2Z"/>',
+      gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
+      all:'<rect x="3" y="4" width="8" height="8" rx="1.5"/><rect x="13" y="4" width="8" height="8" rx="1.5"/><rect x="3" y="14" width="8" height="6" rx="1.5"/><rect x="13" y="14" width="8" height="6" rx="1.5"/>'
+    }[name];
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+  }
+  function starSvg(fill){ return '<svg viewBox="0 0 24 24" fill="'+(fill?'currentColor':'none')+'" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+icon('star').replace(/<svg[^>]*>|<\/svg>/g,'')+'</svg>'; }
+
+  // ---------- real AGH brand logos (packages/ui/src/logos) ----------
+  // Mirrors KindIcon: brand mark where AGH ships one, lucide fallback otherwise.
+  var LOGO = {
+    codex:{ vb:"0 0 721 721", inner:'<path fill="currentColor" d="M304.246 294.611V249.028C304.246 245.189 305.687 242.309 309.044 240.392L400.692 187.612C413.167 180.415 428.042 177.058 443.394 177.058C500.971 177.058 537.44 221.682 537.44 269.182C537.44 272.54 537.44 276.379 536.959 280.218L441.954 224.558C436.197 221.201 430.437 221.201 424.68 224.558L304.246 294.611ZM518.245 472.145V363.224C518.245 356.505 515.364 351.707 509.608 348.349L389.174 278.296L428.519 255.743C431.877 253.826 434.757 253.826 438.115 255.743L529.762 308.523C556.154 323.879 573.905 356.505 573.905 388.171C573.905 424.636 552.315 458.225 518.245 472.141V472.145ZM275.937 376.182L236.592 353.152C233.235 351.235 231.794 348.354 231.794 344.515V238.956C231.794 187.617 271.139 148.749 324.4 148.749C344.555 148.749 363.264 155.468 379.102 167.463L284.578 222.164C278.822 225.521 275.942 230.319 275.942 237.039V376.186L275.937 376.182ZM360.626 425.122L304.246 393.455V326.283L360.626 294.616L417.002 326.283V393.455L360.626 425.122ZM396.852 570.989C376.698 570.989 357.989 564.27 342.151 552.276L436.674 497.574C442.431 494.217 445.311 489.419 445.311 482.699V343.552L485.138 366.582C488.495 368.499 489.936 371.379 489.936 375.219V480.778C489.936 532.117 450.109 570.985 396.852 570.985V570.989ZM283.134 463.99L191.486 411.211C165.094 395.854 147.343 363.229 147.343 331.562C147.343 294.616 169.415 261.509 203.48 247.593V356.991C203.48 363.71 206.361 368.508 212.117 371.866L332.074 441.437L292.729 463.99C289.372 465.907 286.491 465.907 283.134 463.99ZM277.859 542.68C223.639 542.68 183.813 501.895 183.813 451.514C183.813 447.675 184.294 443.836 184.771 439.997L279.295 494.698C285.051 498.056 290.812 498.056 296.568 494.698L417.002 425.127V470.71C417.002 474.549 415.562 477.429 412.204 479.346L320.557 532.126C308.081 539.323 293.206 542.68 277.854 542.68H277.859ZM396.852 599.776C454.911 599.776 503.37 558.513 514.41 503.812C568.149 489.896 602.696 439.515 602.696 388.176C602.696 354.587 588.303 321.962 562.392 298.45C564.791 288.373 566.231 278.296 566.231 268.224C566.231 199.611 510.571 148.267 446.274 148.267C433.322 148.267 420.846 150.184 408.37 154.505C386.775 133.392 357.026 119.958 324.4 119.958C266.342 119.958 217.883 161.22 206.843 215.921C153.104 229.837 118.557 280.218 118.557 331.557C118.557 365.146 132.95 397.771 158.861 421.283C156.462 431.36 155.022 441.437 155.022 451.51C155.022 520.123 210.682 571.466 274.978 571.466C287.931 571.466 300.407 569.549 312.883 565.228C334.473 586.341 364.222 599.776 396.852 599.776Z"/>' },
+    claude:{ vb:"0 0 256 257", inner:'<path fill="#D97757" d="m50.228 170.321 50.357-28.257.843-2.463-.843-1.361h-2.462l-8.426-.518-28.775-.778-24.952-1.037-24.175-1.296-6.092-1.297L0 125.796l.583-3.759 5.12-3.434 7.324.648 16.202 1.101 24.304 1.685 17.629 1.037 26.118 2.722h4.148l.583-1.685-1.426-1.037-1.101-1.037-25.147-17.045-27.22-18.017-14.258-10.37-7.713-5.25-3.888-4.925-1.685-10.758 7-7.713 9.397.649 2.398.648 9.527 7.323 20.35 15.75L94.817 91.9l3.889 3.24 1.555-1.102.195-.777-1.75-2.917-14.453-26.118-15.425-26.572-6.87-11.018-1.814-6.61c-.648-2.723-1.102-4.991-1.102-7.778l7.972-10.823L71.42 0 82.05 1.426l4.472 3.888 6.61 15.101 10.694 23.786 16.591 32.34 4.861 9.592 2.592 8.879.973 2.722h1.685v-1.556l1.36-18.211 2.528-22.36 2.463-28.776.843-8.1 4.018-9.722 7.971-5.25 6.222 2.981 5.12 7.324-.713 4.73-3.046 19.768-5.962 30.98-3.889 20.739h2.268l2.593-2.593 10.499-13.934 17.628-22.036 7.778-8.749 9.073-9.657 5.833-4.601h11.018l8.1 12.055-3.628 12.443-11.342 14.388-9.398 12.184-13.48 18.147-8.426 14.518.778 1.166 2.01-.194 30.46-6.481 16.462-2.982 19.637-3.37 8.88 4.148.971 4.213-3.5 8.62-20.998 5.184-24.628 4.926-36.682 8.685-.454.324.519.648 16.526 1.555 7.065.389h17.304l32.21 2.398 8.426 5.574 5.055 6.805-.843 5.184-12.962 6.611-17.498-4.148-40.83-9.721-14-3.5h-1.944v1.167l11.666 11.406 21.387 19.314 26.767 24.887 1.36 6.157-3.434 4.86-3.63-.518-23.526-17.693-9.073-7.972-20.545-17.304h-1.36v1.814l4.73 6.935 25.017 37.59 1.296 11.536-1.814 3.76-6.481 2.268-7.13-1.297-14.647-20.544-15.1-23.138-12.185-20.739-1.49.843-7.194 77.448-3.37 3.953-7.778 2.981-6.48-4.925-3.436-7.972 3.435-15.749 4.148-20.544 3.37-16.333 3.046-20.285 1.815-6.74-.13-.454-1.49.194-15.295 20.999-23.267 31.433-18.406 19.702-4.407 1.75-7.648-3.954.713-7.064 4.277-6.286 25.47-32.405 15.36-20.092 9.917-11.6-.065-1.686h-.583L44.07 198.125l-12.055 1.555-5.185-4.86.648-7.972 2.463-2.593 20.35-13.999-.064.065Z"/>' },
+    gemini:{ vb:"0 0 296 298", inner:'<defs><linearGradient id="gm-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4285F4"/><stop offset=".45" stop-color="#9B72CB"/><stop offset=".75" stop-color="#D96570"/><stop offset="1" stop-color="#F6C013"/></linearGradient></defs><path fill="url(#gm-g)" d="M141.201 4.886c2.282-6.17 11.042-6.071 13.184.148l5.985 17.37a184.004 184.004 0 0 0 111.257 113.049l19.304 6.997c6.143 2.227 6.156 10.91.02 13.155l-19.35 7.082a184.001 184.001 0 0 0-109.495 109.385l-7.573 20.629c-2.241 6.105-10.869 6.121-13.133.025l-7.908-21.296a184 184 0 0 0-109.02-108.658l-19.698-7.239c-6.102-2.243-6.118-10.867-.025-13.132l20.083-7.467A183.998 183.998 0 0 0 133.291 26.28l7.91-21.394Z"/>' },
+    cursor:{ vb:"0 0 466.73 532.09", inner:'<path fill="currentColor" d="M457.43 125.94 244.42 2.96a22.127 22.127 0 0 0-22.12 0L9.3 125.94C3.55 129.26 0 135.4 0 142.05v247.99c0 6.65 3.55 12.79 9.3 16.11l213.01 122.98a22.127 22.127 0 0 0 22.12 0l213.01-122.98c5.75-3.32 9.3-9.46 9.3-16.11V142.05c0-6.65-3.55-12.79-9.3-16.11h-.01Zm-13.38 26.05L238.42 508.15c-1.39 2.4-5.06 1.42-5.06-1.36V273.58c0-4.66-2.49-8.97-6.53-11.31L24.87 145.67c-2.4-1.39-1.42-5.06 1.36-5.06h411.26c5.84 0 9.49 6.33 6.57 11.39h-.01Z"/>' },
+    openrouter:{ vb:"0 0 24 24", inner:'<path fill="currentColor" d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/>' },
+    xai:{ vb:"0 0 841.89 595.28", inner:'<path fill="currentColor" d="m557.09 211.99 8.31 326.37h66.56l8.32-445.18zM640.28 56.91H538.72L379.35 284.53l50.78 72.52zM201.61 538.36h101.56l50.79-72.52-50.79-72.53zM201.61 211.99l228.52 326.37h101.56L303.17 211.99z"/>' },
+    groq:{ vb:"0 0 201 201", fill:true, inner:'<path fill="#F54F35" d="M0 0h201v201H0V0Z"/><path fill="#FEFBFB" d="m128 49 1.895 1.52C136.336 56.288 140.602 64.49 142 73c.097 1.823.148 3.648.161 5.474l.03 3.247.012 3.482.017 3.613c.01 2.522.016 5.044.02 7.565.01 3.84.041 7.68.072 11.521.007 2.455.012 4.91.016 7.364l.038 3.457c-.033 11.717-3.373 21.83-11.475 30.547-4.552 4.23-9.148 7.372-14.891 9.73l-2.387 1.055c-9.275 3.355-20.3 2.397-29.379-1.13-5.016-2.38-9.156-5.17-13.234-8.925 3.678-4.526 7.41-8.394 12-12l3.063 2.375c5.572 3.958 11.135 5.211 17.937 4.625 6.96-1.384 12.455-4.502 17-10 4.174-6.784 4.59-12.222 4.531-20.094l.012-3.473c.003-2.414-.005-4.827-.022-7.241-.02-3.68 0-7.36.026-11.04-.003-2.353-.008-4.705-.016-7.058l.025-3.312c-.098-7.996-1.732-13.21-6.681-19.47-6.786-5.458-13.105-8.211-21.914-7.792-7.327 1.188-13.278 4.7-17.777 10.601C75.472 72.012 73.86 78.07 75 85c2.191 7.547 5.019 13.948 12 18 5.848 3.061 10.892 3.523 17.438 3.688l2.794.103c2.256.082 4.512.147 6.768.209v16c-16.682.673-29.615.654-42.852-10.848-8.28-8.296-13.338-19.55-13.71-31.277.394-9.87 3.93-17.894 9.562-25.875l1.688-2.563C84.698 35.563 110.05 34.436 128 49Z"/>' },
+    moonshot:{ vb:"0 0 1024 1024", inner:'<g transform="translate(0,1024) scale(0.1,-0.1)" fill="currentColor" stroke="none"><path d="M1595 10228 c-360 -40 -727 -206 -1000 -452 -330 -297 -541 -714 -585 -1161 -8 -78 -10 -1110 -8 -3570 4 -3236 5 -3465 21 -3545 62 -302 159 -531 324 -763 79 -111 288 -318 401 -397 241 -169 506 -277 792 -322 126 -19 7034 -19 7160 0 286 45 551 153 792 322 113 79 322 286 401 397 173 243 283 511 329 803 19 126 19 7034 0 7160 -46 292 -156 560 -329 803 -79 111 -287 317 -403 399 -112 80 -307 182 -440 231 -113 42 -288 82 -422 96 -123 14 -6915 13 -7033 -1z m1729 -2534 c14 -14 16 -120 16 -1015 l0 -999 633 0 632 0 470 1001 c258 551 475 1008 483 1015 11 12 94 14 484 12 422 -3 472 -5 481 -19 8 -13 -35 -116 -198 -470 -371 -810 -527 -1143 -562 -1198 -90 -141 -250 -266 -408 -321 -50 -17 -47 -18 305 -22 345 -5 358 -5 455 -31 121 -32 265 -100 357 -168 153 -114 288 -291 348 -458 68 -186 63 -99 67 -1375 3 -867 1 -1162 -8 -1172 -16 -19 -978 -21 -997 -2 -9 9 -12 334 -12 1400 0 763 -4 1388 -9 1388 -4 0 -16 -30 -26 -67 -35 -128 -89 -219 -189 -318 -72 -72 -108 -99 -176 -133 -164 -81 -87 -76 -1167 -80 l-963 -3 0 -1080 c0 -726 -3 -1087 -10 -1100 -10 -18 -26 -19 -498 -19 -366 0 -491 3 -500 12 -17 17 -17 5209 0 5226 9 9 133 12 494 12 425 0 484 -2 498 -16z"/></g>' },
+    zai:{ vb:"0 0 30 30", inner:'<path fill="currentColor" d="M15.47 7.1l-1.3 1.85c-.2.29-.54.47-.9.47h-7.1V7.09H15.47Z"/><path fill="currentColor" d="M24.3 7.1L13.14 22.91H5.7L16.86 7.1H24.3Z"/><path fill="currentColor" d="M14.53 22.91l1.31-1.86c.2-.29.54-.47.9-.47h7.09v2.33H14.53Z"/>' }
+  };
+  function glyphSVG(id){
+    var L = LOGO[id];
+    if(!L){ // lucide "terminal" fallback for providers AGH ships no brand mark for (opencode, etc.)
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>';
+    }
+    return '<svg viewBox="'+L.vb+'" xmlns="http://www.w3.org/2000/svg">'+L.inner+'</svg>';
+  }
+  function glyphFill(id){ return !!(LOGO[id] && LOGO[id].fill); }
+  function glyphTile(cls, id){ return '<span class="'+cls+'" data-fill="'+glyphFill(id)+'">'+glyphSVG(id)+'</span>'; }
+
+  function fmtCtx(t){ if(t==null) return null; if(t>=1000000) return (t/1000000)+"M"; if(t>=1000) return Math.round(t/1000)+"k"; return String(t); }
+  function fmtCost(m){ if(m.cin==null) return null; var f=function(n){ return n%1===0?String(n):String(n); }; return "$"+f(m.cin)+"/"+f(m.cout); }
+  function meterHTML(level, hollow){ // level: 0..5 (canonical position); hollow => all faint
+    var n = level|0, out='<span class="meter'+(hollow?' meter--hollow':'')+'">';
+    for(var i=1;i<=5;i++){ out+='<i class="'+((!hollow && i<=n)?'on':'')+'"></i>'; }
+    return out+'</span>';
+  }
+  function effortPos(e){ var i=EFFORT_ORDER.indexOf(e); return i<0?0:i+1; } // 1..5
+
+  // ---------- component state ----------
+  // each mounted instance keeps its own selection so the demos stay independent
+  var instances = {}; // id -> {sel:{provider,model,reasoning}, compact, el, opts}
+  var LS = { fav:"agh:pmr:fav", recent:"agh:pmr:recent" };
+  var favSet = load(LS.fav, {}), recentList = load(LS.recent, null);
+  if(!recentList){ recentList = MODELS.filter(function(m){return m.recent;}).map(function(m){return m.id;}); }
+  MODELS.forEach(function(m){ if(m.fav) favSet[m.id]=true; });
+
+  function load(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+  function save(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+
+  // ---------- trigger render ----------
+  function reasoningStateFor(m){
+    // returns {mode:'levels'|'supported-nolevels'|'none', levels:[...], def}
+    if(m.efforts && m.efforts.length) return { mode:"levels", levels:m.efforts, def:m.def||m.efforts[0], src:m.src };
+    if(m.reasoning) return { mode:"supported-nolevels" };
+    return { mode:"none" };
+  }
+
+  function renderTrigger(inst){
+    var sel = inst.sel, m = MODEL[sel.model], p = PROV[m.provider];
+    var rz = reasoningStateFor(m);
+    var pAvail = p.auth!=="ready" || m.avail==="unavailable";
+    var showRz = rz.mode==="levels" && !inst.compact;
+    var html = '';
+    // provider segment
+    html += '<button class="pmr__seg pmr__seg--provider" data-focus="provider" aria-label="Provider: '+p.name+'">'
+          +   glyphTile('pmr__glyph', p.id)
+          +   (inst.compact ? '' : '<span class="pmr__prov">'+p.name+'</span>')
+          + '</button>';
+    // model segment
+    if(!inst.compact){
+      html += '<button class="pmr__seg pmr__seg--model" data-focus="model" aria-label="Model: '+m.name+'">'
+            +   '<span class="pmr__model">'+m.name+'</span>'
+            + '</button>';
+    }
+    // reasoning segment (only when the model exposes selectable effort)
+    if(showRz){
+      var cur = sel.reasoning || rz.def;
+      var isDefault = !sel.reasoning;
+      html += '<button class="pmr__seg pmr__seg--rz" data-focus="reasoning" aria-label="Reasoning: '+(isDefault?'provider default':EFFORT_LABEL[cur])+'">'
+            +   '<span class="pmr__rz">'+ meterHTML(isDefault?0:effortPos(cur), isDefault)
+            +   '<span class="pmr__rzlabel">'+(isDefault?"Default":EFFORT_LABEL[cur])+'</span></span>'
+            + '</button>';
+    }
+    // warning affordance
+    if(pAvail){
+      html += '<span class="pmr__warn" title="'+(m.reason||"Needs sign in")+'">'+icon('warn')+'</span>';
+    }
+    html += '<span class="pmr__chev" aria-hidden="true">'+icon('chev')+'</span>';
+    inst.trigger.innerHTML = html;
+    // wire segment clicks -> open with focus
+    Array.prototype.forEach.call(inst.trigger.querySelectorAll('.pmr__seg'), function(seg){
+      seg.addEventListener('click', function(e){ e.stopPropagation(); openPopup(inst, seg.getAttribute('data-focus')); });
+    });
+    inst.trigger.querySelector('.pmr__chev').addEventListener('click', function(e){ e.stopPropagation(); openPopup(inst,'model'); });
+  }
+
+  function mount(mountId, opts){
+    var host = document.getElementById(mountId);
+    if(!host) return null;
+    var inst = {
+      id: mountId,
+      compact: !!opts.compact,
+      sel: { provider:opts.provider, model:opts.model, reasoning:(opts.reasoning||"") },
+      opts: opts
+    };
+    var trig = document.createElement('div');
+    trig.className = 'pmr' + (opts.small?' pmr--sm':'') + (opts.compact?' pmr--icononly':'');
+    trig.setAttribute('data-open','false');
+    trig.setAttribute('data-od-id','pmr-trigger-'+mountId);
+    trig.setAttribute('role','button');
+    trig.setAttribute('tabindex','0');
+    inst.trigger = trig;
+    inst.host = host;
+    host.appendChild(trig);
+    instances[mountId] = inst;
+    renderTrigger(inst);
+    if(!opts.static){
+      trig.addEventListener('keydown', function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); openPopup(inst,'model'); } });
+    }
+    return inst;
+  }
+
+  // ---------- popup ----------
+  var pop = document.getElementById('pop');
+  var popList = document.getElementById('pop-list');
+  var popRail = document.getElementById('pop-rail');
+  var popRz = document.getElementById('pop-rz');
+  var popSearch = document.getElementById('pop-search');
+  var popRefresh = document.getElementById('pop-refresh');
+  var active = null;          // active instance
+  var railFilter = "all";     // provider id or 'all' or 'fav'
+  var query = "";
+  var hlIndex = -1;           // keyboard highlight over visible rows
+  var visibleRows = [];       // model ids in current render order
+
+  function openPopup(inst, focus){
+    active = inst;
+    railFilter = "all"; query = ""; popSearch.value = ""; hlIndex = -1;
+    inst.trigger.setAttribute('data-open','true');
+    renderRail(); renderList(); renderRz();     // content first so height is measured correctly
+    positionPopup(inst.trigger);
+    pop.setAttribute('data-show','true');
+    // focus behaviour per clicked segment
+    setTimeout(function(){
+      if(focus==="reasoning"){ var f=popRz.querySelector('.rzseg__b[data-on="true"]')||popRz.querySelector('.rzseg__b'); if(f){ f.focus(); return; } }
+      if(focus==="provider"){ var a=popRail.querySelector('.rail__item[data-rail="'+MODEL[inst.sel.model].provider+'"]'); if(a){ a.focus(); return; } }
+      popSearch.focus();
+    }, 20);
+    document.addEventListener('mousedown', onDocDown, true);
+  }
+  function closePopup(){
+    if(!active) return;
+    active.trigger.setAttribute('data-open','false');
+    pop.setAttribute('data-show','false');
+    document.removeEventListener('mousedown', onDocDown, true);
+    active = null;
+  }
+  function onDocDown(e){ if(!pop.contains(e.target) && active && !active.trigger.contains(e.target)) closePopup(); }
+
+  function positionPopup(anchor){
+    var r = anchor.getBoundingClientRect();
+    var wasShown = pop.getAttribute('data-show')==='true';   // don't close an already-open popup while re-anchoring
+    pop.style.visibility='hidden'; pop.setAttribute('data-show','true');
+    var pw = pop.offsetWidth, ph = pop.offsetHeight;
+    pop.style.visibility='';
+    if(!wasShown) pop.setAttribute('data-show','false');
+    var left = r.left, top = r.bottom + 6;
+    // clamp to viewport
+    left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
+    if(top + ph > window.innerHeight - 12){ top = Math.max(12, r.top - ph - 6); }
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+  }
+
+  function renderRail(){
+    var searching = query.trim().length>0;
+    var html = '';
+    html += railBtn('all', icon('all'), "All models", railFilter==="all");
+    html += railBtn('fav', starSvg(false), "Favorites", railFilter==="fav");
+    html += '<div class="rail__sep"></div>';
+    PROVIDERS.forEach(function(p){
+      var dim = p.auth!=="ready";
+      html += '<button class="rail__item" data-rail="'+p.id+'" data-active="'+(railFilter===p.id)+'" data-dim="'+dim+'" title="'+p.name+(dim?" · needs sign in":"")+'">'+glyphTile('rail__logo', p.id)+'</button>';
+    });
+    html += '<button class="rail__item rail__gear" data-rail="__settings" title="Provider settings">'+icon('gear')+'</button>';
+    popRail.innerHTML = html;
+    popRail.style.opacity = searching ? '.45' : '1';
+    popRail.style.pointerEvents = searching ? 'none' : 'auto';
+    Array.prototype.forEach.call(popRail.querySelectorAll('.rail__item'), function(b){
+      b.addEventListener('click', function(){
+        var v=b.getAttribute('data-rail');
+        if(v==="__settings"){ flashSettings(); return; }
+        railFilter = v; hlIndex=-1; renderRail(); renderList(); popSearch.focus();
+      });
+    });
+  }
+  function railBtn(id, svg, title, active){
+    return '<button class="rail__item" data-rail="'+id+'" data-active="'+active+'" title="'+title+'">'+svg+'</button>';
+  }
+  function flashSettings(){
+    var g = popRail.querySelector('.rail__gear'); if(!g) return;
+    g.style.color='var(--accent-strong)'; setTimeout(function(){ g.style.color=''; }, 500);
+  }
+
+  function matchQ(m,p){
+    var q=query.trim().toLowerCase(); if(!q) return true;
+    var hay=(m.name+" "+p.name+" "+m.id+" "+m.provider).toLowerCase();
+    return q.split(/\s+/).every(function(tok){ return hay.indexOf(tok)>=0; });
+  }
+
+  function renderList(){
+    var searching = query.trim().length>0;
+    visibleRows = [];
+    var html = '';
+    // FAVORITES / RECENT pinned block (only when not filtered to a single provider and not searching)
+    if(!searching && (railFilter==="all" || railFilter==="fav")){
+      var favModels = MODELS.filter(function(m){ return favSet[m.id]; });
+      if(railFilter==="fav") favModels = MODELS.filter(function(m){ return favSet[m.id]; });
+      var pinned = railFilter==="fav" ? favModels
+                 : dedupe(recentList.map(function(id){return MODEL[id];}).filter(Boolean).concat(favModels));
+      if(pinned.length){
+        html += groupHead(railFilter==="fav" ? "Favorites" : "Recent & favorites", null, null);
+        pinned.forEach(function(m){ html += rowHTML(m); visibleRows.push(m.id); });
+      }
+      if(railFilter==="fav"){ finishList(html); return; }
+    }
+    // GROUPED BY PROVIDER
+    var provs = PROVIDERS.filter(function(p){ return railFilter==="all"||railFilter==="fav" ? true : p.id===railFilter; });
+    provs.forEach(function(p){
+      var ms = MODELS.filter(function(m){ return m.provider===p.id && matchQ(m,p); });
+      if(!ms.length) return;
+      html += groupHead(p.name, p.harness, providerAvail(p, ms));
+      ms.forEach(function(m){ html += rowHTML(m); visibleRows.push(m.id); });
+    });
+    // custom model affordance
+    if(!searching){
+      html += '<div class="custom-row" data-custom="1" data-od-id="custom-model">'+icon('plus')+'Use a custom model ID…</div>';
+    }
+    if(!visibleRows.length){
+      html = '<div class="list__empty">No models match “'+escapeHTML(query.trim())+'”.<br>Try a provider name, or a shorter query.</div>';
+    }
+    finishList(html);
+  }
+  function finishList(html){
+    popList.innerHTML = html;
+    // wire rows
+    Array.prototype.forEach.call(popList.querySelectorAll('.mrow'), function(row){
+      var id=row.getAttribute('data-model');
+      row.addEventListener('click', function(e){
+        if(e.target.closest('.mrow__star')) return;
+        if(row.getAttribute('data-disabled')==="true") return;
+        pickModel(id);
+      });
+      var star=row.querySelector('.mrow__star');
+      if(star){ star.addEventListener('click', function(e){ e.stopPropagation(); toggleFav(id); }); }
+    });
+    var custom = popList.querySelector('[data-custom]');
+    if(custom){ custom.addEventListener('click', function(){ custom.textContent='Custom model ID: type it in the search box above ↑'; popSearch.focus(); }); }
+    // sync highlight
+    paintHighlight();
+  }
+  function providerAvail(p, ms){
+    if(p.auth==="signin") return {cls:"av-off", label:"Sign in"};
+    if(ms.some(function(m){return m.avail==="stale";})) return {cls:"av-stale", label:"Stale"};
+    return {cls:"av-live", label:"Live"};
+  }
+  function groupHead(name, harness, avail){
+    var h = '<div class="grp"><div class="grp__head"><span class="grp__name">'+name+'</span>';
+    if(harness) h += '<span class="grp__harness">'+HARNESS[harness]+'</span>';
+    if(avail) h += '<span class="grp__avail '+avail.cls+'"><span class="dot"></span>'+avail.label+'</span>';
+    return h + '</div></div>';
+  }
+  function rowHTML(m){
+    var p = PROV[m.provider];
+    var sel = active && active.sel.model===m.id;
+    var disabled = m.avail==="unavailable" || p.auth==="signin";
+    var chips = '';
+    var ctx = fmtCtx(m.ctx); if(ctx) chips += '<span class="chip">'+ctx+'</span>';
+    var cost = fmtCost(m); if(cost){ if(chips) chips+='<span class="dotsep"></span>'; chips += '<span class="chip">'+cost+'</span>'; }
+    if(m.tools){ if(chips) chips+='<span class="dotsep"></span>'; chips += '<span class="chip">'+icon('tools')+'tools</span>'; }
+    if(m.efforts && m.efforts.length){ if(chips) chips+='<span class="dotsep"></span>'; chips += '<span class="chip chip--rz">'+icon('brain')+(m.efforts.length)+' levels</span>'; }
+    else if(m.reasoning){ if(chips) chips+='<span class="dotsep"></span>'; chips += '<span class="chip">'+icon('brain')+'reasoning</span>'; }
+    var right = '';
+    if(disabled) right += '<span class="mrow__reason">'+(m.reason||"Sign in")+'</span>';
+    // star is a role=button SPAN (never a real <button>) so it can live inside the
+    // clickable row without the parser hoisting it out. Selected state is the row
+    // background only — no check icon.
+    right += '<span class="mrow__star" role="button" data-fav="'+(!!favSet[m.id])+'" aria-label="Toggle favorite">'+starSvg(!!favSet[m.id])+'</span>';
+    return '<div class="mrow" role="button" tabindex="0" data-model="'+m.id+'" data-sel="'+sel+'" data-disabled="'+disabled+'" data-od-id="model-'+m.id+'">'
+         +   glyphTile('mrow__glyph', m.provider)
+         +   '<span class="mrow__main"><span class="mrow__top"><span class="mrow__name">'+m.name+'</span></span>'
+         +     '<span class="mrow__sub"><span class="provref">'+p.name+'</span><span class="dotsep"></span>'+chips+'</span></span>'
+         +   '<span class="mrow__right">'+right+'</span>'
+         + '</div>';
+  }
+
+  // ---------- reasoning footer ----------
+  function renderRz(){
+    if(!active) return;
+    var m = MODEL[active.sel.model];
+    var rz = reasoningStateFor(m);
+    if(rz.mode==="none"){
+      popRz.innerHTML = '<div class="rzbar__none">'+icon('brain')+'<span>This model doesn’t use reasoning effort; the provider handles it.</span></div>';
+      return;
+    }
+    if(rz.mode==="supported-nolevels"){
+      popRz.innerHTML = '<div class="rzbar__none">'+icon('brain')+'<span><b style="color:var(--muted)">Reasoning is on.</b> '+PROV[m.provider].name+' doesn’t expose selectable effort for '+m.name+'.</span></div>';
+      return;
+    }
+    // levels
+    var cur = active.sel.reasoning || rz.def;
+    var isDefault = !active.sel.reasoning;
+    var head = '<div class="rzbar__head"><span class="rzbar__label">Reasoning effort</span>'
+             + '<span class="rzbar__for">'+PROV[m.provider].name+' · '+m.name+'</span>'
+             + '<span class="rzbar__src">'+(rz.src==="acp"?"ACP":"catalog")+'</span></div>';
+    var seg = '<div class="rzseg">';
+    seg += '<button class="rzseg__b rzseg__def" data-rz="" data-on="'+isDefault+'" title="Use provider default"><span class="rzseg__dot" style="color:'+(isDefault?'var(--accent-strong)':'var(--faint)')+'"></span><span>Default</span></button>';
+    rz.levels.slice().sort(function(a,b){return effortPos(a)-effortPos(b);}).forEach(function(e){
+      var on = !isDefault && cur===e;
+      seg += '<button class="rzseg__b" data-rz="'+e+'" data-on="'+on+'">'+meterHTML(effortPos(e))+'<span>'+EFFORT_LABEL[e]+'</span></button>';
+    });
+    seg += '</div>';
+    popRz.innerHTML = head + seg;
+    Array.prototype.forEach.call(popRz.querySelectorAll('.rzseg__b'), function(b){
+      b.addEventListener('click', function(){ setReasoning(b.getAttribute('data-rz')); });
+    });
+  }
+
+  // ---------- mutations ----------
+  function pickModel(id){
+    var m = MODEL[id]; if(!m) return;
+    active.sel.provider = m.provider;
+    active.sel.model = id;
+    // reset reasoning if the new model can't honor the current level
+    var rz = reasoningStateFor(m);
+    if(rz.mode!=="levels" || (active.sel.reasoning && rz.levels.indexOf(active.sel.reasoning)<0)){
+      active.sel.reasoning = ""; // fall back to provider default
+    }
+    // bump recents
+    recentList = dedupeIds([id].concat(recentList)).slice(0,6); save(LS.recent, recentList);
+    renderList(); renderRz(); renderTrigger(active);
+    positionPopup(active.trigger); // width can change label; keep anchored
+    if (active.opts && typeof active.opts.onChange === "function") active.opts.onChange(Object.assign({}, active.sel));
+  }
+  function setReasoning(val){
+    active.sel.reasoning = val || "";
+    renderRz(); renderTrigger(active); positionPopup(active.trigger);
+    if (active.opts && typeof active.opts.onChange === "function") active.opts.onChange(Object.assign({}, active.sel));
+  }
+  function toggleFav(id){
+    if(favSet[id]) delete favSet[id]; else favSet[id]=true;
+    save(LS.fav, favSet); renderList();
+  }
+
+  // ---------- keyboard ----------
+  function paintHighlight(){
+    var rows = popList.querySelectorAll('.mrow');
+    Array.prototype.forEach.call(rows, function(r,i){ r.setAttribute('data-hl', i===hlIndex ? "true":"false"); });
+    if(hlIndex>=0 && rows[hlIndex]) rows[hlIndex].scrollIntoView({block:"nearest"});
+  }
+  function moveHL(dir){
+    var rows = popList.querySelectorAll('.mrow'); if(!rows.length) return;
+    var enabled = []; Array.prototype.forEach.call(rows,function(r,i){ if(r.getAttribute('data-disabled')!=="true") enabled.push(i); });
+    if(!enabled.length) return;
+    if(hlIndex<0){ hlIndex = enabled[0]; }
+    else{
+      var pos = enabled.indexOf(hlIndex);
+      if(pos<0){ hlIndex=enabled[0]; }
+      else { pos = (pos + dir + enabled.length) % enabled.length; hlIndex = enabled[pos]; }
+    }
+    paintHighlight();
+  }
+  document.addEventListener('keydown', function(e){
+    // global open shortcut
+    if((e.metaKey||e.ctrlKey) && (e.key==="k"||e.key==="K")){ e.preventDefault(); var i=instances["header-pmr-mount"]; if(pop.getAttribute('data-show')==="true") closePopup(); else if(i) openPopup(i,'model'); return; }
+    if(pop.getAttribute('data-show')!=="true") return;
+    if(e.key==="Escape"){ e.preventDefault(); closePopup(); active&&active.trigger.focus&&active.trigger.focus(); return; }
+    if(e.key==="ArrowDown"){ e.preventDefault(); moveHL(1); return; }
+    if(e.key==="ArrowUp"){ e.preventDefault(); moveHL(-1); return; }
+    if(e.key==="Enter"){ var rows=popList.querySelectorAll('.mrow'); if(hlIndex>=0&&rows[hlIndex]){ e.preventDefault(); var id=rows[hlIndex].getAttribute('data-model'); if(rows[hlIndex].getAttribute('data-disabled')!=="true") pickModel(id); } return; }
+  });
+  popSearch.addEventListener('input', function(){ query = popSearch.value; hlIndex=-1; renderRail(); renderList(); });
+  popRefresh.addEventListener('click', function(){ popRefresh.classList.add('spin'); setTimeout(function(){ popRefresh.classList.remove('spin'); renderList(); }, 520); });
+
+  // ---------- utils ----------
+  function dedupe(arr){ var seen={},out=[]; arr.forEach(function(m){ if(m&&!seen[m.id]){seen[m.id]=1;out.push(m);} }); return out; }
+  function dedupeIds(arr){ var seen={},out=[]; arr.forEach(function(id){ if(!seen[id]){seen[id]=1;out.push(id);} }); return out; }
+  function escapeHTML(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+
+  window.addEventListener('resize', function(){ if(active) positionPopup(active.trigger); });
+  window.addEventListener('scroll', function(){ if(active) positionPopup(active.trigger); }, true);
+
+  function setSelection(mountId, sel){
+    var inst = instances[mountId]; if(!inst) return;
+    if(sel.provider) inst.sel.provider = sel.provider;
+    if(sel.model) inst.sel.model = sel.model;
+    if(typeof sel.reasoning === "string") inst.sel.reasoning = sel.reasoning;
+    renderTrigger(inst);
+  }
+  function getSelection(mountId){
+    var inst = instances[mountId]; return inst ? Object.assign({}, inst.sel) : null;
+  }
+  window.AGHPMR = { mount: mount, setSelection: setSelection, getSelection: getSelection, closePopup: closePopup, MODEL: MODEL, PROV: PROV };
+})();
+</script>
+
+<script>
+(function () {
+  var AGENT = "release-captain";
+  var SESSIONS = [
+    { id:"s1", title:"cut v2.14.0 release", state:"active", duration:"22m", iters:"12/40", last:"1m ago", filter:"active" },
+    { id:"s2", title:"draft changelog", state:"active", duration:"4m", iters:"3/20", last:"2m ago", filter:"active" },
+    { id:"s3", title:"hotfix notes pass", state:"done", duration:"38m", iters:"18/40", last:"3h ago", filter:"done" },
+    { id:"s4", title:"tag checklist", state:"done", duration:"12m", iters:"6/20", last:"1d ago", filter:"done" },
+    { id:"s5", title:"failed cut rehearsal", state:"failed", duration:"9m", iters:"4/20", last:"2d ago", filter:"failed" },
+    { id:"s6", title:"docs sync", state:"done", duration:"16m", iters:"8/20", last:"4d ago", filter:"done" }
+  ];
+
+  var params = new URLSearchParams(location.search);
+  var tab = params.get("tab") || "overview";
+  var file = params.get("file") || "agent";
+  var filter = params.get("filter") || "all";
+  var menuEl = null;
+  var soulDirty = false;
+  var soulInitial = "";
+
+  function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function showToast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.classList.remove("hide");
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(function(){ t.classList.add("hide"); }, 3800);
+  }
+  function syncUrl(){
+    var q = new URLSearchParams();
+    q.set("tab", tab);
+    if (tab === "instructions") q.set("file", file);
+    if (tab === "sessions" && filter !== "all") q.set("filter", filter);
+    history.replaceState(null, "", "?" + q.toString());
+  }
+
+  function setTab(next){
+    tab = next;
+    document.querySelectorAll(".lane-tab").forEach(function(btn){
+      var on = btn.getAttribute("data-tab") === next;
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.querySelectorAll(".panel").forEach(function(panel){
+      var on = panel.id === "panel-" + next;
+      panel.classList.toggle("is-active", on);
+      panel.hidden = !on;
+    });
+    syncUrl();
+  }
+
+  function setFile(next){
+    file = next;
+    document.querySelectorAll("[data-file]").forEach(function(btn){
+      btn.setAttribute("aria-pressed", btn.getAttribute("data-file") === next ? "true" : "false");
+    });
+    ["agent","soul","heartbeat"].forEach(function(id){
+      var el = document.getElementById("file-" + id);
+      if (!el) return;
+      el.classList.toggle("hide", id !== next);
+    });
+    var edit = document.getElementById("instr-edit-link");
+    if (edit) edit.style.display = next === "agent" ? "" : "none";
+    syncUrl();
+  }
+
+  function statusPill(state){
+    if (state === "active") return '<span class="pill pill--success"><span class="dot"></span>Active</span>';
+    if (state === "failed") return '<span class="pill pill--danger"><span class="dot"></span>Failed</span>';
+    return '<span class="pill pill--neutral"><span class="dot"></span>Done</span>';
+  }
+
+  function renderSessions(){
+    var body = document.getElementById("sessions-body");
+    var empty = document.getElementById("sessions-empty");
+    var wrap = document.querySelector(".table-wrap");
+    var rows = SESSIONS.filter(function(s){ return filter === "all" || s.filter === filter; });
+    document.querySelectorAll("#session-filter .pill-group__item").forEach(function(btn){
+      btn.setAttribute("aria-pressed", btn.getAttribute("data-filter") === filter ? "true" : "false");
+    });
+    if (!rows.length){
+      wrap.classList.add("hide");
+      empty.classList.remove("hide");
+      document.getElementById("sessions-empty-title").textContent = filter === "all" ? "No sessions for this agent" : "No " + filter + " sessions";
+      document.getElementById("sessions-empty-desc").textContent = filter === "all" ? "Start a session to see it here." : "Try another filter or show all.";
+      var cta = document.getElementById("sessions-empty-cta");
+      cta.textContent = filter === "all" ? "New session" : "Show all";
+      cta.className = "btn btn--sm";
+      cta.onclick = function(){
+        if (filter === "all") startSession();
+        else { filter = "all"; renderSessions(); syncUrl(); }
+      };
+      return;
+    }
+    empty.classList.add("hide");
+    wrap.classList.remove("hide");
+    body.innerHTML = rows.map(function(s){
+      return '<tr data-id="'+esc(s.id)+'"><td class="title">'+esc(s.title)+'</td><td>'+statusPill(s.state)+'</td><td class="mono">'+esc(s.duration)+'</td><td class="mono">'+esc(s.iters)+'</td><td class="mono">'+esc(s.last)+'</td></tr>';
+    }).join("");
+  }
+
+  function startSession(){
+    var btn = document.getElementById("btn-new-session");
+    btn.classList.add("btn--spin");
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg> Starting…';
+    setTimeout(function(){
+      btn.classList.remove("btn--spin");
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New session';
+      showToast("Session started");
+    }, 900);
+  }
+
+  function closeMenu(){
+    if (menuEl){ menuEl.remove(); menuEl = null; }
+    document.getElementById("btn-overflow").setAttribute("aria-expanded","false");
+  }
+
+  function openMenu(anchor){
+    closeMenu();
+    var r = anchor.getBoundingClientRect();
+    menuEl = document.createElement("div");
+    menuEl.className = "menu";
+    menuEl.setAttribute("role","menu");
+    menuEl.innerHTML =
+      '<button type="button" role="menuitem" id="menu-dup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Duplicate</button>' +
+      '<div class="menu__sep"></div>' +
+      '<button type="button" role="menuitem" class="is-danger" id="menu-del"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>Delete…</button>';
+    document.body.appendChild(menuEl);
+    menuEl.style.top = (r.bottom + 6) + "px";
+    menuEl.style.left = Math.max(12, r.right - 190) + "px";
+    anchor.setAttribute("aria-expanded","true");
+    document.getElementById("menu-dup").onclick = function(){ closeMenu(); showToast("MCP servers are not copied."); };
+    document.getElementById("menu-del").onclick = function(){ closeMenu(); openDelete(); };
+  }
+
+  function openDelete(){
+    var scrim = document.getElementById("delete-scrim");
+    var input = document.getElementById("delete-confirm");
+    var submit = document.getElementById("delete-submit");
+    input.value = "";
+    submit.disabled = true;
+    scrim.classList.remove("hide");
+    input.focus();
+  }
+  function closeDelete(){ document.getElementById("delete-scrim").classList.add("hide"); }
+
+  /* tabs */
+  document.querySelectorAll(".lane-tab").forEach(function(btn){
+    btn.addEventListener("click", function(){ setTab(btn.getAttribute("data-tab")); });
+  });
+  document.querySelectorAll("[data-goto-tab]").forEach(function(btn){
+    btn.addEventListener("click", function(){ setTab(btn.getAttribute("data-goto-tab")); });
+  });
+  document.querySelectorAll("[data-file]").forEach(function(btn){
+    btn.addEventListener("click", function(){ setFile(btn.getAttribute("data-file")); });
+  });
+  document.querySelectorAll("#session-filter .pill-group__item").forEach(function(btn){
+    btn.addEventListener("click", function(){ filter = btn.getAttribute("data-filter"); renderSessions(); syncUrl(); });
+  });
+
+  document.getElementById("btn-new-session").addEventListener("click", startSession);
+  document.getElementById("btn-overflow").addEventListener("click", function(e){
+    e.stopPropagation();
+    if (menuEl) closeMenu(); else openMenu(e.currentTarget);
+  });
+  document.addEventListener("click", function(){ closeMenu(); });
+
+  document.getElementById("delete-close").onclick = closeDelete;
+  document.getElementById("delete-cancel").onclick = closeDelete;
+  document.getElementById("delete-confirm").addEventListener("input", function(e){
+    document.getElementById("delete-submit").disabled = e.target.value !== AGENT;
+  });
+  document.getElementById("delete-submit").addEventListener("click", function(){
+    var btn = this;
+    btn.textContent = "Deleting…";
+    btn.disabled = true;
+    setTimeout(function(){
+      showToast("Agent deleted");
+      location.href = "agents-list.html";
+    }, 700);
+  });
+
+  var soul = document.getElementById("soul-editor");
+  soulInitial = soul.value;
+  soul.addEventListener("input", function(){
+    soulDirty = soul.value !== soulInitial;
+    document.getElementById("soul-save").disabled = !soulDirty;
+  });
+  document.getElementById("soul-validate").addEventListener("click", function(){
+    var btn = this;
+    btn.textContent = "Validating…";
+    setTimeout(function(){ btn.textContent = "Validate"; showToast("SOUL.md is valid"); }, 600);
+  });
+  document.getElementById("soul-save").addEventListener("click", function(){
+    var btn = this;
+    btn.textContent = "Saving…";
+    btn.disabled = true;
+    setTimeout(function(){
+      soulInitial = soul.value; soulDirty = false;
+      btn.textContent = "Save";
+      showToast("Changes saved");
+    }, 700);
+  });
+  document.getElementById("create-heartbeat").addEventListener("click", function(){
+    showToast("HEARTBEAT.md created");
+    setFile("heartbeat");
+    var panel = document.getElementById("file-heartbeat");
+    panel.innerHTML = '<div class="panelbox"><div class="file-meta"><span class="pill pill--info">enabled</span><span class="dotsep"></span><span class="mono">agents/release-captain/HEARTBEAT.md</span></div><div class="editor-wrap"><textarea class="editor" spellcheck="false">enabled: true\nmin_interval: 30m\nactive_hours: 09:00-18:00\n\n# Wake checks\n- Confirm no failed release sessions\n- Surface open cut checklist items</textarea></div><div class="editor-foot"><button type="button" class="btn btn--sm">Validate</button><span class="pad"></span><button type="button" class="btn btn--sm">Save</button></div></div>';
+    document.querySelector('[data-file="heartbeat"] .miss')?.remove();
+  });
+
+  /* keyboard tabs */
+  document.querySelector(".lane-tabs").addEventListener("keydown", function(e){
+    var tabs = Array.from(document.querySelectorAll(".lane-tab"));
+    var i = tabs.findIndex(function(t){ return t.getAttribute("aria-selected") === "true"; });
+    if (e.key === "ArrowRight"){ e.preventDefault(); setTab(tabs[(i+1)%tabs.length].getAttribute("data-tab")); tabs[(i+1)%tabs.length].focus(); }
+    if (e.key === "ArrowLeft"){ e.preventDefault(); setTab(tabs[(i-1+tabs.length)%tabs.length].getAttribute("data-tab")); tabs[(i-1+tabs.length)%tabs.length].focus(); }
+  });
+
+
+  /* ---------- settings modal behavior ---------- */
+  var SETTINGS_SECTIONS = ["basics","runtime","instructions","access","mcp","danger"];
+  var CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>';
+  /* Live agent runtime — header PMR applies immediately; modal drafts until Save */
+  /* Codex ships selectable effort levels — Claude supports reasoning but hides the segment */
+  var agentRuntime = { provider:"codex", model:"gpt-5.4", reasoning:"medium" };
+  var settingsInitial = {
+    category:"Engineering / Release", provider: agentRuntime.provider, model: agentRuntime.model, reasoning: agentRuntime.reasoning, command:"",
+    permission:"approve_reads",
+    instructions: document.getElementById("s-instructions").value,
+    tools:["Bash","Read","Edit","Write","Glob","Grep"], denyTools:["WebFetch","Bash(rm:*)"], toolsets:["agh-core"]
+  };
+  var settingsCurrent = JSON.parse(JSON.stringify(settingsInitial));
+  var selectMenuEl = null;
+  var syncingPmr = false;
+
+  function applyLiveRuntime(sel, opts){
+    opts = opts || {};
+    agentRuntime = { provider: sel.provider, model: sel.model, reasoning: sel.reasoning || "" };
+    settingsInitial.provider = agentRuntime.provider;
+    settingsInitial.model = agentRuntime.model;
+    settingsInitial.reasoning = agentRuntime.reasoning;
+    if (!document.getElementById("settings-scrim").classList.contains("hide")) {
+      settingsCurrent.provider = agentRuntime.provider;
+      settingsCurrent.model = agentRuntime.model;
+      settingsCurrent.reasoning = agentRuntime.reasoning;
+      updateSettingsDirty();
+    } else {
+      settingsCurrent.provider = agentRuntime.provider;
+      settingsCurrent.model = agentRuntime.model;
+      settingsCurrent.reasoning = agentRuntime.reasoning;
+    }
+    syncingPmr = true;
+    if (window.AGHPMR) {
+      if (!opts.fromHeader) AGHPMR.setSelection("header-pmr-mount", agentRuntime);
+      if (!opts.fromSettings) AGHPMR.setSelection("settings-pmr-mount", agentRuntime);
+    }
+    syncingPmr = false;
+    if (opts.toast !== false) {
+      var m = AGHPMR && AGHPMR.MODEL[sel.model];
+      var p = AGHPMR && AGHPMR.PROV[sel.provider];
+      var rzLabel = "";
+      if (sel.reasoning && window.AGHPMR) {
+        var labels = { minimal:"Minimal", low:"Low", medium:"Medium", high:"High", xhigh:"Extra high" };
+        rzLabel = " · " + (labels[sel.reasoning] || sel.reasoning);
+      }
+      showToast("Runtime updated · " + (p ? p.name : sel.provider) + " · " + (m ? m.name : sel.model) + rzLabel);
+    }
+  }
+
+  function settingsDirty(){ return JSON.stringify(settingsCurrent) !== JSON.stringify(settingsInitial); }
+  function updateSettingsDirty(){
+    var dirty = settingsDirty();
+    document.getElementById("settings-dirty-pill").classList.toggle("hide", !dirty);
+    document.getElementById("settings-save").disabled = !dirty;
+    document.getElementById("settings-foot-note").innerHTML = dirty
+      ? 'You have <b>unsaved changes</b> — Save to apply them to new sessions.'
+      : 'Edits apply to <b>new sessions</b> — running sessions keep their current config.';
+  }
+  function showSettingsSection(key){
+    if (SETTINGS_SECTIONS.indexOf(key) < 0) key = "basics";
+    document.querySelectorAll("[data-settings-section]").forEach(function(b){
+      b.setAttribute("aria-current", b.getAttribute("data-settings-section") === key ? "true" : "false");
+    });
+    document.querySelectorAll("[data-settings-panel]").forEach(function(p){
+      p.classList.toggle("hide", p.getAttribute("data-settings-panel") !== key);
+    });
+  }
+  function syncSettingsFields(){
+    document.getElementById("s-category").value = settingsCurrent.category;
+    document.getElementById("s-command").value = settingsCurrent.command;
+    document.getElementById("s-instructions").value = settingsCurrent.instructions;
+    document.getElementById("dh-category").textContent = settingsCurrent.category || "—";
+    syncingPmr = true;
+    if (window.AGHPMR) {
+      AGHPMR.setSelection("settings-pmr-mount", {
+        provider: settingsCurrent.provider,
+        model: settingsCurrent.model,
+        reasoning: settingsCurrent.reasoning || ""
+      });
+    }
+    syncingPmr = false;
+    document.querySelectorAll("#s-permission-group .radio-card").forEach(function(btn){
+      btn.setAttribute("aria-checked", String(btn.getAttribute("data-value") === settingsCurrent.permission));
+    });
+    ["tools","denyTools","toolsets"].forEach(renderSettingsChips);
+  }
+  function renderSettingsChips(key){
+    var wrap = document.getElementById("s-chips-" + key);
+    var list = settingsCurrent[key];
+    if (!list.length){ wrap.innerHTML = '<span class="token-empty">None</span>'; return; }
+    wrap.innerHTML = list.map(function(v,i){
+      return '<span class="pill token-chip" data-mono="true">'+esc(v)+'<button type="button" class="token-chip__x" data-s-remove="'+key+'" data-i="'+i+'" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span>';
+    }).join("");
+    wrap.querySelectorAll("[data-s-remove='"+key+"']").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        settingsCurrent[key].splice(parseInt(btn.getAttribute("data-i"),10),1);
+        renderSettingsChips(key); updateSettingsDirty();
+      });
+    });
+  }
+  function addSettingsToken(key, inputId){
+    var input = document.getElementById(inputId);
+    var val = input.value.trim();
+    if (!val) return;
+    if (settingsCurrent[key].indexOf(val) < 0) settingsCurrent[key].push(val);
+    input.value = "";
+    renderSettingsChips(key); updateSettingsDirty();
+  }
+  function closeSelectMenu(){ if (selectMenuEl){ selectMenuEl.remove(); selectMenuEl = null; } }
+  function openSelectMenu(anchor, options, currentValue, onPick){
+    closeSelectMenu();
+    var menu = document.createElement("div");
+    menu.className = "select-menu";
+    menu.innerHTML = options.map(function(opt){
+      return '<button type="button" data-val="'+esc(opt)+'"><span class="check-slot">'+(opt===currentValue?CHECK:"")+'</span><span class="mono">'+esc(opt)+'</span></button>';
+    }).join("");
+    document.body.appendChild(menu);
+    var r = anchor.getBoundingClientRect();
+    menu.style.top = (r.bottom+4)+"px"; menu.style.left = r.left+"px"; menu.style.width = r.width+"px";
+    menu.querySelectorAll("button").forEach(function(b){
+      b.addEventListener("click", function(e){ e.stopPropagation(); onPick(b.getAttribute("data-val")); closeSelectMenu(); });
+    });
+    selectMenuEl = menu;
+  }
+  function openSettings(section){
+    if (window.AGHPMR) AGHPMR.closePopup();
+    showSettingsSection(section || "basics");
+    syncSettingsFields();
+    updateSettingsDirty();
+    document.getElementById("settings-scrim").classList.remove("hide");
+    document.body.style.overflow = "hidden";
+  }
+  function closeSettingsForce(){
+    document.getElementById("settings-scrim").classList.add("hide");
+    document.getElementById("settings-unsaved-scrim").classList.add("hide");
+    document.body.style.overflow = "";
+    closeSelectMenu();
+  }
+  function requestCloseSettings(){
+    if (settingsDirty()){
+      document.getElementById("settings-unsaved-scrim").classList.remove("hide");
+      return;
+    }
+    closeSettingsForce();
+  }
+
+  document.getElementById("btn-edit-settings").addEventListener("click", function(){ openSettings("basics"); });
+  document.querySelectorAll("[data-open-settings]").forEach(function(btn){
+    btn.addEventListener("click", function(){ openSettings(btn.getAttribute("data-open-settings")); });
+  });
+  document.querySelectorAll("[data-settings-section]").forEach(function(btn){
+    btn.addEventListener("click", function(){ showSettingsSection(btn.getAttribute("data-settings-section")); });
+  });
+  document.getElementById("settings-close").addEventListener("click", requestCloseSettings);
+  document.getElementById("settings-cancel").addEventListener("click", requestCloseSettings);
+  document.getElementById("settings-scrim").addEventListener("click", function(e){
+    if (e.target.id === "settings-scrim") requestCloseSettings();
+  });
+  document.getElementById("settings-unsaved-close").onclick = function(){ document.getElementById("settings-unsaved-scrim").classList.add("hide"); };
+  document.getElementById("settings-unsaved-keep").onclick = function(){ document.getElementById("settings-unsaved-scrim").classList.add("hide"); };
+  document.getElementById("settings-unsaved-discard").onclick = function(){
+    settingsCurrent = JSON.parse(JSON.stringify(settingsInitial));
+    syncSettingsFields(); updateSettingsDirty(); closeSettingsForce();
+  };
+  document.getElementById("settings-save").addEventListener("click", function(){
+    if (!settingsDirty()) return;
+    var btn = this; btn.disabled = true; var prev = btn.innerHTML; btn.innerHTML = "Saving…";
+    setTimeout(function(){
+      settingsInitial = JSON.parse(JSON.stringify(settingsCurrent));
+      applyLiveRuntime({
+        provider: settingsCurrent.provider,
+        model: settingsCurrent.model,
+        reasoning: settingsCurrent.reasoning || ""
+      }, { toast: false, fromSettings: true });
+      document.getElementById("dh-category").textContent = settingsCurrent.category || "—";
+      btn.innerHTML = prev; updateSettingsDirty(); showToast("Changes saved");
+    }, 650);
+  });
+  document.getElementById("s-category").addEventListener("input", function(){ settingsCurrent.category = this.value; updateSettingsDirty(); });
+  document.getElementById("s-command").addEventListener("input", function(){ settingsCurrent.command = this.value; updateSettingsDirty(); });
+  document.getElementById("s-instructions").addEventListener("input", function(){ settingsCurrent.instructions = this.value; updateSettingsDirty(); });
+  document.querySelectorAll("#s-permission-group .radio-card").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      settingsCurrent.permission = btn.getAttribute("data-value");
+      document.querySelectorAll("#s-permission-group .radio-card").forEach(function(b){
+        b.setAttribute("aria-checked", String(b.getAttribute("data-value") === settingsCurrent.permission));
+      });
+      updateSettingsDirty();
+    });
+  });
+  document.querySelectorAll("[data-s-add]").forEach(function(btn){
+    btn.addEventListener("click", function(){ addSettingsToken(btn.getAttribute("data-s-add"), btn.getAttribute("data-s-input")); });
+  });
+  ["tools","denyTools","toolsets"].forEach(function(key){
+    document.getElementById("s-input-" + key).addEventListener("keydown", function(e){
+      if (e.key === "Enter"){ e.preventDefault(); addSettingsToken(key, "s-input-" + key); }
+    });
+  });
+  document.getElementById("s-btn-delete").addEventListener("click", function(){
+    closeSettingsForce();
+    setTimeout(openDelete, 120);
+  });
+  document.addEventListener("click", function(){ closeSelectMenu(); });
+  document.getElementById("settings-form").addEventListener("scroll", closeSelectMenu);
+  document.addEventListener("keydown", function(e){
+    if (e.key !== "Escape") return;
+    if (!document.getElementById("settings-unsaved-scrim").classList.contains("hide")){
+      document.getElementById("settings-unsaved-scrim").classList.add("hide"); return;
+    }
+    if (!document.getElementById("settings-scrim").classList.contains("hide")){
+      requestCloseSettings(); return;
+    }
+  });
+  ["tools","denyTools","toolsets"].forEach(renderSettingsChips);
+
+
+  /* Mount shared PMR control — header is live; settings drafts until Save */
+  if (window.AGHPMR) {
+    AGHPMR.mount("header-pmr-mount", {
+      provider: agentRuntime.provider,
+      model: agentRuntime.model,
+      reasoning: agentRuntime.reasoning,
+      onChange: function(sel){
+        if (syncingPmr) return;
+        applyLiveRuntime(sel, { fromHeader: true });
+      }
+    });
+    AGHPMR.mount("settings-pmr-mount", {
+      provider: settingsCurrent.provider,
+      model: settingsCurrent.model,
+      reasoning: settingsCurrent.reasoning || "",
+      onChange: function(sel){
+        if (syncingPmr) return;
+        settingsCurrent.provider = sel.provider;
+        settingsCurrent.model = sel.model;
+        settingsCurrent.reasoning = sel.reasoning || "";
+        updateSettingsDirty();
+      }
+    });
+  }
+
+  setTab(["overview","instructions","configuration","sessions"].indexOf(tab) >= 0 ? tab : "overview");
+  setFile(["agent","soul","heartbeat"].indexOf(file) >= 0 ? file : "agent");
+  renderSessions();
+})();
+</script>
+</body>
+</html>

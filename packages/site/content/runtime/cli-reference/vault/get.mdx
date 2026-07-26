@@ -1,0 +1,40 @@
+---
+title: "agh vault get"
+description: "Show redacted metadata for one vault secret"
+---
+
+## agh vault get
+
+Show redacted metadata for one vault secret
+
+```
+agh vault get <ref> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for get
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh vault get <ref> -o json
+```

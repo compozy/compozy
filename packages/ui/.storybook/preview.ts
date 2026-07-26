@@ -1,12 +1,13 @@
-import type { Decorator, Preview } from "@storybook/react-vite";
+import type { Preview } from "@storybook/react-vite";
 import { withThemeByClassName } from "@storybook/addon-themes";
+import { createElement, type ReactNode } from "react";
 
 import "./preview.css";
-import "@compozy/ui/tokens.css";
+import { UIProvider } from "../src/components/custom/ui-provider";
 
-type StorybookDecorator = Decorator;
+type StoryRenderer = () => ReactNode;
 
-export const themeDecorator: StorybookDecorator = withThemeByClassName({
+export const themeDecorator = withThemeByClassName({
   themes: {
     light: "",
     dark: "dark",
@@ -14,7 +15,10 @@ export const themeDecorator: StorybookDecorator = withThemeByClassName({
   defaultTheme: "dark",
 });
 
-export const storybookDecorators: StorybookDecorator[] = [themeDecorator];
+export const uiProviderDecorator = (Story: StoryRenderer) =>
+  createElement(UIProvider, null, createElement(Story));
+
+export const storybookDecorators = [themeDecorator, uiProviderDecorator];
 
 const preview: Preview = {
   decorators: storybookDecorators,

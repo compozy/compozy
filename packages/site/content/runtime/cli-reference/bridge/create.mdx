@@ -1,0 +1,56 @@
+---
+title: "agh bridge create"
+description: "Create a bridge instance"
+---
+
+## agh bridge create
+
+Create a bridge instance
+
+```
+agh bridge create [flags]
+```
+
+### Options
+
+```
+      --delivery-defaults string            JSON object or null for delivery target defaults
+      --delivery-progress string            Tool progress mode: off, new, all, or verbose
+      --delivery-progress-grouping string   Progress delivery grouping: accumulate or separate
+      --delivery-progress-reactions         Emit reaction affordances for tool progress
+      --delivery-progress-typing            Emit typing affordances for tool progress
+      --display-name string                 Operator-facing bridge display name
+      --enabled                             Whether the instance starts enabled (default true)
+      --extension string                    Owning extension name
+  -h, --help                                help for create
+      --include-group                       Include group identity in routing
+      --include-peer                        Include peer identity in routing
+      --include-thread                      Include thread identity in routing
+      --notification-suppress               Suppress notification deliveries to this bridge
+      --platform string                     Messaging platform name
+      --provider-config string              JSON object or null for provider runtime config
+      --scope string                        Bridge scope: global or workspace (default "global")
+      --workspace-id string                 Owning workspace ID for workspace-scoped bridges
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh bridge create -o json
+```

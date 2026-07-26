@@ -1,0 +1,26 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "loop_events",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are a Loop event probe.",
+            "turns": [
+                {
+                    "name": "loop-events-probe",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "loop event probe"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"loop event probe complete\",\"message\":\"loop channel result\"}\n```"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

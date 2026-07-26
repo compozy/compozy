@@ -1,0 +1,41 @@
+---
+title: "agh task profile update"
+description: "Replace one task execution profile"
+---
+
+## agh task profile update
+
+Replace one task execution profile
+
+```
+agh task profile update <id> [flags]
+```
+
+### Options
+
+```
+  -h, --help             help for update
+      --profile string   Task execution profile JSON
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task profile update <id> -o json
+```

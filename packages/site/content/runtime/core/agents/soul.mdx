@@ -1,0 +1,224 @@
+---
+title: Agent Soul
+description: Optional SOUL.md authored persona artifact that AGH resolves, validates, snapshots, and projects into prompts and read models.
+---
+
+`SOUL.md` is an optional authored persona file beside an agent's `AGENT.md`. It tells AGH how an
+agent should think, communicate, collaborate, apply principles, and relate to memory. AGH resolves
+the file at session start, snapshots the result, and includes a bounded persona block in the agent
+prompt and a compact projection in `/agent/context`.
+
+<OperatorNote>
+  `SOUL.md` is persona only. It cannot define provider, command, model, tools, capabilities, MCP
+  servers, hooks, permissions, tasks, leases, scheduler behavior, or AGH Network presence — those
+  authorities belong to `AGENT.md`, capabilities, `config.toml`, and the runtime.
+</OperatorNote>
+
+## Where SOUL.md lives
+
+```text
+~/.agh/agents/<agent>/AGENT.md
+~/.agh/agents/<agent>/SOUL.md          # optional
+<workspace>/.agh/agents/<agent>/SOUL.md
+```
+
+`SOUL.md` follows the same discovery order as `AGENT.md`: workspace root, then additional roots,
+then the AGH home directory. Discovery is first-wins. If `SOUL.md` is missing, AGH reports the
+agent's persona as `present=false` and proceeds without prompt injection.
+
+## File format
+
+`SOUL.md` is Markdown with strict YAML frontmatter and a free-form persona body.
+
+```text
+---
+version: 1
+role: "Senior Reviewer"
+tone:
+  - direct
+  - calm
+principles:
+  - "Cite the file or symbol when surfacing a defect."
+  - "Lead with blocking findings."
+constraints:
+  - "Do not propose silent rewrites."
+collaboration:
+  - "Ask before expanding scope."
+memory_policy:
+  - "Prefer durable lessons over per-session notes."
+tags:
+  - reviewer
+---
+
+You are a senior reviewer who values direct, evidence-backed feedback.
+Surface blocking findings first, then suggestions, then nits.
+```
+
+| Field           | Type         | Authored | Notes                                                                                     |
+| --------------- | ------------ | -------- | ----------------------------------------------------------------------------------------- |
+| `version`       | integer      | optional | Schema version. Snapshot digest covers the resolved frontmatter and body.                 |
+| `role`          | string       | optional | Short role tag rendered in compact context.                                               |
+| `tone`          | string array | optional | Stylistic descriptors; trimmed and deduplicated.                                          |
+| `principles`    | string array | optional | Authored values the agent should bias toward.                                             |
+| `constraints`   | string array | optional | Boundaries the agent should respect.                                                      |
+| `collaboration` | string array | optional | How this agent works with humans and other agents.                                        |
+| `memory_policy` | string array | optional | Posture toward memory, lessons, and notes.                                                |
+| `tags`          | string array | optional | Free-form labels.                                                                         |
+| Body            | Markdown     | optional | Bounded narrative persona prose. Truncated at `[agents.soul].max_body_bytes` for prompts. |
+
+The parser is strict. Any unknown frontmatter key fails validation with a typed
+`SoulDiagnostic`. Forbidden operational fields are listed below.
+
+## Forbidden fields and sections
+
+`SOUL.md` cannot redefine operational authority. The parser rejects these frontmatter fields and
+reserved Markdown declaration sections, fails closed, and emits a diagnostic that points back to
+the correct surface.
+
+| Forbidden in `SOUL.md`                                                   | Belongs in                              |
+| ------------------------------------------------------------------------ | --------------------------------------- |
+| `name`, `provider`, `command`, `model`                                   | `AGENT.md`                              |
+| `tools`, `toolsets`, `deny_tools`, `permissions`, `mcp_servers`, `hooks` | `AGENT.md` or `config.toml`             |
+| `capabilities`                                                           | `capabilities.toml` or `capabilities/*` |
+| `tasks`, `task_runs`, `scheduler`, `lease`                               | Runtime task APIs                       |
+| `heartbeat`                                                              | `HEARTBEAT.md` and `[agents.heartbeat]` |
+| `network`, `channels`                                                    | AGH Network protocol                    |
+| `spawn`, `env`, `config`, operational memory-store fields                | Runtime config                          |
+
+A `SOUL.md` that contains any of these fields is invalid; new sessions for the affected agent fail
+to start until the file is fixed or removed.
+
+## Lifecycle
+
+1. **Session start.** AGH resolves `SOUL.md` once, validates it under the current
+   `[agents.soul]` config, computes the canonical digest, and writes an immutable snapshot to
+   `agent_soul_snapshots`. The session row records `soul_snapshot_id` and `soul_digest`.
+2. **Prompt assembly.** When `enabled=true`, AGH inserts a bounded `Agent Soul` block after the
+   `AGENT.md` system prompt and before runtime situation/task context.
+3. **`/agent/context`.** A compact projection (`enabled`, `present`, `digest`, `source_path`,
+   `role`, `truncated`, `snapshot_id`) appears in `AgentContextPayload.soul`. The full prose body
+   never appears in compact context.
+4. **Task claim.** `ClaimNextRun` copies the already-loaded session `soul_snapshot_id` and
+   `soul_digest` into `task_runs.metadata_json` for provenance. The claim transaction does not
+   read `SOUL.md` from disk.
+5. **Spawned sessions.** A spawned session resolves the target agent's own `SOUL.md`. Parent
+   persona never carries over as behavioral instruction; only `parent_soul_digest` is recorded as
+   provenance metadata.
+6. **Refresh.** `agh session soul refresh <session-id>` re-resolves the file for an idle session.
+   Active task runs reject refresh with `409 soul_conflict`.
+
+Editing `SOUL.md` does not silently affect active sessions or running task runs. New sessions and
+new claims see the latest valid resolved persona.
+
+## Managed authoring
+
+Mutating `SOUL.md` always goes through the managed authoring service. Direct file writes from
+hooks, extensions, tools, resources, bundles, MCP sidecars, bridge adapters, or web code are
+explicitly forbidden. Every write/delete/rollback against an existing file requires
+`expected_digest`; stale writes fail without persistence and never partially replace the file.
+
+| Action   | CLI                        | HTTP                                                                   | UDS                            | Host API               |
+| -------- | -------------------------- | ---------------------------------------------------------------------- | ------------------------------ | ---------------------- |
+| Inspect  | `agh agent soul inspect`   | `GET /api/agents/{name}/soul`                                          | `agent.soul.inspectDefinition` | `agents/soul/get`      |
+| Validate | `agh agent soul validate`  | `POST /api/agent/soul/validate`                                        | `agent.soul.validate`          | `agents/soul/validate` |
+| Write    | `agh agent soul write`     | `PUT /api/agents/{name}/soul`                                          | `agent.soul.put`               | `agents/soul/put`      |
+| Delete   | `agh agent soul delete`    | `DELETE /api/agents/{name}/soul`                                       | `agent.soul.delete`            | `agents/soul/delete`   |
+| History  | `agh agent soul history`   | `GET /api/agents/{name}/soul/history`                                  | `agent.soul.history`           | `agents/soul/history`  |
+| Rollback | `agh agent soul rollback`  | `POST /api/agents/{name}/soul/rollback`                                | `agent.soul.rollback`          | `agents/soul/rollback` |
+| Refresh  | `agh session soul refresh` | `POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh` | `session.soul.refresh`         | n/a                    |
+| Compact  | `agh agent context`        | `GET /api/agent/context`                                               | `agent.context.get`            | n/a                    |
+
+CAS contract: every mutating transport carries `expected_digest` in the request body. HTTP
+`If-Match` headers are not honored — the body field is the deterministic CAS shape across CLI,
+HTTP, UDS, Host API, and SDKs.
+
+### Author and validate before writing
+
+```bash
+agh agent soul validate reviewer --file SOUL.md --json
+agh agent soul write reviewer --file SOUL.md --expected-digest sha256:1234... --json
+```
+
+The response returns the new digest, previous digest, revision id, and bounded actor/origin
+metadata. Every successful mutation appends an `agent_soul_revisions` row before returning
+success.
+
+### Inspect, history, and rollback
+
+```bash
+agh agent soul inspect reviewer --json
+agh agent soul history reviewer --json
+agh agent soul rollback reviewer --revision rev_01J... --expected-digest sha256:current... --json
+```
+
+Rollback runs through the same validation and CAS path as a managed write. It rejects revisions
+that violate current frontmatter rules, so a Soul that was once acceptable but contains a now-
+forbidden field cannot be restored verbatim.
+
+### Refresh idle sessions
+
+```bash
+agh session soul refresh sess_123
+```
+
+Refresh is split into validation under the request context and a durable mutation phase that runs
+under `context.WithoutCancel` so snapshot upsert and session row update finish atomically. Active
+runs return `409 soul_conflict`.
+
+## Diagnostics
+
+Validation failures use one shape across CLI, HTTP, UDS, Host API, and refresh:
+
+```json
+{
+  "diagnostics": [
+    {
+      "code": "forbidden_field",
+      "field": "tools",
+      "section": "frontmatter",
+      "message": "tools is owned by AGENT.md; remove it from SOUL.md."
+    }
+  ]
+}
+```
+
+Common diagnostic codes: `missing`, `inactive`, `forbidden_field`, `reserved_section`,
+`oversized_body`, `path_escape`, `soul_conflict`, `revision_not_found`, and parser I/O errors.
+Source paths in events, logs, and payloads are workspace-relative; absolute paths and `$HOME`
+expansions are stripped before logging.
+
+## Boundaries with other authorities
+
+- `SOUL.md` is **not** `AGENT.md`. It cannot grant tools, toolsets, capabilities, MCP servers,
+  hooks, providers, models, or permissions. The parser rejects those fields explicitly.
+- `SOUL.md` is **not** `HEARTBEAT.md`. It does not define wake/reentry policy, cadence, quiet
+  windows, or active-session-only behavior. See [Agent Heartbeat](/runtime/core/agents/heartbeat).
+- `SOUL.md` is **not** liveness or session health. Session presence is metadata-only and lives in
+  the runtime; see [Sessions](/runtime/core/sessions/lifecycle) and the session health/inspect
+  CLI commands.
+- `SOUL.md` is **not** AGH Network identity. Peer presence, peer cards, and `greet` interval are
+  governed by the [protocol model](/runtime/core/network/protocol) and remain independent.
+- `SOUL.md` does **not** appear in capability catalogs, registry metadata, or extension manifests
+  as an authority surface; extensions can manage `SOUL.md` only through Host API grants.
+
+## Common errors
+
+| Error                | Cause                                                                | Fix                                                                        |
+| -------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `forbidden_field`    | A reserved operational field appeared in frontmatter.                | Move the field to `AGENT.md`, capabilities, or `config.toml`.              |
+| `reserved_section`   | The Markdown body declared a forbidden section heading.              | Remove or rename the section.                                              |
+| `oversized_body`     | The body exceeds `[agents.soul].max_body_bytes` after normalization. | Trim the body or raise the config limit.                                   |
+| `path_escape`        | The resolved `SOUL.md` path traverses outside the agent directory.   | Place `SOUL.md` next to `AGENT.md`; do not symlink across the workspace.   |
+| `soul_conflict`      | `expected_digest` did not match the current file digest.             | Re-read the current digest and retry.                                      |
+| `revision_not_found` | Rollback referenced a revision that does not exist or was pruned.    | Use `agh agent soul history` to pick a valid revision id.                  |
+| `inactive`           | `[agents.soul].enabled=false` while the file is present.             | Re-enable the section in config or accept that prompt injection is paused. |
+
+## Related pages
+
+- [`AGENT.md`](/runtime/core/configuration/agent-md) for the executable agent definition.
+- [`config.toml` → `[agents.soul]`](/runtime/core/configuration/config-toml) for limits and
+  defaults.
+- [Agent Heartbeat](/runtime/core/agents/heartbeat) for advisory wake/reentry policy.
+- [Session Lifecycle](/runtime/core/sessions/lifecycle) for session start, refresh, and stop.
+- [`agh agent soul`](/runtime/cli-reference/agent/soul) and
+  [`agh session soul`](/runtime/cli-reference/session/soul) generated CLI references.

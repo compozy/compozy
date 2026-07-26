@@ -1,0 +1,72 @@
+---
+title: "agh spawn"
+description: "Spawn a bounded child agent session"
+---
+
+## agh spawn
+
+Spawn a bounded child agent session
+
+```
+agh spawn [flags]
+```
+
+### Examples
+
+```
+  # Spawn a worker child with a required TTL
+  agh spawn --agent reviewer --ttl-seconds 1800
+
+  # Spawn with a role, prompt overlay, and narrowed permission atoms
+  agh spawn \
+    --agent reviewer \
+    --role reviewer \
+    --ttl-seconds 1800 \
+    --prompt-overlay "Review only the implementation diff." \
+    --tool read \
+    --skill code-review \
+    --channel coord-run-123
+```
+
+### Options
+
+```
+      --agent string                  Child agent name
+      --auto-stop-on-parent           Stop the child when the parent stops (default true)
+      --channel stringArray           Allowed network channel grant (repeatable)
+  -h, --help                          help for spawn
+      --idempotency-key string        Optional idempotency key
+      --mcp-server stringArray        Allowed MCP server id (repeatable)
+      --model string                  Optional model override
+      --name string                   Optional child session display name
+      --prompt-overlay string         Prompt overlay for the child session
+      --provider string               Optional provider override
+      --role string                   Child spawn role (default "worker")
+      --sandbox-profile stringArray   Allowed sandbox profile grant (repeatable)
+      --skill stringArray             Allowed skill atom (repeatable)
+      --tool stringArray              Allowed tool atom (repeatable)
+      --ttl-seconds int               Mandatory child TTL in seconds
+      --workspace-path stringArray    Allowed workspace path grant (repeatable)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh spawn -o json
+```

@@ -1,0 +1,44 @@
+---
+title: "agh provider models set"
+description: "Curate one provider model"
+---
+
+## agh provider models set
+
+Curate one provider model
+
+```
+agh provider models set <provider> <model> [flags]
+```
+
+### Options
+
+```
+      --default-effort string   Set the model's default reasoning effort
+      --deprecated              Set whether the model is deprecated
+      --featured                Set whether the model is featured
+  -h, --help                    help for set
+      --hidden                  Set whether the model is hidden
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh provider models set <provider> <model> -o json
+```

@@ -1,0 +1,64 @@
+[extension]
+name = "linear"
+version = "0.1.0"
+description = "Production Linear bridge provider built on internal/bridgesdk"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "linear"
+display_name = "Linear"
+
+[[bridge.secret_slots]]
+name = "webhook_secret"
+description = "Linear webhook signing secret for linear-signature verification"
+required = true
+
+[[bridge.secret_slots]]
+name = "api_key"
+description = "Linear API key used when provider_config.auth_mode = api_key"
+required = false
+
+[[bridge.secret_slots]]
+name = "client_id"
+description = "Linear OAuth client ID used when provider_config.auth_mode = oauth"
+required = false
+
+[[bridge.secret_slots]]
+name = "client_secret"
+description = "Linear OAuth client secret used when provider_config.auth_mode = oauth"
+required = false
+
+[bridge.config_schema]
+schema = "agh.bridge.linear"
+version = "1"
+
+[actions]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
+
+[subprocess]
+command = "./bin/linear"
+args = ["serve"]
+
+[subprocess.env]
+AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH = "{{env:AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH}}"
+AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH = "{{env:AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH}}"
+AGH_BRIDGE_ADAPTER_STATE_PATH = "{{env:AGH_BRIDGE_ADAPTER_STATE_PATH}}"
+AGH_BRIDGE_ADAPTER_DELIVERY_PATH = "{{env:AGH_BRIDGE_ADAPTER_DELIVERY_PATH}}"
+AGH_BRIDGE_ADAPTER_INGEST_PATH = "{{env:AGH_BRIDGE_ADAPTER_INGEST_PATH}}"
+AGH_BRIDGE_ADAPTER_STARTS_PATH = "{{env:AGH_BRIDGE_ADAPTER_STARTS_PATH}}"
+AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH}}"
+AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
+AGH_BRIDGE_LINEAR_LISTEN_ADDR = "{{env:AGH_BRIDGE_LINEAR_LISTEN_ADDR}}"
+AGH_BRIDGE_LINEAR_API_BASE_URL = "{{env:AGH_BRIDGE_LINEAR_API_BASE_URL}}"
+AGH_BRIDGE_LINEAR_TOKEN_URL = "{{env:AGH_BRIDGE_LINEAR_TOKEN_URL}}"
+
+[security]
+capabilities = ["bridge.read", "bridge.write"]

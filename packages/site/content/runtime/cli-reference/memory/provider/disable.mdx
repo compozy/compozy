@@ -1,0 +1,40 @@
+---
+title: "agh memory provider disable"
+description: "Disable one Memory v2 provider"
+---
+
+## agh memory provider disable
+
+Disable one Memory v2 provider
+
+```
+agh memory provider disable <name> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for disable
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory provider disable <name> -o json
+```

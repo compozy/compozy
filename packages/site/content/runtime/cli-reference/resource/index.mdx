@@ -1,0 +1,49 @@
+---
+title: "agh resource"
+description: "Manage desired-state resources"
+---
+
+## agh resource
+
+Manage desired-state resources
+
+```
+agh resource [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for resource
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh resource -o json
+```
+
+## Subcommands
+
+| Command                                                       | Description                                 |
+| ------------------------------------------------------------- | ------------------------------------------- |
+| [agh resource delete](/runtime/cli-reference/resource/delete) | Delete one desired-state resource           |
+| [agh resource get](/runtime/cli-reference/resource/get)       | Show one desired-state resource             |
+| [agh resource list](/runtime/cli-reference/resource/list)     | List desired-state resources                |
+| [agh resource put](/runtime/cli-reference/resource/put)       | Create or update one desired-state resource |

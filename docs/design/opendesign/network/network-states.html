@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Network · states — AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--canvas);color:var(--fg);
+    font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  }
+  button,input,textarea{font-family:inherit}
+  svg{display:block}
+  code,kbd,.mono,.frame-id,.rail-label,.msg-time{font-family:var(--font-mono);font-feature-settings:normal;font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+
+  .page{max-width:1080px;margin:0 auto;padding:36px 36px 100px}
+  .head{margin-bottom:8px}
+  .head h1{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25}
+  .head p{margin-top:7px;font-size:12.5px;color:var(--subtle);max-width:72ch}
+  .head p b{font-weight:500;color:var(--muted)}
+
+  .frame-sec{margin-top:40px}
+  .frame-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;min-width:0}
+  .frame-id{font-size:11px;font-weight:600;color:var(--accent-strong);letter-spacing:.05em}
+  .frame-head h2{font-size:14px;font-weight:600;letter-spacing:-.014em;color:var(--fg-strong)}
+  .frame-note{margin:-6px 0 12px;font-size:12px;color:var(--subtle);max-width:76ch;line-height:1.55}
+  .frame-note code{font-size:11px;color:var(--muted);background:var(--canvas-soft);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 5px}
+  .frame{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas);overflow:hidden}
+
+  /* ── shared bits (network.html lineage) ── */
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);border-color:transparent}
+
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:64px 24px;
+    text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle);box-sizing:content-box}
+  .empty b{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em}
+  .empty p{font-size:12.5px;max-width:34rem;line-height:1.6;color:var(--muted)}
+  .empty .row{display:flex;gap:8px;margin-top:4px}
+
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+
+  /* skeleton (vault/sandbox shimmer lineage) */
+  .sk{border-radius:var(--radius);background:linear-gradient(90deg,var(--elevated) 0%,var(--surface-glaze) 50%,var(--elevated) 100%);
+    background-size:200% 100%;animation:shimmer 1.4s var(--ease) infinite}
+  @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+  .sk-frame{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:360px}
+  .sk-rail{border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:10px}
+  .sk-rail .sk{height:12px}
+  .sk-rail .sk:nth-child(1){width:60%;height:9px;opacity:.7}
+  .sk-rail .sk:nth-child(5){margin-top:14px;width:70%;height:9px;opacity:.7}
+  .sk-pane{padding:22px 28px}
+  .sk-pane .sk-title{width:200px;height:16px;margin-bottom:10px}
+  .sk-pane .sk-sub{width:340px;height:11px;margin-bottom:24px}
+  .sk-row{display:grid;grid-template-columns:minmax(0,1fr) 60px;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line-soft)}
+  .sk-row:last-child{border-bottom:0}
+  .sk-row .sk-l{height:12px;width:56%}
+  .sk-row .sk-r{height:10px}
+
+  /* in-channel context strips used inside frames */
+  .mini-chead{padding:20px 28px 0}
+  .mini-chead h3{display:flex;align-items:baseline;gap:1px;font-size:16px;font-weight:600;letter-spacing:-.022em;color:var(--fg-strong)}
+  .mini-chead h3 .hash{color:var(--subtle);font-weight:500}
+  .mini-chead p{margin-top:5px;font-size:12.5px;color:var(--muted)}
+  .mini-tabs{display:flex;margin:16px 0 0;border-bottom:1px solid var(--line)}
+  .mini-tab{position:relative;display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 14px;border:0;background:transparent;
+    color:var(--subtle);font-size:13px;font-weight:500;letter-spacing:-.01em}
+  .mini-tab[aria-selected="true"]{color:var(--fg-strong)}
+  .mini-tab[aria-selected="true"]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:1.5px;background:var(--fg-strong);border-radius:1px}
+  .mini-tab .count{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);background:var(--canvas-soft);border-radius:var(--radius-xs);padding:1px 5px}
+  .mini-body{padding:0 28px 28px}
+
+  .composer{border-top:1px solid var(--line);background:var(--canvas);padding:12px 28px 14px}
+  .composer-inner{display:flex;gap:8px;align-items:flex-end;max-width:860px}
+  .composer-input{flex:1;min-height:36px;resize:none;padding:8px 12px;background:var(--input-fill);
+    border:1px solid var(--line);border-radius:var(--radius-md);color:var(--fg);font-size:13px;line-height:1.45;outline:none}
+  .composer-input::placeholder{color:var(--subtle)}
+  .composer-send{height:36px;padding:0 14px}
+  .composer-hint{margin-top:6px;font-size:11px;color:var(--faint)}
+  .composer[data-disabled="true"] .composer-input,.composer[data-disabled="true"] .composer-send{opacity:.5;pointer-events:none}
+
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .two-col > div:first-child{border-right:1px solid var(--line)}
+  @media(max-width:860px){
+    .page{padding:28px 18px 80px}
+    .two-col{grid-template-columns:1fr}
+    .two-col > div:first-child{border-right:0;border-bottom:1px solid var(--line)}
+    .sk-frame{grid-template-columns:minmax(0,1fr)}
+    .sk-rail{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="page" data-od-id="network-states">
+
+  <header class="head" data-od-id="network-states-head">
+    <h1>Network — states</h1>
+    <p>Gate, loading, and empty states for the redesigned Network surface. Copy is lifted verbatim from production
+    (<b>network-empty.tsx</b>, <b>daemon-down.tsx</b>, <b>threads-empty.tsx</b>, <b>directs-empty.tsx</b>, <b>thread-empty.tsx</b>,
+    <b>direct-empty.tsx</b>, <b>use-active-session.ts</b>). Gates render before the shell; in-channel empties render inside it.</p>
+  </header>
+
+  <!-- ═══ 01 · network disabled ═══ -->
+  <section class="frame-sec" data-od-id="state-disabled">
+    <div class="frame-head"><span class="frame-id">01</span><h2>Gate — Network disabled</h2></div>
+    <p class="frame-note">Daemon status <code>disabled</code>. The whole route yields to one gate; no rail, no tabs.
+    Admin-gated copy — the action opens Settings, it never enables Network inline.</p>
+    <div class="frame">
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M10.9 6.9 6.3 16m6.8-9.1 4.6 9.1M7.2 18h9.6"/></svg>
+        <b>Network is disabled.</b>
+        <p>An operator with admin access can enable Network availability. Local work remains available, and existing Network channels and history stay intact.</p>
+        <div class="row"><button type="button" class="btn">Open Network settings</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 02 · ready, no channels ═══ -->
+  <section class="frame-sec" data-od-id="state-ready">
+    <div class="frame-head"><span class="frame-id">02</span><h2>Gate — Ready, no channels</h2></div>
+    <p class="frame-note">Status <code>ready</code>, zero channels. The empty state teaches the opt-in model instead of
+    pointing at a blank list; creating the first channel is the primary act.</p>
+    <div class="frame">
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+        <b>Network is ready when you are.</b>
+        <p>Executions stay Local by default. Choose Live explicitly for a future run to coordinate in channels, or open Settings to review Live defaults and ceilings. Network availability never enrolls an execution.</p>
+        <div class="row">
+          <button type="button" class="btn btn--primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            New channel
+          </button>
+          <button type="button" class="btn">Open Network settings</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 03 · daemon unreachable ═══ -->
+  <section class="frame-sec" data-od-id="state-daemon-down">
+    <div class="frame-head"><span class="frame-id">03</span><h2>Gate — Daemon unreachable</h2></div>
+    <p class="frame-note">Status query failed. Danger is carried by copy and the retry affordance — no red wash, no dead controls left behind it.</p>
+    <div class="frame">
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 16.4a5 5 0 0 1 7 0M5.6 12.5a9 9 0 0 1 5.4-2.6m4.9 1a9 9 0 0 1 2.5 1.6M2.8 8.6A13 13 0 0 1 7 6.1m7.9-.7a13 13 0 0 1 6.3 3.2"/><line x1="12" y1="20" x2="12" y2="20.01"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+        <b>Network is unreachable.</b>
+        <p>Make sure the AGH daemon is running.</p>
+        <div class="row"><button type="button" class="btn">Retry connection</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 04 · loading skeleton ═══ -->
+  <section class="frame-sec" data-od-id="state-loading">
+    <div class="frame-head"><span class="frame-id">04</span><h2>Loading — skeleton</h2></div>
+    <p class="frame-note">Rail and thread rows shimmer in place of content — never a centered spinner. Shapes match the loaded
+    layout so nothing jumps on arrival.</p>
+    <div class="frame">
+      <div class="sk-frame">
+        <div class="sk-rail" aria-hidden="true">
+          <span class="sk"></span><span class="sk" style="width:82%"></span><span class="sk" style="width:74%"></span><span class="sk" style="width:78%"></span>
+          <span class="sk"></span><span class="sk" style="width:86%"></span><span class="sk" style="width:70%"></span>
+        </div>
+        <div class="sk-pane" aria-hidden="true">
+          <div class="sk sk-title"></div>
+          <div class="sk sk-sub"></div>
+          <div class="list">
+            <div class="sk-row"><span class="sk sk-l"></span><span class="sk sk-r"></span></div>
+            <div class="sk-row"><span class="sk sk-l" style="width:44%"></span><span class="sk sk-r"></span></div>
+            <div class="sk-row"><span class="sk sk-l" style="width:62%"></span><span class="sk sk-r"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 05 · threads empty ═══ -->
+  <section class="frame-sec" data-od-id="state-threads-empty">
+    <div class="frame-head"><span class="frame-id">05</span><h2>In-channel — No threads yet</h2></div>
+    <p class="frame-note">Fresh channel: identity and tabs stay so the surface remains oriented; only the list area yields.
+    The composer below is the call to action, so the empty state stays quiet.</p>
+    <div class="frame">
+      <div class="mini-chead">
+        <h3><span class="hash">#</span>website_copy</h3>
+        <p>Draft and review website copy before publish.</p>
+        <div class="mini-tabs">
+          <button type="button" class="mini-tab" aria-selected="true">Threads <span class="count">0</span></button>
+          <button type="button" class="mini-tab" aria-selected="false">Directs <span class="count">0</span></button>
+          <button type="button" class="mini-tab" aria-selected="false">Activity</button>
+        </div>
+      </div>
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <b>No threads yet.</b>
+        <p>Start the first one; agents and humans both join.</p>
+      </div>
+      <div class="composer">
+        <div class="composer-inner">
+          <textarea class="composer-input" rows="1" placeholder="Start a new thread…" aria-label="Composer"></textarea>
+          <button type="button" class="btn btn--primary composer-send">Send to #website_copy</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 06 · directs empty ═══ -->
+  <section class="frame-sec" data-od-id="state-directs-empty">
+    <div class="frame-head"><span class="frame-id">06</span><h2>In-channel — No direct rooms yet</h2></div>
+    <p class="frame-note">Directs tab of an active channel. The action opens the peer picker (<code>directs/resolve</code>).</p>
+    <div class="frame">
+      <div class="mini-chead">
+        <h3><span class="hash">#</span>release-coord</h3>
+        <p>Coordinate release handoffs across coder and reviewer agents.</p>
+        <div class="mini-tabs">
+          <button type="button" class="mini-tab" aria-selected="false">Threads <span class="count">4</span></button>
+          <button type="button" class="mini-tab" aria-selected="true">Directs <span class="count">0</span></button>
+          <button type="button" class="mini-tab" aria-selected="false">Activity</button>
+        </div>
+      </div>
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
+        <b>No direct rooms yet.</b>
+        <p>Open one to talk privately with a peer in this channel.</p>
+        <div class="row">
+          <button type="button" class="btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            New direct
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 07 · conversation empties ═══ -->
+  <section class="frame-sec" data-od-id="state-conversation-empty">
+    <div class="frame-head"><span class="frame-id">07</span><h2>Conversation — no replies · quiet direct</h2></div>
+    <p class="frame-note">Left: a thread whose root message has no replies. Right: a just-resolved direct room.
+    Both keep their composer live — the reply is the exit from the state.</p>
+    <div class="frame">
+      <div class="two-col">
+        <div>
+          <div class="empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <b>Thread has no replies.</b>
+            <p>Reply below to keep the context alive.</p>
+          </div>
+          <div class="composer">
+            <div class="composer-inner">
+              <textarea class="composer-input" rows="1" placeholder="Reply in Untitled thread…" aria-label="Reply"></textarea>
+              <button type="button" class="btn btn--primary composer-send">Send</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
+            <b>Quiet so far.</b>
+            <p>Send the first message; they’ll be notified.</p>
+          </div>
+          <div class="composer">
+            <div class="composer-inner">
+              <textarea class="composer-input" rows="1" placeholder="Reply to @docs-1.sess-c…" aria-label="Reply"></textarea>
+              <button type="button" class="btn btn--primary composer-send">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 08 · composer disabled ═══ -->
+  <section class="frame-sec" data-od-id="state-composer-disabled">
+    <div class="frame-head"><span class="frame-id">08</span><h2>Composer — no local session in this channel</h2></div>
+    <p class="frame-note">The composer authors as the channel’s local peer session. Without one, the input disables and the
+    hint says exactly why (<code>use-active-session.ts</code>) — the disabled state explains itself, it never just grays out.</p>
+    <div class="frame">
+      <div class="composer" data-disabled="true">
+        <div class="composer-inner">
+          <textarea class="composer-input" rows="1" placeholder="Start a new thread…" aria-label="Composer" disabled></textarea>
+          <button type="button" class="btn btn--primary composer-send" disabled>Send to #incident-e2e</button>
+        </div>
+        <p class="composer-hint">Join this channel from another surface to compose here.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

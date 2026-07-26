@@ -1,0 +1,532 @@
+---
+title: Microsoft Teams Setup
+description: Provision a Teams bot app, connect its Bot Framework endpoint, and verify a route-specific AGH bridge.
+---
+
+This guide connects a Microsoft Teams bot to one AGH workspace route. The finished connection
+receives authenticated Bot Framework activities, routes them to the workspace's default agent, and
+sends replies back to the originating conversation.
+
+## How the Teams bridge behaves
+
+| Surface                  | AGH behavior                                                                                                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Direct messages          | Routes the base Bot Framework conversation as `peer_id`. The sender's Bot Framework user ID is separate and is used for DM access or a proactive DM.                          |
+| Channels and group chats | Routes the Bot Framework conversation as `group_id` and preserves the encoded reply reference as `thread_id`.                                                                 |
+| Inbound events           | Accepts message activities, message/action submissions, `invoke` actions, and reactions. Ignores install and conversation lifecycle activities.                               |
+| Outbound messages        | Creates, updates, and deletes Bot Framework activities. Long terminal replies split at 28,000 Unicode code points.                                                            |
+| Tool progress            | Off by default. When enabled, one markdown activity is updated in place and typing can be emitted; progress reactions and an explicit typing-clear operation are unavailable. |
+
+AGH uses Bot Framework APIs, not Microsoft Graph, for this bridge.
+
+Keep the Teams identities separate:
+
+| Purpose                          | AGH field or surface             | Teams value                                                                                      |
+| -------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Sender identity and DM allowlist | `sender.id`, `dm.allow_user_ids` | `activity.from.id`, commonly a `29:...` Bot Framework user ID.                                   |
+| Direct-message route             | `peer_id`                        | Base `activity.conversation.id`, not the sender's user ID.                                       |
+| Channel or group-chat route      | `group_id`                       | Base `activity.conversation.id`.                                                                 |
+| Route-derived reply target       | `thread_id`                      | Encoded full conversation ID and service URL returned by `agh bridge routes`.                    |
+| Proactive DM without a route     | Explicit delivery `peer_id`      | A `29:...` user ID plus tenant and service context from prior ingress or provider configuration. |
+
+## Choose one route shape per bridge
+
+AGH requires every routing dimension selected on a bridge to exist on each inbound event. A Teams
+direct message has a conversation-derived peer target, while a channel or group chat has a
+conversation-derived group target. One bridge therefore cannot require both `peer_id` and `group_id`.
+
+Create one of these route shapes:
+
+| Conversation type        | Routing flags                      | Session ownership                                      |
+| ------------------------ | ---------------------------------- | ------------------------------------------------------ |
+| Direct messages          | `--include-peer --include-thread`  | One route per direct Bot Framework conversation.       |
+| Channels and group chats | `--include-group --include-thread` | One route per shared conversation and reply reference. |
+
+If you need both shapes, create two bridge instances. Each Microsoft bot registration has one
+messaging endpoint, so the direct-message and shared-conversation instances also need separate
+Teams app and bot registrations unless an operator-owned dispatcher routes requests to the correct
+AGH webhook.
+
+## Before you start
+
+Collect or decide these values:
+
+| Value                       | Required                 | Where it comes from                                                                                             |
+| --------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Bot Application ID          | yes                      | Teams Developer CLI output, Entra app registration, or the Azure Bot resource's Microsoft App ID.               |
+| Client secret value         | yes                      | Teams Developer CLI output or Entra **Certificates & secrets**. Save the value; the secret ID is not usable.    |
+| Tenant ID                   | conditional              | CLI output or Entra app overview. Required for a single-tenant bot or proactive DMs without remembered context. |
+| Teams app ID                | yes                      | Teams Developer CLI output or the `id` in a manually authored Teams app manifest.                               |
+| Public messaging endpoint   | yes                      | Stable HTTPS URL that forwards to this bridge's provider listener and path.                                     |
+| Local listener address      | yes                      | `provider_config.webhook.listen_addr` or `AGH_BRIDGE_TEAMS_LISTEN_ADDR` in the daemon environment.              |
+| AGH workspace ID            | yes for inbound sessions | The workspace whose default agent receives new routed Teams messages.                                           |
+| Teams app administration    | yes                      | Permission to create or upload an app and install it in the target tenant.                                      |
+| Azure subscription/resource | path-dependent           | Required when the CLI provisions Azure resources or when you create an Azure Bot in the portal.                 |
+
+Custom app upload must be allowed in the target tenant. Use a developer tenant or confirm the
+organization's Teams app policy before starting.
+
+Before provisioning the Teams app, prove that the locally built provider is installed and visible
+in the daemon catalog:
+
+```bash
+PROVIDER=teams
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
+
+## Step 1: Choose the public and local endpoints
+
+The provider listens locally, while Teams calls a public HTTPS URL:
+
+```text
+Teams → https://bridge.example.com/teams/support
+      → reverse proxy or tunnel
+      → http://127.0.0.1:18085/teams/support
+```
+
+Use a stable public URL outside local development. A rotating tunnel requires updating both the
+Azure Bot messaging endpoint and `provider_config.webhook.public_url`.
+
+One Teams provider process has one listener address. All Teams bridge instances in that process
+must use the same `listen_addr` and distinct webhook paths.
+
+## Step 2: Create one route-specific bridge
+
+Teams has no `agh bridge setup` or `agh bridge manifest teams` command. Create the bridge explicitly.
+
+### Direct messages
+
+```bash
+agh bridge create \
+  --scope workspace \
+  --workspace-id ws_8f33a913d23c4fd1 \
+  --platform teams \
+  --extension teams \
+  --display-name "Teams direct messages" \
+  --enabled=false \
+  --include-peer \
+  --include-thread \
+  --provider-config '{
+    "webhook": {
+      "public_url": "https://bridge.example.com/teams/direct",
+      "listen_addr": "127.0.0.1:18085",
+      "path": "/teams/direct"
+    }
+  }' \
+  -o json
+```
+
+### Channels and group chats
+
+```bash
+agh bridge create \
+  --scope workspace \
+  --workspace-id ws_8f33a913d23c4fd1 \
+  --platform teams \
+  --extension teams \
+  --display-name "Teams shared conversations" \
+  --enabled=false \
+  --include-group \
+  --include-thread \
+  --provider-config '{
+    "webhook": {
+      "public_url": "https://bridge.example.com/teams/shared",
+      "listen_addr": "127.0.0.1:18085",
+      "path": "/teams/shared"
+    }
+  }' \
+  -o json
+```
+
+Copy the returned ID from the route shape you selected:
+
+```bash
+BRIDGE_ID=brg_123
+```
+
+Complete the remaining steps for that bridge and its matching Microsoft app. Repeat the setup with a
+second identity and endpoint if you also need the other route shape.
+
+## Step 3: Provision the Microsoft bot and app
+
+The Teams Developer CLI is the shortest path because it creates the Microsoft identity, bot
+registration, Teams app manifest, and installable app together. The portal path remains useful when
+an organization requires separately managed Azure resources.
+
+### Option A: Teams Developer CLI
+
+Install the Teams Developer CLI, authenticate, and confirm the active tenant:
+
+```bash
+npm install -g @microsoft/teams.cli
+teams login
+teams status -v
+```
+
+Use the CLI's [installation guide](https://microsoft.github.io/teams-sdk/cli/getting-started/installation/)
+and `teams --version` to confirm the command available on the operator host.
+
+Create the app against the exact public URL stored on the AGH bridge:
+
+```bash
+teams app create \
+  --name "AGH Teams support" \
+  --endpoint "https://bridge.example.com/teams/shared" \
+  --color-icon ./color.png \
+  --outline-icon ./outline.png
+```
+
+During interactive creation, select only the bot contexts served by this bridge:
+
+- **Personal** for the direct-message route;
+- **Team** and **Group Chat** for the shared-conversation route;
+- do not select **Copilot**.
+
+To provision the Azure Bot resources in a specific subscription and resource group:
+
+```bash
+teams app create \
+  --name "AGH Teams support" \
+  --azure \
+  --subscription "<AZURE_SUBSCRIPTION_ID>" \
+  --resource-group "<AZURE_RESOURCE_GROUP>" \
+  --endpoint "https://bridge.example.com/teams/shared" \
+  --color-icon ./color.png \
+  --outline-icon ./outline.png
+```
+
+Replace the endpoint with the direct-message URL when configuring that route shape. Save the
+`CLIENT_ID`, `CLIENT_SECRET`, and `TENANT_ID` from the command output. The client secret is shown
+once. Use `CLIENT_ID` as the AGH `app_id` binding.
+
+List the imported apps and record the identifier for the app you just created:
+
+```bash
+teams app list --json
+```
+
+Check the generated app before installation:
+
+```bash
+teams app doctor "<TEAMS_CLI_APP_ID>"
+teams app package download "<TEAMS_CLI_APP_ID>" -o ./agh-teams-app.zip
+unzip -l ./agh-teams-app.zip
+```
+
+The package listing must contain `manifest.json`, `outline.png`, and `color.png` at the archive
+root.
+
+### Option B: Entra and Azure portal
+
+1. In **Microsoft Entra ID → App registrations**, create or select the bot application.
+2. Record its **Application (client) ID** and **Directory (tenant) ID**.
+3. Open **Certificates & secrets → New client secret**. Copy the secret value immediately.
+4. Create an **Azure Bot** resource that uses this app registration. Choose the matching tenant
+   model; the optional AGH `app_tenant_id` must match a single-tenant registration.
+5. Open **Settings → Channels** on the Azure Bot and enable **Microsoft Teams**.
+
+Do not add Microsoft Graph scopes. The provider obtains a Bot Framework client-credentials token for
+`https://api.botframework.com/.default`.
+
+## Step 4: Bind the credentials
+
+Secret values cross the write-only boundary once and are never returned by bridge reads:
+
+```bash
+printf '%s' "$TEAMS_CLIENT_ID" | agh bridge secret-bindings put "$BRIDGE_ID" app_id \
+  --secret-ref "vault:bridges/$BRIDGE_ID/app_id" \
+  --kind credential \
+  --secret-value-stdin
+
+printf '%s' "$TEAMS_APP_PASSWORD" | agh bridge secret-bindings put "$BRIDGE_ID" app_password \
+  --secret-ref "vault:bridges/$BRIDGE_ID/app_password" \
+  --kind secret \
+  --secret-value-stdin
+```
+
+For a single-tenant bot or proactive DMs without prior inbound context, bind the tenant too:
+
+```bash
+printf '%s' "$TEAMS_TENANT_ID" | agh bridge secret-bindings put "$BRIDGE_ID" app_tenant_id \
+  --secret-ref "vault:bridges/$BRIDGE_ID/app_tenant_id" \
+  --kind credential \
+  --secret-value-stdin
+```
+
+<OperatorNote>
+  `--secret-value-stdin` keeps credential values out of the AGH process arguments. For values already
+  stored in a permission-restricted file, use `--secret-value-file <path>` instead. See [Bridge
+  operations](/runtime/core/bridges/operations#rotate-a-credential).
+</OperatorNote>
+
+## Step 5: Confirm the Azure Bot endpoint
+
+The Teams Developer CLI sets the endpoint supplied to `teams app create`. For a portal-created bot,
+or after changing the bridge URL:
+
+1. Open the Azure Bot resource.
+2. Under **Settings → Configuration**, set **Messaging endpoint** to the exact
+   `provider_config.webhook.public_url`.
+3. Select **Apply**.
+4. Confirm the Microsoft Teams channel remains enabled under **Settings → Channels**.
+
+Microsoft's [Bot Service settings reference](https://learn.microsoft.com/en-us/azure/bot-service/bot-service-manage-settings?view=azure-bot-service-4.0)
+documents the messaging-endpoint field. The path does not need to use Microsoft's conventional Bot
+Framework callback; it must match the AGH public URL exactly.
+
+## Step 6: Install the Teams app
+
+An Azure Bot resource does not make the bot discoverable in Teams. Install the app produced by the
+CLI, or build the minimum package manually.
+
+### Install the CLI-created app
+
+Get an installation link:
+
+```bash
+teams app get "<TEAMS_CLI_APP_ID>" --install-link
+```
+
+Open the printed link, review the requested contexts, and install the app in a personal chat or test
+team that matches the bridge's route shape.
+
+### Build a minimum app package manually
+
+Create `manifest.json` with the Teams manifest schema `1.24`:
+
+```json
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.24/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.24",
+  "version": "1.0.0",
+  "id": "<TEAMS_APP_ID_GUID>",
+  "developer": {
+    "name": "<DEVELOPER_NAME>",
+    "websiteUrl": "<HTTPS_WEBSITE_URL>",
+    "privacyUrl": "<HTTPS_PRIVACY_URL>",
+    "termsOfUseUrl": "<HTTPS_TERMS_URL>"
+  },
+  "name": {
+    "short": "AGH",
+    "full": "AGH Teams bridge"
+  },
+  "description": {
+    "short": "Connect Microsoft Teams conversations to AGH.",
+    "full": "Connect Microsoft Teams conversations to one route-specific AGH workspace bridge."
+  },
+  "icons": {
+    "outline": "outline.png",
+    "color": "color.png"
+  },
+  "accentColor": "#FFFFFF",
+  "bots": [
+    {
+      "botId": "<BOT_APPLICATION_ID>",
+      "scopes": ["team", "groupChat"],
+      "isNotificationOnly": false,
+      "supportsFiles": false
+    }
+  ]
+}
+```
+
+Replace every placeholder. `botId` must equal the Application ID bound to AGH as `app_id`. The
+top-level `id` identifies the Teams app package and must be a GUID. The two fields are separate
+manifest contracts; use the values assigned by your registration flow. This example serves the
+shared-conversation route. For a direct-message bridge, set `scopes` to `["personal"]` instead. Do
+not expose a context the bridge does not route.
+
+Prepare these assets:
+
+- `outline.png`: transparent PNG with a white outline, 32 × 32 pixels.
+- `color.png`: full-color PNG, 192 × 192 pixels.
+
+Package all three files at the archive root:
+
+```bash
+zip -j agh-teams-app.zip manifest.json outline.png color.png
+unzip -l agh-teams-app.zip
+```
+
+The package needs no Microsoft Graph scopes, resource-specific consent, tab, SSO, calling, or video
+declarations. `supportsFiles` remains false because the AGH provider does not implement the Teams
+file-consent flow.
+
+Upload the package:
+
+1. In Teams, open **Apps → Manage your apps**.
+2. Select **Upload an app → Upload a custom app**.
+3. Choose `agh-teams-app.zip`.
+4. Review the bot contexts and install it in the matching personal chat or test team.
+
+If custom upload is disabled, an administrator can upload the package under **Teams admin center →
+Teams apps → Manage apps → Upload new app**.
+
+See Microsoft's [app package guide](https://learn.microsoft.com/en-us/microsoftteams/platform/concepts/build-and-test/apps-package)
+and [custom app upload guide](https://learn.microsoft.com/en-us/microsoftteams/platform/concepts/deploy-and-publish/apps-upload)
+for tenant-specific publishing controls.
+
+## Step 7: Verify the disabled bridge
+
+Run provider checks while the bridge is disabled:
+
+```bash
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+Expected evidence:
+
+- `provider.identity` passes when Bot Framework token acquisition succeeds;
+- provider configuration passes when the listener, path, and tenant shape are valid;
+- webhook reachability is `skipped` because the bridge is disabled.
+
+This does not prove that the Teams app is installed or that Azure Bot saved the messaging endpoint.
+
+## Step 8: Control direct-message access
+
+Do this before enabling a direct-message bridge. An omitted or empty `dm_policy` normalizes to
+`open`, which admits every Teams DM sender whose activity passes Bot Framework token validation.
+Prefer stable Bot Framework user IDs such as `29:…` over normalized display-name fallbacks.
+
+`agh bridge create` and `agh bridge update` do not currently expose `--dm-policy`. Use the Web editor
+or HTTP API procedure in [Control direct-message access](./access), then keep the bridge disabled
+until `agh bridge get "$BRIDGE_ID" -o json` reports the intended policy and
+`provider_config.dm` lists.
+
+`allowlist` reads `allow_user_ids` and `allow_usernames`. `pairing` reads pre-populated
+`paired_user_ids` and `paired_usernames`, then falls back to the allowlist; it does not issue pairing
+codes or start an interactive approval flow.
+
+`dm_policy` applies only to personal chats. It does not restrict Teams channels or group chats;
+tenant installation, app availability, Teams permissions, and the bridge's group/thread route govern
+those surfaces.
+
+## Step 9: Enable and verify reachability
+
+Enable the bridge and repeat verification to exercise the public route:
+
+```bash
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+The bridge should settle at `ready`. A warning or failure includes a remediation record; fix it
+before testing a user conversation.
+
+## Step 10: Establish a route and send a real test
+
+Send a message in a Teams context that matches the selected route shape. Then inspect the route
+created from the authenticated activity:
+
+```bash
+agh bridge routes "$BRIDGE_ID" -o json
+```
+
+For a channel or group chat, reuse the returned group and thread targets:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH Teams connection check" \
+  --group-id "<group-id-from-route>" \
+  --thread-id "<thread-id-from-route>" \
+  --mode reply \
+  --json
+```
+
+For a direct message, reuse the peer and thread targets:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH Teams direct-message check" \
+  --peer-id "<peer-id-from-route>" \
+  --thread-id "<thread-id-from-route>" \
+  --mode reply \
+  --json
+```
+
+For a route-derived reply, use both values exactly as returned. The `peer_id` is the base Bot
+Framework conversation ID, while the encoded `thread_id` carries the full conversation and service
+URL needed for delivery. Do not replace either value with an email address, UPN, or sender `29:...`
+ID.
+
+A `29:...` user ID is valid for a separate proactive DM that does not use a route-derived thread.
+That path also needs tenant and service context from prior inbound activity or provider
+configuration.
+
+## Configuration reference
+
+| Field                                     | Default / fallback             | Purpose                                                                             |
+| ----------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
+| `webhook.public_url`                      | none                           | Full public HTTPS messaging endpoint used by Azure Bot and AGH reachability checks. |
+| `webhook.listen_addr`                     | `AGH_BRIDGE_TEAMS_LISTEN_ADDR` | Local provider listener. One address per provider process.                          |
+| `webhook.path`                            | `/teams/<bridge-id>`           | Local path; it must be unique within the provider process.                          |
+| `batching.delay_ms`                       | `0`                            | Batches inbound items when positive; zero dispatches immediately.                   |
+| `batching.split_delay_ms`                 | `delay_ms`                     | Delay used when the batching split threshold is crossed.                            |
+| `batching.split_threshold`                | `0`                            | Provider batching split threshold.                                                  |
+| `dm.allow_user_ids` / `paired_user_ids`   | empty                          | Bot Framework IDs admitted by bridge `dm_policy`.                                   |
+| `dm.allow_usernames` / `paired_usernames` | empty                          | Normalized display-name fallbacks for DM policy. IDs are safer.                     |
+
+Credential-bearing service, OpenID metadata, and OAuth token URLs are not instance settings. Use the
+operator-owned `AGH_BRIDGE_TEAMS_*` environment variables only for a trusted sovereign deployment
+or integration lab.
+
+## Troubleshooting
+
+| Symptom                                                              | What to check                                                                                                                         |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider.identity` names `app_id` or `app_password`                 | The slot is missing. Bind the credential value, not an Entra object ID or secret ID.                                                  |
+| Token acquisition returns unauthorized                               | Confirm the Application ID, client secret value, tenant model, and optional `app_tenant_id` belong to the same registration.          |
+| Verify passes while disabled, but Teams says the bot did not respond | Save the Azure Bot messaging endpoint, enable the Teams channel, install the Teams app package, then verify again after enabling AGH. |
+| Public verification reports a missing route                          | Confirm the proxy forwards the complete path to the configured local listener and does not strip the bridge's webhook path.           |
+| Direct messages fail routing                                         | Use a bridge created with `--include-peer --include-thread`; do not also require `group_id`.                                          |
+| Channel or group messages fail routing                               | Use a bridge created with `--include-group --include-thread`; do not also require `peer_id`.                                          |
+| Proactive DM fails                                                   | Use the Bot Framework user ID and provide tenant context. First receive a DM if you do not bind `app_tenant_id`.                      |
+| A second Teams bridge degrades at startup                            | All Teams instances in one process must share `listen_addr`; give each one a distinct `webhook.path`.                                 |
+| Responses arrive in the wrong conversation                           | Inspect `agh bridge routes`; `send-test` must reuse the conversation and reply identifiers from the intended route.                   |
+
+## Security notes
+
+- Treat `app_password` as a password and rotate it through Entra plus the AGH binding.
+- Keep the bridge disabled until identity checks pass.
+- Restrict DMs with `dm_policy` and ID allowlists before broad tenant distribution.
+- Inbound bearer tokens are checked against Bot Framework signing keys, issuer, audience, and the
+  activity `serviceUrl`; do not place a generic unauthenticated proxy in front of the provider.
+
+## Rotate the client secret
+
+Create the new Entra client secret before the old value expires. Disable the bridge, replace the
+`app_password` binding, enable, and verify token acquisition. Prove one inbound activity and one
+real delivery before deleting the old Entra secret.
+
+If the tenant model or Application ID changes, treat it as an identity migration: update the Azure
+Bot, Teams app package, and all AGH bindings together rather than changing only one value.
+
+## Completion checklist
+
+- The Teams extension is installed, enabled, and healthy in the provider catalog.
+- The bridge requires exactly the dimensions emitted by its selected Teams conversation type.
+- The Azure Bot, Teams app manifest `botId`, and AGH `app_id` binding use the same Application ID.
+- `provider.identity` passes Bot Framework token acquisition.
+- The app package contains manifest `1.24` plus both required icons at the ZIP root.
+- A direct-message bridge reports the intended `dm_policy` and sender lists before enablement.
+- The installed Teams app can send an authenticated inbound activity.
+- The resulting route contains either peer/thread or group/thread identifiers, never a requirement
+  for both peer and group.
+- `send-test` returns a remote activity ID in the intended conversation.
+- The bridge returns to `ready` after one restart.
+
+## Related docs
+
+- [Bridge setup](/runtime/core/bridges/setup)
+- [Control direct-message access](./access)
+- [Operate and repair bridges](/runtime/core/bridges/operations)
+- [Message routing](/runtime/core/bridges/routing)
+- [Tool progress](/runtime/core/bridges/progress)
+- [Bridge CLI reference](/runtime/cli-reference/bridge)

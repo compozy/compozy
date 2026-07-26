@@ -1,0 +1,51 @@
+---
+title: "agh agent heartbeat wake"
+description: "Request one manual advisory Heartbeat wake"
+---
+
+## agh agent heartbeat wake
+
+Request one manual advisory Heartbeat wake
+
+```
+agh agent heartbeat wake <agent> [flags]
+```
+
+### Examples
+
+```
+  agh agent heartbeat wake coder --session sess_123 --dry-run --json
+```
+
+### Options
+
+```
+      --dry-run                  Evaluate wake gates without sending a prompt
+  -h, --help                     help for wake
+      --idempotency-key string   Optional idempotency key
+      --session string           Session id to wake
+      --source string            Wake source (default "manual")
+      --workspace string         Resolve the agent from a workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh agent heartbeat wake <agent> -o json
+```

@@ -1,0 +1,4 @@
+{
+    "title": "Jobs",
+    "pages": ["index", "create", "delete", "get", "history", "trigger", "update"]
+}

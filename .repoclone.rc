@@ -5,15 +5,32 @@ https://github.com/OpenSource03/harnss harnss
 https://github.com/anomalyco/opencode opencode
 https://github.com/badlogic/pi-mono pi
 https://github.com/zed-industries/zed zed
-# parallel-task-execution spec references — DAG waves
-https://github.com/pleme-io/shigoto-go shigoto-go
-https://github.com/FrogoAI/ltree ltree
-https://github.com/noneback/go-taskflow go-taskflow
-# parallel-task-execution spec references — worktree commit/merge-back lifecycle
-https://github.com/dagger/container-use container-use
-https://github.com/smtg-ai/claude-squad claude-squad
-https://github.com/devflowinc/uzi uzi
-# parallel-task-execution spec references — FSM orchestration + conflict resolution
-https://github.com/looplab/fsm fsm
-https://github.com/qmuntal/stateless stateless
-https://codeberg.org/mergiraf/mergiraf mergiraf
+https://github.com/Forward-Future/loop-library loop-library
+https://github.com/ksimback/looper looper
+https://github.com/mastra-ai/mastra mastra
+https://github.com/librefang/librefang librefang
+https://github.com/cobusgreyling/loop-engineering loop-engineering
+https://github.com/smithersai/smithers smithers
+https://github.com/simstudioai/sim sim
+https://github.com/Emanuele-web04/synara synara
+https://github.com/nousresearch/hermes-agent hermes
+https://github.com/superdesigndev/loopany-platform loopany
+https://github.com/vercel/chat vercel-chat
+https://github.com/collaborator-ai/collab-public collaborator-ai
+https://github.com/nextlevelbuilder/goclaw goclaw
+https://github.com/pedronauck/knowledge knowledge
+https://github.com/multica-ai/multica multica
+https://github.com/openclaw/openclaw openclaw
+https://github.com/RightNow-AI/openfang openfang
+https://github.com/paperclipai/paperclip paperclip
+https://github.com/rayclaw/rayclaw rayclaw
+https://github.com/rivet-dev/sandbox-agent sandbox-agent
+https://github.com/openai/symphony symphony
+https://github.com/pingdotgg/t3code t3code
+https://github.com/openclaw/openclaw openclaw
+https://github.com/vercel/chat/ vercel-chat
+https://github.com/stablyai/orca orca
+https://github.com/pmndrs/use-gesture use-gesture
+https://github.com/nikitabobko/aerospace aerospace
+https://github.com/ianyh/amethyst amethyst
+https://github.com/rxhanson/rectangle rectangle

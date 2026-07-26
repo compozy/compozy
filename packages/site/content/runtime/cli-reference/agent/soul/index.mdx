@@ -1,0 +1,41 @@
+---
+title: "agh agent soul"
+description: "Inspect and manage agent SOUL.md files"
+---
+
+## agh agent soul
+
+Inspect and manage agent SOUL.md files
+
+### Options
+
+```
+  -h, --help   help for soul
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                               | Description                                          |
+| --------------------------------------------------------------------- | ---------------------------------------------------- |
+| [agh agent soul delete](/runtime/cli-reference/agent/soul/delete)     | Delete SOUL.md through managed authoring             |
+| [agh agent soul history](/runtime/cli-reference/agent/soul/history)   | List managed Soul authoring revisions                |
+| [agh agent soul inspect](/runtime/cli-reference/agent/soul/inspect)   | Inspect one agent's resolved Soul                    |
+| [agh agent soul rollback](/runtime/cli-reference/agent/soul/rollback) | Rollback SOUL.md to a managed revision               |
+| [agh agent soul validate](/runtime/cli-reference/agent/soul/validate) | Validate a proposed Soul body or the current SOUL.md |
+| [agh agent soul write](/runtime/cli-reference/agent/soul/write)       | Create or replace SOUL.md through managed authoring  |

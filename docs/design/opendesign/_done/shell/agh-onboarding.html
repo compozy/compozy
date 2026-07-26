@@ -1,0 +1,1022 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AGH · First-run setup</title>
+<link rel="preconnect" href="https://rsms.me/" />
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
+<style>
+:root{
+  color-scheme: dark;
+  /* Surface ramp — lifted from packages/ui/src/tokens.css */
+  --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a;
+  --sidebar:#1a1918; --elevated:#232220; --hover:#1f1e1d; --disabled:#4a4847;
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,0.055); --line-soft:rgba(255,255,255,0.03); --line-strong:rgba(255,255,255,0.09);
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,0.10); --accent-tint-strong:rgba(232,87,42,0.16);
+  --accent-dim:rgba(232,87,42,0.24); --accent-glow:rgba(232,87,42,0.05);
+  --success:#5fbf85; --warning:#d6a647; --danger:#e0635a; --info:#8e8eb5; --neutral:#7a7a80;
+  --success-tint:rgba(95,191,133,0.08); --warning-tint:rgba(214,166,71,0.08);
+  --danger-tint:rgba(224,99,90,0.09); --info-tint:rgba(142,142,181,0.12);
+  --surface-glaze:rgba(255,255,255,0.04); --row-selected:rgba(255,255,255,0.03);
+  --input-fill:rgba(255,255,255,0.025); --badge-fill:rgba(255,255,255,0.05);
+  --btn-default-fill:rgba(255,255,255,0.04); --btn-default-hover:rgba(255,255,255,0.07);
+  --overlay-scrim:rgba(0,0,0,0.55);
+  /* Avatar palette */
+  --avatar-0-bg:rgba(232,144,99,0.18);  --avatar-0-fg:#f2b895;
+  --avatar-1-bg:rgba(168,178,220,0.16); --avatar-1-fg:#c5cce7;
+  --avatar-2-bg:rgba(143,196,178,0.18); --avatar-2-fg:#a9d9c7;
+  --avatar-3-bg:rgba(214,168,192,0.18); --avatar-3-fg:#e0bcd0;
+  --avatar-h-bg:rgba(220,192,134,0.20); --avatar-h-fg:#e5cc9a;
+
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px;
+  --radius-xl:14px; --radius-pill:9999px; --radius-icon-well:10px;
+  --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+  --highlight: inset 0 1px 0 rgba(255,255,255,0.035);
+  --shadow-overlay: 0 24px 48px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.045);
+  --focus-ring: 0 0 0 1px var(--line-strong);
+  --focus-ring-inset: inset 0 0 0 1px var(--line-strong);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--canvas);color:var(--fg);font-family:var(--font-sans);
+  font-size:13.5px;line-height:1.5;letter-spacing:-0.006em;font-feature-settings:"cv01","ss03","cv11";
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,textarea{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--accent-tint);color:var(--fg-strong)}
+.mono{font-family:var(--font-mono);font-feature-settings:normal;-webkit-font-smoothing:subpixel-antialiased}
+.eyebrow{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:-0.005em}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.07);border-radius:99px;border:3px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.12);background-clip:padding-box}
+
+/* ============ Shell ============ */
+.shell{display:grid;grid-template-columns:360px minmax(0,1fr);height:100vh;height:100dvh}
+
+/* ---- Left rail (vertical stepper) ---- */
+.aside{position:relative;display:flex;flex-direction:column;background:var(--rail);
+  border-right:1px solid var(--line);padding:30px 28px 24px;overflow:hidden}
+.aside::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 60% at 0% 0%, var(--accent-glow), transparent 60%)}
+.brand{position:relative;display:flex;align-items:center;gap:11px;margin-bottom:6px}
+.brand__mark{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;
+  background:linear-gradient(160deg,var(--accent-strong),var(--accent));color:var(--accent-ink);
+  box-shadow:var(--highlight)}
+.brand__mark svg{width:17px;height:17px}
+.brand__name{font-size:15px;font-weight:600;letter-spacing:-0.02em;color:var(--fg-strong)}
+.brand__sub{font-size:11px;color:var(--faint);margin-top:1px;letter-spacing:0.01em}
+.aside__lead{position:relative;margin:26px 0 22px}
+.aside__lead .eyebrow{color:var(--accent);display:block;margin-bottom:8px}
+.aside__lead h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-0.022em;color:var(--fg-strong);line-height:1.25}
+.aside__lead p{margin:9px 0 0;font-size:12.5px;line-height:1.6;color:var(--muted)}
+
+/* Vertical stepper — mirrors stepper.tsx anatomy */
+.stepper{position:relative;display:flex;flex-direction:column;margin-top:4px}
+.step{position:relative;display:grid;grid-template-columns:26px 1fr;column-gap:13px;align-items:start;
+  text-align:left;width:100%;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.step:disabled{cursor:not-allowed}
+.step__rail{display:flex;flex-direction:column;align-items:center;align-self:stretch}
+.step__ind{width:26px;height:26px;border-radius:99px;display:grid;place-items:center;flex:none;
+  font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;transition:all var(--dur) var(--ease);
+  background:var(--elevated);color:var(--subtle);box-shadow:var(--focus-ring-inset)}
+.step__ind svg{width:14px;height:14px}
+.step__sep{width:1.5px;flex:1;min-height:26px;background:var(--line);margin:5px 0;border-radius:2px;
+  transition:background var(--dur) var(--ease)}
+.step__body{padding-bottom:26px;padding-top:2px}
+.step__title{font-size:13.5px;font-weight:500;letter-spacing:-0.01em;color:var(--muted);transition:color var(--dur) var(--ease)}
+.step__desc{margin-top:3px;font-size:11.5px;line-height:1.5;color:var(--faint)}
+/* states */
+.step[data-state="active"] .step__ind{background:var(--accent);color:var(--accent-ink);
+  box-shadow:var(--highlight),0 0 0 4px var(--accent-tint)}
+.step[data-state="active"] .step__title{color:var(--fg-strong)}
+.step[data-state="active"] .step__desc{color:var(--muted)}
+.step[data-state="completed"] .step__ind{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+.step[data-state="completed"] .step__title{color:var(--fg)}
+.step[data-state="completed"] .step__sep{background:var(--accent-dim)}
+.step:not(:disabled):hover .step__title{color:var(--fg)}
+.aside__foot{position:relative;margin-top:auto;padding-top:18px;border-top:1px solid var(--line-soft);
+  display:flex;align-items:center;gap:8px;font-size:11px;color:var(--faint)}
+.aside__foot svg{width:13px;height:13px;color:var(--subtle)}
+
+/* ---- Right stage ---- */
+.stage{display:flex;flex-direction:column;min-width:0;height:100vh;height:100dvh;background:var(--canvas)}
+.stage__head{flex:none;padding:38px 56px 22px;border-bottom:1px solid var(--line-soft)}
+.stage__head .eyebrow{color:var(--accent);display:block;margin-bottom:9px}
+.stage__head h2{margin:0;font-size:23px;font-weight:600;letter-spacing:-0.028em;color:var(--fg-strong);line-height:1.15}
+.stage__head p{margin:10px 0 0;max-width:600px;font-size:14px;line-height:1.6;color:var(--muted)}
+.stage__scroll{flex:1;min-height:0;overflow-y:auto;padding:30px 56px 36px}
+.stage__inner{max-width:680px;margin:0 auto}
+.stage__head-inner{max-width:680px;margin:0 auto}
+.stage__foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:16px 56px;border-top:1px solid var(--line);background:var(--canvas)}
+.stage__foot-hint{font-size:12px;color:var(--faint);display:flex;align-items:center;gap:8px}
+.stage__foot-hint b{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
+.stage__foot-actions{display:flex;align-items:center;gap:10px}
+
+/* ============ Primitives ============ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 13px;
+  border-radius:var(--radius-md);font-size:12.5px;font-weight:500;letter-spacing:-0.005em;
+  border:1px solid transparent;transition:all var(--dur-fast) var(--ease);white-space:nowrap}
+.btn:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn svg{width:14px;height:14px}
+.btn--primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+.btn--primary:hover:not(:disabled){background:var(--accent-hover)}
+.btn--ghost{color:var(--fg)}
+.btn--ghost:hover:not(:disabled){background:var(--hover)}
+.btn--outline{border-color:var(--line);color:var(--fg)}
+.btn--outline:hover:not(:disabled){background:var(--hover)}
+.btn--lg{height:34px;padding:0 18px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.section{margin-bottom:30px}
+.section:last-child{margin-bottom:0}
+.section__label{display:flex;align-items:center;gap:9px;margin-bottom:13px}
+.section__label .eyebrow{color:var(--subtle)}
+.section__num{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;flex:none;
+  background:var(--elevated);color:var(--muted);font-size:10px;font-weight:600;font-variant-numeric:tabular-nums}
+.section__hint{margin:-4px 0 14px;font-size:12.5px;line-height:1.55;color:var(--faint)}
+
+/* Provider grid (radio-card) */
+.prov-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.prov{position:relative;display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:var(--radius-md);
+  background:var(--canvas-soft);text-align:left;transition:all var(--dur) var(--ease);box-shadow:var(--focus-ring-inset)}
+.prov:hover{background:var(--elevated)}
+.prov[aria-pressed="true"]{background:var(--surface-glaze);box-shadow:inset 0 0 0 1.5px var(--accent),0 0 0 4px var(--accent-glow)}
+.prov__well{width:40px;height:40px;border-radius:var(--radius-icon-well);display:grid;place-items:center;flex:none;
+  background:var(--canvas-tint);color:var(--fg);box-shadow:var(--focus-ring-inset)}
+.prov[aria-pressed="true"] .prov__well{color:var(--accent-strong)}
+.prov__well svg{width:21px;height:21px}
+.prov__name{font-size:13.5px;font-weight:500;color:var(--fg-strong);letter-spacing:-0.01em}
+.prov__meta{margin-top:2px;font-size:11px;color:var(--subtle)}
+.prov__check{position:absolute;top:9px;right:10px;width:16px;height:16px;border-radius:99px;display:grid;place-items:center;
+  background:var(--accent);color:var(--accent-ink);opacity:0;transform:scale(.7);transition:all var(--dur) var(--ease)}
+.prov__check svg{width:10px;height:10px}
+.prov[aria-pressed="true"] .prov__check{opacity:1;transform:scale(1)}
+
+/* Field + select + pillgroup */
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.field{display:flex;flex-direction:column;gap:7px}
+.field__label{font-size:12px;font-weight:500;color:var(--fg-strong);display:flex;align-items:center;gap:6px}
+.field__label .mut{color:var(--faint);font-weight:400}
+.input{height:32px;width:100%;border-radius:var(--radius-md);background:var(--elevated);
+  border:1px solid var(--line);padding:0 11px;font-size:12.5px;color:var(--fg);transition:all var(--dur-fast) var(--ease)}
+.input::placeholder{color:var(--faint)}
+.input:focus{outline:none;border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+.input--mono{font-family:var(--font-mono);font-feature-settings:normal;font-size:12px}
+.input-icon{position:relative}
+.input-icon svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--subtle);pointer-events:none}
+.input-icon .input{padding-left:31px}
+
+.select{position:relative}
+.select__btn{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;width:100%;
+  border-radius:var(--radius-md);background:var(--elevated);border:1px solid var(--line);padding:0 10px;
+  font-size:12.5px;color:var(--fg);transition:all var(--dur-fast) var(--ease)}
+.select__btn:hover{background:var(--hover)}
+.select__btn:focus-visible{outline:none;border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+.select__val{display:flex;align-items:center;gap:8px;min-width:0}
+.select__val .mono{font-size:12px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.select__btn svg.chev{width:14px;height:14px;color:var(--subtle);flex:none}
+.select__menu{position:absolute;z-index:30;top:calc(100% + 5px);left:0;right:0;padding:4px;
+  background:var(--canvas-soft);border-radius:var(--radius-md);box-shadow:var(--shadow-overlay);
+  max-height:240px;overflow-y:auto;display:none}
+.select.open .select__menu{display:block}
+.select__opt{display:flex;align-items:center;gap:8px;width:100%;padding:7px 9px;border-radius:var(--radius);
+  font-size:12.5px;color:var(--fg);text-align:left;transition:background var(--dur-fast) var(--ease)}
+.select__opt:hover{background:var(--hover)}
+.select__opt .mono{font-size:11.5px}
+.select__opt[data-checked="true"]{background:var(--row-selected)}
+.select__opt .tick{margin-left:auto;width:13px;height:13px;color:var(--accent);opacity:0}
+.select__opt[data-checked="true"] .tick{opacity:1}
+
+.pillgroup{display:inline-flex;align-items:center;gap:1px;background:var(--canvas-soft);border-radius:var(--radius-md);
+  padding:2px;width:100%}
+.pillgroup__seg{flex:1;min-height:26px;padding:0 10px;border-radius:var(--radius);font-size:11.5px;font-weight:500;
+  letter-spacing:-0.005em;color:var(--subtle);transition:all var(--dur-fast) var(--ease);white-space:nowrap;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15}
+.pillgroup__seg small{font-size:9px;font-weight:500;color:var(--faint);text-transform:uppercase;letter-spacing:0.02em;margin-top:1px}
+.pillgroup__seg:hover{color:var(--muted)}
+.pillgroup__seg[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+.pillgroup__seg[aria-pressed="true"] small{color:var(--accent-strong)}
+
+/* Auth toggle cards */
+.auth-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.auth{display:flex;gap:11px;padding:13px;border-radius:var(--radius-md);background:var(--canvas-soft);
+  text-align:left;box-shadow:var(--focus-ring-inset);transition:all var(--dur) var(--ease)}
+.auth:hover{background:var(--elevated)}
+.auth[aria-pressed="true"]{background:var(--surface-glaze);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.auth__radio{width:16px;height:16px;border-radius:99px;flex:none;margin-top:1px;box-shadow:inset 0 0 0 1.5px var(--line-strong);
+  position:relative;transition:all var(--dur) var(--ease)}
+.auth[aria-pressed="true"] .auth__radio{box-shadow:inset 0 0 0 5px var(--accent)}
+.auth__t{font-size:12.5px;font-weight:500;color:var(--fg-strong)}
+.auth__d{margin-top:3px;font-size:11.5px;line-height:1.5;color:var(--subtle)}
+.auth-detail{display:none}
+.auth-detail.show{display:block;animation:fade .2s var(--ease)}
+.key-help{margin-top:9px;font-size:11.5px;color:var(--faint);display:flex;align-items:center;gap:6px}
+.key-help a{color:var(--accent-strong);border-bottom:1px solid transparent}
+.key-help a:hover{border-color:var(--accent-dim)}
+
+/* ============ Step 2 — folders ============ */
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+.opt{display:flex;flex-direction:column;gap:0;padding:16px;border-radius:var(--radius-lg);background:var(--canvas-soft);
+  text-align:left;box-shadow:var(--focus-ring-inset);transition:all var(--dur) var(--ease)}
+.opt:hover{background:var(--elevated)}
+.opt__icon{width:38px;height:38px;border-radius:var(--radius-icon-well);display:grid;place-items:center;
+  background:var(--surface-glaze);color:var(--accent);margin-bottom:12px}
+.opt__icon svg{width:19px;height:19px}
+.opt__t{font-size:13.5px;font-weight:500;color:var(--fg-strong)}
+.opt__d{margin-top:4px;font-size:12px;line-height:1.55;color:var(--muted)}
+.opt__path{margin-top:11px;font-size:11px;color:var(--subtle);font-family:var(--font-mono);
+  font-feature-settings:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.folders{display:flex;flex-direction:column;gap:7px}
+.folder{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--radius-md);
+  background:var(--canvas-soft);box-shadow:var(--focus-ring-inset);animation:slidein .22s var(--ease)}
+.folder__ic{width:30px;height:30px;border-radius:var(--radius);display:grid;place-items:center;flex:none;
+  background:var(--elevated);color:var(--warning)}
+.folder__ic svg{width:16px;height:16px}
+.folder__main{min-width:0;flex:1}
+.folder__name{font-size:13px;font-weight:500;color:var(--fg-strong)}
+.folder__path{margin-top:1px;font-size:11px;color:var(--subtle);font-family:var(--font-mono);
+  font-feature-settings:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.folder__badge{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;
+  padding:2px 6px;border-radius:var(--radius-xs);background:var(--accent-tint);color:var(--accent-strong);flex:none}
+.folder__rm{width:26px;height:26px;border-radius:var(--radius);display:grid;place-items:center;flex:none;
+  color:var(--subtle);transition:all var(--dur-fast) var(--ease)}
+.folder__rm:hover{background:var(--danger-tint);color:var(--danger)}
+.folder__rm svg{width:14px;height:14px}
+.suggest-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+.sg-chip{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 11px;border-radius:var(--radius-pill);
+  background:var(--canvas-soft);box-shadow:var(--focus-ring-inset);font-size:12px;color:var(--muted);
+  font-family:var(--font-mono);font-feature-settings:normal;transition:all var(--dur-fast) var(--ease)}
+.sg-chip:hover{color:var(--fg);background:var(--elevated)}
+.sg-chip svg{width:13px;height:13px;color:var(--subtle)}
+.sg-chip[hidden]{display:none}
+.empty-folders{padding:22px;border-radius:var(--radius-md);border:1px dashed var(--line);text-align:center;
+  color:var(--faint);font-size:12.5px}
+
+/* ============ Step 3 — chat ============ */
+.chatwrap{display:flex;flex-direction:column;min-height:0;flex:1}
+.chatwrap[hidden]{display:none}
+.chat{flex:1;min-height:0;overflow-y:auto;padding:26px 56px 20px}
+.chat__inner{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.msg{display:flex;gap:12px;animation:fade .25s var(--ease)}
+.msg--user{justify-content:flex-end}
+.avatar{width:30px;height:30px;border-radius:99px;display:grid;place-items:center;flex:none;
+  font-size:11px;font-weight:600;text-transform:uppercase;font-variant-numeric:tabular-nums}
+.avatar--agent{background:var(--avatar-0-bg);color:var(--avatar-0-fg)}
+.msg__col{min-width:0;display:flex;flex-direction:column;gap:7px;max-width:540px}
+.msg__name{display:flex;align-items:center;gap:8px;font-size:11px}
+.msg__name b{font-weight:500;color:var(--fg);font-size:12.5px}
+.msg__name .role{color:var(--subtle)}
+.msg__name time{color:var(--faint);font-variant-numeric:tabular-nums}
+.msg__body{font-size:14px;line-height:1.65;color:var(--fg)}
+.msg--agent .msg__body{color:var(--fg)}
+.bubble{background:var(--elevated);border-radius:var(--radius-lg);padding:11px 15px;font-size:14px;
+  line-height:1.6;color:var(--fg)}
+.msg--user .msg__col{align-items:flex-end}
+
+.typing{display:inline-flex;align-items:center;gap:4px;padding:4px 0}
+.typing i{width:5px;height:5px;border-radius:99px;background:var(--subtle);display:inline-block;
+  animation:bounce 1.2s infinite ease-in-out}
+.typing i:nth-child(2){animation-delay:.15s}
+.typing i:nth-child(3){animation-delay:.3s}
+
+/* inline widgets in agent messages */
+.widget{margin-top:4px;border-radius:var(--radius-md);background:var(--canvas-soft);
+  box-shadow:var(--focus-ring-inset);padding:14px;animation:fade .25s var(--ease)}
+.widget__hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+.widget__hd .eyebrow{color:var(--subtle)}
+.widget__hd .cnt{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:var(--radius-pill);
+  background:var(--elevated);box-shadow:var(--focus-ring-inset);font-size:12.5px;color:var(--muted);
+  transition:all var(--dur-fast) var(--ease)}
+.chip .hash{font-family:var(--font-mono);font-feature-settings:normal;color:var(--subtle)}
+.chip:hover{color:var(--fg)}
+.chip[aria-pressed="true"]{background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.chip[aria-pressed="true"] .hash{color:var(--accent)}
+.chip .tk{width:13px;height:13px;opacity:0;margin-left:-2px}
+.chip[aria-pressed="true"] .tk{opacity:1}
+
+.agent-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.acard{display:flex;gap:11px;padding:11px;border-radius:var(--radius-md);background:var(--elevated);
+  text-align:left;box-shadow:var(--focus-ring-inset);transition:all var(--dur) var(--ease)}
+.acard:hover{background:var(--hover)}
+.acard[aria-pressed="true"]{background:var(--surface-glaze);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.acard__av{width:30px;height:30px;border-radius:99px;display:grid;place-items:center;flex:none;
+  font-size:11px;font-weight:600}
+.acard__t{font-size:12.5px;font-weight:500;color:var(--fg-strong);display:flex;align-items:center;gap:6px}
+.acard__role{font-size:10px;font-weight:500;color:var(--subtle);text-transform:uppercase;letter-spacing:0.03em}
+.acard__d{margin-top:3px;font-size:11px;line-height:1.45;color:var(--muted)}
+.acard__chk{margin-left:auto;width:15px;height:15px;color:var(--accent);opacity:0;flex:none}
+.acard[aria-pressed="true"] .acard__chk{opacity:1}
+.widget__cta{margin-top:13px;display:flex;align-items:center;gap:10px}
+
+.composer{flex:none;padding:14px 56px 0}
+.composer__inner{max-width:680px;margin:0 auto}
+.composer__box{display:flex;flex-direction:column;gap:9px;border-radius:var(--radius-lg);background:var(--input-fill);
+  border:1px solid var(--line);padding:11px 12px 10px;transition:all var(--dur) var(--ease)}
+.composer__box:focus-within{background:var(--canvas);border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+.composer textarea{resize:none;border:0;background:none;outline:none;width:100%;min-height:24px;max-height:120px;
+  font-size:14px;line-height:1.5;color:var(--fg)}
+.composer textarea::placeholder{color:var(--faint)}
+.composer__row{display:flex;align-items:center;justify-content:space-between}
+.composer__tools{display:flex;align-items:center;gap:2px}
+.itool{width:26px;height:26px;border-radius:var(--radius);display:grid;place-items:center;color:var(--subtle);
+  transition:all var(--dur-fast) var(--ease)}
+.itool:hover{background:var(--hover);color:var(--fg)}
+.itool svg{width:15px;height:15px}
+.send{width:28px;height:28px;border-radius:var(--radius-md);display:grid;place-items:center;
+  background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight);transition:all var(--dur-fast) var(--ease)}
+.send:hover:not(:disabled){background:var(--accent-hover)}
+.send:disabled{opacity:.4;cursor:not-allowed}
+.send svg{width:15px;height:15px}
+
+/* ============ Success overlay ============ */
+.done{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+  background:var(--overlay-scrim);backdrop-filter:blur(3px)}
+.done.show{display:flex;animation:fade .25s var(--ease)}
+.done__card{width:440px;max-width:calc(100vw - 32px);background:var(--canvas-soft);border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-overlay);padding:30px;text-align:center;animation:pop .3s var(--ease)}
+.done__ring{width:56px;height:56px;border-radius:99px;display:grid;place-items:center;margin:0 auto 18px;
+  background:var(--success-tint);color:var(--success);box-shadow:0 0 0 6px rgba(95,191,133,0.05)}
+.done__ring svg{width:26px;height:26px}
+.done h3{margin:0;font-size:19px;font-weight:600;letter-spacing:-0.02em;color:var(--fg-strong)}
+.done p{margin:9px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
+.done__sum{margin:20px 0;display:flex;flex-direction:column;gap:1px;border-radius:var(--radius-md);
+  overflow:hidden;box-shadow:var(--focus-ring-inset);text-align:left}
+.done__sum-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;background:var(--canvas-tint)}
+.done__sum-row span{font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:var(--subtle);font-weight:600}
+.done__sum-row b{font-size:12.5px;font-weight:500;color:var(--fg);font-family:var(--font-mono);font-feature-settings:normal;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;text-align:right}
+.done__actions{display:flex;gap:10px;justify-content:center}
+
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes slidein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes bounce{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+/* responsive guard for narrower desktop */
+@media (max-width:1080px){
+  .shell{grid-template-columns:300px minmax(0,1fr)}
+  .stage__head,.stage__scroll,.stage__foot,.chat,.composer{padding-left:36px;padding-right:36px}
+}
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr}
+  .aside{display:none}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- ============ Left rail / vertical stepper ============ -->
+  <aside class="aside">
+    <div class="brand">
+      <div class="brand__mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="M12 21V11"/><path d="m4 7 8 4 8-4"/></svg>
+      </div>
+      <div>
+        <div class="brand__name">AGH</div>
+        <div class="brand__sub">Agent workplace</div>
+      </div>
+    </div>
+
+    <div class="aside__lead">
+      <span class="eyebrow">First-run setup</span>
+      <h1>Let's get your workspace running.</h1>
+      <p>A few essentials before AGH can host agents. This takes about two minutes — you can refine everything later in Settings.</p>
+    </div>
+
+    <nav class="stepper" id="stepper" aria-label="Setup steps">
+      <button class="step" data-step="1" role="tab">
+        <span class="step__rail">
+          <span class="step__ind" data-ind="1">1</span>
+          <span class="step__sep"></span>
+        </span>
+        <span class="step__body">
+          <span class="step__title">Default model</span>
+          <span class="step__desc">Pick a provider, model, reasoning effort &amp; how you authenticate.</span>
+        </span>
+      </button>
+      <button class="step" data-step="2" role="tab">
+        <span class="step__rail">
+          <span class="step__ind" data-ind="2">2</span>
+          <span class="step__sep"></span>
+        </span>
+        <span class="step__body">
+          <span class="step__title">Workspaces</span>
+          <span class="step__desc">Add the folders AGH should operate inside.</span>
+        </span>
+      </button>
+      <button class="step" data-step="3" role="tab">
+        <span class="step__rail">
+          <span class="step__ind" data-ind="3">3</span>
+        </span>
+        <span class="step__body">
+          <span class="step__title">Meet your onboarding agent</span>
+          <span class="step__desc">Set up channels &amp; agents in a quick chat.</span>
+        </span>
+      </button>
+    </nav>
+
+    <div class="aside__foot">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span>Runs locally · nothing leaves your machine</span>
+    </div>
+  </aside>
+
+  <!-- ============ Right stage ============ -->
+  <main class="stage">
+    <div class="stage__head">
+      <div class="stage__head-inner">
+        <span class="eyebrow" id="stageEyebrow">Step 1 of 3</span>
+        <h2 id="stageTitle">Choose your default model</h2>
+        <p id="stageLead">This is the provider and model new agents use unless you override it per agent. AGH talks to it through your chosen credentials.</p>
+      </div>
+    </div>
+
+    <!-- ----- Step 1 & 2 scroll body ----- -->
+    <div class="stage__scroll" id="formScroll">
+      <!-- STEP 1 -->
+      <div class="stage__inner panel" data-panel="1">
+        <div class="section">
+          <div class="section__label"><span class="section__num">1</span><span class="eyebrow">Provider</span></div>
+          <div class="prov-grid" id="provGrid"></div>
+        </div>
+
+        <div class="section">
+          <div class="field-grid">
+            <div class="field">
+              <span class="field__label">Model</span>
+              <div class="select" id="modelSelect">
+                <button class="select__btn" type="button">
+                  <span class="select__val"><span class="mono" id="modelVal">—</span></span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 9 5-5 5 5"/><path d="m7 15 5 5 5-5"/></svg>
+                </button>
+                <div class="select__menu" id="modelMenu"></div>
+              </div>
+            </div>
+            <div class="field">
+              <span class="field__label">Reasoning effort <span class="mut">· thinking depth</span></span>
+              <div class="pillgroup" id="reasoning" role="group" aria-label="Reasoning effort"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section__label"><span class="section__num">2</span><span class="eyebrow">Authentication</span></div>
+          <p class="section__hint">AGH needs credentials to reach <b id="authProvName" style="color:var(--muted);font-weight:500">your provider</b>. Use a local CLI you've already signed into, or paste an API key.</p>
+          <div class="auth-opts" id="authOpts">
+            <button class="auth" type="button" data-auth="native_cli" aria-pressed="true">
+              <span class="auth__radio"></span>
+              <span><span class="auth__t">Native CLI auth</span><span class="auth__d">Reuse the provider CLI already authenticated on this machine.</span></span>
+            </button>
+            <button class="auth" type="button" data-auth="bound_secret" aria-pressed="false">
+              <span class="auth__radio"></span>
+              <span><span class="auth__t">Provide an API key</span><span class="auth__d">Bind a key from an environment variable or paste it directly.</span></span>
+            </button>
+          </div>
+          <div class="auth-detail" id="authDetail">
+            <div class="field-grid">
+              <div class="field">
+                <span class="field__label">Environment variable</span>
+                <div class="input-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+                  <input class="input input--mono" id="envVar" value="OPENAI_API_KEY" spellcheck="false" />
+                </div>
+              </div>
+              <div class="field">
+                <span class="field__label">API key <span class="mut">· optional now</span></span>
+                <div class="input-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+                  <input class="input input--mono" id="apiKey" type="password" placeholder="sk-…" spellcheck="false" />
+                </div>
+              </div>
+            </div>
+            <div class="key-help">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;color:var(--subtle)"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              <span>Stored as a bound secret reference — never written to config. <a id="keyLink" href="#" target="_blank" rel="noopener">Get an OpenAI key →</a></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="stage__inner panel" data-panel="2" hidden>
+        <div class="section">
+          <div class="opt-grid">
+            <button class="opt" type="button" id="optHome">
+              <span class="opt__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></span>
+              <span class="opt__t">Use home directory</span>
+              <span class="opt__d">One click — register your whole <span class="mono" style="color:var(--muted)">$HOME</span> as a global workspace.</span>
+              <span class="opt__path" id="homePath">~/</span>
+            </button>
+            <button class="opt" type="button" id="optBrowse">
+              <span class="opt__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><path d="M12 10v6"/><path d="M9 13h6"/></svg></span>
+              <span class="opt__t">Browse for a folder</span>
+              <span class="opt__d">Register any absolute path. Each folder becomes its own workspace.</span>
+              <span class="opt__path">Open the system file picker…</span>
+            </button>
+          </div>
+
+          <div class="section__label"><span class="eyebrow">Selected workspaces</span><span class="cnt" id="foldersCount" style="margin-left:auto;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums">0 folders</span></div>
+          <div class="folders" id="folders"></div>
+          <div class="empty-folders" id="foldersEmpty">No folders yet — add your home directory, browse, or pick a suggestion below.</div>
+
+          <div class="section__label" style="margin-top:22px;margin-bottom:10px"><span class="eyebrow" style="color:var(--subtle)">Suggested · detected on this machine</span></div>
+          <div class="suggest-row" id="folderSuggest"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ----- Step 3 chat body ----- -->
+    <div class="chatwrap panel" data-panel="3" hidden id="chatWrap">
+      <div class="chat" id="chat"><div class="chat__inner" id="chatInner"></div></div>
+      <div class="composer">
+        <div class="composer__inner">
+          <div class="composer__box">
+            <textarea id="composerInput" rows="1" placeholder="Reply to your onboarding agent…"></textarea>
+            <div class="composer__row">
+              <div class="composer__tools">
+                <button class="itool" title="Attach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+                <button class="itool" title="Mention"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg></button>
+                <button class="itool" title="Slash command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21 17 3"/></svg></button>
+              </div>
+              <button class="send" id="sendBtn" disabled title="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14-7-7 14-2-5-5-2Z"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ----- Footer nav ----- -->
+    <div class="stage__foot">
+      <div class="stage__foot-hint" id="footHint">Step <b>1</b> / 3 · Default model</div>
+      <div class="stage__foot-actions">
+        <button class="btn btn--ghost" id="backBtn" disabled>Back</button>
+        <button class="btn btn--primary btn--lg" id="nextBtn">Continue</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Success overlay -->
+<div class="done" id="done">
+  <div class="done__card">
+    <div class="done__ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+    <h3>Your workspace is ready</h3>
+    <p>AGH is configured and your onboarding agent is standing by. Here's what we set up:</p>
+    <div class="done__sum" id="doneSum"></div>
+    <div class="done__actions">
+      <button class="btn btn--outline" id="restartBtn">Run setup again</button>
+      <button class="btn btn--primary btn--lg" id="launchBtn">Launch AGH →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ---------------- Data ---------------- */
+const PROVIDERS = {
+  openai: { name:"OpenAI", meta:"GPT family", env:"OPENAI_API_KEY", hint:"sk-…",
+    url:"https://platform.openai.com/api-keys",
+    models:["GPT-5.1","GPT-5.1 Codex","GPT-5 mini","o3"],
+    logo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3a4 4 0 0 1 3.7 2.5A4 4 0 0 1 18 12a4 4 0 0 1-2.3 6.5A4 4 0 0 1 12 21a4 4 0 0 1-3.7-2.5A4 4 0 0 1 6 12a4 4 0 0 1 2.3-6.5A4 4 0 0 1 12 3Z"/><path d="M12 8v8M8.5 9.7 15.5 14.3M8.5 14.3 15.5 9.7"/></svg>' },
+  anthropic: { name:"Anthropic", meta:"Claude family", env:"ANTHROPIC_API_KEY", hint:"sk-ant-…",
+    url:"https://console.anthropic.com/settings/keys",
+    models:["Claude Opus 4.7","Claude Sonnet 4.6","Claude Haiku 4.5"],
+    logo:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5 16.6 21h-3.1l-.95-4H11.5L10.55 21H7.4L12 2.5Zm0 6.4-1.1 4.6h2.2L12 8.9Z"/></svg>' },
+  openrouter: { name:"OpenRouter", meta:"Unified routing", env:"OPENROUTER_API_KEY", hint:"sk-or-…",
+    url:"https://openrouter.ai/keys",
+    models:["anthropic/claude-opus-4.7","openai/gpt-5.1","google/gemini-3-pro","meta-llama/llama-4-405b"],
+    logo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h5l3-3M3 16h5l3 3"/><path d="m18 5 3 3-3 3M16 8h5M18 19l3-3-3-3M16 16h5"/></svg>' },
+  vercel: { name:"Vercel AI Gateway", meta:"Edge gateway", env:"AI_GATEWAY_API_KEY", hint:"vck_…",
+    url:"https://vercel.com/dashboard",
+    models:["anthropic/claude-sonnet-4.6","openai/gpt-5.1","xai/grok-4"],
+    logo:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4 22 20H2L12 4Z"/></svg>' }
+};
+const REASONING = [
+  {id:"minimal", t:"Minimal", s:"fastest"},
+  {id:"low", t:"Low", s:""},
+  {id:"medium", t:"Medium", s:""},
+  {id:"high", t:"High", s:""},
+  {id:"xhigh", t:"Extra", s:"deepest"}
+];
+const SUGGEST_FOLDERS = [
+  {name:"compozy", path:"~/Dev/compozy"},
+  {name:"agh", path:"~/Dev/compozy/agh"},
+  {name:"notes", path:"~/Documents/notes"},
+  {name:"scratch", path:"~/scratch"}
+];
+const BROWSE_POOL = [
+  {name:"design-system", path:"~/Dev/design-system"},
+  {name:"infra", path:"~/Dev/infra"},
+  {name:"website", path:"~/Sites/website"},
+  {name:"data-pipeline", path:"~/Work/data-pipeline"}
+];
+const CHANNELS = [
+  {name:"general", purpose:"Everyone, everything"},
+  {name:"engineering", purpose:"Code & builds"},
+  {name:"design", purpose:"UI & reviews"},
+  {name:"product", purpose:"Specs & roadmap"},
+  {name:"standup", purpose:"Daily async"},
+  {name:"incidents", purpose:"On-call"},
+  {name:"releases", purpose:"Ship log"},
+  {name:"random", purpose:"Off-topic"}
+];
+const AGENTS = [
+  {id:"atlas", name:"Atlas", role:"Researcher", av:1, d:"Digs through docs, code and the web to answer questions."},
+  {id:"forge", name:"Forge", role:"Engineer", av:0, d:"Writes, refactors and reviews code across your repos."},
+  {id:"sentinel", name:"Sentinel", role:"Reviewer", av:2, d:"Audits diffs for bugs, security and style."},
+  {id:"scout", name:"Scout", role:"PM", av:3, d:"Breaks work into tasks and tracks progress."},
+  {id:"muse", name:"Muse", role:"Designer", av:1, d:"Generates UI, mockups and design reviews."},
+  {id:"echo", name:"Echo", role:"Triage", av:2, d:"Routes incoming messages to the right agent."}
+];
+
+/* ---------------- State ---------------- */
+const LS = "agh-onboarding-v1";
+const state = Object.assign({
+  step:1, maxStep:1,
+  provider:"openai", model:"GPT-5.1", reasoning:"medium",
+  authMode:"native_cli", envVar:"OPENAI_API_KEY", apiKey:"",
+  folders:[], channels:[], agents:[], chatStage:"channels"
+}, load());
+function load(){ try{ return JSON.parse(localStorage.getItem(LS))||{} }catch(e){ return {} } }
+function save(){ try{ localStorage.setItem(LS, JSON.stringify(state)) }catch(e){} }
+
+const $ = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const ICON_CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const ICON_TICK='<svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const ICON_FOLDER='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>';
+const ICON_X='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+/* ---------------- Step 1: providers ---------------- */
+function renderProviders(){
+  const grid = $("#provGrid");
+  grid.innerHTML = Object.entries(PROVIDERS).map(([id,p])=>`
+    <button class="prov" type="button" data-prov="${id}" aria-pressed="${state.provider===id}">
+      <span class="prov__well">${p.logo}</span>
+      <span><span class="prov__name">${p.name}</span><span class="prov__meta">${p.meta}</span></span>
+      <span class="prov__check">${ICON_CHECK}</span>
+    </button>`).join("");
+  $$(".prov",grid).forEach(b=>b.onclick=()=>selectProvider(b.dataset.prov));
+}
+function selectProvider(id){
+  state.provider = id;
+  const p = PROVIDERS[id];
+  if(!p.models.includes(state.model)) state.model = p.models[0];
+  state.envVar = p.env;
+  $$(".prov").forEach(b=>b.setAttribute("aria-pressed", b.dataset.prov===id));
+  syncProviderDetails();
+  renderModelMenu();
+  save();
+}
+function syncProviderDetails(){
+  const p = PROVIDERS[state.provider];
+  $("#modelVal").textContent = state.model;
+  $("#authProvName").textContent = p.name;
+  $("#envVar").value = state.envVar;
+  $("#apiKey").placeholder = p.hint;
+  $("#keyLink").textContent = `Get a ${p.name} key →`;
+  $("#keyLink").href = p.url;
+}
+
+/* model select */
+function renderModelMenu(){
+  const menu = $("#modelMenu");
+  const p = PROVIDERS[state.provider];
+  menu.innerHTML = p.models.map(m=>`
+    <button class="select__opt" type="button" data-model="${m}" data-checked="${state.model===m}">
+      <span class="mono">${m}</span>
+      <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </button>`).join("");
+  $$(".select__opt",menu).forEach(o=>o.onclick=()=>{
+    state.model=o.dataset.model; $("#modelVal").textContent=state.model;
+    $("#modelSelect").classList.remove("open");
+    $$(".select__opt",menu).forEach(x=>x.dataset.checked=(x.dataset.model===state.model));
+    save();
+  });
+}
+$("#modelSelect .select__btn").onclick=(e)=>{e.stopPropagation();$("#modelSelect").classList.toggle("open")};
+document.addEventListener("click",()=>$("#modelSelect").classList.remove("open"));
+$("#modelMenu").onclick=e=>e.stopPropagation();
+
+/* reasoning pillgroup */
+function renderReasoning(){
+  const wrap = $("#reasoning");
+  wrap.innerHTML = REASONING.map(r=>`
+    <button class="pillgroup__seg" type="button" data-r="${r.id}" aria-pressed="${state.reasoning===r.id}">
+      ${r.t}${r.s?`<small>${r.s}</small>`:""}
+    </button>`).join("");
+  $$(".pillgroup__seg",wrap).forEach(b=>b.onclick=()=>{
+    state.reasoning=b.dataset.r;
+    $$(".pillgroup__seg",wrap).forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===state.reasoning));
+    save();
+  });
+}
+
+/* auth */
+function renderAuth(){
+  $$("#authOpts .auth").forEach(b=>{
+    b.setAttribute("aria-pressed", b.dataset.auth===state.authMode);
+    b.onclick=()=>{
+      state.authMode=b.dataset.auth;
+      $$("#authOpts .auth").forEach(x=>x.setAttribute("aria-pressed",x.dataset.auth===state.authMode));
+      $("#authDetail").classList.toggle("show", state.authMode==="bound_secret");
+      save();
+    };
+  });
+  $("#authDetail").classList.toggle("show", state.authMode==="bound_secret");
+  $("#envVar").oninput=e=>{state.envVar=e.target.value;save()};
+  $("#apiKey").oninput=e=>{state.apiKey=e.target.value;save()};
+}
+
+/* ---------------- Step 2: folders ---------------- */
+let browseIdx=0;
+function renderFolders(){
+  const list=$("#folders"), empty=$("#foldersEmpty");
+  empty.style.display = state.folders.length? "none":"block";
+  list.innerHTML = state.folders.map((f,i)=>`
+    <div class="folder">
+      <span class="folder__ic">${ICON_FOLDER}</span>
+      <span class="folder__main">
+        <span class="folder__name">${f.name}</span>
+        <span class="folder__path">${f.path}</span>
+      </span>
+      ${f.global?'<span class="folder__badge">Global</span>':''}
+      <button class="folder__rm" data-i="${i}" title="Remove">${ICON_X}</button>
+    </div>`).join("");
+  $$(".folder__rm",list).forEach(b=>b.onclick=()=>{state.folders.splice(+b.dataset.i,1);save();renderFolders();updateNav()});
+  $("#foldersCount").textContent = state.folders.length+" folder"+(state.folders.length===1?"":"s");
+  renderFolderSuggest();
+}
+function addFolder(f){
+  if(state.folders.some(x=>x.path===f.path)) return;
+  state.folders.push(f); save(); renderFolders(); updateNav();
+}
+function renderFolderSuggest(){
+  const row=$("#folderSuggest");
+  row.innerHTML = SUGGEST_FOLDERS.map((f,i)=>`
+    <button class="sg-chip" data-i="${i}" ${state.folders.some(x=>x.path===f.path)?"hidden":""}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      <span class="mono">${f.path}</span>
+    </button>`).join("");
+  $$(".sg-chip",row).forEach(b=>b.onclick=()=>addFolder(SUGGEST_FOLDERS[+b.dataset.i]));
+}
+$("#optHome").onclick=()=>addFolder({name:"Home",path:"~/",global:true});
+$("#optBrowse").onclick=()=>{ const f=BROWSE_POOL[browseIdx%BROWSE_POOL.length]; browseIdx++; addFolder(Object.assign({},f)); };
+
+/* ---------------- Step 3: chat ---------------- */
+const avatarClass = i=>`background:var(--avatar-${i}-bg);color:var(--avatar-${i}-fg)`;
+const now = ()=>new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+let chatBuilt=false;
+
+function chatScroll(){ const c=$("#chat"); c.scrollTop=c.scrollHeight; }
+function agentMsg(html){
+  const inner=$("#chatInner");
+  const el=document.createElement("div");
+  el.className="msg msg--agent";
+  el.innerHTML=`
+    <span class="avatar avatar--agent">ON</span>
+    <span class="msg__col">
+      <span class="msg__name"><b>Onboarding</b><span class="role">· agent</span><time>${now()}</time></span>
+      <span class="msg__body">${html}</span>
+    </span>`;
+  inner.appendChild(el); chatScroll(); return el;
+}
+function userMsg(text){
+  const inner=$("#chatInner");
+  const el=document.createElement("div");
+  el.className="msg msg--user";
+  el.innerHTML=`
+    <span class="msg__col">
+      <span class="msg__name"><time>${now()}</time><b>You</b></span>
+      <span class="bubble">${text}</span>
+    </span>
+    <span class="avatar" style="${'background:var(--avatar-h-bg);color:var(--avatar-h-fg)'}">YO</span>`;
+  inner.appendChild(el); chatScroll();
+}
+function typing(cb,delay=850){
+  const inner=$("#chatInner");
+  const el=document.createElement("div");
+  el.className="msg msg--agent";
+  el.innerHTML=`<span class="avatar avatar--agent">ON</span><span class="msg__col"><span class="typing"><i></i><i></i><i></i></span></span>`;
+  inner.appendChild(el); chatScroll();
+  setTimeout(()=>{ el.remove(); cb(); }, delay);
+}
+
+function buildChat(){
+  if(chatBuilt) return; chatBuilt=true;
+  state.chatStage="channels"; save();
+  $("#chatInner").innerHTML="";
+  agentMsg(`Nice — credentials and workspaces are in. I'm your <b>onboarding agent</b> and I'll wire up the rest right here.<br><br>First: <b>which channels</b> should I create? Channels are where you and your agents talk. Pick a few to start with.`);
+  renderChannelWidget();
+}
+
+function renderChannelWidget(){
+  const el=agentMsg("");
+  el.querySelector(".msg__body").innerHTML=`
+    <div class="widget" id="chWidget">
+      <div class="widget__hd"><span class="eyebrow">Suggested channels</span><span class="cnt"><span id="chCnt">0</span> selected</span></div>
+      <div class="chips" id="chChips"></div>
+      <div class="widget__cta">
+        <button class="btn btn--primary" id="chConfirm" disabled>Add channels</button>
+        <span style="font-size:11.5px;color:var(--faint)">or type your own in the composer</span>
+      </div>
+    </div>`;
+  const chips=$("#chChips");
+  chips.innerHTML=CHANNELS.map(c=>`
+    <button class="chip" type="button" data-ch="${c.name}" aria-pressed="${state.channels.includes(c.name)}" title="${c.purpose}">
+      ${ICON_TICK}<span class="hash">#</span>${c.name}
+    </button>`).join("");
+  $$(".chip",chips).forEach(b=>b.onclick=()=>{
+    const n=b.dataset.ch, on=b.getAttribute("aria-pressed")==="true";
+    b.setAttribute("aria-pressed",!on);
+    if(on) state.channels=state.channels.filter(x=>x!==n); else state.channels.push(n);
+    $("#chCnt").textContent=state.channels.length;
+    $("#chConfirm").disabled = state.channels.length===0;
+    save();
+  });
+  $("#chCnt").textContent=state.channels.length;
+  $("#chConfirm").disabled = state.channels.length===0;
+  $("#chConfirm").onclick=confirmChannels;
+}
+function confirmChannels(){
+  if(state.channels.length===0) return;
+  $("#chWidget").querySelector(".widget__cta").innerHTML=`<span style="font-size:12px;color:var(--success)">✓ ${state.channels.length} channels queued</span>`;
+  $$("#chChips .chip").forEach(c=>c.style.pointerEvents="none");
+  userMsg("Add: "+state.channels.map(c=>"#"+c).join("  "));
+  state.chatStage="agents"; save();
+  typing(()=>{
+    agentMsg(`Got it — ${state.channels.length} channel${state.channels.length>1?"s":""} queued.<br><br>Now, <b>which agents</b> do you want on the team? Each one shows up in your channels and can be assigned work. Here are some good defaults:`);
+    renderAgentWidget();
+  });
+}
+function renderAgentWidget(){
+  const el=agentMsg("");
+  el.querySelector(".msg__body").innerHTML=`
+    <div class="widget" id="agWidget">
+      <div class="widget__hd"><span class="eyebrow">Suggested agents</span><span class="cnt"><span id="agCnt">0</span> selected</span></div>
+      <div class="agent-grid" id="agGrid"></div>
+      <div class="widget__cta">
+        <button class="btn btn--primary" id="agConfirm" disabled>Add agents</button>
+        <span style="font-size:11.5px;color:var(--faint)">you can create custom agents later</span>
+      </div>
+    </div>`;
+  const grid=$("#agGrid");
+  grid.innerHTML=AGENTS.map(a=>`
+    <button class="acard" type="button" data-ag="${a.id}" aria-pressed="${state.agents.includes(a.id)}">
+      <span class="acard__av" style="${avatarClass(a.av)}">${a.name.slice(0,2)}</span>
+      <span style="min-width:0">
+        <span class="acard__t">${a.name} <span class="acard__role">${a.role}</span></span>
+        <span class="acard__d">${a.d}</span>
+      </span>
+      <svg class="acard__chk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </button>`).join("");
+  $$(".acard",grid).forEach(b=>b.onclick=()=>{
+    const id=b.dataset.ag, on=b.getAttribute("aria-pressed")==="true";
+    b.setAttribute("aria-pressed",!on);
+    if(on) state.agents=state.agents.filter(x=>x!==id); else state.agents.push(id);
+    $("#agCnt").textContent=state.agents.length;
+    $("#agConfirm").disabled=state.agents.length===0;
+    save();
+  });
+  $("#agCnt").textContent=state.agents.length;
+  $("#agConfirm").disabled=state.agents.length===0;
+  $("#agConfirm").onclick=confirmAgents;
+}
+function confirmAgents(){
+  if(state.agents.length===0) return;
+  $("#agWidget").querySelector(".widget__cta").innerHTML=`<span style="font-size:12px;color:var(--success)">✓ ${state.agents.length} agents queued</span>`;
+  $$("#agGrid .acard").forEach(c=>c.style.pointerEvents="none");
+  const names=state.agents.map(id=>AGENTS.find(a=>a.id===id).name);
+  userMsg("Add: "+names.join(", "));
+  state.chatStage="done"; save();
+  typing(()=>{
+    agentMsg(`Perfect — you're all set.<br><br>I'll provision <b>${state.channels.length} channel${state.channels.length>1?"s":""}</b> and <b>${state.agents.length} agent${state.agents.length>1?"s":""}</b> using <span class="mono" style="font-size:12.5px;color:var(--fg-strong)">${state.model}</span>. Hit <b>Finish setup</b> whenever you're ready.`);
+    updateNav();
+  });
+}
+
+/* composer */
+const ta=$("#composerInput");
+ta.addEventListener("input",()=>{ ta.style.height="auto"; ta.style.height=Math.min(ta.scrollHeight,120)+"px"; $("#sendBtn").disabled=!ta.value.trim(); });
+function sendMessage(){
+  const v=ta.value.trim(); if(!v) return;
+  userMsg(v); ta.value=""; ta.style.height="auto"; $("#sendBtn").disabled=true;
+  typing(()=>{
+    let reply;
+    if(state.chatStage==="channels") reply=`Noted — I'll add that as a channel too. Tap the ones above and hit <b>Add channels</b> when you're happy.`;
+    else if(state.chatStage==="agents") reply=`Good call. Pick the agents above (or I can spin up a custom one from that description later) and hit <b>Add agents</b>.`;
+    else reply=`All captured. Press <b>Finish setup</b> to launch your workspace — you can fine-tune everything from Settings afterwards.`;
+    agentMsg(reply);
+  },700);
+}
+$("#sendBtn").onclick=sendMessage;
+ta.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();} });
+
+/* ---------------- Navigation ---------------- */
+const STEP_META = {
+  1:{eb:"Step 1 of 3", t:"Choose your default model", lead:"This is the provider and model new agents use unless you override it per agent. AGH talks to it through your chosen credentials.", hint:"Default model"},
+  2:{eb:"Step 2 of 3", t:"Add your workspaces", lead:"Workspaces are the folders AGH is allowed to read and operate in. Add at least one — every agent session is scoped to a workspace.", hint:"Workspaces"},
+  3:{eb:"Step 3 of 3", t:"Meet your onboarding agent", lead:"Your onboarding agent finishes setup conversationally — choose the channels and agents your workspace starts with.", hint:"Onboarding chat"}
+};
+function stepValid(s){
+  if(s===1) return !!(state.provider && state.model);
+  if(s===2) return state.folders.length>0;
+  if(s===3) return state.chatStage==="done";
+  return false;
+}
+function renderStepper(){
+  $$(".step", $("#stepper")).forEach(b=>{
+    const s=+b.dataset.step;
+    const st = s===state.step ? "active" : s<state.step ? "completed" : "inactive";
+    b.dataset.state=st;
+    const ind=b.querySelector(".step__ind");
+    ind.innerHTML = st==="completed" ? ICON_CHECK : String(s);
+    b.disabled = s>state.maxStep;
+  });
+}
+function showPanel(){
+  $$(".panel").forEach(p=>p.hidden = (+p.dataset.panel)!==state.step);
+  const onChat = state.step===3;
+  $("#formScroll").style.display = onChat? "none":"block";
+  $("#chatWrap").hidden = !onChat;
+  if(onChat) buildChat();
+}
+function updateNav(){
+  const m=STEP_META[state.step];
+  $("#stageEyebrow").textContent=m.eb;
+  $("#stageTitle").textContent=m.t;
+  $("#stageLead").textContent=m.lead;
+  $("#footHint").innerHTML=`Step <b>${state.step}</b> / 3 · ${m.hint}`;
+  $("#backBtn").disabled = state.step===1;
+  const next=$("#nextBtn");
+  if(state.step<3){ next.textContent="Continue"; next.disabled=!stepValid(state.step); }
+  else { next.textContent="Finish setup →"; next.disabled=!stepValid(3); }
+  renderStepper();
+}
+function goTo(s){
+  if(s<1||s>3) return;
+  if(s>state.maxStep && !(s===state.step+1 && stepValid(state.step))) return;
+  state.step=s; state.maxStep=Math.max(state.maxStep,s); save();
+  showPanel(); updateNav();
+  $("#formScroll").scrollTop=0;
+}
+$("#nextBtn").onclick=()=>{
+  if(state.step<3){ if(stepValid(state.step)) goTo(state.step+1); }
+  else if(stepValid(3)) finish();
+};
+$("#backBtn").onclick=()=>goTo(state.step-1);
+$$(".step", $("#stepper")).forEach(b=>b.onclick=()=>{ if(!b.disabled) goTo(+b.dataset.step); });
+
+/* watch step-1 inputs to toggle Continue */
+$("#reasoning").addEventListener("click",()=>setTimeout(updateNav,0));
+$("#provGrid").addEventListener("click",()=>setTimeout(updateNav,0));
+
+/* ---------------- Finish ---------------- */
+function finish(){
+  const p=PROVIDERS[state.provider];
+  const agentNames=state.agents.map(id=>AGENTS.find(a=>a.id===id).name).join(", ")||"—";
+  $("#doneSum").innerHTML=`
+    <div class="done__sum-row"><span>Model</span><b>${p.name} · ${state.model}</b></div>
+    <div class="done__sum-row"><span>Reasoning</span><b>${state.reasoning}</b></div>
+    <div class="done__sum-row"><span>Auth</span><b>${state.authMode==="native_cli"?"native CLI":state.envVar}</b></div>
+    <div class="done__sum-row"><span>Workspaces</span><b>${state.folders.length} folder${state.folders.length===1?"":"s"}</b></div>
+    <div class="done__sum-row"><span>Channels</span><b>${state.channels.map(c=>"#"+c).join(" ")||"—"}</b></div>
+    <div class="done__sum-row"><span>Agents</span><b>${agentNames}</b></div>`;
+  $("#done").classList.add("show");
+}
+$("#launchBtn").onclick=()=>$("#done").classList.remove("show");
+$("#restartBtn").onclick=()=>{ localStorage.removeItem(LS); location.reload(); };
+
+/* ---------------- Init ---------------- */
+function init(){
+  renderProviders();
+  renderModelMenu();
+  renderReasoning();
+  renderAuth();
+  syncProviderDetails();
+  renderFolders();
+  // clamp restored step
+  if(state.step>state.maxStep) state.step=state.maxStep;
+  showPanel();
+  updateNav();
+}
+init();
+</script>
+</body>
+</html>

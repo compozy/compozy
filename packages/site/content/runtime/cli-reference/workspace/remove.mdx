@@ -1,0 +1,47 @@
+---
+title: "agh workspace remove"
+description: "Remove a workspace registration and stopped session history"
+---
+
+## agh workspace remove
+
+Remove a workspace registration and stopped session history
+
+```
+agh workspace remove <name-or-id> [flags]
+```
+
+### Examples
+
+```
+  # Remove a workspace registration by name
+  agh workspace remove checkout-api
+```
+
+### Options
+
+```
+  -h, --help   help for remove
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh workspace remove <name-or-id> -o json
+```

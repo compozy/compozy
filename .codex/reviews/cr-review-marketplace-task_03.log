@@ -1,0 +1,290 @@
+Notice: Detected codex environment. Use `coderabbit review --agent` for structured agent-friendly output.
+Connecting to CodeRabbit... 6s elapsed
+Preparing review... 13s elapsed
+────────────────────────────────────────
+CodeRabbit Review
+
+Diff      : uncommitted changes only
+Compare   : marketplace → 76f36527a
+Directory : agh
+────────────────────────────────────────
+
+(\(\
+(• .•)  I'm CodeRabbit. I review the code you never knew you needed reviewing.
+
+Preparing sandbox... 14s elapsed
+Summarizing changes... 28s elapsed
+Summarizing changes... 1m 06s elapsed - still working
+Summarizing changes... 2m 06s elapsed - still working
+Finishing analysis tools... 2m 53s elapsed - still working
+Writing review comments... 2m 53s elapsed - still working
+Writing review comments... 3m 06s elapsed - still working
+Writing review comments... 4m 06s elapsed - still working
+
+────────────────────────────────────────────────────────────────────────
+  major [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/cli/mcp_install_test.go:15internal/cli/mcp_install_test.go:15-93]8;;
+
+  Move standalone cases into t.Run("Should …") subtests.
+
+  These scenarios are direct top-level cases rather than the required
+  canonical subtest form. Consolidate them under the existing MCP install
+  command/client suites and retain t.Parallel().
+
+  As per path instructions, “MUST use t.Run("Should...") pattern for ALL
+  test cases.”
+
+
+
+
+  Also applies to: 141-204
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/settings/mcp_mutation.go:193internal/settings/mcp_mutation.go:193-196]8;;
+
+  Avoid leaving deletion half-committed when secret cleanup fails.
+
+  The server definition is already deleted when deleteOwnedMCPSecrets
+  runs. A failure—or request cancellation—returns an error but leaves
+  orphaned secrets, and retrying the deletion now returns not found. Persist
+  an idempotent cleanup intent before deletion, retry cleanup durably, or
+  provide full rollback semantics.
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/cli/mcp_install_test.go:191internal/cli/mcp_install_test.go:191-203]8;;
+
+  Assert the specific transport error.
+
+  This test passes for any error, including decoding or request-construction
+  regressions. Assert that the returned error contains or wraps `transport
+  unavailable`.
+
+  As per path instructions, tests “MUST have specific error assertions
+  (ErrorContains, ErrorAs).”
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Security & Privacy]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/config/mcp_server_validation.go:52internal/config/mcp_server_validation.go:52-60]8;;
+
+  Apply forbidden environment-key validation to secret_env too.
+
+  A forbidden key such as NODE_OPTIONS or LD_PRELOAD is rejected only in
+  env; the same key can enter through secret_env and be injected after
+  Vault resolution. Reject dangerous names in both maps.
+
+
+
+
+  Proposed fix
+
+   	for key := range env {
+   		if forbiddenStdioMCPEnvKey(key) {
+   			return fmt.Errorf("%s.env.%s is forbidden for stdio MCP servers", path, strings.TrimSpace(key))
+   		}
+   		if vault.SecretLikeEnvName(key) {
+   			return fmt.Errorf("%s.env.%s must move secret-like values to secret_env", path, strings.TrimSpace(key))
+   		}
+   	}
+  +	for key := range secretEnv {
+  +		if forbiddenStdioMCPEnvKey(key) {
+  +			return fmt.Errorf(
+  +				"%s.secret_env.%s is forbidden for stdio MCP servers",
+  +				path,
+  +				strings.TrimSpace(key),
+  +			)
+  +		}
+  +	}
+   	return vault.ValidateSecretEnvMap(path, "mcp", secretEnv)
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/settings/service_test.go:2919internal/settings/service_test.go:2919-2926]8;;
+
+  Guard the chmod-based failure injection against root
+
+  This subtest depends on os.Chmod(homePaths.HomeDir, 0o500) to trigger
+  the config write failure, but root can still write through that permission
+  change. Add a root skip like the other permission-sensitive tests, or
+  force the write failure through the config/storage abstraction instead.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Security & Privacy]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/cli/mcp_install.go:117internal/cli/mcp_install.go:117-132]8;;
+
+  Do not expose secret bindings in command output.
+
+  jsonValue returns SecretEnv, while human output prints each bound
+  Vault reference. Omit these references from every format; expose only
+  field names or binding status.
+
+  As per coding guidelines, “Never expose raw claim_token, MCP tokens, OAuth
+  codes, PKCE verifiers, or secret bindings in logs, APIs, errors, messages,
+  SSE, UI, or memory.”
+
+
+
+
+  Proposed sanitization
+
+   func mcpInstallBundle(response InstallSettingsMCPServerRecord) outputBundle {
+  +	safeResponse := response
+  +	safeResponse.MCPServer.SecretEnv = nil
+   	return outputBundle{
+  -		jsonValue: response,
+  +		jsonValue: safeResponse,
+   		human: func() (string, error) {
+  -			refs := make([]string, 0, len(response.MCPServer.SecretEnv))
+  -			for key, ref := range response.MCPServer.SecretEnv {
+  -				refs = append(refs, key+"="+ref)
+  +			fields := make([]string, 0, len(response.MCPServer.SecretEnv))
+  +			for key := range response.MCPServer.SecretEnv {
+  +				fields = append(fields, key)
+   			}
+  -			sort.Strings(refs)
+  +			sort.Strings(fields)
+   			return renderHumanSection("MCP Install", []keyValue{
+   				{Label: automationNameValue, Value: response.MCPServer.Name},
+   				{Label: "Transport", Value: response.MCPServer.Transport},
+   				{Label: "Scope", Value: string(response.MCPServer.Scope)},
+   				{Label: "Catalog Entry", Value: response.MCPServer.CatalogEntry},
+   				{Label: "Catalog Version", Value: response.MCPServer.CatalogVersion},
+  -				{Label: "Secret Refs", Value: stringOrDash(strings.Join(refs, ", "))},
+  +				{Label: "Secret Fields", Value: stringOrDash(strings.Join(fields, ", "))},
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/api/spec/settings_mcp_schema.go:13internal/api/spec/settings_mcp_schema.go:13-14]8;;
+
+  Require a non-empty Vault reference suffix.
+
+  ^vault:mcp/ accepts vault:mcp/ and other trailing content without
+  validating the reference shape. This makes the generated schema looser
+  than the runtime validation in internal/settings/service_test.go.
+
+
+  Proposed fix
+
+  -	vaultRef.Pattern = `^vault:mcp/`
+  +	vaultRef.Pattern = `^vault:mcp/.+$`
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/daemon/boot.go:1893internal/daemon/boot.go:1893]8;;
+
+  Guard the marketplace dependency when bootMarketplace is skipped
+  (internal/daemon/boot.go:1893)
+  bootMarketplace can return early when the marketplace repository is
+  missing, leaving state.marketplace nil. Wiring that into MCPCatalog
+  creates a typed-nil interface, so the s.mcpCatalog == nil guard won’t
+  fire and installs fail with a generic load error instead of
+  ErrUnavailable. Leave the dependency unset or gate this assignment when
+  the marketplace runtime isn’t started.
+
+Writing review comments... 6m 31s elapsed - still working - 8 findings so far
+
+────────────────────────────────────────────────────────────────────────
+  major [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/settings/mcp_secrets.go:175internal/settings/mcp_secrets.go:175-194]8;;
+
+  Restore overwritten secrets when the mutation fails.
+
+  PutSecret updates existing canonical refs, but compensation only deletes
+  refs marked newRef. If a later write or config commit fails, the
+  operation returns an error while earlier existing secrets remain modified.
+
+  Use transactional/staged writes or retain enough prior state to restore
+  overwritten refs during rollback.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/api/udsapi/handlers_test.go:821internal/api/udsapi/handlers_test.go:821-846]8;;
+
+  Rename the test case to the required Should … form.
+
+  Use "Should install catalog MCP server".
+
+  As per path instructions, tests “MUST use t.Run("Should...") pattern for
+  ALL test cases.”
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/events/registry.go:346internal/events/registry.go:346-347]8;;
+
+  Do not classify every marketplace install event as successful.
+
+  MarketplaceInstall carries both "succeeded" and "failed" payload
+  outcomes, but the registry statically marks the event as success.
+  Register it as neutral info, like catalog refresh, or define distinct
+  success/failure event names so failed installs are not reported as
+  successful.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/api/core/settings_test.go:536internal/api/core/settings_test.go:536-540]8;;
+
+  Split these cases into t.Run("Should …") subtests and verify the
+  override error detail.
+
+  The strict-override assertion currently passes for any 400, so it cannot
+  prove that locked fields caused the rejection.
+
+  As per path instructions, tests “MUST use t.Run("Should...") pattern for
+  ALL test cases” and must use specific error assertions.
+
+
+
+
+
+
+  Also applies to: 2318-2421
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/settings/mcp_catalog_install.go:62internal/settings/mcp_catalog_install.go:62-84]8;;
+
+  internal/settings/mcp_catalog_install.go:62-84 — Avoid reloading MCP state
+  after the write succeeds
+  installedMCPItemWithoutProbe re-reads all MCP sources, so an unrelated
+  malformed source file can make InstallMCPCatalog return an error even
+  though the new server is already persisted and the install notification
+  never fires. Build the returned item from the committed write instead of
+  depending on a second catalog load.
+
+
+────────────────────────────────────────
+Review complete
+13 findings ✔
+
+Major    9
+Minor    4
+
+65 files reviewed:
+- internal/api/core/interfaces.go
+- internal/api/core/settings_errors.go
+- internal/api/core/settings_test.go
+- internal/api/httpapi/handlers_test.go
+- internal/api/httpapi/helpers_test.go
+- internal/api/httpapi/routes.go
+- internal/api/spec/operations.go
+- internal/api/spec/schema_customizers.go
+- internal/api/spec/schema_enum_registry.go
+- internal/api/spec/settings_test.go
+... and 55 more files
+────────────────────────────────────────
+
+Print all AI prompts: coderabbit review --show-prompts
+
+CODEX_CODERABBIT_REVIEW_COMPLETE exit=0 head=2cde0a3c89ea51d7bcca40e5e06a9afca03aa659

@@ -1,0 +1,13 @@
+{
+    "manifest_version": 1,
+    "generated_at": "2026-07-13T00:00:00Z",
+    "entries": [
+        {
+            "entry_id": "fixture-mcp",
+            "name": "Fixture MCP",
+            "description": "Validates the MCP publication contract",
+            "transport": "stdio",
+            "command": "fixture-mcp"
+        }
+    ]
+}

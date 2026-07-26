@@ -1,0 +1,59 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "cancel-sender",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You originate the Network cancellation test message.",
+            "turns": [
+                {
+                    "name": "unused-sender-turn",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "unused sender turn"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "unused"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "cancel-worker",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You block until the daemon cancels the active Network wake.",
+            "turns": [
+                {
+                    "name": "block-network-wake-until-cancel",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_cancel_wake_01",
+                            "kind": "say",
+                            "channel": "cancel-wakes",
+                            "surface": "direct",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "cancel ready"
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

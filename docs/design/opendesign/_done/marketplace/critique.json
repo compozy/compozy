@@ -1,0 +1,26 @@
+{
+  "kind": "critique-panel",
+  "score": 4,
+  "axes": {
+    "clarity": {
+      "score": 5,
+      "notes": "Breadcrumb + PageHead + listing toolbar map 1:1 to design-system/vault chrome; Installed|Marketplace occupies the familiar Rows|Cards slot."
+    },
+    "hierarchy": {
+      "score": 5,
+      "notes": "Topbar answers where; PageHead owns kind identity; toolbar owns filter/scope. One H1 per kind subroute."
+    },
+    "typography": {
+      "score": 4,
+      "notes": "PH1 1.4rem/600, Inter stack, mono count chip; matches vault/design-system."
+    },
+    "motion": {
+      "score": 3,
+      "notes": "No new motion; existing card-flash + spin retained. Acceptable for chrome realignment."
+    },
+    "brand": {
+      "score": 5,
+      "notes": "AGH tokens only; accent limited to head icon well; PillGroup never accent-filled."
+    }
+  }
+}

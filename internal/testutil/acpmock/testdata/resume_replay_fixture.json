@@ -1,0 +1,39 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "resume-replay",
+            "provider": "acpmock",
+            "prompt": "You are a deterministic resume replay agent.",
+            "load_session": false,
+            "turns": [
+                {
+                    "name": "remember-before-restart",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Remember that the recovery code is cobalt."
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "I will remember cobalt."
+                        }
+                    ]
+                },
+                {
+                    "name": "recall-after-restart",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "What was the recovery code?"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "The recovery code was cobalt."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

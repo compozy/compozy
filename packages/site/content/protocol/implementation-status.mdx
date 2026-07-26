@@ -1,0 +1,37 @@
+---
+title: Implementation Status
+description: What AGH Runtime implements today for agh-network/v0 and which pages describe optional future trust behavior.
+icon: Activity
+---
+
+The current AGH Runtime implements `agh-network/v0` conversations for explicitly Live executions in
+one daemon. It stores accepted messages in SQLite and notifies admitted recipients in process.
+
+<OperatorNote label="Trust boundary">
+  AGH Runtime preserves `proof` as opaque JSON and does not verify Ed25519 signatures. Trust-profile
+  pages are implementer contracts, not current runtime guarantees.
+</OperatorNote>
+
+## Status at a glance
+
+| Area               | Current AGH Runtime                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| Protocol           | `agh-network/v0` envelope and six message kinds.                                               |
+| Participation      | Local default; explicit bounded Live snapshot per execution.                                   |
+| Conversation       | Public threads, restricted direct rooms, `work_id`, receipts, traces, and capability transfer. |
+| Runtime delivery   | Atomic durable acceptance, admitted `network_wake` task runs, post-commit in-process notify.   |
+| Wake admission     | Direct or mention `say` only, plus availability, coalescing, depth, and finite bounds.         |
+| Usage              | Aggregate actual usage when reported; otherwise `usage_unavailable`.                           |
+| External transport | Not shipped in this release.                                                                   |
+| Trust verification | Not shipped; opaque `proof` only.                                                              |
+| Conformance runner | Package tests exist; standalone third-party runner does not.                                   |
+
+## Use the right docs
+
+- Operate AGH: [Network Overview](/runtime/core/network) and [Coordinate Agents](/runtime/guides/coordinate-agents-over-network).
+- Implement v0: [Envelope](/protocol/envelope), [Message Kinds](/protocol/message-kinds), [Interactions](/protocol/interactions), and [Delivery](/protocol/delivery).
+- Implement optional trust: [Ed25519 + JCS](/protocol/ed25519-jcs) and [Signature Verification](/protocol/verification).
+- State compatibility: [Conformance](/protocol/conformance).
+
+Local/Live mode, wake bounds, and workspace coordination are reference-runtime execution policy.
+They are intentionally absent from the protocol envelope.

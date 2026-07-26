@@ -1,0 +1,50 @@
+---
+title: "agh session usage"
+description: "Show aggregated session token usage and cost provenance"
+---
+
+## agh session usage
+
+Show aggregated session token usage and cost provenance
+
+```
+agh session usage <session-id> [flags]
+```
+
+### Examples
+
+```
+  # Show truthful token and cost totals
+  agh session usage sess_1234
+
+  # Read the usage contract as JSON for scripts
+  agh session usage sess_1234 -o json
+```
+
+### Options
+
+```
+  -h, --help   help for usage
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh session usage <session-id> -o json
+```

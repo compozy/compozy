@@ -1,0 +1,56 @@
+---
+title: "agh doctor"
+description: "Run runtime diagnostics"
+---
+
+## agh doctor
+
+Run runtime diagnostics
+
+```
+agh doctor [flags]
+```
+
+### Examples
+
+```
+  # Run diagnostics
+  agh doctor
+
+  # Return diagnostic items for agents
+  agh doctor -o json
+
+  # Run only provider and MCP diagnostics
+  agh doctor --only provider --only mcp
+```
+
+### Options
+
+```
+      --exclude strings   Exclude the named probe ids or categories
+  -h, --help              help for doctor
+      --only strings      Run only the named probe ids or categories
+      --quiet             Omit OK diagnostics
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh doctor -o json
+```

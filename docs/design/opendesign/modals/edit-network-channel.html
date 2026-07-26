@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGH · Edit network channel</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body>
+
+<div class="product" aria-hidden="true">
+  <aside class="product__rail"><div class="product__mark"></div><div class="product__mark"></div><div class="product__mark"></div></aside>
+  <div class="product__main">
+    <div class="product__title"></div><div class="product__sub"></div>
+    <div class="product__grid"><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i></div>
+  </div>
+</div>
+
+<div class="scrim">
+  <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Edit network channel" data-od-component="dialog" data-success="Channel policy saved." data-od-id="network-channel-edit-dialog">
+
+    <!-- HEADER -->
+    <header class="dialog__head" data-od-id="channel-edit-header">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></div>
+      <div class="head-copy">
+        <div class="eyebrow">Network · Channel</div>
+        <h1 data-od-id="channel-edit-title">Edit incident-response</h1>
+        <p>Update the purpose and fanout policy. <b>Identity and membership stay fixed</b> by the update contract.</p>
+      </div>
+      <button class="icon-button" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- CONTEXT BAR -->
+    <div class="modebar" data-od-id="channel-edit-modebar">
+      <span class="modebar__label">Workspace</span>
+      <span class="modebar__value">checkout-platform</span>
+      <div class="modebar__spacer"></div>
+      <span class="modebar__status" data-od-id="channel-edit-status"><i class="status-dot"></i> 2 members · active</span>
+    </div>
+
+    <!-- BODY -->
+    <div class="dialog__body">
+
+      <div class="sec" data-od-component="form-section" data-od-id="channel-edit-identity-section">
+        <div class="identity-row" data-od-component="immutable-identity" data-od-id="channel-edit-identity">
+          <span class="identity-row__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.2 10.8 16.8 7.2M7.2 13.2 16.8 16.8"/></svg></span>
+          <div class="identity-row__copy">
+            <strong>incident-response</strong>
+            <span>membership is fixed — incident-triage, release-coordinator</span>
+          </div>
+          <span class="identity-row__badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            Locked
+          </span>
+        </div>
+        <div class="field">
+          <label class="label">Members</label>
+          <div class="chip-list" data-members-list data-od-id="channel-edit-members-chips">
+            <span class="chip chip--static" data-value="incident-triage">incident-triage</span>
+            <span class="chip chip--static" data-value="release-coordinator">release-coordinator</span>
+          </div>
+          <span class="hint">The update contract does not change membership — recreate the channel to change it.</span>
+        </div>
+      </div>
+
+      <div class="sec" data-od-component="form-section" data-od-id="channel-edit-policy-section">
+        <div class="sec__head">
+          <span class="sec__title">Purpose &amp; fanout</span>
+          <span class="sec__sub">The mutable half of the channel.</span>
+        </div>
+        <div class="field">
+          <label class="label" for="purpose">Purpose <span class="req">required</span></label>
+          <input id="purpose" class="input" required value="Coordinate production incident response" data-od-id="channel-edit-purpose-input">
+          <span class="error">Describe the channel purpose.</span>
+        </div>
+        <div class="field mt-16">
+          <label class="label">Who receives a message?</label>
+          <div class="tpl-grid cols3" data-choice-group="fanout" data-od-component="radio-card" data-od-id="channel-edit-fanout-group">
+            <button class="tpl" type="button" data-choice data-reveal="fanout-capability" aria-pressed="true">
+              <span class="tpl__top">
+                <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></span>
+                <span class="tpl__name">Best match</span>
+                <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              </span>
+              <span class="tpl__desc">Routes to the member whose capabilities match.</span>
+              <span class="tpl__badge b-info">capability_match</span>
+            </button>
+            <button class="tpl" type="button" data-choice data-reveal="fanout-coordinator">
+              <span class="tpl__top">
+                <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21c.6-4 2.8-6 6.5-6s5.9 2 6.5 6"/></svg></span>
+                <span class="tpl__name">Coordinator</span>
+                <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              </span>
+              <span class="tpl__desc">One member triages everything and delegates.</span>
+              <span class="tpl__badge b-neutral">coordinator</span>
+            </button>
+            <button class="tpl" type="button" data-choice data-reveal="fanout-all">
+              <span class="tpl__top">
+                <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                <span class="tpl__name">Everyone</span>
+                <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              </span>
+              <span class="tpl__desc">Every member receives every message.</span>
+              <span class="tpl__badge b-neutral">all_members</span>
+            </button>
+          </div>
+        </div>
+        <div class="field mt-16" data-conditional="fanout" data-match="fanout-coordinator" hidden>
+          <span class="label" id="channel-edit-coordinator-label">Coordinator peer <span class="req">required</span></span>
+          <button class="command-select" id="coordinator" type="button" aria-labelledby="channel-edit-coordinator-label" aria-controls="channel-edit-coordinator-popover" data-component-trigger="command-select" data-required-when-visible data-required-selection data-member-coordinator data-value="incident-triage" data-od-component="command-select" data-od-id="channel-edit-coordinator-select"><span class="command-select__avatar" aria-hidden="true">C</span><span class="command-select__copy"><strong data-component-value>incident-triage</strong><span>Derived from immutable members</span></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+          <span class="error">Select the coordinator peer.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="dialog__foot" data-od-component="dialog-footer" data-od-id="channel-edit-footer">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span>Only purpose and fanout policy are mutable.</span>
+      </div>
+      <button class="btn btn--outline" type="button" data-close>Cancel</button>
+      <button class="btn btn--primary" type="submit" data-od-id="channel-edit-submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Save changes
+      </button>
+    </footer>
+
+  </form>
+</div>
+
+<div class="closed-state">Channel editor dismissed.</div>
+<div class="toast" data-toast></div>
+<div class="component-popover" id="channel-edit-coordinator-popover" role="listbox" aria-label="Coordinator members"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search channel members" placeholder="Search members…"></div><div class="component-popover__list"></div></div>
+<script src="modal-system.js"></script>
+</body>
+</html>

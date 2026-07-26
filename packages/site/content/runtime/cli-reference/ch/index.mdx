@@ -1,0 +1,55 @@
+---
+title: "agh ch"
+description: "Use agent-facing coordination channels"
+---
+
+## agh ch
+
+Use agent-facing coordination channels
+
+### Examples
+
+```
+  # List channels visible to this session
+  agh ch list
+
+  # Wait for task-run coordination messages
+  agh ch recv coord-run-123 --wait -o jsonl
+```
+
+### Options
+
+```
+  -h, --help   help for ch
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh ch list -o json
+```
+
+## Subcommands
+
+| Command                                         | Description                                                     |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| [agh ch list](/runtime/cli-reference/ch/list)   | List coordination channels visible to the current agent session |
+| [agh ch recv](/runtime/cli-reference/ch/recv)   | Receive queued coordination messages for a channel              |
+| [agh ch reply](/runtime/cli-reference/ch/reply) | Reply to a received coordination message                        |
+| [agh ch send](/runtime/cli-reference/ch/send)   | Send one task-run coordination message                          |

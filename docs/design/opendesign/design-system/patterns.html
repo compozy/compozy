@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGH DS · 04 Patterns</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<style>
+body{background:var(--canvas);overflow-y:auto}
+.doc{max-width:1080px;margin:0 auto;padding:0 32px 120px}
+.docnav{
+  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:2px;
+  margin:0 -32px 40px;padding:10px 32px;
+  background:color-mix(in srgb,var(--canvas) 86%,transparent);
+  backdrop-filter:blur(14px);border-bottom:1px solid var(--line);
+}
+.docnav__brand{display:flex;align-items:center;gap:8px;margin-right:14px;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+.docnav__brand i{width:16px;height:16px;border-radius:5px;background:var(--accent);display:inline-block}
+.docnav a{font-size:12px;font-weight:500;color:var(--muted);padding:5px 9px;border-radius:var(--radius);text-decoration:none}
+.docnav a:hover{color:var(--fg);background:var(--row-hover)}
+.docnav a[aria-current="page"]{color:var(--fg-strong);background:var(--row-selected)}
+.hero{padding:48px 0 8px}
+.hero .eyebrow{color:var(--accent-strong);letter-spacing:.1em}
+.hero h1{font-size:26px;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);margin:8px 0 10px}
+.hero p{font-size:13.5px;line-height:1.6;color:var(--muted);max-width:70ch}
+.sec{margin-top:52px}
+.sec__head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.sec__num{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+.sec__head h2{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
+.sec>p,.sec>div>p.lead{font-size:13px;line-height:1.6;color:var(--muted);max-width:76ch;margin-bottom:14px}
+.spec{width:100%;border-collapse:collapse;font-size:12.5px}
+.spec th{text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+.spec td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--muted);vertical-align:top}
+.spec td:first-child{color:var(--fg);white-space:nowrap}
+.spec code{font-size:11px;color:var(--fg);background:var(--badge-fill);border-radius:3px;padding:1px 5px}
+.rule-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+.rule{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+.rule:first-child{border-top:0}
+.rule i{font-family:var(--font-mono);font-size:10px;color:var(--accent-strong);padding-top:2px}
+.rule b{color:var(--fg-strong);font-weight:600}
+.wire{
+  font-family:var(--font-mono);font-size:10.5px;line-height:1.9;color:var(--muted);
+  background:var(--rail);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:14px 18px;overflow-x:auto;white-space:pre;
+}
+.wire b{color:var(--fg-strong);font-weight:600}
+.wire em{color:var(--accent-strong);font-style:normal}
+</style>
+</head>
+<body>
+<div class="doc" data-od-id="ds-patterns">
+  <nav class="docnav" data-od-id="ds-nav">
+    <span class="docnav__brand"><i></i>AGH DS</span>
+    <a href="index.html">Overview</a>
+    <a href="foundations.html">01 Foundations</a>
+    <a href="os-shell.html">02 OS Shell</a>
+    <a href="components.html">03 Components</a>
+    <a href="patterns.html" aria-current="page">04 Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">AGH Design System · Chapter 04</p>
+    <h1>Patterns</h1>
+    <p>How windows compose the vocabulary: listings, drill-in, detail pages, settings, modals, sessions
+    and dashboards. Every pattern assumes the OS shell (chapter 02) owns identity and navigation, and the
+    daemon owns truth — <b>truthful UI beats plausible UI</b> on every surface.</p>
+  </header>
+
+  <!-- 01 LISTINGS -->
+  <section class="sec" id="listings" data-od-id="sec-listings">
+    <div class="sec__head"><span class="sec__num">01</span><h2>Listing surfaces</h2></div>
+    <p class="lead" style="margin-bottom:14px">Inventory routes (Tasks, Loops, Agents, Vault, Sandbox…) share one scaffold.
+    Tools hoist into the window's 38px context strip; the body is rows or cards.</p>
+    <div class="wire" data-od-id="wire-listing"><b>window head 44</b>   controls · glyph+title+count · [peer tabs] · drag · status · ≤2 actions
+<b>context strip 38</b>  [scope pill-group] · search 28 · [+ filter chips] · <em>spacer</em> · Rows|Cards
+<b>body</b>             .list-shell → .listing-row   |   .listing-card-grid → .listing-card</div>
+    <div class="rule-list" style="margin-top:14px">
+      <div class="rule"><i>L1</i><span><b>Toolbar order is locked:</b> filters/search leading → spacer → view-mode PillGroup trailing. Search before filters; facets are filter chips, never kind-tab strips.</span></div>
+      <div class="rule"><i>L2</i><span><b>Every listing route ships Rows|Cards.</b> Rows default (operator scan); Cards for browse density. Persist the choice per route.</span></div>
+      <div class="rule"><i>L3</i><span><b>Never double-encode a facet</b> as both a pill-group and a filter chip; never render “Sorted by …” without a real sort control.</span></div>
+      <div class="rule"><i>L4</i><span><b>Marketplace is the exception:</b> one route, kind pill-group (Skills · MCPs · Extensions · Bundles) + search in the strip, Marketplace|Installed scope tabs in content, <b>cards only</b> — no Rows toggle, no per-kind routes, installed and available always together.</span></div>
+      <div class="rule"><i>L5</i><span><b>Empty states:</b> zero-inventory CTA = the page primary; no-match CTA = Clear filters.</span></div>
+    </div>
+  </section>
+
+  <!-- 02 DRILL-IN -->
+  <section class="sec" id="drillin" data-od-id="sec-drillin">
+    <div class="sec__head"><span class="sec__num">02</span><h2>Drill-in navigation</h2></div>
+    <p class="lead" style="margin-bottom:14px">Opening an entity from a listing <b>pushes a level inside the same window</b> —
+    depth never spawns another floating window. The head swaps glyph → back chevron + window-local trail.</p>
+    <div class="wire" data-od-id="wire-drillin"><b>root</b>      [glyph] Tasks ·6·            tabs: List | Kanban      actions: New task
+<b>level 1</b>   [‹] Tasks / <b>Nightly triage</b>   tabs hidden              actions: Open run
+<b>level 2</b>   [‹] Tasks / Nightly triage / <b>Run #418</b>                 actions: Stop run</div>
+    <div class="rule-list" style="margin-top:14px">
+      <div class="rule"><i>D1</i><span>Parents are buttons that jump straight to their level; the leaf is the title, never a link. &gt;2 parents collapse the middle into a “…” crumb whose menu lists hidden levels; any crumb truncates at 150px.</span></div>
+      <div class="rule"><i>D2</i><span>Status chip, actions and the context strip are <b>per-level</b> — they swap on every push/pop. Back = chevron, ⌘[ or mouse-back.</span></div>
+      <div class="rule"><i>D3</i><span>The trail starts at the window's root route — never the workspace (menu bar owns workspace, dock owns routes).</span></div>
+      <div class="rule"><i>D4</i><span>Documents (sessions, runs opened as documents) never breadcrumb; origin, if needed, is a crumbless meta chip.</span></div>
+    </div>
+  </section>
+
+  <!-- 03 DETAIL PAGES -->
+  <section class="sec" id="detail" data-od-id="sec-detail">
+    <div class="sec__head"><span class="sec__num">03</span><h2>Detail pages</h2></div>
+    <p class="lead" style="margin-bottom:14px">Entity detail (task, agent, loop) renders <b>inside</b> a drilled-in window.
+    The head carries ≤2 pills of state; everything else demotes to a quiet meta strip. Operator depth
+    lives behind an Inspect drawer, not on the page.</p>
+    <div class="wire" data-od-id="wire-detail"><b>head 44</b>    [‹] Tasks / <b>Nightly triage</b> · status pill · primary + ···
+<b>subhead</b>    priority pill · owner · created · updated        (plain text, .dotsep)
+<b>lane-tabs</b>  Overview | Runs ·2· | Activity                   (40px, 1.5px underline)
+<b>layout</b>     content minmax(0,1fr)  ·32px·  rail 320px (sticky .railbox: .prow 26px rows)
+<b>drawer</b>     Inspect →  .sheet 600px right slide-over (raw ids, bridges, code)</div>
+    <div class="rule-list" style="margin-top:14px">
+      <div class="rule"><i>T1</i><span><b>Pill budget ≤2</b> (head status + one subhead pill). Status is derived — never render a status select.</span></div>
+      <div class="rule"><i>T2</i><span><b>One primary action</b> in the head + ··· overflow. Stop/destructive actions stay neutral, never accent.</span></div>
+      <div class="rule"><i>T3</i><span>The 320px rail holds property rows (26px, key left / value right, inline-edit affordances). Sheet/drawer: width min(600px, 100vw−24px), slides .2s, scrim + blur, z-sheet.</span></div>
+      <div class="rule"><i>T4</i><span>Subtask/dependency rows use the 14px spine grid with state dots: done = filled success · active = hollow accent ring · todo = hollow faint ring.</span></div>
+    </div>
+  </section>
+
+  <!-- 04 SETTINGS -->
+  <section class="sec" id="settings" data-od-id="sec-settings">
+    <div class="sec__head"><span class="sec__num">04</span><h2>Settings</h2></div>
+    <p class="lead" style="margin-bottom:14px">Settings opens from the menu-bar cog as a normal window: left nav
+    (30px items, accent-tint on the current section) + panes of <code class="mono">.srow</code> decision rows.
+    <b>Each section leads with its own information shape</b> — never the same panelbox form with different labels.</p>
+    <table class="spec">
+      <tr><th>Shape</th><th>Sections</th><th>Leads with</th></tr>
+      <tr><td>Form-led</td><td>General · Memory · Network · Observability · Automation · Extensions</td><td>grouped .srow panelboxes + one Advanced fold + floating save bar (draft model)</td></tr>
+      <tr><td>Inventory-led</td><td>Providers · Hooks</td><td>listing rows/cards + per-item inspector sheet (per-item model, no save bar)</td></tr>
+      <tr><td>Runtime-state-led</td><td>Network (mesh state) · Automation (manager) · Observability (storage)</td><td>non-editable .tiles fact block above the form</td></tr>
+      <tr><td>Immediate</td><td>Hooks toggles · Skills disabled-list</td><td>the switch is the save; failures raise a danger notice on the row group</td></tr>
+    </table>
+    <div class="rule-list" style="margin-top:14px">
+      <div class="rule"><i>G1</i><span><b>Settings holds policy, not catalog.</b> Enabling/installing/removing catalog entities happens in the Marketplace; Settings keeps global config + a <code>.srow--link</code> “Manage … in the marketplace”.</span></div>
+      <div class="rule"><i>G2</i><span><b>Rows state policy in plain language</b> (“End idle sessions after”), never mechanism keys. Keys survive only as <code>.provchip</code> inside the one Advanced fold.</span></div>
+      <div class="rule"><i>G3</i><span>Every row maps to a daemon-persisted value; restart consequences render as the warning notice with “what happens if you don't act”.</span></div>
+    </div>
+  </section>
+
+  <!-- 05 MODALS -->
+  <section class="sec" id="modals" data-od-id="sec-modals">
+    <div class="sec__head"><span class="sec__num">05</span><h2>Modals &amp; canonical selectors</h2></div>
+    <p class="lead" style="margin-bottom:14px">Modals are <b>window-scoped</b> in the OS (they scrim their window, not
+    the desktop) and keep the shipped anatomy. The living modal library is
+    <code class="mono">modals/modal-system.css</code> + <code class="mono">modal-system.js</code>
+    (verified by <code class="mono">modals/verify.mjs</code>) — build modal prototypes on it; this chapter
+    is the contract summary.</p>
+    <table class="spec">
+      <tr><th>Part</th><th>Contract</th></tr>
+      <tr><td>Hosts</td><td>compact 560 · standard 720 · wide 880 · extra-wide/split 1180 · edge sheet min(576, 100%) · radius 10 (xl modals 14) · scrim ·55 + 3px blur · one body scroll owner</td></tr>
+      <tr><td>Header</td><td>36px icon well (accent-tint — the <b>only</b> accent-tinted surface) + eyebrow 11/600 caps accent-strong + title 15/500 + 66ch desc + 26px close</td></tr>
+      <tr><td>Body</td><td>form sections split by hairlines · inputs 36px on elevated · RadioCard selection is <b>neutral</b> (glaze + rim, never accent) · mode pill-groups 24px</td></tr>
+      <tr><td>Footer</td><td>52px · consequence note left (“what persists when you confirm”) · Cancel + one primary</td></tr>
+      <tr><td>Split panes</td><td>a modal hosting a large expanding component (directory browser…) goes two-pane: main 1fr + side 420px, side on canvas with hairline; stacks ≤960</td></tr>
+      <tr><td>Never</td><td>catalog-status banners in modal chrome · side-stripe accents · native selects for agent/provider/model · per-modal component forks</td></tr>
+    </table>
+    <p class="lead" style="margin:18px 0 10px"><b>Canonical selectors — one need, one component.</b> Modals and pages
+    always reuse these; inventing a variant is a defect:</p>
+    <table class="spec">
+      <tr><th>Need</th><th>Component</th><th>Geometry anchor</th></tr>
+      <tr><td>Provider · model · reasoning</td><td>RuntimeSelector</td><td>segmented trigger 34px (30px compact) · popover 528px: 44px search · 52px provider rail (2px accent bar on active) · model rows (selected = accent-tint) · reasoning footer with Default + 7 effort pills each carrying a 7-bar <code>.im</code>. Accent only on: meter fill, pressed pill, selected row, rail bar. The reasoning control stays a quiet footer — never a banner.</td></tr>
+      <tr><td>Agent picking</td><td>AgentCommandSelect / MultiSelect</td><td>command popover with search; provider + category visible in every result; multi shows count + identity summary</td></tr>
+      <tr><td>Workspace picking</td><td>WorkspaceCommandSelect</td><td>trigger 36px (32–36 by density) · 22px monogram · popover 256px with 32px search · Home badge · Add workspace footer</td></tr>
+      <tr><td>Directory picking</td><td>DirectoryBrowser</td><td>min-height 220 · toolbar home/up + mono path + “Use this folder” · hover-revealed pick per row · selected root card · never a plain path input</td></tr>
+      <tr><td>Scope</td><td>ScopeSelector</td><td>Global/Workspace pill-group; workspace select appears only when Workspace is pressed</td></tr>
+    </table>
+  </section>
+
+  <!-- 06 SESSIONS -->
+  <section class="sec" id="sessions" data-od-id="sec-sessions">
+    <div class="sec__head"><span class="sec__num">06</span><h2>Session surfaces</h2></div>
+    <table class="spec">
+      <tr><th>Surface</th><th>Contract</th></tr>
+      <tr><td>Sessions window</td><td>normal OS window, first dock icon. Strip = full-width filter field. Two panes sliding (.32s spring): Recent (two-line rows) ⇄ All (28px rows, sticky agent headers, data-collapsed persistence). Dock badge counts sessions <b>waiting on you</b>.</td></tr>
+      <tr><td>Live session</td><td>document window: pulsing dot + session name in the head; trail = agent chip · model · elapsed. Body = transcript (62ch messages, collapsible toolcalls with mono diff) + 34px composer. New session = accent dock button / ⌘N — agent + runtime selection first.</td></tr>
+      <tr><td>Approvals</td><td>only in the menu-bar bell (324px popover of .att__row) and on the dashboard “Needs you” zone. No desktop widgets.</td></tr>
+    </table>
+  </section>
+
+  <!-- 07 DASHBOARD -->
+  <section class="sec" id="dashboard" data-od-id="sec-dashboard">
+    <div class="sec__head"><span class="sec__num">07</span><h2>Dashboard</h2></div>
+    <p class="lead" style="margin-bottom:14px">The home window answers three questions in order: <b>what needs you ·
+    what agents did · what it costs.</b> Zones: Needs you → KPI strip → live row (Working now | Activity)
+    → Pulse → charts (Outcomes | Usage) → Agents | Network → System.</p>
+    <div class="rule-list">
+      <div class="rule"><i>H1</i><span><b>Every widget maps to a persisted daemon read</b> (/api/status, observe/tasks, agents/catalog, session usage, network/status). Metrics needing new aggregation are explicitly marked; nothing is invented to fill a layout.</span></div>
+      <div class="rule"><i>H2</i><span><b>Paired panels close flush</b> — stretch and absorb surplus height with real content (chart flex, distributed rows), footers via margin-top:auto. Never leftover air.</span></div>
+      <div class="rule"><i>H3</i><span>Charts use neutral viz ink with provenance footnotes (“each bar counts task runs that ended that day”). Live cards: pulsing dot + pill, standard border.</span></div>
+    </div>
+  </section>
+
+  <!-- 08 STATES & TRUTH -->
+  <section class="sec" id="truth" data-od-id="sec-truth">
+    <div class="sec__head"><span class="sec__num">08</span><h2>States &amp; truthful UI</h2></div>
+    <div class="rule-list">
+      <div class="rule"><i>U1</i><span><b>Never render controls or metrics the runtime doesn't support.</b> On conflict, daemon truth wins. Missing value → honest labelled placeholder, never a fake stat.</span></div>
+      <div class="rule"><i>U2</i><span>Every surface designs its empty, loading (skeleton), error (danger notice + retry) and degraded (stale badge) states — not just the happy path.</span></div>
+      <div class="rule"><i>U3</i><span>Copy follows <code>COPY.md</code> + the glossary: the artifact is a <b>capability</b> (never recipe/workflow/playbook); plain-language policy over operator jargon; consequence sentences on destructive/persistent actions.</span></div>
+      <div class="rule"><i>U4</i><span>Prototype data is runtime-plausible (real routes, real fields from the daemon contract) — realistic, present-tense, no marketing numbers.</span></div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

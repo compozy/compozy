@@ -1,0 +1,493 @@
+package devcycle
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"html"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+const (
+	reviewBodyCommentProviderRefPrefix = "review:"
+	reviewBodyCommentSeverityNitpick   = "nitpick"
+	reviewBodyCommentSeverityMinor     = "minor"
+	reviewBodyCommentSeverityMajor     = "major"
+	reviewBodyCommentSeverityCritical  = "critical"
+	reviewBodyCommentHashLength        = 12
+)
+
+var (
+	reviewBodyCommentSectionStartRe    = regexp.MustCompile("(?m)^`([0-9]+(?:-[0-9]+)?)`:")
+	reviewBodyCommentInlineTitleRe     = regexp.MustCompile(`\*\*(.+?)\*\*`)
+	reviewBodyCommentStandaloneTitleRe = regexp.MustCompile(`^\*\*(.+?)\*\*$`)
+	reviewFileSummaryRe                = regexp.MustCompile(`^(.+?)\s+\(\d+\)$`)
+)
+
+type detailsBlock struct {
+	start   int
+	end     int
+	summary string
+	body    string
+}
+
+func parseReviewBodyCommentIssues(reviews []pullRequestReview, botLogin string) []codeRabbitIssue {
+	if len(reviews) == 0 {
+		return nil
+	}
+	latestByHash := make(map[string]*codeRabbitIssue)
+	for _, review := range reviews {
+		if review.User.Login != botLogin || strings.TrimSpace(review.Body) == "" {
+			continue
+		}
+		parsedItems := parseReviewBodyComments(review)
+		for idx := range parsedItems {
+			item := parsedItems[idx]
+			if item.ReviewHash == "" {
+				continue
+			}
+			current, ok := latestByHash[item.ReviewHash]
+			if !ok || reviewBodyCommentIssueIsNewer(item, *current) {
+				next := item
+				latestByHash[item.ReviewHash] = &next
+			}
+		}
+	}
+	items := make([]codeRabbitIssue, 0, len(latestByHash))
+	for _, item := range latestByHash {
+		items = append(items, *item)
+	}
+	return items
+}
+
+func parseReviewBodyComments(review pullRequestReview) []codeRabbitIssue {
+	body := stripMarkdownQuotePrefixes(review.Body)
+	topLevelBlocks := extractTopLevelDetailsBlocks(body)
+	if len(topLevelBlocks) == 0 {
+		return nil
+	}
+	items := make([]codeRabbitIssue, 0, len(topLevelBlocks))
+	for _, block := range topLevelBlocks {
+		severity, ok := reviewBodyCommentSeverity(block.summary)
+		if !ok && !reviewBodyCommentOutsideDiffRange(block.summary) {
+			continue
+		}
+		fileBlocks := extractTopLevelDetailsBlocks(trimEnclosingTag(block.body, "blockquote"))
+		for _, fileBlock := range fileBlocks {
+			filePath := parseReviewBodyCommentFilePath(fileBlock.summary)
+			if filePath == "" {
+				continue
+			}
+			items = append(items, parseReviewBodyCommentsForFile(
+				review,
+				severity,
+				filePath,
+				trimEnclosingTag(fileBlock.body, "blockquote"),
+			)...)
+		}
+	}
+	return items
+}
+
+func reviewBodyCommentSeverity(summary string) (string, bool) {
+	normalized := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(summary)), " "))
+	switch {
+	case strings.Contains(normalized, "nitpick comments"), strings.Contains(normalized, "nitpick comment"):
+		return reviewBodyCommentSeverityNitpick, true
+	case strings.Contains(normalized, "minor comments"), strings.Contains(normalized, "minor comment"):
+		return reviewBodyCommentSeverityMinor, true
+	case strings.Contains(normalized, "major comments"), strings.Contains(normalized, "major comment"):
+		return reviewBodyCommentSeverityMajor, true
+	case strings.Contains(normalized, "critical comments"), strings.Contains(normalized, "critical comment"):
+		return reviewBodyCommentSeverityCritical, true
+	default:
+		return "", false
+	}
+}
+
+func reviewBodyCommentOutsideDiffRange(summary string) bool {
+	normalized := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(summary)), " "))
+	return strings.Contains(normalized, "outside diff range comments") ||
+		strings.Contains(normalized, "outside diff comments")
+}
+
+func parseReviewBodyCommentsForFile(
+	review pullRequestReview,
+	severity string,
+	filePath string,
+	body string,
+) []codeRabbitIssue {
+	trimmed := strings.TrimSpace(stripTopLevelDetailsBlocks(body))
+	if trimmed == "" {
+		return nil
+	}
+	matches := reviewBodyCommentSectionStartRe.FindAllStringSubmatchIndex(trimmed, -1)
+	items := make([]codeRabbitIssue, 0, len(matches))
+	for idx, match := range matches {
+		lineRange := strings.TrimSpace(trimmed[match[2]:match[3]])
+		normalizedFilePath := normalizeReviewBodyCommentFilePath(filePath, lineRange)
+		sectionStart := match[0]
+		bodyEnd := len(trimmed)
+		if idx+1 < len(matches) {
+			bodyEnd = matches[idx+1][0]
+		}
+		section := trimmed[sectionStart:bodyEnd]
+		sectionSeverity := severity
+		if parsedSeverity, ok := reviewBodyCommentSectionSeverity(section); ok {
+			sectionSeverity = parsedSeverity
+		}
+		title, commentBody := parseReviewBodyCommentSection(section)
+		if title == "" {
+			continue
+		}
+		reviewID := strconv.Itoa(review.ID)
+		reviewHash := buildReviewBodyCommentHash(normalizedFilePath, lineRange, title, commentBody)
+		providerRef := buildReviewBodyCommentProviderRef(reviewID, reviewHash)
+		items = append(items, codeRabbitIssue{
+			ID:                      stableIssueID(providerRef),
+			Title:                   title,
+			File:                    normalizedFilePath,
+			Line:                    parseReviewBodyCommentLine(lineRange),
+			Severity:                sectionSeverity,
+			Author:                  review.User.Login,
+			Body:                    commentBody,
+			BodyRef:                 digestString(commentBody),
+			ProviderRef:             providerRef,
+			ReviewHash:              reviewHash,
+			SourceReviewID:          reviewID,
+			SourceReviewSubmittedAt: strings.TrimSpace(review.SubmittedAt),
+		})
+	}
+	return items
+}
+
+func reviewBodyCommentSectionSeverity(section string) (string, bool) {
+	lines := strings.Split(strings.TrimSpace(section), "\n")
+	if len(lines) == 0 {
+		return "", false
+	}
+	if severity, ok := reviewBodyCommentMetadataSeverity(lines[0]); ok {
+		return severity, true
+	}
+	if parseInlineReviewBodyCommentTitle(lines[0]) != "" {
+		return "", false
+	}
+	for idx := 1; idx < len(lines); idx++ {
+		line := strings.TrimSpace(lines[idx])
+		if line == "" {
+			continue
+		}
+		if parseInlineReviewBodyCommentTitle(line) != "" || parseStandaloneReviewBodyCommentTitle(line) != "" {
+			return "", false
+		}
+		return reviewBodyCommentMetadataSeverity(line)
+	}
+	return "", false
+}
+
+func reviewBodyCommentMetadataSeverity(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" || strings.Contains(trimmed, "**") {
+		return "", false
+	}
+	normalized := strings.ToLower(strings.Join(strings.Fields(strings.NewReplacer(
+		"`", " ",
+		"_", " ",
+		"|", " ",
+	).Replace(trimmed)), " "))
+	switch {
+	case strings.Contains(normalized, "nitpick"):
+		return reviewBodyCommentSeverityNitpick, true
+	case strings.Contains(normalized, "minor"):
+		return reviewBodyCommentSeverityMinor, true
+	case strings.Contains(normalized, "major"):
+		return reviewBodyCommentSeverityMajor, true
+	case strings.Contains(normalized, "critical"):
+		return reviewBodyCommentSeverityCritical, true
+	default:
+		return "", false
+	}
+}
+
+func parseReviewBodyCommentSection(section string) (string, string) {
+	lines := strings.Split(strings.TrimSpace(section), "\n")
+	if len(lines) == 0 {
+		return "", ""
+	}
+	if title := parseInlineReviewBodyCommentTitle(lines[0]); title != "" {
+		commentBody := normalizeReviewBodyCommentBody(strings.Join(lines[1:], "\n"))
+		if commentBody == "" {
+			commentBody = title
+		}
+		return title, commentBody
+	}
+	titleLine := -1
+	title := ""
+	for idx := 1; idx < len(lines); idx++ {
+		line := strings.TrimSpace(lines[idx])
+		if line == "" {
+			continue
+		}
+		title = parseStandaloneReviewBodyCommentTitle(line)
+		if title == "" {
+			continue
+		}
+		titleLine = idx
+		break
+	}
+	if title == "" {
+		return "", ""
+	}
+	commentBody := normalizeReviewBodyCommentBody(strings.Join(lines[titleLine+1:], "\n"))
+	if commentBody == "" {
+		commentBody = title
+	}
+	return title, commentBody
+}
+
+func normalizeReviewBodyCommentFilePath(filePath string, lineRange string) string {
+	trimmedFilePath := strings.TrimSpace(filePath)
+	trimmedLineRange := strings.TrimSpace(lineRange)
+	if trimmedFilePath == "" || trimmedLineRange == "" {
+		return trimmedFilePath
+	}
+	suffix := "-" + trimmedLineRange
+	if filePathWithoutRange, ok := strings.CutSuffix(trimmedFilePath, suffix); ok {
+		return strings.TrimSpace(filePathWithoutRange)
+	}
+	return trimmedFilePath
+}
+
+func parseInlineReviewBodyCommentTitle(line string) string {
+	matches := reviewBodyCommentInlineTitleRe.FindStringSubmatch(strings.TrimSpace(line))
+	if len(matches) < 2 {
+		return ""
+	}
+	return normalizeReviewBodyCommentText(matches[1])
+}
+
+func parseStandaloneReviewBodyCommentTitle(line string) string {
+	matches := reviewBodyCommentStandaloneTitleRe.FindStringSubmatch(strings.TrimSpace(line))
+	if len(matches) < 2 {
+		return ""
+	}
+	return normalizeReviewBodyCommentText(matches[1])
+}
+
+func extractTopLevelDetailsBlocks(text string) []detailsBlock {
+	blocks := make([]detailsBlock, 0, 8)
+	cursor := 0
+	for {
+		relativeStart := strings.Index(text[cursor:], "<details>")
+		if relativeStart < 0 {
+			break
+		}
+		start := cursor + relativeStart
+		end := matchingDetailsEnd(text, start)
+		if end < 0 {
+			break
+		}
+		block := parseDetailsBlock(start, end, text[start:end])
+		blocks = append(blocks, block)
+		cursor = end
+	}
+	return blocks
+}
+
+func matchingDetailsEnd(text string, start int) int {
+	cursor := start
+	depth := 0
+	for cursor < len(text) {
+		nextOpen := strings.Index(text[cursor:], "<details>")
+		if nextOpen >= 0 {
+			nextOpen += cursor
+		}
+		nextClose := strings.Index(text[cursor:], "</details>")
+		if nextClose >= 0 {
+			nextClose += cursor
+		}
+		switch {
+		case nextOpen >= 0 && (nextClose < 0 || nextOpen < nextClose):
+			depth++
+			cursor = nextOpen + len("<details>")
+		case nextClose >= 0:
+			depth--
+			cursor = nextClose + len("</details>")
+			if depth == 0 {
+				return cursor
+			}
+		default:
+			return -1
+		}
+	}
+	return -1
+}
+
+func parseDetailsBlock(start int, end int, raw string) detailsBlock {
+	inside := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, "<details>"), "</details>"))
+	summaryStart := strings.Index(inside, "<summary>")
+	summaryEnd := strings.Index(inside, "</summary>")
+	if summaryStart < 0 || summaryEnd < 0 || summaryEnd < summaryStart {
+		return detailsBlock{
+			start: start,
+			end:   end,
+			body:  strings.TrimSpace(inside),
+		}
+	}
+	summary := html.UnescapeString(strings.TrimSpace(inside[summaryStart+len("<summary>") : summaryEnd]))
+	body := strings.TrimSpace(inside[summaryEnd+len("</summary>"):])
+	return detailsBlock{
+		start:   start,
+		end:     end,
+		summary: summary,
+		body:    body,
+	}
+}
+
+func stripTopLevelDetailsBlocks(text string) string {
+	blocks := extractTopLevelDetailsBlocks(text)
+	if len(blocks) == 0 {
+		return strings.TrimSpace(text)
+	}
+	var builder strings.Builder
+	cursor := 0
+	for _, block := range blocks {
+		if block.start > cursor {
+			builder.WriteString(text[cursor:block.start])
+		}
+		cursor = block.end
+	}
+	if cursor < len(text) {
+		builder.WriteString(text[cursor:])
+	}
+	return strings.TrimSpace(builder.String())
+}
+
+func stripMarkdownQuotePrefixes(text string) string {
+	lines := strings.Split(text, "\n")
+	for idx, line := range lines {
+		lines[idx] = stripMarkdownQuotePrefix(line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func stripMarkdownQuotePrefix(line string) string {
+	trimmed := strings.TrimLeft(line, " \t")
+	for strings.HasPrefix(trimmed, ">") {
+		trimmed = strings.TrimPrefix(trimmed, ">")
+		trimmed = strings.TrimPrefix(trimmed, " ")
+	}
+	return trimmed
+}
+
+func trimEnclosingTag(text string, tag string) string {
+	openTag := "<" + tag + ">"
+	closeTag := "</" + tag + ">"
+	trimmed := strings.TrimSpace(text)
+	for strings.HasPrefix(trimmed, openTag) && strings.HasSuffix(trimmed, closeTag) {
+		trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, openTag))
+		trimmed = strings.TrimSpace(strings.TrimSuffix(trimmed, closeTag))
+	}
+	return trimmed
+}
+
+func parseReviewBodyCommentFilePath(summary string) string {
+	trimmed := strings.TrimSpace(summary)
+	matches := reviewFileSummaryRe.FindStringSubmatch(trimmed)
+	if len(matches) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(matches[1])
+}
+
+func parseReviewBodyCommentLine(lineRange string) int {
+	trimmed := strings.TrimSpace(lineRange)
+	if trimmed == "" {
+		return 0
+	}
+	for idx, r := range trimmed {
+		if r < '0' || r > '9' {
+			trimmed = trimmed[:idx]
+			break
+		}
+	}
+	line, err := strconv.Atoi(trimmed)
+	if err != nil {
+		return 0
+	}
+	return line
+}
+
+func normalizeReviewBodyCommentText(value string) string {
+	trimmed := html.UnescapeString(strings.TrimSpace(value))
+	trimmed = strings.ReplaceAll(trimmed, "`", "")
+	return strings.Join(strings.Fields(trimmed), " ")
+}
+
+func normalizeReviewBodyCommentBody(body string) string {
+	lines := strings.Split(html.UnescapeString(body), "\n")
+	normalized := make([]string, 0, len(lines))
+	previousBlank := true
+	for _, rawLine := range lines {
+		line := strings.TrimSpace(rawLine)
+		if line == "" {
+			if !previousBlank {
+				normalized = append(normalized, "")
+			}
+			previousBlank = true
+			continue
+		}
+		normalized = append(normalized, strings.Join(strings.Fields(line), " "))
+		previousBlank = false
+	}
+	return strings.TrimSpace(strings.Join(normalized, "\n"))
+}
+
+func buildReviewBodyCommentHash(filePath string, location string, title string, body string) string {
+	canonical := strings.Join([]string{
+		"provider:coderabbit",
+		"file:" + canonicalHashValue(filePath),
+		"location:" + canonicalHashValue(location),
+		"title:" + canonicalHashValue(title),
+		"body:" + canonicalHashValue(firstParagraph(body)),
+	}, "\n")
+	sum := sha256.Sum256([]byte(canonical))
+	return hex.EncodeToString(sum[:])[:reviewBodyCommentHashLength]
+}
+
+func canonicalHashValue(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
+}
+
+func firstParagraph(body string) string {
+	for paragraph := range strings.SplitSeq(body, "\n\n") {
+		if trimmed := strings.TrimSpace(paragraph); trimmed != "" {
+			return trimmed
+		}
+	}
+	return strings.TrimSpace(body)
+}
+
+func buildReviewBodyCommentProviderRef(reviewID string, reviewHash string) string {
+	parts := make([]string, 0, 2)
+	if strings.TrimSpace(reviewID) != "" {
+		parts = append(parts, reviewBodyCommentProviderRefPrefix+strings.TrimSpace(reviewID))
+	}
+	if strings.TrimSpace(reviewHash) != "" {
+		parts = append(parts, "nitpick_hash:"+strings.TrimSpace(reviewHash))
+	}
+	return strings.Join(parts, ",")
+}
+
+func reviewBodyCommentIssueIsNewer(candidate codeRabbitIssue, current codeRabbitIssue) bool {
+	candidateTime := parseCommitTimestamp(candidate.SourceReviewSubmittedAt)
+	currentTime := parseCommitTimestamp(current.SourceReviewSubmittedAt)
+	if candidateTime.After(currentTime) {
+		return true
+	}
+	if currentTime.After(candidateTime) {
+		return false
+	}
+	return compareReviewIDs(candidate.SourceReviewID, current.SourceReviewID) > 0
+}

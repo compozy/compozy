@@ -1,0 +1,41 @@
+---
+title: "agh extension search"
+description: "Search marketplace extensions"
+---
+
+## agh extension search
+
+Search marketplace extensions
+
+```
+agh extension search <query> [flags]
+```
+
+### Options
+
+```
+  -h, --help        help for search
+      --limit int   Maximum number of extension registry results to return (default 20)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh extension search <query> -o json
+```

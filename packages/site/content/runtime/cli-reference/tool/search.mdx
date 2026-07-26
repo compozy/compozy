@@ -1,0 +1,54 @@
+---
+title: "agh tool search"
+description: "Search operator-visible registry tools"
+---
+
+## agh tool search
+
+Search operator-visible registry tools
+
+```
+agh tool search <query> [flags]
+```
+
+### Examples
+
+```
+  # Search tools by descriptor text
+  agh tool search skill -o json
+
+  # Limit search results for automation
+  agh tool search task --limit 5 -o json
+```
+
+### Options
+
+```
+      --agent string       Agent name for scoped diagnostics
+  -h, --help               help for search
+      --limit int          Maximum number of tools to return
+      --session string     Session id for scoped diagnostics
+      --workspace string   Workspace id for scoped diagnostics
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh tool search <query> -o json
+```

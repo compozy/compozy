@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Loops · overview · AGH</title>
+    <style>
+      :root {
+        --rail: #0c0b0b;
+        --canvas: #131211;
+        --canvas-soft: #1a1918;
+        --canvas-tint: #1c1b1a;
+        --elevated: #232220;
+        --fg: #ececef;
+        --fg-strong: #f6f6f8;
+        --muted: #9a9a9f;
+        --subtle: #76767c;
+        --faint: #545458;
+        --line: rgba(255, 255, 255, 0.055);
+        --line-soft: rgba(255, 255, 255, 0.03);
+        --line-strong: rgba(255, 255, 255, 0.09);
+        --accent: #e8572a;
+        --accent-strong: #f6874f;
+        --accent-ink: #17110f;
+        --accent-tint: rgba(232, 87, 42, 0.1);
+        --success: #5fbf85;
+        --success-tint: rgba(95, 191, 133, 0.08);
+        --info: #8e8eb5;
+        --info-tint: rgba(142, 142, 181, 0.12);
+        --neutral: #7a7a80;
+        --input-fill: rgba(255, 255, 255, 0.025);
+        --badge-fill: rgba(255, 255, 255, 0.05);
+        --row-hover: rgba(255, 255, 255, 0.022);
+        --radius-xs: 4px;
+        --radius-sm: 5px;
+        --radius: 6px;
+        --radius-md: 8px;
+        --radius-lg: 10px;
+        --radius-pill: 9999px;
+        --font-sans:
+          "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+          system-ui, sans-serif;
+        --font-mono:
+          "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+        --dur: 140ms;
+        --ease: cubic-bezier(0.2, 0, 0, 1);
+        --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        background: var(--canvas);
+        color: var(--fg);
+        font-family: var(--font-sans);
+        font-feature-settings: "cv01", "ss03";
+        line-height: 1.5;
+        letter-spacing: -0.006em;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 48px 40px 88px;
+      }
+
+      .topline {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 40px;
+      }
+      .brandmark {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: -0.04em;
+      }
+      .topline b {
+        font-weight: 560;
+        font-size: 13.5px;
+        color: var(--fg-strong);
+        letter-spacing: -0.012em;
+      }
+      .topline .sep {
+        color: var(--faint);
+      }
+      .topline .lbl {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .topline .meta {
+        margin-left: auto;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+
+      .hero {
+        max-width: 64ch;
+      }
+      .hero h1 {
+        font-size: 30px;
+        line-height: 1.1;
+        font-weight: 560;
+        letter-spacing: -0.026em;
+        color: var(--fg-strong);
+      }
+      .hero p {
+        margin-top: 14px;
+        font-size: 14.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .hero p b {
+        color: var(--fg);
+        font-weight: 560;
+      }
+
+      .nouns {
+        display: flex;
+        gap: 10px;
+        margin-top: 22px;
+        flex-wrap: wrap;
+      }
+      .noun {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 13px 7px 10px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--canvas-soft);
+        font-size: 13px;
+        color: var(--fg);
+      }
+      .noun b {
+        color: var(--fg-strong);
+        font-weight: 560;
+      }
+      .noun .k {
+        font-family: var(--font-mono);
+        font-size: 9.5px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .noun .ic {
+        width: 15px;
+        height: 15px;
+        color: var(--muted);
+      }
+
+      .grouphead {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 44px 0 14px;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--subtle);
+      }
+      .grouphead .ln {
+        flex: 1;
+        height: 1px;
+        background: var(--line-soft);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+      }
+      .card {
+        position: relative;
+        display: block;
+        background: var(--canvas-soft);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        padding: 16px 16px 14px;
+        transition:
+          background var(--dur) var(--ease),
+          border-color var(--dur) var(--ease);
+      }
+      .card:hover {
+        border-color: var(--line-strong);
+        background: var(--canvas-tint);
+      }
+      .card[aria-disabled="true"] {
+        opacity: 0.6;
+        pointer-events: none;
+      }
+      .card__top {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin-bottom: 11px;
+      }
+      .thumb {
+        width: 34px;
+        height: 34px;
+        border-radius: var(--radius-md);
+        display: grid;
+        place-items: center;
+        flex: none;
+        background: var(--elevated);
+        color: var(--muted);
+      }
+      .thumb svg {
+        width: 17px;
+        height: 17px;
+      }
+      .card:hover .thumb {
+        color: var(--fg);
+      }
+      .card__id {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--faint);
+      }
+      .card__title {
+        font-size: 14px;
+        font-weight: 560;
+        color: var(--fg-strong);
+        letter-spacing: -0.01em;
+        margin-top: 1px;
+      }
+      .card__desc {
+        margin-top: 7px;
+        font-size: 12.5px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+      .tag {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        font-family: var(--font-mono);
+        font-size: 9px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 2px 7px;
+        border-radius: var(--radius-xs);
+      }
+      .tag--live {
+        background: var(--success-tint);
+        color: var(--success);
+      }
+      .tag--planned {
+        background: var(--badge-fill);
+        color: var(--subtle);
+      }
+      .card__foot {
+        margin-top: 13px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 11.5px;
+        color: var(--subtle);
+      }
+      .card__foot .go {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--muted);
+        font-weight: 520;
+      }
+      .card:hover .go {
+        color: var(--fg-strong);
+      }
+
+      .note {
+        margin-top: 44px;
+        padding: 15px 16px;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius-md);
+        background: var(--canvas-soft);
+        font-size: 12.5px;
+        color: var(--subtle);
+        line-height: 1.6;
+        max-width: 84ch;
+      }
+      .note b {
+        color: var(--fg);
+        font-weight: 540;
+      }
+      .note code {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      @media (max-width: 760px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .hero h1 {
+          font-size: 25px;
+        }
+        .wrap {
+          padding: 36px 22px 64px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topline">
+        <span class="brandmark">A</span>
+        <b>AGH Runtime</b><span class="sep">·</span
+        ><span class="lbl">Loops</span>
+        <span class="meta">overview</span>
+      </div>
+
+      <div class="hero">
+        <h1>Loops</h1>
+        <p>
+          A <b>Loop</b> is a reusable unit of self-correcting work: a contract
+          (goal, verification, stop conditions), a body of steps laid out as a
+          static DAG, and typed inputs. It runs unattended on AGH's autonomy
+          kernel, iterating across generations until the goal is verified, or it
+          stops honestly at one of six terminal outcomes. The workspace stays
+          simple: two nouns.
+        </p>
+      </div>
+
+      <div class="nouns">
+        <span class="noun"
+          ><svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M17 1l4 4-4 4" />
+            <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+            <path d="M7 23l-4-4 4-4" />
+            <path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg
+          ><span class="k">noun</span><b>Loops</b> · the catalog</span
+        >
+        <span class="noun"
+          ><svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polygon points="6 4 20 12 6 20 6 4" /></svg
+          ><span class="k">noun</span><b>Runs</b> · the executions</span
+        >
+      </div>
+
+      <!-- Group 1 -->
+      <div class="grouphead">
+        Catalog &amp; the run path<span class="ln"></span>
+      </div>
+      <div class="grid">
+        <a class="card" href="loops-catalog.html">
+          <span class="tag tag--live">Built</span>
+          <div class="card__top">
+            <span class="thumb"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <circle cx="3.5" cy="6" r="1.4" />
+                <circle cx="3.5" cy="12" r="1.4" />
+                <circle cx="3.5" cy="18" r="1.4" /></svg
+            ></span>
+            <div>
+              <div class="card__id">loops-catalog</div>
+              <div class="card__title">Loops catalog</div>
+            </div>
+          </div>
+          <p class="card__desc">
+            Browse built-in and forked Loops by category. Each row shows its
+            goal, last outcome and success rate. The arrive-and-use entry point.
+          </p>
+          <div class="card__foot">Catalog<span class="go">Open →</span></div>
+        </a>
+
+        <a class="card" href="loop-detail.html">
+          <span class="tag tag--live">Built</span>
+          <div class="card__top">
+            <span class="thumb"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                />
+                <polyline points="14 2 14 8 20 8" />
+                <path d="M9 15l2 2 4-4" /></svg
+            ></span>
+            <div>
+              <div class="card__id">loop-detail</div>
+              <div class="card__title">Loop detail</div>
+            </div>
+          </div>
+          <p class="card__desc">
+            A single Loop's contract, declared inputs, limits and budget, the
+            read-only body graph and recent runs. Run, Configure, Fork &amp;
+            edit.
+          </p>
+          <div class="card__foot">Catalog<span class="go">Open →</span></div>
+        </a>
+
+        <a class="card" href="loop-run-form.html">
+          <span class="tag tag--live">Built</span>
+          <div class="card__top">
+            <span class="thumb"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M4 4h16v4H4z" />
+                <path d="M4 12h10" />
+                <path d="M4 17h7" />
+                <polygon points="17 13 22 16 17 19 17 13" /></svg
+            ></span>
+            <div>
+              <div class="card__id">loop-run-form</div>
+              <div class="card__title">Run a loop</div>
+            </div>
+          </div>
+          <p class="card__desc">
+            Auto-generated input form from the Loop's declared inputs, with an
+            Advanced panel for per-run limit overrides and a live contract
+            preview.
+          </p>
+          <div class="card__foot">
+            The hero path<span class="go">Open →</span>
+          </div>
+        </a>
+
+        <a class="card" href="runs.html">
+          <span class="tag tag--live">Built</span>
+          <div class="card__top">
+            <span class="thumb"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M3 3v5h5" />
+                <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
+                <path d="M12 7v5l4 2" /></svg
+            ></span>
+            <div>
+              <div class="card__id">runs</div>
+              <div class="card__title">Runs history</div>
+            </div>
+          </div>
+          <p class="card__desc">
+            Active and past runs across every Loop, the full outcome spectrum.
+            Filter by outcome, Loop or trigger.
+          </p>
+          <div class="card__foot">Execution<span class="go">Open →</span></div>
+        </a>
+      </div>
+
+      <!-- Group 2 -->
+      <div class="grouphead">Live monitoring<span class="ln"></span></div>
+      <div class="grid">
+        <a class="card" href="run-detail.html">
+          <span class="tag tag--live">Built</span>
+          <div class="card__top">
+            <span class="thumb"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg
+            ></span>
+            <div>
+              <div class="card__id">run-detail</div>
+              <div class="card__title">Live run monitor</div>
+            </div>
+          </div>
+          <p class="card__desc">
+            A sticky contract header with live budget meters, a
+            generation-by-generation timeline, fan-out branches, gate verdicts,
+            an embedded multi-agent channel and a human approval gate.
+          </p>
+          <div class="card__foot">Monitoring<span class="go">Open →</span></div>
+        </a>
+
+        <a class="card" href="loop-editor.html">
+          <span class="tag tag--live">Built</span>
+          <div class="card__top">
+            <span class="thumb"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="6" cy="6" r="2.5" />
+                <circle cx="18" cy="12" r="2.5" />
+                <circle cx="6" cy="18" r="2.5" />
+                <path d="M8.2 7.1l7.6 3.8M8.2 16.9l7.6-3.8" /></svg
+            ></span>
+            <div>
+              <div class="card__id">loop-editor</div>
+              <div class="card__title">Visual DAG builder</div>
+            </div>
+          </div>
+          <p class="card__desc">
+            Fork and edit a Loop body on a canvas: action, control and source
+            nodes, edges, a node inspector and inline linter validation
+            (acyclicity, reachability, termination, fan-out bounds).
+          </p>
+          <div class="card__foot">Authoring<span class="go">Open →</span></div>
+        </a>
+      </div>
+
+      <!-- Group 3 -->
+      <div class="grouphead">Authoring &amp; configuration<span class="ln"></span></div>
+      <div class="grid">
+        <a class="card" href="loop-create.html">
+          <span class="tag tag--live">Built</span>
+          <div class="card__top">
+            <span class="thumb"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="6" cy="6" r="3" />
+                <path d="M6 9v6a3 3 0 0 0 3 3h6" />
+                <circle cx="18" cy="18" r="3" /></svg
+            ></span>
+            <div>
+              <div class="card__id">loop-create</div>
+              <div class="card__title">New loop</div>
+            </div>
+          </div>
+          <p class="card__desc">
+            Start from a template (fork a built-in or your own Loop) or from
+            scratch (minimal starter / import <code>agh.loop/v1</code>).
+            Fork-and-edit only per ADR-008; both paths open the editor.
+          </p>
+          <div class="card__foot">Authoring<span class="go">Open →</span></div>
+        </a>
+        <a class="card" href="loop-configure.html">
+          <span class="tag tag--live">Built</span>
+          <div class="card__top">
+            <span class="thumb"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="4" y1="8" x2="20" y2="8" />
+                <circle cx="9" cy="8" r="2.2" />
+                <line x1="4" y1="16" x2="20" y2="16" />
+                <circle cx="15" cy="16" r="2.2" /></svg
+            ></span>
+            <div>
+              <div class="card__id">loop-configure</div>
+              <div class="card__title">Configure (light)</div>
+            </div>
+          </div>
+          <p class="card__desc">
+            No-fork tweaks: pick the verification check, toggle the
+            human-approval gate, choose re-attempt granularity, override stop
+            limits, all bounded by the daemon ceiling.
+          </p>
+          <div class="card__foot">
+            Configuration<span class="go">Open →</span>
+          </div>
+        </a>
+        <div
+          class="card"
+          aria-disabled="true"
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 120px;
+          "
+        >
+          <p class="card__desc" style="margin: 0">
+            Further surfaces follow from the spec: version diff, node-run
+            drilldown, watch-source quiet state, empty states.
+          </p>
+        </div>
+      </div>
+
+      <div class="note">
+        <b>Design system.</b> Built in the AGH operator language: warm
+        near-black <code>#131211</code> canvas, a single scarce orange
+        <code>#e8572a</code> accent, desaturated status colors as tints, Inter +
+        JetBrains Mono, so Loops sits beside Tasks, Jobs, Sessions and Network.
+        Every term, limit and state traces to <code>.compozy/tasks/loops</code>.
+      </div>
+    </div>
+  </body>
+</html>

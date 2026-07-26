@@ -1,0 +1,132 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "reasoning-claude-max",
+            "provider": "claude",
+            "model": "claude-sonnet-5",
+            "reasoning_effort": "max",
+            "permissions": "approve-all",
+            "prompt": "Exercise Claude reasoning negotiation.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "sonnet",
+                    "values": [{ "value": "sonnet", "label": "Claude Sonnet 5" }]
+                },
+                {
+                    "id": "effort",
+                    "name": "Effort",
+                    "current": "high",
+                    "values": [
+                        { "value": "low", "label": "Low" },
+                        { "value": "medium", "label": "Medium" },
+                        { "value": "high", "label": "High" },
+                        { "value": "xhigh", "label": "Extra high" },
+                        { "value": "max", "label": "Max" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "claude-max",
+                    "match": { "turn_source": "user", "user_text": "claude max" },
+                    "steps": [{ "kind": "assistant", "text": "claude max applied" }]
+                }
+            ]
+        },
+        {
+            "name": "reasoning-codex-max",
+            "provider": "codex",
+            "model": "gpt-5.6-sol",
+            "permissions": "approve-all",
+            "prompt": "Exercise Codex max reasoning negotiation.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "gpt-5.6-sol",
+                    "values": [{ "value": "gpt-5.6-sol", "label": "GPT-5.6 Sol" }]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        { "value": "none", "label": "None" },
+                        { "value": "low", "label": "Low" },
+                        { "value": "medium", "label": "Medium" },
+                        { "value": "high", "label": "High" },
+                        { "value": "xhigh", "label": "Extra high" },
+                        { "value": "max", "label": "Max" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "codex-max",
+                    "match": { "turn_source": "user", "user_text": "codex max" },
+                    "steps": [{ "kind": "assistant", "text": "codex max applied" }]
+                }
+            ]
+        },
+        {
+            "name": "reasoning-codex-none",
+            "provider": "codex",
+            "model": "gpt-5.6-sol",
+            "permissions": "approve-all",
+            "prompt": "Exercise Codex explicit none reasoning negotiation.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "gpt-5.6-sol",
+                    "values": [{ "value": "gpt-5.6-sol", "label": "GPT-5.6 Sol" }]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        { "value": "none", "label": "None" },
+                        { "value": "low", "label": "Low" },
+                        { "value": "medium", "label": "Medium" },
+                        { "value": "high", "label": "High" },
+                        { "value": "xhigh", "label": "Extra high" },
+                        { "value": "max", "label": "Max" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "codex-none",
+                    "match": { "turn_source": "user", "user_text": "codex none" },
+                    "steps": [{ "kind": "assistant", "text": "codex none applied" }]
+                }
+            ]
+        },
+        {
+            "name": "reasoning-codex-missing",
+            "provider": "codex",
+            "model": "gpt-5.6-sol",
+            "permissions": "approve-all",
+            "prompt": "Exercise missing Codex reasoning option negotiation.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "gpt-5.6-sol",
+                    "values": [{ "value": "gpt-5.6-sol", "label": "GPT-5.6 Sol" }]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "must-not-run",
+                    "match": { "turn_source": "user", "user_text": "must not prompt" },
+                    "steps": [{ "kind": "assistant", "text": "unexpected prompt" }]
+                }
+            ]
+        }
+    ]
+}

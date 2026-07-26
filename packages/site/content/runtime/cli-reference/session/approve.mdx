@@ -1,0 +1,43 @@
+---
+title: "agh session approve"
+description: "Approve or reject a pending session permission request"
+---
+
+## agh session approve
+
+Approve or reject a pending session permission request
+
+```
+agh session approve <id> [flags]
+```
+
+### Options
+
+```
+      --decision string     Decision: allow-once, allow-always, reject-once, or reject-always
+  -h, --help                help for approve
+      --request-id string   Pending permission request id
+      --turn-id string      Pending permission turn id
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh session approve <id> -o json
+```

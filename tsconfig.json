@@ -1,12 +1,16 @@
 {
     "extends": "./tsconfig.base.json",
     "compilerOptions": {
+        "jsx": "react-jsx",
         "module": "ESNext",
         "moduleResolution": "bundler",
         "allowImportingTsExtensions": true,
         "noEmit": true,
+        "paths": {
+            "@/*": ["./web/src/*"]
+        },
         "types": ["node"]
     },
     "include": ["vitest.config.ts"],
-    "exclude": [".resources/**", "**/node_modules/**", "**/dist/**", ".compozy/tasks/**"]
+    "exclude": [".resources/**", "**/node_modules/**", "**/dist/**"]
 }

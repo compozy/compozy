@@ -1,0 +1,42 @@
+---
+title: "agh config edit"
+description: "Open the selected config overlay in $VISUAL or $EDITOR"
+---
+
+## agh config edit
+
+Open the selected config overlay in $VISUAL or $EDITOR
+
+```
+agh config edit [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for edit
+      --scope string       Edit scope: global or workspace (default "global")
+      --workspace string   Workspace root for workspace-scoped edits
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh config edit -o json
+```

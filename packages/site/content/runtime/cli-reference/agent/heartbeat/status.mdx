@@ -1,0 +1,50 @@
+---
+title: "agh agent heartbeat status"
+description: "Read Heartbeat policy status and wake eligibility"
+---
+
+## agh agent heartbeat status
+
+Read Heartbeat policy status and wake eligibility
+
+```
+agh agent heartbeat status <agent> [flags]
+```
+
+### Examples
+
+```
+  agh agent heartbeat status coder --session sess_123 --workspace checkout-api --json
+```
+
+### Options
+
+```
+  -h, --help                     help for status
+      --include-session-health   Include session health when a session id is supplied
+      --include-wake-events      Include recent wake audit rows
+      --session string           Session id for wake state and health
+      --workspace string         Resolve the agent from a workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh agent heartbeat status <agent> -o json
+```

@@ -1,0 +1,44 @@
+---
+title: "agh loop create"
+description: "Create, fork, or publish one Loop definition"
+---
+
+## agh loop create
+
+Create, fork, or publish one Loop definition
+
+```
+agh loop create [flags]
+```
+
+### Options
+
+```
+      --expected-version int    Expected published version for CAS publish
+      --file string             Loop definition YAML or JSON file
+      --fork-from-name string   Read-only Loop name to fork
+  -h, --help                    help for create
+      --workspace string        Workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh loop create -o json
+```

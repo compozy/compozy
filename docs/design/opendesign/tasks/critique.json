@@ -1,0 +1,20 @@
+{
+  "kind": "critique-panel",
+  "score": 4,
+  "scope": ["task-detail.html", "task-detail-states.html", "task-run-detail.html"],
+  "plan": "TASK-DETAILS-REDESIGN-PLAN.md",
+  "axes": {
+    "clarity": { "score": 4, "notes": "Identity appears once per screen: unified 44px w2head (back chevron + Tasks/title trail + status chip + ≤2 actions) per os/pagehead-redesign.html; legacy topbar breadcrumb + orange-icon H1 page head fully removed from all 7 heads; meta demoted to a 12px subhead line." },
+    "hierarchy": { "score": 4, "notes": "Single status source in the head (dot + label, pulse when live); exception-based pills only in subhead; one accent primary action per state; now-strip leads Overview; 320px rail stays quiet; 3 tabs with foreground underline per Tabs contract." },
+    "typography": { "score": 4, "notes": "Head title 13px/600 per w2 contract (no display H1 in chrome); body 13.5; section labels 10.5 uppercase; mono strictly for ids/event types/durations with tabular numerals." },
+    "motion": { "score": 4, "notes": "State-conveying only per product register: live pulse, ticking elapsed, 200ms sheet slide; all guarded by prefers-reduced-motion; no page-load choreography." },
+    "brand": { "score": 4, "notes": "Token block copied verbatim from agent-detail.html (packages/ui lineage); accent budget held (primary CTA + sanctioned live-state tints); flat depth, no side-stripes, no gradients; canonical RuntimeSelector geometry with 7-bar meter reused, not rebuilt." }
+  },
+  "checks": {
+    "plan_acceptance": "Tabs 7→3; pills ≤3 default; destructive verbs in overflow; operator tier (lease/heartbeat/claim-hash/seq/bridges/stream) only inside Inspect drawer; no set-status control (status is derived); no delete-run verb; nullable result renders em-dash placeholder; CLI hints use `agh task` singular.",
+    "os_head_contract": "All 7 heads (1 task-detail + 4 states + 2 run-detail) use w2head: back chevron, w2-crumbs trail (window-local, never workspace-prefixed), w2-status with tone dot, w2-vsep, w2-actions ≤2; zero matches for topbar|head__|breadcrumb__|legacy-pagehead|lp-icon across tasks/*.html.",
+    "structure": "style 1/1, script 1/1, header/section tags balanced in all three files (grep-verified).",
+    "states": "in_progress (task-detail.html) · blocked+approval, failed, needs_attention, completed (task-detail-states.html) · running, failed (task-run-detail.html).",
+    "visual_capture": "Skipped: the render/screenshot helper is blocked in this environment (known limitation); validation relies on the preview pane."
+  }
+}

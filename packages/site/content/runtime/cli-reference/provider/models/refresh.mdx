@@ -1,0 +1,43 @@
+---
+title: "agh provider models refresh"
+description: "Refresh provider model catalog sources"
+---
+
+## agh provider models refresh
+
+Refresh provider model catalog sources
+
+```
+agh provider models refresh [provider] [flags]
+```
+
+### Options
+
+```
+      --force               Force refresh even when cached status is fresh
+  -h, --help                help for refresh
+      --request-id string   Refresh request id for daemon logs
+      --source string       Refresh only one catalog source id
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh provider models refresh [provider] -o json
+```

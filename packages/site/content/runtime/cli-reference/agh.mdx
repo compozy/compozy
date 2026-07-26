@@ -1,0 +1,98 @@
+---
+title: "agh"
+description: "AGH — Artificial General Hivemind"
+---
+
+## agh
+
+AGH — Artificial General Hivemind
+
+```
+agh [flags]
+```
+
+### Examples
+
+```
+  # Start the daemon and create a session in the current workspace
+  agh daemon start
+  agh session new --agent general
+
+  # Print machine-readable output for automation
+  agh session list -o json
+```
+
+### Options
+
+```
+  -h, --help            help for agh
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh -o json
+```
+
+## Subcommands
+
+| Command                                                     | Description                                                     |
+| ----------------------------------------------------------- | --------------------------------------------------------------- |
+| [agh agent](/runtime/cli-reference/agent)                   | Inspect AGH agent definitions                                   |
+| [agh automation](/runtime/cli-reference/automation)         | Manage automation jobs, triggers, suggestions, and runs         |
+| [agh bridge](/runtime/cli-reference/bridge)                 | Manage bridge instances                                         |
+| [agh bundle](/runtime/cli-reference/bundle)                 | Manage extension bundle presets                                 |
+| [agh ch](/runtime/cli-reference/ch)                         | Use agent-facing coordination channels                          |
+| [agh completion](/runtime/cli-reference/completion)         | Generate the autocompletion script for the specified shell      |
+| [agh config](/runtime/cli-reference/config)                 | Inspect and mutate AGH configuration                            |
+| [agh daemon](/runtime/cli-reference/daemon)                 | Manage the AGH daemon                                           |
+| [agh desktop](/runtime/cli-reference/desktop)               | Manage virtual desktops in a workspace                          |
+| [agh doctor](/runtime/cli-reference/doctor)                 | Run runtime diagnostics                                         |
+| [agh drain](/runtime/cli-reference/drain)                   | Stop admitting new work while in-flight work completes          |
+| [agh extension](/runtime/cli-reference/extension)           | Manage AGH extensions                                           |
+| [agh hooks](/runtime/cli-reference/hooks)                   | Inspect configured and executed hooks                           |
+| [agh install](/runtime/cli-reference/install)               | Bootstrap AGH and create the default general agent              |
+| [agh layout](/runtime/cli-reference/layout)                 | Inspect, preview, and change workspace layouts                  |
+| [agh layout-profile](/runtime/cli-reference/layout-profile) | List, read, save, and delete saved layouts                      |
+| [agh logs](/runtime/cli-reference/logs)                     | Read cross-session runtime logs                                 |
+| [agh loop](/runtime/cli-reference/loop)                     | Manage Loop definitions and runs                                |
+| [agh marketplace](/runtime/cli-reference/marketplace)       | Discover installable AGH capabilities                           |
+| [agh mcp](/runtime/cli-reference/mcp)                       | Manage MCP integrations                                         |
+| [agh me](/runtime/cli-reference/me)                         | Inspect the current AGH-managed agent session                   |
+| [agh memory](/runtime/cli-reference/memory)                 | Show, write, search, and operate Memory v2 durable context      |
+| [agh network](/runtime/cli-reference/network)               | Operate the daemon-owned network runtime                        |
+| [agh notifications](/runtime/cli-reference/notifications)   | Manage notification presets                                     |
+| [agh observe](/runtime/cli-reference/observe)               | Inspect runtime observability read models                       |
+| [agh onboarding](/runtime/cli-reference/onboarding)         | Inspect and manage first-run onboarding state                   |
+| [agh open](/runtime/cli-reference/open)                     | Open the AGH web UI in the default browser                      |
+| [agh provider](/runtime/cli-reference/provider)             | Inspect and manage provider authentication                      |
+| [agh resource](/runtime/cli-reference/resource)             | Manage desired-state resources                                  |
+| [agh roles](/runtime/cli-reference/roles)                   | Inspect effective background role configuration                 |
+| [agh scheduler](/runtime/cli-reference/scheduler)           | Inspect and control task scheduler dispatch                     |
+| [agh session](/runtime/cli-reference/session)               | Manage AGH sessions                                             |
+| [agh skill](/runtime/cli-reference/skill)                   | Manage local AgentSkills                                        |
+| [agh spawn](/runtime/cli-reference/spawn)                   | Spawn a bounded child agent session                             |
+| [agh status](/runtime/cli-reference/status)                 | Show consolidated runtime status                                |
+| [agh support](/runtime/cli-reference/support)               | Create daemon-owned support artifacts                           |
+| [agh task](/runtime/cli-reference/task)                     | Manage tasks and task runs                                      |
+| [agh tool](/runtime/cli-reference/tool)                     | Inspect and invoke registry tools                               |
+| [agh toolsets](/runtime/cli-reference/toolsets)             | Inspect registry toolsets                                       |
+| [agh undrain](/runtime/cli-reference/undrain)               | Resume admission of new work                                    |
+| [agh uninstall](/runtime/cli-reference/uninstall)           | Stop AGH and remove runtime launch artifacts                    |
+| [agh update](/runtime/cli-reference/update)                 | Check for and apply the latest stable AGH release               |
+| [agh vault](/runtime/cli-reference/vault)                   | Manage encrypted daemon vault metadata and write-only secrets   |
+| [agh version](/runtime/cli-reference/version)               | Print the AGH version                                           |
+| [agh whoami](/runtime/cli-reference/whoami)                 | Print the current AGH agent identity from environment variables |
+| [agh window](/runtime/cli-reference/window)                 | Manage windows in virtual desktops                              |
+| [agh workspace](/runtime/cli-reference/workspace)           | Manage registered workspaces                                    |

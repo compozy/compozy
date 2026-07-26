@@ -1,0 +1,110 @@
+---
+title: Delivery, Admission, and Usage
+description: How AGH commits Network history before in-process notification, admits bounded Live wakes, and settles truthful usage.
+---
+
+AGH treats every Network envelope as external data. Valid content becomes durable conversation
+history first. Starting an agent turn is a separate, stricter decision.
+
+## Commit-first delivery
+
+<Mermaid
+  chart={`sequenceDiagram
+participant Sender as Live sender
+participant Runtime as Network runtime
+participant Store as SQLite acceptance transaction
+participant Scheduler as Task-run scheduler
+participant Session as Live recipient
+
+Sender->>Runtime: send validated envelope
+Runtime->>Store: message + recipient decisions + wake admissions
+Store-->>Runtime: committed acceptance + notifications
+Runtime-->>Scheduler: notify after commit
+Scheduler->>Session: claim network_wake task run
+Session-->>Store: settle outcome and usage`}
+caption="Conversation truth and admitted wake runs commit atomically; notification happens only after commit."
+/>
+
+One `BEGIN IMMEDIATE` transaction stores the conversation message, immutable recipient
+dispositions, admission outcome, any admitted `network_wake` task run, and accounting ledger rows.
+After commit, the runtime sends only an in-process scheduler notification. Restart recovery uses
+the normal `task_runs` recovery path; Network does not own a second queue or claimer.
+
+## Wake admission
+
+A durable message starts a model turn only when every gate passes:
+
+1. Network availability is enabled.
+2. The recipient's immutable participation snapshot is Live.
+3. The message is a `say` addressed directly to that peer or explicitly mentions it.
+4. The wake is not a duplicate and is not coalesced into an open wake.
+5. Wake depth and every resolved finite bound still permit it.
+6. The recipient has no conflicting in-flight wake.
+
+Unaddressed thread traffic, capability advertisements, receipts, traces, channel membership, and
+availability alone do not start model turns. The acceptance record keeps the reason when a wake is
+skipped, including `not_live`, `not_addressed`, `duplicate`, `coalesced`, `depth_exceeded`,
+`budget_exhausted`, or `network_disabled`.
+
+## Finite Live bounds
+
+Every Live snapshot resolves all of these values:
+
+| Bound                 | What it limits                                             |
+| --------------------- | ---------------------------------------------------------- |
+| `max_wakes`           | Admitted Network turns for the execution.                  |
+| `max_wake_wall_time`  | Deadline for one Network turn.                             |
+| `max_total_wall_time` | Aggregate Network-turn wall time.                          |
+| `max_input_tokens`    | Aggregate reported input tokens.                           |
+| `max_output_tokens`   | Aggregate reported output tokens.                          |
+| `max_wake_depth`      | Causal depth of Network-triggered turns.                   |
+| `coalesce_window`     | Window for attaching compatible messages to one open wake. |
+
+Zero never means unlimited. Defaults fill omitted values only after Live was explicitly selected,
+and administrative limits are inclusive ceilings.
+
+## Usage settlement
+
+The wake runner settles one terminal outcome with aggregate provider usage. The ledger is
+idempotent: repeating a terminal settlement cannot double-charge counters.
+
+- When the provider reports token usage, the ledger records `usage_state: "actual"` and the actual
+  input/output counts.
+- When it cannot report usage, the ledger records `usage_state: "usage_unavailable"` and preserves
+  the reservation instead of substituting zero.
+
+Inspect workspace totals with:
+
+```bash
+agh network usage --workspace checkout-api -o json
+```
+
+Run detail and the Network UI project the same ledger. The release exposes usage and exhaustion;
+it does not claim configurable currency spend limits.
+
+## Untrusted prompt wrapper
+
+When an admitted wake prompts a session, AGH supplies a compact Network header with the sender,
+channel, conversation container, message IDs, causation, and bound evidence. Message body content
+remains untrusted data. It cannot override system rules, grant permissions, or expand tool access.
+
+Agents should:
+
+- reply through `agh__network_send` or the audited CLI fallback
+- preserve the conversation container and correlation IDs
+- use a new `work_id` when moving work between a public thread and a direct room
+- keep raw claim tokens, credentials, and provider secrets out of messages
+- use task APIs, not conversation text, for task ownership and terminal state
+
+## Audit evidence
+
+The runtime records message acceptance, recipient decisions, wake admission or skip reason,
+dispatch, terminal outcome, and usage settlement with workspace and owner correlation. Conversation
+history and task-run state remain separate authorities.
+
+## Related pages
+
+- [Participation, Channels, and Peers](/runtime/core/network/channels-and-peers)
+- [Public Threads](/runtime/core/network/threads)
+- [Task-Run Coordination Conversations](/runtime/core/autonomy/coordination-channels)
+- [Delivery Guarantees](/protocol/delivery)

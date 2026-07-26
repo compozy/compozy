@@ -1,0 +1,45 @@
+---
+title: "agh config"
+description: "Inspect and mutate AGH configuration"
+---
+
+## agh config
+
+Inspect and mutate AGH configuration
+
+### Options
+
+```
+  -h, --help   help for config
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                 | Description                                              |
+| ----------------------------------------------------------------------- | -------------------------------------------------------- |
+| [agh config apply-history](/runtime/cli-reference/config/apply-history) | List persisted config apply records                      |
+| [agh config check](/runtime/cli-reference/config/check)                 | Alias for config validate                                |
+| [agh config edit](/runtime/cli-reference/config/edit)                   | Open the selected config overlay in $VISUAL or $EDITOR   |
+| [agh config get](/runtime/cli-reference/config/get)                     | Get one redacted effective config value                  |
+| [agh config list](/runtime/cli-reference/config/list)                   | List redacted effective config values                    |
+| [agh config path](/runtime/cli-reference/config/path)                   | Show resolved AGH config paths                           |
+| [agh config reload](/runtime/cli-reference/config/reload)               | Reconcile config.toml with the daemon active generation  |
+| [agh config set](/runtime/cli-reference/config/set)                     | Set one config value through the validated config writer |
+| [agh config show](/runtime/cli-reference/config/show)                   | Show the redacted effective config                       |
+| [agh config validate](/runtime/cli-reference/config/validate)           | Validate AGH configuration                               |

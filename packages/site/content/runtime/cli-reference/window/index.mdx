@@ -1,0 +1,44 @@
+---
+title: "agh window"
+description: "Manage windows in virtual desktops"
+---
+
+## agh window
+
+Manage windows in virtual desktops
+
+### Options
+
+```
+  -h, --help   help for window
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                       | Description                                                |
+| ------------------------------------------------------------- | ---------------------------------------------------------- |
+| [agh window close](/runtime/cli-reference/window/close)       | Close or minimize a window and reflow its group            |
+| [agh window float](/runtime/cli-reference/window/float)       | Toggle a window between floating and tiled placement       |
+| [agh window focus](/runtime/cli-reference/window/focus)       | Focus a window by ID or direction for one connected client |
+| [agh window list](/runtime/cli-reference/window/list)         | List windows across workspace desktops                     |
+| [agh window move](/runtime/cli-reference/window/move)         | Move a window or tiled group to an explicit destination    |
+| [agh window navigate](/runtime/cli-reference/window/navigate) | Persist a window's internal application route              |
+| [agh window open](/runtime/cli-reference/window/open)         | Open a window or restore a minimized window                |
+| [agh window swap](/runtime/cli-reference/window/swap)         | Swap two window placements                                 |
+| [agh window zoom](/runtime/cli-reference/window/zoom)         | Toggle a window's client-specific focus desktop            |

@@ -1,0 +1,49 @@
+---
+title: "agh agent soul history"
+description: "List managed Soul authoring revisions"
+---
+
+## agh agent soul history
+
+List managed Soul authoring revisions
+
+```
+agh agent soul history <agent> [flags]
+```
+
+### Examples
+
+```
+  agh agent soul history coder --limit 10 --workspace checkout-api --json
+```
+
+### Options
+
+```
+      --cursor string      Revision cursor
+  -h, --help               help for history
+      --limit int          Maximum number of revisions to return
+      --workspace string   Resolve the agent from a workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh agent soul history <agent> -o json
+```

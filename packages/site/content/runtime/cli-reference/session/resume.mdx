@@ -1,0 +1,52 @@
+---
+title: "agh session resume"
+description: "Attach to a resumable session"
+---
+
+## agh session resume
+
+Attach to a resumable session
+
+```
+agh session resume [id] [flags]
+```
+
+### Examples
+
+```
+  # Attach to a resumable session by ID
+  agh session resume sess_1234
+
+  # Attach to the latest eligible session in a workspace
+  agh session resume --latest --workspace checkout-api
+```
+
+### Options
+
+```
+  -h, --help               help for resume
+      --latest             Attach to the latest eligible session
+      --workspace string   Filter --latest by workspace name or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh session resume [id] -o json
+```

@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGH OS v2 — window head redesign (PageHead → OS chrome)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Token block copied VERBATIM from os-v2.css (dashboard.html ←
+   agent-detail.html ← packages/ui/src/tokens.css lineage).
+   ============================================================ */
+:root{
+  color-scheme: dark;
+  --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+  --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+  --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+  --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+  --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+  --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+  --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+  --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+  --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+  --surface-glaze:rgba(255,255,255,.04);
+  --scrim:rgba(0,0,0,.55);
+  --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+  --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+  --focus-ring:0 0 0 1px var(--line-strong);
+  --viz-line:rgba(255,255,255,.42); --viz-fill:rgba(255,255,255,.055);
+  --viz-bar:rgba(255,255,255,.30); --viz-other:rgba(255,255,255,.26);
+  --viz-grid:rgba(255,255,255,.045); --viz-cell:255,255,255;
+}
+/* shell-only additions (OS chrome, radius waiver applies) */
+:root{
+  --shell-glass:rgba(12,11,11,.72);
+  --shell-glass-pop:rgba(19,18,17,.94);
+  --teal:#225555; /* registered brand tone — wallpaper depth only */
+  --r-pop:12px; --r-win:12px; --r-dock:22px;
+  --ease-spring:cubic-bezier(.32,.72,.28,1);
+  --shadow-win:0 40px 90px -30px rgba(0,0,0,.7), 0 10px 30px -12px rgba(0,0,0,.55);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{
+  font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+  font-feature-settings:"cv01","ss03";
+  color:var(--fg);
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(1100px 700px at 8% 4%, var(--accent-tint), transparent 62%),
+    radial-gradient(1000px 640px at 96% 30%, color-mix(in oklab, var(--teal) 30%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 45%);
+  background-attachment:fixed;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+}
+button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;letter-spacing:inherit;color:inherit}
+ul{list-style:none}
+svg{display:block}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:normal}
+:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+/* ============ doc scaffolding ============ */
+.doc{max-width:960px;margin:0 auto;padding:52px 28px 90px}
+.doc-head{margin-bottom:54px}
+.eyebrow{font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle)}
+.doc-head h1{font-size:21px;font-weight:650;letter-spacing:-.015em;color:var(--fg-strong);margin-top:8px}
+.doc-head p{margin-top:8px;font-size:13px;color:var(--muted);max-width:62ch}
+.doc-meta{display:flex;gap:8px;margin-top:14px}
+.meta-chip{
+  display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;
+  border:1px solid var(--line);border-radius:var(--radius-pill);
+  font-size:10.5px;color:var(--subtle);font-family:var(--font-mono);
+}
+.sec{margin-top:58px}
+.sec-head{margin-bottom:18px;max-width:66ch}
+.sec-head h2{font-size:15.5px;font-weight:650;letter-spacing:-.012em;color:var(--fg-strong);margin-top:7px}
+.sec-head p{margin-top:6px;font-size:12.5px;color:var(--muted);line-height:1.6}
+.sec-head p b{color:var(--fg);font-weight:600}
+
+.mockwrap{position:relative;overflow-x:auto;padding:4px 2px 8px}
+.notes{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+.note{display:flex;align-items:flex-start;gap:10px;font-size:12px;color:var(--muted);line-height:1.55;max-width:70ch}
+.note b{color:var(--fg);font-weight:600}
+.pin{
+  flex:none;width:17px;height:17px;margin-top:1px;border-radius:50%;
+  display:grid;place-items:center;
+  background:var(--elevated);border:1px solid var(--line-strong);
+  font-family:var(--font-mono);font-size:9px;font-weight:600;color:var(--fg);
+}
+.pin--on{position:absolute;z-index:5;box-shadow:0 3px 10px -3px rgba(0,0,0,.6)}
+
+/* ============ window mock (static — chrome verbatim from os-v2.css) ============ */
+.winx{
+  position:relative;min-width:640px;max-width:820px;
+  display:flex;flex-direction:column;
+  background:var(--canvas);
+  border:1px solid var(--line-strong);border-radius:var(--r-win);
+  box-shadow:var(--shadow-win),var(--highlight);
+  overflow:hidden;
+}
+.win-controls{display:flex;gap:7px}
+.wc{
+  width:12px;height:12px;border-radius:var(--radius-xs);
+  border:1px solid var(--line-strong);background:var(--btn-fill);
+  transition:background var(--dur),border-color var(--dur);
+}
+.winx:hover .wc-close{background:var(--accent);border-color:var(--accent)}
+.winx:hover .wc-min{background:var(--muted);border-color:var(--muted)}
+.winx:hover .wc-zoom{background:var(--success);border-color:var(--success)}
+
+/* ---- BEFORE: current head (breadcrumb) + legacy route PageHead ---- */
+.headv1{
+  min-height:44px;display:grid;grid-template-columns:64px minmax(0,1fr) 64px;
+  align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--line);
+}
+.breadcrumb{display:flex;align-items:center;gap:6px;min-width:0;justify-self:center}
+.crumb-root{font-size:11px;color:var(--subtle)}
+.crumb-sep{font-size:11px;color:var(--faint)}
+.crumb-page{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap}
+.legacy-pagehead{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:20px 20px 4px;
+}
+.lp-icon{
+  width:30px;height:30px;flex:none;border-radius:var(--radius-md);
+  display:grid;place-items:center;
+  background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight);
+}
+.lp-icon svg{width:16px;height:16px}
+.lp-copy{flex:1;min-width:0}
+.lp-copy h1{font-size:22px;font-weight:650;letter-spacing:-.02em;color:var(--fg-strong);line-height:1.2}
+.lp-copy p{margin-top:3px;font-size:12.5px;color:var(--muted)}
+.lp-status{
+  display:inline-flex;align-items:center;gap:6px;margin-top:7px;
+  font-size:10px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+}
+
+/* ---- AFTER: unified window head v2 ---- */
+.headv2{
+  flex:none;min-height:44px;
+  display:flex;align-items:center;gap:10px;padding:0 12px;
+  background:var(--canvas);border-bottom:1px solid var(--line);
+  cursor:grab;user-select:none;position:relative;z-index:3;
+  transition:box-shadow var(--dur) var(--ease);
+}
+.headv2.is-scrolled{border-bottom-color:var(--line-strong);box-shadow:0 10px 18px -14px rgba(0,0,0,.55)}
+.headv2 .win-controls{margin-right:2px}
+.w2-id{display:flex;align-items:center;gap:8px;min-width:0}
+.w2-glyph{
+  width:22px;height:22px;flex:none;border-radius:var(--radius);
+  display:grid;place-items:center;
+  background:var(--badge-fill);border:1px solid var(--line);color:var(--muted);
+}
+.w2-glyph svg{width:13px;height:13px}
+.w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.w2-count{font-size:10px;color:var(--faint)}
+.w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2-crumb{
+  font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;
+  border-radius:var(--radius-sm);padding:1px 5px;
+  max-width:150px;overflow:hidden;text-overflow:ellipsis;
+}
+button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2-crumb--more{max-width:none;padding:1px 3px;color:var(--faint)}
+.w2-crumbs .w2-sep{flex:none}
+.w2-crumbs .w2-title{min-width:0;padding-left:3px}
+.w2-sep{font-size:12px;color:var(--faint)}
+.w2-back{
+  width:24px;height:24px;flex:none;display:grid;place-items:center;
+  border-radius:var(--radius);color:var(--muted);
+}
+.w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2-back svg{width:13px;height:13px}
+.w2-flex{flex:1;align-self:stretch;min-width:8px}
+.w2-status{
+  display:inline-flex;align-items:center;gap:6px;flex:none;
+  font-size:10.5px;font-weight:600;color:var(--muted);
+}
+.w2-status[data-tone="ok"]{color:var(--success)}
+.w2-status[data-tone="run"]{color:var(--accent-strong)}
+.w2-meta{font-size:10.5px;color:var(--subtle);flex:none}
+.w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+.w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+
+/* route tabs — peer views sit after the title, never the strip */
+.w2-tabs{
+  display:inline-flex;align-items:center;gap:1px;flex:none;
+  margin-left:2px;
+  padding:2px;border-radius:var(--radius-md);background:var(--canvas-tint);
+  max-width:min(420px,46vw);overflow-x:auto;scrollbar-width:none;
+  cursor:default;
+}
+.w2-tabs::-webkit-scrollbar{display:none}
+.w2-tab{
+  display:inline-flex;align-items:center;gap:5px;
+  min-height:24px;padding:0 9px;border-radius:var(--radius-xs);
+  font-size:12px;font-weight:500;color:var(--subtle);white-space:nowrap;
+  transition:color var(--dur),background var(--dur);
+}
+.w2-tab .mono{font-size:10px;color:var(--faint)}
+.w2-tab:hover{color:var(--muted)}
+.w2-tab.is-on{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+.w2-tab.is-on .mono{color:var(--muted)}
+.headv2:has(.w2-tabs){cursor:default}
+.headv2:has(.w2-tabs) .w2-flex{cursor:grab}
+
+/* context strip — optional 38px tool row, part of the chrome */
+.w2-toolbar{
+  flex:none;min-height:38px;
+  display:flex;align-items:center;gap:10px;padding:2px 12px;
+  background:var(--canvas);border-bottom:1px solid var(--line);
+  position:relative;z-index:2;
+}
+.w2-toolbar .w2-flex{align-self:auto}
+.w2-toolbar .field-search{width:min(220px,100%)}
+.w2-sort{
+  display:inline-flex;align-items:center;gap:6px;
+  height:26px;padding:0 8px;border-radius:var(--radius-md);
+  border:1px solid var(--line);background:var(--btn-fill);
+  font-size:11.5px;color:var(--muted);white-space:nowrap;
+}
+.w2-sort strong{font-weight:500;color:var(--fg)}
+.w2-sort svg{width:12px;height:12px;color:var(--subtle)}
+.winx-body{flex:1;overflow:auto;background:var(--canvas)}
+
+/* ============ shared route vocabulary (verbatim contracts from os-v2-apps.css) ============ */
+.app{padding:16px 20px 20px;display:flex;flex-direction:column;gap:14px;min-height:100%}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;
+  border-radius:var(--radius-md);font-size:12px;font-weight:500;letter-spacing:-.005em;
+  border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);
+  cursor:pointer;white-space:nowrap;
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.btn svg{width:14px;height:14px}
+.btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+.btn:active{transform:translateY(1px)}
+.btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+.btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+.btn--ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn--ghost:hover{background:var(--row-hover);border-color:transparent;color:var(--fg-strong)}
+.btn--icon{width:26px;padding:0;justify-content:center}
+
+.field{
+  display:flex;align-items:center;gap:7px;height:28px;padding:0 9px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--input-fill);
+}
+.field svg{width:13px;height:13px;color:var(--subtle);flex:none}
+.field input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:12px;color:var(--fg)}
+.field input::placeholder{color:var(--subtle)}
+.field:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+.field-search{width:190px}
+
+.pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-tint);border-radius:var(--radius-md)}
+.pill-group__item{
+  display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:0 9px;
+  border-radius:var(--radius-xs);font-size:11.5px;font-weight:500;color:var(--subtle);
+  transition:color var(--dur),background var(--dur);
+}
+.pill-group__item .mono{font-size:10px;color:var(--faint)}
+.pill-group__item:hover{color:var(--muted)}
+.pill-group__item.is-on{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+.pill-group__item.is-on .mono{color:var(--muted)}
+
+.tabbar{display:flex;gap:2px;border-bottom:1px solid var(--line)}
+.tab{
+  height:30px;padding:0 11px;font-size:12px;font-weight:500;color:var(--muted);
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.tab .mono{font-size:10px;color:var(--subtle)}
+.tab:hover{color:var(--fg-strong)}
+.tab.is-on{color:var(--fg-strong);border-bottom-color:var(--accent)}
+
+.d{width:7px;height:7px;border-radius:50%;flex:none}
+.d--run{background:var(--accent)}
+.d--ok{background:var(--success)}
+.d--needs{background:var(--warning)}
+.d--idle{background:var(--faint)}
+.d--pulse{animation:pulse 1.8s var(--ease) infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 40%,transparent)}70%{box-shadow:0 0 0 5px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.d--run.d--pulse{color:var(--accent)}
+.agent-chip{
+  width:18px;height:18px;border-radius:var(--radius-sm);flex:none;
+  display:inline-grid;place-items:center;font-size:8px;font-weight:600;
+  background:var(--elevated);border:1px solid var(--line-strong);color:var(--muted);
+}
+
+.panel{border:1px solid var(--line);border-radius:var(--radius-lg);padding:12px 14px 14px;background:var(--canvas-soft)}
+.panel-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+.panel-h h3{font-size:12px;font-weight:600;color:var(--fg-strong)}
+.prov{font-size:10px;color:var(--subtle)}
+.sect-eyebrow{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kpi{padding:12px 14px;background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+.kpi__v{display:block;font-size:17px;font-weight:600;color:var(--fg-strong)}
+.kpi__l{display:block;font-size:10px;color:var(--subtle);margin-top:1px}
+.health{display:flex;flex-direction:column;gap:2px;padding:14px;background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+.health-line{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--fg-strong)}
+.health p{font-size:12px;color:var(--muted)}
+
+.list{display:flex;flex-direction:column}
+.list>li{
+  display:flex;align-items:center;gap:10px;
+  min-height:36px;padding:0 8px;margin:0 -8px;
+  border-bottom:1px solid var(--line);border-radius:var(--radius);cursor:pointer;
+}
+.list>li:last-child{border-bottom:0}
+.list>li:hover{background:var(--row-hover)}
+.row-title{font-size:12.5px;font-weight:500;color:var(--fg-strong);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-meta{font-size:10.5px;color:var(--subtle);font-family:var(--font-mono);flex:none;font-variant-numeric:tabular-nums}
+.listing-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px;align-content:start}
+.task-card,.mkt-card{
+  border:1px solid var(--line);border-radius:var(--radius-lg);padding:11px 12px;
+  background:var(--canvas-soft);display:flex;flex-direction:column;gap:8px;
+  transition:border-color var(--dur),background var(--dur);cursor:pointer;
+}
+.task-card:hover,.mkt-card:hover{border-color:var(--line-strong);background:var(--canvas-tint)}
+.card-top{display:flex;align-items:center;gap:8px}
+.card-title{font-size:12.5px;font-weight:600;line-height:1.35;color:var(--fg-strong)}
+.card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:auto}
+.mkt-kind{
+  font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--subtle);border:1px solid var(--line);border-radius:var(--radius-sm);padding:1px 5px;
+}
+.mkt-desc{font-size:11.5px;color:var(--muted);line-height:1.5}
+.mkt-installed{font-size:10.5px;color:var(--success);font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.mkt-installed svg{width:12px;height:12px}
+
+.transcript{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.msg-role{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);margin-bottom:3px}
+.msg-text{font-size:12.5px;line-height:1.55;max-width:62ch;color:var(--fg)}
+.msg-user .msg-text{color:var(--muted)}
+.msg-text code{font-family:var(--font-mono);font-size:11.5px;background:var(--badge-fill);border-radius:var(--radius-xs);padding:0 4px;color:var(--fg-strong)}
+.caret{
+  display:inline-block;width:7px;height:13px;margin-left:3px;vertical-align:-2px;
+  background:var(--accent);animation:blink 1.05s steps(1) infinite;
+}
+@keyframes blink{50%{opacity:0}}
+.composer{display:flex;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--canvas)}
+.composer input{
+  flex:1;height:34px;padding:0 12px;
+  background:var(--input-fill);border:1px solid var(--line);border-radius:var(--radius-lg);
+  outline:none;font-size:12.5px;color:var(--fg);
+}
+.composer input::placeholder{color:var(--subtle)}
+.composer-send{height:34px;width:40px;padding:0;border-radius:var(--radius-lg);justify-content:center}
+
+/* task detail (drill-in) body */
+.detail-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.meta-rows{display:flex;flex-direction:column}
+.meta-row{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:9px 0;border-bottom:1px solid var(--line);font-size:12px;
+}
+.meta-row:last-child{border-bottom:0}
+.meta-row .k{color:var(--subtle)}
+.meta-row .v{color:var(--fg);display:inline-flex;align-items:center;gap:7px}
+
+/* run log (drill-in level 2 body) */
+.runlog{display:flex;flex-direction:column;gap:6px;font-family:var(--font-mono);font-size:11px;line-height:1.5;font-variant-numeric:tabular-nums}
+.runlog>span{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.runlog .t{color:var(--faint);margin-right:10px}
+.runlog .warn{color:var(--warning)}
+
+/* ============ anatomy diagram ============ */
+.anatomy{border:1px solid var(--line);border-radius:var(--r-win);overflow:hidden;background:var(--canvas)}
+.anat-legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0;border-top:1px solid var(--line)}
+.anat-cell{padding:12px 14px;border-right:1px solid var(--line-soft)}
+.anat-cell:last-child{border-right:0}
+.anat-cell h4{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--fg-strong)}
+.anat-cell p{margin-top:4px;font-size:11px;color:var(--muted);line-height:1.55}
+.measure{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.measure .meta-chip{color:var(--muted)}
+
+/* ============ migration map ============ */
+.map{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas)}
+.map-row{
+  display:grid;grid-template-columns:minmax(0,1fr) 20px minmax(0,1.2fr);
+  gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);
+}
+.map-row:last-child{border-bottom:0}
+.map-row.map-head{background:var(--canvas-soft)}
+.map-row.map-head span{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+.map-from{font-size:12px;color:var(--muted)}
+.map-from b{color:var(--fg);font-weight:600}
+.map-arrow{color:var(--faint);display:grid;place-items:center}
+.map-arrow svg{width:12px;height:12px}
+.map-to{font-size:12px;color:var(--fg);line-height:1.5}
+.map-to .gone{color:var(--subtle)}
+
+.rules{display:flex;flex-direction:column;gap:9px;margin-top:16px}
+.rule{display:flex;gap:10px;font-size:12.5px;color:var(--muted);line-height:1.55;max-width:72ch}
+.rule::before{content:"—";color:var(--faint);flex:none}
+.rule b{color:var(--fg);font-weight:600}
+
+@media (max-width:720px){
+  .doc{padding:36px 16px 70px}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .map-row{grid-template-columns:1fr;gap:4px}
+  .map-arrow{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="doc" data-od-id="pagehead-redesign">
+
+  <header class="doc-head" data-od-id="doc-head">
+    <p class="eyebrow">AGH OS v2 · chrome spec</p>
+    <h1 data-od-id="doc-title">Window head redesign — the PageHead becomes the chrome</h1>
+    <p>The route PageHead was designed for a web page with a sidebar: it had to establish identity because nothing else did. Inside an OS window that job is already done, so the head collapses into a single 44px unified bar. Peer route tabs sit immediately after the title; filters and search move to an optional 38px context strip. Identity renders exactly once, and when a route navigates in place the head grows a window-local breadcrumb instead of spawning another window.</p>
+    <div class="doc-meta">
+      <span class="meta-chip">head 44px</span>
+      <span class="meta-chip">context strip 38px · optional</span>
+      <span class="meta-chip">drill-in: breadcrumb head</span>
+      <span class="meta-chip">chrome before content: 184px → 44–82px</span>
+    </div>
+  </header>
+
+  <!-- ============ 1 · THE PROBLEM ============ -->
+  <section class="sec" data-od-id="section-problem">
+    <div class="sec-head">
+      <p class="eyebrow">01 · Before</p>
+      <h2 data-od-id="problem-title">The web PageHead stacked inside a window</h2>
+      <p>What ships today: the OS injects window controls into the route topbar, then the route renders its own PageHead below. The route name appears <b>three times</b> before any content does.</p>
+    </div>
+    <div class="mockwrap">
+      <div class="winx" data-od-id="mock-before" aria-label="Current window with legacy PageHead">
+        <span class="pin pin--on" style="top:13px;left:calc(50% + 74px)">1</span>
+        <span class="pin pin--on" style="top:70px;left:60px">2</span>
+        <span class="pin pin--on" style="top:70px;right:112px">3</span>
+        <div class="headv1">
+          <div class="win-controls" aria-hidden="true">
+            <span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span>
+          </div>
+          <nav class="breadcrumb"><span class="crumb-root mono">launch-hq</span><span class="crumb-sep">/</span><span class="crumb-page">Dashboard</span></nav>
+          <span></span>
+        </div>
+        <div class="legacy-pagehead">
+          <span class="lp-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="5.4" height="5.4" rx="1.4" fill="currentColor"/><rect x="9.1" y="1.5" width="5.4" height="5.4" rx="1.4" fill="currentColor" opacity=".55"/><rect x="1.5" y="9.1" width="5.4" height="5.4" rx="1.4" fill="currentColor" opacity=".55"/><rect x="9.1" y="9.1" width="5.4" height="5.4" rx="1.4" fill="currentColor"/></svg></span>
+          <div class="lp-copy">
+            <h1>Dashboard</h1>
+            <p>Daemon health and workspace overview.</p>
+          </div>
+          <span class="lp-status"><span class="d d--ok"></span>Connected</span>
+        </div>
+        <div class="app" style="padding-top:14px">
+          <p class="sect-eyebrow">Daemon</p>
+          <div class="health">
+            <span class="health-line"><span class="d d--ok"></span>Healthy</span>
+            <p>All subsystems are reporting healthy status.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note"><span class="pin">1</span><span><b>Identity is repeated.</b> "Dashboard" in the breadcrumb, again as a 22px H1, plus a 30px accent icon tile — three statements of the same fact in 100px of vertical space.</span></p>
+      <p class="note"><span class="pin">2</span><span><b>Web posture inside OS chrome.</b> The big icon + title + description block is a page hero. A window doesn't need a hero — the dock, the ⌘K palette and the window itself already say what this is.</span></p>
+      <p class="note"><span class="pin">3</span><span><b>Status floats in content.</b> The Connected pill hangs off the hero instead of living where window state belongs — in the chrome.</span></p>
+    </div>
+  </section>
+
+  <!-- ============ 2 · THE REDESIGN ============ -->
+  <section class="sec" data-od-id="section-anatomy">
+    <div class="sec-head">
+      <p class="eyebrow">02 · After</p>
+      <h2 data-od-id="anatomy-title">One unified head — identity, peer tabs, state and the primary action in 44px</h2>
+      <p>The window head absorbs the PageHead. Controls lead, a quiet 22px glyph + 13px title carry identity once, <b>peer route tabs sit immediately after the title</b> when the route has sibling views, the flexible gutter after the tabs stays the drag region, and the trail holds live state plus at most two actions. Filters, search and view toggles stay in the optional 38px strip: they never compete with tabs for the same row.</p>
+    </div>
+    <div class="anatomy" data-od-id="anatomy-diagram">
+      <div class="headv2" style="cursor:default">
+        <div class="win-controls" aria-hidden="true"><span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span></div>
+        <div class="w2-id">
+          <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <span class="w2-title">Tasks</span>
+          <span class="w2-count mono">20</span>
+        </div>
+        <div class="w2-tabs" role="tablist" aria-label="Task views" data-od-id="anatomy-route-tabs">
+          <button class="w2-tab is-on" role="tab" aria-selected="true">List</button>
+          <button class="w2-tab" role="tab" aria-selected="false">Kanban</button>
+          <button class="w2-tab" role="tab" aria-selected="false">Dashboard</button>
+          <button class="w2-tab" role="tab" aria-selected="false">Inbox <span class="mono">4</span></button>
+        </div>
+        <span class="w2-flex"></span>
+        <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>2 running</span>
+        <span class="w2-vsep"></span>
+        <div class="w2-actions">
+          <button class="btn btn--ghost btn--icon" aria-label="More actions"><svg viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="12.5" cy="8" r="1.3" fill="currentColor"/></svg></button>
+          <button class="btn btn--primary">New task</button>
+        </div>
+      </div>
+      <div class="anat-legend">
+        <div class="anat-cell"><h4><span class="pin">A</span>Controls</h4><p>Close · minimize · zoom. Unchanged from the shell.</p></div>
+        <div class="anat-cell"><h4><span class="pin">B</span>Identity — once</h4><p>22px quiet glyph + 13px/600 title + optional mono count. No accent tile: the glyph is wayfinding, not decoration.</p></div>
+        <div class="anat-cell"><h4><span class="pin">C</span>Route tabs</h4><p>Peer views of the same route (List · Kanban · Skills · MCPs). Sit left, right after the title. Absent when the route has no siblings — then the gutter is pure drag.</p></div>
+        <div class="anat-cell"><h4><span class="pin">D</span>State + actions</h4><p>A live status chip (color = state only), then at most two actions — one primary. Everything else goes to ⌘K or the ··· menu.</p></div>
+      </div>
+    </div>
+    <div class="measure">
+      <span class="meta-chip">head 44px</span>
+      <span class="meta-chip">glyph 22px · r6</span>
+      <span class="meta-chip">title 13px/600</span>
+      <span class="meta-chip">route tabs · after title</span>
+      <span class="meta-chip">status 10.5px/600</span>
+      <span class="meta-chip">actions ≤ 2 · 26px</span>
+      <span class="meta-chip">strip 38px · tools only</span>
+    </div>
+  </section>
+
+  <!-- ============ 3 · INTERNAL NAVIGATION — BREADCRUMB HEAD ============ -->
+  <section class="sec" data-od-id="section-drillin">
+    <div class="sec-head">
+      <p class="eyebrow">03 · Drill-in</p>
+      <h2 data-od-id="drillin-title">Internal navigation — the head grows a breadcrumb</h2>
+      <p>Some routes navigate in place: a task opens its run, a catalog entry opens its detail, a corpus opens a file. That depth never spawns another floating window — the window count belongs to the user, not to navigation. Instead the head swaps its identity glyph for a <b>back chevron + window-local trail</b>: every parent is a clickable crumb, the leaf is the title.</p>
+    </div>
+    <div class="anatomy" data-od-id="anatomy-breadcrumb">
+      <div class="headv2" style="cursor:default">
+        <div class="win-controls" aria-hidden="true"><span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span></div>
+        <div class="w2-id">
+          <button class="w2-back" aria-label="Back one level"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <nav class="w2-crumbs" aria-label="Window path">
+            <button class="w2-crumb">Tasks</button>
+            <span class="w2-sep">/</span>
+            <button class="w2-crumb">Nightly dependency audit</button>
+            <span class="w2-sep">/</span>
+            <span class="w2-title">Run #128</span>
+          </nav>
+        </div>
+        <span class="w2-flex"></span>
+        <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>streaming</span>
+        <span class="w2-vsep"></span>
+        <div class="w2-actions">
+          <button class="btn btn--ghost btn--icon" aria-label="More actions"><svg viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="12.5" cy="8" r="1.3" fill="currentColor"/></svg></button>
+          <button class="btn">Stop run</button>
+        </div>
+      </div>
+      <div class="anat-legend">
+        <div class="anat-cell"><h4><span class="pin">A</span>Back</h4><p>24px chevron pops one level. ⌘[ and the mouse back button mirror it.</p></div>
+        <div class="anat-cell"><h4><span class="pin">B</span>Trail</h4><p>Parent crumbs, 13px/500 quiet. Each one is a button that jumps straight to that level — no walking back step by step.</p></div>
+        <div class="anat-cell"><h4><span class="pin">C</span>Leaf</h4><p>13px/600 — the current location. It's where you are, so it's the title, never a link.</p></div>
+        <div class="anat-cell"><h4><span class="pin">D</span>Contextual trail</h4><p>Status and actions belong to the level, not the route — they swap on every push and pop. So does the context strip.</p></div>
+      </div>
+    </div>
+    <div class="anatomy" style="margin-top:10px" data-od-id="anatomy-breadcrumb-collapsed">
+      <div class="headv2" style="cursor:default">
+        <div class="win-controls" aria-hidden="true"><span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span></div>
+        <div class="w2-id">
+          <button class="w2-back" aria-label="Back one level"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <nav class="w2-crumbs" aria-label="Window path">
+            <button class="w2-crumb">Knowledge</button>
+            <span class="w2-sep">/</span>
+            <button class="w2-crumb w2-crumb--more" aria-label="Show hidden levels">…</button>
+            <span class="w2-sep">/</span>
+            <span class="w2-title">streaming.md</span>
+          </nav>
+        </div>
+        <span class="w2-flex"></span>
+        <span class="w2-status" data-tone="ok"><span class="d d--ok"></span>Indexed</span>
+        <span class="w2-vsep"></span>
+        <div class="w2-actions">
+          <button class="btn btn--ghost btn--icon" aria-label="More actions"><svg viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="12.5" cy="8" r="1.3" fill="currentColor"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="measure">
+      <span class="meta-chip">back 24px</span>
+      <span class="meta-chip">crumb 13px/500 · max 150px</span>
+      <span class="meta-chip">leaf 13px/600</span>
+      <span class="meta-chip">sep "/"</span>
+      <span class="meta-chip">&gt;2 parents → "…" crumb</span>
+    </div>
+    <div class="notes">
+      <p class="note"><span class="pin">·</span><span><b>The trail is window-local.</b> It starts at the window's root route, never at the workspace — the menu bar owns the workspace, the dock owns the routes. A breadcrumb never grows a global prefix.</span></p>
+      <p class="note"><span class="pin">·</span><span><b>Deep paths collapse, long names ellipsize.</b> More than two parents fold the middle into a "…" crumb whose menu lists the hidden levels; any single crumb truncates at 150px. The head never wraps and the drag region never disappears.</span></p>
+      <p class="note"><span class="pin">·</span><span><b>The glyph returns only at root.</b> At depth the back chevron takes its slot — identity still renders exactly once, it just reads as a path instead of a name.</span></p>
+      <p class="note"><span class="pin">·</span><span><b>Document windows never breadcrumb.</b> A session or file window titles itself; if it needs to reference where it came from, that's a crumbless meta chip, not navigation.</span></p>
+    </div>
+  </section>
+
+  <!-- ============ 4 · APPLIED ============ -->
+  <section class="sec" data-od-id="section-applied">
+    <div class="sec-head">
+      <p class="eyebrow">04 · Applied</p>
+      <h2 data-od-id="applied-title">The same head across four kinds of window</h2>
+      <p>Minimal route, a listing route that drills two levels deep, a catalog whose entries open in place, and a live document window — one contract flexes across all of them.</p>
+    </div>
+
+    <!-- Dashboard — minimal head, status chip, scroll shadow -->
+    <div class="mockwrap" data-od-id="example-dashboard">
+      <div class="winx" aria-label="Dashboard window with unified head">
+        <div class="headv2" id="dashHead">
+          <div class="win-controls" aria-hidden="true"><span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span></div>
+          <div class="w2-id">
+            <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2" width="5" height="5" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="9" width="5" height="5" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="5" height="5" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="w2-title">Dashboard</span>
+          </div>
+          <span class="w2-flex"></span>
+          <span class="w2-status" data-tone="ok"><span class="d d--ok"></span>Connected</span>
+        </div>
+        <div class="winx-body" id="dashBody" style="height:300px">
+          <div class="app">
+            <p class="sect-eyebrow">Daemon</p>
+            <div class="health">
+              <span class="health-line"><span class="d d--ok"></span>Healthy</span>
+              <p>All subsystems are reporting healthy status.</p>
+            </div>
+            <p class="sect-eyebrow" style="margin-top:4px">Overview</p>
+            <div class="kpis">
+              <div class="kpi"><span class="kpi__v mono">2</span><span class="kpi__l">active sessions</span></div>
+              <div class="kpi"><span class="kpi__v mono">7</span><span class="kpi__l">workspaces</span></div>
+              <div class="kpi"><span class="kpi__v mono">11</span><span class="kpi__l">agents</span></div>
+              <div class="kpi"><span class="kpi__v mono">2h</span><span class="kpi__l">daemon uptime</span></div>
+            </div>
+            <div class="panel">
+              <div class="panel-h"><h3>Working now</h3><span class="prov">live</span></div>
+              <p class="prov" style="margin-top:2px">webgen · Polish checkout flow — 2m 14s elapsed</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note"><span class="pin">·</span><span><b>Dashboard needs nothing but identity and state.</b> No toolbar, no actions — the head is 44px and content starts immediately. Scroll the body: the head earns a hairline shadow so the chrome reads as a surface, not a border.</span></p>
+    </div>
+
+    <!-- Tasks — route tabs in head, tools in strip, drill-in -->
+    <div class="mockwrap" style="margin-top:34px" data-od-id="example-tasks">
+      <div class="winx" id="tasksWin" data-state="list" aria-label="Tasks window with route tabs, context strip and two-level drill-in">
+        <div class="headv2">
+          <div class="win-controls" aria-hidden="true"><span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span></div>
+          <div class="w2-id" data-tasks-id-list>
+            <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+            <span class="w2-title">Tasks</span>
+            <span class="w2-count mono">20</span>
+          </div>
+          <div class="w2-id" data-tasks-id-drill hidden>
+            <button class="w2-back" data-tasks-back aria-label="Back one level"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <nav class="w2-crumbs" data-tasks-crumbs aria-label="Window path"></nav>
+          </div>
+          <div class="w2-tabs" role="tablist" aria-label="Task views" data-tasks-tabs data-od-id="tasks-route-tabs">
+            <button class="w2-tab is-on" role="tab" aria-selected="true">List</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Kanban</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Dashboard</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Inbox <span class="mono">4</span></button>
+          </div>
+          <span class="w2-flex" data-tasks-gutter></span>
+          <span class="w2-status" data-tone="run" data-tasks-status><span class="d d--run d--pulse"></span>2 running</span>
+          <span class="w2-vsep"></span>
+          <div class="w2-actions">
+            <button class="btn btn--ghost btn--icon" aria-label="More actions"><svg viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="12.5" cy="8" r="1.3" fill="currentColor"/></svg></button>
+            <button class="btn btn--primary" data-tasks-primary>New task</button>
+          </div>
+        </div>
+        <div class="w2-toolbar" data-tasks-toolbar>
+          <div class="field field-search">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <input placeholder="Search tasks…" aria-label="Search tasks">
+          </div>
+          <button class="btn" type="button">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11M4.5 8h7M6.5 12.5h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Filter
+          </button>
+          <span class="w2-flex"></span>
+          <span class="w2-sort" aria-label="Sorted by Updated">Sorted by <strong>Updated</strong> <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6 3.5 3.5L11.5 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div class="pill-group" role="group" aria-label="View mode">
+            <button class="pill-group__item is-on" data-tview="rows">Rows</button>
+            <button class="pill-group__item" data-tview="cards">Cards</button>
+          </div>
+        </div>
+        <div class="winx-body">
+          <div class="app" data-tasks-list>
+            <ul class="list" data-task-rows>
+              <li data-task="Nightly dependency audit"><span class="d d--run d--pulse"></span><span class="row-title">Nightly dependency audit</span><span class="row-meta">running · 4m</span></li>
+              <li data-task="Refresh marketplace index"><span class="d d--run d--pulse"></span><span class="row-title">Refresh marketplace index</span><span class="row-meta">running · 1m</span></li>
+              <li data-task="Release notes draft"><span class="d d--needs"></span><span class="row-title">Release notes draft</span><span class="row-meta">needs you</span></li>
+              <li data-task="Docs link check"><span class="d d--ok"></span><span class="row-title">Docs link check</span><span class="row-meta">done · 09:12</span></li>
+              <li data-task="Storybook visual sweep"><span class="d d--ok"></span><span class="row-title">Storybook visual sweep</span><span class="row-meta">done · 08:40</span></li>
+              <li data-task="Prune stale sessions"><span class="d d--idle"></span><span class="row-title">Prune stale sessions</span><span class="row-meta">idle</span></li>
+            </ul>
+            <div class="listing-card-grid" data-task-cards hidden>
+              <div class="task-card" data-task="Nightly dependency audit"><div class="card-top"><span class="d d--run d--pulse"></span><span class="card-title">Nightly dependency audit</span></div><div class="card-foot"><span class="row-meta">running · 4m</span></div></div>
+              <div class="task-card" data-task="Refresh marketplace index"><div class="card-top"><span class="d d--run d--pulse"></span><span class="card-title">Refresh marketplace index</span></div><div class="card-foot"><span class="row-meta">running · 1m</span></div></div>
+              <div class="task-card" data-task="Release notes draft"><div class="card-top"><span class="d d--needs"></span><span class="card-title">Release notes draft</span></div><div class="card-foot"><span class="row-meta">needs you</span></div></div>
+              <div class="task-card" data-task="Docs link check"><div class="card-top"><span class="d d--ok"></span><span class="card-title">Docs link check</span></div><div class="card-foot"><span class="row-meta">done · 09:12</span></div></div>
+            </div>
+          </div>
+          <div class="app" data-tasks-detail hidden>
+            <div class="detail-grid">
+              <div class="panel">
+                <div class="panel-h"><h3>Current run</h3><span class="prov mono">run #128 · started 09:41</span></div>
+                <p style="font-size:12.5px;color:var(--muted);line-height:1.55">Auditing 214 dependencies across 3 lockfiles. 2 advisories found so far — both dev-only. Full report lands in the run log.</p>
+              </div>
+              <div class="meta-rows">
+                <div class="meta-row"><span class="k">Agent</span><span class="v"><span class="agent-chip mono">SC</span>sec-check</span></div>
+                <div class="meta-row"><span class="k">Trigger</span><span class="v">Schedule · daily 09:40</span></div>
+                <div class="meta-row"><span class="k">Last outcome</span><span class="v"><span class="d d--ok"></span>Succeeded · yesterday</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="app" data-tasks-run hidden data-od-id="tasks-run-body">
+            <div class="panel">
+              <div class="panel-h"><h3>Run log</h3><span class="prov mono">live · following</span></div>
+              <div class="runlog">
+                <span><span class="t">09:41:02</span>resolving lockfiles — bun.lock, go.sum, package-lock.json</span>
+                <span><span class="t">09:41:18</span>scanning 214 dependencies against the advisory feed</span>
+                <span><span class="t">09:43:51</span><span class="warn">advisory GHSA-…</span> · esbuild — dev-only</span>
+                <span><span class="t">09:44:07</span><span class="warn">advisory GHSA-…</span> · vite plugin chain — dev-only</span>
+                <span><span class="t">09:45:12</span>writing report → runs/128/report.md<span class="caret"></span></span>
+              </div>
+            </div>
+            <div class="meta-rows">
+              <div class="meta-row"><span class="k">Run</span><span class="v mono">#128</span></div>
+              <div class="meta-row"><span class="k">Agent</span><span class="v"><span class="agent-chip mono">SC</span>sec-check</span></div>
+              <div class="meta-row"><span class="k">Started</span><span class="v">09:41 · by schedule</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note"><span class="pin">·</span><span><b>Peer views ride the head; tools ride the strip.</b> List · Kanban · Dashboard · Inbox are the same route seen four ways, so they sit left of the 44px head, right after the title. Search, Filter, Sorted by and Rows | Cards stay in the 38px strip, with room to breathe. Click a row, then <b>Open run</b>: the window drills two levels, route tabs hide, and the head becomes the breadcrumb variant.</span></p>
+    </div>
+
+    <!-- Marketplace — kind tabs in head, search in strip -->
+    <div class="mockwrap" style="margin-top:34px" data-od-id="example-marketplace">
+      <div class="winx" id="mktWin" aria-label="Marketplace window with route tabs and in-place entry detail">
+        <div class="headv2">
+          <div class="win-controls" aria-hidden="true"><span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span></div>
+          <div class="w2-id" data-mkt-id-root>
+            <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 6.2 4.2 2.8h7.6L13 6.2M3 6.2v6.6a.9.9 0 0 0 .9.9h8.2a.9.9 0 0 0 .9-.9V6.2M3 6.2h10M6.3 9h3.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="w2-title">Marketplace</span>
+            <span class="w2-count mono">4</span>
+          </div>
+          <div class="w2-id" data-mkt-id-drill hidden>
+            <button class="w2-back" data-mkt-back aria-label="Back one level"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <nav class="w2-crumbs" aria-label="Window path">
+              <button class="w2-crumb" data-mkt-back>Marketplace</button>
+              <span class="w2-sep">/</span>
+              <span class="w2-title" data-mkt-leaf>impeccable</span>
+            </nav>
+          </div>
+          <div class="w2-tabs" role="tablist" aria-label="Catalog kind" data-mkt-tabs data-od-id="mkt-route-tabs">
+            <button class="w2-tab is-on" role="tab" aria-selected="true">Skills</button>
+            <button class="w2-tab" role="tab" aria-selected="false">MCPs</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Extensions</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Bundles</button>
+          </div>
+          <span class="w2-flex" data-mkt-gutter></span>
+          <span class="w2-status" data-tone="ok" data-mkt-status hidden><span class="d d--ok"></span>Installed</span>
+          <span class="w2-vsep" data-mkt-vsep hidden></span>
+          <div class="w2-actions">
+            <button class="btn btn--ghost btn--icon" aria-label="More actions"><svg viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="12.5" cy="8" r="1.3" fill="currentColor"/></svg></button>
+            <button class="btn btn--ghost" data-mkt-refresh>Refresh</button>
+            <button class="btn btn--primary" data-mkt-primary hidden>Open</button>
+          </div>
+        </div>
+        <div class="w2-toolbar" data-mkt-toolbar>
+          <div class="field field-search">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <input placeholder="Search skills…" aria-label="Search catalog">
+          </div>
+          <span class="w2-flex"></span>
+          <div class="pill-group" role="group" aria-label="Catalog scope">
+            <button class="pill-group__item">Installed <span class="mono">5</span></button>
+            <button class="pill-group__item is-on">Marketplace</button>
+          </div>
+        </div>
+        <div class="winx-body">
+          <div class="app" data-mkt-list>
+            <div class="listing-card-grid">
+              <div class="mkt-card"><div class="card-top"><span class="card-title">impeccable</span><span class="w2-flex"></span><span class="mkt-kind">Skill</span></div><p class="mkt-desc">Design craft floor for prototypes and production UI reviews.</p><div class="card-foot"><span class="mkt-installed"><svg viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Installed</span><button class="btn">Open</button></div></div>
+              <div class="mkt-card"><div class="card-top"><span class="card-title">systematic-debugging</span><span class="w2-flex"></span><span class="mkt-kind">Skill</span></div><p class="mkt-desc">Root-cause discipline before any fix lands.</p><div class="card-foot"><span class="row-meta">v1.4.0</span><button class="btn">Install</button></div></div>
+              <div class="mkt-card"><div class="card-top"><span class="card-title">mermaid-diagrams</span><span class="w2-flex"></span><span class="mkt-kind">Skill</span></div><p class="mkt-desc">Spec and ADR diagrams rendered from fenced blocks.</p><div class="card-foot"><span class="row-meta">v0.9.2</span><button class="btn">Install</button></div></div>
+            </div>
+          </div>
+          <div class="app" data-mkt-detail hidden data-od-id="marketplace-entry-detail">
+            <div class="detail-grid">
+              <div class="panel">
+                <div class="panel-h"><h3>About</h3><span class="prov mono" data-mkt-detail-kind>Skill</span></div>
+                <p style="font-size:12.5px;color:var(--muted);line-height:1.55" data-mkt-detail-desc>Design craft floor for prototypes and production UI reviews.</p>
+              </div>
+              <div class="meta-rows">
+                <div class="meta-row"><span class="k">Version</span><span class="v mono" data-mkt-detail-version>—</span></div>
+                <div class="meta-row"><span class="k">Status</span><span class="v" data-mkt-detail-status><span class="d d--ok"></span>Installed</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note"><span class="pin">·</span><span><b>Kinds ride the head; scope and search ride the strip.</b> Skills · MCPs · Extensions · Bundles are peer views of Marketplace, so they sit left after the title. Search plus Installed | Marketplace stay in the strip with full width. Click a card: the entry opens in place under a <span class="mono">Marketplace / entry</span> breadcrumb, route tabs hide, and install state plus Open move into the head.</span></p>
+    </div>
+
+    <!-- Session — live document window -->
+    <div class="mockwrap" style="margin-top:34px" data-od-id="example-session">
+      <div class="winx" aria-label="Live session window">
+        <div class="headv2">
+          <div class="win-controls" aria-hidden="true"><span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span></div>
+          <div class="w2-id">
+            <span class="d d--run d--pulse" aria-hidden="true"></span>
+            <span class="w2-title">Polish checkout flow</span>
+          </div>
+          <span class="w2-flex"></span>
+          <span class="w2-status"><span class="agent-chip mono">WG</span>webgen</span>
+          <span class="w2-meta mono">claude-fable-5</span>
+          <span class="w2-vsep"></span>
+          <span class="w2-meta mono" aria-label="Elapsed">2m 14s</span>
+        </div>
+        <div class="winx-body">
+          <div class="transcript">
+            <div class="msg msg-user">
+              <p class="msg-role">Pedro</p>
+              <p class="msg-text">Polish the checkout flow — the coupon field is misaligned on mobile and the pay button loses its focus ring.</p>
+            </div>
+            <div class="msg msg-agent">
+              <p class="msg-role">webgen</p>
+              <p class="msg-text">Found both. The coupon field ignores the 8px grid below 430px, and the focus ring is clipped by an <code>overflow: hidden</code> on the button row. Fixing the grid first<span class="caret"></span></p>
+            </div>
+          </div>
+          <form class="composer" data-composer>
+            <input placeholder="Reply to webgen…" aria-label="Reply to agent">
+            <button type="submit" class="btn btn--primary composer-send" aria-label="Send">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 10h12M11 5.5 16.5 10 11 14.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note"><span class="pin">·</span><span><b>Document windows title themselves.</b> A live session is a document, not a route: the pulsing state dot replaces the glyph, the session's own name is the title, and agent · model · elapsed ride the trail. The old 38px session-status strip merges into the head — one bar less.</span></p>
+    </div>
+  </section>
+
+  <!-- ============ 5 · MIGRATION MAP ============ -->
+  <section class="sec" data-od-id="section-migration">
+    <div class="sec-head">
+      <p class="eyebrow">05 · Migration</p>
+      <h2 data-od-id="migration-title">Where every PageHead part goes</h2>
+    </div>
+    <div class="map" data-od-id="migration-map">
+      <div class="map-row map-head"><span>Legacy PageHead part</span><span></span><span>New home</span></div>
+      <div class="map-row"><span class="map-from"><b>Breadcrumb</b> · <span class="mono">workspace / Route</span></span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Deleted. The menu bar owns the workspace; the window title owns the route.</span></div>
+      <div class="map-row"><span class="map-from"><b>Accent icon tile</b> · 30px orange</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">22px quiet glyph in the head. Accent stays reserved for state and the primary action.</span></div>
+      <div class="map-row"><span class="map-from"><b>H1 title</b> · 22px</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Window title, 13px/600 — rendered exactly once.</span></div>
+      <div class="map-row"><span class="map-from"><b>Description line</b></span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to"><span class="gone">Gone from chrome.</span> Nobody re-reads "Daemon health and workspace overview" on the hundredth open; ⌘K and docs carry it.</span></div>
+      <div class="map-row"><span class="map-from"><b>Status pill</b> · Connected / Healthy</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Status chip in the head trail — dot + label, color is state-only.</span></div>
+      <div class="map-row"><span class="map-from"><b>Page actions</b></span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Head trail — one primary + one ··· overflow, 26px. The rest lives in ⌘K.</span></div>
+      <div class="map-row"><span class="map-from"><b>Route nav tabs</b> · List / Kanban · Skills / MCPs</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Left of the 44px head, immediately after the title, as <span class="mono">.w2-tabs</span>. Never in the strip. Hide on drill-in when the breadcrumb takes the identity slot.</span></div>
+      <div class="map-row"><span class="map-from"><b>Filters / search / view toggle</b></span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">38px context strip under the head — tools only, rendered when the route needs them.</span></div>
+      <div class="map-row"><span class="map-from"><b>Section eyebrows</b> · DAEMON, OVERVIEW</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Stay in content, unchanged.</span></div>
+      <div class="map-row"><span class="map-from"><b>Detail-page heads</b> · task / run / agent</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">The breadcrumb head (§03): back chevron + clickable parent crumbs + leaf title, with per-level status and actions. Depth is window-local navigation — never a global breadcrumb, never a new window.</span></div>
+    </div>
+    <div class="rules" data-od-id="rules">
+      <p class="rule"><b>Identity renders once per window.</b> Glyph + title in the head; never repeated in content.</p>
+      <p class="rule"><b>Two bars maximum.</b> 44px head, optional 38px strip. A route that wants a third bar has an information-architecture problem, not a chrome problem.</p>
+      <p class="rule"><b>Route tabs sit after the title.</b> Peer views (List · Kanban, Skills · MCPs) live left in the 44px head, immediately after identity, never sharing the strip with search/filter. The strip is tools only. On drill-in, tabs hide so the breadcrumb owns the identity slot.</p>
+      <p class="rule"><b>Depth grows a breadcrumb, not a window.</b> Internal navigation swaps the glyph for back + trail: parents click straight back, the leaf is the title, and more than two parents collapse into a "…" crumb.</p>
+      <p class="rule"><b>Accent in chrome means state or the primary action.</b> The identity glyph is neutral; live dots and the single primary button are the only orange in the frame.</p>
+      <p class="rule"><b>Scroll reveals the surface.</b> Content slides under the head; the head gains a hairline shadow while scrolled.</p>
+      <p class="rule"><b>Windows may be documents.</b> Sessions, runs and files title themselves; routes use their glyph + name. Same anatomy either way.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* Interaction fidelity for the applied examples — mock-local, no shell WM. */
+(function () {
+  'use strict';
+
+  /* generic pill-group + route-tab + content-tab toggling */
+  document.querySelectorAll('.pill-group').forEach(function (group) {
+    group.addEventListener('click', function (e) {
+      var item = e.target.closest('.pill-group__item');
+      if (!item) return;
+      group.querySelectorAll('.pill-group__item').forEach(function (i) { i.classList.remove('is-on'); });
+      item.classList.add('is-on');
+      if (item.dataset.tview) setTasksView(item.dataset.tview);
+    });
+  });
+  document.querySelectorAll('.w2-tabs').forEach(function (bar) {
+    bar.addEventListener('click', function (e) {
+      var tab = e.target.closest('.w2-tab');
+      if (!tab || !bar.contains(tab)) return;
+      bar.querySelectorAll('.w2-tab').forEach(function (t) {
+        var on = t === tab;
+        t.classList.toggle('is-on', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+    });
+  });
+  document.querySelectorAll('.tabbar').forEach(function (bar) {
+    bar.addEventListener('click', function (e) {
+      var tab = e.target.closest('.tab');
+      if (!tab) return;
+      bar.querySelectorAll('.tab').forEach(function (t) {
+        t.classList.toggle('is-on', t === tab);
+        t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+      });
+    });
+  });
+
+  /* dashboard: scrolled head elevation */
+  var dashBody = document.getElementById('dashBody');
+  var dashHead = document.getElementById('dashHead');
+  if (dashBody && dashHead) {
+    dashBody.addEventListener('scroll', function () {
+      dashHead.classList.toggle('is-scrolled', dashBody.scrollTop > 2);
+    }, { passive: true });
+  }
+
+  /* tasks: rows|cards view */
+  var taskRows = document.querySelector('[data-task-rows]');
+  var taskCards = document.querySelector('[data-task-cards]');
+  function setTasksView(view) {
+    if (!taskRows || !taskCards) return;
+    taskRows.hidden = view === 'cards';
+    taskCards.hidden = view !== 'cards';
+  }
+
+  /* tasks: window-local nav stack — root list → task detail → run (breadcrumb head) */
+  var tasksWin = document.getElementById('tasksWin');
+  if (tasksWin) {
+    var idRoot = tasksWin.querySelector('[data-tasks-id-list]');
+    var idDrill = tasksWin.querySelector('[data-tasks-id-drill]');
+    var crumbs = tasksWin.querySelector('[data-tasks-crumbs]');
+    var toolbar = tasksWin.querySelector('[data-tasks-toolbar]');
+    var tabs = tasksWin.querySelector('[data-tasks-tabs]');
+    var status = tasksWin.querySelector('[data-tasks-status]');
+    var primary = tasksWin.querySelector('[data-tasks-primary]');
+    var bodies = [
+      tasksWin.querySelector('[data-tasks-list]'),
+      tasksWin.querySelector('[data-tasks-detail]'),
+      tasksWin.querySelector('[data-tasks-run]')
+    ];
+    var stack = ['Tasks'];
+
+    function renderTasks() {
+      var depth = stack.length;
+      var atRoot = depth === 1;
+      tasksWin.dataset.state = atRoot ? 'list' : depth === 2 ? 'detail' : 'run';
+      idRoot.hidden = !atRoot;
+      idDrill.hidden = atRoot;
+      toolbar.hidden = !atRoot;
+      if (tabs) tabs.hidden = !atRoot;
+      bodies.forEach(function (body, i) { body.hidden = i !== depth - 1; });
+      if (depth > 1) {
+        crumbs.innerHTML = '';
+        stack.forEach(function (label, i) {
+          if (i < depth - 1) {
+            var crumb = document.createElement('button');
+            crumb.type = 'button';
+            crumb.className = 'w2-crumb';
+            crumb.textContent = label;
+            crumb.addEventListener('click', function () { stack = stack.slice(0, i + 1); renderTasks(); });
+            crumbs.appendChild(crumb);
+            var sep = document.createElement('span');
+            sep.className = 'w2-sep';
+            sep.textContent = '/';
+            crumbs.appendChild(sep);
+          } else {
+            var leaf = document.createElement('span');
+            leaf.className = 'w2-title';
+            leaf.textContent = label;
+            crumbs.appendChild(leaf);
+          }
+        });
+      }
+      if (depth === 1) {
+        status.innerHTML = '<span class="d d--run d--pulse"></span>2 running';
+        primary.className = 'btn btn--primary';
+        primary.textContent = 'New task';
+      } else if (depth === 2) {
+        status.innerHTML = '<span class="d d--run d--pulse"></span>running · 4m';
+        primary.className = 'btn btn--primary';
+        primary.textContent = 'Open run';
+      } else {
+        status.innerHTML = '<span class="d d--run d--pulse"></span>run #128 · streaming';
+        primary.className = 'btn';
+        primary.textContent = 'Stop run';
+      }
+    }
+    tasksWin.addEventListener('click', function (e) {
+      if (e.target.closest('[data-tasks-back]')) {
+        if (stack.length > 1) { stack.pop(); renderTasks(); }
+        return;
+      }
+      if (e.target.closest('[data-tasks-primary]')) {
+        if (stack.length === 2) { stack.push('Run #128'); renderTasks(); }
+        return;
+      }
+      var row = e.target.closest('[data-task]');
+      if (row) { stack = ['Tasks', row.dataset.task]; renderTasks(); }
+    });
+  }
+
+  /* marketplace: entry opens in place under a Marketplace / entry breadcrumb */
+  var mktWin = document.getElementById('mktWin');
+  if (mktWin) {
+    var mktRoot = mktWin.querySelector('[data-mkt-id-root]');
+    var mktDrill = mktWin.querySelector('[data-mkt-id-drill]');
+    var mktLeaf = mktWin.querySelector('[data-mkt-leaf]');
+    var mktToolbar = mktWin.querySelector('[data-mkt-toolbar]');
+    var mktTabs = mktWin.querySelector('[data-mkt-tabs]');
+    var mktRefresh = mktWin.querySelector('[data-mkt-refresh]');
+    var mktList = mktWin.querySelector('[data-mkt-list]');
+    var mktDetail = mktWin.querySelector('[data-mkt-detail]');
+    var mktStatus = mktWin.querySelector('[data-mkt-status]');
+    var mktVsep = mktWin.querySelector('[data-mkt-vsep]');
+    var mktPrimary = mktWin.querySelector('[data-mkt-primary]');
+
+    function setMkt(card) {
+      var detail = !!card;
+      mktRoot.hidden = detail;
+      mktDrill.hidden = !detail;
+      mktToolbar.hidden = detail;
+      if (mktTabs) mktTabs.hidden = detail;
+      if (mktRefresh) mktRefresh.hidden = detail;
+      mktList.hidden = detail;
+      mktDetail.hidden = !detail;
+      mktStatus.hidden = !detail;
+      mktVsep.hidden = !detail;
+      mktPrimary.hidden = !detail;
+      if (!detail) return;
+      var installed = !!card.querySelector('.mkt-installed');
+      var version = card.querySelector('.row-meta');
+      var stateHTML = installed
+        ? '<span class="d d--ok"></span>Installed'
+        : '<span class="d d--idle"></span>Available';
+      mktLeaf.textContent = card.querySelector('.card-title').textContent;
+      mktWin.querySelector('[data-mkt-detail-desc]').textContent = card.querySelector('.mkt-desc').textContent;
+      mktWin.querySelector('[data-mkt-detail-kind]').textContent = card.querySelector('.mkt-kind').textContent;
+      mktWin.querySelector('[data-mkt-detail-version]').textContent = version ? version.textContent : '—';
+      mktWin.querySelector('[data-mkt-detail-status]').innerHTML = stateHTML;
+      mktStatus.innerHTML = stateHTML;
+      if (installed) { mktStatus.dataset.tone = 'ok'; } else { delete mktStatus.dataset.tone; }
+      mktPrimary.textContent = installed ? 'Open' : 'Install';
+    }
+    mktWin.addEventListener('click', function (e) {
+      if (e.target.closest('[data-mkt-back]')) { setMkt(null); return; }
+      if (e.target.closest('.btn') || e.target.closest('.tab') || e.target.closest('.w2-tab') || e.target.closest('.pill-group__item')) return;
+      var card = e.target.closest('.mkt-card');
+      if (card) setMkt(card);
+    });
+  }
+
+  /* composer: demo only — swallow submit */
+  document.querySelectorAll('[data-composer]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var input = form.querySelector('input');
+      if (input) input.value = '';
+    });
+  });
+})();
+</script>
+</body>
+</html>

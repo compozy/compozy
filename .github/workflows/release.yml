@@ -1,12 +1,10 @@
 name: Release
 
 on:
-  # Trigger on push to main for Release PR creation/update
   push:
     branches:
       - main
 
-  # Trigger on PR events for dry-run checks
   pull_request:
     types:
       - opened
@@ -15,36 +13,26 @@ on:
       - main
       - "release/v*"
 
-  # Manual trigger for emergency releases
   workflow_dispatch:
-    inputs:
-      force_release:
-        description: "Force a release even if no changes"
-        required: false
-        type: boolean
-        default: true
-      release_version:
-        description: "Force an exact release version (e.g. v0.2.7). Runs Production Release directly and bypasses git-cliff. Leave empty for normal Release PR behavior."
-        required: false
-        type: string
-        default: ""
 
 concurrency:
   group: release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
+  CGO_ENABLED: 0
   GO_VERSION: "1.26.4"
-  INITIAL_VERSION: "v0.1.0"
   NODE_VERSION: "22"
+  INITIAL_VERSION: "v0.0.2"
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.23
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.21
 
 permissions:
   contents: write
   packages: write
   pull-requests: write
+  issues: write
   id-token: write
   attestations: write
 
@@ -55,14 +43,15 @@ jobs:
     if: |
       (github.event_name == 'push' &&
        github.ref == 'refs/heads/main' &&
-       !contains(github.event.head_commit.message, 'release:') &&
+       !startsWith(github.event.head_commit.message, 'release:') &&
        !startsWith(github.event.head_commit.message, 'ci(release):') &&
        !startsWith(github.event.head_commit.message, 'Merge pull request') &&
        github.event.head_commit.author.name != 'github-actions[bot]') ||
-      (github.event_name == 'workflow_dispatch' && inputs.release_version == '')
+      (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -75,14 +64,22 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          install-tools: "false"
 
       - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
       - uses: ./.github/actions/setup-git-cliff
 
       - name: Run PR Release Orchestrator
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          AGH_WEB_ASSETS_TOKEN: ${{ secrets.AGH_WEB_ASSETS_TOKEN || secrets.RELEASE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
@@ -90,17 +87,18 @@ jobs:
         run: |
           go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 
-  # Job 2: Dry-run checks on Release PR
+  # Job 2: GoReleaser dry-run on every Release PR.
   dry-run:
-    name: Dry-Run Release Check
+    name: Dry-Run Build Validation
     if: |
       github.event_name == 'pull_request' &&
       (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
        startsWith(github.event.pull_request.title, 'release: Release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -113,11 +111,51 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          install-tools: false
 
       - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Resolve dry-run release version
+        env:
+          RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          VERSION="${GITHUB_HEAD_REF#release/v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            VERSION="$(printf '%s\n' "$RELEASE_PR_TITLE" | sed -E 's/.*Release v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Could not extract release version for dry-run (got: $VERSION)"
+            exit 1
+          fi
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Verify npm package version availability
+        run: |
+          npm_view_output="$(mktemp)"
+          if npm view "@compozy/agh@${RELEASE_VERSION}" version --registry=https://registry.npmjs.org >"$npm_view_output" 2>&1; then
+            echo "::error::@compozy/agh@${RELEASE_VERSION} is already published and npm versions are immutable"
+            exit 1
+          fi
+          if grep -Eq 'E404|404 Not Found' "$npm_view_output"; then
+            echo "@compozy/agh@${RELEASE_VERSION} is not published yet"
+          else
+            cat "$npm_view_output"
+            echo "::error::Could not confirm @compozy/agh@${RELEASE_VERSION} is unpublished"
+            exit 1
+          fi
+
+      - name: Verify npm publish authentication
+        run: |
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is required to publish @compozy/agh"
+            exit 1
+          fi
+          npm whoami --registry=https://registry.npmjs.org
 
       - name: Setup Release Tools
         uses: ./.github/actions/setup-release
@@ -125,33 +163,139 @@ jobs:
           goreleaser-distribution: goreleaser-pro
           setup-docker: false
           setup-docker-login: false
+          setup-qemu: false
 
-      - name: Run Dry-Run Orchestrator
+      - name: Validate release install contract
+        run: go run github.com/magefile/mage@v1.17.2 releaseInstallCheck
+
+      - name: Run pr-release Dry-Run (goreleaser build validation)
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           GITHUB_HEAD_REF: ${{ github.head_ref }}
-          GITHUB_ISSUE_NUMBER: ${{ github.event.pull_request.number }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
 
-  # Job 3: Production release on merge
+  # Job 3: Credentialed nightly E2E gate on a fresh runner.
+  e2e-nightly:
+    name: E2E Nightly Lane
+    if: |
+      github.event_name == 'pull_request' &&
+      (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
+       startsWith(github.event.pull_request.title, 'release: Release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: mkdir -p "$GOTMPDIR"
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-mage: "true"
+          install-gotestsum: "true"
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "true"
+
+      - name: Run E2E nightly lane (credentialed)
+        env:
+          CI: "true"
+          CGO_ENABLED: 0
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+          DAYTONA_API_KEY: ${{ secrets.DAYTONA_API_KEY }}
+          DAYTONA_API_URL: ${{ secrets.DAYTONA_API_URL }}
+          DAYTONA_ORGANIZATION_ID: ${{ secrets.DAYTONA_ORGANIZATION_ID }}
+          DAYTONA_SNAPSHOT: ${{ secrets.DAYTONA_SNAPSHOT }}
+          DAYTONA_IMAGE: ${{ secrets.DAYTONA_IMAGE }}
+          DAYTONA_SSH_HOST: ${{ secrets.DAYTONA_SSH_HOST }}
+        run: make test-e2e-nightly
+
+      - name: Upload E2E artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-nightly-artifacts
+          path: |
+            .tmp/playwright
+            /tmp/agh-e2e-*
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Job 4: Full integration suite on a fresh runner.
+  integration:
+    name: Full Integration Suite
+    if: |
+      github.event_name == 'pull_request' &&
+      (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
+       startsWith(github.event.pull_request.title, 'release: Release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: mkdir -p "$GOTMPDIR"
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-mage: "true"
+          install-gotestsum: "true"
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Run full integration suite
+        env:
+          CI: "true"
+          CGO_ENABLED: 0
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: make test-integration
+
+      - name: Upload integration artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-artifacts
+          path: |
+            coverage.out
+            test-results.xml
+            /tmp/agh-e2e-*
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Job 5: Production release on merge of the Release PR
   release:
     name: Production Release
     if: |
-      (github.event_name == 'push' &&
-       github.ref == 'refs/heads/main' &&
-       (contains(github.event.head_commit.message, 'ci(release):') ||
-        startsWith(github.event.head_commit.message, 'release:'))) ||
-      (github.event_name == 'workflow_dispatch' && inputs.release_version != '')
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      (startsWith(github.event.head_commit.message, 'ci(release):') ||
+       startsWith(github.event.head_commit.message, 'release:'))
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    env:
-      DOCKER_CLI_EXPERIMENTAL: enabled
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -165,66 +309,130 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          install-tools: "true"
 
       - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
 
       - name: Setup Release Tools
         uses: ./.github/actions/setup-release
         with:
           goreleaser-distribution: goreleaser-pro
-          setup-docker: true
-          setup-docker-login: true
-          setup-qemu: true
-          docker-registry: ghcr.io
-          docker-username: ${{ github.actor }}
-          docker-token: ${{ secrets.GITHUB_TOKEN }}
+          setup-docker: false
+          setup-docker-login: false
+          setup-qemu: false
           cosign-version: "v2.2.4"
 
-      - name: Create Git Tag
+      - name: Create local Git tag for release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          FORCED_VERSION: ${{ inputs.release_version }}
         run: |
-          # A forced version (workflow_dispatch input) bypasses git-cliff and
-          # pins the release to an exact version. Empty input keeps the normal
-          # git-cliff-driven behavior unchanged.
-          if [[ -n "$FORCED_VERSION" ]]; then
-            VERSION="${FORCED_VERSION#v}"
-            echo "Using forced version from workflow input: v$VERSION"
-          else
-            # Use git-cliff to get the bumped version
-            VERSION=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
-          fi
+          VERSION=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
           if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "v$VERSION" -m "Release v$VERSION"
-            git push origin "v$VERSION"
-            echo "Created and pushed tag v$VERSION"
+            :
           else
-            echo "Could not get version from git-cliff. Got: $VERSION"
-            echo "Fallback: Extract from commit message"
+            echo "git-cliff did not return a valid version ($VERSION); falling back to commit message"
             VERSION=$(git log -1 --pretty=format:"%s" | sed -E 's/.*Release v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-            if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions[bot]@users.noreply.github.com"
-              git tag -a "v$VERSION" -m "Release v$VERSION"
-              git push origin "v$VERSION"
-              echo "Created and pushed tag v$VERSION"
-            else
-              echo "Could not extract version from any source. Got: $VERSION"
+            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Could not extract version from any source (got: $VERSION)"
               exit 1
             fi
           fi
 
-      - name: Ensure release notes file exists
+          TAG="v$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            TAG_COMMIT=$(git rev-list -n 1 "$TAG")
+            HEAD_COMMIT=$(git rev-parse HEAD)
+            if [[ "$TAG_COMMIT" != "$HEAD_COMMIT" ]]; then
+              echo "::error::Existing local tag $TAG points to $TAG_COMMIT instead of $HEAD_COMMIT"
+              exit 1
+            fi
+            echo "Local tag $TAG already points to HEAD"
+          else
+            git tag -a "$TAG" -m "Release $TAG"
+            echo "Created local tag $TAG"
+          fi
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Verify npm publish authentication
         run: |
-          if [ ! -f RELEASE_BODY.md ]; then
-            echo "No release body found, creating empty file"
-            touch RELEASE_BODY.md
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is required to publish @compozy/agh"
+            exit 1
+          fi
+          npm whoami --registry=https://registry.npmjs.org
+          npm_view_output="$(mktemp)"
+          if npm view "@compozy/agh@${RELEASE_VERSION}" version --registry=https://registry.npmjs.org >"$npm_view_output" 2>&1; then
+            echo "::error::@compozy/agh@${RELEASE_VERSION} is already published and npm versions are immutable"
+            exit 1
+          fi
+          if grep -Eq 'E404|404 Not Found' "$npm_view_output"; then
+            echo "@compozy/agh@${RELEASE_VERSION} is not published yet"
+          else
+            cat "$npm_view_output"
+            echo "::error::Could not confirm @compozy/agh@${RELEASE_VERSION} is unpublished"
+            exit 1
+          fi
+
+      - name: Validate generated release assets
+        run: |
+          if [ ! -s RELEASE_BODY.md ]; then
+            echo "::error::Missing or empty RELEASE_BODY.md; release-pr must generate the current release body"
+            exit 1
+          fi
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::error::Missing or empty RELEASE_NOTES.md; release-pr must generate historical release notes"
+            exit 1
+          fi
+          if ! find packages/site/content/blog/changelog -maxdepth 1 -name '*.mdx' -type f | grep -q .; then
+            echo "::error::Missing generated site changelog page under packages/site/content/blog/changelog"
+            exit 1
+          fi
+
+          for path in .goreleaser.release-header.md.tmpl .goreleaser.release-footer.md.tmpl; do
+            if [ ! -f "$path" ]; then
+              echo "::error::Missing release asset: $path"
+              exit 1
+            fi
+          done
+
+          if [ ! -s packages/site/public/install.sh ]; then
+            echo "::error::Missing or empty curl installer: packages/site/public/install.sh"
+            exit 1
+          fi
+          sh -n packages/site/public/install.sh
+          if ! grep -q 'checksums.txt.sigstore.json' packages/site/public/install.sh; then
+            echo "::error::install.sh must verify checksums.txt with checksums.txt.sigstore.json"
+            exit 1
+          fi
+          if ! grep -q 'COSIGN_VERSION="v2.2.4"' packages/site/public/install.sh; then
+            echo "::error::install.sh must bootstrap a pinned cosign verifier when cosign is absent"
+            exit 1
+          fi
+          if ! grep -q 'refs/heads/main' packages/site/public/install.sh; then
+            echo "::error::install.sh must verify checksums against the production release workflow identity"
+            exit 1
+          fi
+          go run github.com/magefile/mage@v1.17.2 releaseInstallCheck
+          if ! grep -q 'packages/site/public/install.sh' .goreleaser.yml; then
+            echo "::error::.goreleaser.yml must upload packages/site/public/install.sh as a release extra file"
+            exit 1
+          fi
+          if ! grep -q -- "--bundle=\${signature}" .goreleaser.yml; then
+            echo "::error::.goreleaser.yml must sign checksums with a Sigstore bundle artifact"
+            exit 1
+          fi
+          if ! grep -q 'name: "@compozy/agh"' .goreleaser.yml; then
+            echo "::error::.goreleaser.yml must publish the @compozy/agh npm package"
+            exit 1
           fi
 
       - uses: goreleaser/goreleaser-action@v6
@@ -239,8 +447,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          # Re-enable after uncommenting the AUR block in `.goreleaser.yml`.
-          # AUR_KEY: ${{ secrets.AUR_KEY }}
           COSIGN_EXPERIMENTAL: 1
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp

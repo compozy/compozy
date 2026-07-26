@@ -1,0 +1,51 @@
+---
+title: "agh bridge update"
+description: "Update mutable bridge fields"
+---
+
+## agh bridge update
+
+Update mutable bridge fields
+
+```
+agh bridge update <id> [flags]
+```
+
+### Options
+
+```
+      --delivery-defaults string            JSON object or null for delivery target defaults
+      --delivery-progress string            Tool progress mode: off, new, all, or verbose
+      --delivery-progress-grouping string   Progress delivery grouping: accumulate or separate
+      --delivery-progress-reactions         Emit reaction affordances for tool progress
+      --delivery-progress-typing            Emit typing affordances for tool progress
+      --display-name string                 New operator-facing bridge display name
+  -h, --help                                help for update
+      --include-group                       Override whether routing includes group identity
+      --include-peer                        Override whether routing includes peer identity
+      --include-thread                      Override whether routing includes thread identity
+      --notification-suppress               Override whether notification deliveries are suppressed
+      --provider-config string              JSON object or null for provider runtime config
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh bridge update <id> -o json
+```

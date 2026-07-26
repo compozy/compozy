@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Marketplace · MCP Vault selector · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    color-scheme:dark;
+    --rail:#0c0b0b;--canvas:#131211;--canvas-soft:#1a1918;--canvas-tint:#1c1b1a;--elevated:#232220;
+    --fg:#ececef;--fg-strong:#f6f6f8;--muted:#9a9a9f;--subtle:#76767c;--faint:#545458;
+    --line:rgba(255,255,255,.055);--line-soft:rgba(255,255,255,.03);--line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a;--accent-hover:#d14e25;--accent-ink:#17110f;--accent-tint:rgba(232,87,42,.10);
+    --success:#5fbf85;--success-tint:rgba(95,191,133,.08);
+    --danger:#e0635a;--danger-tint:rgba(224,99,90,.09);
+    --neutral-tint:rgba(150,150,155,.06);--row-hover:rgba(255,255,255,.022);--row-selected:rgba(255,255,255,.03);
+    --surface-glaze:rgba(255,255,255,.04);--input-fill:rgba(255,255,255,.025);--badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04);--btn-hover:rgba(255,255,255,.07);--scrim:rgba(0,0,0,.55);
+    --radius-xs:4px;--radius-sm:5px;--radius:6px;--radius-md:8px;--radius-lg:10px;--radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms;--ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-line:rgba(255,255,255,.5);--focus-ring:0 0 0 2px var(--focus-line);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  button,input{font:inherit}
+  button{color:inherit}
+  svg{display:block}
+  code,.mono{font-family:var(--font-mono);font-feature-settings:normal;-webkit-font-smoothing:subpixel-antialiased}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .hide{display:none!important}
+  :is(button,input):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .shell{height:100%;display:flex;flex-direction:column;overflow:hidden}
+  .topbar{height:48px;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line);flex:none}
+  .topbar__icon{width:24px;height:24px;display:grid;place-items:center;border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent)}
+  .topbar__icon svg{width:12px;height:12px}
+  .topbar__title{font-size:14px;font-weight:500;letter-spacing:-.014em;color:var(--fg-strong)}
+  .page{flex:1;overflow:auto;padding:28px 36px 80px}
+  .page__inner{max-width:1320px;margin:0 auto}
+  .page h1{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong)}
+  .page__meta{margin-top:7px;color:var(--subtle);font-size:12px}
+  .card{width:min(420px,100%);margin-top:24px;padding:16px;border-radius:var(--radius-lg);background:var(--canvas-soft)}
+  .card__head{display:flex;gap:12px;align-items:flex-start}
+  .card__logo,.head-icon{display:grid;place-items:center;background:var(--surface-glaze);color:var(--muted);flex:none}
+  .card__logo{width:24px;height:24px;border-radius:var(--radius)}
+  .card__logo svg{width:14px;height:14px}
+  .card__title{font-size:13px;font-weight:500;color:var(--fg-strong)}
+  .card__meta{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-top:3px}
+  .card__desc{font-size:13px;color:var(--muted);line-height:1.5;margin-top:12px}
+  .card__foot{display:flex;justify-content:flex-end;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .btn{height:26px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border:1px solid var(--line);
+    border-radius:var(--radius-md);background:var(--btn-fill);color:var(--fg);font-size:12px;font-weight:500;letter-spacing:-.005em;
+    cursor:pointer;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent}
+  .btn--ghost:hover{background:var(--row-hover);border-color:transparent}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn svg{width:13px;height:13px}
+  .scrim{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:28px;background:var(--scrim);backdrop-filter:blur(3px)}
+  .modal{width:min(560px,100%);max-height:min(760px,92vh);display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;
+    border-radius:var(--radius-lg);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .modal__head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 16px;border-bottom:1px solid var(--line-soft)}
+  .head-icon{width:34px;height:34px;border-radius:var(--radius-lg)}
+  .head-icon svg{width:17px;height:17px}
+  .head-txt{flex:1;min-width:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .modal__title{margin-top:3px;font-size:15px;font-weight:500;letter-spacing:-.014em;color:var(--fg-strong)}
+  .modal__sub{margin-top:5px;font-size:13px;line-height:1.45;color:var(--muted)}
+  .head-close{width:30px;height:30px;display:grid;place-items:center;flex:none;border:1px solid var(--line);border-radius:var(--radius);
+    background:transparent;color:var(--muted);cursor:pointer}
+  .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .head-close svg{width:16px;height:16px}
+  .modal__body{min-height:0;overflow-y:auto;padding:18px 20px 20px}
+  .modal__foot{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .foot-pad{flex:1}
+  .ro-row{display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px;margin-bottom:8px;padding:10px 12px;border-radius:var(--radius-md);
+    background:var(--canvas-tint);font-size:12.5px}
+  .ro-row .k{color:var(--subtle);font-weight:500}
+  .ro-row .v{font-family:var(--font-mono);font-size:12px;color:var(--fg);word-break:break-word}
+  .section{margin-top:16px}
+  .section__title{margin-bottom:8px;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .scope{display:flex;gap:8px}
+  .scope label{flex:1;display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--canvas);cursor:pointer}
+  .scope label:has(input:checked){border-color:var(--line-strong);background:var(--elevated)}
+  .scope label:has(input:focus-visible){box-shadow:var(--focus-ring)}
+  .scope input{margin-top:2px;box-shadow:none}
+  .scope b{display:block;font-size:12.5px;font-weight:500;color:var(--fg-strong)}
+  .scope span{display:block;margin-top:3px;font-size:11.5px;line-height:1.4;color:var(--subtle)}
+  .field{padding-top:13px;border-top:1px solid var(--line-soft)}
+  .field__head{display:flex;align-items:center;gap:8px}
+  .field__label{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg)}
+  .field__badge{margin-left:auto;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);font-family:var(--font-mono);
+    font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .field__desc{margin-top:5px;font-size:11.5px;line-height:1.45;color:var(--subtle)}
+  .mode-group{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-top:10px;padding:2px;border-radius:var(--radius-md);background:var(--canvas)}
+  .mode-option{position:relative;display:flex;align-items:center;justify-content:center;gap:7px;min-height:28px;padding:0 9px;border-radius:var(--radius);
+    color:var(--subtle);font-size:12px;font-weight:500;cursor:pointer}
+  .mode-option:has(input:checked){background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+  .mode-option:has(input:focus-visible){box-shadow:var(--focus-ring)}
+  .mode-option input{position:absolute;opacity:0;pointer-events:none}
+  .mode-option svg{width:13px;height:13px}
+  .binding-panel{margin-top:8px;padding:12px;border-radius:var(--radius-md);background:var(--canvas)}
+  .binding-panel__head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .binding-panel__title{font-size:11.5px;font-weight:500;color:var(--muted)}
+  .namespace{margin-left:auto;padding:2px 6px;border-radius:var(--radius-xs);background:var(--neutral-tint);font-family:var(--font-mono);
+    font-size:10px;color:var(--muted)}
+  .input{width:100%;height:32px;padding:0 11px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--elevated);
+    color:var(--fg);font-size:12.5px;outline:none}
+  .input.mono{font-family:var(--font-mono);font-size:12px}
+  .input:focus{border-color:var(--line-strong);background:var(--canvas)}
+  .input::placeholder{color:var(--faint)}
+  .input[aria-invalid="true"]{border-color:color-mix(in srgb,var(--danger) 55%,transparent)}
+  .input-label{display:block;margin-bottom:6px;font-size:12px;font-weight:500;color:var(--fg)}
+  .input-hint{margin-top:6px;font-size:11.5px;line-height:1.45;color:var(--subtle)}
+  .input-error{margin-top:6px;font-size:11.5px;color:var(--danger)}
+  .vault-list{display:grid;gap:6px}
+  .vault-option{position:relative;display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:9px;align-items:center;padding:10px;
+    border:1px solid var(--line);border-radius:var(--radius-md);background:var(--input-fill);cursor:pointer}
+  .vault-option:hover{background:var(--row-hover)}
+  .vault-option:has(input:checked){border-color:var(--line-strong);background:var(--row-selected)}
+  .vault-option:has(input:focus-visible){box-shadow:var(--focus-ring)}
+  .vault-option input{width:14px;height:14px;box-shadow:none}
+  .vault-ref{min-width:0;font-family:var(--font-mono);font-size:10.5px;line-height:1.45;color:var(--fg);overflow-wrap:anywhere}
+  .pill{display:inline-flex;align-items:center;gap:5px;height:19px;padding:0 7px;border-radius:var(--radius-xs);font-size:10.5px;font-weight:500}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill__dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+  .inline-actions{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .inline-actions .note{margin-right:auto;font-size:11.5px;color:var(--subtle)}
+  .empty{padding:18px 12px;text-align:center}
+  .empty__icon{width:34px;height:34px;display:grid;place-items:center;margin:0 auto 9px;border-radius:var(--radius-md);background:var(--elevated);color:var(--subtle)}
+  .empty__icon svg{width:16px;height:16px}
+  .empty b{font-size:12.5px;font-weight:500;color:var(--fg-strong)}
+  .empty p{max-width:340px;margin:4px auto 12px;font-size:11.5px;line-height:1.5;color:var(--subtle)}
+  .create-head{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+  .create-head button{width:26px;height:26px;display:grid;place-items:center;border:1px solid var(--line);border-radius:var(--radius);
+    background:transparent;color:var(--muted);cursor:pointer}
+  .create-head button:hover{background:var(--row-hover);color:var(--fg)}
+  .create-head button svg{width:13px;height:13px}
+  .create-head b{font-size:12.5px;font-weight:500;color:var(--fg-strong)}
+  .ref-block{padding:9px 10px;border-radius:var(--radius-md);background:var(--canvas-tint)}
+  .ref-block__label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .ref-block code{display:block;margin-top:4px;font-size:10.5px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+  .create-field{margin-top:12px}
+  .create-input-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+  .error-strip,.success-strip{display:flex;align-items:flex-start;gap:8px;margin-bottom:12px;padding:10px 11px;border-radius:var(--radius-md);font-size:11.5px;line-height:1.45}
+  .error-strip{background:var(--danger-tint);color:var(--danger)}
+  .success-strip{background:var(--success-tint);color:var(--success)}
+  .error-strip svg,.success-strip svg{width:14px;height:14px;margin-top:1px;flex:none}
+  .binding-panel:has(.create-head){padding:10px}
+  .binding-panel:has(.create-head) .create-head{margin-bottom:8px}
+  .binding-panel:has(.create-head) .error-strip{margin-bottom:8px}
+  .binding-panel:has(.create-head) .ref-block{padding:8px 9px}
+  .binding-panel:has(.create-head) .create-field{margin-top:9px}
+  .binding-panel:has(.create-head) .inline-actions{margin-top:8px}
+  @media(max-width:600px){
+    .page{padding:22px 18px 64px}.scrim{padding:12px}.modal{max-height:calc(100vh - 24px)}
+    .modal__head{padding:16px}.modal__body{padding:16px}.modal__foot{padding:12px 16px}
+    .scope{flex-direction:column}.ro-row{grid-template-columns:82px minmax(0,1fr)}
+    .mode-option{padding:0 6px}.mode-option span{font-size:11.5px}
+    .vault-option{grid-template-columns:16px minmax(0,1fr)}.vault-option .pill{grid-column:2;justify-self:start}
+    .create-input-row{grid-template-columns:1fr}.create-input-row .btn{justify-self:end}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+</style>
+</head>
+<body>
+<div class="shell" id="app-shell" aria-hidden="true">
+  <header class="topbar">
+    <span class="topbar__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-1.5 11.5a2 2 0 0 1-2 1.5H6.5a2 2 0 0 1-2-1.5L3 9Z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg>
+    </span>
+    <span class="topbar__title">Marketplace</span>
+  </header>
+  <main class="page">
+    <div class="page__inner">
+      <h1>MCP servers</h1>
+      <p class="page__meta">Curated servers for agent tools and resources</p>
+      <article class="card">
+        <div class="card__head">
+          <span class="card__logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8Z"/></svg></span>
+          <div><div class="card__title">github</div><div class="card__meta">mcp/github</div></div>
+        </div>
+        <p class="card__desc">Repository search, issues, pull requests, and code tools through GitHub.</p>
+        <div class="card__foot"><button class="btn" id="open-dialog" type="button">Install</button></div>
+      </article>
+    </div>
+  </main>
+</div>
+
+<div class="scrim" id="install-scrim" data-od-id="mcp-vault-selector-scrim" role="dialog" aria-modal="true" aria-labelledby="install-title" aria-describedby="install-description">
+  <section class="modal" data-od-id="mcp-vault-selector-modal">
+    <header class="modal__head">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8Z"/></svg></div>
+      <div class="head-txt">
+        <div class="eyebrow">MCP · stdio · curated</div>
+        <h2 class="modal__title" id="install-title">Install github</h2>
+        <p class="modal__sub" id="install-description">Bind each required secret before AGH writes the server config.</p>
+      </div>
+      <button type="button" class="head-close" id="close-dialog" aria-label="Close install dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </header>
+
+    <div class="modal__body">
+      <div class="ro-row"><div class="k">Command</div><div class="v">npx -y @modelcontextprotocol/server-github</div></div>
+      <div class="ro-row"><div class="k">Transport</div><div class="v">stdio</div></div>
+
+      <section class="section" aria-labelledby="scope-title">
+        <h3 class="section__title" id="scope-title">Scope</h3>
+        <div class="scope">
+          <label><input type="radio" name="scope" value="workspace" checked /><span><b>Workspace</b><span>Available only in platform.</span></span></label>
+          <label><input type="radio" name="scope" value="global" /><span><b>Global</b><span>Available in every workspace.</span></span></label>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="required-title">
+        <h3 class="section__title" id="required-title">Required configuration</h3>
+        <div class="field">
+          <div class="field__head">
+            <label class="field__label" for="secret-value">GITHUB_PERSONAL_ACCESS_TOKEN</label>
+            <span class="field__badge">secret</span>
+          </div>
+          <p class="field__desc" id="secret-description">A GitHub personal access token with access to the repositories this server can use.</p>
+
+          <div class="mode-group" role="radiogroup" aria-label="Secret binding method">
+            <label class="mode-option">
+              <input type="radio" name="binding-mode" value="typed" id="mode-typed" />
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h.01M11 9h.01M15 9h.01M7 13h7"/></svg>
+              <span>Enter value</span>
+            </label>
+            <label class="mode-option">
+              <input type="radio" name="binding-mode" value="vault" id="mode-vault" />
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
+              <span>Use Vault</span>
+            </label>
+          </div>
+
+          <div class="binding-panel" id="binding-panel" aria-live="polite"></div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="modal__foot">
+      <span class="foot-pad"></span>
+      <button type="button" class="btn btn--ghost" id="cancel-dialog">Cancel</button>
+      <button type="button" class="btn btn--primary" id="install-button" disabled>Install</button>
+    </footer>
+  </section>
+</div>
+
+<script>
+  const refs = [
+    "vault:mcp/global/github/env/GITHUB_PERSONAL_ACCESS_TOKEN",
+    "vault:mcp/ws/ws-platform/github/env/GITHUB_PERSONAL_ACCESS_TOKEN"
+  ];
+  const params = new URLSearchParams(window.location.search);
+  const initialScope = params.get("scope") === "global" ? "global" : "workspace";
+  document.querySelector('input[name="scope"][value="'+initialScope+'"]').checked = true;
+  let state = params.get("state") || "typed";
+  let typedValue = state === "typed-filled" ? "ghp_example_value" : "";
+  let selectedRef = ["vault-selected", "created"].includes(state) ? (initialScope === "global" ? refs[0] : refs[1]) : "";
+  let invoker = document.getElementById("open-dialog");
+  const scrim = document.getElementById("install-scrim");
+  const panel = document.getElementById("binding-panel");
+  const installButton = document.getElementById("install-button");
+  const typedMode = document.getElementById("mode-typed");
+  const vaultMode = document.getElementById("mode-vault");
+
+  function canonicalRef(){
+    const scope = document.querySelector('input[name="scope"]:checked').value;
+    return scope === "global"
+      ? "vault:mcp/global/github/env/GITHUB_PERSONAL_ACCESS_TOKEN"
+      : "vault:mcp/ws/ws-platform/github/env/GITHUB_PERSONAL_ACCESS_TOKEN";
+  }
+
+  function icon(name){
+    if(name === "back") return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';
+    if(name === "lock") return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+    if(name === "check") return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>';
+    return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.7 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg>';
+  }
+
+  function typedMarkup(){
+    const invalid = state === "typed-error";
+    return '<label class="input-label" for="secret-value">Secret value</label>'
+      + '<input class="input mono" id="secret-value" type="password" autocomplete="new-password" spellcheck="false"'
+      + ' aria-describedby="typed-help'+(invalid?' typed-error':'')+'" aria-invalid="'+invalid+'" value="'+typedValue+'" />'
+      + '<p class="input-hint" id="typed-help">AGH writes the value to the canonical MCP Vault ref. Plaintext is never returned.</p>'
+      + (invalid ? '<p class="input-error" id="typed-error">Required</p>' : '');
+  }
+
+  function vaultOption(ref){
+    const checked = selectedRef === ref ? " checked" : "";
+    return '<label class="vault-option"><input type="radio" name="vault-ref" value="'+ref+'"'+checked+' />'
+      + '<span class="vault-ref">'+ref+'</span><span class="pill" data-tone="success"><span class="pill__dot"></span>present</span></label>';
+  }
+
+  function vaultMarkup(){
+    if(state === "vault-empty"){
+      return '<div class="binding-panel__head"><span class="binding-panel__title">Choose existing secret</span><span class="namespace">namespace=mcp</span></div>'
+        + '<div class="empty"><span class="empty__icon">'+icon("lock")+'</span><b>No present MCP secrets</b>'
+        + '<p>Create a secret here, or switch to Enter value.</p><button class="btn" type="button" data-action="create">Create Vault secret</button></div>';
+    }
+    return (state === "created" ? '<div class="success-strip">'+icon("check")+'<span>Secret created and bound to this field.</span></div>' : '')
+      + '<div class="binding-panel__head"><span class="binding-panel__title">Choose existing secret</span><span class="namespace">namespace=mcp</span></div>'
+      + '<div class="vault-list">'+refs.map(vaultOption).join("")+'</div>'
+      + '<div class="inline-actions"><span class="note">Values stay hidden.</span><button class="btn" type="button" data-action="create">Create Vault secret</button></div>';
+  }
+
+  function createMarkup(){
+    const errored = state === "create-error";
+    const required = state === "create-required";
+    const createdRef = canonicalRef();
+    return '<div class="create-head"><button type="button" data-action="vault" aria-label="Back to Vault secrets">'+icon("back")+'</button><b>Create Vault secret</b></div>'
+      + (errored ? '<div class="error-strip">'+icon("error")+'<span>Secret could not be created. Check Vault status and retry.</span></div>' : '')
+      + '<div class="ref-block"><div class="ref-block__label">Vault ref</div><code>'+createdRef+'</code></div>'
+      + '<div class="create-field"><label class="input-label" for="create-value">Secret value</label>'
+      + '<div class="create-input-row"><input class="input mono" id="create-value" type="password" autocomplete="new-password" spellcheck="false" aria-describedby="create-help'+(required?' create-required':'')+'" aria-invalid="'+required+'" value="'+(errored?'ghp_example_value':'')+'" />'
+      + '<button class="btn" id="create-button" type="button">Create secret</button></div>'
+      + '<p class="input-hint" id="create-help">AGH creates this secret in the mcp namespace and binds the new ref. The value stays write-only.</p>'
+      + (required ? '<p class="input-error" id="create-required">Required</p>' : '')+'</div>'
+      ;
+  }
+
+  function render(){
+    const creating = state === "create" || state === "create-error" || state === "create-required";
+    const usingVault = creating || state.startsWith("vault") || state === "created";
+    typedMode.checked = !usingVault;
+    vaultMode.checked = usingVault;
+    panel.innerHTML = creating ? createMarkup() : (usingVault ? vaultMarkup() : typedMarkup());
+    installButton.disabled = creating || (usingVault ? !selectedRef : !typedValue.trim());
+
+    const secretInput = document.getElementById("secret-value");
+    if(secretInput){
+      secretInput.addEventListener("input", function(event){typedValue = event.target.value;installButton.disabled = !typedValue.trim();});
+      secretInput.addEventListener("blur", function(){if(!typedValue.trim()){state="typed-error";render();}});
+    }
+    panel.querySelectorAll('input[name="vault-ref"]').forEach(function(input){
+      input.addEventListener("change", function(event){selectedRef=event.target.value;state="vault-selected";render();});
+    });
+    panel.querySelectorAll('[data-action="create"]').forEach(function(button){
+      button.addEventListener("click", function(){state="create";render();document.getElementById("create-value").focus();});
+    });
+    panel.querySelectorAll('[data-action="vault"]').forEach(function(button){
+      button.addEventListener("click", function(){state="vault";render();vaultMode.focus();});
+    });
+    const createButton = document.getElementById("create-button");
+    if(createButton){
+      createButton.addEventListener("click", function(){
+        const value = document.getElementById("create-value").value.trim();
+        if(!value){state="create-required";render();document.getElementById("create-value").focus();return;}
+        selectedRef=canonicalRef();state="created";render();
+      });
+    }
+  }
+
+  function closeDialog(){
+    scrim.classList.add("hide");
+    document.getElementById("app-shell").setAttribute("aria-hidden","false");
+    invoker.focus();
+  }
+
+  function openDialog(){
+    invoker=document.activeElement;
+    scrim.classList.remove("hide");
+    document.getElementById("app-shell").setAttribute("aria-hidden","true");
+    render();
+    document.getElementById("close-dialog").focus();
+  }
+
+  typedMode.addEventListener("change", function(){state="typed";render();document.getElementById("secret-value").focus();});
+  vaultMode.addEventListener("change", function(){state="vault";render();});
+  document.querySelectorAll('input[name="scope"]').forEach(function(input){
+    input.addEventListener("change", function(){
+      if(state === "created") selectedRef=canonicalRef();
+      if(state === "create" || state === "create-error" || state === "create-required" || state === "created") render();
+    });
+  });
+  document.getElementById("close-dialog").addEventListener("click", closeDialog);
+  document.getElementById("cancel-dialog").addEventListener("click", closeDialog);
+  document.getElementById("open-dialog").addEventListener("click", openDialog);
+  scrim.addEventListener("click", function(event){if(event.target === scrim) closeDialog();});
+  document.addEventListener("keydown", function(event){
+    if(scrim.classList.contains("hide")) return;
+    if(event.key === "Escape"){event.preventDefault();closeDialog();return;}
+    if(event.key !== "Tab") return;
+    const focusable = Array.from(scrim.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(function(node){return node.offsetParent !== null;});
+    const first=focusable[0],last=focusable[focusable.length-1];
+    if(event.shiftKey && document.activeElement===first){event.preventDefault();last.focus();}
+    else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first.focus();}
+  });
+
+  render();
+  document.getElementById("close-dialog").focus();
+</script>
+</body>
+</html>

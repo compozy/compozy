@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AGH OS — first run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- shell chrome + route components, verbatim from the OS v2 delivery -->
+<link rel="stylesheet" href="os-v2.css">
+<link rel="stylesheet" href="os-v2-apps.css">
+<link rel="stylesheet" href="onboarding.css">
+</head>
+<body data-wallpaper="ember" data-motion="full" data-onboarding="active">
+
+<!-- ============================================================
+     SHELL BACKDROP — the OS the operator is about to enter.
+     First run has no windows: wallpaper, a menu bar with no
+     workspace yet, and a dock that stays locked until setup
+     finishes. `inert` blocks every interaction underneath.
+     ============================================================ -->
+<div class="os" id="os" data-od-id="shell-backdrop" inert>
+
+  <header class="menubar" data-od-id="menu-bar" aria-label="System bar">
+    <div class="mb-side">
+      <span class="mb-logo" aria-hidden="true">
+        <svg viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg>
+      </span>
+      <button class="ws-trigger" id="wsTrigger" aria-haspopup="true" aria-expanded="false" data-od-id="workspace-trigger">
+        <span class="ws-avatar mono" id="wsAvatar">··</span>
+        <span class="ws-name" id="wsName">No workspace</span>
+        <svg class="chevrons" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <nav class="mb-menus" aria-label="Menus">
+        <button class="mb-menu">Session</button>
+        <button class="mb-menu">View</button>
+        <button class="mb-menu">Help</button>
+      </nav>
+    </div>
+    <div class="mb-side mb-right">
+      <button class="mb-icon" aria-label="Approvals">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.2a4.6 4.6 0 0 0-4.6 4.6c0 3.4-1.2 4.6-1.9 5.2h13c-.7-.6-1.9-1.8-1.9-5.2A4.6 4.6 0 0 0 10 3.2ZM8.3 15.6a1.8 1.8 0 0 0 3.4 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="badge" data-zero>0</span>
+      </button>
+      <button class="mb-chip mb-cmdk" title="Command palette"><span class="mono">⌘K</span></button>
+      <button class="mb-icon" aria-label="Settings">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.7 3.2a1.4 1.4 0 0 1 2.6 0l.3.8a1.4 1.4 0 0 0 1.85.84l.8-.32a1.4 1.4 0 0 1 1.83 1.83l-.32.8a1.4 1.4 0 0 0 .84 1.85l.8.3a1.4 1.4 0 0 1 0 2.6l-.8.3a1.4 1.4 0 0 0-.84 1.85l.32.8a1.4 1.4 0 0 1-1.83 1.83l-.8-.32a1.4 1.4 0 0 0-1.85.84l-.3.8a1.4 1.4 0 0 1-2.6 0l-.3-.8a1.4 1.4 0 0 0-1.85-.84l-.8.32a1.4 1.4 0 0 1-1.83-1.83l.32-.8a1.4 1.4 0 0 0-.84-1.85l-.8-.3a1.4 1.4 0 0 1 0-2.6l.8-.3a1.4 1.4 0 0 0 .84-1.85l-.32-.8A1.4 1.4 0 0 1 5.75 4.5l.8.32a1.4 1.4 0 0 0 1.85-.84z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="desktop" id="desktop" data-od-id="desktop">
+    <div class="win-layer" id="winLayer"></div>
+    <p class="desk-hint" id="deskHint" hidden data-od-id="desktop-hint">
+      <span class="dh-desktop"><kbd class="mono">⌘K</kbd> to open anything — or pick a surface from the dock</span>
+      <span class="dh-mobile">Pick a surface from the tab bar below</span>
+    </p>
+  </main>
+
+  <div class="dock-zone" id="dockZone" data-locked="true" data-od-id="dock-zone">
+    <span class="dock-flex" aria-hidden="true"></span>
+    <nav class="dock-seg dock" id="dock" aria-label="Dock" data-od-id="dock"></nav>
+    <div class="dock-seg dock-actions">
+      <button class="dock-new" id="dockNew" aria-label="New session" title="New session">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <span class="dock-flex" aria-hidden="true"></span>
+  </div>
+</div>
+
+<!-- ============================================================
+     ONBOARDING — a blocking panel over the shell, not a route.
+     Chrome follows the OS window grammar: 52px head (identity
+     once) + 44px step strip (the OS context strip, carrying
+     progress) + body + 58px action footer. Two steps, mirroring
+     web/src/systems/onboarding: default model, then workspaces.
+     ============================================================ -->
+<div class="ob-scrim" id="obScrim" data-od-id="onboarding-scrim">
+  <section class="ob" id="ob" role="dialog" aria-modal="true" aria-labelledby="obHeadTitle" data-step="1" data-od-id="onboarding-dialog">
+
+    <header class="ob__head" data-od-id="onboarding-head">
+      <span class="ob__logo" aria-hidden="true">
+        <svg viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" fill="var(--canvas)"/></svg>
+      </span>
+      <h1 class="ob__headtitle" id="obHeadTitle">Set up AGH</h1>
+      <span class="ob__flex" aria-hidden="true"></span>
+      <span class="ob__lock" title="The daemon runs on this machine — no account, no upload.">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.2" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.7 7V5.4a2.3 2.3 0 0 1 4.6 0V7" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        Runs locally
+      </span>
+    </header>
+
+    <nav class="ob__steps" id="obSteps" aria-label="Setup progress" data-od-id="onboarding-steps">
+      <button class="ob__step" type="button" data-goto="1" data-state="on">
+        <span class="ob__num mono" data-num="1">1</span>
+        <span class="ob__steplabel">Runtime</span>
+      </button>
+      <button class="ob__step" type="button" data-goto="2" data-state="off" disabled>
+        <span class="ob__num mono" data-num="2">2</span>
+        <span class="ob__steplabel">Workspace</span>
+      </button>
+    </nav>
+
+    <div class="ob__body" id="obBody">
+
+      <!-- ---------- STEP 1 · default model ---------- -->
+      <section class="ob__pane" data-pane="1" data-od-id="step-runtime">
+       <div class="ob__inner">
+        <h2 class="ob__title">Choose the model your agents run on</h2>
+        <p class="ob__lead">New agents use this provider and model unless you give them their own. Change it any time in Settings.</p>
+
+        <div class="ob__sec">
+          <p class="ob__eyebrow" id="obRuntimeLabel">Runtime</p>
+          <div class="pmr-host" id="obRuntimeMount" data-od-id="runtime-selector"></div>
+          <p class="ob__facts" id="obFacts"></p>
+        </div>
+
+        <div class="ob__sec">
+          <p class="ob__eyebrow">How AGH signs in</p>
+          <div class="ob__auth" id="obAuth" role="group" aria-label="Authentication" data-od-id="auth-choices">
+            <button class="authc" type="button" data-auth="native_cli" aria-pressed="true">
+              <span class="authc__radio" aria-hidden="true"></span>
+              <span class="authc__copy">
+                <span class="authc__t">Use the provider CLI</span>
+                <span class="authc__d">Reuse the sign-in already on this machine. Nothing to paste.</span>
+              </span>
+            </button>
+            <button class="authc" type="button" data-auth="bound_secret" aria-pressed="false">
+              <span class="authc__radio" aria-hidden="true"></span>
+              <span class="authc__copy">
+                <span class="authc__t">Use an API key</span>
+                <span class="authc__d">Bind a key from an environment variable, or paste one now.</span>
+              </span>
+            </button>
+          </div>
+
+          <div class="ob__fields" id="obKeyFields" hidden>
+            <label class="fld">
+              <span class="fld__l">Environment variable</span>
+              <input class="inp mono" id="obEnvVar" spellcheck="false" autocomplete="off" placeholder="PROVIDER_API_KEY">
+            </label>
+            <label class="fld">
+              <span class="fld__l">API key <em>(optional)</em></span>
+              <span class="fld__wrap">
+                <svg class="fld__ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="6.4" r="3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="m8.2 8.6 4.3 4.3M10.8 11.2l1.4-1.4M12.3 12.7l1.2-1.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <input class="inp inp--key" id="obApiKey" type="password" spellcheck="false" autocomplete="off" placeholder="sk-…">
+              </span>
+            </label>
+          </div>
+        </div>
+       </div>
+      </section>
+
+      <!-- ---------- STEP 2 · workspaces ---------- -->
+      <section class="ob__pane" data-pane="2" hidden data-od-id="step-workspaces">
+       <div class="ob__inner">
+        <h2 class="ob__title">Pick where agents can work</h2>
+        <p class="ob__lead">A workspace is a folder AGH is allowed to open, read and write inside. Every session runs in one — add at least one to finish.</p>
+
+        <div class="ob__split">
+          <div class="ob__col">
+            <p class="ob__eyebrow">Browse for a folder</p>
+            <div class="dirb" data-od-id="directory-browser">
+              <div class="dirb__bar">
+                <button class="dirb__ico" id="dbHome" aria-label="Go to home directory">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.8 7.4 8 3l5.2 4.4V13a.8.8 0 0 1-.8.8H3.6a.8.8 0 0 1-.8-.8Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                </button>
+                <button class="dirb__ico" id="dbUp" aria-label="Go to parent directory">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 12.5v-9M4.4 7.1 8 3.5l3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <span class="dirb__path mono" id="dbPath" title=""></span>
+                <button class="btn btn--sm dirb__use" id="dbUse">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  Use this folder
+                </button>
+              </div>
+              <div class="dirb__list" id="dbList"></div>
+            </div>
+          </div>
+
+          <div class="ob__col">
+            <div class="ob__colhead">
+              <p class="ob__eyebrow">Selected workspaces</p>
+              <span class="ob__count mono" id="wsCount">0 folders</span>
+            </div>
+            <ul class="wsl" id="wsList" data-od-id="selected-workspaces"></ul>
+            <p class="wsempty" id="wsEmpty">Nothing yet. Pick a folder on the left to add your first workspace.</p>
+          </div>
+        </div>
+
+        <p class="ob__note">Explore <b>Network</b> after setup. Finishing setup does not enable coordination or change Network settings.</p>
+       </div>
+      </section>
+    </div>
+
+    <footer class="ob__foot" data-od-id="onboarding-footer">
+      <div class="ob__sum" id="obSum">
+        <span class="ob__sumlabel" id="obSumLabel">Default model</span>
+        <span class="ob__sumvalue mono" id="obSumValue"></span>
+      </div>
+      <div class="ob__acts">
+        <button class="btn btn--ghost" id="obBack" disabled>Back</button>
+        <button class="btn btn--primary" id="obNext">Continue</button>
+      </div>
+    </footer>
+  </section>
+</div>
+
+<!-- shared runtime-selector popup (runtime-selector/popup.tsx transcription) -->
+<div class="rsel" id="rsel" data-show="false" role="dialog" aria-label="Select provider, model and reasoning">
+  <div class="rsel__head">
+    <label class="rsel__search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+      <input id="rselSearch" type="text" placeholder="Search models, providers…" autocomplete="off" spellcheck="false" aria-label="Search models and providers">
+    </label>
+    <button class="rsel__refresh" id="rselRefresh" title="Refresh catalog" aria-label="Refresh model catalog">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
+    </button>
+  </div>
+  <div class="rsel__mid">
+    <div class="rsel__rail" id="rselRail"></div>
+    <div class="rsel__list" id="rselList"></div>
+  </div>
+  <div class="rzbar" id="rselRz"></div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="onboarding.js"></script>
+</body>
+</html>

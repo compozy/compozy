@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AGH · Create trigger — redesign</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ───────────────────────────────────────────────────────────
+   AGH tokens — canonical hex set from packages/ui/src/tokens.css
+   warm-dark surface ramp · single operator-orange accent · flat depth
+   ─────────────────────────────────────────────────────────── */
+:root{
+  color-scheme: dark;
+  --rail:#0c0b0b; --canvas:#131211; --surface:#1a1918; --surface-2:#1c1b1a;
+  --elevated:#232220; --hover:rgba(255,255,255,0.022); --selected:rgba(255,255,255,0.03);
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,0.055); --line-soft:rgba(255,255,255,0.03); --line-strong:rgba(255,255,255,0.09);
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,0.10); --accent-tint-strong:rgba(232,87,42,0.16); --accent-dim:rgba(232,87,42,0.24);
+  --success:#5fbf85; --success-tint:rgba(95,191,133,0.08);
+  --warning:#d6a647; --warning-tint:rgba(214,166,71,0.08);
+  --danger:#e0635a;  --danger-tint:rgba(224,99,90,0.09);
+  --info:#8e8eb5;    --info-tint:rgba(142,142,181,0.12);
+  --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,0.06);
+  --input-fill:rgba(255,255,255,0.025); --badge-fill:rgba(255,255,255,0.05);
+  --btn-fill:rgba(255,255,255,0.04); --btn-fill-hover:rgba(255,255,255,0.07);
+  --scrim:rgba(0,0,0,0.62);
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+  --dur-fast:100ms; --dur:140ms; --dur-slow:200ms; --ease:cubic-bezier(.2,0,0,1);
+  --shadow-overlay:0 24px 48px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.045);
+  --highlight:inset 0 1px 0 rgba(255,255,255,0.035);
+  --focus-ring:0 0 0 1px var(--line-strong);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--fg);
+  font-family:var(--font-sans); font-size:13.5px; line-height:1.5; letter-spacing:-0.006em;
+  font-feature-settings:"cv01","ss03","cv11";
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow:hidden;
+}
+::selection{background:var(--accent-dim);color:var(--fg-strong)}
+svg{display:block}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ── faint product backdrop (the triggers list, dimmed behind the modal) ── */
+.backdrop{position:fixed;inset:0;display:flex;filter:saturate(.9);opacity:.42;pointer-events:none}
+.bd-rail{width:52px;background:var(--rail);border-right:1px solid var(--line-soft);flex:none}
+.bd-rail span{display:block;width:24px;height:24px;margin:16px auto;border-radius:7px;background:var(--surface)}
+.bd-main{flex:1;padding:26px 40px}
+.bd-h{height:30px;width:200px;border-radius:6px;background:var(--surface);margin-bottom:6px}
+.bd-sub{height:13px;width:340px;border-radius:5px;background:var(--surface-2);margin-bottom:26px}
+.bd-row{height:54px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface);margin-bottom:10px}
+
+/* ── scrim + modal shell ── */
+.scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(2px);display:grid;place-items:center;padding:28px}
+.modal{
+  width:min(1180px,100%); height:min(840px,92vh);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-overlay); display:grid; grid-template-rows:auto 1fr auto; overflow:hidden;
+}
+.modal__head{display:flex;align-items:flex-start;gap:16px;padding:20px 24px 18px;border-bottom:1px solid var(--line-soft)}
+.head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+  background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.head-txt{flex:1;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+.modal__title{font-size:16px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em;margin-top:3px}
+.modal__sub{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:62ch}
+.head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);
+  background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:all var(--dur) var(--ease)}
+.head-close:hover{background:var(--hover);color:var(--fg)}
+
+.modal__body{display:grid;grid-template-columns:1fr 468px;min-height:0}
+.form{overflow-y:auto;padding:22px 24px 28px}
+.preview{overflow-y:auto;background:var(--canvas);border-left:1px solid var(--line-soft);padding:20px 20px 26px}
+
+/* scrollbars */
+.form::-webkit-scrollbar,.preview::-webkit-scrollbar{width:10px}
+.form::-webkit-scrollbar-thumb,.preview::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06);border-radius:99px;border:3px solid transparent;background-clip:padding-box}
+
+/* ── identity field row ── */
+.identity{display:flex;gap:14px;align-items:flex-end;margin-bottom:6px}
+.identity .field{flex:1}
+
+/* ── field primitives ── */
+.field{margin-bottom:0}
+.label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--fg-strong);margin-bottom:7px}
+.label .opt{font-size:11px;font-weight:400;color:var(--faint);letter-spacing:0}
+.hint{font-size:11.5px;color:var(--subtle);margin-top:7px;line-height:1.45}
+.input,.textarea,select.input{
+  width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);
+  border:1px solid var(--line);border-radius:var(--radius-md);font-family:inherit;font-size:13px;
+  outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease);
+}
+.input::placeholder,.textarea::placeholder{color:var(--faint)}
+.input:focus,.textarea:focus,select.input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+.textarea{height:auto;padding:10px 11px;resize:vertical;min-height:108px;line-height:1.55}
+.input--mono,.textarea--mono{font-family:var(--font-mono);font-size:12px;letter-spacing:0}
+select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;cursor:pointer}
+
+/* ── flow spine ── */
+.flow{position:relative;margin-top:18px;padding-left:42px}
+.flow::before{content:"";position:absolute;left:14px;top:13px;bottom:34px;width:1.5px;
+  background:linear-gradient(var(--line-strong),var(--line-soft))}
+.step{position:relative;padding-bottom:26px}
+.step:last-child{padding-bottom:8px}
+.node{position:absolute;left:-42px;top:-2px;width:29px;height:29px;border-radius:50%;
+  display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);
+  color:var(--muted);z-index:1}
+.node[data-on="1"]{background:var(--accent-tint);border-color:var(--accent-dim);color:var(--accent-strong)}
+.step__kicker{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+.step__title{font-size:14px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em;margin:1px 0 2px}
+.step__sub{font-size:12px;color:var(--muted);margin-bottom:13px}
+
+/* ── scope pillgroup ── */
+.pillgroup{display:inline-flex;padding:2px;gap:2px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-md)}
+.pill{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:500;
+  height:24px;padding:0 12px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  transition:all var(--dur) var(--ease)}
+.pill[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+.pill svg{width:13px;height:13px}
+.scope-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:0}
+.ws-pick{display:none;align-items:center;gap:0;flex:1;min-width:160px}
+.ws-pick[data-show="1"]{display:flex}
+.ws-pick .input{flex:1}
+.scope-note{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--subtle);margin-top:11px;line-height:1.4}
+.scope-note svg{flex:none;width:13px;height:13px;color:var(--warning)}
+
+/* ── event catalog ── */
+.cat-search{position:relative;margin-bottom:12px}
+.cat-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--subtle)}
+.cat-search .input{padding-left:32px}
+.cat-group{margin-bottom:13px}
+.cat-group__label{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 7px 2px}
+.event{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;padding:12px 13px;cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--radius-md);margin-bottom:6px;
+  transition:all var(--dur) var(--ease);position:relative}
+.event:hover{background:var(--elevated);border-color:var(--line)}
+.event[aria-pressed="true"]{background:var(--accent-tint);border-color:transparent;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.event__ic{flex:none;width:30px;height:30px;margin-top:1px;border-radius:var(--radius);display:grid;place-items:center;
+  background:var(--badge-fill);color:var(--muted)}
+.event[aria-pressed="true"] .event__ic{background:rgba(232,87,42,.16);color:var(--accent-strong)}
+.event__ic svg{width:15px;height:15px}
+.event__main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.event__head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;row-gap:2px}
+.event__id{font-family:var(--font-mono);font-size:12.5px;font-weight:500;color:var(--fg-strong);letter-spacing:0}
+.event[aria-pressed="true"] .event__id{color:var(--accent-strong)}
+.event__name{font-size:12px;color:var(--muted);font-weight:400}
+.event__desc{font-size:11.5px;color:var(--subtle);line-height:1.45}
+.event__check{flex:none;width:16px;height:16px;margin-top:2px;color:var(--accent-strong);opacity:0;transition:opacity var(--dur)}
+.event[aria-pressed="true"] .event__check{opacity:1}
+
+/* conditional sub-config blocks — relocated inline, directly under the
+   selected event card. The accent left-rail ties them to the selection. */
+.subcfg{margin:-2px 0 8px 16px;padding:13px 14px;border:1px solid var(--line);
+  border-left:2px solid var(--accent-dim);border-radius:var(--radius-md);background:var(--surface-2)}
+.subcfg .label{margin-bottom:6px}
+.subcfg__hint{font-size:11px;color:var(--subtle);line-height:1.45;margin-bottom:10px}
+.subcfg__hint code{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+#subcfg-holder.hide{display:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* ── filters ── */
+.filter-row{display:grid;grid-template-columns:1.25fr 22px 1fr 30px;gap:8px;align-items:center;margin-bottom:8px}
+.filter-eq{text-align:center;color:var(--subtle);font-family:var(--font-mono);font-size:13px}
+.filter-del{width:30px;height:32px;border:1px solid var(--line-soft);border-radius:var(--radius);background:transparent;
+  color:var(--faint);cursor:pointer;display:grid;place-items:center;transition:all var(--dur)}
+.filter-del:hover{color:var(--danger);border-color:var(--danger-tint);background:var(--danger-tint)}
+.filters-empty{font-size:12px;color:var(--subtle);padding:11px 12px;border:1px dashed var(--line-soft);border-radius:var(--radius-md);
+  background:var(--surface-2);margin-bottom:8px}
+.filters-empty b{color:var(--fg);font-weight:500;font-family:var(--font-mono);font-size:11.5px}
+.filter-hint{font-size:11.5px;color:var(--subtle);line-height:1.45;margin:2px 0 4px}
+.filter-hint code{font-family:var(--font-mono);font-size:11px;color:var(--fg);background:var(--badge-fill);
+  padding:1px 5px;border-radius:var(--radius-xs)}
+.add-cond{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;font:inherit;font-size:12px;font-weight:500;
+  color:var(--fg);background:var(--btn-fill);border:1px solid var(--line-soft);border-radius:var(--radius);cursor:pointer;
+  transition:all var(--dur)}
+.add-cond:hover{background:var(--btn-fill-hover)}
+.add-cond svg{width:13px;height:13px;color:var(--muted)}
+.and-note{font-size:11px;color:var(--faint);margin-left:10px}
+
+/* ── agent picker ── */
+.agent-field{position:relative}
+.agent-field .input{padding-left:34px}
+.agent-av{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:19px;height:19px;border-radius:5px;
+  display:grid;place-items:center;font-size:10px;font-weight:600;color:var(--accent-ink);background:var(--accent-strong);
+  font-family:var(--font-mono);pointer-events:none}
+
+/* ── prompt + variable bar ── */
+.varbar{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.var-chip{font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--fg);background:var(--badge-fill);
+  border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:3px 7px;cursor:pointer;letter-spacing:0;
+  transition:all var(--dur)}
+.var-chip:hover{background:var(--accent-tint);color:var(--accent-strong);border-color:var(--accent-dim)}
+.var-chip svg{width:9px;height:9px;display:inline;vertical-align:-1px;margin-right:3px;opacity:.6}
+
+/* ── collapsible (reliability) ── */
+.coll{margin-top:22px;border-top:1px solid var(--line-soft);padding-top:6px}
+.coll__trigger{display:flex;align-items:center;gap:8px;width:100%;padding:11px 2px;background:transparent;border:0;cursor:pointer;
+  font:inherit;color:var(--fg-strong);font-size:13px;font-weight:600;list-style:none}
+.coll__trigger::-webkit-details-marker{display:none}
+.coll__trigger::marker{content:""}
+.coll__trigger .chev{width:15px;height:15px;color:var(--muted);transition:transform var(--dur)}
+.coll[open] .chev{transform:rotate(90deg)}
+.coll__trigger .grow{flex:1;text-align:left}
+.coll__trigger .badge{font-size:11px;font-weight:400;color:var(--subtle)}
+.coll__body{padding:6px 2px 4px;display:none}
+.coll[open] .coll__body{display:block}
+.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px}
+.cfg-grid .full{grid-column:1/-1}
+
+/* switch */
+.switch-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);
+  background:var(--surface-2)}
+.switch{flex:none;width:32px;height:18px;border-radius:99px;background:var(--elevated);border:1px solid var(--line);position:relative;cursor:pointer;transition:all var(--dur)}
+.switch::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:all var(--dur) var(--ease)}
+.switch[aria-checked="true"]{background:var(--accent);border-color:transparent}
+.switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--accent-ink)}
+.switch-txt{flex:1}
+.switch-txt b{display:block;font-size:12.5px;color:var(--fg-strong);font-weight:500}
+.switch-txt span{font-size:11.5px;color:var(--subtle)}
+
+/* ── footer ── */
+.modal__foot{display:flex;align-items:center;gap:12px;padding:14px 24px;border-top:1px solid var(--line-soft);background:var(--surface)}
+.foot-note{flex:1;font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:7px}
+.foot-note svg{width:13px;height:13px;color:var(--faint)}
+.btn{height:30px;padding:0 14px;border-radius:var(--radius);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;transition:all var(--dur) var(--ease)}
+.btn:active{transform:translateY(1px)}
+.btn--outline{background:transparent;border-color:var(--line);color:var(--fg)}
+.btn--outline:hover{background:var(--hover)}
+.btn--primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--primary svg{width:14px;height:14px}
+
+/* ════════ PREVIEW PANE ════════ */
+.pv-eyebrow{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--subtle);margin-bottom:14px}
+.pv-eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px var(--success-tint)}
+.pv-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius-lg);padding:14px;margin-bottom:12px}
+.pv-card__label{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.pv-card__label svg{width:13px;height:13px}
+
+/* summary sentence */
+.summary{font-size:14px;line-height:1.65;color:var(--muted)}
+.summary .w{color:var(--subtle);font-weight:500}
+.summary b{color:var(--fg-strong);font-weight:600}
+.summary .acc{color:var(--accent-strong);font-weight:600}
+.summary .ev{font-family:var(--font-mono);font-size:12.5px;color:var(--fg-strong);background:var(--badge-fill);padding:1px 6px;border-radius:4px}
+
+/* match badge */
+.match{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:var(--radius-pill);letter-spacing:0;text-transform:none}
+.match svg{width:12px;height:12px}
+.match--ok{background:var(--success-tint);color:var(--success)}
+.match--no{background:var(--warning-tint);color:var(--warning)}
+
+/* code/json */
+.code{font-family:var(--font-mono);font-size:11.5px;line-height:1.65;color:var(--fg);background:var(--rail);
+  border:1px solid var(--line-soft);border-radius:var(--radius);padding:11px 12px;overflow-x:auto;white-space:pre;letter-spacing:0}
+.code .k{color:var(--info)}
+.code .s{color:var(--success)}
+.code .hl{background:var(--accent-tint);border-radius:3px;padding:0 2px;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.code .hl .s{color:var(--accent-strong)}
+
+/* rendered prompt */
+.rendered{font-size:12.5px;line-height:1.6;color:var(--fg);white-space:pre-wrap;font-family:var(--font-sans)}
+.rendered .var{color:var(--fg-strong);font-family:var(--font-mono);font-size:11.5px;background:var(--badge-fill);padding:0 3px;border-radius:3px;box-shadow:inset 0 0 0 1px var(--line-soft)}
+.rendered .miss{color:var(--danger);font-family:var(--font-mono);font-size:11.5px;background:var(--danger-tint);padding:0 3px;border-radius:3px}
+.tmpl-src{font-family:var(--font-mono);font-size:11px;color:var(--subtle);line-height:1.6;white-space:pre-wrap;letter-spacing:0;
+  padding-top:10px;margin-top:10px;border-top:1px solid var(--line-soft)}
+.tmpl-src .v{color:var(--accent-strong)}
+
+/* endpoint card (webhook) */
+.endpoint-row{display:flex;align-items:center;gap:8px;background:var(--rail);border:1px solid var(--line-soft);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px}
+.endpoint-row .method{font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--success);background:var(--success-tint);padding:2px 5px;border-radius:4px}
+.endpoint-row .url{font-family:var(--font-mono);font-size:11px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;letter-spacing:0}
+.copy-btn{flex:none;width:24px;height:24px;border:1px solid var(--line-soft);border-radius:var(--radius-xs);background:transparent;color:var(--subtle);cursor:pointer;display:grid;place-items:center}
+.copy-btn:hover{color:var(--fg);background:var(--hover)}
+.copy-btn svg{width:12px;height:12px}
+
+.hide{display:none!important}
+
+@media (max-width:980px){
+  .modal{height:94vh}
+  .modal__body{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  .preview{border-left:0;border-top:1px solid var(--line-soft);max-height:300px}
+}
+</style>
+</head>
+<body>
+
+<!-- faint product context behind the modal -->
+<div class="backdrop" aria-hidden="true">
+  <div class="bd-rail"><span></span><span></span><span></span></div>
+  <div class="bd-main">
+    <div class="bd-h"></div><div class="bd-sub"></div>
+    <div class="bd-row"></div><div class="bd-row"></div><div class="bd-row"></div><div class="bd-row"></div>
+  </div>
+</div>
+
+<div class="scrim">
+  <div class="modal" role="dialog" aria-label="Create trigger">
+
+    <!-- HEADER -->
+    <header class="modal__head">
+      <div class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      <div class="head-txt">
+        <div class="eyebrow">Automation · Trigger</div>
+        <div class="modal__title">Create trigger</div>
+        <p class="modal__sub">A trigger watches for a runtime event and, when it matches, runs an agent with a prompt built from that event. <b style="color:var(--muted);font-weight:500">When this happens → run that.</b></p>
+      </div>
+      <button class="head-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- BODY: form | preview -->
+    <div class="modal__body">
+
+      <!-- ░░░ LEFT: FORM ░░░ -->
+      <section class="form">
+
+        <!-- identity -->
+        <div class="identity">
+          <div class="field">
+            <label class="label" for="t-name">Trigger name</label>
+            <input id="t-name" class="input mono" value="summarize-failures" placeholder="summarize-failures">
+          </div>
+        </div>
+
+        <!-- flow spine -->
+        <div class="flow">
+
+          <!-- ① FOR -->
+          <div class="step">
+            <div class="node" data-on="1">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>
+            </div>
+            <div class="step__kicker">For</div>
+            <div class="step__title">A workspace, or the whole runtime</div>
+            <p class="step__sub">Choose where this trigger is active. A global trigger sees events from every workspace.</p>
+
+            <div class="scope-row">
+              <div class="pillgroup" id="scope-group" role="group" aria-label="Scope">
+                <button class="pill" data-scope="global" aria-pressed="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+                  Global
+                </button>
+                <button class="pill" data-scope="workspace" aria-pressed="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>
+                  Workspace
+                </button>
+              </div>
+              <div class="ws-pick" id="ws-pick" data-show="1">
+                <select class="input" id="ws-select">
+                  <option value="ws_checkout_api">checkout-api</option>
+                  <option value="ws_billing">billing</option>
+                  <option value="ws_growth">growth-experiments</option>
+                </select>
+              </div>
+            </div>
+            <div class="scope-note hide" id="scope-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 16.98h-5.99c-1.66 0-3.01-1.34-3.01-3s1.34-3 3-3"/><path d="M6 9l3-3 3 3"/><circle cx="18" cy="17" r="3"/><path d="M9.5 14.5 7 19a3 3 0 1 1-3-3"/></svg>
+              Webhook triggers are always global — they aren't tied to a workspace.
+            </div>
+          </div>
+
+          <!-- ② WHEN -->
+          <div class="step">
+            <div class="node" data-on="1">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+            </div>
+            <div class="step__kicker">When</div>
+            <div class="step__title">An event happens</div>
+            <p class="step__sub">Pick the runtime event this trigger listens for. A few events need one more detail, shown right under your choice.</p>
+
+            <!-- event search -->
+            <div class="cat-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+              <input class="input" id="event-search" placeholder="Search events… session, memory, webhook">
+            </div>
+
+            <!-- event catalog (rendered by JS); the active event's sub-config
+                 is moved inline directly after its card by placeSubConfig() -->
+            <div id="catalog"></div>
+
+            <!-- sub-config holder — parked here, relocated next to the selection -->
+            <div id="subcfg-holder" class="hide">
+              <div class="subcfg" id="sub-hook">
+                <label class="label">Hook name <span class="opt">— fires on <code class="mono" style="color:var(--muted)">hook.&lt;name&gt;.completed</code></span></label>
+                <input class="input mono" id="hook-name" value="transform" placeholder="transform">
+              </div>
+              <div class="subcfg" id="sub-ext">
+                <p class="subcfg__hint">Listens for <code>ext.&lt;ext&gt;.&lt;event&gt;</code> published by an installed extension.</p>
+                <div class="grid2">
+                  <div><label class="label">Extension</label><input class="input mono" id="ext-ext" value="release" placeholder="release"></div>
+                  <div><label class="label">Event</label><input class="input mono" id="ext-event" value="deploy-started" placeholder="deploy-started"></div>
+                </div>
+              </div>
+              <div class="subcfg" id="sub-webhook">
+                <p class="subcfg__hint">External callers POST to a signed endpoint. The URL and curl example are on the right.</p>
+                <div class="grid2" style="margin-bottom:12px">
+                  <div><label class="label">Endpoint slug</label><input class="input mono" id="wh-slug" value="ci-deploys" placeholder="ci-deploys"></div>
+                  <div><label class="label">Webhook id</label><input class="input mono" id="wh-id" value="wbh_a1b2c3" placeholder="wbh_…"></div>
+                </div>
+                <label class="label">Signing secret <span class="opt">— write-only, used for HMAC verification</span></label>
+                <input class="input mono" id="wh-secret" type="password" value="whsec_live_8f3a9c2e" placeholder="whsec_…">
+              </div>
+            </div>
+          </div>
+
+          <!-- ② IF -->
+          <div class="step">
+            <div class="node" id="node-if">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+            </div>
+            <div class="step__kicker">Only if</div>
+            <div class="step__title">It matches these conditions <span class="opt" style="font-weight:400;color:var(--faint)">— optional</span></div>
+            <p class="step__sub">Narrow it down. Each condition is an exact match on a field from the event above.</p>
+
+            <div id="filters"></div>
+            <div style="display:flex;align-items:center">
+              <button class="add-cond" id="add-cond">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add condition
+              </button>
+              <span class="and-note">all conditions must match (AND)</span>
+            </div>
+          </div>
+
+          <!-- ③ THEN -->
+          <div class="step">
+            <div class="node">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5M9 2h6"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg>
+            </div>
+            <div class="step__kicker">Then</div>
+            <div class="step__title">Run this agent</div>
+            <p class="step__sub">The agent receives a prompt rendered from the event's data.</p>
+
+            <div class="field" style="margin-bottom:16px">
+              <label class="label" for="agent-select">Agent</label>
+              <div class="agent-field">
+                <span class="agent-av" id="agent-av">s</span>
+                <select class="input" id="agent-select">
+                  <option value="summarizer" selected>summarizer</option>
+                  <option value="reviewer">reviewer</option>
+                  <option value="triage-bot">triage-bot</option>
+                  <option value="release-notes">release-notes</option>
+                  <option value="oncall-escalator">oncall-escalator</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label" for="prompt">Prompt template
+                <span class="opt">— click a variable to insert it</span>
+              </label>
+              <div class="varbar" id="varbar"></div>
+              <textarea id="prompt" class="textarea textarea--mono">Session {{ .Data.session_id }} (agent {{ .Data.agent_name }}) stopped with reason "{{ .Data.stop_reason }}".
+
+Read the transcript, summarize what went wrong, the likely root cause, and one suggested next step.</textarea>
+              <p class="hint">Go <code class="mono" style="color:var(--muted)">text/template</code> syntax. Variables resolve against the matched event — see the rendered result on the right.</p>
+            </div>
+          </div>
+
+        </div><!-- /flow -->
+
+        <!-- reliability & state -->
+        <details class="coll" id="coll-reliability">
+          <summary class="coll__trigger">
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="grow">Reliability &amp; state</span>
+            <span class="badge" id="rel-badge">Backoff ×2 · 4/hr · enabled</span>
+          </summary>
+          <div class="coll__body">
+            <div class="cfg-grid">
+              <div class="field full">
+                <label class="label">Retry policy</label>
+                <div class="pillgroup" id="retry-group" role="group">
+                  <button class="pill" data-retry="none" aria-pressed="false">None</button>
+                  <button class="pill" data-retry="backoff" aria-pressed="true">Exponential backoff</button>
+                </div>
+              </div>
+              <div class="field" id="retry-max-f">
+                <label class="label">Max retries</label>
+                <input class="input mono" id="retry-max" type="number" min="1" value="2">
+              </div>
+              <div class="field" id="retry-delay-f">
+                <label class="label">Base delay</label>
+                <input class="input mono" id="retry-delay" value="5s" placeholder="2s">
+              </div>
+              <div class="field">
+                <label class="label">Max fires</label>
+                <input class="input mono" id="fl-max" type="number" min="1" value="4">
+              </div>
+              <div class="field">
+                <label class="label">Per window</label>
+                <input class="input mono" id="fl-window" value="1h" placeholder="1h">
+              </div>
+              <div class="field full">
+                <div class="switch-row">
+                  <div class="switch" id="enabled-switch" role="switch" aria-checked="true"></div>
+                  <div class="switch-txt">
+                    <b>Trigger enabled</b>
+                    <span>Disabled triggers stay registered but never fire.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+      </section>
+
+      <!-- ░░░ RIGHT: PREVIEW ░░░ -->
+      <aside class="preview">
+        <div class="pv-eyebrow"><span class="dot"></span> Live preview</div>
+
+        <!-- summary sentence -->
+        <div class="pv-card">
+          <div class="pv-card__label">Summary</div>
+          <p class="summary" id="summary"></p>
+        </div>
+
+        <!-- sample event -->
+        <div class="pv-card">
+          <div class="pv-card__label">
+            <span>Sample event</span>
+            <span class="match" id="match-badge"></span>
+          </div>
+          <pre class="code" id="sample-json"></pre>
+        </div>
+
+        <!-- rendered prompt -->
+        <div class="pv-card">
+          <div class="pv-card__label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+            Prompt the agent receives
+          </div>
+          <div class="rendered" id="rendered"></div>
+        </div>
+
+        <!-- webhook endpoint -->
+        <div class="pv-card hide" id="pv-endpoint">
+          <div class="pv-card__label">Webhook endpoint</div>
+          <div class="endpoint-row">
+            <span class="method">POST</span>
+            <span class="url" id="endpoint-url"></span>
+            <button class="copy-btn" title="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+          </div>
+          <pre class="code" id="curl-snip"></pre>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="modal__foot">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        Created as a <b style="color:var(--muted);font-weight:500">dynamic</b> trigger — editable and deletable anytime.
+      </div>
+      <button class="btn btn--outline">Cancel</button>
+      <button class="btn btn--primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Create trigger
+      </button>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ── icons ── */
+  const IC = {
+    session:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4l14 8-14 8V4z"/></svg>',
+    memory:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3a3 3 0 0 0-3 3v0a3 3 0 0 0-3 3 3 3 0 0 0 1.5 2.6A3 3 0 0 0 6 18a3 3 0 0 0 3 3V3z"/><path d="M15 3a3 3 0 0 1 3 3v0a3 3 0 0 1 3 3 3 3 0 0 1-1.5 2.6A3 3 0 0 1 18 18a3 3 0 0 1-3 3V3z"/></svg>',
+    hook:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3v9a4 4 0 1 1-4-4"/><circle cx="13" cy="3" r="0"/><path d="M13 3a3 3 0 0 0 3 3"/></svg>',
+    webhook:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 16.98h-5.99c-1.66 0-3.01-1.34-3.01-3s1.34-3 3-3"/><path d="M6 9l3-3 3 3"/><circle cx="18" cy="17" r="3"/><circle cx="6" cy="7" r="0"/><path d="M9.5 14.5 7 19a3 3 0 1 1-3-3"/></svg>',
+    ext:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v3a2 2 0 0 0 4 0V3h2v6h-3a2 2 0 0 0 0 4h3v6h-6v-3a2 2 0 0 0-4 0v3H3v-6h3a2 2 0 0 0 0-4H3V3h6z"/></svg>',
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a1 1 0 0 0 .86 1.5h16.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+  };
+
+  /* ── event catalog: the heart of the redesign ──
+     Each event declares the data fields it exposes (for filter keys + prompt
+     variables) and a realistic sample envelope (for the live preview).      */
+  const ENVELOPE_KEYS = ["kind","scope","source","workspace_id"];
+  const EVENTS = {
+    "session.created":{ group:"Session lifecycle", icon:"session", label:"Session started",
+      desc:"An agent session is initialized in a workspace.",
+      fields:["data.session_id","data.session_name","data.session_type","data.agent_name","data.state","data.workspace","data.workspace_id","data.acp_session_id","data.created_at","data.updated_at"],
+      sample:{ kind:"session.created", scope:"workspace", workspace_id:"ws_checkout_api", source:"observer",
+        data:{ session_id:"sess_9f2a1c", session_name:"nightly-review", session_type:"interactive", agent_name:"reviewer", state:"running", workspace:"checkout-api", workspace_id:"ws_checkout_api", acp_session_id:"acp_71d0e3", created_at:"2026-06-01T03:11:08Z", updated_at:"2026-06-01T03:11:08Z" } } },
+    "session.stopped":{ group:"Session lifecycle", icon:"session", label:"Session stopped",
+      desc:"A session ends — completed, cancelled, or failed with a reason.",
+      fields:["data.session_id","data.session_name","data.session_type","data.agent_name","data.state","data.workspace","data.workspace_id","data.acp_session_id","data.stop_reason","data.stop_detail","data.created_at","data.updated_at"],
+      sample:{ kind:"session.stopped", scope:"workspace", workspace_id:"ws_checkout_api", source:"observer",
+        data:{ session_id:"sess_9f2a1c", session_name:"nightly-review", session_type:"interactive", agent_name:"reviewer", state:"stopped", workspace:"checkout-api", workspace_id:"ws_checkout_api", acp_session_id:"acp_71d0e3", stop_reason:"error", stop_detail:"context deadline exceeded", created_at:"2026-06-01T03:11:08Z", updated_at:"2026-06-01T03:42:55Z" } } },
+    "memory.consolidated":{ group:"Memory", icon:"memory", label:"Memory consolidated", customPayload:true,
+      desc:"Durable-memory consolidation finishes for a workspace.",
+      fields:["data.workspace_id","data.completed_at"],
+      sample:{ kind:"memory.consolidated", scope:"workspace", workspace_id:"ws_checkout_api", source:"observer",
+        data:{ workspace_id:"ws_checkout_api", completed_at:"2026-06-01T04:00:12Z" } } },
+    "hook.completed":{ group:"Hooks", icon:"hook", label:"Hook completed", dynamic:true,
+      desc:"A named hook finishes — succeeded or failed.",
+      fields:["data.session_id","data.session_name","data.session_type","data.agent_name","data.hook_name","data.hook_event","data.hook_source","data.hook_mode","data.hook_outcome","data.dispatch_depth","data.required","data.recorded_at","data.error"],
+      sample:{ kind:"hook.transform.completed", scope:"workspace", workspace_id:"ws_checkout_api", source:"hook",
+        data:{ session_id:"sess_9f2a1c", session_name:"nightly-review", session_type:"interactive", agent_name:"reviewer", hook_name:"transform", hook_event:"after_agent_run", hook_source:"config", hook_mode:"blocking", hook_outcome:"failed", dispatch_depth:"0", required:"true", recorded_at:"2026-06-01T03:42:55Z", error:"schema validation failed" } } },
+    "webhook":{ group:"External", icon:"webhook", label:"Incoming webhook", webhook:true, customPayload:true,
+      desc:"A signed external HTTP POST arrives at your endpoint.",
+      fields:["data.payload","data.endpoint","data.endpoint_slug","data.webhook_id","data.timestamp"],
+      sample:{ kind:"webhook", scope:"global", workspace_id:"", source:"webhook",
+        data:{ payload:"{\"action\":\"deploy_started\",\"version\":\"1.4.0\"}", endpoint:"ci-deploys--wbh_a1b2c3", endpoint_slug:"ci-deploys", webhook_id:"wbh_a1b2c3", timestamp:"2026-06-01T14:30:45Z" } } },
+    "ext":{ group:"Extensions", icon:"ext", label:"Extension event", ext:true, customPayload:true,
+      desc:"A custom event published by an installed extension — payload is fully open.",
+      fields:[],
+      sample:{ kind:"ext.release.deploy-started", scope:"workspace", workspace_id:"ws_checkout_api", source:"extension",
+        data:{ status:"started", repo:"acme/checkout-api", version:"1.4.0" } } }
+  };
+
+  /* ── mutable form state ── */
+  const state = {
+    name:"summarize-failures",
+    scope:"workspace",
+    workspace:"ws_checkout_api",
+    event:"session.stopped",
+    hookName:"transform",
+    extExt:"release", extEvent:"deploy-started",
+    whSlug:"ci-deploys", whId:"wbh_a1b2c3",
+    filters:[{key:"data.stop_reason", value:"error"}],
+    agent:"summarizer",
+    prompt:document.getElementById("prompt").value,
+    retry:"backoff", retryMax:"2", retryDelay:"5s",
+    flMax:"4", flWindow:"1h",
+    enabled:true
+  };
+
+  const $ = id => document.getElementById(id);
+
+  /* resolve the effective event id (some events build a dynamic kind) */
+  function eventKind(){
+    if(state.event==="hook.completed") return "hook."+(state.hookName||"<name>")+".completed";
+    if(state.event==="ext") return "ext."+(state.extExt||"<ext>")+"."+(state.extEvent||"<event>");
+    return state.event;
+  }
+  function def(){ return EVENTS[state.event]; }
+  /* data.* paths available on the current event: the fixed runtime fields, plus
+     — for open-payload events (webhook / ext / memory) — the keys present on the
+     sample payload, since those sources carry arbitrary user-defined data. */
+  function availFields(d){
+    d = d || def();
+    const out = d.fields.slice();
+    if(d.customPayload && d.sample && d.sample.data){
+      Object.keys(d.sample.data).forEach(k=>{ const p="data."+k; if(out.indexOf(p)<0) out.push(p); });
+    }
+    return out;
+  }
+
+  /* the live envelope = the event's sample, overlaid with current scope/workspace/kind */
+  function envelope(){
+    const d = def(); const s = JSON.parse(JSON.stringify(d.sample));
+    s.kind = eventKind();
+    if(!d.webhook){ s.scope = state.scope; s.workspace_id = state.scope==="workspace" ? state.workspace : ""; }
+    return s;
+  }
+
+  /* ── catalog render ── */
+  function renderCatalog(){
+    const q = ($("event-search").value||"").toLowerCase();
+    const groups = {};
+    for(const [id,d] of Object.entries(EVENTS)){
+      const hay = (id+" "+d.label+" "+d.desc+" "+d.group).toLowerCase();
+      if(q && !hay.includes(q)) continue;
+      (groups[d.group] = groups[d.group]||[]).push([id,d]);
+    }
+    const order = ["Session lifecycle","Memory","Hooks","External","Extensions"];
+    let html = "";
+    for(const g of order){
+      if(!groups[g]) continue;
+      html += '<div class="cat-group"><div class="cat-group__label">'+g+'</div>';
+      for(const [id,d] of groups[g]){
+        const on = id===state.event;
+        const shown = id==="hook.completed" ? "hook.&lt;name&gt;.completed"
+                    : id==="ext" ? "ext.&lt;ext&gt;.&lt;event&gt;" : id;
+        html += '<button class="event" data-event="'+id+'" aria-pressed="'+on+'">'
+              +   '<span class="event__ic">'+IC[d.icon]+'</span>'
+              +   '<span class="event__main">'
+              +     '<span class="event__head">'
+              +       '<span class="event__id">'+shown+'</span>'
+              +       '<span class="event__name">'+d.label+'</span>'
+              +     '</span>'
+              +     '<span class="event__desc">'+d.desc+'</span>'
+              +   '</span>'
+              +   '<span class="event__check">'+IC.check+'</span>'
+              + '</button>';
+      }
+      html += '</div>';
+    }
+    if(!html) html = '<div class="filters-empty">No events match “'+q+'”.</div>';
+    $("catalog").innerHTML = html;
+    $("catalog").querySelectorAll(".event").forEach(b=>{
+      b.addEventListener("click",()=>{ selectEvent(b.dataset.event); });
+    });
+    placeSubConfig();
+  }
+
+  function selectEvent(id){
+    state.event = id;
+    // drop filters whose key no longer exists on the new event (open-payload
+    // events accept any data.* path, so keep those)
+    const d2 = EVENTS[id];
+    const valid = new Set([...ENVELOPE_KEYS, ...availFields(d2)]);
+    state.filters = state.filters.filter(f=>valid.has(f.key) || (d2.customPayload && f.key.startsWith("data.")));
+    // webhook is always global
+    const d = EVENTS[id];
+    if(d.webhook){ state.scope="global"; }
+    syncSubConfig();
+    syncScopeUI();
+    renderCatalog();
+    renderFilters();
+    renderVarbar();
+    renderPreview();
+  }
+
+  /* persistent sub-config nodes — kept as live DOM (listeners + focus survive
+     being re-parented), parked in the holder and moved next to the selection */
+  const SUBCFG = { hook:$("sub-hook"), ext:$("sub-ext"), webhook:$("sub-webhook") };
+  const SUB_HOLDER = $("subcfg-holder");
+  function parkSubcfgs(){
+    for(const k in SUBCFG){ SUBCFG[k].classList.add("hide"); SUB_HOLDER.appendChild(SUBCFG[k]); }
+  }
+  function placeSubConfig(){
+    parkSubcfgs();
+    const d = def();
+    const node = d.dynamic ? SUBCFG.hook : d.ext ? SUBCFG.ext : d.webhook ? SUBCFG.webhook : null;
+    if(!node) return;
+    node.classList.remove("hide");
+    const btn = $("catalog").querySelector('.event[aria-pressed="true"]');
+    if(btn) btn.insertAdjacentElement("afterend", node);   // sit right under the chosen card
+    else SUB_HOLDER.appendChild(node);                     // event filtered out of search → keep parked
+  }
+  function syncSubConfig(){ $("pv-endpoint").classList.toggle("hide", !def().webhook); }
+
+  function syncScopeUI(){
+    const d = def();
+    $("scope-group").querySelectorAll(".pill").forEach(p=>{
+      p.setAttribute("aria-pressed", String(p.dataset.scope===state.scope));
+      p.style.opacity = d.webhook ? (p.dataset.scope==="global"?"1":".4") : "1";
+      p.style.pointerEvents = d.webhook ? (p.dataset.scope==="global"?"auto":"none") : "auto";
+    });
+    $("ws-pick").dataset.show = (state.scope==="workspace") ? "1" : "0";
+    $("scope-note").classList.toggle("hide", !d.webhook);
+  }
+
+  /* ── filters ── */
+  function filterKeyOptions(){ return [...ENVELOPE_KEYS, ...availFields()]; }
+  function renderFilters(){
+    const wrap = $("filters");
+    if(state.filters.length===0){
+      wrap.innerHTML = '<div class="filters-empty">No conditions — fires on every <b>'+eventKind()+'</b> event.</div>';
+      $("node-if").dataset.on = "";
+      return;
+    }
+    $("node-if").dataset.on = "1";
+    // open-payload events (webhook / ext / memory) accept any data.* path, so the
+    // key becomes a free combobox seeded with known keys; fixed events stay a select
+    const open = def().customPayload;
+    const keys = filterKeyOptions();
+    let html = "";
+    if(open){
+      html += '<datalist id="fkeys">'+keys.map(k=>'<option value="'+k+'">').join("")+'</datalist>';
+    }
+    state.filters.forEach((f,i)=>{
+      let keyCtrl;
+      if(open){
+        keyCtrl = '<input class="input mono" list="fkeys" data-fi="'+i+'" data-fk="key" value="'+esc(f.key)+'" placeholder="kind · scope · data.…">';
+      } else {
+        const opts = keys.map(k=>'<option value="'+k+'"'+(k===f.key?" selected":"")+'>'+k+'</option>').join("");
+        keyCtrl = '<select class="input mono" data-fi="'+i+'" data-fk="key">'+opts+'</select>';
+      }
+      html += '<div class="filter-row">'
+            +   keyCtrl
+            +   '<span class="filter-eq">=</span>'
+            +   '<input class="input mono" data-fi="'+i+'" data-fk="value" value="'+esc(f.value)+'" placeholder="value">'
+            +   '<button class="filter-del" data-del="'+i+'" title="Remove">'+IC.x+'</button>'
+            + '</div>';
+    });
+    if(open){
+      html += '<p class="filter-hint">'+eventKind()+' payloads are open — type any <code>data.&lt;path&gt;</code> to match a custom field. All conditions must match (AND).</p>';
+    }
+    wrap.innerHTML = html;
+    wrap.querySelectorAll("[data-fk]").forEach(el=>{
+      el.addEventListener("input",()=>{
+        state.filters[+el.dataset.fi][el.dataset.fk] = el.value;
+        renderPreview();
+      });
+    });
+    wrap.querySelectorAll("[data-del]").forEach(b=>{
+      b.addEventListener("click",()=>{ state.filters.splice(+b.dataset.del,1); renderFilters(); renderPreview(); });
+    });
+  }
+
+  /* ── variable bar (derived from selected event) ── */
+  function variables(){
+    const base = ["{{ .Kind }}", "{{ .Scope }}", "{{ .WorkspaceID }}", "{{ .Source }}"];
+    const data = availFields().map(f=>"{{ ."+f.replace("data.","Data.")+" }}");
+    return base.concat(data);
+  }
+  function renderVarbar(){
+    $("varbar").innerHTML = variables().map(v=>
+      '<button class="var-chip" data-var="'+esc(v)+'">'+IC.plus+esc(v.replace(/\s+/g,' '))+'</button>'
+    ).join("");
+    $("varbar").querySelectorAll(".var-chip").forEach(b=>{
+      b.addEventListener("click",()=>insertVar(b.dataset.var));
+    });
+  }
+  function insertVar(v){
+    const ta = $("prompt"); const s=ta.selectionStart, e=ta.selectionEnd;
+    ta.value = ta.value.slice(0,s)+v+ta.value.slice(e);
+    state.prompt = ta.value;
+    ta.focus(); ta.selectionStart = ta.selectionEnd = s+v.length;
+    renderPreview();
+  }
+
+  /* ── tiny Go text/template renderer (preview only) ── */
+  function lookup(env, path){
+    // .Kind / .Scope / .WorkspaceID / .Source  → top-level
+    const top = { Kind:"kind", Scope:"scope", Source:"source", WorkspaceID:"workspace_id" };
+    if(top[path]!==undefined) return env[top[path]];
+    // .Data.x   or   index .Data "x"
+    if(path.startsWith("Data.")) return env.data ? env.data[path.slice(5)] : undefined;
+    return undefined;
+  }
+  function renderTemplate(tmpl, env){
+    // handle  {{ index .Data "key" }}  and  {{ .Path }}
+    const re = /\{\{\s*(?:index\s+\.Data\s+"([^"]+)"|\.([\w.]+))\s*\}\}/g;
+    let out="", last=0, m;
+    while((m=re.exec(tmpl))){
+      out += escHtml(tmpl.slice(last,m.index));
+      const path = m[1] ? ("Data."+m[1]) : m[2];
+      const val = lookup(env, path);
+      if(val===undefined) out += '<span class="miss">‹'+escHtml(m[1]||m[2])+'?›</span>';
+      else out += '<span class="var">'+escHtml(String(val))+'</span>';
+      last = re.lastIndex;
+    }
+    out += escHtml(tmpl.slice(last));
+    return out;
+  }
+  /* show the raw template too, with variables tinted */
+  function highlightTemplate(tmpl){
+    return escHtml(tmpl).replace(/(\{\{[^}]*\}\})/g,'<span class="v">$1</span>');
+  }
+
+  /* ── filter matching against the sample ── */
+  function resolveField(env, key){
+    if(key.startsWith("data.")) return env.data ? env.data[key.slice(5)] : undefined;
+    return env[key];
+  }
+  function matches(env){
+    for(const f of state.filters){
+      if(!f.key) continue;
+      if(String(resolveField(env,f.key)) !== String(f.value)) return false;
+    }
+    return true;
+  }
+
+  /* ── JSON pretty-print with highlight of filtered keys ── */
+  function prettyJSON(env){
+    const filteredKeys = new Set(state.filters.map(f=>f.key));
+    function fmt(obj, indent, prefix){
+      const pad = "  ".repeat(indent);
+      let lines = [];
+      const entries = Object.entries(obj);
+      entries.forEach(([k,v],i)=>{
+        const comma = i<entries.length-1 ? "," : "";
+        const fullKey = prefix ? prefix+"."+k : k;
+        const isFiltered = filteredKeys.has(fullKey);
+        if(v && typeof v==="object"){
+          lines.push(pad+'<span class="k">"'+k+'"</span>: {');
+          lines.push(fmt(v, indent+1, fullKey));
+          lines.push(pad+"}"+comma);
+        }else{
+          let line = pad+'<span class="k">"'+k+'"</span>: <span class="s">"'+escHtml(String(v))+'"</span>'+comma;
+          if(isFiltered) line = pad+'<span class="hl"><span class="k">"'+k+'"</span>: <span class="s">"'+escHtml(String(v))+'"</span></span>'+comma;
+          lines.push(line);
+        }
+      });
+      return lines.join("\n");
+    }
+    return "{\n"+fmt(env,1,"")+"\n}";
+  }
+
+  /* ── summary sentence ── */
+  function renderSummary(){
+    const d = def();
+    const scopeTxt = d.webhook ? '<span class="w">globally</span>'
+      : (state.scope==="workspace"
+          ? 'in <b>'+wsLabel(state.workspace)+'</b>'
+          : '<span class="w">in any workspace</span>');
+    let s = '<span class="w">When</span> <span class="ev">'+eventKind()+'</span> happens '+scopeTxt;
+    if(state.filters.length){
+      const conds = state.filters.filter(f=>f.key).map(f=>'<b>'+f.key.replace("data.","")+'</b> = <b>'+esc(f.value)+'</b>').join(' <span class="w">and</span> ');
+      s += ', <span class="w">if</span> '+conds;
+    }
+    s += ', <span class="w">run</span> <span class="acc">'+esc(state.agent)+'</span>.';
+    $("summary").innerHTML = s;
+  }
+  function wsLabel(id){
+    const map = {ws_checkout_api:"checkout-api", ws_billing:"billing", ws_growth:"growth-experiments"};
+    return map[id]||id;
+  }
+
+  /* ── reliability badge ── */
+  function renderRelBadge(){
+    const parts=[];
+    parts.push(state.retry==="backoff" ? "Backoff ×"+(state.retryMax||"?") : "No retry");
+    parts.push((state.flMax||"?")+"/"+(state.flWindow||"?"));
+    parts.push(state.enabled ? "enabled" : "disabled");
+    $("rel-badge").textContent = parts.join(" · ");
+  }
+
+  /* ── master preview ── */
+  function renderPreview(){
+    const env = envelope();
+    renderSummary();
+    $("sample-json").innerHTML = prettyJSON(env);
+    // match badge
+    const mb = $("match-badge");
+    if(state.filters.filter(f=>f.key).length===0){
+      mb.className="match match--ok"; mb.innerHTML = IC.ok+" fires on every event";
+    }else if(matches(env)){
+      mb.className="match match--ok"; mb.innerHTML = IC.ok+" matches this sample";
+    }else{
+      mb.className="match match--no"; mb.innerHTML = IC.warn+" won't fire on this sample";
+    }
+    // rendered prompt + template source
+    $("rendered").innerHTML = renderTemplate(state.prompt, env)
+      + '<div class="tmpl-src"><b style="color:var(--faint);font-weight:600;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em;font-family:var(--font-sans)">template</b><br>'
+      + highlightTemplate(state.prompt) + '</div>';
+    // webhook endpoint
+    if(def().webhook){
+      const url = "/api/automation/webhooks/global/"+(state.whSlug||"slug")+"--"+(state.whId||"wbh_id");
+      $("endpoint-url").textContent = url;
+      $("curl-snip").innerHTML =
+        '<span class="k">curl</span> -X POST \\\n'
+       +'  https://your-daemon'+escHtml(url)+' \\\n'
+       +'  -H <span class="s">"X-AGH-Webhook-Signature: sha256=…"</span> \\\n'
+       +'  -H <span class="s">"X-AGH-Webhook-Timestamp: …"</span> \\\n'
+       +'  -d <span class="s">\'{"action":"deploy_started"}\'</span>';
+    }
+    renderRelBadge();
+  }
+
+  /* ── helpers ── */
+  function esc(s){ return String(s).replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function escHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  /* ── wiring ── */
+  $("t-name").addEventListener("input",e=>state.name=e.target.value);
+
+  $("scope-group").querySelectorAll(".pill").forEach(p=>{
+    p.addEventListener("click",()=>{ state.scope=p.dataset.scope; syncScopeUI(); renderPreview(); });
+  });
+  $("ws-select").addEventListener("change",e=>{ state.workspace=e.target.value; renderPreview(); });
+  $("event-search").addEventListener("input",renderCatalog);
+
+  $("hook-name").addEventListener("input",e=>{ state.hookName=e.target.value; renderPreview(); });
+  $("ext-ext").addEventListener("input",e=>{ state.extExt=e.target.value; renderPreview(); });
+  $("ext-event").addEventListener("input",e=>{ state.extEvent=e.target.value; renderPreview(); });
+  $("wh-slug").addEventListener("input",e=>{ state.whSlug=e.target.value; renderPreview(); });
+  $("wh-id").addEventListener("input",e=>{ state.whId=e.target.value; renderPreview(); });
+
+  $("add-cond").addEventListener("click",()=>{
+    const used = new Set(state.filters.map(f=>f.key));
+    const next = filterKeyOptions().find(k=>!used.has(k)) || filterKeyOptions()[0];
+    state.filters.push({key:next, value:""});
+    renderFilters(); renderPreview();
+  });
+
+  $("agent-select").addEventListener("change",e=>{
+    state.agent=e.target.value; $("agent-av").textContent=e.target.value[0];
+    renderPreview();
+  });
+  $("prompt").addEventListener("input",e=>{ state.prompt=e.target.value; renderPreview(); });
+
+  // reliability
+  $("retry-group").querySelectorAll(".pill").forEach(p=>{
+    p.addEventListener("click",()=>{
+      state.retry=p.dataset.retry;
+      $("retry-group").querySelectorAll(".pill").forEach(x=>x.setAttribute("aria-pressed",String(x===p)));
+      const off = state.retry!=="backoff";
+      ["retry-max","retry-delay"].forEach(id=>{ $(id).disabled=off; $(id).style.opacity=off?".4":"1"; });
+      renderRelBadge();
+    });
+  });
+  $("retry-max").addEventListener("input",e=>{state.retryMax=e.target.value;renderRelBadge();});
+  $("retry-delay").addEventListener("input",e=>{state.retryDelay=e.target.value;});
+  $("fl-max").addEventListener("input",e=>{state.flMax=e.target.value;renderRelBadge();});
+  $("fl-window").addEventListener("input",e=>{state.flWindow=e.target.value;renderRelBadge();});
+  $("enabled-switch").addEventListener("click",function(){
+    state.enabled=!state.enabled; this.setAttribute("aria-checked",String(state.enabled)); renderRelBadge();
+  });
+
+  // close (demo: just blur)
+  document.querySelector(".head-close").addEventListener("click",()=>{});
+  document.querySelectorAll(".copy-btn").forEach(b=>b.addEventListener("click",function(){
+    const url=$("endpoint-url").textContent; try{navigator.clipboard.writeText(url);}catch(_){}
+    this.style.color="var(--success)"; setTimeout(()=>this.style.color="",900);
+  }));
+
+  /* ── init ── */
+  syncSubConfig(); syncScopeUI();
+  renderCatalog(); renderFilters(); renderVarbar(); renderPreview();
+})();
+</script>
+</body>
+</html>

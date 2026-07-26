@@ -1,0 +1,46 @@
+---
+title: "agh layout apply"
+description: "Atomically replace topology from a validated layout document"
+---
+
+## agh layout apply
+
+Atomically replace topology from a validated layout document
+
+```
+agh layout apply [flags]
+```
+
+### Options
+
+```
+      --actor-id string    Optional actor identifier
+      --client string      Connected presentation client ID
+      --file string        Layout document file or - for stdin
+  -h, --help               help for apply
+      --origin string      Command origin label (default "cli")
+      --revision uint      Expected workspace revision
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh layout apply -o json
+```

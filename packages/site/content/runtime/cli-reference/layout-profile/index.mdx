@@ -1,0 +1,39 @@
+---
+title: "agh layout-profile"
+description: "List, read, save, and delete saved layouts"
+---
+
+## agh layout-profile
+
+List, read, save, and delete saved layouts
+
+### Options
+
+```
+  -h, --help   help for layout-profile
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                   | Description                                                      |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [agh layout-profile delete](/runtime/cli-reference/layout-profile/delete) | Delete one saved layout                                          |
+| [agh layout-profile get](/runtime/cli-reference/layout-profile/get)       | Get one saved layout                                             |
+| [agh layout-profile list](/runtime/cli-reference/layout-profile/list)     | List saved layouts visible to a workspace, global scope included |
+| [agh layout-profile put](/runtime/cli-reference/layout-profile/put)       | Create or replace one saved layout                               |

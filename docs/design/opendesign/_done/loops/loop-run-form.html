@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AGH · Run software-delivery · redesign</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ───────────────────────────────────────────────────────────
+   AGH tokens · canonical set shared with the create-flow redesigns
+   ─────────────────────────────────────────────────────────── */
+:root{
+  color-scheme: dark;
+  --rail:#0c0b0b; --canvas:#131211; --surface:#1a1918; --surface-2:#1c1b1a;
+  --elevated:#232220; --hover:rgba(255,255,255,0.022); --selected:rgba(255,255,255,0.03);
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,0.055); --line-soft:rgba(255,255,255,0.03); --line-strong:rgba(255,255,255,0.09);
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,0.10); --accent-tint-strong:rgba(232,87,42,0.16); --accent-dim:rgba(232,87,42,0.24);
+  --success:#5fbf85; --success-tint:rgba(95,191,133,0.08);
+  --warning:#d6a647; --warning-tint:rgba(214,166,71,0.08);
+  --danger:#e0635a;  --danger-tint:rgba(224,99,90,0.09); --danger-dim:rgba(224,99,90,0.22);
+  --info:#8e8eb5;    --info-tint:rgba(142,142,181,0.12);
+  --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,0.06);
+  --input-fill:rgba(255,255,255,0.025); --badge-fill:rgba(255,255,255,0.05);
+  --btn-fill:rgba(255,255,255,0.04); --btn-fill-hover:rgba(255,255,255,0.07);
+  --scrim:rgba(0,0,0,0.62);
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+  --dur-fast:100ms; --dur:140ms; --dur-slow:200ms; --ease:cubic-bezier(.2,0,0,1);
+  --shadow-overlay:0 24px 48px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.045);
+  --highlight:inset 0 1px 0 rgba(255,255,255,0.035);
+  --focus-ring:0 0 0 1px var(--line-strong);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--fg);
+  font-family:var(--font-sans); font-size:13.5px; line-height:1.5; letter-spacing:-0.006em;
+  font-feature-settings:"cv01","ss03","cv11";
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit}
+::selection{background:var(--accent-dim);color:var(--fg-strong)}
+svg{display:block}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ── faint loop-detail backdrop ── */
+.backdrop{position:fixed;inset:0;display:flex;filter:saturate(.9);opacity:.4;pointer-events:none}
+.bd-rail{width:52px;background:var(--rail);border-right:1px solid var(--line-soft);flex:none}
+.bd-rail span{display:block;width:24px;height:24px;margin:16px auto;border-radius:7px;background:var(--surface)}
+.bd-main{flex:1;padding:26px 40px}
+.bd-h{height:28px;width:210px;border-radius:6px;background:var(--surface);margin-bottom:6px}
+.bd-sub{height:13px;width:340px;border-radius:5px;background:var(--surface-2);margin-bottom:24px}
+.bd-grid{display:grid;grid-template-columns:1fr 300px;gap:26px}
+.bd-block{height:150px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface);margin-bottom:14px}
+.bd-block.sm{height:96px}
+
+/* ── scrim + modal shell ── */
+.scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:grid;place-items:center;padding:28px}
+.modal{
+  width:min(1120px,100%); height:min(848px,93vh);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-overlay); display:grid; grid-template-rows:auto 1fr auto; overflow:hidden;
+}
+.modal__head{display:flex;align-items:flex-start;gap:15px;padding:20px 24px 17px;border-bottom:1px solid var(--line-soft)}
+.head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+  background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.head-icon svg{width:18px;height:18px}
+.head-txt{flex:1;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+.titlerow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:3px}
+.modal__title{font-size:16px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em}
+.modal__title .lt{color:var(--muted);font-weight:420}
+.tag{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
+.modal__sub{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;color:var(--subtle);margin-top:6px}
+.modal__sub .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.modal__sub .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint)}
+.head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);
+  background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:all var(--dur) var(--ease)}
+.head-close:hover{background:var(--hover);color:var(--fg)}
+.head-close svg{width:16px;height:16px}
+
+/* ── body: two columns (form · run preview) ── */
+.modal__body{display:grid;grid-template-columns:1fr 420px;min-height:0}
+.form{overflow-y:auto;padding:22px 24px 26px;min-width:0}
+.form::-webkit-scrollbar,.side::-webkit-scrollbar{width:10px}
+.form::-webkit-scrollbar-thumb,.side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06);border-radius:99px;border:3px solid transparent;background-clip:padding-box}
+.side{overflow-y:auto;border-left:1px solid var(--line-soft);background:var(--surface-2);padding:20px 20px 24px;display:flex;flex-direction:column;gap:14px}
+
+/* ── section primitives ── */
+.sec{margin-bottom:24px}
+.sec:last-child{margin-bottom:0}
+.sec__head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.sec__title{font-size:13px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em}
+.sec__note{margin-left:auto;font-size:11px;font-weight:400;color:var(--faint);display:inline-flex;align-items:center;gap:6px}
+.sec__note svg{width:12px;height:12px}
+
+/* ── field primitives ── */
+.field{margin-bottom:16px}
+.field:last-child{margin-bottom:0}
+.label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--fg-strong);margin-bottom:7px}
+.label .req{color:var(--accent-strong);font-weight:600;font-size:11px}
+.label .typ{margin-left:auto;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 6px}
+.input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);border-radius:var(--radius-md);font-family:inherit;font-size:13px;outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+.input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+.input::placeholder{color:var(--faint)}
+.input--mono{font-family:var(--font-mono);font-size:12px;letter-spacing:0}
+.input--err{border-color:var(--danger-dim);box-shadow:0 0 0 1px var(--danger-dim)}
+.hint{font-size:11.5px;color:var(--subtle);margin-top:7px;line-height:1.45}
+.hint code{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.start-hint{display:flex;align-items:flex-start;gap:7px;margin-top:16px;font-size:11.5px;color:var(--subtle);line-height:1.5}
+.start-hint svg{flex:none;width:12px;height:12px;color:var(--faint);margin-top:2px}
+.start-hint b{color:var(--muted);font-weight:520}
+.ferr{font-size:11.5px;color:var(--danger);margin-top:7px;display:none;align-items:center;gap:6px}
+.ferr svg{width:12px;height:12px;flex:none}
+.ferr.on{display:flex}
+
+.agent-field{position:relative}
+.agent-field .input{padding-left:34px}
+.agent-av{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:5px;display:grid;place-items:center;font-size:9.5px;font-weight:600;color:var(--accent-ink);background:var(--accent-strong);font-family:var(--font-mono);pointer-events:none}
+
+/* switch */
+.switch-row{display:flex;align-items:center;gap:12px;padding:12px 13px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--surface-2)}
+.switch{flex:none;width:32px;height:18px;border-radius:99px;background:var(--elevated);border:1px solid var(--line);position:relative;cursor:pointer;transition:all var(--dur)}
+.switch::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:all var(--dur) var(--ease)}
+.switch[aria-checked="true"]{background:var(--accent);border-color:transparent}
+.switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--accent-ink)}
+.switch-txt{flex:1}
+.switch-txt b{display:block;font-size:12.5px;color:var(--fg-strong);font-weight:500}
+.switch-txt span{font-size:11.5px;color:var(--subtle)}
+.switch-row .typ{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 6px}
+
+/* advanced collapsible */
+.coll{border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--surface-2);overflow:hidden}
+.coll__trigger{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;background:transparent;border:0;cursor:pointer;font:inherit;color:var(--fg-strong);font-size:12.5px;font-weight:600;list-style:none}
+.coll__trigger::-webkit-details-marker{display:none}
+.coll__trigger .chev{width:15px;height:15px;color:var(--muted);transition:transform var(--dur)}
+.coll[open] .coll__trigger .chev{transform:rotate(90deg)}
+.coll__trigger .grow{flex:1;text-align:left}
+.coll__trigger .badge{font-size:11px;font-weight:400;color:var(--subtle)}
+.coll__body{padding:2px 14px 16px;border-top:1px solid var(--line-soft)}
+.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;margin-top:14px}
+.ovr .label{font-size:11.5px;margin-bottom:6px}
+.ovr .l2{display:flex;align-items:center;gap:8px}
+.ovr .input{height:30px;font-size:12.5px}
+.ovr .ceil{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+.ovr .input[disabled]{opacity:.55;cursor:not-allowed;color:var(--muted)}
+.ovr select.input{appearance:none;-webkit-appearance:none;padding-right:28px;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:10px 10px}
+.lim-note{font-size:11px;color:var(--faint);line-height:1.55;margin-top:14px;padding-top:13px;border-top:1px solid var(--line-soft)}
+
+/* ── right rail cards ── */
+.pv-eyebrow{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+.pv-eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px var(--success-tint)}
+.card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius-lg);padding:15px 16px}
+.card__l{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-bottom:11px}
+.summary{font-size:12.5px;line-height:1.65;color:var(--muted)}
+.summary b{color:var(--fg-strong);font-weight:560}
+.summary .acc{color:var(--accent-strong);font-weight:560}
+.summary .mono{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-strong);background:var(--badge-fill);padding:1px 6px;border-radius:4px}
+.ckv{display:flex;flex-direction:column}
+.ckv__row{padding:11px 0;border-top:1px solid var(--line-soft)}
+.ckv__row:first-child{border-top:0;padding-top:0}
+.ckv__row .k{font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+.ckv__row .v{font-size:12.5px;line-height:1.5;color:var(--fg)}
+.ckv__row .v code{font-family:var(--font-mono);font-size:11.5px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 5px;color:var(--fg)}
+.verif{display:flex;flex-direction:column;gap:8px}
+.vrow{display:flex;align-items:flex-start;gap:9px}
+.vrow .vt{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 6px;border-radius:var(--radius-xs);flex:none;background:var(--badge-fill);color:var(--subtle);min-width:80px;text-align:center}
+.vrow .vb b{font-size:12px;color:var(--fg-strong);font-weight:520}
+.vrow .vb .vm{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);margin-top:2px}
+.tstates{display:flex;gap:6px;flex-wrap:wrap}
+.tchip{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);border:1px solid var(--line-soft);border-radius:var(--radius);padding:3px 9px;background:var(--surface-2)}
+.tchip .d{width:6px;height:6px;border-radius:50%;background:var(--c,var(--neutral))}
+.flowline{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;color:var(--subtle);font-family:var(--font-mono)}
+.flowline .st{color:var(--muted)}
+.flowline .ar{color:var(--faint)}
+
+/* ── footer ── */
+.modal__foot{display:flex;align-items:center;gap:12px;padding:14px 24px;border-top:1px solid var(--line-soft);background:var(--surface)}
+.foot-note{flex:1;font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:8px;min-width:0;line-height:1.4}
+.foot-note svg{flex:none;width:13px;height:13px;color:var(--faint)}
+.foot-note span{overflow:hidden;text-overflow:ellipsis}
+.toast{display:none;align-items:center;gap:7px;font-size:12px;color:var(--success)}
+.toast svg{width:14px;height:14px;flex:none}
+.toast.on{display:inline-flex}
+.btn{height:30px;padding:0 14px;border-radius:var(--radius);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;white-space:nowrap;transition:all var(--dur) var(--ease)}
+.btn:active{transform:translateY(1px)}
+.btn svg{width:14px;height:14px}
+.btn--outline{background:transparent;border-color:var(--line);color:var(--fg)}
+.btn--outline:hover{background:var(--hover);border-color:var(--line-strong)}
+.btn--primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn[disabled]:hover{background:var(--accent)}
+
+@media (max-width:980px){
+  .modal{height:95vh}
+  .modal__body{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  .side{border-left:0;border-top:1px solid var(--line-soft)}
+  .cfg-grid{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition-duration:1ms!important}}
+</style>
+</head>
+<body>
+
+<!-- faint loop-detail behind the modal -->
+<div class="backdrop" aria-hidden="true">
+  <div class="bd-rail"><span></span><span></span><span></span></div>
+  <div class="bd-main">
+    <div class="bd-h"></div><div class="bd-sub"></div>
+    <div class="bd-grid">
+      <div><div class="bd-block"></div><div class="bd-block sm"></div></div>
+      <div><div class="bd-block sm"></div><div class="bd-block sm"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Run software-delivery">
+
+    <!-- HEADER -->
+    <header class="modal__head">
+      <div class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+      </div>
+      <div class="head-txt">
+        <div class="eyebrow">Loops · Run</div>
+        <div class="titlerow">
+          <span class="modal__title"><span class="lt">Run</span> software-delivery</span>
+          <span class="tag">Built-in</span>
+          <span class="tag">v4 · published</span>
+        </div>
+        <div class="modal__sub"><span class="mono">agh.loop/v1</span><span class="dotsep"></span><span>5 declared inputs</span><span class="dotsep"></span><span>iterates on the autonomy kernel</span></div>
+      </div>
+      <a class="head-close" href="loop-detail.html" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </a>
+    </header>
+
+    <!-- BODY -->
+    <div class="modal__body">
+
+      <!-- LEFT: form -->
+      <form class="form" id="runForm" novalidate>
+        <section class="sec">
+          <div class="sec__head">
+            <span class="sec__title">Inputs</span>
+            <span class="sec__note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Generated from the loop's declared inputs</span>
+          </div>
+
+          <div class="field">
+            <label class="label" for="slug">slug<span class="req">*</span><span class="typ">string</span></label>
+            <input class="input input--mono" id="slug" placeholder="pick or type a task slug" list="slugList" autocomplete="off" />
+            <datalist id="slugList">
+              <option value="loops-catalog-api"></option>
+              <option value="whatsapp-inbox"></option>
+              <option value="billing-webhooks"></option>
+              <option value="search-reindex"></option>
+            </datalist>
+            <p class="hint">The already-authored task slug to orchestrate. Resolves under <code>.compozy/tasks/&lt;slug&gt;</code>; 4 detected in this workspace.</p>
+            <p class="ferr" id="slugErr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>slug is required to run this loop.</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="implementer">implementer<span class="typ">agent</span></label>
+            <div class="agent-field">
+              <span class="agent-av" id="implAv">ci</span>
+              <input class="input input--mono" id="implementer" value="code_implementer" autocomplete="off" />
+            </div>
+            <p class="hint">Agent that implements each fanned task. Defaults to <code>code_implementer</code>.</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="verify_command">verify_command<span class="typ">string</span></label>
+            <input class="input input--mono" id="verify_command" placeholder="empty = check disabled" autocomplete="off" />
+            <p class="hint">The project's own check, run at the <code>verify</code> gate and expected to exit zero. Empty <code>""</code> disables the command check; it is never hardcoded.</p>
+          </div>
+
+          <div class="field">
+            <div class="switch-row">
+              <div class="switch" id="autoCommit" role="switch" aria-checked="false" tabindex="0"></div>
+              <div class="switch-txt"><b>auto_commit</b><span>Create exactly one commit per task after verification. Off leaves changes uncommitted for review.</span></div>
+              <span class="typ">bool</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="label" for="branch">target_branch<span class="typ">string</span></label>
+            <input class="input input--mono" id="branch" value="main" autocomplete="off" />
+            <p class="hint">Branch the delivered, verified work targets. Defaults to <code>main</code>.</p>
+          </div>
+        </section>
+
+        <section class="sec">
+          <details class="coll" id="advanced">
+            <summary class="coll__trigger">
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="grow">Advanced · per-run limit overrides</span>
+              <span class="badge">using loop defaults</span>
+            </summary>
+            <div class="coll__body">
+              <div class="cfg-grid">
+                <div class="field ovr"><label class="label">Iteration cap</label><div class="l2"><input class="input input--mono ov" type="number" value="50" data-def="50" data-ceil="100" /><span class="ceil">/ 100</span></div></div>
+                <div class="field ovr"><label class="label">Token budget</label><div class="l2"><input class="input input--mono ov" type="number" placeholder="off" data-def="" data-ceil="20000000" /><span class="ceil">/ 20M</span></div></div>
+                <div class="field ovr"><label class="label">Wall clock (min)</label><div class="l2"><input class="input input--mono ov" type="number" placeholder="off" data-def="" data-ceil="10080" /><span class="ceil">/ 7d</span></div></div>
+                <div class="field ovr"><label class="label">Budget on exceeded</label><div class="l2"><select class="input input--mono ov" id="budgetPolicy" data-def="halt"><option value="halt" selected>halt</option><option value="escalate">escalate</option></select></div></div>
+                <div class="field ovr"><label class="label">No-progress window</label><div class="l2"><input class="input input--mono ov" type="number" value="3" data-def="3" data-ceil="10" /><span class="ceil">/ 10</span></div></div>
+                <div class="field ovr"><label class="label">Fan-out ceiling</label><div class="l2"><input class="input input--mono ov" type="number" placeholder="≤ tasks" data-def="" data-ceil="64" /><span class="ceil">/ 64</span></div></div>
+                <div class="field ovr"><label class="label">Gate max revisions</label><div class="l2"><input class="input input--mono ov" type="number" value="3" data-def="3" data-ceil="10" /><span class="ceil">/ 10</span></div></div>
+              </div>
+              <p class="lim-note">Overrides apply to this run only and never change the loop's saved defaults. Structural ceilings (fan-out, no-progress, gate revisions) are hard backstops that can't be raised, and the iteration cap is a generous backstop. Token and wall-clock budgets are off unless you set them (0 = unlimited); a set budget is enforced as a hard ceiling, checked before each node dispatch and at each generation boundary. When a budget is exceeded, halt ends the run as exhausted and escalate pauses it as needs-approval for a human decision. Cost in USD is a display-only estimate, never a cap.</p>
+            </div>
+          </details>
+        </section>
+
+        <p class="start-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>This loop also starts from: schedule, http, native_tool. Manage in <b>Start bindings</b> on the loop page.</span></p>
+      </form>
+
+      <!-- RIGHT: run preview -->
+      <aside class="side">
+        <div class="pv-eyebrow"><span class="dot"></span> Run preview</div>
+
+        <div class="card">
+          <div class="card__l">What will run</div>
+          <p class="summary" id="summary"></p>
+        </div>
+
+        <div class="card">
+          <div class="card__l">Contract</div>
+          <div class="ckv">
+            <div class="ckv__row"><div class="k">Goal</div><div class="v">Ship every authored task under <code>.compozy/tasks/{{ .inputs.slug }}</code>, implemented, reviewed to acceptance, and verified by the project's own checks.</div></div>
+            <div class="ckv__row"><div class="k">Definition of done</div><div class="v">All loaded tasks reached a terminal state, the acceptance judge approved with evidence, and the project verification passed.</div></div>
+            <div class="ckv__row"><div class="k">Verification</div><div class="v">
+              <div class="verif">
+                <div class="vrow"><span class="vt">command</span><div class="vb"><b>Project verification</b><div class="vm" id="verifyNote">{{ .inputs.verify_command }} · exit_zero</div></div></div>
+                <div class="vrow"><span class="vt">agent-judge</span><div class="vb"><b>Acceptance review</b><div class="vm">rubric: aggregate diff vs each task's acceptance and DoD</div></div></div>
+                <div class="vrow"><span class="vt">human</span><div class="vb"><b>Approval gate</b><div class="vm" id="mergeNote">pauses as needs-approval before target_branch</div></div></div>
+              </div>
+            </div></div>
+            <div class="ckv__row"><div class="k">Terminal outcomes</div><div class="v">
+              <div class="tstates">
+                <span class="tchip"><span class="d" style="--c:var(--success)"></span>done</span>
+                <span class="tchip"><span class="d" style="--c:var(--muted)"></span>no_op</span>
+                <span class="tchip"><span class="d" style="--c:var(--warning)"></span>blocked</span>
+                <span class="tchip"><span class="d" style="--c:var(--danger)"></span>failed</span>
+                <span class="tchip"><span class="d" style="--c:var(--warning)"></span>exhausted</span>
+                <span class="tchip"><span class="d" style="--c:var(--neutral)"></span>stalled</span>
+              </div>
+            </div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__l">Lifecycle</div>
+          <div class="flowline"><span class="st">running</span><span class="ar">→</span><span class="st">verify</span><span class="ar">→</span><span class="st" style="color:var(--warning)">needs-approval</span><span class="ar">→</span><span class="st" style="color:var(--success)">done</span></div>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="modal__foot">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span id="anText">Fill the required inputs, then run. Dry run validates inputs and renders the first-generation plan without starting a run.</span>
+        <span class="toast" id="toast"></span>
+      </div>
+      <a class="btn btn--outline" href="loop-detail.html">Cancel</a>
+      <button class="btn btn--outline" id="dryBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Dry run</button>
+      <button class="btn btn--primary" id="runBtn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run loop</button>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var slug=$("slug"), slugErr=$("slugErr");
+  var impl=$("implementer"), implAv=$("implAv");
+  var verifyCmd=$("verify_command"), verifyNote=$("verifyNote");
+  var branch=$("branch");
+  var autoCommit=$("autoCommit");
+  var runBtn=$("runBtn"), dryBtn=$("dryBtn");
+  var summary=$("summary"), mergeNote=$("mergeNote");
+  var anText=$("anText"), toast=$("toast");
+
+  function fmtTokens(n){ if(!n||n<=0) return "off"; if(n>=1e6) return (n/1e6).toFixed(n%1e6===0?0:1)+"M"; if(n>=1e3) return Math.round(n/1e3)+"k"; return String(n); }
+  function ov(i){ return document.querySelectorAll(".ov")[i]; }
+  function esc(v){ return v.replace(/[<>&]/g,''); }
+
+  function paint(){
+    var s = slug.value.trim();
+    var a = impl.value.trim() || "code_implementer";
+    var b = branch.value.trim() || "main";
+    var vc = verifyCmd.value.trim();
+    var committed = autoCommit.getAttribute("aria-checked")==="true";
+    var iter = ov(0).value || "50";
+    var tok = fmtTokens(parseInt(ov(1).value,10));
+    var polEl = $("budgetPolicy");
+    var pol = polEl ? polEl.value : "halt";
+
+    implAv.textContent = esc(a).slice(0,2).toLowerCase();
+    verifyNote.textContent = vc ? esc(vc)+" · exit_zero" : "empty verify_command · command check disabled";
+    mergeNote.textContent = "pauses as needs-approval before "+esc(b);
+
+    var sSafe = esc(s);
+    summary.innerHTML =
+      'Run <b>software-delivery</b> on '+(s?'<span class="mono">'+sSafe+'</span>':'<span class="acc">(pick a slug)</span>')+'. '+
+      'Loads the tasks you authored under <span class="mono">.compozy/tasks/'+(s?sSafe:'&lt;slug&gt;')+'</span> and runs them in dependency order as <b>'+esc(a)+'</b>, targeting <b>'+esc(b)+'</b>. '+
+      'Iterates up to <b>'+iter+'</b> generations'+(tok==="off"?' with no token budget':' within an enforced <b>'+tok+'</b> token budget ('+(pol==="escalate"?'escalate: pauses as needs-approval when exceeded':'halt: ends as exhausted when exceeded')+')')+'. '+
+      (vc?'Verified by <span class="mono">'+esc(vc)+'</span>. ':'The command check is disabled. ')+
+      (committed?'Commits one change per task after verification. ':'Leaves changes uncommitted for review. ')+
+      'Pauses as <span class="acc">needs-approval</span> at the approve gate before <b>'+esc(b)+'</b>. '+
+      'Ends honestly at done, no_op, blocked, failed, exhausted or stalled.';
+
+    var ok = s.length>0;
+    runBtn.disabled = !ok;
+    if(ok){ slugErr.classList.remove("on"); slug.classList.remove("input--err"); }
+  }
+
+  // bound overrides at ceiling
+  document.querySelectorAll(".ov").forEach(function(inp){
+    inp.addEventListener("input", function(){
+      var ceil=parseInt(inp.getAttribute("data-ceil"),10);
+      if(ceil && parseInt(inp.value,10)>ceil){ inp.value=ceil; }
+      var badge=document.querySelector("#advanced .badge");
+      var changed=[].some.call(document.querySelectorAll(".ov"),function(x){return x.value!==x.getAttribute("data-def");});
+      badge.textContent = changed ? "overrides set" : "using loop defaults";
+      paint();
+    });
+  });
+  var bp=$("budgetPolicy"); if(bp){ bp.addEventListener("change", paint); }
+
+  [slug,impl,verifyCmd,branch].forEach(function(el){ el.addEventListener("input", paint); });
+  autoCommit.addEventListener("click", function(){ autoCommit.setAttribute("aria-checked", autoCommit.getAttribute("aria-checked")==="true"?"false":"true"); paint(); });
+  autoCommit.addEventListener("keydown", function(e){ if(e.key===" "||e.key==="Enter"){e.preventDefault(); autoCommit.click();} });
+
+  function showToast(msg,kind){
+    toast.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'+msg;
+    toast.style.color = kind==="info"?"var(--info)":"var(--success)";
+    toast.classList.add("on"); anText.style.display="none";
+    clearTimeout(showToast._t); showToast._t=setTimeout(function(){ toast.classList.remove("on"); anText.style.display=""; },3200);
+  }
+
+  runBtn.addEventListener("click", function(){
+    if(!slug.value.trim()){ slug.classList.add("input--err"); slugErr.classList.add("on"); slug.focus(); return; }
+    showToast("Run started · r-"+Math.random().toString(36).slice(2,8));
+  });
+  dryBtn.addEventListener("click", function(){
+    if(!slug.value.trim()){ slug.classList.add("input--err"); slugErr.classList.add("on"); slug.focus(); return; }
+    showToast("Dry run passed · inputs valid, plan rendered","info");
+  });
+
+  paint();
+})();
+</script>
+</body>
+</html>

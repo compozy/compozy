@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGH · Edit provider</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body>
+
+<div class="product" aria-hidden="true">
+  <aside class="product__rail"><div class="product__mark"></div><div class="product__mark"></div><div class="product__mark"></div></aside>
+  <div class="product__main">
+    <div class="product__title"></div><div class="product__sub"></div>
+    <div class="product__grid"><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i></div>
+  </div>
+</div>
+
+<div class="scrim scrim--sheet">
+  <form class="dialog dialog--sheet" role="dialog" aria-modal="true" aria-label="Edit provider" data-od-component="sheet" data-success="Provider changes saved." data-od-id="provider-edit-sheet">
+
+    <!-- HEADER -->
+    <header class="dialog__head" data-od-id="provider-edit-header">
+      <span class="head-icon head-icon--neutral" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3m-2.6-7.4-2.1 2.1M7.7 16.3l-2.1 2.1m0-13.8 2.1 2.1m8.6 9.6 2.1 2.1"/></svg>
+      </span>
+      <div class="head-copy">
+        <div class="eyebrow">Settings · Provider</div>
+        <h1 data-od-id="provider-edit-title">Edit openai</h1>
+        <p>Changes apply to the provider overlay. <b>Stored credentials stay bound</b> — rotate only when replacing them.</p>
+      </div>
+      <button class="icon-button" type="button" data-close aria-label="Close provider editor">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- MODE TOOLBAR -->
+    <div class="modebar" data-od-id="provider-edit-modebar">
+      <div class="pillgroup" role="group" aria-label="Editor mode">
+        <button class="pill" type="button" data-mode="simple" aria-pressed="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M5 12l4-4M5 12l4 4"/></svg>
+          Simple
+        </button>
+        <button class="pill" type="button" data-mode="advanced" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          Advanced
+        </button>
+      </div>
+      <div class="modebar__spacer"></div>
+      <span class="modebar__status" data-od-id="provider-edit-status"><i class="status-dot"></i> authenticated</span>
+    </div>
+
+    <!-- BODY -->
+    <div class="dialog__body">
+
+      <!-- identity + basics -->
+      <div class="sec" data-od-component="form-section" data-od-id="provider-edit-basics">
+        <div class="identity-row" data-od-component="immutable-identity" data-od-id="provider-edit-identity">
+          <span class="identity-row__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3m-2.6-7.4-2.1 2.1M7.7 16.3l-2.1 2.1m0-13.8 2.1 2.1m8.6 9.6 2.1 2.1"/></svg></span>
+          <div class="identity-row__copy">
+            <strong>openai</strong>
+            <span>provider identity is immutable — create a new provider to rename it</span>
+          </div>
+          <span class="identity-row__badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            Locked
+          </span>
+        </div>
+
+        <div class="settings-rows">
+          <div class="settings-row field" data-od-component="settings-field-row">
+            <div class="settings-row__meta">
+              <div class="settings-row__label-line">
+                <label class="settings-row__label" for="display">Display name</label>
+                <span class="settings-row__hint">Optional</span>
+              </div>
+              <p class="settings-row__description">Operator-facing label shown beside the provider id.</p>
+            </div>
+            <div class="settings-row__control">
+              <input id="display" class="input control-md" value="OpenAI" data-od-id="provider-display-edit">
+            </div>
+          </div>
+          <div class="settings-row field" data-od-component="settings-field-row">
+            <div class="settings-row__meta">
+              <div class="settings-row__label-line">
+                <label class="settings-row__label" for="command">Command</label>
+                <span class="settings-row__hint">Overlay</span>
+              </div>
+              <p class="settings-row__description">Executable used to launch the ACP subprocess.</p>
+            </div>
+            <div class="settings-row__control">
+              <input id="command" class="input input--mono control-lg" value="codex" data-od-id="provider-command-edit">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- authentication ownership -->
+      <div class="sec" data-od-component="form-section" data-od-id="provider-edit-auth">
+        <div class="sec__head">
+          <span class="sec__title">Who owns authentication?</span>
+          <span class="sec__sub">Switching modes changes which credential controls AGH may manage.</span>
+        </div>
+        <div class="tpl-grid cols2" data-choice-group="auth-edit" data-od-component="radio-card" data-od-id="provider-edit-auth-group">
+          <button class="tpl" type="button" data-choice data-reveal="edit-native-auth">
+            <span class="tpl__top">
+              <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+              <span class="tpl__name">Native CLI</span>
+              <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            </span>
+            <span class="tpl__desc">The provider owns login and credential state.</span>
+            <span class="tpl__badge b-neutral">Provider-owned</span>
+          </button>
+          <button class="tpl" type="button" data-choice data-reveal="edit-secret-auth" aria-pressed="true">
+            <span class="tpl__top">
+              <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <span class="tpl__name">Bound secret</span>
+              <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            </span>
+            <span class="tpl__desc">AGH injects declared credential slots at launch.</span>
+            <span class="tpl__badge b-info">AGH-managed</span>
+          </button>
+        </div>
+
+        <div id="edit-native-auth" data-conditional="auth-edit" hidden>
+          <div class="notice mt-16" data-od-component="alert" data-auth-status data-od-id="provider-auth-status">
+            <span><strong>Native CLI status.</strong> <span data-auth-status-copy>Not checked for this draft.</span></span>
+            <button class="btn btn--small" type="button" data-auth-refresh>Refresh status</button>
+          </div>
+        </div>
+
+        <div id="edit-secret-auth" data-conditional="auth-edit">
+          <div class="settings-rows mt-16">
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta">
+                <div class="settings-row__label-line">
+                  <span class="settings-row__label">API key</span>
+                  <span class="settings-row__hint">Write-only</span>
+                </div>
+                <p class="settings-row__description">The stored value is never revealed. Rotate only when replacing it.</p>
+              </div>
+              <div class="settings-row__control">
+                <div class="secret" data-editing="false" data-present="true" data-od-component="secret-field">
+                  <span class="secret__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="secret__state">
+                    <strong>Present</strong>
+                    <span>vault:providers/openai/api-key → OPENAI_API_KEY</span>
+                  </div>
+                  <button class="btn btn--small" type="button" data-secret-action="Rotate" data-od-id="provider-rotate-secret">Rotate</button>
+                </div>
+                <div class="secret__editor">
+                  <input class="input input--mono control-lg" type="password" placeholder="Enter replacement value" autocomplete="new-password">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ░░░ ADVANCED ░░░ -->
+      <div class="advanced" hidden>
+        <div class="sec" data-od-component="form-section" data-od-id="provider-edit-runtime">
+          <div class="sec__head">
+            <span class="sec__title">Runtime &amp; models</span>
+            <span class="sec__sub">Provider-specific overrides remain explicit and optional.</span>
+          </div>
+          <div class="settings-rows">
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta">
+                <div class="settings-row__label-line">
+                  <label class="settings-row__label" for="harness">Harness</label>
+                  <span class="settings-row__hint settings-row__hint--req">Required</span>
+                </div>
+                <p class="settings-row__description">Runtime adapter used to launch the provider.</p>
+              </div>
+              <div class="settings-row__control">
+                <select id="harness" class="control-sm" data-od-component="native-select"><option value="acp" selected>acp</option><option value="pi_acp">pi_acp</option></select>
+              </div>
+            </div>
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta">
+                <div class="settings-row__label-line">
+                  <label class="settings-row__label" for="runtime-provider">Runtime provider</label>
+                  <span class="settings-row__hint">Pi</span>
+                </div>
+                <p class="settings-row__description">Downstream provider id used by the selected harness.</p>
+              </div>
+              <div class="settings-row__control">
+                <input id="runtime-provider" class="input input--mono control-md" value="openai">
+              </div>
+            </div>
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta">
+                <div class="settings-row__label-line">
+                  <label class="settings-row__label" for="transport">Transport</label>
+                  <span class="settings-row__hint">Optional</span>
+                </div>
+                <p class="settings-row__description">Provider API family or Pi override transport.</p>
+              </div>
+              <div class="settings-row__control">
+                <input id="transport" class="input input--mono control-md" value="openai">
+              </div>
+            </div>
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta">
+                <div class="settings-row__label-line">
+                  <label class="settings-row__label" for="base-url">Base URL</label>
+                  <span class="settings-row__hint">Optional</span>
+                </div>
+                <p class="settings-row__description">Custom API base URL for Pi-backed model overrides.</p>
+              </div>
+              <div class="settings-row__control">
+                <input id="base-url" class="input input--mono control-lg" type="url" value="https://api.openai.com">
+              </div>
+            </div>
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta">
+                <div class="settings-row__label-line">
+                  <label class="settings-row__label" for="default-model">Default model</label>
+                  <span class="settings-row__hint">Optional</span>
+                </div>
+                <p class="settings-row__description">Used when an agent does not specify a model.</p>
+              </div>
+              <div class="settings-row__control">
+                <input id="default-model" class="input input--mono control-md" value="gpt-5">
+              </div>
+            </div>
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta">
+                <div class="settings-row__label-line">
+                  <label class="settings-row__label" for="curated-models">Curated models</label>
+                  <span class="settings-row__hint">Optional</span>
+                </div>
+                <p class="settings-row__description">One provider-scoped model id per line.</p>
+              </div>
+              <div class="settings-row__control">
+                <textarea id="curated-models" class="textarea textarea--code textarea--short control-lg">gpt-5
+gpt-5-mini</textarea>
+              </div>
+            </div>
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta">
+                <div class="settings-row__label-line">
+                  <label class="settings-row__label" for="env-policy">Env policy</label>
+                  <span class="settings-row__hint settings-row__hint--req">Required</span>
+                </div>
+                <p class="settings-row__description">Daemon environment inheritance for the subprocess.</p>
+              </div>
+              <div class="settings-row__control">
+                <select id="env-policy" class="control-sm" data-od-component="native-select"><option value="filtered">filtered</option><option value="isolated" selected>isolated</option></select>
+              </div>
+            </div>
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta">
+                <div class="settings-row__label-line">
+                  <label class="settings-row__label" for="home-policy">Home policy</label>
+                  <span class="settings-row__hint settings-row__hint--req">Required</span>
+                </div>
+                <p class="settings-row__description">Provider CLI state location policy.</p>
+              </div>
+              <div class="settings-row__control">
+                <select id="home-policy" class="control-sm" data-od-component="native-select"><option value="operator">operator</option><option value="isolated" selected>isolated</option></select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="dialog__foot" data-od-component="dialog-footer" data-od-id="provider-edit-footer">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span>Unchanged credentials remain bound and untouched.</span>
+      </div>
+      <button class="btn btn--outline" type="button" data-close>Cancel</button>
+      <button class="btn btn--primary" type="submit" data-od-id="provider-edit-submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Save changes
+      </button>
+    </footer>
+
+  </form>
+</div>
+
+<div class="closed-state">Provider editor dismissed.</div>
+<div class="toast" data-toast></div>
+<script src="modal-system.js"></script>
+</body>
+</html>

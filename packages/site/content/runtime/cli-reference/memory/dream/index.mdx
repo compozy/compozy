@@ -1,0 +1,39 @@
+---
+title: "agh memory dream"
+description: "Operate Memory v2 dreaming runs"
+---
+
+## agh memory dream
+
+Operate Memory v2 dreaming runs
+
+### Options
+
+```
+  -h, --help   help for dream
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                 | Description                             |
+| ----------------------------------------------------------------------- | --------------------------------------- |
+| [agh memory dream retry](/runtime/cli-reference/memory/dream/retry)     | Retry one failed Memory v2 dreaming run |
+| [agh memory dream show](/runtime/cli-reference/memory/dream/show)       | Show one Memory v2 dreaming run         |
+| [agh memory dream status](/runtime/cli-reference/memory/dream/status)   | Show Memory v2 dreaming runtime status  |
+| [agh memory dream trigger](/runtime/cli-reference/memory/dream/trigger) | Trigger Memory v2 dreaming              |

@@ -7,14 +7,19 @@ settings:
     pre_push_timeout: 30s
     allow_skip_env: SKEEPER_SKIP
 namespaces:
-  - name: compozy
+  - name: agh
     patterns:
-      - .compozy/**
+      - .compozy/tasks/**/*
+      - docs/rfcs/**
+      - docs/_refacs/**
+      - docs/prs/**
+      - docs/ideas/**
+      - docs/proposals/**
       - .codex/ledger/**
       - .codex/plans/**
+      - .codex/loop/**
       - .codex/qa/**
-      - .codex/release-021-qa/**
-      - .codex/tmp/**
-      - .claude/ledger/**
-    exclude:
-      - .compozy/runs/**
+      - .compozy/_archived/**
+      - .compozy/_research/**
+      - docs/qa/evidence/**
+      - docs/tweets/**

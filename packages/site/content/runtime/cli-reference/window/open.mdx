@@ -1,0 +1,54 @@
+---
+title: "agh window open"
+description: "Open a window or restore a minimized window"
+---
+
+## agh window open
+
+Open a window or restore a minimized window
+
+```
+agh window open [flags]
+```
+
+### Options
+
+```
+      --actor-id string       Optional actor identifier
+      --app string            Application route identifier
+      --client string         Connected presentation client ID
+      --desktop string        Destination desktop; resolved from client focus when omitted
+  -h, --help                  help for open
+      --id string             Stable window ID; generated when omitted
+      --instance-key string   Optional application instance key
+      --origin string         Command origin label (default "cli")
+      --pathname string       Absolute application pathname
+      --rect string           Floating rect as x,y,width,height in normalized coordinates
+      --restore string        Restore this minimized window instead of opening a new one
+      --revision uint         Expected workspace revision
+      --search-json string    Route search state as a JSON object
+      --tiled                 Insert beside client focus when possible
+      --workspace string      Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh window open -o json
+```

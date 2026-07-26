@@ -1,0 +1,8 @@
+[extension]
+name = "repository-orientation"
+version = "1.0.0"
+description = "Adds an evidence-backed repository orientation skill"
+min_agh_version = "0.0.9"
+
+[resources]
+skills = ["skills"]

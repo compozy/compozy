@@ -1,0 +1,145 @@
+---
+title: Debug a Failed or Stuck Session
+description: Diagnose AGH sessions by checking daemon health, session status, event history, repair output, and stored runtime files.
+---
+
+This guide gets you from "the session is not behaving" to evidence you can act on. It starts with
+runtime health, then narrows to one session and its durable event trail.
+
+<OperatorNote label="Do not guess from one symptom">
+  A failed prompt, a stopped subprocess, an unhealthy daemon, and a stale resume target look similar
+  from the outside. Check the daemon, the session status, and the event history before changing
+  configuration or deleting anything.
+</OperatorNote>
+
+## 1. Confirm the daemon is reachable
+
+```bash
+agh status
+```
+
+For machine-readable output:
+
+```bash
+agh status -o json
+```
+
+What happened: AGH checked the background daemon through the local runtime control path. If this
+fails, debug the daemon before debugging the session.
+
+Useful follow-up pages:
+
+- [Daemon Operations](/runtime/core/operations/daemon)
+- [Troubleshooting](/runtime/core/operations/troubleshooting)
+- [File Locations](/runtime/core/configuration/file-locations)
+
+## 2. Check global runtime health
+
+```bash
+agh doctor -o json
+```
+
+Look for unhealthy subsystems before focusing on the agent process. Memory indexing, event storage,
+or daemon connectivity problems can make a session look broken even when the provider process is
+not the root cause.
+
+## 3. Inspect the session status
+
+```bash
+agh session status sess_1234 -o json
+```
+
+Check:
+
+- session state
+- agent name and workspace
+- stop reason
+- current prompt state
+- created and updated timestamps
+
+What happened: the daemon returned the current session record, not a reconstructed transcript. Use
+this to learn what AGH thinks the session is doing right now.
+
+## 4. Read the durable event stream
+
+```bash
+agh session events sess_1234
+```
+
+Follow live events when the session is still active:
+
+```bash
+agh session events sess_1234 --follow
+```
+
+What happened: AGH read the append-only session event database. This is the best evidence for
+prompt submission, permission requests, provider messages, tool calls, errors, and stop behavior.
+The CLI follow mode reads raw persisted events; browser live-tail clients use transcript SSE frames
+when they need assembled UI messages.
+
+## 5. Reconstruct the conversation history
+
+```bash
+agh session history sess_1234
+```
+
+Use history when you need to understand the user-visible turn sequence. Use events when you need
+operational detail.
+
+## 6. Run repair when the transcript is interrupted
+
+```bash
+agh session repair sess_1234
+```
+
+What happened: AGH inspected the session transcript and reported whether it can repair interrupted
+state. Repair is for damaged or interrupted transcript state, not a substitute for daemon health
+checks.
+
+## 7. Attach or recap only after the state is understood
+
+```bash
+agh session recap sess_1234
+agh session resume sess_1234
+```
+
+`agh session resume` attaches to an eligible live session. If the session is terminal or not
+attachable, inspect the deterministic recap, history, and repair output before starting new work.
+Read [Resume Attach and Replay](/runtime/core/sessions/resume) before treating attach refusal as a
+data-loss problem.
+
+## Common symptoms
+
+| Symptom                          | First check                                            | Then read                                                 |
+| -------------------------------- | ------------------------------------------------------ | --------------------------------------------------------- |
+| `agh session prompt` hangs       | `agh session events --follow`                          | [Event Streaming](/runtime/core/sessions/events)          |
+| Session is stopped unexpectedly  | `agh session status -o json`                           | [Session Lifecycle](/runtime/core/sessions/lifecycle)     |
+| Web UI is stale                  | `agh status` and `agh doctor`                          | [Web UI](/runtime/core/getting-started/web-ui)            |
+| Attach is refused                | `agh session list --resumable` and `agh session recap` | [Resume Attach and Replay](/runtime/core/sessions/resume) |
+| Agent cannot see project context | `agh workspace info <name>`                            | [Workspace Resolver](/runtime/core/workspaces/resolver)   |
+| Memory is missing                | `agh memory health -o json`                            | [Memory System](/runtime/core/memory/system)              |
+
+## Evidence to collect before filing a bug
+
+Collect output from:
+
+```bash
+agh status -o json
+agh doctor -o json
+agh session status sess_1234 -o json
+agh session events sess_1234
+agh session history sess_1234
+```
+
+Do not include raw secrets, provider API keys, OAuth tokens, or claim tokens in bug reports. AGH
+redacts sensitive runtime fields, but copied terminal context may still include local environment
+details.
+
+## Next steps
+
+- Use [Choose the Right Operator Surface](/runtime/guides/choose-an-operator-surface) when you need
+  the best surface for scripts, agents, or browser integrations.
+- Use [Database Operations](/runtime/core/operations/database) when event or catalog storage is the
+  likely problem.
+- Use [Troubleshooting](/runtime/core/operations/troubleshooting) for daemon, socket, agent, and
+  database failure paths.

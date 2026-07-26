@@ -1,0 +1,710 @@
+---
+title: Develop Extensions
+description: Build custom AGH extensions with manifests, bundled resources, subprocess lifecycle, Host API permissions, and package examples.
+---
+
+An AGH extension is a directory with a manifest and optional runtime code. Resource-only extensions
+package files AGH already knows how to load. Subprocess extensions run code over JSON-RPC and can
+call the daemon through the Host API after capability checks.
+
+Use extensions when a capability should be installed, versioned, enabled, disabled, and inspected as
+one package.
+
+## Extension Directory
+
+```text
+prompt-enhancer/
+  extension.toml
+  package.json
+  dist/
+    index.js
+  skills/
+    review-context/
+      SKILL.md
+```
+
+AGH looks for `extension.toml` first and `extension.json` second. TOML is the common format. A
+manifest may put core metadata at the root or inside `[extension]`; do not define the same core
+field in both places with conflicting values.
+
+## Manifest Core
+
+```toml
+[extension]
+name = "prompt-enhancer"
+version = "0.1.0"
+description = "Adds workspace context to assembled prompts"
+min_agh_version = "0.5.0"
+```
+
+| Field             | Required | Notes                                                                     |
+| ----------------- | -------- | ------------------------------------------------------------------------- |
+| `name`            | yes      | Registry identity. Must match the installed registry row on daemon start. |
+| `version`         | yes      | Semantic version.                                                         |
+| `description`     | no       | Shown in extension metadata.                                              |
+| `min_agh_version` | yes      | Semantic version compared against the current daemon version.             |
+
+## Network Participation Requirements
+
+An extension that needs its bundle-owned work to participate Live must declare that requirement in
+the manifest. The block is top-level, next to `[extension]`:
+
+```toml
+[network_participation]
+required = true
+mode = "live"
+channel_scopes = ["builders", "release"]
+```
+
+| Field            | Required | Notes                                                                                             |
+| ---------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `required`       | yes      | Set to `true` to declare a requirement. `false` cannot carry a mode or channel scopes.            |
+| `mode`           | yes      | Must be `"live"` when the requirement is enabled.                                                 |
+| `channel_scopes` | no       | Named channels the extension may require. Values are trimmed, deduplicated, sorted, and digested. |
+
+AGH hashes the normalized block into the bundle activation's Network requirement digest. Preview
+shows the digest; activation requires explicit operator confirmation. If an extension update
+changes the digest, AGH advances the activation version, clears the prior confirmation, and blocks
+projection until the operator reads the current activation and confirms it with that exact version.
+Declared channels remain inventory: confirmation does not enroll any execution into Live.
+
+## Resource-Only Extensions
+
+Resource-only extensions do not need a persistent subprocess. They become active after AGH loads and
+registers their resources.
+
+```toml
+[extension]
+name = "review-pack"
+version = "0.1.0"
+description = "Review skills, hooks, and MCP helpers"
+min_agh_version = "0.5.0"
+
+[resources]
+skills = ["skills"]
+agents = ["agents"]
+bundles = ["bundles"]
+
+[[resources.hooks]]
+name = "review-session-ready"
+event = "session.post_create"
+mode = "async"
+command = "/usr/bin/env"
+args = ["bash", "{{config_dir}}/hooks/session-ready.sh"]
+
+[resources.mcp_servers.git]
+command = "uvx"
+args = ["mcp-server-git"]
+env = { REPO_ROOT = "{{env:REPO_ROOT}}" }
+```
+
+Resource paths are resolved inside the extension root. `{{config_dir}}` expands to that root.
+`{{env:NAME}}` expands from the daemon process environment.
+
+| Resource    | Manifest field          | Loaded as                                                                     |
+| ----------- | ----------------------- | ----------------------------------------------------------------------------- |
+| Skills      | `resources.skills`      | Markdown skill files parsed like normal `SKILL.md` files.                     |
+| Agents      | `resources.agents`      | Agent definition markdown files.                                              |
+| Hooks       | `resources.hooks`       | Hook declarations with extension metadata.                                    |
+| Bundles     | `resources.bundles`     | Bundle specs that package agents, channels, automation, layouts, and bridges. |
+| MCP servers | `resources.mcp_servers` | Named MCP server declarations.                                                |
+
+## Bundle Profile Agents
+
+Static `resources.agents` entries are always-on extension agents. Use bundle profile agents when
+the agent should exist only while a bundle profile is active.
+
+```text
+marketing-linear/
+  extension.toml
+  bundles/
+    marketing.toml
+  agents/
+    campaign-planner/
+      AGENT.md
+      mcp.json
+      capabilities.toml
+      SOUL.md
+      HEARTBEAT.md
+  layouts/
+    two-up.json
+```
+
+`bundles/marketing.toml`:
+
+```toml
+name = "marketing-linear"
+description = "Marketing team presets with Linear issue tracking"
+
+[[profiles]]
+name = "default"
+description = "Marketing agents, channels, automation, and Linear bridge"
+
+[profiles.channels]
+primary = "marketing"
+
+[[profiles.channels.items]]
+name = "marketing"
+description = "Marketing team coordination"
+
+[[profiles.agents]]
+path = "agents/campaign-planner"
+
+[[profiles.layouts]]
+path = "layouts/two-up.json"
+
+[[profiles.jobs]]
+name = "daily-campaign-sync"
+agent = "campaign-planner"
+prompt = "Summarize open campaign issues and next actions."
+enabled = true
+
+[profiles.jobs.schedule]
+mode = "every"
+interval = "24h"
+```
+
+The `path` is resolved relative to the extension root, must stay inside that root, and must point
+to a directory containing `AGENT.md`. AGH loads that folder through the same agent loader used for
+normal agents, so `mcp.json`, `capabilities.toml`, and `capabilities/` keep the same behavior.
+
+Optional `SOUL.md` and `HEARTBEAT.md` files in the agent folder are packaged as read-only bundle
+defaults. Activating the profile materializes `agent`, `agent.soul`, and `agent.heartbeat`
+resources owned by the bundle activation. AGH uses synthetic diagnostic paths such as
+`.agh/bundles/<activation-id>/agents/<agent>/SOUL.md`; it does not copy package files into a
+writable workspace folder.
+
+Activation fails when a bundled agent name conflicts with an existing visible agent in the target
+scope, or when a bundled job/trigger references an agent that is neither packaged by the profile nor
+available in the existing agent catalog.
+
+Each `profiles.layouts` path must resolve inside the extension root and contain one strict
+`window_layout` JSON resource. AGH validates the resource when the extension loads and again in the
+activation's global or workspace scope. The activation owns the projected layout and removes it on
+deactivation. See [Bundles](/runtime/core/resources/bundles) for the authoring and identity rules.
+
+## Subprocess Extensions
+
+A manifest requires a subprocess when it declares `[subprocess].command`, `capabilities.provides`,
+or `actions.requires`.
+
+```toml
+[capabilities]
+provides = ["prompt.provider"]
+
+[actions]
+requires = ["sessions/list"]
+
+[subprocess]
+command = "node"
+args = ["dist/index.js", "serve"]
+health_check_interval = "30s"
+shutdown_timeout = "10s"
+
+[subprocess.env]
+LOG_LEVEL = "info"
+
+[security]
+capabilities = ["session.read"]
+```
+
+When AGH starts an enabled subprocess extension, it runs this lifecycle:
+
+1. Discover the extension root from the stored manifest path.
+2. Parse `extension.toml` or `extension.json`.
+3. Validate manifest identity, versions, capabilities, actions, security grants, and bridge metadata.
+4. Register static resources: skills, agents, hooks, bundles, and MCP servers.
+5. Launch the subprocess when one is required.
+6. Send an `initialize` JSON-RPC request over stdio.
+7. Start health monitoring.
+8. Mark the extension `active` after successful activation.
+
+The extension process must implement `health_check` and `shutdown`. The daemon also advertises
+`execute_hook` as a daemon request method. The TypeScript SDK binds `initialize`, `health_check`,
+`shutdown`, and `provide_tools`, and lets you register custom handlers.
+
+## Host API Permissions
+
+Host API access is controlled by both method grants and security capabilities.
+
+```toml
+[actions]
+requires = ["sessions/list", "memory/recall"]
+
+[security]
+capabilities = ["session.read", "memory.read"]
+```
+
+| Manifest section        | Purpose                                                                            |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| `capabilities.provides` | Interfaces the extension implements, such as `memory.backend` or `bridge.adapter`. |
+| `actions.requires`      | Host API methods the extension wants to call, such as `sessions/list`.             |
+| `security.capabilities` | Capability grants needed by those methods, such as `session.read`.                 |
+
+### Publish declarative window layouts
+
+A subprocess extension can publish strict window-layout resources through the generic resource Host
+API. Declare the methods, resource capabilities, family, and widest requested scope together:
+
+```toml
+[actions]
+requires = ["resources/list", "resources/get", "resources/snapshot"]
+
+[security]
+capabilities = ["resources.read", "resources.write"]
+
+[resources.publish]
+families = ["window_layouts"]
+max_scope = "workspace"
+```
+
+The manifest family `window_layouts` grants only the `window_layout` resource kind. This example
+requests workspace-scoped publication; use `max_scope = "global"` only when the extension must also
+publish global layouts. The extension source tier, operator policy, and runtime session can narrow the
+request further. `resources/snapshot` replaces that extension source's complete desired-state
+snapshot, so advance `source_version` monotonically and include every layout the source still owns.
+Omitted records are removed.
+
+Every submitted spec passes through the canonical strict codec before persistence. Unknown fields,
+invalid topology, mismatched workspace binding, or an ungranted kind/scope reject the snapshot without
+partially applying it. The Go and TypeScript SDKs use the same generic resource record shape; no
+window-manager-specific SDK method is required.
+
+### Paged collection results
+
+The paged collection methods below return bounded envelopes, not bare arrays. Continue with the
+cursor from the envelope while keeping the same workspace and filters. This is a hard contract:
+extension code must read the collection field and its page metadata together.
+
+| Host API method           | Result envelope                                                 |
+| ------------------------- | --------------------------------------------------------------- |
+| `tasks`                   | `TasksResponse` with `tasks`, `page`, and `facets`              |
+| `automation/jobs`         | `AutomationJobsResult` with `jobs` and `page`                   |
+| `automation/triggers`     | `AutomationTriggersResult` with redacted `triggers` and `page`  |
+| `tasks/inbox`             | `TaskInbox` with `groups`, `page`, facets, and aggregate totals |
+| `network/threads`         | `NetworkThreadsResponse` with `threads` and `page`              |
+| `network/thread/messages` | `NetworkThreadMessagesResponse` with `messages` and `page`      |
+| `network/directs`         | `NetworkDirectRoomsResponse` with `directs` and `page`          |
+| `network/direct/messages` | `NetworkDirectRoomMessagesResponse` with `messages` and `page`  |
+
+The generated TypeScript SDK exports these result types and binds them in `HostAPIMethodMap`, so a
+consumer that still expects an array fails at compile time instead of silently dropping pagination
+metadata.
+
+Important current provide surfaces:
+
+| Provide surface  | AGH calls into the extension with                |
+| ---------------- | ------------------------------------------------ |
+| `memory.backend` | `memory/store`, `memory/recall`, `memory/forget` |
+| `bridge.adapter` | `bridges/deliver`, `bridges/targets/snapshot`    |
+| `model.source`   | `models/list`                                    |
+
+### Clarification from extension tools
+
+A persistent tool-provider extension may declare `clarify/ask` in `actions.requires` and call it
+only while handling an active daemon-issued `tools/call`. The Go SDK keeps the opaque invocation
+authority internal and exposes
+`ToolRequest.AskClarification(ctx, ClarifyQuestion{Question: "...", Choices: []string{"..."}})`.
+The call blocks until the session operator answers, the configured timeout returns the fallback
+sentinel, or the active tool call is canceled.
+
+The daemon binds each invocation to the extension and active session, derives workspace and agent
+scope itself, and removes the binding when the tool call finishes. Extension code supplies only the
+question and optional choices; it cannot select another session or forge invocation authority.
+
+`bridge.adapter` extensions must also declare bridge metadata:
+
+```toml
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "slack"
+display_name = "Slack"
+```
+
+Bridge adapters also return target snapshots through `bridges/targets/snapshot`. The daemon owns
+the target directory, freshness timestamps, persistence, and ambiguity checks; adapters only return
+provider-derived snapshots with immutable canonical routes, display names, types, qualifiers, and
+capabilities.
+
+Bridge adapters are currently a trusted in-tree or local-source path. External bridge authoring is
+not yet a first-class public SDK workflow: the public SDKs do not cover the complete service and
+control contracts, marketplace bridge grants are unavailable, and there is no public bridge
+conformance harness. Follow the [in-tree provider guide](/runtime/core/bridges/adding-a-bridge) only
+when contributing inside the AGH repository; the registry packaging flow below is not, by itself, a
+supported third-party bridge path.
+
+Marketplace extensions run under a stricter policy. They are constrained to read-oriented grants:
+`logs.read`, `memory.read`, `model.read`, `observe.read`, `session.read`, `skills.read`, and
+`tool.read`.
+
+### Model Source Extensions
+
+Extensions that declare the provide capability `model.source` enrich the daemon-owned provider
+model catalog. The daemon owns persistence and merge, so the extension only contributes source
+rows; it cannot rewrite global catalog state.
+
+```toml
+[capabilities]
+provides = ["model.source"]
+
+[actions]
+requires = ["models/list", "models/refresh", "models/status"]
+
+[security]
+capabilities = ["model.read", "model.write"]
+
+[subprocess]
+command = "node"
+args = ["dist/index.js"]
+```
+
+The extension service method `models/list` is dispatched by AGH whenever the catalog refreshes the
+`extension:<slug>` source for a provider the extension declares. The slug is derived from the
+extension name and must match `^[a-z0-9][a-z0-9_-]*$`; manifests that do not normalize cleanly are
+rejected at install time.
+
+| Direction       | Method           | Purpose                                                                      |
+| --------------- | ---------------- | ---------------------------------------------------------------------------- |
+| AGH → extension | `models/list`    | Returns provider model rows for the extension's declared providers.          |
+| Host API call   | `models/list`    | Reads the daemon-owned merged catalog projection, scoped by capability.      |
+| Host API call   | `models/refresh` | Triggers a daemon-owned source refresh; serialized per provider.             |
+| Host API call   | `models/status`  | Reads daemon-owned source status, including `last_refresh` and `last_error`. |
+
+Capability areas align with the Host API authorization layer:
+
+| Method           | Area          | Default in marketplace policy              |
+| ---------------- | ------------- | ------------------------------------------ |
+| `models/list`    | `model.read`  | Allowed (read-oriented grant).             |
+| `models/status`  | `model.read`  | Allowed (read-oriented grant).             |
+| `models/refresh` | `model.write` | Requires explicit grant; marketplace gate. |
+
+Extensions can attach `deprecated`, `hidden`, `featured`, and nullable `release_date` curation
+metadata to their rows. The daemon validates those fields through the same
+[catalog merge and curation policy](/runtime/core/agents/model-catalog); invalid rows produce a
+recorded source status (with redacted `last_error`) instead of corrupting the merged projection.
+Refresh runs under a daemon-enforced deadline using the provider's auth/env/home policy, and refresh
+work for the same provider is
+coalesced — concurrent refreshes return identical source statuses when the in-flight refresh
+finishes.
+
+The in-repository TypeScript SDK exports generated `ProviderModel*`, `ModelCatalogSource*`, and
+`ModelSource*` contracts from the daemon's OpenAPI source. The Go SDK currently exposes the generic
+`HostAPI.Request` boundary rather than generated model-catalog payload types. The TypeScript package
+is a workspace dependency in this repository and is not published by the AGH release workflow; use
+it from a version-matched repository checkout instead of assuming `@agh/extension-sdk` is available
+from a package registry.
+
+### Authored Context Host API
+
+Soul, Heartbeat, and session health are agent-manageable through the Host API behind explicit
+grants. Extensions cannot bypass managed authoring — direct file writes from extension code,
+hooks, tools, MCP sidecars, or bridge adapters are forbidden. Each method is a separate grant so
+read, validate, mutate, history, rollback, status, wake, and health can be granted independently.
+
+```toml
+[actions]
+requires = [
+  "agents/soul/get",
+  "agents/soul/validate",
+  "agents/heartbeat/get",
+  "agents/heartbeat/status",
+  "agents/heartbeat/wake",
+  "sessions/health/get",
+]
+```
+
+| Host API method             | Capability area     | Notes                                                                              |
+| --------------------------- | ------------------- | ---------------------------------------------------------------------------------- |
+| `agents/soul/get`           | Read Soul           | Returns full resolved persona for the named agent (or caller).                     |
+| `agents/soul/validate`      | Validate Soul       | Checks proposed body or current `SOUL.md` without writing.                         |
+| `agents/soul/put`           | Write Soul          | Managed write through the authoring service; requires `expected_digest`.           |
+| `agents/soul/delete`        | Delete Soul         | Managed delete with `expected_digest`.                                             |
+| `agents/soul/history`       | History             | Bounded revision history for Soul.                                                 |
+| `agents/soul/rollback`      | Rollback Soul       | Replays a prior revision through validation/CAS; cannot restore forbidden content. |
+| `agents/heartbeat/get`      | Read Heartbeat      | Returns the latest valid policy snapshot.                                          |
+| `agents/heartbeat/validate` | Validate Heartbeat  | Checks proposed body without writing.                                              |
+| `agents/heartbeat/put`      | Write Heartbeat     | Managed write with `expected_digest`. HTTP `If-Match` is rejected.                 |
+| `agents/heartbeat/delete`   | Delete Heartbeat    | Managed delete with `expected_digest`.                                             |
+| `agents/heartbeat/history`  | History             | Bounded revision history for Heartbeat.                                            |
+| `agents/heartbeat/rollback` | Rollback Heartbeat  | Replays a prior revision through validation/CAS.                                   |
+| `agents/heartbeat/status`   | Status              | Policy + wake state + session health composition.                                  |
+| `agents/heartbeat/wake`     | Manual wake         | Advisory wake for an eligible session; never claims work or renews leases.         |
+| `sessions/health/get`       | Read session health | Returns metadata-only health for one session.                                      |
+
+Write/delete/rollback/wake grants are separate from get/validate/history/status grants, so a
+read-only review extension can ship without ever requesting mutation rights. Marketplace
+extensions may only request the read-oriented grants from this list.
+
+### Authored Context Hooks
+
+Authored context fires typed call-site hooks. They are observation hooks: payloads carry compact
+provenance (snapshot ids, digests, redacted actor/origin) and never include raw `SOUL.md`/
+`HEARTBEAT.md` bodies, raw claim tokens, or full prompt transcripts. Hooks cannot mutate Soul,
+Heartbeat, or wake state.
+
+| Event                             | Sync       | Fires when                                                                                        |
+| --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------- |
+| `agent.soul.snapshot.resolved`    | async only | A session-start or refresh resolves a Soul snapshot.                                              |
+| `agent.soul.mutation.after`       | async only | A managed put/delete/rollback succeeds.                                                           |
+| `agent.heartbeat.policy.resolved` | async only | The Heartbeat resolver materializes a new snapshot.                                               |
+| `agent.heartbeat.wake.before`     | yes        | The wake service is about to send a synthetic wake; sync hooks may deny but cannot mint a token.  |
+| `agent.heartbeat.wake.after`      | async only | A wake decision is recorded (`sent`, `skipped`, `coalesced`, `rate_limited`, or `failed`).        |
+| `session.health.update.after`     | async only | Session health changes state/health/eligibility; coalesced by `session_health_hook_min_interval`. |
+
+### Authored Context Native Tools
+
+AGH exposes three native tools that run through the same managed services. They are
+agent-callable when policy permits, and they reuse the Host API authorization layer so a tool
+call and a JSON-RPC call resolve to the same grants.
+
+| Tool ID                       | Purpose                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| `agh__session_health`         | Read session health, attachability, and wake eligibility for one session.             |
+| `agh__agent_heartbeat_status` | Read Heartbeat policy and wake-state summary for an agent.                            |
+| `agh__agent_heartbeat_wake`   | Request one advisory wake for an eligible session; identical contract to manual wake. |
+
+There is intentionally no `agh__agent_soul` tool — Soul read/validate/write/delete/history/
+rollback flows happen through the dedicated CLI, HTTP, UDS, or Host API surfaces, not through a
+native tool, because Soul does not need an in-prompt invocation surface.
+
+### Authored Context SDK helpers
+
+The in-repository TypeScript SDK exports generated `AgentSoul*`, `AgentHeartbeat*`,
+`SessionHealth*`, and `AuthoredContext*` contracts from the same OpenAPI source as the daemon. The
+Go SDK exposes the Host API method constants and generic request boundary, but does not currently
+ship generated authored-context payload structs. Keep a TypeScript extension on the same repository
+revision as the daemon; for Go, validate local request and response structs against the public API
+contract instead of assuming SDK parity that is not present.
+
+## Practical Example: Prompt Enhancer
+
+This example mirrors the repository's `sdk/examples/prompt-enhancer` pattern and can be built and
+exercised from an AGH repository checkout, where its `package.json` resolves `@agh/extension-sdk`
+with `workspace:*`. It cannot be managed-installed as written: the runtime import remains in the
+built JavaScript, and the workspace dependency is a symlink outside the example root. The managed
+installer rejects runtime dependency symlinks that escape the package boundary. The extension
+packages a `prompt.post_assemble` hook and a persistent subprocess. The hook command is intentionally
+a one-shot process: it reads payload JSON from stdin and writes a `PromptPatch` to stdout. The
+persistent process handles JSON-RPC lifecycle and Host API calls.
+
+`extension.toml`:
+
+```toml
+[extension]
+name = "prompt-enhancer"
+version = "0.1.0"
+description = "Adds workspace context to assembled prompts"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["prompt.provider"]
+
+[actions]
+requires = ["sessions/list"]
+
+[[resources.hooks]]
+name = "workspace-context"
+event = "prompt.post_assemble"
+mode = "sync"
+executor.kind = "subprocess"
+executor.command = "node"
+executor.args = ["dist/index.js", "hook", "prompt_post_assemble"]
+
+[subprocess]
+command = "node"
+args = ["dist/index.js", "serve"]
+
+[security]
+capabilities = ["session.read"]
+```
+
+`src/index.ts`:
+
+```ts
+import { pathToFileURL } from "node:url";
+import {
+  Extension,
+  type ExecuteHookParams,
+  type ExtensionOptions,
+  type PromptPatch,
+} from "@agh/extension-sdk";
+
+function enhance(prompt: string, workspace?: string, workspaceID?: string): PromptPatch {
+  const label = workspace?.trim() || workspaceID?.trim() || "unknown";
+  return {
+    prompt: `[Workspace: ${label}]\n\n${prompt}`,
+  };
+}
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function runHook(name: string): Promise<void> {
+  if (name !== "prompt_post_assemble") {
+    throw new Error(`unsupported hook ${name}`);
+  }
+
+  const payload = JSON.parse(await readStdin()) as {
+    prompt?: string;
+    workspace?: string;
+    workspace_id?: string;
+  };
+
+  process.stdout.write(
+    JSON.stringify(enhance(payload.prompt ?? "", payload.workspace, payload.workspace_id)) + "\n"
+  );
+}
+
+export function createExtension(options: ExtensionOptions = {}): Extension {
+  const extension = new Extension(
+    {
+      name: "prompt-enhancer",
+      version: "0.1.0",
+      capabilities: { provides: ["prompt.provider"] },
+      actions: { requires: ["sessions/list"] },
+      security: { capabilities: ["session.read"] },
+      supported_hook_events: ["prompt.post_assemble"],
+    },
+    options
+  );
+
+  extension.handle(
+    "execute_hook",
+    async (_ctx, params: ExecuteHookParams<"prompt.post_assemble">) => {
+      return enhance(
+        params.payload.prompt ?? "",
+        params.payload.workspace,
+        params.payload.workspace_id
+      );
+    }
+  );
+
+  extension.onReady(async host => {
+    await host.sessions.list({});
+  });
+
+  return extension;
+}
+
+async function main(): Promise<void> {
+  const [mode = "serve", hookName = ""] = process.argv.slice(2);
+  if (mode === "hook") {
+    await runHook(hookName);
+    return;
+  }
+  await createExtension().start();
+}
+
+const entryPoint = process.argv[1];
+if (entryPoint && import.meta.url === pathToFileURL(entryPoint).href) {
+  void main().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+```
+
+The important split is:
+
+| Mode                 | Command                                        | Contract                                               |
+| -------------------- | ---------------------------------------------- | ------------------------------------------------------ |
+| One-shot hook        | `node dist/index.js hook prompt_post_assemble` | stdin payload, stdout patch.                           |
+| Persistent extension | `node dist/index.js serve`                     | JSON-RPC initialize, health check, shutdown, Host API. |
+
+Do not point a hook declaration at a long-running server mode unless that process still reads one
+payload from stdin and exits with a patch on stdout.
+
+## Build the repository example
+
+From the AGH repository root:
+
+```bash
+bun install
+bun run --cwd sdk/examples/prompt-enhancer build
+```
+
+This proves the repository-local SDK/example contract. Do not pass
+`sdk/examples/prompt-enhancer` to `agh extension install` until its runtime SDK dependency has been
+materialized inside the extension package rather than linked to `sdk/typescript` outside it.
+
+## Install a self-contained extension
+
+The install path must contain the manifest, built runtime, and every runtime dependency inside its
+own directory tree. Once an extension satisfies that boundary:
+
+```bash
+EXTENSION_DIR=/absolute/path/to/self-contained-extension
+EXTENSION_NAME=prompt-enhancer
+
+agh extension install "$EXTENSION_DIR" --allow-unverified --yes -o json
+agh extension status "$EXTENSION_NAME" -o json
+```
+
+If `package.json` is present, AGH copies runtime `dependencies` and `optionalDependencies` under
+`node_modules`; development dependencies are not copied. Symlinked runtime dependencies must still
+resolve within the extension root. This prevents a managed package from silently capturing files
+from the surrounding checkout.
+
+## Publish To A Registry
+
+Marketplace installation expects an archive with `extension.toml` at the archive root or under one
+top-level directory:
+
+```text
+prompt-enhancer-0.1.0.tar.gz
+  prompt-enhancer/
+    extension.toml
+    package.json
+    dist/
+      index.js
+```
+
+The installer rejects ambiguous packages, including archive roots that look like both a skill package
+and an extension package. Keep extension packages centered on `extension.toml`.
+
+For GitHub-backed registries, AGH reads release metadata, downloads the selected release asset or
+tarball, computes the install checksum, stores registry metadata, and can later run
+`agh extension update`.
+
+## Runtime Failure And Recovery
+
+The extension supervisor monitors health checks and process exits. On failure, AGH records the
+failure, applies exponential restart backoff, and relaunches the subprocess. After repeated
+consecutive failures, AGH disables the extension, unregisters resources, marks it inactive, and
+stores the last error for `agh extension status`.
+
+Stop and reload behavior:
+
+- `agh extension enable <name>` and `agh extension disable <name>` reload the manager when the
+  daemon is running.
+- Daemon shutdown sends cooperative `shutdown` first, then escalates through the subprocess layer if
+  needed.
+- `Manager.Reload` is a stop followed by a fresh start from registry state.
+
+## Development Checklist
+
+1. Decide whether the extension is resource-only or needs a subprocess.
+2. Write `extension.toml` with `name`, `version`, and `min_agh_version`.
+3. Add resources under `resources.*` and keep paths inside the extension directory.
+4. If using Host API, declare both `actions.requires` and `security.capabilities`.
+5. If providing `bridge.adapter`, declare `[bridge] platform` and `display_name`.
+6. If packaging hooks, make each hook command satisfy stdin payload to stdout patch.
+7. Materialize every runtime dependency inside the trusted extension root, then install that
+   directory with `agh extension install <path> --allow-unverified --yes -o json`.
+8. Inspect with `agh extension status <name>` and `agh hooks list --source config` when hooks are
+   included.
+
+Related references:
+
+- [Install Extensions](/runtime/core/extensions/install)
+- [Hook Declaration Format](/runtime/core/hooks/declaration)
+- [Bridges Overview](/runtime/core/bridges)
+- [Contribute an In-Tree Bridge Provider](/runtime/core/bridges/adding-a-bridge)
+- [Extension CLI Reference](/runtime/cli-reference/extension)

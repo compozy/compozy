@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "settings/settings-hooks.html",
+  "entry": "settings/settings-hooks.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-20T23:18:36.587Z",
+  "updatedAt": "2026-07-20T23:18:36.587Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

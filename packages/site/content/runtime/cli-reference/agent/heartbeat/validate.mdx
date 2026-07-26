@@ -1,0 +1,49 @@
+---
+title: "agh agent heartbeat validate"
+description: "Validate a proposed Heartbeat policy body"
+---
+
+## agh agent heartbeat validate
+
+Validate a proposed Heartbeat policy body
+
+```
+agh agent heartbeat validate <agent> [flags]
+```
+
+### Examples
+
+```
+  agh agent heartbeat validate coder --file HEARTBEAT.md --workspace checkout-api --json
+```
+
+### Options
+
+```
+      --file string        Read authored context body from a file
+  -h, --help               help for validate
+      --stdin              Read authored context body from stdin
+      --workspace string   Resolve the agent from a workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh agent heartbeat validate <agent> -o json
+```

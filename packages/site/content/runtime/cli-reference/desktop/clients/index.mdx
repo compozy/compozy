@@ -1,0 +1,38 @@
+---
+title: "agh desktop clients"
+description: "Manage connected window-manager clients"
+---
+
+## agh desktop clients
+
+Manage connected window-manager clients
+
+### Options
+
+```
+  -h, --help   help for clients
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                             | Description                                     |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------- |
+| [agh desktop clients list](/runtime/cli-reference/desktop/clients/list)             | List connected client-local desktop views       |
+| [agh desktop clients register](/runtime/cli-reference/desktop/clients/register)     | Register or refresh a client-local desktop view |
+| [agh desktop clients unregister](/runtime/cli-reference/desktop/clients/unregister) | Remove a connected client-local view            |

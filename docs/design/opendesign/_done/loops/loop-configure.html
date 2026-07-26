@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AGH · Configure reviews-watch · redesign</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ───────────────────────────────────────────────────────────
+   AGH tokens · canonical set shared with the create-flow redesigns
+   ─────────────────────────────────────────────────────────── */
+:root{
+  color-scheme: dark;
+  --rail:#0c0b0b; --canvas:#131211; --surface:#1a1918; --surface-2:#1c1b1a;
+  --elevated:#232220; --hover:rgba(255,255,255,0.022); --selected:rgba(255,255,255,0.03);
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,0.055); --line-soft:rgba(255,255,255,0.03); --line-strong:rgba(255,255,255,0.09);
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,0.10); --accent-tint-strong:rgba(232,87,42,0.16); --accent-dim:rgba(232,87,42,0.24);
+  --success:#5fbf85; --success-tint:rgba(95,191,133,0.08);
+  --warning:#d6a647; --warning-tint:rgba(214,166,71,0.08);
+  --danger:#e0635a;  --danger-tint:rgba(224,99,90,0.09); --danger-dim:rgba(224,99,90,0.22);
+  --info:#8e8eb5;    --info-tint:rgba(142,142,181,0.12);
+  --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,0.06);
+  --input-fill:rgba(255,255,255,0.025); --badge-fill:rgba(255,255,255,0.05);
+  --btn-fill:rgba(255,255,255,0.04); --btn-fill-hover:rgba(255,255,255,0.07);
+  --scrim:rgba(0,0,0,0.62);
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+  --dur-fast:100ms; --dur:140ms; --dur-slow:200ms; --ease:cubic-bezier(.2,0,0,1);
+  --shadow-overlay:0 24px 48px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.045);
+  --highlight:inset 0 1px 0 rgba(255,255,255,0.035);
+  --focus-ring:0 0 0 1px var(--line-strong);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--fg);
+  font-family:var(--font-sans); font-size:13.5px; line-height:1.5; letter-spacing:-0.006em;
+  font-feature-settings:"cv01","ss03","cv11";
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit}
+::selection{background:var(--accent-dim);color:var(--fg-strong)}
+svg{display:block}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ── faint loop-detail backdrop ── */
+.backdrop{position:fixed;inset:0;display:flex;filter:saturate(.9);opacity:.4;pointer-events:none}
+.bd-rail{width:52px;background:var(--rail);border-right:1px solid var(--line-soft);flex:none}
+.bd-rail span{display:block;width:24px;height:24px;margin:16px auto;border-radius:7px;background:var(--surface)}
+.bd-main{flex:1;padding:26px 40px}
+.bd-h{height:28px;width:210px;border-radius:6px;background:var(--surface);margin-bottom:6px}
+.bd-sub{height:13px;width:340px;border-radius:5px;background:var(--surface-2);margin-bottom:24px}
+.bd-grid{display:grid;grid-template-columns:1fr 300px;gap:26px}
+.bd-block{height:150px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface);margin-bottom:14px}
+.bd-block.sm{height:96px}
+
+/* ── scrim + modal shell (single column) ── */
+.scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:grid;place-items:center;padding:28px}
+.modal{
+  width:min(640px,100%); height:min(844px,93vh);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-overlay); display:grid; grid-template-rows:auto 1fr auto; overflow:hidden;
+}
+.modal__head{display:flex;align-items:flex-start;gap:15px;padding:18px 22px 16px;border-bottom:1px solid var(--line-soft)}
+.head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+  background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.head-icon svg{width:18px;height:18px}
+.head-txt{flex:1;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+.modal__title{font-size:15px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.012em;margin-top:3px}
+.modal__sub{font-size:11.5px;color:var(--subtle);margin-top:4px;display:flex;align-items:center;gap:7px}
+.modal__sub .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.modal__sub .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint)}
+.head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);
+  background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:all var(--dur) var(--ease)}
+.head-close:hover{background:var(--hover);color:var(--fg)}
+.head-close svg{width:16px;height:16px}
+
+/* ── body ── */
+.body{overflow-y:auto;padding:18px 22px 22px;min-height:0}
+.body::-webkit-scrollbar{width:10px}
+.body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06);border-radius:99px;border:3px solid transparent;background-clip:padding-box}
+.intro{font-size:12px;line-height:1.55;color:var(--subtle);padding:11px 12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--surface-2);margin-bottom:22px}
+.intro b{color:var(--fg);font-weight:540}
+.intro a{color:var(--accent-strong)}
+
+.grp{margin-bottom:24px}
+.grp:last-child{margin-bottom:0}
+.grp__label{font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--subtle);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.grp__label .lock{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.03em;color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 6px;margin-left:auto;text-transform:none}
+
+/* verification rows */
+.chk{display:flex;flex-direction:column;border:1px solid var(--line-soft);border-radius:var(--radius-lg);background:var(--surface-2);overflow:hidden}
+.chk__row{display:flex;align-items:center;gap:11px;padding:12px 13px;border-top:1px solid var(--line-soft)}
+.chk__row:first-child{border-top:0}
+.chk__vt{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 6px;border-radius:var(--radius-xs);flex:none;background:var(--badge-fill);color:var(--subtle);min-width:78px;text-align:center}
+.chk__tx{flex:1;min-width:0}
+.chk__tx b{display:block;font-size:12.5px;color:var(--fg-strong);font-weight:520}
+.chk__tx span{font-size:11px;color:var(--subtle)}
+.chk__cmd{margin:-3px 13px 12px 102px;padding-top:0}
+.chk__cmd .input{height:30px}
+
+.switch{flex:none;width:32px;height:18px;border-radius:99px;background:var(--elevated);border:1px solid var(--line);position:relative;cursor:pointer;transition:all var(--dur)}
+.switch::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:all var(--dur) var(--ease)}
+.switch[aria-checked="true"]{background:var(--accent);border-color:transparent}
+.switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--accent-ink)}
+.switch[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+
+.input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);border-radius:var(--radius-md);font-family:var(--font-mono);font-size:12px;outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+.input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+.input::placeholder{color:var(--faint)}
+.input[disabled]{opacity:.5;cursor:not-allowed}
+select.input{appearance:none;-webkit-appearance:none;padding-right:28px;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:10px 10px}
+
+/* re-attempt strategy cards */
+.cards2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.scard{text-align:left;padding:12px 13px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--surface-2);cursor:pointer;transition:all var(--dur) var(--ease);position:relative}
+.scard:hover{border-color:var(--line);background:var(--elevated)}
+.scard[aria-pressed="true"]{background:var(--accent-tint);border-color:transparent;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.scard__top{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.scard__t{font-family:var(--font-mono);font-size:12px;color:var(--fg-strong);font-weight:520}
+.scard[aria-pressed="true"] .scard__t{color:var(--accent-strong)}
+.scard__def{font-size:8.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--success);background:var(--success-tint);border-radius:var(--radius-xs);padding:2px 5px}
+.scard__check{margin-left:auto;width:15px;height:15px;color:var(--accent-strong);opacity:0;transition:opacity var(--dur)}
+.scard[aria-pressed="true"] .scard__check{opacity:1}
+.scard__d{font-size:11px;color:var(--subtle);line-height:1.45}
+
+/* limits */
+.lim-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px}
+.lim__f .ll{font-size:11.5px;font-weight:520;color:var(--fg-strong);margin-bottom:7px}
+.lim__f .l2{display:flex;align-items:center;gap:8px}
+.lim__f .l2 .input{flex:1}
+.lim__f .ceil{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+.lim-note{font-size:11px;color:var(--faint);line-height:1.55;margin-top:14px;padding-top:13px;border-top:1px solid var(--line-soft)}
+
+/* ── footer ── */
+.modal__foot{display:flex;align-items:center;gap:11px;padding:13px 22px;border-top:1px solid var(--line-soft);background:var(--surface)}
+.foot-toast{font-size:11.5px;color:var(--success);display:none;align-items:center;gap:7px}
+.foot-toast svg{width:14px;height:14px;flex:none}
+.foot-toast.on{display:flex}
+.foot-pad{flex:1}
+.btn{height:30px;padding:0 14px;border-radius:var(--radius);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;white-space:nowrap;transition:all var(--dur) var(--ease)}
+.btn:active{transform:translateY(1px)}
+.btn svg{width:14px;height:14px}
+.btn--outline{background:transparent;border-color:var(--line);color:var(--fg)}
+.btn--outline:hover{background:var(--hover);border-color:var(--line-strong)}
+.btn--ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn--ghost:hover{background:var(--hover);color:var(--fg-strong)}
+.btn--primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+.btn--primary:hover{background:var(--accent-hover)}
+
+@media (max-width:640px){.lim-grid,.cards2{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition-duration:1ms!important}}
+</style>
+</head>
+<body>
+
+<!-- faint loop-detail behind the modal -->
+<div class="backdrop" aria-hidden="true">
+  <div class="bd-rail"><span></span><span></span><span></span></div>
+  <div class="bd-main">
+    <div class="bd-h"></div><div class="bd-sub"></div>
+    <div class="bd-grid">
+      <div><div class="bd-block"></div><div class="bd-block sm"></div></div>
+      <div><div class="bd-block sm"></div><div class="bd-block sm"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Configure reviews-watch">
+
+    <!-- HEADER -->
+    <header class="modal__head">
+      <div class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="8" x2="20" y2="8"/><circle cx="9" cy="8" r="2.2"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2.2"/></svg>
+      </div>
+      <div class="head-txt">
+        <div class="eyebrow">Loops · Configure</div>
+        <div class="modal__title">Configure reviews-watch</div>
+        <div class="modal__sub"><span class="mono">reviews-watch</span><span class="dotsep"></span>no-fork tweaks</div>
+      </div>
+      <a class="head-close" href="loop-detail.html" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </a>
+    </header>
+
+    <!-- BODY -->
+    <div class="body">
+      <p class="intro">Adjust how this loop runs without changing its structure. Steps, inputs, node kinds and the goal stay fixed. For those, <a href="loop-editor.html">Fork &amp; edit</a> the body instead.</p>
+
+      <!-- REVIEW GATE -->
+      <div class="grp">
+        <div class="grp__label">Review gate<span class="lock">declared in the loop</span></div>
+        <div class="chk" id="checks">
+          <div class="chk__row">
+            <span class="chk__vt">agent-judge</span>
+            <div class="chk__tx"><b>Issue remediation review</b><span>Every fetched issue has a triage decision and every valid issue has a tested fix in the diff. Runs once after all batches (revise_until_clean). Cannot be removed without a fork.</span></div>
+            <div class="switch" role="switch" aria-checked="true" aria-disabled="true" tabindex="0"></div>
+          </div>
+          <div class="chk__row">
+            <span class="chk__vt">source</span>
+            <div class="chk__tx"><b>Watch freshness</b><span>Provider review must match the current HEAD before a round starts. Poll, settle and confirm are declared on the <span class="mono">new_review</span> source.</span></div>
+            <div class="switch" role="switch" aria-checked="true" aria-disabled="true" tabindex="0"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HUMAN GATE -->
+      <div class="grp">
+        <div class="grp__label">Human approval gate</div>
+        <div class="chk">
+          <div class="chk__row">
+            <span class="chk__vt">human</span>
+            <div class="chk__tx"><b>Review before resolve and push</b><span>Pauses the run as needs-approval for a human decision before the loop resolves provider threads and pushes. Off by default.</span></div>
+            <div class="switch" role="switch" aria-checked="false" tabindex="0"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RE-ATTEMPT -->
+      <div class="grp">
+        <div class="grp__label">Re-attempt strategy</div>
+        <div class="cards2" id="reattempt">
+          <button type="button" class="scard" aria-pressed="true" data-v="failed-only">
+            <div class="scard__top"><span class="scard__t">failed-only</span><span class="scard__def">default</span>
+              <svg class="scard__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <div class="scard__d">Re-runs only the batches that failed the review gate, plus their downstream steps. Handled batches carry forward; the next watch tick re-fetches anything still unresolved.</div>
+          </button>
+          <button type="button" class="scard" aria-pressed="false" data-v="full-body">
+            <div class="scard__top"><span class="scard__t">full-body</span>
+              <svg class="scard__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <div class="scard__d">Re-runs every batch from scratch each generation. Safer when steps share hidden state, but costs more tokens.</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- LIMITS -->
+      <div class="grp">
+        <div class="grp__label">Stop limits<span class="lock">per-loop defaults</span></div>
+        <div class="lim-grid">
+          <div class="lim__f"><div class="ll">Max rounds</div><div class="l2"><input class="input ov" type="number" placeholder="unbounded" data-def="" data-ceil="100" /><span class="ceil">/ 100</span></div></div>
+          <div class="lim__f"><div class="ll">Token budget</div><div class="l2"><input class="input ov" type="number" placeholder="off" data-def="" data-ceil="20000000" /><span class="ceil">/ 20M</span></div></div>
+          <div class="lim__f"><div class="ll">Wall clock (min)</div><div class="l2"><input class="input ov" type="number" placeholder="off" data-def="" data-ceil="10080" /><span class="ceil">/ 7d</span></div></div>
+          <div class="lim__f"><div class="ll">Budget on exceeded</div><div class="l2"><select class="input ov" id="budgetOnExceeded" data-def="escalate"><option value="halt">halt</option><option value="escalate" selected>escalate</option></select></div></div>
+          <div class="lim__f"><div class="ll">No-progress window</div><div class="l2"><input class="input ov" type="number" value="2" data-def="2" data-ceil="10" /><span class="ceil">/ 10</span></div></div>
+          <div class="lim__f"><div class="ll">Max parallel branches</div><div class="l2"><input class="input ov" type="number" value="1" data-def="1" data-ceil="8" /><span class="ceil">/ 8</span></div></div>
+          <div class="lim__f"><div class="ll">Gate max revisions</div><div class="l2"><input class="input ov" type="number" value="3" data-def="3" data-ceil="10" /><span class="ceil">/ 10</span></div></div>
+        </div>
+        <p class="lim-note">This loop watches until clean, so its iteration cap defaults to unbounded; set <b>Max rounds</b> to cap it (0 or blank = unbounded). Batches run sequentially by default; <b>Max parallel branches</b> (fan_out_width) raises concurrency once worktree isolation ships, bounded by the max_fan_out ceiling of 64. Each value is bounded by the daemon ceiling, a hard backstop that can't be raised here. Token and wall-clock budgets are opt-in and off by default (0 = unlimited); set budgets are enforced as a hard ceiling, checked before each node dispatch and at each generation boundary. When a budget is exceeded, halt ends the run as exhausted and escalate (this loop's default) pauses it as needs-approval for a human decision. Cost in USD is a display-only estimate, never a cap.</p>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="modal__foot">
+      <button class="btn btn--ghost" id="resetBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>Reset to defaults</button>
+      <span class="foot-toast" id="footToast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Saved. Applies to future runs.</span>
+      <span class="foot-pad" id="footPad"></span>
+      <a class="btn btn--outline" href="loop-detail.html">Cancel</a>
+      <button class="btn btn--primary" id="saveBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Save configuration</button>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // switches (incl. command-field enable/disable)
+  document.querySelectorAll(".switch").forEach(function(sw){
+    function toggle(){
+      if(sw.getAttribute("aria-disabled")==="true") return;
+      var on = sw.getAttribute("aria-checked")==="true";
+      sw.setAttribute("aria-checked", on?"false":"true");
+      var cmd = sw.getAttribute("data-cmd");
+      if(cmd){ var inp=document.getElementById(cmd); if(inp){ inp.disabled = on; } }
+    }
+    sw.addEventListener("click", toggle);
+    sw.addEventListener("keydown", function(e){ if(e.key===" "||e.key==="Enter"){e.preventDefault(); toggle();} });
+  });
+
+  // re-attempt cards
+  document.querySelectorAll("#reattempt .scard").forEach(function(c){
+    c.addEventListener("click", function(){
+      document.querySelectorAll("#reattempt .scard").forEach(function(x){x.setAttribute("aria-pressed", x===c?"true":"false");});
+    });
+  });
+
+  // limit clamps
+  document.querySelectorAll(".ov").forEach(function(inp){
+    inp.addEventListener("input", function(){
+      var ceil=parseInt(inp.getAttribute("data-ceil"),10);
+      if(ceil && parseInt(inp.value,10)>ceil){ inp.value=ceil; }
+    });
+  });
+
+  function flash(msg){
+    var t=document.getElementById("footToast"), pad=document.getElementById("footPad");
+    t.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'+msg;
+    t.classList.add("on"); pad.style.display="none";
+    clearTimeout(flash._t); flash._t=setTimeout(function(){ t.classList.remove("on"); pad.style.display=""; },3000);
+  }
+
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    document.querySelectorAll(".ov").forEach(function(inp){ inp.value=inp.getAttribute("data-def"); });
+    document.querySelectorAll("#reattempt .scard").forEach(function(x){x.setAttribute("aria-pressed", x.getAttribute("data-v")==="failed-only"?"true":"false");});
+    flash("Reset to loop defaults.");
+  });
+  document.getElementById("saveBtn").addEventListener("click", function(){ flash("Saved. Applies to future runs."); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGH DS · 03 Components</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<style>
+body{background:var(--canvas);overflow-y:auto}
+.doc{max-width:1080px;margin:0 auto;padding:0 32px 120px}
+.docnav{
+  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:2px;
+  margin:0 -32px 40px;padding:10px 32px;
+  background:color-mix(in srgb,var(--canvas) 86%,transparent);
+  backdrop-filter:blur(14px);border-bottom:1px solid var(--line);
+}
+.docnav__brand{display:flex;align-items:center;gap:8px;margin-right:14px;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+.docnav__brand i{width:16px;height:16px;border-radius:5px;background:var(--accent);display:inline-block}
+.docnav a{font-size:12px;font-weight:500;color:var(--muted);padding:5px 9px;border-radius:var(--radius);text-decoration:none}
+.docnav a:hover{color:var(--fg);background:var(--row-hover)}
+.docnav a[aria-current="page"]{color:var(--fg-strong);background:var(--row-selected)}
+.hero{padding:48px 0 8px}
+.hero .eyebrow{color:var(--accent-strong);letter-spacing:.1em}
+.hero h1{font-size:26px;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);margin:8px 0 10px}
+.hero p{font-size:13.5px;line-height:1.6;color:var(--muted);max-width:70ch}
+.sec{margin-top:52px}
+.sec__head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.sec__num{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+.sec__head h2{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
+.sec>p{font-size:13px;line-height:1.6;color:var(--muted);max-width:76ch;margin-bottom:14px}
+.stage{padding:22px;background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+.stage--canvas{background:var(--canvas)}
+.row-demo{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.row-demo+.row-demo{margin-top:14px}
+.lbl{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);width:100%;margin-bottom:-4px}
+.spec-note{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin:10px 2px 0}
+.spec{width:100%;border-collapse:collapse;font-size:12.5px}
+.spec th{text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+.spec td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--muted);vertical-align:top}
+.spec td:first-child{color:var(--fg);white-space:nowrap}
+.spec code{font-size:11px;color:var(--fg);background:var(--badge-fill);border-radius:3px;padding:1px 5px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+@media (max-width:860px){.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="doc" data-od-id="ds-components">
+  <nav class="docnav" data-od-id="ds-nav">
+    <span class="docnav__brand"><i></i>AGH DS</span>
+    <a href="index.html">Overview</a>
+    <a href="foundations.html">01 Foundations</a>
+    <a href="os-shell.html">02 OS Shell</a>
+    <a href="components.html" aria-current="page">03 Components</a>
+    <a href="patterns.html">04 Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">AGH Design System · Chapter 03</p>
+    <h1>Components</h1>
+    <p>Window-content vocabulary — every class here ships in <code class="mono">ds-core.css</code> and mirrors an
+    <code class="mono">@agh/ui</code> primitive. <b>Reuse before create:</b> in production code import from
+    <code class="mono">@agh/ui</code>; in prototypes copy these classes. Domain variants take domain-prefixed
+    names; never fork a parallel geometry.</p>
+  </header>
+
+  <!-- 01 SIGNAL -->
+  <section class="sec" id="signal" data-od-id="sec-signal">
+    <div class="sec__head"><span class="sec__num">01</span><h2>Signal &amp; status</h2></div>
+    <p>State is carried by dots, shapes and tinted pills — color is never decoration. Session states pair
+    color with a distinct <b>shape</b>: circle (running/idle), diamond (waiting), rounded square (failed),
+    hollow ring (stopped).</p>
+    <div class="stage">
+      <div class="lbl">signal dots ·d</div>
+      <div class="row-demo">
+        <span class="d d--run d--pulse"></span><span style="font-size:11px;color:var(--muted)">running (pulse)</span>
+        <span class="d d--ok"></span><span style="font-size:11px;color:var(--muted)">ok</span>
+        <span class="d d--needs"></span><span style="font-size:11px;color:var(--muted)">needs you</span>
+        <span class="d d--fail"></span><span style="font-size:11px;color:var(--muted)">failed</span>
+        <span class="d d--idle"></span><span style="font-size:11px;color:var(--muted)">idle</span>
+      </div>
+      <div class="lbl" style="margin-top:16px">session status shapes ·status-dot</div>
+      <div class="row-demo">
+        <span data-status="running" style="display:inline-flex;align-items:center;gap:8px"><span class="status-dot"></span><span style="font-size:11px;color:var(--accent-strong)">running</span></span>
+        <span data-status="idle" style="display:inline-flex;align-items:center;gap:8px"><span class="status-dot"></span><span style="font-size:11px;color:var(--muted)">idle</span></span>
+        <span data-status="waiting-for-auth" style="display:inline-flex;align-items:center;gap:8px"><span class="status-dot"></span><span style="font-size:11px;color:var(--warning)">waiting</span></span>
+        <span data-status="failed" style="display:inline-flex;align-items:center;gap:8px"><span class="status-dot"></span><span style="font-size:11px;color:var(--danger)">failed</span></span>
+        <span data-status="stopped" style="display:inline-flex;align-items:center;gap:8px"><span class="status-dot"></span><span style="font-size:11px;color:var(--muted)">stopped</span></span>
+      </div>
+      <div class="lbl" style="margin-top:16px">pills · tones (19px, tint bg + tone ink)</div>
+      <div class="row-demo">
+        <span class="pill"><span class="dot"></span>neutral</span>
+        <span class="pill" data-tone="accent"><span class="dot"></span>Running</span>
+        <span class="pill" data-tone="success">Ready</span>
+        <span class="pill" data-tone="warning">Invalid</span>
+        <span class="pill" data-tone="danger">Failed</span>
+        <span class="pill" data-tone="info">sessions</span>
+        <span class="pill" data-mono="true">v0.15.1</span>
+      </div>
+      <div class="lbl" style="margin-top:16px">tags · badges · counts</div>
+      <div class="row-demo">
+        <span class="tag">custom</span>
+        <span class="bindbadge">trigger · schedule</span>
+        <span class="count-chip">128</span>
+        <span class="status-pill status-ok"><span class="d d--ok"></span>Connected</span>
+        <span class="provchip">session.timeout_seconds</span>
+        <span class="agent-chip">WG</span>
+        <span class="mkt-kind">skill</span>
+        <span class="mkt-installed"><svg viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Installed</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 BUTTONS -->
+  <section class="sec" id="buttons" data-od-id="sec-buttons">
+    <div class="sec__head"><span class="sec__num">02</span><h2>Buttons</h2></div>
+    <p>26px default, 22px small, radius 8. One primary per screen — accent bg + <code class="mono">--accent-ink</code>
+    text + inset highlight. Destructive never competes with primary. Overflow is the last action, always
+    icon-only with a label.</p>
+    <div class="stage">
+      <div class="row-demo">
+        <button class="btn btn--primary">New task</button>
+        <button class="btn">Secondary</button>
+        <button class="btn btn--ghost">Ghost</button>
+        <button class="btn btn--destructive">Delete</button>
+        <button class="btn" disabled>Disabled</button>
+        <button class="btn btn--icon" aria-label="More">···</button>
+        <button class="btn btn--sm btn--primary">Save</button>
+        <button class="btn btn--sm">Cancel</button>
+        <button class="runbtn"><svg viewBox="0 0 12 12"><path d="M3 2.2v7.6L9.6 6z" fill="currentColor"/></svg>Run</button>
+      </div>
+    </div>
+    <p class="spec-note">btn 26 · pad 0 10 · 12/500 · svg 14 — sm 22 · 11 — icon 26sq — active translateY(1px) — runbtn hovers to accent fill</p>
+  </section>
+
+  <!-- 03 FIELDS -->
+  <section class="sec" id="fields" data-od-id="sec-fields">
+    <div class="sec__head"><span class="sec__num">03</span><h2>Fields &amp; inputs</h2></div>
+    <p>Three heights, three jobs: <b>28px</b> search (context strip / toolbars, <code class="mono">/</code> focuses),
+    <b>36px</b> form input (modals, forms — production <code class="mono">--height-input</code>),
+    <b>32px</b> <code class="mono">.ctl</code> inline row control (settings rows only). Keyboard focus gets the
+    2px ring; pointer focus only strengthens the border.</p>
+    <div class="stage">
+      <div class="row-demo">
+        <label class="field field-search">
+          <svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input placeholder="Search tasks…" aria-label="Search tasks">
+          <span class="kbd">/</span>
+        </label>
+        <input class="input" style="max-width:220px" placeholder="Display name" aria-label="Display name">
+        <input class="ctl ctl--num" value="120" aria-label="Timeout"> <span class="unit">seconds</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 FILTERS -->
+  <section class="sec" id="filters" data-od-id="sec-filters">
+    <div class="sec__head"><span class="sec__num">04</span><h2>Filter chips</h2></div>
+    <p>Segmented chip: <b>label · operator · value · ×</b> (22px, collapsed inner borders). One chip per
+    field, AND across chips. Facets live here — never as kind-tab strips, never double-encoded in a pill-group.</p>
+    <div class="stage">
+      <div class="row-demo">
+        <div class="filters" role="group" aria-label="Active filters">
+          <span class="filter-chip">
+            <span class="filter-chip__label">status</span>
+            <button class="filter-chip__op">is</button>
+            <span class="filter-chip__val">running</span>
+            <button class="filter-chip__x" aria-label="Remove status filter"><svg viewBox="0 0 12 12"><path d="m3 3 6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+          </span>
+        </div>
+        <button class="btn btn--ghost btn--sm">+ Filter</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 PILL-GROUP + TABS -->
+  <section class="sec" id="toggles" data-od-id="sec-toggles">
+    <div class="sec__head"><span class="sec__num">05</span><h2>Pill-group &amp; tabs</h2></div>
+    <p>Pill-group = ephemeral view state (Rows|Cards, scopes) — recessed track, elevated active segment,
+    <b>never accent-filled</b>. Underline tabs = content lanes: 30px compact <code class="mono">.tabbar</code>
+    inside windows, 40px <code class="mono">.lane-tabs</code> on detail pages. Route peers (List · Kanban)
+    are window-head tabs (<code class="mono">.w2-tabs</code>, chapter 02) — not content tabs.</p>
+    <div class="stage">
+      <div class="row-demo">
+        <div class="pill-group" role="group" aria-label="View mode">
+          <button class="pill-group__item is-on" aria-pressed="true"><svg viewBox="0 0 14 14"><path d="M2 3.5h10M2 7h10M2 10.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Rows</button>
+          <button class="pill-group__item" aria-pressed="false"><svg viewBox="0 0 14 14"><rect x="2" y="2" width="4.4" height="4.4" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="7.6" y="2" width="4.4" height="4.4" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="7.6" width="4.4" height="4.4" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="7.6" y="7.6" width="4.4" height="4.4" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>Cards</button>
+        </div>
+        <div class="pill-group" role="group" aria-label="Scope">
+          <button class="pill-group__item is-on" aria-pressed="true">Marketplace</button>
+          <button class="pill-group__item" aria-pressed="false">Installed <span class="mono">3</span></button>
+        </div>
+      </div>
+      <div class="row-demo" style="margin-top:18px">
+        <div class="tabbar" role="tablist" style="flex:1">
+          <button class="tab is-on" role="tab" aria-selected="true">Marketplace</button>
+          <button class="tab" role="tab" aria-selected="false">Installed <span class="mono">3</span></button>
+        </div>
+      </div>
+      <div class="row-demo">
+        <div class="lane-tabs" role="tablist" style="flex:1">
+          <button class="lane-tab is-on" role="tab" aria-selected="true">Overview</button>
+          <button class="lane-tab" role="tab" aria-selected="false">Runs <span class="count">2</span></button>
+          <button class="lane-tab" role="tab" aria-selected="false">Activity</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 SWITCH -->
+  <section class="sec" id="switch" data-od-id="sec-switch">
+    <div class="sec__head"><span class="sec__num">06</span><h2>Switch</h2></div>
+    <p>32×18, knob 14, travel 14 — production geometry, verify-locked. On = accent track. A switch means
+    the change applies <b>immediately</b>; draft settings use the save bar instead.</p>
+    <div class="stage"><div class="row-demo">
+      <button class="switch" role="switch" aria-checked="false" aria-label="Off"><span class="knob"></span></button>
+      <button class="switch is-on" role="switch" aria-checked="true" aria-label="On"><span class="knob"></span></button>
+    </div></div>
+  </section>
+
+  <!-- 07 LIST ROWS -->
+  <section class="sec" id="rows" data-od-id="sec-rows">
+    <div class="sec__head"><span class="sec__num">07</span><h2>List rows</h2></div>
+    <p>Full inventory row: grid <code class="mono">34px · 1fr · auto</code> — neutral icon well, mono name +
+    tags + slug, one truncated description, dot-separated meta; trail = stat block + pill + action.
+    Compact rows (36px single-line) serve dense secondary lists inside windows. Lists assume many items:
+    hairline separators, hover glaze, color only as state.</p>
+    <div class="stage stage--canvas" style="padding:0;overflow:hidden">
+      <div class="list-shell" style="border:0;border-radius:0">
+        <div class="listing-row" data-od-id="row-loop">
+          <span class="listing-row__icon"><svg viewBox="0 0 20 20"><path d="M4 10a6 6 0 0 1 10.4-4.1M16 10a6 6 0 0 1-10.4 4.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 3v3h3M6 17v-3H3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div class="listing-row__main">
+            <div class="listing-row__name"><b>nightly-triage</b><span class="tag">custom</span><span class="listing-row__slug">loops/nightly-triage</span></div>
+            <p class="listing-row__desc">Sweeps open sessions, files failures as tasks and posts a digest.</p>
+            <div class="listing-row__meta"><span class="k">delivery</span><span>every day · 02:00</span><span class="bindbadge">trigger · schedule</span></div>
+          </div>
+          <div class="listing-row__trail">
+            <div class="listing-row__stat"><span class="listing-row__stat-v">94%</span><span class="listing-row__stat-l">28 runs · 30d</span></div>
+            <span class="pill" data-tone="success">Ready</span>
+            <button class="runbtn"><svg viewBox="0 0 12 12"><path d="M3 2.2v7.6L9.6 6z" fill="currentColor"/></svg>Run</button>
+          </div>
+        </div>
+        <div class="listing-row" data-selected data-od-id="row-loop-selected">
+          <span class="listing-row__icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6.5V10l2.4 2.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <div class="listing-row__main">
+            <div class="listing-row__name"><b>release-watch</b><span class="listing-row__slug">loops/release-watch</span></div>
+            <p class="listing-row__desc">Watches the release PR and re-runs the QA charter on new pushes.</p>
+          </div>
+          <div class="listing-row__trail">
+            <span class="pill" data-tone="accent"><span class="dot"></span>Running</span>
+            <button class="btn btn--icon btn--ghost" aria-label="More">···</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="stage stage--canvas" style="margin-top:14px">
+      <ul class="list">
+        <li><span class="d d--run d--pulse"></span><span class="row-title">deploy preview #219</span><span class="row-meta">2m 40s</span></li>
+        <li><span class="d d--ok"></span><span class="row-title">sync knowledge base</span><span class="row-meta">09:41</span></li>
+      </ul>
+      <p class="spec-note">compact row — 36px, dot + title + mono meta, actions reveal on hover</p>
+    </div>
+  </section>
+
+  <!-- 08 CARDS -->
+  <section class="sec" id="cards" data-od-id="sec-cards">
+    <div class="sec__head"><span class="sec__num">08</span><h2>Cards</h2></div>
+    <p>Borderless: canvas-soft at rest → elevated on hover, no outline, no shadow. Head (24px icon well +
+    mono title), eyebrow under the title (relative date / kind · slug), optional 2-line description,
+    footer split by a hairline: type pills left, action right. Marketplace adds the kind badge and the
+    Installed state.</p>
+    <div class="stage stage--canvas">
+      <div class="listing-card-grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+        <article class="listing-card" data-od-id="card-skill">
+          <div class="listing-card__head">
+            <span class="listing-card__icon"><svg viewBox="0 0 20 20"><path d="M10 3.5 4 7v6l6 3.5L16 13V7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
+            <div class="listing-card__title"><b>web_search</b><div class="listing-card__eyebrow">updated may 30 · <span class="mono-slug">skills/web-search</span></div></div>
+          </div>
+          <p class="listing-card__desc">Query the web and return ranked, cited results to the session context.</p>
+          <div class="listing-card__foot">
+            <div class="listing-card__foot-meta"><span class="mkt-kind">skill</span><span class="pill" data-mono="true">v2.1</span></div>
+            <button class="btn btn--sm">Install</button>
+          </div>
+        </article>
+        <article class="listing-card" data-od-id="card-mcp">
+          <div class="listing-card__head">
+            <span class="listing-card__icon"><svg viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 9.5 8.5 11l-2 1.5M10.5 12.5h3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <div class="listing-card__title"><b>github-mcp</b><div class="listing-card__eyebrow">updated jun 12 · <span class="mono-slug">mcp/github</span></div></div>
+          </div>
+          <p class="listing-card__desc">Issues, PRs and checks over the GitHub API as MCP tools.</p>
+          <div class="listing-card__foot">
+            <div class="listing-card__foot-meta"><span class="mkt-kind">mcp</span></div>
+            <span class="mkt-installed"><svg viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Installed</span>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 KPI / PANEL / VIZ -->
+  <section class="sec" id="data" data-od-id="sec-data">
+    <div class="sec__head"><span class="sec__num">09</span><h2>KPI · panel · runcard · viz</h2></div>
+    <p>Every widget maps to persisted daemon data — nothing invented to fill a layout. Viz ink is neutral
+    (<code class="mono">--viz-*</code>); signal colors never chart magnitude. Paired panels close flush —
+    absorb height with real content, never air. Live runcards keep the standard border: running state is
+    the pulsing dot + pill, <b>never an accent border</b>.</p>
+    <div class="stage stage--canvas">
+      <div class="kpis" style="margin-bottom:14px">
+        <div class="kpi"><span class="kpi__v mono">34</span><span class="kpi__l">runs today</span></div>
+        <div class="kpi"><span class="kpi__v mono">92%</span><span class="kpi__l">success</span></div>
+        <div class="kpi"><span class="kpi__v mono">$4.12</span><span class="kpi__l">cost today</span></div>
+        <div class="kpi"><span class="kpi__v mono">3</span><span class="kpi__l">active sessions</span></div>
+      </div>
+      <section class="panel">
+        <header class="panel-h"><h3>Working now</h3><span class="livebadge"><span class="d d--run d--pulse"></span>live</span></header>
+        <div class="runcards">
+          <div class="runcard">
+            <div style="min-width:0">
+              <div class="runcard__title"><span class="d d--run d--pulse"></span>Polish checkout flow<span class="kind">session</span></div>
+              <p class="runcard__sub">webgen · fixing focus ring clipping in the button row</p>
+            </div>
+            <span class="runcard__elapsed">12:41</span>
+          </div>
+        </div>
+      </section>
+      <section class="panel" style="margin-top:10px">
+        <header class="panel-h"><h3>Outcomes</h3><span class="prov">task runs · last 14 days</span></header>
+        <div class="bars" aria-hidden="true">
+          <span style="height:36%"></span><span style="height:52%"></span><span style="height:44%"></span><span style="height:70%"></span><span style="height:58%"></span><span style="height:64%"></span><span style="height:40%"></span><span style="height:76%"></span><span style="height:66%"></span><span style="height:82%"></span><span style="height:57%"></span><span style="height:90%"></span><span style="height:73%"></span><span style="height:61%"></span>
+        </div>
+        <div class="meter" style="margin-top:12px"><span class="meter-fill" style="width:38%"></span></div>
+        <p class="prov" style="margin-top:6px">network budget · $1.9 of $5 · resets Mon</p>
+      </section>
+    </div>
+    <p class="spec-note">kpi value 17/600 in windows · 24/620 hero (.kpi--lg) — bars 64h viz-bar — meter 6h — panel radius 10</p>
+  </section>
+
+  <!-- 10 ATTENTION -->
+  <section class="sec" id="attention" data-od-id="sec-attention">
+    <div class="sec__head"><span class="sec__num">10</span><h2>Attention rows (Needs you / approvals)</h2></div>
+    <p>The 14px spine grid: dot gutter · text · time · actions. Same anatomy on the dashboard "Needs you"
+    zone and in the menu-bar approvals bell. Approve is the accent action; resolved rows tint success.</p>
+    <div class="stage stage--canvas" style="padding:8px 12px">
+      <div class="att">
+        <div class="att__row">
+          <span class="d d--needs" style="margin-top:5px"></span>
+          <div>
+            <p class="att__head"><b>webgen</b> wants to run a shell command</p>
+            <p class="att__text"><code>bunx turbo run build --filter=./web</code></p>
+          </div>
+          <div class="att__actions"><button class="btn btn--sm btn--primary">Approve</button><button class="btn btn--sm btn--ghost">Deny</button></div>
+        </div>
+        <div class="att__row">
+          <span class="d d--needs" style="margin-top:5px"></span>
+          <div>
+            <p class="att__head"><b>triage</b> needs provider auth to continue</p>
+            <p class="att__text">OpenRouter key expired for workspace <b>agh</b>.</p>
+          </div>
+          <div class="att__actions"><button class="btn btn--sm btn--primary">Re-auth</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 SESSION LIST -->
+  <section class="sec" id="sessions" data-od-id="sec-sessions">
+    <div class="sec__head"><span class="sec__num">11</span><h2>Session lists</h2></div>
+    <p>Recent view: two-line rows (title + agent · state, mono time right). All-sessions view: 28px
+    single-line rows under sticky agent group headers with hairline separators and per-agent collapse
+    (<code class="mono">data-collapsed</code> animates <code class="mono">grid-template-rows</code>, persisted
+    in localStorage). Neutral monogram chips — the status shape alone carries state.</p>
+    <div class="stage stage--canvas" style="max-width:340px">
+      <div class="agent-group">
+        <button class="agent-group__head" aria-expanded="true">
+          <span class="agent-avatar">WG</span><span class="agent-group__name">webgen</span>
+          <span class="agent-group__count">3</span>
+          <svg class="disclosure-icon" viewBox="0 0 12 12"><path d="m4 2.5 4 3.5-4 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="agent-group__body"><div class="session-list">
+          <button class="session-row" data-status="running"><span class="status-dot"></span><span class="session-row__body"><span class="session-row__title">Polish checkout flow</span></span><span class="session-row__time">2m</span></button>
+          <button class="session-row" data-status="waiting-for-auth"><span class="status-dot"></span><span class="session-row__body"><span class="session-row__title">Migrate settings screens</span></span><span class="session-row__time">18m</span></button>
+          <button class="session-row" data-status="idle"><span class="status-dot"></span><span class="session-row__body"><span class="session-row__title">Refactor filter hooks</span></span><span class="session-row__time">1h</span></button>
+        </div></div>
+      </div>
+      <div class="agent-group">
+        <button class="agent-group__head" aria-expanded="false">
+          <span class="agent-avatar">TR</span><span class="agent-group__name">triage</span>
+          <span class="agent-group__count">2</span>
+          <svg class="disclosure-icon" viewBox="0 0 12 12"><path d="m4 2.5 4 3.5-4 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 SETTINGS ROWS -->
+  <section class="sec" id="srows" data-od-id="sec-srows">
+    <div class="sec__head"><span class="sec__num">12</span><h2>Settings vocabulary</h2></div>
+    <p>One row = one decision, stated as policy in plain language — mechanism keys live in the single
+    Advanced fold as <code class="mono">.provchip</code>. Six row types: switch (immediate), select, number,
+    action, link, read-only. Runtime facts are non-editable <code class="mono">.tiles</code>. Draft pages get
+    the floating save bar; per-item surfaces get sheets; switches save themselves.</p>
+    <div class="stage stage--canvas" style="display:flex;flex-direction:column;gap:14px">
+      <div class="panelbox">
+        <div class="srow">
+          <div class="srow__main"><p class="srow__label">Confirm shell commands</p><p class="srow__desc">Agents ask before running anything outside the sandbox.</p></div>
+          <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Confirm shell commands"><span class="knob"></span></button></div>
+        </div>
+        <div class="srow">
+          <div class="srow__main"><p class="srow__label">End idle sessions after</p><p class="srow__desc">Idle sessions release their runtime and can be resumed later.</p></div>
+          <div class="srow__ctl"><input class="ctl ctl--num" value="120" aria-label="Idle timeout"><span class="unit">minutes</span></div>
+        </div>
+        <div class="srow srow--link" tabindex="0" role="link">
+          <div class="srow__main"><p class="srow__label">Manage skills in the Marketplace</p><p class="srow__desc">Install, update and enable skills per workspace.</p></div>
+          <div class="srow__ctl"><svg class="chev" viewBox="0 0 14 14"><path d="m5 3 4.5 4L5 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div class="srow">
+          <div class="srow__main"><p class="srow__label">Daemon version</p><p class="srow__desc">Local runtime this desktop is attached to.</p></div>
+          <div class="srow__ctl"><span class="srow__value mono">0.15.1 · 127.0.0.1:2123</span></div>
+        </div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><p class="tile__l">Socket</p><p class="tile__v"><span class="d d--ok"></span>uds · connected</p></div>
+        <div class="tile"><p class="tile__l">Active sessions</p><p class="tile__v mono">3</p></div>
+      </div>
+      <div class="notice">
+        <svg viewBox="0 0 16 16"><path d="M8 2.2 15 13.5H1z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6.5v3.2M8 11.6v.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span><b>Restart required.</b> Network changes apply on the next daemon start; peers keep the old config until then.</span>
+        <span class="notice__actions"><button class="btn btn--ghost btn--sm">Not now</button><button class="btn btn--sm">Restart daemon</button></span>
+      </div>
+      <div class="savebar" style="position:relative;bottom:auto">
+        <span class="savebar__state"><span class="d d--needs"></span>Unsaved changes</span>
+        <button class="btn btn--ghost">Discard</button>
+        <button class="btn btn--primary">Save changes</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 METER + CHIPS -->
+  <section class="sec" id="meter" data-od-id="sec-meter">
+    <div class="sec__head"><span class="sec__num">13</span><h2>Intensity meter &amp; chips</h2></div>
+    <p>Reasoning effort renders as the <b>7-bar meter</b> (bars 2.5×3→12px, fill accent-strong) — never
+    glyph characters, never a dominant slider. In the runtime popover the whole reasoning control stays a
+    quiet footer: accent appears only on the meter fill, the pressed effort pill and the selected model row.</p>
+    <div class="stage"><div class="row-demo">
+      <span class="im" data-level="2" aria-label="Low"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <span class="im" data-level="4" aria-label="Medium"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <span class="im" data-level="7" aria-label="Max"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <span style="width:14px"></span>
+      <span class="chip">web/src<button class="chip__x" aria-label="Remove"><svg viewBox="0 0 12 12"><path d="m3 3 6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></span>
+      <span class="chip chip--static">read-only</span>
+    </div></div>
+  </section>
+
+  <!-- 14 EMPTY + SKELETON -->
+  <section class="sec" id="empty" data-od-id="sec-empty">
+    <div class="sec__head"><span class="sec__num">14</span><h2>Empty states &amp; loading</h2></div>
+    <p>Two copy paths: zero-inventory (CTA = the page primary) vs no-match (CTA = Clear filters). Loading
+    is shimmer skeletons in the shape of the coming content — never spinners on whole surfaces.</p>
+    <div class="two">
+      <div class="stage stage--canvas">
+        <div class="empty" style="padding:32px 20px">
+          <svg viewBox="0 0 20 20"><path d="M4 10a6 6 0 0 1 10.4-4.1M16 10a6 6 0 0 1-10.4 4.1" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <b>No loops yet</b>
+          <p>Loops run capabilities on a schedule or watch. Create one from a template to get started.</p>
+          <button class="btn btn--primary">New loop</button>
+        </div>
+      </div>
+      <div class="stage stage--canvas" style="display:flex;flex-direction:column;gap:10px;justify-content:center">
+        <span class="sk" style="height:14px;width:60%"></span>
+        <span class="sk" style="height:10px;width:85%"></span>
+        <span class="sk" style="height:10px;width:40%"></span>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

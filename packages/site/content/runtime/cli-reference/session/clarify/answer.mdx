@@ -1,0 +1,52 @@
+---
+title: "agh session clarify answer"
+description: "Answer one live session question"
+---
+
+## agh session clarify answer
+
+Answer one live session question
+
+```
+agh session clarify answer <session-id> <request-id> [flags]
+```
+
+### Examples
+
+```
+  # Answer with the first offered choice
+  agh session clarify answer sess_123 req_123 --choice 1
+
+  # Answer a free-text question
+  agh session clarify answer sess_123 req_123 --text "Use the staging workspace"
+```
+
+### Options
+
+```
+      --choice int    One-based choice number
+  -h, --help          help for answer
+      --text string   Free-text answer
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh session clarify answer <session-id> <request-id> -o json
+```

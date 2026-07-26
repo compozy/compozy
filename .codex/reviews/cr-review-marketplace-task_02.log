@@ -1,0 +1,369 @@
+Notice: Detected codex environment. Use `coderabbit review --agent` for structured agent-friendly output.
+Connecting to CodeRabbit... 1s elapsed
+Preparing review... 7s elapsed
+────────────────────────────────────────
+CodeRabbit Review
+
+Diff      : uncommitted changes only
+Compare   : marketplace → 76f36527a
+Directory : agh
+────────────────────────────────────────
+
+(\(\
+(• .•)  If you don't fail at least 90% of the time, you're not aiming high enough. - Alan Kay
+
+Preparing sandbox... 8s elapsed
+Summarizing changes... 23s elapsed
+Summarizing changes... 1m 01s elapsed - still working
+Summarizing changes... 2m 01s elapsed - still working
+Summarizing changes... 3m 01s elapsed - still working
+Finishing analysis tools... 3m 02s elapsed - still working
+Writing review comments... 3m 03s elapsed - still working
+Writing review comments... 4m 01s elapsed - still working
+
+────────────────────────────────────────────────────────────────────────
+  major [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/api/spec/marketplace_test.go:8internal/api/spec/marketplace_test.go:8-59]8;;
+
+  Restore the missing sqlc Queries/DBTX definitions
+
+  internal/store/globaldb/sqlcgen only contains marketplace.sql.go and
+  models.go; Queries is undefined there, so this package will not
+  typecheck. Regenerate or add the companion db.go output alongside the
+  marketplace query file.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/api/core/marketplace_detail.go:80internal/api/core/marketplace_detail.go:80-126]8;;
+
+  Decouple remote skill details from the curated catalog.
+
+  Decode skill_ entry IDs before querying the curated catalog. Currently,
+  a catalog outage blocks details for remote search results, while a remote
+  Info failure discards an otherwise valid curated detail response. Treat
+  remote enrichment of curated entries as best-effort or expose it as a
+  warning.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/skills/marketplace/update.go:24internal/skills/marketplace/update.go:24-39]8;;
+
+  update --all discards already-applied updates on first failure.
+
+  The loop aborts and returns nil, err as soon as one skill fails,
+  silently losing the fact that prior skills in the batch were already
+  updated on disk. Callers get no partial results and no indication of what
+  succeeded.
+
+  Consider collecting per-skill results (with a failure status/error) and
+  continuing the loop, returning the full batch alongside an aggregate error
+  (or per-item error info) so callers can see what actually happened.
+
+
+
+
+
+  ♻️ Sketch of a partial-failure-tolerant loop
+
+   	if req.All {
+   		installedSkills, err := ListInstalledSkills(skillsDir)
+   		if err != nil {
+   			return nil, err
+   		}
+   
+   		items := make([]UpdateResult, 0, len(installedSkills))
+  +		var errs []error
+   		for _, installed := range installedSkills {
+   			item, err := UpdateSkill(ctx, skillsDir, registry, installed, req.CheckOnly, now)
+   			if err != nil {
+  -				return nil, err
+  +				errs = append(errs, fmt.Errorf("%s: %w", installed.Name, err))
+  +				continue
+   			}
+   			items = append(items, item)
+   		}
+  -		return items, nil
+  +		return items, errors.Join(errs...)
+   	}
+
+Writing review comments... 7m 00s elapsed - still working - 3 findings so far
+
+────────────────────────────────────────────────────────────────────────
+  minor [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/cli/client_marketplace.go:30internal/cli/client_marketplace.go:30-63]8;;
+
+  Validate kind/entryID before building the request path.
+
+  BrowseMarketplace and MarketplaceInfo build the URL path from
+  kind/entryID without checking they're non-empty first, so a blank
+  value silently produces a malformed path (e.g. /api/marketplace/ or
+  /api/marketplace/skill/) instead of a clear client-side error.
+
+
+
+
+
+  🛡️ Proposed guard
+
+   func (c *unixSocketClient) BrowseMarketplace(
+   	ctx context.Context,
+   	kind string,
+   	query string,
+   	limit int,
+   ) (MarketplaceKindRecord, error) {
+  +	trimmedKind := strings.TrimSpace(kind)
+  +	if trimmedKind == "" {
+  +		return MarketplaceKindRecord{}, errors.New("marketplace kind is required")
+  +	}
+   	values := url.Values{}
+   	if trimmed := strings.TrimSpace(query); trimmed != "" {
+   		values.Set("q", trimmed)
+   	}
+   	if limit > 0 {
+   		values.Set("limit", strconv.Itoa(limit))
+   	}
+   	var response MarketplaceKindRecord
+  -	path := "/api/marketplace/" + url.PathEscape(strings.TrimSpace(kind))
+  +	path := "/api/marketplace/" + url.PathEscape(trimmedKind)
+
+
+────────────────────────────────────────────────────────────────────────
+  critical [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/api/core/marketplace_interfaces.go:6internal/api/core/marketplace_interfaces.go:6-8]8;;
+
+  Restore the missing Queries type —
+  internal/store/globaldb/sqlcgen/marketplace.sql.go defines methods on
+  *Queries, but internal/store/globaldb/sqlcgen has no type Queries,
+  so this generated package is incomplete and won’t compile until the
+  missing companion file is restored or regenerated.
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/api/core/marketplace_test.go:158internal/api/core/marketplace_test.go:158-159]8;;
+
+  Assert the expected isolated errors, not merely their presence.
+
+  Any unrelated failure currently satisfies these assertions. Check the
+  stable expected message or error classification for `bundle catalog
+  unavailable and clawhub unavailable`.
+
+  As per path instructions, tests must have specific error assertions and
+  verify behavior outcomes.
+
+
+
+
+
+
+  Also applies to: 205-207
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/cli/client_marketplace.go:1internal/cli/client_marketplace.go:1-79]8;;
+
+  Restore the missing Queries type in the generated sqlc package
+
+  internal/store/globaldb/sqlcgen/marketplace.sql.go defines only `func (q
+  *Queries) methods, but internal/store/globaldb/sqlcgen has no type
+  Queries` declaration in any generated file. That leaves the marketplace
+  persistence code uncompilable and blocks golangci-lint until the sqlc
+  output is regenerated or fixed.
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/web/src/systems/skill/mocks/handlers.ts:29web/src/systems/skill/mocks/handlers.ts:29-30]8;;
+
+  Return 404 for unknown marketplace slugs. body.slug is already rejected
+  when empty, but the handler still fabricates a successful install for any
+  other slug. That hides the adapter’s Marketplace skill not found path
+  and can mask regressions in install error handling.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Security & Privacy]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/skills/marketplace/installed.go:150internal/skills/marketplace/installed.go:150-175]8;;
+
+  Missing internal/skills.VerifyContent scan on load.
+
+  ReadInstalledSkill is the shared path used by both FindInstalledSkill
+  and ListInstalledSkills to decode marketplace-installed skill content,
+  but it never calls skills.VerifyContent. Marketplace-installed skills
+  aren't bundled/embedded, so per the skill-scanning guideline this read
+  path should scan content on every load and block critical findings
+  (logging warnings/info otherwise).
+
+
+
+
+
+  🛡️ Suggested fix sketch
+
+   func ReadInstalledSkill(skillDir string) (InstalledSkill, error) {
+   	provenance, err := skills.ReadSidecar(skillDir)
+   	if err != nil {
+   		return InstalledSkill{}, err
+   	}
+   	if provenance == nil {
+   		return InstalledSkill{}, classifiedf(ErrNotMarketplace, "missing provenance for %q", skillDir)
+   	}
+   
+   	skillFile, err := registrypkg.PathWithinRoot(skillDir, SkillMarkdownFileName)
+   	if err != nil {
+   		return InstalledSkill{}, fmt.Errorf("resolve skill file in %q: %w", skillDir, err)
+   	}
+   
+   	parsedSkill, err := skills.ParseSkillFile(skillFile)
+   	if err != nil {
+   		return InstalledSkill{}, err
+   	}
+  +
+  +	if err := skills.VerifyContent(parsedSkill); err != nil {
+  +		return InstalledSkill{}, err
+  +	}
+   
+   	return InstalledSkill{
+   		Name:       parsedSkill.Meta.Name,
+   		Dir:        parsedSkill.Dir,
+   		FilePath:   parsedSkill.FilePath,
+   		Provenance: *provenance,
+   	}, nil
+   }
+
+  Based on learnings (path instructions): internal/skills//*.go: "Scan
+  every non-bundled skill with internal/skills.VerifyContent on every
+  load; block critical findings, log warnings, and silently log
+  informational findings. Bundled embedded skills are exempt."
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Performance & Scalability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/cli/skill_marketplace.go:315internal/cli/skill_marketplace.go:315-319]8;;
+
+  Avoid per-item MarketplaceInfo calls here
+
+  skillMarketplaceListingsFromRecords now does one MarketplaceInfo
+  request per search result, so marketplace search has an N+1 pattern. Reuse
+  data from BrowseMarketplace or batch-fetch details instead.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Security & Privacy]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/skills/marketplace/installed.go:72internal/skills/marketplace/installed.go:72]8;;
+
+  Make PathWithinRoot reject symlink escapes
+  internal/registry.PathWithinRoot only uses Abs/Rel; it does not
+  resolve symlinks, so these marketplace skill paths can still escape
+  skillsDir via a symlinked directory entry. Resolve symlinks in the
+  shared helper before using it here.
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/api/core/marketplace_test.go:124internal/api/core/marketplace_test.go:124-176]8;;
+
+  Wrap the remaining marketplace cases in t.Run("Should …") and tighten
+  the error assertions.
+  Move the four top-level scenarios in
+  internal/api/core/marketplace_test.go into descriptive subtests and keep
+  t.Parallel(). The bundle and remote-skill error checks should assert a
+  stable error string or substring instead of only checking for non-empty
+  text.
+
+
+────────────────────────────────────────────────────────────────────────
+  critical [Security & Privacy]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/skills/marketplace/paths.go:18internal/skills/marketplace/paths.go:18-58]8;;
+
+  Return the resolved path, not the unresolved absTarget.
+
+  PathInsideRoot validates containment using resolvedTarget (symlinks
+  resolved via EvalSymlinks) but returns absTarget (unresolved). Callers
+  then perform file I/O against the unresolved path, so any symlink along
+  the way is re-traversed at use time — decoupling the validated location
+  from the actually-accessed location (TOCTOU / symlink-escape window). Per
+  path instructions for this package, containment checks must rely on
+  EvalSymlinks-resolved targets; returning the resolved value closes this
+  gap.
+
+
+
+
+
+  🛡️ Proposed fix
+
+   	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+   		return "", registrypkg.ErrPathOutsideRoot
+   	}
+  -	return absTarget, nil
+  +	return resolvedTarget, nil
+   }
+
+  Based on path instructions: "Verify resolved filesystem targets remain
+  inside approved roots using EvalSymlinks and path-prefix checks"
+  (internal/{skills,fileutil,extension,bundles}//*.go).
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Performance & Scalability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/cli/extension_marketplace_test.go:20internal/cli/extension_marketplace_test.go:20-51]8;;
+
+  Avoid the per-item MarketplaceInfo lookup
+
+  searchExtensions calls MarketplaceInfo once for every browse result,
+  so a larger --limit becomes an N+1 daemon round-trip pattern. If the
+  install slug can be surfaced in the browse payload, reuse it there;
+  otherwise consider batching the enrichment.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/skills/marketplace/service_lifecycle.go:1internal/skills/marketplace/service_lifecycle.go:1-43]8;;
+
+  Restore the missing Queries type in internal/store/globaldb/sqlcgen
+  internal/store/globaldb/sqlcgen/marketplace.sql.go defines methods on
+  *Queries, but no Queries type exists in the package, so this package
+  will not compile until the missing generated file is restored or the sqlc
+  output is regenerated.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Security & Privacy]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/skills/marketplace/service_lifecycle.go:9internal/skills/marketplace/service_lifecycle.go:9-19]8;;
+
+  Route marketplace installs through the shared skill verifier
+  internal/registry/installer.go uses its own verifyInstallerContent, so
+  marketplace installs miss the shared internal/skills.VerifyContent scan
+  and its warning/info handling before the files are moved into place. Reuse
+  the shared verifier on the extracted skill body.
+
+
+────────────────────────────────────────
+Review complete
+16 findings ✔
+
+Critical 2
+Major    8
+Minor    6
+
+177 files reviewed:
+- docs/qa/scenarios/ET-001.md
+- docs/qa/scenarios/ET-007.md
+- docs/qa/scenarios/ET-008.md
+- docs/qa/scenarios/ET-014.md
+- docs/qa/scenarios/ET-016.md
+- internal/api/contract/contract.go
+- internal/api/contract/responses.go
+- internal/api/contract/settings_collection_payloads.go
+- internal/api/core/base_handlers.go
+- internal/api/core/conversions.go
+... and 167 more files
+────────────────────────────────────────
+
+Print all AI prompts: coderabbit review --show-prompts
+
+CODEX_CODERABBIT_REVIEW_COMPLETE exit=0 head=a5875de0e48349866b3b336882ce4f1bba2b5ca4

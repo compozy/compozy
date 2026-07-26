@@ -1,3 +1,4 @@
+// Package daemon wires the AGH runtime packages into a single long-lived process.
 package daemon
 
 import (
@@ -8,44 +9,59 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-)
 
-// ReadyState is the persisted daemon readiness state.
-type ReadyState string
-
-const (
-	ReadyStateStarting ReadyState = "starting"
-	ReadyStateReady    ReadyState = "ready"
-	ReadyStateStopped  ReadyState = "stopped"
-
-	// DefaultHTTPPort is the daemon's default localhost HTTP transport port.
-	DefaultHTTPPort = 2323
-	// EphemeralHTTPPort requests an OS-assigned localhost HTTP port during startup.
-	// The effective port is persisted after the listener binds.
-	EphemeralHTTPPort = -1
+	"github.com/compozy/agh/internal/network"
 )
 
 // Info is the persisted daemon discovery record written to daemon.json.
 type Info struct {
-	PID        int        `json:"pid"`
-	Version    string     `json:"version,omitempty"`
-	SocketPath string     `json:"socket_path,omitempty"`
-	HTTPPort   int        `json:"http_port,omitempty"`
-	StartedAt  time.Time  `json:"started_at"`
-	State      ReadyState `json:"state"`
+	PID       int          `json:"pid"`
+	Port      int          `json:"port"`
+	StartedAt time.Time    `json:"started_at"`
+	Network   *NetworkInfo `json:"network,omitempty"`
 }
 
-// Validate ensures the persisted daemon info is usable for discovery and readiness checks.
+// NetworkInfo is the persisted daemon-safe network diagnostics snapshot.
+type NetworkInfo struct {
+	Enabled bool   `json:"enabled"`
+	Status  string `json:"status"`
+}
+
+// Validate ensures the persisted daemon info remains usable for discovery.
 func (i Info) Validate() error {
 	switch {
 	case i.PID <= 0:
 		return fmt.Errorf("daemon: daemon pid must be positive: %d", i.PID)
-	case i.HTTPPort < 0 || i.HTTPPort > 65535:
-		return fmt.Errorf("daemon: daemon http port must be between 0 and 65535: %d", i.HTTPPort)
+	case i.Port < 0 || i.Port > 65535:
+		return fmt.Errorf("daemon: daemon port must be between 0 and 65535: %d", i.Port)
 	case i.StartedAt.IsZero():
 		return errors.New("daemon: daemon start time is required")
-	case i.State == "":
-		return errors.New("daemon: daemon state is required")
+	}
+	if i.Network != nil {
+		if err := i.Network.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Validate ensures the persisted network diagnostics remain usable.
+func (n NetworkInfo) Validate() error {
+	status := strings.TrimSpace(n.Status)
+	if status == "" {
+		return errors.New("daemon: network status is required")
+	}
+	switch status {
+	case network.StatusDisabled:
+		if n.Enabled {
+			return errors.New("daemon: disabled network status requires enabled=false")
+		}
+	case network.StatusReady, network.StatusActive:
+		if !n.Enabled {
+			return fmt.Errorf("daemon: network status %q requires enabled=true", status)
+		}
+	default:
+		return fmt.Errorf("daemon: unsupported network status %q", status)
 	}
 	return nil
 }
@@ -74,7 +90,7 @@ func ReadInfo(path string) (Info, error) {
 }
 
 // WriteInfo writes daemon.json atomically via temp file and rename.
-func WriteInfo(path string, info Info) error {
+func WriteInfo(path string, info Info) (returnErr error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return errors.New("daemon: daemon info path is required")
@@ -82,7 +98,7 @@ func WriteInfo(path string, info Info) error {
 	if err := info.Validate(); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(cleanPath), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cleanPath), 0o755); err != nil {
 		return fmt.Errorf("daemon: create daemon info directory for %q: %w", cleanPath, err)
 	}
 
@@ -97,27 +113,37 @@ func WriteInfo(path string, info Info) error {
 		return fmt.Errorf("daemon: create temp daemon info for %q: %w", cleanPath, err)
 	}
 	tempPath := file.Name()
+	removeTemp := true
 	defer func() {
-		_ = os.Remove(tempPath)
+		if !removeTemp {
+			return
+		}
+		if err := os.Remove(tempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: remove temp daemon info %q: %w", tempPath, err))
+		}
 	}()
 
 	if _, err := file.Write(payload); err != nil {
-		_ = file.Close()
-		return fmt.Errorf("daemon: write temp daemon info %q: %w", tempPath, err)
+		returnErr = fmt.Errorf("daemon: write temp daemon info %q: %w", tempPath, err)
+		if closeErr := file.Close(); closeErr != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: close temp daemon info %q: %w", tempPath, closeErr))
+		}
+		return returnErr
 	}
 	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return fmt.Errorf("daemon: sync temp daemon info %q: %w", tempPath, err)
+		returnErr = fmt.Errorf("daemon: sync temp daemon info %q: %w", tempPath, err)
+		if closeErr := file.Close(); closeErr != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: close temp daemon info %q: %w", tempPath, closeErr))
+		}
+		return returnErr
 	}
 	if err := file.Close(); err != nil {
 		return fmt.Errorf("daemon: close temp daemon info %q: %w", tempPath, err)
 	}
-	if err := os.Chmod(tempPath, 0o600); err != nil {
-		return fmt.Errorf("daemon: chmod temp daemon info %q: %w", tempPath, err)
-	}
 	if err := os.Rename(tempPath, cleanPath); err != nil {
 		return fmt.Errorf("daemon: replace daemon info %q: %w", cleanPath, err)
 	}
+	removeTemp = false
 
 	return syncDir(filepath.Dir(cleanPath))
 }
@@ -131,6 +157,23 @@ func RemoveInfo(path string) error {
 
 	if err := os.Remove(cleanPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("daemon: remove daemon info %q: %w", cleanPath, err)
+	}
+	return nil
+}
+
+func syncDir(path string) (returnErr error) {
+	dir, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("daemon: open directory %q for sync: %w", path, err)
+	}
+	defer func() {
+		if err := dir.Close(); err != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: close directory %q after sync: %w", path, err))
+		}
+	}()
+
+	if err := dir.Sync(); err != nil {
+		return fmt.Errorf("daemon: sync directory %q: %w", path, err)
 	}
 	return nil
 }

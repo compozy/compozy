@@ -1,0 +1,89 @@
+---
+title: Expose AGH over MCP
+description: Connect a trusted MCP client to the workspace-bound AGH Host API over stdio or authenticated loopback HTTP.
+---
+
+Use `agh mcp serve` when an external MCP client needs to operate one AGH workspace through the
+daemon's existing Host API. The command is a foreground relay: start the daemon first, keep the
+relay process alive while the client is connected, and stop it when the client no longer needs
+access.
+
+<OperatorNote>
+  Each relay grants the client operator authority for its published Host API methods in the selected
+  workspace. Use it only with clients and agent definitions you trust.
+</OperatorNote>
+
+## Serve over stdio
+
+The default transport is stdio. Add a command like this to the MCP client's server configuration,
+adapting the surrounding JSON shape to that client:
+
+```json
+{
+  "mcpServers": {
+    "agh-workspace": {
+      "command": "agh",
+      "args": ["mcp", "serve", "--workspace", "/absolute/path/to/workspace"]
+    }
+  }
+}
+```
+
+`--workspace` accepts a workspace ID, name, or path. The daemon must already be running under the
+same `AGH_HOME` as the relay.
+
+Stdio does not add a bearer-token exchange. The local process that starts the command receives the
+published operator authority for the bound workspace. Stdout carries MCP protocol frames only;
+diagnostics go to stderr.
+
+## Serve over loopback HTTP
+
+Use streamable HTTP when a local client cannot spawn a stdio server:
+
+```bash
+export AGH_MCP_SERVE_TOKEN='replace-with-a-high-entropy-token'
+agh mcp serve \
+  --workspace /absolute/path/to/workspace \
+  --transport http \
+  --listen 127.0.0.1:3210
+```
+
+Connect the MCP client to `http://127.0.0.1:3210/mcp` and send the token as
+`Authorization: Bearer <token>` on every request.
+
+HTTP startup fails if the listener is not loopback or if the token environment variable is empty.
+The default variable is `AGH_MCP_SERVE_TOKEN`; select another variable name with `--token-env`.
+There is intentionally no command-line token value or `config.toml` key, so the credential does not
+enter process arguments or persistent AGH configuration.
+
+## Understand the published tools
+
+The relay derives schemas from the canonical Host API contracts and publishes tools in the separate
+`agh_host__<family>__<verb>` namespace. Examples include `agh_host__sessions__list` and
+`agh_host__tasks__create`. These are MCP façade names, not native `agh__*` tools.
+
+The approved families are sessions, workspace-safe task operations, Network, memory, and resources.
+Target-only task mutations that cannot be bound safely from their request shape are excluded, as
+are daemon-global and unrelated Host API families. New Host API methods remain unpublished until
+they receive an explicit projection decision.
+
+The relay resolves the selected workspace once per façade session and injects its canonical
+identity into every call. A caller cannot replace that identity in tool arguments, and a relay for
+workspace B cannot list workspace A's sessions or tasks.
+
+## Trust boundaries
+
+- `agh mcp serve` does not start a second daemon or open runtime databases directly. It relays calls
+  over the active daemon's Unix domain socket and keeps the Host API capability and rate-limit
+  checks in the dispatch path.
+- Stdio trusts the local spawning process. HTTP adds bearer authentication but remains loopback-only.
+- A workspace binding prevents cross-workspace data access; it does not isolate processes sharing
+  the same operating-system account.
+- `BackendLocal` runs agents directly on the daemon host and is not an isolation boundary. Use a
+  provider-backed sandbox for untrusted execution.
+- Secret redaction is defense in depth. Exact protections remain active when the optional heuristic
+  is disabled, but redaction does not replace authorization or sandboxing.
+
+Read the repository [Security policy](https://github.com/compozy/agh/blob/main/SECURITY.md) for the
+canonical trust model and [Configuration](/runtime/core/configuration/config-toml#redact) for the
+redaction lifecycle.

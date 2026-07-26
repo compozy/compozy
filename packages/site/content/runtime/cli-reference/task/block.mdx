@@ -1,0 +1,46 @@
+---
+title: "agh task block"
+description: "Block a task with a typed reason"
+---
+
+## agh task block
+
+Block a task with a typed reason
+
+```
+agh task block <id> [flags]
+```
+
+### Options
+
+```
+      --as-agent            Block using the current AGH-managed agent session identity
+      --details string      Optional block details JSON
+      --expires-in string   Optional transient block duration
+  -h, --help                help for block
+      --kind string         Block kind: needs_input, capability, or transient
+      --reason string       Block reason
+      --run-id string       Active run ID to park when blocking
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task block <id> -o json
+```

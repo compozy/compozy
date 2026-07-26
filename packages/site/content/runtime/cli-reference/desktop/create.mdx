@@ -1,0 +1,50 @@
+---
+title: "agh desktop create"
+description: "Create a persistent virtual desktop"
+---
+
+## agh desktop create
+
+Create a persistent virtual desktop
+
+```
+agh desktop create [flags]
+```
+
+### Options
+
+```
+      --actor-id string      Optional actor identifier
+      --after string         Insert after this desktop ID
+      --client string        Connected presentation client ID
+      --focus-owner string   Window that owns a focus desktop
+  -h, --help                 help for create
+      --id string            Stable desktop ID; generated when omitted
+      --name string          Desktop name
+      --origin string        Command origin label (default "cli")
+      --purpose string       Desktop purpose: standard or focus (default "standard")
+      --revision uint        Expected workspace revision
+      --workspace string     Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh desktop create -o json
+```

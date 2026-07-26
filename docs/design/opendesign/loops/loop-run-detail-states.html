@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Run states · reviews-watch · Loops · AGH</title>
+<style>
+  /* tokens — verbatim from agents/agent-detail.html (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;letter-spacing:inherit}
+  svg{display:block}
+  code,.mono{-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
+  :is(.btn,.act,.copybtn,.gnav a,.w2-crumb,.w2-back):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  .gnav{display:flex;align-items:center;gap:14px;padding:10px 24px;border-bottom:1px solid var(--line);background:var(--rail)}
+  .gnav a{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);padding:2px 6px;border-radius:var(--radius-xs)}
+  .gnav a:hover{color:var(--fg);background:var(--row-hover)}
+  .state{border-bottom:1px solid var(--line)}
+  .state:last-child{border-bottom:0}
+
+  /* unified head (os/pagehead-redesign.html contract) */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="info"]{color:var(--info)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover)}
+  .btn--danger{color:var(--danger)}
+  .btn--danger:hover{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent);color:var(--danger)}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 64px}
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:22px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
+  .subhead .mono{font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+  .section{margin-bottom:26px}
+  .section__label{display:flex;align-items:center;gap:8px;padding-bottom:10px;font-size:10.5px;font-weight:600;letter-spacing:.04em;color:var(--subtle);text-transform:uppercase}
+  .section__label .spacer{flex:1}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+  .livebadge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--success);text-transform:none;letter-spacing:0}
+  .livebadge .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 40%,transparent)}70%{box-shadow:0 0 0 5px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  .act{font-size:11px;font-weight:520;color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:pointer;background:none;border:0;padding:2px 4px;border-radius:var(--radius-xs);font-family:inherit}
+  .act:hover{color:var(--fg-strong)}
+  .act svg{width:12px;height:12px}
+
+  /* decision / outcome cards */
+  .scard{padding:14px 16px;border-radius:var(--radius-md);border:1px solid var(--line);background:var(--canvas-tint)}
+  .scard[data-tone="warning"]{background:var(--warning-tint);border-color:color-mix(in srgb,var(--warning) 24%,transparent)}
+  .scard[data-tone="warning"] .scard__title{color:var(--warning)}
+  .scard[data-tone="danger"]{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent)}
+  .scard[data-tone="danger"] .scard__title{color:var(--danger)}
+  .scard__title{font-size:13px;font-weight:560}
+  .scard__body{margin-top:4px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .scard__body .mono{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+  .scard__facts{display:flex;gap:22px;flex-wrap:wrap;margin-top:12px}
+  .fact{display:flex;flex-direction:column;gap:2px}
+  .fact__l{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  .fact__v{font-size:12.5px;font-weight:510;color:var(--fg)}
+  .fact__v.mono{font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums}
+  .scard__acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .scard__micro{margin-top:12px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+  /* goal + progress */
+  .goalbox{padding:16px 18px 17px}
+  .goal-title{font-size:15px;font-weight:560;letter-spacing:-.014em;color:var(--fg-strong);text-wrap:pretty}
+  .goal-sub{margin-top:4px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .pbar{display:flex;gap:3px;height:6px;margin-top:15px}
+  .pbar__seg{border-radius:var(--radius-pill)}
+  .pbar__seg--done{flex:10;background:var(--success)}
+  .pbar__seg--done4{flex:4;background:var(--success)}
+  .pbar__seg--active{flex:4;background:var(--accent-dim)}
+  .pbar__seg--idle{flex:4;background:var(--badge-fill)}
+  .pbar-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:9px;font-size:12px;color:var(--muted)}
+  .pbar-meta b{font-weight:560;color:var(--fg)}
+  .pbar-meta .r{color:var(--subtle);white-space:nowrap}
+
+  /* status card ("Happening now" slot for parked states) */
+  .nowrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .nowrow__dot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:6px}
+  .nowrow__main{min-width:0;flex:1}
+  .nowrow__label{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .nowrow__sub{margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:60ch}
+  .nowrow__time{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:3px}
+
+  /* story timeline */
+  .spine{position:relative;padding:6px 16px 10px 16px}
+  .node{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:11px;padding:9px 0;align-items:start}
+  .node::before{content:"";position:absolute;left:10.5px;top:0;bottom:0;width:1.5px;background:var(--line-strong)}
+  .node:first-child::before{top:14px}
+  .node:last-child::before{bottom:auto;height:14px}
+  .node__dot{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;background:var(--canvas);border:1.5px solid var(--nl,var(--faint));
+    display:grid;place-items:center;color:var(--nl,var(--faint))}
+  .node__dot svg{width:11px;height:11px}
+  .node__label{font-size:13px;font-weight:520;color:var(--fg-strong);padding-top:2px}
+  .node__sub{margin-top:2px;font-size:12.5px;line-height:1.5;color:var(--muted);max-width:60ch}
+  .node__sub .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .node__trail{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-top:3px}
+  .node__time{font-size:11.5px;color:var(--subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .node__micro{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+
+  .quiet-note{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .quiet-note svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .quiet-note b{font-weight:520;color:var(--fg)}
+
+  /* right rail */
+  .railbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .rail-sec{padding:16px 18px;border-top:1px solid var(--line-soft)}
+  .rail-sec:first-child{border-top:0}
+  .rail-sec__t{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:10px}
+  .prow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:5px 0;min-height:26px}
+  .prow__k{font-size:12px;color:var(--subtle);flex:none}
+  .prow__v{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:510;color:var(--fg);min-width:0}
+  .prow__v.mono{font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+  .prow__v .max{color:var(--faint)}
+  .prow__v span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow__v a:hover{color:var(--fg-strong)}
+  .rail-note{margin-top:10px;font-size:11px;line-height:1.5;color:var(--faint)}
+  .avatar{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:var(--radius-xxs);
+    background:var(--badge-fill);color:var(--muted);font-family:var(--font-mono);font-size:8px;font-weight:600;flex:none}
+  .copybtn{display:inline-grid;place-items:center;width:18px;height:18px;border:0;background:transparent;color:var(--faint);border-radius:var(--radius-xxs);cursor:pointer}
+  .copybtn:hover{color:var(--fg);background:var(--row-hover)}
+  .copybtn svg{width:11px;height:11px}
+  .rail-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-top:1px solid var(--line-soft)}
+  .rail-foot .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+  @media (max-width:1080px){.layout{grid-template-columns:1fr}.page{padding:20px 20px 48px}}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.dot--pulse,.livebadge .d{animation:none}}
+</style>
+</head>
+<body>
+
+<nav class="gnav" aria-label="States in this gallery" data-od-id="loop-run-states-nav">
+  <a href="#needs-approval">needs-approval</a>
+  <a href="#watching">watching</a>
+  <a href="#paused">paused</a>
+  <a href="#failed">failed</a>
+</nav>
+
+<!-- ============================================================ STATE: NEEDS-APPROVAL -->
+<section class="state" id="needs-approval" data-od-id="state-needs-approval">
+  <header class="w2head">
+    <a class="w2-back" href="../_done/loops/loop-detail.html" aria-label="Back to loop"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Loops</a><span class="w2-sep">/</span>
+      <a class="w2-crumb" href="../_done/loops/loop-detail.html">reviews-watch</a><span class="w2-sep">/</span>
+      <span class="w2-title">Run r-7c4e19</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="warn"><span class="dot dot--pulse" aria-hidden="true"></span>Needs approval</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <!-- Pause hidden (only valid from running); Stop stays for any live status; decisions live in the gate card -->
+      <button class="btn btn--danger" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>Stop run</button>
+      <button class="btn btn--icon" type="button" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span class="mono">r-7c4e19</span><span class="dotsep"></span>
+      <span>Watching <b>PR #128</b></span><span class="dotsep"></span>
+      <span>Started <time title="Jul 22, 2026, 14:18">46 min ago</time></span><span class="dotsep"></span>
+      <span class="mono">45m 00s used</span>
+    </div>
+    <div class="layout">
+      <main>
+        <section class="section" data-od-id="na-gate">
+          <div class="section__label">Needs you</div>
+          <div class="scard" data-tone="warning">
+            <div class="scard__title">Time limit reached — continue this run?</div>
+            <div class="scard__body">The run used its 45 minutes while redoing the last fix group. It paused instead of failing, as this loop's limit policy asks you first. Approving continues round 3 with the same limits; rejecting ends the run.</div>
+            <div class="scard__facts">
+              <div class="fact"><span class="fact__l">Time used</span><span class="fact__v mono">45m of 45m</span></div>
+              <div class="fact"><span class="fact__l">Tokens</span><span class="fact__v mono">412K / 1.5M</span></div>
+              <div class="fact"><span class="fact__l">Cost</span><span class="fact__v mono">~$1.71 est.</span></div>
+              <div class="fact"><span class="fact__l">Round</span><span class="fact__v mono">3</span></div>
+            </div>
+            <div class="scard__acts">
+              <button class="btn btn--primary" type="button" data-od-id="na-approve">Approve &amp; resume</button>
+              <button class="btn" type="button" data-od-id="na-request-changes">Request changes</button>
+              <button class="btn btn--danger" type="button" data-od-id="na-reject">Reject &amp; halt</button>
+            </div>
+            <div class="scard__micro">needs_approval · gate budget · on_exceeded: escalate</div>
+          </div>
+        </section>
+
+        <section class="section" data-od-id="na-progress">
+          <div class="section__label">Progress</div>
+          <div class="panelbox">
+            <div class="goalbox">
+              <div class="goal-title">Resolve every review comment on PR #128</div>
+              <div class="goal-sub">Done when a fresh CodeRabbit review of the current changes reports zero unresolved comments.</div>
+              <div class="pbar" role="img" aria-label="Fix groups: 2 of 3 clean, group 3 paused awaiting your decision">
+                <span class="pbar__seg pbar__seg--done"></span>
+                <span class="pbar__seg pbar__seg--done"></span>
+                <span class="pbar__seg pbar__seg--idle"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 3</b> fix groups clean — group 3 paused with the run</span>
+                <span class="r">2 open points from the last check</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-od-id="na-timeline">
+          <div class="section__label">What happened</div>
+          <div class="panelbox">
+            <div class="spine">
+              <div class="node" style="--nl:var(--warning)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
+                <div><div class="node__label">Asked for your approval</div><div class="node__sub">The 45-minute limit was reached mid-round. The run parked instead of failing — this loop escalates limits to you.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 15:03">2m ago</span><span class="node__micro">needs_approval · budget</span></div>
+              </div>
+              <div class="node">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 3 20 12 6 21 6 3"/></svg></span>
+                <div><div class="node__label">Round 3 started — redoing the last group</div><div class="node__sub">Failed-only: the two clean groups carry over; only group 3 runs again.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:59">6m ago</span><span class="node__micro">generation_started · gen 3</span></div>
+              </div>
+              <div class="node" style="--nl:var(--warning)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3.5 21 20H3z"/></svg></span>
+                <div><div class="node__label">Check: not clean yet</div><div class="node__sub">Verdict revise · confidence 0.88. Still two open points in group 3.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:58">7m ago</span><span class="node__micro">gate_verdict · revise</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside data-od-id="na-rail">
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Usage</div>
+            <div class="prow"><span class="prow__k">Time</span><span class="prow__v mono"><span style="color:var(--warning)">45m 00s</span>&nbsp;<span class="max">/ 45m</span></span></div>
+            <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono"><span>412K</span>&nbsp;<span class="max">/ 1.5M</span></span></div>
+            <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono"><span>~$1.71</span>&nbsp;<span class="max">estimate</span></span></div>
+            <div class="prow"><span class="prow__k">Rounds</span><span class="prow__v mono"><span>3</span>&nbsp;<span class="max">/ ∞</span></span></div>
+            <div class="rail-note">Cost is an estimate (tokens × rate), never a cap. This run escalates limits to you instead of failing.</div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">About this run</div>
+            <div class="prow"><span class="prow__k">Loop</span><span class="prow__v"><a href="../_done/loops/loop-detail.html">reviews-watch</a></span></div>
+            <div class="prow"><span class="prow__k">Version</span><span class="prow__v mono"><span>v3 · pinned</span></span></div>
+            <div class="prow"><span class="prow__k">Pull request</span><span class="prow__v mono"><span>#128</span></span></div>
+            <div class="prow"><span class="prow__k">Started by</span><span class="prow__v"><span>A PR being opened</span></span></div>
+            <div class="prow"><span class="prow__k">Fix agent</span><span class="prow__v"><span class="avatar">RF</span><span>review-fixer</span></span></div>
+            <div class="prow"><span class="prow__k">Workspace</span><span class="prow__v"><span>Home</span></span></div>
+            <div class="prow"><span class="prow__k">Run id</span>
+              <span class="prow__v mono"><span>r-7c4e19</span>
+                <button class="copybtn" type="button" data-copy="r-7c4e19" aria-label="Copy run id"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+              </span>
+            </div>
+          </div>
+          <div class="rail-foot">
+            <button class="act" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Inspect</button>
+            <span class="mono">digest 4f9c2a1</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ STATE: WATCHING -->
+<section class="state" id="watching" data-od-id="state-watching">
+  <header class="w2head">
+    <a class="w2-back" href="../_done/loops/loop-detail.html" aria-label="Back to loop"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Loops</a><span class="w2-sep">/</span>
+      <a class="w2-crumb" href="../_done/loops/loop-detail.html">reviews-watch</a><span class="w2-sep">/</span>
+      <span class="w2-title">Run r-7c4e19</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="info"><span class="dot dot--pulse" aria-hidden="true"></span>Watching</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <!-- Pause hidden (only valid from running); Stop stays for any live status -->
+      <button class="btn btn--danger" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>Stop run</button>
+      <button class="btn btn--icon" type="button" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span class="mono">r-7c4e19</span><span class="dotsep"></span>
+      <span>Watching <b>PR #128</b></span><span class="dotsep"></span>
+      <span>Started <time title="Jul 22, 2026, 14:18">38 min ago</time></span><span class="dotsep"></span>
+      <span class="mono">21m 12s active</span>
+    </div>
+    <div class="layout">
+      <main>
+        <section class="section" data-od-id="w-progress">
+          <div class="section__label">Progress</div>
+          <div class="panelbox">
+            <div class="goalbox">
+              <div class="goal-title">Resolve every review comment on PR #128</div>
+              <div class="goal-sub">Done when a fresh CodeRabbit review of the current changes reports zero unresolved comments.</div>
+              <div class="pbar" role="img" aria-label="Fix groups: 3 of 3 clean, awaiting the confirming review">
+                <span class="pbar__seg pbar__seg--done"></span>
+                <span class="pbar__seg pbar__seg--done"></span>
+                <span class="pbar__seg pbar__seg--done4"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>3 of 3</b> fix groups clean — all 24 comments handled</span>
+                <span class="r">waiting for CodeRabbit to confirm</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-od-id="w-now">
+          <div class="section__label">Happening now<span class="spacer"></span><span class="livebadge"><span class="d dot--pulse" aria-hidden="true"></span>Live</span></div>
+          <div class="panelbox">
+            <div class="nowrow">
+              <span class="nowrow__dot dot--pulse" style="background:var(--info)" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">Watching for the next review</div>
+                <div class="nowrow__sub">The fixes were pushed, which asks CodeRabbit to review again. The run wakes when a fresh review of the current changes arrives — last woke 16m ago.</div>
+              </div>
+              <span class="nowrow__time">checks every 30s</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-od-id="w-timeline">
+          <div class="section__label">What happened</div>
+          <div class="panelbox">
+            <div class="spine">
+              <div class="node" style="--nl:var(--info)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg></span>
+                <div><div class="node__label">Went back to watching</div><div class="node__sub">Nothing left to do until CodeRabbit reviews the pushed changes.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:40">16m ago</span><span class="node__micro">status_changed · running → watching</span></div>
+              </div>
+              <div class="node" style="--nl:var(--success)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="node__label">Pushed the fixes to the PR</div><div class="node__sub">The new changes re-arm CodeRabbit to review again.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:39">17m ago</span><span class="node__micro">node_succeeded · push_changes</span></div>
+              </div>
+              <div class="node" style="--nl:var(--success)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="node__label">Marked 24 comments resolved on GitHub</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:39">17m ago</span><span class="node__micro">node_succeeded · resolve_threads</span></div>
+              </div>
+              <div class="node" style="--nl:var(--success)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="node__label">Check passed — everything handled</div><div class="node__sub">Verdict pass · confidence 0.94. Every comment has a decision, every valid one a fix.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:38">18m ago</span><span class="node__micro">gate_verdict · pass</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-od-id="w-next">
+          <div class="section__label">What happens next</div>
+          <div class="quiet-note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+            <span>If the next review comes back clean, the run finishes as <b>Done</b>. If it raises new comments, a new round starts automatically.</span>
+          </div>
+        </section>
+      </main>
+
+      <aside data-od-id="w-rail">
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Usage</div>
+            <div class="prow"><span class="prow__k">Time</span><span class="prow__v mono"><span>21m 12s</span>&nbsp;<span class="max">/ 45m</span></span></div>
+            <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono"><span>341K</span>&nbsp;<span class="max">/ 1.5M</span></span></div>
+            <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono"><span>~$1.42</span>&nbsp;<span class="max">estimate</span></span></div>
+            <div class="prow"><span class="prow__k">Rounds</span><span class="prow__v mono"><span>2</span>&nbsp;<span class="max">/ ∞</span></span></div>
+            <div class="rail-note">Watching costs nothing — time only counts while the run is working.</div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">About this run</div>
+            <div class="prow"><span class="prow__k">Loop</span><span class="prow__v"><a href="../_done/loops/loop-detail.html">reviews-watch</a></span></div>
+            <div class="prow"><span class="prow__k">Version</span><span class="prow__v mono"><span>v3 · pinned</span></span></div>
+            <div class="prow"><span class="prow__k">Pull request</span><span class="prow__v mono"><span>#128</span></span></div>
+            <div class="prow"><span class="prow__k">Started by</span><span class="prow__v"><span>A PR being opened</span></span></div>
+            <div class="prow"><span class="prow__k">Fix agent</span><span class="prow__v"><span class="avatar">RF</span><span>review-fixer</span></span></div>
+            <div class="prow"><span class="prow__k">Workspace</span><span class="prow__v"><span>Home</span></span></div>
+            <div class="prow"><span class="prow__k">Run id</span>
+              <span class="prow__v mono"><span>r-7c4e19</span>
+                <button class="copybtn" type="button" data-copy="r-7c4e19" aria-label="Copy run id"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+              </span>
+            </div>
+          </div>
+          <div class="rail-foot">
+            <button class="act" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Inspect</button>
+            <span class="mono">digest 4f9c2a1</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ STATE: PAUSED -->
+<section class="state" id="paused" data-od-id="state-paused">
+  <header class="w2head">
+    <a class="w2-back" href="../_done/loops/loop-detail.html" aria-label="Back to loop"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Loops</a><span class="w2-sep">/</span>
+      <a class="w2-crumb" href="../_done/loops/loop-detail.html">reviews-watch</a><span class="w2-sep">/</span>
+      <span class="w2-title">Run r-7c4e19</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status"><span class="dot" aria-hidden="true"></span>Paused</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <!-- Resume renders only on paused; Stop stays for any live status -->
+      <button class="btn btn--primary" type="button" data-od-id="p-resume">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+        Resume
+      </button>
+      <button class="btn btn--danger" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>Stop run</button>
+      <button class="btn btn--icon" type="button" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span class="mono">r-7c4e19</span><span class="dotsep"></span>
+      <span>Watching <b>PR #128</b></span><span class="dotsep"></span>
+      <span>Started <time title="Jul 22, 2026, 14:18">29 min ago</time></span><span class="dotsep"></span>
+      <span>Paused <time title="Jul 22, 2026, 14:44">3 min ago</time></span>
+    </div>
+    <div class="layout">
+      <main>
+        <section class="section" data-od-id="p-now">
+          <div class="section__label">Happening now</div>
+          <div class="panelbox">
+            <div class="nowrow">
+              <span class="nowrow__dot" style="background:transparent;border:1.5px solid var(--neutral)" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">Paused</div>
+                <div class="nowrow__sub">Paused by you 3 minutes ago at a safe point. Nothing is running — Resume continues round 2 exactly where it left off.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-od-id="p-progress">
+          <div class="section__label">Progress</div>
+          <div class="panelbox">
+            <div class="goalbox">
+              <div class="goal-title">Resolve every review comment on PR #128</div>
+              <div class="goal-sub">Done when a fresh CodeRabbit review of the current changes reports zero unresolved comments.</div>
+              <div class="pbar" role="img" aria-label="Fix groups: 2 of 3 clean, group 3 paused with the run">
+                <span class="pbar__seg pbar__seg--done"></span>
+                <span class="pbar__seg pbar__seg--done"></span>
+                <span class="pbar__seg pbar__seg--idle"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 3</b> fix groups clean — group 3 resumes with the run</span>
+                <span class="r">2 open points from the last check</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-od-id="p-timeline">
+          <div class="section__label">What happened</div>
+          <div class="panelbox">
+            <div class="spine">
+              <div class="node">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></span>
+                <div><div class="node__label">Run paused</div><div class="node__sub">Requested by you; the run parked at a safe point in round 2.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:44">3m ago</span><span class="node__micro">status_changed · running → paused</span></div>
+              </div>
+              <div class="node">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 3 20 12 6 21 6 3"/></svg></span>
+                <div><div class="node__label">Round 2 started — redoing the last group</div><div class="node__sub">Failed-only: the two clean groups carry over; only group 3 runs again.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:39">8m ago</span><span class="node__micro">generation_started · gen 2</span></div>
+              </div>
+              <div class="node" style="--nl:var(--warning)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3.5 21 20H3z"/></svg></span>
+                <div><div class="node__label">Check: not clean yet</div><div class="node__sub">Verdict revise · confidence 0.91. Two open points in group 3.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:38">9m ago</span><span class="node__micro">gate_verdict · revise</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside data-od-id="p-rail">
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Usage</div>
+            <div class="prow"><span class="prow__k">Time</span><span class="prow__v mono"><span>24m 30s</span>&nbsp;<span class="max">/ 45m</span></span></div>
+            <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono"><span>296K</span>&nbsp;<span class="max">/ 1.5M</span></span></div>
+            <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono"><span>~$1.24</span>&nbsp;<span class="max">estimate</span></span></div>
+            <div class="prow"><span class="prow__k">Rounds</span><span class="prow__v mono"><span>2</span>&nbsp;<span class="max">/ ∞</span></span></div>
+            <div class="rail-note">Paused runs use nothing. Limits pick up where they left off on resume.</div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">About this run</div>
+            <div class="prow"><span class="prow__k">Loop</span><span class="prow__v"><a href="../_done/loops/loop-detail.html">reviews-watch</a></span></div>
+            <div class="prow"><span class="prow__k">Version</span><span class="prow__v mono"><span>v3 · pinned</span></span></div>
+            <div class="prow"><span class="prow__k">Pull request</span><span class="prow__v mono"><span>#128</span></span></div>
+            <div class="prow"><span class="prow__k">Started by</span><span class="prow__v"><span>A PR being opened</span></span></div>
+            <div class="prow"><span class="prow__k">Fix agent</span><span class="prow__v"><span class="avatar">RF</span><span>review-fixer</span></span></div>
+            <div class="prow"><span class="prow__k">Workspace</span><span class="prow__v"><span>Home</span></span></div>
+            <div class="prow"><span class="prow__k">Run id</span>
+              <span class="prow__v mono"><span>r-7c4e19</span>
+                <button class="copybtn" type="button" data-copy="r-7c4e19" aria-label="Copy run id"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+              </span>
+            </div>
+          </div>
+          <div class="rail-foot">
+            <button class="act" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Inspect</button>
+            <span class="mono">digest 4f9c2a1</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ STATE: FAILED -->
+<section class="state" id="failed" data-od-id="state-failed">
+  <header class="w2head">
+    <a class="w2-back" href="../_done/loops/loop-detail.html" aria-label="Back to loop"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Loops</a><span class="w2-sep">/</span>
+      <a class="w2-crumb" href="../_done/loops/loop-detail.html">reviews-watch</a><span class="w2-sep">/</span>
+      <span class="w2-title">Run r-7c4e19</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="danger"><span class="dot" aria-hidden="true"></span>Failed</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <!-- terminal status: no run controls (pause/resume/stop all invalid); starting again is a new run -->
+      <button class="btn btn--icon" type="button" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span class="mono">r-7c4e19</span><span class="dotsep"></span>
+      <span>Watching <b>PR #128</b></span><span class="dotsep"></span>
+      <span>Ended <time title="Jul 22, 2026, 14:45">1h ago</time></span><span class="dotsep"></span>
+      <span class="mono">26m 41s</span>
+    </div>
+    <div class="layout">
+      <main>
+        <section class="section" data-od-id="f-outcome">
+          <div class="section__label">What went wrong</div>
+          <div class="scard" data-tone="danger">
+            <div class="scard__title">Failed after 26m 41s</div>
+            <div class="scard__body">GitHub authentication expired while fetching review threads — the loop couldn't reach the provider. Finished work is kept: 20 comments were already resolved on the PR.</div>
+            <div class="scard__body" style="margin-top:8px">Fix the GitHub credential in Vault, then start a new run.</div>
+            <div class="scard__acts">
+              <button class="btn btn--primary" type="button" data-od-id="f-start-new-run">Start a new run</button>
+              <button class="btn" type="button">Open Vault</button>
+            </div>
+            <div class="scard__micro">status_changed · running → failed · cause provider_auth</div>
+          </div>
+        </section>
+
+        <section class="section" data-od-id="f-progress">
+          <div class="section__label">Progress</div>
+          <div class="panelbox">
+            <div class="goalbox">
+              <div class="goal-title">Resolve every review comment on PR #128</div>
+              <div class="goal-sub">Done when a fresh CodeRabbit review of the current changes reports zero unresolved comments.</div>
+              <div class="pbar" role="img" aria-label="Fix groups: 2 of 3 clean when the run failed">
+                <span class="pbar__seg pbar__seg--done"></span>
+                <span class="pbar__seg pbar__seg--done"></span>
+                <span class="pbar__seg pbar__seg--idle"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 3</b> fix groups clean when the run failed</span>
+                <span class="r">2 open points remained</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-od-id="f-timeline">
+          <div class="section__label">What happened</div>
+          <div class="panelbox">
+            <div class="spine">
+              <div class="node" style="--nl:var(--danger)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+                <div><div class="node__label">Run failed</div><div class="node__sub">Could not reach GitHub to fetch review threads — authentication expired.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:45">1h ago</span><span class="node__micro">status_changed · running → failed</span></div>
+              </div>
+              <div class="node" style="--nl:var(--success)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="node__label">Fixed the first 20 comments</div><div class="node__sub">Groups 1 and 2 finished clean — every comment got a decision, valid ones a fix with tests.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:31">1h ago</span><span class="node__micro">node_succeeded · fix_batches[1–2]</span></div>
+              </div>
+              <div class="node" style="--nl:var(--success)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="node__label">Found 24 open review comments</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 22, 2026, 14:19">1h ago</span><span class="node__micro">node_succeeded · fetch_issues</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside data-od-id="f-rail">
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Usage</div>
+            <div class="prow"><span class="prow__k">Time</span><span class="prow__v mono"><span>26m 41s</span>&nbsp;<span class="max">/ 45m</span></span></div>
+            <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono"><span>310K</span>&nbsp;<span class="max">/ 1.5M</span></span></div>
+            <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono"><span>~$1.29</span>&nbsp;<span class="max">estimate</span></span></div>
+            <div class="prow"><span class="prow__k">Rounds</span><span class="prow__v mono"><span>2</span>&nbsp;<span class="max">/ ∞</span></span></div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">About this run</div>
+            <div class="prow"><span class="prow__k">Loop</span><span class="prow__v"><a href="../_done/loops/loop-detail.html">reviews-watch</a></span></div>
+            <div class="prow"><span class="prow__k">Version</span><span class="prow__v mono"><span>v3 · pinned</span></span></div>
+            <div class="prow"><span class="prow__k">Pull request</span><span class="prow__v mono"><span>#128</span></span></div>
+            <div class="prow"><span class="prow__k">Started by</span><span class="prow__v"><span>A PR being opened</span></span></div>
+            <div class="prow"><span class="prow__k">Fix agent</span><span class="prow__v"><span class="avatar">RF</span><span>review-fixer</span></span></div>
+            <div class="prow"><span class="prow__k">Workspace</span><span class="prow__v"><span>Home</span></span></div>
+            <div class="prow"><span class="prow__k">Run id</span>
+              <span class="prow__v mono"><span>r-7c4e19</span>
+                <button class="copybtn" type="button" data-copy="r-7c4e19" aria-label="Copy run id"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+              </span>
+            </div>
+          </div>
+          <div class="rail-foot">
+            <button class="act" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Inspect</button>
+            <span class="mono">digest 4f9c2a1</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<script>
+document.querySelectorAll("[data-copy]").forEach(btn=>{
+  btn.addEventListener("click",e=>{
+    e.stopPropagation();
+    if(navigator.clipboard) navigator.clipboard.writeText(btn.dataset.copy).catch(()=>{});
+    const prev = btn.innerHTML;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;color:var(--success)"><path d="M20 6 9 17l-5-5"/></svg>';
+    setTimeout(()=>{ btn.innerHTML = prev; }, 1200);
+  });
+});
+</script>
+</body>
+</html>

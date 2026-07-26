@@ -1,0 +1,46 @@
+---
+title: "agh loop turns"
+description: "List one Loop run's Goal turn audit"
+---
+
+## agh loop turns
+
+List one Loop run's Goal turn audit
+
+```
+agh loop turns [flags]
+```
+
+### Options
+
+```
+      --after-seq int      Resume after this run-wide Goal sequence
+  -h, --help               help for turns
+      --item int           Filter by nonnegative item index
+      --limit int          Page size from 1 to 200; defaults to 50
+      --node string        Filter by Goal node ID
+      --run string         Loop run ID
+      --workspace string   Workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh loop turns -o json
+```

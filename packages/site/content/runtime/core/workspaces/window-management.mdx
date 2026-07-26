@@ -1,0 +1,138 @@
+---
+title: Window Management
+description: Persistent virtual desktops, semantic window placement, revision-safe layouts, connected clients, and recovery.
+---
+
+AGH stores one authoritative window topology per workspace. Persistent virtual desktops own tiled
+groups and floating windows; clients project that same normalized topology into their own viewport.
+The daemon, not the browser, validates membership, layout trees, weights, history, and revisions.
+
+<OperatorNote>
+  Window management is workspace state, not durable memory. Deleting a workspace removes its
+  topology. A browser stores only its stable client identifier locally.
+</OperatorNote>
+
+## Topology and presentation
+
+Every window belongs to exactly one desktop. A tiled group is a tree of leaves, weighted splits,
+and stacks; floating windows retain normalized geometry. This lets two browsers with different
+viewport sizes render one shared arrangement without persisting pixels.
+
+Active desktop and focused window are client-local. Commands that change presentation — desktop
+switch, window focus, and focus-desktop zoom — require an explicit connected `client_id`, so one
+operator cannot silently redirect another operator's screen. Each client view has an independent,
+monotonic presentation revision: these commands do not advance topology revision, change layout
+history, or emit extension hooks.
+
+## Revision-safe operations
+
+Read the current topology before changing it:
+
+```bash
+agh layout get --workspace <workspace-id> -o json
+```
+
+Every durable CLI mutation requires `--revision`. A successful command advances the workspace
+revision once and atomically records the normalized snapshot and event. Layout/topology commands add
+one history entry; route navigation does not enter or clear layout history. Preview, validation,
+rejection, and no-op paths write nothing.
+
+```bash
+agh desktop create --workspace <workspace-id> --revision <revision> --name Build
+agh window open --workspace <workspace-id> --revision <revision> --app tasks \
+  --pathname /tasks --search-json '{}'
+agh window navigate --workspace <workspace-id> --revision <revision> --id <window-id> \
+  --pathname /tasks/<task-id> --search-json '{"tab":"runs"}'
+agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
+  --desktop <desktop-id> --target <window-id> --placement right
+agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
+  --desktop <desktop-id> --group
+```
+
+On `window_manager_revision_conflict`, read the topology again and recompute the semantic action.
+Do not replay stale geometry blindly.
+
+Window `placement` is structural (`tiled`, `stacked`, or `floating`). Its separate durable `route`
+contains an internal absolute pathname and canonical JSON-object search state, so detail/filter state
+resumes after reload or daemon restart and converges in peer clients. Add `--client` to
+`agh window navigate` only when the same operation should also activate and focus that explicit client.
+
+## Tiling behavior
+
+New windows float by default and may be opened tiled beside the focused window. Structural drops
+use `before`, `after`, `left`, `right`, `top`, `bottom`, or `center`; dropping onto an occupied target
+reflows the tree instead of overlapping it. Shared-boundary resize updates all descendants on each
+side. When a viewport cannot satisfy minimum window sizes, that client projects the affected split
+as a stack without corrupting the stored topology. Group relocation moves the source window's tiled
+group and is exclusive with `--target`, `--placement`, and `--rect`.
+
+Repeated side snapping cycles through one-half, two-thirds, and one-third by default. Top-center
+targets zoom into a reusable focus desktop. Bottom-center is reserved for the Dock unless remapped.
+Both behavior and thresholds are validated under `[window_manager]` in `config.toml`.
+
+## Persistent desktops
+
+```bash
+agh desktop list --workspace <workspace-id> -o json
+agh desktop clients register --workspace <workspace-id> --client <stable-client-id>
+agh desktop switch --workspace <workspace-id> --revision <revision> \
+  --client <stable-client-id> --id <desktop-id>
+agh desktop delete --workspace <workspace-id> --revision <revision> --id <desktop-id> \
+  --destination <desktop-id>
+```
+
+Deleting the final desktop is rejected. A non-empty desktop requires a distinct destination so the
+window transfer and deletion happen in one transaction. The Web shell exposes the same desktops as
+a minimal horizontal dot pager at the lower left, aligned with the Dock, and opens full management
+on demand.
+
+## Declarative layouts and recovery
+
+Semantic commands are the normal control surface. A validated layout document is the raw recovery
+escape hatch:
+
+```bash
+agh layout export --workspace <workspace-id> -o json > layout.json
+agh layout validate --workspace <workspace-id> --file layout.json -o json
+agh layout apply --workspace <workspace-id> --revision <revision> --file layout.json -o json
+```
+
+Export omits history. Validate never writes. Apply validates the complete document, binds it to the
+requested workspace, preserves current routes for surviving window IDs, and replaces the topology
+atomically. Extensions and bundles can contribute
+declarative `window_layout` resources; discover them through `agh__resources_list`, then arrange by
+`resource_id`. The Settings layout editor lists and saves profiles through
+`/api/workspaces/{workspace_id}/window-manager/layout-profiles`. That projection contains global
+profiles plus profiles scoped to the selected workspace, and rejects cross-workspace writes.
+Resources cannot execute code or receive pointer events.
+
+A tiled return anchor in an exported document carries `return_anchor.source_group`, the daemon's
+validated deep capture of its source group. For Zoom, an unchanged source residue lets unzoom restore
+the exact group and node identities, order, weights, placement, and active stack member. If the source
+changed in the meantime, AGH preserves those edits and uses the structural anchor fallback. Preserve
+`source_group` during raw document round trips; use the semantic Zoom operation instead of
+constructing or editing this recovery state.
+
+## Agent and transport access
+
+The lazy `agh__window_manager` toolset exposes 26 desktop, window, and layout tools with structured
+revisions, diagnostics, capability gates, and risk classifications. Resolve `agh__tool_info` before
+calling a tool. CLI fallbacks are grouped under [`agh desktop`](/runtime/cli-reference/desktop),
+[`agh window`](/runtime/cli-reference/window), and [`agh layout`](/runtime/cli-reference/layout).
+
+HTTP and UDS expose identical routes below
+`/api/workspaces/{workspace_id}/window-manager`; see the
+[Workspaces API](/runtime/api-reference/workspaces) for request and response schemas. The WebSocket
+stream accepts an optional registered `client_id`. A bound stream fences that client's view in its
+initial snapshot and then sends only strictly newer presentation frames for that ID alongside
+workspace-revision topology events; an unbound stream receives topology only. After slow-consumer
+eviction, reconnect and replace local state from the next fence. After a daemon restart, register the
+same stable client ID again before reconnecting.
+
+Use `agh layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl` for the bound
+CLI stream. Omit `--client` when only topology revisions are needed.
+
+Committed operations emit exactly `window_manager.layout.applied`,
+`window_manager.desktop.created`, `window_manager.desktop.deleted`, and
+`window_manager.window.moved` as async hooks. Pointer previews, navigation, focus changes, and
+desktop switching do not emit extension hooks.

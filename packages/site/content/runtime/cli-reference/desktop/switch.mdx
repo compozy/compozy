@@ -1,0 +1,46 @@
+---
+title: "agh desktop switch"
+description: "Switch one connected client to a desktop"
+---
+
+## agh desktop switch
+
+Switch one connected client to a desktop
+
+```
+agh desktop switch [flags]
+```
+
+### Options
+
+```
+      --actor-id string    Optional actor identifier
+      --client string      Connected presentation client ID
+  -h, --help               help for switch
+      --id string          Desktop ID
+      --origin string      Command origin label (default "cli")
+      --revision uint      Expected workspace revision
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh desktop switch -o json
+```

@@ -40,7 +40,7 @@ This skill provides guidelines, patterns, and best practices for working with sh
 Use the CLI to add components, then customize as needed:
 
 ```bash
-npx shadcn-ui@latest add button card dialog
+npx shadcn@latest add button card dialog
 ```
 
 ### Extending Components

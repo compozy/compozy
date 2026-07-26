@@ -1,0 +1,45 @@
+---
+title: "agh layout redo"
+description: "Redo the latest undone layout operation"
+---
+
+## agh layout redo
+
+Redo the latest undone layout operation
+
+```
+agh layout redo [flags]
+```
+
+### Options
+
+```
+      --actor-id string    Optional actor identifier
+      --client string      Connected presentation client ID
+  -h, --help               help for redo
+      --origin string      Command origin label (default "cli")
+      --revision uint      Expected workspace revision
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh layout redo -o json
+```

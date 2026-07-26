@@ -1,0 +1,42 @@
+---
+title: "agh agent delete"
+description: "Durably delete an agent definition"
+---
+
+## agh agent delete
+
+Durably delete an agent definition
+
+```
+agh agent delete <name> [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for delete
+      --workspace string   Resolve the effective agent from a workspace
+      --yes                Confirm durable deletion without prompting
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh agent delete <name> -o json
+```

@@ -1,15 +1,15 @@
 {
   "version": 1,
   "sidecar": "git@github.com:compozy/specs.git",
-  "source_branch": "fixes",
+  "source_branch": "marketplace",
   "namespaces": [
     {
-      "name": "compozy",
-      "sidecar_branch": "compozy/__branches__/fixes",
-      "commit": "2ee032b121f14c55e806650501b22954e6f044b7",
-      "digest": "sha256:49877c8939bed69ebfd77e53cc7e35d36b4fe31e0c011c42acfdbf87db0bb34a",
-      "files": 1449,
-      "bytes": 12099662
+      "name": "agh",
+      "sidecar_branch": "agh/__branches__/marketplace",
+      "commit": "518b88483c833d3af96b15943ff9c466328a5734",
+      "digest": "sha256:9c8a51d1a9c54c3c3068411c005303e0c23d054d5818676de72cab35d9e6dffb",
+      "files": 7349,
+      "bytes": 234596437
     }
   ]
 }

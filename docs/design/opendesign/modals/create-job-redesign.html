@@ -1,0 +1,1316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AGH · Create job — redesign</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ───────────────────────────────────────────────────────────
+   AGH tokens — canonical set shared with trigger/task redesigns
+   warm-dark surface ramp · single operator-orange accent · flat depth
+   ─────────────────────────────────────────────────────────── */
+:root{
+  color-scheme: dark;
+  --rail:#0c0b0b; --canvas:#131211; --surface:#1a1918; --surface-2:#1c1b1a;
+  --elevated:#232220; --hover:rgba(255,255,255,0.022); --selected:rgba(255,255,255,0.03);
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,0.055); --line-soft:rgba(255,255,255,0.03); --line-strong:rgba(255,255,255,0.09);
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,0.10); --accent-tint-strong:rgba(232,87,42,0.16); --accent-dim:rgba(232,87,42,0.24);
+  --success:#5fbf85; --success-tint:rgba(95,191,133,0.08);
+  --warning:#d6a647; --warning-tint:rgba(214,166,71,0.08);
+  --danger:#e0635a;  --danger-tint:rgba(224,99,90,0.09);
+  --info:#8e8eb5;    --info-tint:rgba(142,142,181,0.12);
+  --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,0.06);
+  --input-fill:rgba(255,255,255,0.025); --badge-fill:rgba(255,255,255,0.05);
+  --btn-fill:rgba(255,255,255,0.04); --btn-fill-hover:rgba(255,255,255,0.07);
+  --scrim:rgba(0,0,0,0.62);
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+  --dur-fast:100ms; --dur:140ms; --dur-slow:200ms; --ease:cubic-bezier(.2,0,0,1);
+  --shadow-overlay:0 24px 48px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.045);
+  --highlight:inset 0 1px 0 rgba(255,255,255,0.035);
+  --focus-ring:0 0 0 1px var(--line-strong);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--fg);
+  font-family:var(--font-sans); font-size:13.5px; line-height:1.5; letter-spacing:-0.006em;
+  font-feature-settings:"cv01","ss03","cv11";
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow:hidden;
+}
+::selection{background:var(--accent-dim);color:var(--fg-strong)}
+svg{display:block}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.hide{display:none!important}
+
+/* ── faint product backdrop (the jobs list, dimmed behind the modal) ── */
+.backdrop{position:fixed;inset:0;display:flex;filter:saturate(.9);opacity:.42;pointer-events:none}
+.bd-rail{width:52px;background:var(--rail);border-right:1px solid var(--line-soft);flex:none}
+.bd-rail span{display:block;width:24px;height:24px;margin:16px auto;border-radius:7px;background:var(--surface)}
+.bd-main{flex:1;padding:26px 40px}
+.bd-h{height:30px;width:180px;border-radius:6px;background:var(--surface);margin-bottom:6px}
+.bd-sub{height:13px;width:320px;border-radius:5px;background:var(--surface-2);margin-bottom:26px}
+.bd-row{height:54px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface);margin-bottom:10px}
+
+/* ── scrim + modal shell ── */
+.scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(2px);display:grid;place-items:center;padding:28px}
+.modal{
+  width:min(1180px,100%); height:min(840px,92vh);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-overlay); display:grid; grid-template-rows:auto 1fr auto; overflow:hidden;
+}
+.modal__head{display:flex;align-items:flex-start;gap:16px;padding:20px 24px 18px;border-bottom:1px solid var(--line-soft)}
+.head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+  background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.head-icon svg{width:18px;height:18px}
+.head-txt{flex:1;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+.modal__title{font-size:16px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em;margin-top:3px}
+.modal__sub{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:64ch}
+.head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);
+  background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:all var(--dur) var(--ease)}
+.head-close:hover{background:var(--hover);color:var(--fg)}
+.head-close svg{width:16px;height:16px}
+
+.modal__body{display:grid;grid-template-columns:1fr 472px;min-height:0}
+.form{overflow-y:auto;padding:22px 24px 28px}
+.preview{overflow-y:auto;background:var(--canvas);border-left:1px solid var(--line-soft);padding:20px 20px 26px}
+
+/* scrollbars */
+.form::-webkit-scrollbar,.preview::-webkit-scrollbar{width:10px}
+.form::-webkit-scrollbar-thumb,.preview::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06);border-radius:99px;border:3px solid transparent;background-clip:padding-box}
+
+/* ── identity field row ── */
+.identity{display:flex;gap:14px;align-items:flex-end;margin-bottom:6px}
+.identity .field{flex:1}
+
+/* ── field primitives ── */
+.field{margin-bottom:0}
+.label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--fg-strong);margin-bottom:7px}
+.label .opt{font-size:11px;font-weight:400;color:var(--faint);letter-spacing:0}
+.label .req{color:var(--accent-strong);font-weight:600;font-size:11px}
+.hint{font-size:11.5px;color:var(--subtle);margin-top:7px;line-height:1.45}
+.hint code{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.input,.textarea,select.input{
+  width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);
+  border:1px solid var(--line);border-radius:var(--radius-md);font-family:inherit;font-size:13px;
+  outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease);
+}
+.input::placeholder,.textarea::placeholder{color:var(--faint)}
+.input:focus,.textarea:focus,select.input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+.input:disabled{opacity:.45;cursor:not-allowed}
+.input.bad{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger-tint)}
+.textarea{height:auto;padding:10px 11px;resize:vertical;min-height:96px;line-height:1.55}
+.input--mono,.textarea--mono{font-family:var(--font-mono);font-size:12px;letter-spacing:0}
+select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;cursor:pointer}
+
+/* ── flow spine ── */
+.flow{position:relative;margin-top:18px;padding-left:42px}
+.flow::before{content:"";position:absolute;left:14px;top:13px;bottom:34px;width:1.5px;
+  background:linear-gradient(var(--line-strong),var(--line-soft))}
+.step{position:relative;padding-bottom:26px}
+.step:last-child{padding-bottom:8px}
+.node{position:absolute;left:-42px;top:-2px;width:29px;height:29px;border-radius:50%;
+  display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);
+  color:var(--muted);z-index:1}
+.node[data-on="1"]{background:var(--accent-tint);border-color:var(--accent-dim);color:var(--accent-strong)}
+.node svg{width:15px;height:15px}
+.step__kicker{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+.step__title{font-size:14px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em;margin:1px 0 2px}
+.step__sub{font-size:12px;color:var(--muted);margin-bottom:13px}
+
+/* ── pillgroups ── */
+.pillgroup{display:inline-flex;padding:2px;gap:2px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-md);flex-wrap:wrap}
+.pill{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:500;
+  height:25px;padding:0 12px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  transition:all var(--dur) var(--ease)}
+.pill[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+.pill svg{width:13px;height:13px}
+.pill .dot{width:7px;height:7px;border-radius:50%}
+.pill[data-retry="none"] .dot{background:var(--neutral)}
+.pill[data-retry="backoff"] .dot{background:var(--accent-strong)}
+
+/* scope row */
+.scope-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:0}
+.ws-pick{display:none;align-items:center;gap:0;flex:1;min-width:160px}
+.ws-pick[data-show="1"]{display:flex}
+.ws-pick .input{flex:1}
+.scope-note{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--subtle);margin-top:11px;line-height:1.4}
+.scope-note svg{flex:none;width:13px;height:13px;color:var(--accent-strong)}
+
+/* ── output-mode segmented (agent vs task) ── */
+.seg-wide{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:15px}
+.seg{display:flex;flex-direction:column;gap:3px;text-align:left;padding:11px 13px;cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--radius-md);position:relative;
+  transition:all var(--dur) var(--ease)}
+.seg:hover{background:var(--elevated);border-color:var(--line)}
+.seg[aria-pressed="true"]{background:var(--accent-tint);border-color:transparent;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.seg__top{display:flex;align-items:center;gap:8px}
+.seg__ic{flex:none;width:24px;height:24px;border-radius:var(--radius-sm);display:grid;place-items:center;
+  background:var(--badge-fill);color:var(--muted)}
+.seg[aria-pressed="true"] .seg__ic{background:rgba(232,87,42,.16);color:var(--accent-strong)}
+.seg__ic svg{width:14px;height:14px}
+.seg__name{flex:1;font-size:12.5px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em}
+.seg[aria-pressed="true"] .seg__name{color:var(--accent-strong)}
+.seg__check{flex:none;width:14px;height:14px;color:var(--accent-strong);opacity:0;transition:opacity var(--dur)}
+.seg[aria-pressed="true"] .seg__check{opacity:1}
+.seg__desc{font-size:11px;color:var(--subtle);line-height:1.4}
+
+/* ── agent picker ── */
+.agent-field{position:relative}
+.agent-field .input{padding-left:34px}
+.agent-av{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:19px;height:19px;border-radius:5px;
+  display:grid;place-items:center;font-size:10px;font-weight:600;color:var(--accent-ink);background:var(--accent-strong);
+  font-family:var(--font-mono);pointer-events:none}
+
+/* owner composite (task mode) */
+.owner-row{display:grid;grid-template-columns:170px 1fr;gap:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* ── schedule builder ── */
+.sched-pane{display:none}
+.sched-pane[data-show="1"]{display:block}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px}
+.chip{appearance:none;border:1px solid var(--line-soft);background:var(--surface-2);color:var(--muted);
+  font:inherit;font-size:11.5px;font-weight:500;height:27px;padding:0 11px;border-radius:var(--radius-pill);cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;transition:all var(--dur) var(--ease)}
+.chip:hover{background:var(--elevated);color:var(--fg);border-color:var(--line)}
+.chip[aria-pressed="true"]{background:var(--accent-tint);color:var(--accent-strong);border-color:var(--accent-dim)}
+.chip .cx{font-family:var(--font-mono);font-size:10.5px;color:var(--faint)}
+.chip[aria-pressed="true"] .cx{color:var(--accent-strong);opacity:.75}
+.cron-legend{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px}
+.cron-legend span{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;color:var(--faint);text-align:center}
+.read{display:flex;align-items:center;gap:7px;font-size:12px;margin-top:10px;line-height:1.4}
+.read svg{flex:none;width:13px;height:13px}
+.read--ok{color:var(--accent-strong)}
+.read--ok svg{color:var(--accent-strong)}
+.read--bad{color:var(--danger)}
+.read--bad svg{color:var(--danger)}
+.read b{font-weight:600}
+.atwrap{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+.atwrap .iso{align-self:center;font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap}
+
+/* ── visual cron builder ── */
+.cron-or{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:15px 0 9px}
+.cron-freq{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.freq{appearance:none;border:1px solid var(--line-soft);background:var(--surface-2);color:var(--muted);
+  font:inherit;font-size:12px;font-weight:500;height:30px;padding:0 11px;border-radius:var(--radius-md);cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;transition:all var(--dur) var(--ease)}
+.freq svg{width:14px;height:14px;opacity:.8}
+.freq:hover{background:var(--elevated);color:var(--fg);border-color:var(--line)}
+.freq[aria-pressed="true"]{background:var(--accent-tint);color:var(--accent-strong);border-color:transparent;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.freq[aria-pressed="true"] svg{opacity:1}
+.cron-row{display:none;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:13px 14px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--radius-md);margin-bottom:12px}
+.cron-row[data-on="1"]{display:flex}
+.cron-row--col{flex-direction:column;align-items:stretch;gap:13px}
+.cron-row__lead{font-size:13px;color:var(--fg);font-weight:500}
+.cron-row__tail{font-size:13px;color:var(--muted);font-weight:500}
+.cron-sel{width:auto!important;min-width:72px;height:30px}
+.cron-time{width:auto!important;min-width:120px;height:30px;font-family:var(--font-mono);font-variant-numeric:tabular-nums;color-scheme:dark}
+.cron-time::-webkit-calendar-picker-indicator{opacity:.55;cursor:pointer;filter:invert(.85)}
+.row-inline{display:flex;align-items:center;gap:10px}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.dow-btn{appearance:none;border:1px solid var(--line);background:var(--elevated);color:var(--muted);
+  font:inherit;font-size:12px;font-weight:600;height:34px;border-radius:var(--radius-sm);cursor:pointer;
+  display:grid;place-items:center;transition:all var(--dur) var(--ease)}
+.dow-btn:hover{background:var(--surface);color:var(--fg);border-color:var(--line-strong)}
+.dow-btn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent;box-shadow:var(--highlight)}
+.dow-quick{display:flex;gap:6px;flex-wrap:wrap}
+.dow-quick button{appearance:none;border:1px solid var(--line-soft);background:transparent;color:var(--subtle);
+  font:inherit;font-size:11px;font-weight:500;height:24px;padding:0 10px;border-radius:var(--radius-pill);cursor:pointer;transition:all var(--dur) var(--ease)}
+.dow-quick button:hover{background:var(--hover);color:var(--fg);border-color:var(--line)}
+.cron-expr-wrap{margin-top:2px}
+.cron-expr-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.cron-expr-lbl{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.cron-edit{appearance:none;border:0;background:transparent;color:var(--accent-strong);font:inherit;font-size:11.5px;font-weight:500;cursor:pointer;padding:2px 5px;border-radius:var(--radius-xs);transition:background var(--dur) var(--ease)}
+.cron-edit:hover{background:var(--accent-tint)}
+#cron-expr[readonly]{color:var(--muted);background:var(--surface-2);border-style:dashed;cursor:default}
+#cron-expr[readonly]:focus{box-shadow:none;border-color:var(--line)}
+.cron-warn{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--warning);margin-top:9px;line-height:1.4}
+.cron-warn svg{flex:none;width:13px;height:13px}
+
+/* contextual note */
+.note{display:flex;align-items:flex-start;gap:9px;font-size:11.5px;color:var(--subtle);line-height:1.45;
+  padding:10px 12px;border:1px solid var(--line-soft);border-left:2px solid var(--accent-dim);border-radius:var(--radius-md);
+  background:var(--surface-2);margin-top:12px}
+.note svg{flex:none;width:14px;height:14px;color:var(--accent-strong);margin-top:1px}
+.note b{color:var(--fg);font-weight:500}
+
+/* ── collapsible (reliability) ── */
+.coll{margin-top:24px;border-top:1px solid var(--line-soft);padding-top:6px}
+.coll__trigger{display:flex;align-items:center;gap:8px;width:100%;padding:11px 2px;background:transparent;border:0;cursor:pointer;
+  font:inherit;color:var(--fg-strong);font-size:13px;font-weight:600;list-style:none}
+.coll__trigger::-webkit-details-marker{display:none}
+.coll__trigger::marker{content:""}
+.coll__trigger .chev{width:15px;height:15px;color:var(--muted);transition:transform var(--dur)}
+.coll[open] .chev{transform:rotate(90deg)}
+.coll__trigger .grow{flex:1;text-align:left}
+.coll__trigger .badge{font-size:11px;font-weight:400;color:var(--subtle);font-family:var(--font-mono);letter-spacing:0}
+.coll__body{padding:8px 2px 4px;display:none}
+.coll[open] .coll__body{display:block}
+.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px}
+.cfg-grid .full{grid-column:1/-1}
+
+/* switch */
+.switch-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);
+  background:var(--surface-2)}
+.switch{flex:none;width:32px;height:18px;border-radius:99px;background:var(--elevated);border:1px solid var(--line);position:relative;cursor:pointer;transition:all var(--dur)}
+.switch::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:all var(--dur) var(--ease)}
+.switch[aria-checked="true"]{background:var(--accent);border-color:transparent}
+.switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--accent-ink)}
+.switch-txt{flex:1}
+.switch-txt b{display:block;font-size:12.5px;color:var(--fg-strong);font-weight:500}
+.switch-txt span{font-size:11.5px;color:var(--subtle)}
+.disabled-group{opacity:.42;pointer-events:none}
+
+/* ── footer ── */
+.modal__foot{display:flex;align-items:center;gap:12px;padding:14px 24px;border-top:1px solid var(--line-soft);background:var(--surface)}
+.foot-note{flex:1;font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:7px;line-height:1.4}
+.foot-note svg{flex:none;width:13px;height:13px;color:var(--faint)}
+.btn{height:30px;padding:0 14px;border-radius:var(--radius);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;transition:all var(--dur) var(--ease)}
+.btn:active{transform:translateY(1px)}
+.btn--outline{background:transparent;border-color:var(--line);color:var(--fg)}
+.btn--outline:hover{background:var(--hover)}
+.btn--primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--primary svg{width:14px;height:14px}
+
+/* ════════ PREVIEW PANE ════════ */
+.pv-eyebrow{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--subtle);margin-bottom:14px}
+.pv-eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px var(--success-tint)}
+.pv-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius-lg);padding:14px;margin-bottom:12px}
+.pv-card__label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--faint);margin-bottom:11px}
+.pv-card__label .ttl{display:flex;align-items:center;gap:7px}
+.pv-card__label svg{width:13px;height:13px}
+
+/* summary sentence */
+.summary{font-size:14px;line-height:1.65;color:var(--muted)}
+.summary b{color:var(--fg-strong);font-weight:600}
+.summary .acc{color:var(--accent-strong);font-weight:600}
+.summary .ev{font-family:var(--font-mono);font-size:12.5px;color:var(--fg-strong);background:var(--badge-fill);padding:1px 6px;border-radius:4px}
+
+/* next runs */
+.nr{display:flex;align-items:center;gap:11px;padding:9px 11px;border:1px solid var(--line-soft);
+  border-radius:var(--radius);background:var(--surface-2);margin-bottom:6px}
+.nr:last-child{margin-bottom:0}
+.nr__idx{flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;
+  font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--subtle);background:var(--badge-fill)}
+.nr.first .nr__idx{color:var(--accent-strong);background:var(--accent-tint-strong)}
+.nr__rel{flex:1;font-size:12.5px;color:var(--fg);font-weight:500}
+.nr.first .nr__rel{color:var(--fg-strong)}
+.nr__abs{font-family:var(--font-mono);font-size:11px;color:var(--subtle);font-variant-numeric:tabular-nums}
+.nr-empty{font-size:12px;color:var(--subtle);padding:11px 12px;border:1px dashed var(--line-soft);border-radius:var(--radius-md);
+  background:var(--surface-2);line-height:1.5}
+.nr-empty b{color:var(--warning);font-weight:600}
+
+/* prompt / task digest */
+.rendered{font-size:12.5px;line-height:1.62;color:var(--fg);white-space:pre-wrap;font-family:var(--font-sans)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:12px}
+.kv dt{color:var(--subtle)}
+.kv dd{color:var(--fg);text-align:right;font-weight:500}
+.kv dd.mono{font-family:var(--font-mono);font-size:11.5px}
+
+/* code/json */
+.code{font-family:var(--font-mono);font-size:11.5px;line-height:1.65;color:var(--fg);background:var(--rail);
+  border:1px solid var(--line-soft);border-radius:var(--radius);padding:11px 12px;overflow-x:auto;white-space:pre;letter-spacing:0}
+.code .k{color:var(--info)}
+.code .s{color:var(--success)}
+.code .n{color:var(--accent-strong)}
+.code .b{color:var(--warning)}
+.code .hl{background:var(--accent-tint);border-radius:3px;padding:0 2px;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.code .hl .s,.code .hl .k{color:var(--accent-strong)}
+
+@media (max-width:980px){
+  .modal{height:94vh}
+  .modal__body{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  .preview{border-left:0;border-top:1px solid var(--line-soft);max-height:320px}
+}
+</style>
+</head>
+<body>
+
+<!-- faint product context behind the modal -->
+<div class="backdrop" aria-hidden="true">
+  <div class="bd-rail"><span></span><span></span><span></span></div>
+  <div class="bd-main">
+    <div class="bd-h"></div><div class="bd-sub"></div>
+    <div class="bd-row"></div><div class="bd-row"></div><div class="bd-row"></div><div class="bd-row"></div>
+  </div>
+</div>
+
+<div class="scrim">
+  <div class="modal" role="dialog" aria-label="Create job">
+
+    <!-- HEADER -->
+    <header class="modal__head">
+      <div class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg>
+      </div>
+      <div class="head-txt">
+        <div class="eyebrow">Automation · Job</div>
+        <div class="modal__title">Create job</div>
+        <p class="modal__sub">A job runs an agent on a schedule — no operator in the loop. It answers three things: <b style="color:var(--muted);font-weight:500">which agent, what prompt, and when to dispatch.</b></p>
+      </div>
+      <button class="head-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- BODY: form | preview -->
+    <div class="modal__body">
+
+      <!-- ░░░ LEFT: FORM ░░░ -->
+      <section class="form">
+
+        <!-- identity -->
+        <div class="identity">
+          <div class="field">
+            <label class="label" for="j-name">Job name <span class="req">required</span></label>
+            <input id="j-name" class="input mono" value="daily-code-review" placeholder="daily-code-review">
+          </div>
+        </div>
+
+        <!-- flow spine -->
+        <div class="flow">
+
+          <!-- ① FOR -->
+          <div class="step">
+            <div class="node" data-on="1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>
+            </div>
+            <div class="step__kicker">For</div>
+            <div class="step__title">A workspace, or the whole runtime</div>
+            <p class="step__sub">Where the job lives. A global job runs against the runtime; a workspace job runs in one project.</p>
+
+            <div class="scope-row">
+              <div class="pillgroup" id="scope-group" role="group" aria-label="Scope">
+                <button class="pill" data-scope="global" aria-pressed="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+                  Global
+                </button>
+                <button class="pill" data-scope="workspace" aria-pressed="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>
+                  Workspace
+                </button>
+              </div>
+              <div class="ws-pick" id="ws-pick" data-show="1">
+                <select class="input" id="ws-select">
+                  <option value="checkout-api">checkout-api</option>
+                  <option value="billing">billing</option>
+                  <option value="growth-experiments">growth-experiments</option>
+                  <option value="test">test</option>
+                </select>
+              </div>
+            </div>
+            <div class="scope-note hide" id="scope-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              Global jobs aren't bound to a workspace — leave the workspace field empty.
+            </div>
+          </div>
+
+          <!-- ② RUN -->
+          <div class="step">
+            <div class="node" data-on="1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5M9 2h6"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg>
+            </div>
+            <div class="step__kicker">Run</div>
+            <div class="step__title">What fires on each tick</div>
+            <p class="step__sub">Prompt an agent directly, or hand the work to a durable task that carries its own owner.</p>
+
+            <!-- output mode -->
+            <div class="seg-wide" id="output-group" role="group" aria-label="Output mode">
+              <button class="seg" data-output="agent" aria-pressed="true">
+                <span class="seg__top">
+                  <span class="seg__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5M9 2h6"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg></span>
+                  <span class="seg__name">Prompt an agent</span>
+                  <svg class="seg__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+                <span class="seg__desc">Opens a session and sends the prompt directly.</span>
+              </button>
+              <button class="seg" data-output="task" aria-pressed="false">
+                <span class="seg__top">
+                  <span class="seg__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+                  <span class="seg__name">Delegate to a task</span>
+                  <svg class="seg__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+                <span class="seg__desc">Materializes a durable task run each tick.</span>
+              </button>
+            </div>
+
+            <!-- agent path -->
+            <div id="pane-agent" class="stack">
+              <div class="field">
+                <label class="label" for="agent-select">Agent <span class="req">required</span></label>
+                <div class="agent-field">
+                  <span class="agent-av" id="agent-av">r</span>
+                  <select class="input" id="agent-select">
+                    <option value="reviewer" selected>reviewer</option>
+                    <option value="operator">operator</option>
+                    <option value="release">release</option>
+                    <option value="summarizer">summarizer</option>
+                    <option value="triage">triage</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label" for="prompt">Prompt <span class="req">required</span></label>
+                <textarea id="prompt" class="textarea">Review the changed files in the current worktree and write a concise risk report. Flag anything that could block the next release.</textarea>
+                <p class="hint">Sent to the agent <b style="color:var(--muted);font-weight:500">verbatim</b> — jobs don't template, there's no event to interpolate. (Variable substitution is a trigger feature.)</p>
+              </div>
+            </div>
+
+            <!-- task path -->
+            <div id="pane-task" class="stack hide">
+              <div class="grid2">
+                <div class="field">
+                  <label class="label" for="task-title">Task title <span class="opt">— defaults to job name</span></label>
+                  <input id="task-title" class="input" value="" placeholder="daily-code-review">
+                </div>
+                <div class="field">
+                  <label class="label" for="task-channel">Network channel <span class="opt">— optional</span></label>
+                  <input id="task-channel" class="input mono" value="" placeholder="peer ingress channel">
+                </div>
+              </div>
+              <div class="field">
+                <label class="label" for="task-desc">Description <span class="opt">— defaults to the prompt</span></label>
+                <textarea id="task-desc" class="textarea" style="min-height:72px" placeholder="What 'done' means for the materialized task.">Review the changed files and write a concise risk report.</textarea>
+              </div>
+              <div class="field">
+                <label class="label" for="owner-kind">Owner <span class="opt">— who claims the task; leave unassigned for a pool</span></label>
+                <div class="owner-row">
+                  <select class="input" id="owner-kind">
+                    <option value="">Unassigned</option>
+                    <option value="pool">Agent pool</option>
+                    <option value="agent_session">Agent session</option>
+                    <option value="human">Human</option>
+                    <option value="automation">Automation</option>
+                    <option value="extension">Extension</option>
+                    <option value="network_peer">Network peer</option>
+                  </select>
+                  <input class="input mono" id="owner-ref" value="" placeholder="select an owner kind first" disabled>
+                </div>
+              </div>
+              <div class="note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <span>Each tick creates a fresh <b>task run</b> instead of a session — the run shows as <b>delegated</b>. The task owns its retries, so job-level retry is set to <b>None</b>.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ③ WHEN -->
+          <div class="step">
+            <div class="node" data-on="1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+            </div>
+            <div class="step__kicker">When</div>
+            <div class="step__title">On this schedule</div>
+            <p class="step__sub">All times evaluate in <b style="color:var(--muted);font-weight:500">UTC</b> — the runtime's automation timezone.</p>
+
+            <div class="pillgroup" id="sched-mode" role="group" aria-label="Schedule mode" style="margin-bottom:14px">
+              <button class="pill" data-mode="cron" aria-pressed="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Repeat on cron
+              </button>
+              <button class="pill" data-mode="every" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                Every interval
+              </button>
+              <button class="pill" data-mode="at" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M9 16l2 2 4-4"/></svg>
+                Once at a time
+              </button>
+            </div>
+
+            <!-- CRON -->
+            <div class="sched-pane" id="pane-cron" data-show="1">
+
+              <!-- quick common schedules -->
+              <div class="chips" id="cron-presets" aria-label="Common schedules"></div>
+
+              <div class="cron-or">Or build the rhythm</div>
+
+              <!-- frequency -->
+              <div class="cron-freq" id="cron-freq" role="group" aria-label="Frequency">
+                <button class="freq" data-freq="minutes" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Minutes</button>
+                <button class="freq" data-freq="hourly" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 1.5"/></svg>Hourly</button>
+                <button class="freq" data-freq="daily" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>Daily</button>
+                <button class="freq" data-freq="weekly" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Weekly</button>
+                <button class="freq" data-freq="monthly" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>Monthly</button>
+                <button class="freq" data-freq="custom" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Custom</button>
+              </div>
+
+              <!-- contextual controls (one row per frequency) -->
+              <div class="cron-row" data-freq="minutes">
+                <span class="cron-row__lead">Every</span>
+                <select id="cf-everyN" class="input cron-sel mono"></select>
+                <span class="cron-row__tail">minutes</span>
+              </div>
+
+              <div class="cron-row" data-freq="hourly">
+                <span class="cron-row__lead">Every hour at minute</span>
+                <select id="cf-hourlyMin" class="input cron-sel mono"></select>
+              </div>
+
+              <div class="cron-row" data-freq="daily">
+                <span class="cron-row__lead">Every day at</span>
+                <input id="cf-daily-time" class="input cron-time" type="time" value="09:00">
+              </div>
+
+              <div class="cron-row cron-row--col" data-freq="weekly">
+                <div class="dow" id="cf-dow" role="group" aria-label="Days of week">
+                  <button class="dow-btn" data-d="0" title="Sunday"    aria-pressed="false">Su</button>
+                  <button class="dow-btn" data-d="1" title="Monday"    aria-pressed="false">Mo</button>
+                  <button class="dow-btn" data-d="2" title="Tuesday"   aria-pressed="false">Tu</button>
+                  <button class="dow-btn" data-d="3" title="Wednesday" aria-pressed="false">We</button>
+                  <button class="dow-btn" data-d="4" title="Thursday"  aria-pressed="false">Th</button>
+                  <button class="dow-btn" data-d="5" title="Friday"    aria-pressed="false">Fr</button>
+                  <button class="dow-btn" data-d="6" title="Saturday"  aria-pressed="false">Sa</button>
+                </div>
+                <div class="row-inline" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+                  <div class="dow-quick" id="cf-dow-quick">
+                    <button type="button" data-set="weekdays">Weekdays</button>
+                    <button type="button" data-set="weekend">Weekend</button>
+                    <button type="button" data-set="all">Every day</button>
+                  </div>
+                  <div class="row-inline">
+                    <span class="cron-row__tail">at</span>
+                    <input id="cf-weekly-time" class="input cron-time" type="time" value="09:00">
+                  </div>
+                </div>
+              </div>
+
+              <div class="cron-row" data-freq="monthly">
+                <span class="cron-row__lead">On day</span>
+                <select id="cf-monthDay" class="input cron-sel mono"></select>
+                <span class="cron-row__tail">at</span>
+                <input id="cf-monthly-time" class="input cron-time" type="time" value="09:00">
+              </div>
+
+              <!-- derived expression (editable only in Custom) -->
+              <div class="cron-expr-wrap">
+                <div class="cron-expr-head">
+                  <span class="cron-expr-lbl">Cron expression</span>
+                  <button class="cron-edit" id="cron-edit" type="button">Edit raw →</button>
+                </div>
+                <input id="cron-expr" class="input input--mono" value="0 9 * * 1-5" readonly>
+                <div class="cron-legend"><span>min</span><span>hour</span><span>day</span><span>month</span><span>weekday</span></div>
+              </div>
+
+              <div class="read read--ok" id="cron-read"></div>
+              <div class="cron-warn hide" id="cron-warn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a1 1 0 0 0 .86 1.5h16.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span>Months shorter than this day are skipped — the run won't fire that month.</span>
+              </div>
+              <p class="hint">Pick a frequency and we compile the <b style="color:var(--muted);font-weight:500">5-field</b> cron for you. Choose <b style="color:var(--muted);font-weight:500">Custom</b> to write the expression directly — no seconds field, no <code>@daily</code> macros.</p>
+            </div>
+
+            <!-- EVERY -->
+            <div class="sched-pane" id="pane-every">
+              <div class="chips" id="every-presets"></div>
+              <div class="field">
+                <input id="every-interval" class="input input--mono" value="30m" placeholder="30m">
+              </div>
+              <div class="read read--ok" id="every-read"></div>
+              <p class="hint">Positive Go duration — <code>30m</code>, <code>1h</code>, <code>2h30m</code>, <code>45s</code>.</p>
+            </div>
+
+            <!-- AT -->
+            <div class="sched-pane" id="pane-at">
+              <div class="field">
+                <div class="atwrap">
+                  <input id="at-time" class="input" type="datetime-local">
+                  <span class="iso" id="at-iso"></span>
+                </div>
+              </div>
+              <div class="read read--ok" id="at-read"></div>
+              <p class="hint">One-time run, then the job unregisters. If the time is already past when you save, it never registers.</p>
+            </div>
+          </div>
+
+        </div><!-- /flow -->
+
+        <!-- reliability & limits -->
+        <details class="coll" id="coll-reliability" open>
+          <summary class="coll__trigger">
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="grow">Reliability &amp; limits</span>
+            <span class="badge" id="rel-badge"></span>
+          </summary>
+          <div class="coll__body">
+            <div class="cfg-grid">
+              <div class="field full">
+                <label class="label">Retry policy <span class="opt" id="retry-lock-hint"></span></label>
+                <div class="pillgroup" id="retry-group" role="group">
+                  <button class="pill" data-retry="none" aria-pressed="false"><span class="dot"></span>None</button>
+                  <button class="pill" data-retry="backoff" aria-pressed="true"><span class="dot"></span>Exponential backoff</button>
+                </div>
+              </div>
+              <div class="field" id="retry-max-f">
+                <label class="label">Max retries</label>
+                <input class="input mono" id="retry-max" type="number" min="1" value="3">
+              </div>
+              <div class="field" id="retry-delay-f">
+                <label class="label">Base delay</label>
+                <input class="input mono" id="retry-delay" value="2s" placeholder="2s">
+              </div>
+              <div class="field">
+                <label class="label">Max fires</label>
+                <input class="input mono" id="fl-max" type="number" min="1" value="12">
+              </div>
+              <div class="field">
+                <label class="label">Per window</label>
+                <input class="input mono" id="fl-window" value="1h" placeholder="1h">
+              </div>
+              <div class="field full">
+                <div class="switch-row">
+                  <div class="switch" id="enabled-switch" role="switch" aria-checked="true"></div>
+                  <div class="switch-txt">
+                    <b>Enabled on create</b>
+                    <span>Disabled jobs stay stored but never dispatch on their schedule.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+      </section>
+
+      <!-- ░░░ RIGHT: PREVIEW ░░░ -->
+      <aside class="preview">
+        <div class="pv-eyebrow"><span class="dot"></span> Live preview</div>
+
+        <!-- summary sentence -->
+        <div class="pv-card">
+          <div class="pv-card__label"><span class="ttl">Summary</span></div>
+          <p class="summary" id="summary"></p>
+        </div>
+
+        <!-- next runs -->
+        <div class="pv-card">
+          <div class="pv-card__label">
+            <span class="ttl">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+              Next runs
+            </span>
+            <span style="font-weight:500;color:var(--subtle);letter-spacing:0;text-transform:none" id="nr-tz">UTC</span>
+          </div>
+          <div id="nextruns"></div>
+        </div>
+
+        <!-- prompt / task digest -->
+        <div class="pv-card">
+          <div class="pv-card__label"><span class="ttl" id="pv-run-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+            Prompt the agent receives
+          </span></div>
+          <div id="pv-run-body"></div>
+        </div>
+
+        <!-- request payload -->
+        <div class="pv-card">
+          <div class="pv-card__label">
+            <span class="ttl">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              Request payload
+            </span>
+            <span style="font-family:var(--font-mono);font-weight:500;color:var(--subtle);letter-spacing:0;text-transform:none">POST /api/automation/jobs</span>
+          </div>
+          <pre class="code" id="payload"></pre>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="modal__foot">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        Created as a <b style="color:var(--muted);font-weight:500">dynamic</b> job — editable, disable-able, and deletable anytime.
+      </div>
+      <button class="btn btn--outline">Cancel</button>
+      <button class="btn btn--primary" id="submit-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Create job
+      </button>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  /* ── catalogs ── */
+  const CRON_PRESETS = [
+    { label:"Weekdays 9am",  expr:"0 9 * * 1-5" },
+    { label:"Daily 9am",     expr:"0 9 * * *"   },
+    { label:"Hourly",        expr:"0 * * * *"   },
+    { label:"Every 15 min",  expr:"*/15 * * * *"},
+    { label:"Mondays 8am",   expr:"0 8 * * 1"   },
+    { label:"Midnight",      expr:"0 0 * * *"   }
+  ];
+  const EVERY_PRESETS = ["5m","15m","30m","1h","4h","12h","24h"];
+  const DOW = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const MON_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const OWNER_PH = {
+    pool:"worker-pool id or agent name", agent_session:"sess-…", human:"human id or handle",
+    automation:"automation id", extension:"extension id", network_peer:"peer id"
+  };
+
+  /* ── default `at` value: next round hour, +1 day, as datetime-local string ── */
+  function defaultAt(){
+    const d = new Date(Date.now() + 24*3600*1000);
+    d.setUTCMinutes(0,0,0);
+    return isoToLocalInput(d);
+  }
+  /* a datetime-local control is timezone-naive; we treat its wall-clock as UTC */
+  function isoToLocalInput(d){
+    const p = n => String(n).padStart(2,"0");
+    return d.getUTCFullYear()+"-"+p(d.getUTCMonth()+1)+"-"+p(d.getUTCDate())+"T"+p(d.getUTCHours())+":"+p(d.getUTCMinutes());
+  }
+  function localInputToDate(v){
+    if(!v) return null;
+    const m = v.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if(!m) return null;
+    return new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],0));
+  }
+  const rfc3339 = d => d ? d.toISOString().replace(/\.\d{3}Z$/,"Z") : "";
+
+  /* ── state ── */
+  const state = {
+    name:"daily-code-review",
+    scope:"workspace", workspace:"checkout-api",
+    output:"agent",
+    agent:"reviewer",
+    prompt:$("prompt").value,
+    taskTitle:"", taskChannel:"", taskDesc:$("task-desc").value, ownerKind:"", ownerRef:"",
+    schedMode:"cron",
+    cronExpr:"0 9 * * 1-5",
+    interval:"30m",
+    atLocal:defaultAt(),
+    retry:"backoff", retryMax:"3", retryDelay:"2s",
+    flMax:"12", flWindow:"1h",
+    enabled:true
+  };
+  $("at-time").value = state.atLocal;
+  state.cron = fullModel(decodeCron(state.cronExpr));
+
+  /* ════════ cron engine ════════ */
+  function parseField(f, lo, hi){
+    if(f==="*") return {any:true};
+    const set = new Set();
+    for(const part of f.split(",")){
+      let range = part, step = 1;
+      if(part.indexOf("/")>=0){ const [r,s]=part.split("/"); range=r; step=parseInt(s,10); if(!(step>=1)) throw 0; }
+      let a,b;
+      if(range==="*"){ a=lo; b=hi; }
+      else if(range.indexOf("-")>=0){ const [x,y]=range.split("-"); a=parseInt(x,10); b=parseInt(y,10); }
+      else { a=b=parseInt(range,10); }
+      if(isNaN(a)||isNaN(b)||a<lo||b>hi||a>b) throw 0;
+      for(let i=a;i<=b;i+=step) set.add(i);
+    }
+    if(!set.size) throw 0;
+    return {any:false,set};
+  }
+  function parseCron(expr){
+    const parts = String(expr).trim().split(/\s+/);
+    if(parts.length!==5) return null;
+    try{
+      return {
+        M:parseField(parts[0],0,59), H:parseField(parts[1],0,23),
+        D:parseField(parts[2],1,31), Mo:parseField(parts[3],1,12), Dw:parseField(parts[4],0,6)
+      };
+    }catch(e){ return null; }
+  }
+  function cronNext(expr, n){
+    const c = parseCron(expr);
+    if(!c) return null;
+    const out = [];
+    let t = new Date(Date.now()); t.setUTCSeconds(0,0); t = new Date(t.getTime()+60000);
+    const cap = 367*24*60;
+    for(let i=0;i<cap && out.length<n;i++){
+      const mi=t.getUTCMinutes(),ho=t.getUTCHours(),da=t.getUTCDate(),mo=t.getUTCMonth()+1,dw=t.getUTCDay();
+      const okM = c.M.any||c.M.set.has(mi), okH=c.H.any||c.H.set.has(ho), okMo=c.Mo.any||c.Mo.set.has(mo);
+      let okD;
+      if(!c.D.any && !c.Dw.any) okD = c.D.set.has(da) || c.Dw.set.has(dw);
+      else okD = (c.D.any||c.D.set.has(da)) && (c.Dw.any||c.Dw.set.has(dw));
+      if(okM&&okH&&okMo&&okD) out.push(new Date(t.getTime()));
+      t = new Date(t.getTime()+60000);
+    }
+    return out;
+  }
+
+  /* ════════ visual cron builder — model ⇄ expression ════════
+     The raw 5-field string stays the source of truth (cronNext / humanCron /
+     payload all read state.cronExpr). The builder is a friendly editor on top:
+     pick a frequency, fill one row, and we compile the cron. decodeCron()
+     reverses a string back into the model so presets, custom edits, and the
+     default all light up the right controls. */
+  function fullModel(partial){
+    return Object.assign(
+      { freq:"daily", everyN:15, hourlyMin:0, hour:9, min:0, weekdays:[1,2,3,4,5], monthDay:1 },
+      partial||{}
+    );
+  }
+  function decodeCron(expr){
+    const parts=String(expr).trim().split(/\s+/);
+    if(parts.length!==5 || !parseCron(expr)) return null;
+    const [mF,hF,domF,monF,dowF]=parts;
+    const int=f=>/^\d+$/.test(f)?+f:null;
+    const m=mF.match(/^\*\/(\d+)$/);
+    if(m && hF==="*"&&domF==="*"&&monF==="*"&&dowF==="*") return {freq:"minutes",everyN:+m[1]};
+    const mi=int(mF),ho=int(hF),dom=int(domF);
+    if(mi!==null && hF==="*"&&domF==="*"&&monF==="*"&&dowF==="*") return {freq:"hourly",hourlyMin:mi};
+    if(mi!==null && ho!==null && domF==="*"&&monF==="*"&&dowF==="*") return {freq:"daily",hour:ho,min:mi};
+    if(mi!==null && ho!==null && domF==="*"&&monF==="*"&&dowF!=="*"){
+      try{
+        const dw=parseField(dowF,0,6), days=[];
+        for(let d=0;d<=6;d++) if(dw.set && dw.set.has(d)) days.push(d);
+        if(days.length) return {freq:"weekly",hour:ho,min:mi,weekdays:days};
+      }catch(e){}
+    }
+    if(mi!==null && ho!==null && dom!==null && monF==="*"&&dowF==="*") return {freq:"monthly",hour:ho,min:mi,monthDay:dom};
+    return null;
+  }
+  function compressDows(days){
+    const s=[...new Set(days)].sort((a,b)=>a-b);
+    if(s.length>=7) return "*";
+    let contiguous=true;
+    for(let i=1;i<s.length;i++) if(s[i]!==s[i-1]+1){ contiguous=false; break; }
+    if(contiguous && s.length>=3) return s[0]+"-"+s[s.length-1];
+    return s.join(",");
+  }
+  function compileCron(){
+    const c=state.cron;
+    let expr=state.cronExpr;
+    if(c.freq==="minutes")      expr="*/"+c.everyN+" * * * *";
+    else if(c.freq==="hourly")  expr=c.hourlyMin+" * * * *";
+    else if(c.freq==="daily")   expr=c.min+" "+c.hour+" * * *";
+    else if(c.freq==="weekly")  expr=c.min+" "+c.hour+" * * "+compressDows(c.weekdays);
+    else if(c.freq==="monthly") expr=c.min+" "+c.hour+" "+c.monthDay+" * *";
+    if(c.freq!=="custom") state.cronExpr=expr;
+  }
+  function adoptExpr(expr){
+    state.cronExpr=expr;
+    const d=decodeCron(expr);
+    if(d) Object.assign(state.cron,d); else state.cron.freq="custom";
+  }
+  function parseTime(v){ const m=String(v).match(/^(\d{1,2}):(\d{2})$/); if(!m) return null; const h=+m[1],mi=+m[2]; return (h<=23&&mi<=59)?{h,mi}:null; }
+  function toggleDow(d){
+    const a=state.cron.weekdays, i=a.indexOf(d);
+    if(i>=0){ if(a.length>1) a.splice(i,1); } else { a.push(d); a.sort((x,y)=>x-y); }
+    compileCron();
+  }
+  function ensureOpt(sel,v,label){
+    if(![...sel.options].some(o=>o.value===String(v))){
+      const o=document.createElement("option"); o.value=String(v); o.textContent=(label==null?v:label); sel.appendChild(o);
+    }
+  }
+  function paintExpr(){ const i=$("cron-expr"); if(i) i.value=state.cronExpr; }
+  function cronWarnSync(){ $("cron-warn").classList.toggle("hide", !(state.cron.freq==="monthly" && state.cron.monthDay>=29)); }
+  function mirrorTimes(){ const v=hhmm(state.cron.hour,state.cron.min); $("cf-daily-time").value=v; $("cf-weekly-time").value=v; $("cf-monthly-time").value=v; }
+  function afterCron(){ syncPresetChips(); renderCronRead(); renderPreview(); }
+
+  function buildCron(){
+    const opt=(v,l)=>'<option value="'+v+'">'+(l==null?v:l)+'</option>';
+    $("cf-everyN").innerHTML   = [1,2,5,10,15,20,30].map(v=>opt(v)).join("");
+    $("cf-hourlyMin").innerHTML= [0,5,10,15,20,30,45].map(v=>opt(v,pad(v))).join("");
+    $("cf-monthDay").innerHTML = Array.from({length:31},(_,i)=>opt(i+1)).join("");
+
+    $("cron-freq").querySelectorAll(".freq").forEach(b=>{
+      b.addEventListener("click",()=>{
+        state.cron.freq=b.dataset.freq;
+        if(state.cron.freq!=="custom") compileCron();
+        syncCronBuilder(); afterCron();
+        if(state.cron.freq==="custom") $("cron-expr").focus();
+      });
+    });
+    $("cron-edit").addEventListener("click",()=>{ state.cron.freq="custom"; syncCronBuilder(); afterCron(); $("cron-expr").focus(); });
+    $("cf-everyN").addEventListener("change",e=>{ state.cron.everyN=+e.target.value; compileCron(); paintExpr(); afterCron(); });
+    $("cf-hourlyMin").addEventListener("change",e=>{ state.cron.hourlyMin=+e.target.value; compileCron(); paintExpr(); afterCron(); });
+    $("cf-monthDay").addEventListener("change",e=>{ state.cron.monthDay=+e.target.value; compileCron(); paintExpr(); cronWarnSync(); afterCron(); });
+    ["cf-daily-time","cf-weekly-time","cf-monthly-time"].forEach(id=>{
+      $(id).addEventListener("input",e=>{ const t=parseTime(e.target.value); if(!t) return; state.cron.hour=t.h; state.cron.min=t.mi; compileCron(); paintExpr(); mirrorTimes(); afterCron(); });
+    });
+    $("cf-dow").querySelectorAll(".dow-btn").forEach(b=>{
+      b.addEventListener("click",()=>{ toggleDow(+b.dataset.d); syncCronBuilder(); afterCron(); });
+    });
+    $("cf-dow-quick").querySelectorAll("button").forEach(b=>{
+      b.addEventListener("click",()=>{
+        const s=b.dataset.set;
+        state.cron.weekdays = s==="weekdays"?[1,2,3,4,5] : s==="weekend"?[0,6] : [0,1,2,3,4,5,6];
+        compileCron(); syncCronBuilder(); afterCron();
+      });
+    });
+  }
+  function syncCronBuilder(){
+    const c=state.cron;
+    $("cron-freq").querySelectorAll(".freq").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.freq===c.freq)));
+    document.querySelectorAll("#pane-cron .cron-row").forEach(r=>r.dataset.on=(r.dataset.freq===c.freq)?"1":"0");
+    ensureOpt($("cf-everyN"),c.everyN);
+    ensureOpt($("cf-hourlyMin"),c.hourlyMin,pad(c.hourlyMin));
+    ensureOpt($("cf-monthDay"),c.monthDay);
+    $("cf-everyN").value   = String(c.everyN);
+    $("cf-hourlyMin").value= String(c.hourlyMin);
+    $("cf-monthDay").value = String(c.monthDay);
+    const tv=hhmm(c.hour,c.min);
+    $("cf-daily-time").value=tv; $("cf-weekly-time").value=tv; $("cf-monthly-time").value=tv;
+    $("cf-dow").querySelectorAll(".dow-btn").forEach(b=>b.setAttribute("aria-pressed",String(c.weekdays.indexOf(+b.dataset.d)>=0)));
+    const custom=c.freq==="custom", inp=$("cron-expr");
+    if(custom) inp.removeAttribute("readonly"); else inp.setAttribute("readonly","");
+    $("cron-edit").classList.toggle("hide",custom);
+    cronWarnSync();
+    paintExpr();
+  }
+
+  /* ── go-duration parse → ms (returns null if invalid / <=0) ── */
+  function parseDur(str){
+    const s = String(str).trim();
+    if(!/^(\d+(h|m|s))+$/.test(s)) return null;
+    let ms=0, re=/(\d+)(h|m|s)/g, m;
+    while((m=re.exec(s))){ const v=+m[1]; ms += m[2]==="h"?v*3600000 : m[2]==="m"?v*60000 : v*1000; }
+    return ms>0 ? ms : null;
+  }
+
+  /* ── humanizers ── */
+  const pad = n => String(n).padStart(2,"0");
+  function hhmm(h,m){ return pad(h)+":"+pad(m); }
+  function dowPhrase(set){
+    const arr=[...set].sort((a,b)=>a-b);
+    if(arr.length===5 && arr.join()==="1,2,3,4,5") return "every weekday";
+    if(arr.length===2 && arr.join()==="0,6") return "weekends";
+    if(arr.length===1) return "every "+DOW[arr[0]];
+    return "on "+arr.map(d=>DOW_SHORT[d]).join(", ");
+  }
+  function humanCron(expr){
+    const parts=String(expr).trim().split(/\s+/);
+    const c=parseCron(expr);
+    if(!c) return null;
+    const [mF,hF,domF,monF,dowF]=parts;
+    const single = f => (f.indexOf(",")<0 && f.indexOf("-")<0 && f.indexOf("/")<0 && f!=="*") ? +f : null;
+    const mS=single(mF), hS=single(hF);
+    // every N minutes
+    let sm = mF.match(/^\*\/(\d+)$/);
+    if(sm && hF==="*" && domF==="*" && monF==="*" && dowF==="*") return "every "+sm[1]+" minutes";
+    if(mF==="*" && hF==="*" && domF==="*" && monF==="*" && dowF==="*") return "every minute";
+    // hourly
+    if(mS!==null && hF==="*" && domF==="*" && monF==="*" && dowF==="*")
+      return mS===0 ? "every hour, on the hour" : "every hour at :"+pad(mS);
+    // daily / weekday / weekly at HH:MM
+    if(mS!==null && hS!==null && domF==="*" && monF==="*"){
+      const time = (hS===0&&mS===0) ? "midnight" : "at "+hhmm(hS,mS);
+      if(dowF==="*") return (time==="midnight"?"every day at midnight":"every day "+time);
+      return dowPhrase(c.Dw.set)+" "+(time==="midnight"?"at midnight":time);
+    }
+    // monthly day-of-month
+    if(mS!==null && hS!==null && monF==="*" && dowF==="*" && domF!=="*"){
+      const dom=single(domF);
+      if(dom!==null) return "on day "+dom+" of every month at "+hhmm(hS,mS);
+    }
+    return null; // fall back to raw expr
+  }
+  function fmtAbs(d){
+    return DOW_SHORT[d.getUTCDay()]+" "+MON_SHORT[d.getUTCMonth()]+" "+d.getUTCDate()+", "+hhmm(d.getUTCHours(),d.getUTCMinutes());
+  }
+  function fmtRel(d){
+    let s = Math.round((d.getTime()-Date.now())/1000);
+    if(s<0) return "now";
+    if(s<60) return "in "+s+"s";
+    let m=Math.round(s/60); if(m<60) return "in "+m+" min";
+    let h=Math.floor(m/60), rm=m%60; if(h<24) return "in "+h+"h"+(rm?" "+rm+"m":"");
+    let day=Math.floor(h/24), rh=h%24; return "in "+day+"d"+(rh?" "+rh+"h":"");
+  }
+
+  /* ════════ UI sync ════════ */
+  function syncScope(){
+    $("scope-group").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed", String(p.dataset.scope===state.scope)));
+    $("ws-pick").dataset.show = state.scope==="workspace" ? "1" : "0";
+    $("scope-note").classList.toggle("hide", state.scope!=="global");
+  }
+  function syncOutput(){
+    $("output-group").querySelectorAll(".seg").forEach(s=>s.setAttribute("aria-pressed", String(s.dataset.output===state.output)));
+    const task = state.output==="task";
+    $("pane-agent").classList.toggle("hide", task);
+    $("pane-task").classList.toggle("hide", !task);
+    $("pv-run-label").innerHTML = task
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Task it materializes'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg> Prompt the agent receives';
+    // task mode forces retry → none and locks the retry control
+    if(task){ state.retry="none"; }
+    syncRetry();
+  }
+  function syncSchedMode(){
+    $("sched-mode").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed", String(p.dataset.mode===state.schedMode)));
+    $("pane-cron").dataset.show  = state.schedMode==="cron"  ? "1":"0";
+    $("pane-every").dataset.show = state.schedMode==="every" ? "1":"0";
+    $("pane-at").dataset.show    = state.schedMode==="at"    ? "1":"0";
+  }
+  function syncRetry(){
+    const lock = state.output==="task";
+    $("retry-group").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed", String(p.dataset.retry===state.retry)));
+    $("retry-group").classList.toggle("disabled-group", lock);
+    $("retry-lock-hint").textContent = lock ? "— owned by the task" : "";
+    const backoff = state.retry==="backoff";
+    $("retry-max").disabled = !backoff;
+    $("retry-delay").disabled = !backoff;
+    $("retry-max").value = state.retryMax;
+    $("retry-delay").value = state.retryDelay;
+    $("fl-max").value = state.flMax;
+    $("fl-window").value = state.flWindow;
+    $("enabled-switch").setAttribute("aria-checked", String(state.enabled));
+    // badge
+    const r = backoff ? "Backoff ×"+state.retryMax : "No retry";
+    $("rel-badge").textContent = r+" · "+state.flMax+"/"+state.flWindow+" · "+(state.enabled?"enabled":"disabled");
+  }
+  function syncOwner(){
+    const ref=$("owner-ref");
+    ref.disabled = !state.ownerKind;
+    ref.placeholder = state.ownerKind ? OWNER_PH[state.ownerKind] : "select an owner kind first";
+    if(!state.ownerKind){ ref.value=""; state.ownerRef=""; }
+  }
+
+  /* ── schedule readings (in-form) ── */
+  function renderCronRead(){
+    const el=$("cron-read"), inp=$("cron-expr");
+    const c=parseCron(state.cronExpr);
+    if(!c){
+      inp.classList.add("bad"); el.className="read read--bad";
+      el.innerHTML = IC.warn+"<span>Invalid cron — need 5 fields in range.</span>";
+      return;
+    }
+    inp.classList.remove("bad"); el.className="read read--ok";
+    const h=humanCron(state.cronExpr);
+    el.innerHTML = IC.ok+"<span>Runs <b>"+(h?h:"on this custom schedule")+"</b> · UTC</span>";
+  }
+  function renderEveryRead(){
+    const el=$("every-read"), inp=$("every-interval");
+    const ms=parseDur(state.interval);
+    if(!ms){ inp.classList.add("bad"); el.className="read read--bad"; el.innerHTML=IC.warn+"<span>Invalid duration.</span>"; return; }
+    inp.classList.remove("bad"); el.className="read read--ok";
+    el.innerHTML = IC.ok+"<span>Fires <b>every "+state.interval+"</b>, starting right after creation.</span>";
+  }
+  function renderAtRead(){
+    const el=$("at-read");
+    const d=localInputToDate(state.atLocal);
+    $("at-iso").textContent = rfc3339(d);
+    if(!d){ el.className="read read--bad"; el.innerHTML=IC.warn+"<span>Pick a date and time.</span>"; return; }
+    if(d.getTime()<=Date.now()){ el.className="read read--bad"; el.innerHTML=IC.warn+"<span>That time is in the past — the job won't register.</span>"; return; }
+    el.className="read read--ok";
+    el.innerHTML = IC.ok+"<span>Runs once, <b>"+fmtRel(d)+"</b> ("+fmtAbs(d)+" UTC).</span>";
+  }
+
+  /* ════════ preview ════════ */
+  function schedClause(){
+    if(state.schedMode==="cron"){ const h=humanCron(state.cronExpr); return h?(h.charAt(0).toUpperCase()+h.slice(1)):("On cron <span class='ev'>"+esc(state.cronExpr)+"</span>"); }
+    if(state.schedMode==="every"){ return "Every "+esc(state.interval); }
+    const d=localInputToDate(state.atLocal); return d ? "Once "+fmtRel(d) : "Once at a set time";
+  }
+  function scopeClause(){
+    return state.scope==="workspace"
+      ? "in <b>"+esc(state.workspace)+"</b>"
+      : "across the <b>whole runtime</b>";
+  }
+  function renderSummary(){
+    const sc = schedClause();
+    let out;
+    if(state.output==="task"){
+      const owner = state.ownerKind ? ("owned by <span class='acc'>"+esc(state.ownerKind)+(state.ownerRef?":"+esc(state.ownerRef):"")+"</span>") : "for any available owner";
+      out = sc+" UTC, materialize a <b>task</b> "+owner+" "+scopeClause()+".";
+    } else {
+      out = sc+" UTC, run agent <span class='acc'>"+esc(state.agent)+"</span> "+scopeClause()+".";
+    }
+    $("summary").innerHTML = out;
+  }
+  function renderNextRuns(){
+    const wrap=$("nextruns");
+    let runs=null, single=false;
+    if(state.schedMode==="cron") runs=cronNext(state.cronExpr,5);
+    else if(state.schedMode==="every"){
+      const ms=parseDur(state.interval);
+      if(ms){ runs=[]; for(let i=1;i<=5;i++) runs.push(new Date(Date.now()+ms*i)); }
+    } else {
+      const d=localInputToDate(state.atLocal);
+      if(d && d.getTime()>Date.now()){ runs=[d]; single=true; }
+      else runs=[];
+    }
+    if(runs===null){ wrap.innerHTML='<div class="nr-empty">Fix the schedule above to preview fire times.</div>'; return; }
+    if(runs.length===0){
+      wrap.innerHTML = state.schedMode==="at"
+        ? '<div class="nr-empty"><b>Won\'t register</b> — the chosen time has already passed.</div>'
+        : '<div class="nr-empty">No upcoming runs in the next year for this expression.</div>';
+      return;
+    }
+    wrap.innerHTML = runs.map((d,i)=>
+      '<div class="nr'+(i===0?' first':'')+'">'
+      + '<span class="nr__idx">'+(i+1)+'</span>'
+      + '<span class="nr__rel">'+fmtRel(d)+(single?' · one-time':'')+'</span>'
+      + '<span class="nr__abs">'+fmtAbs(d)+'</span>'
+      + '</div>'
+    ).join("");
+  }
+  function renderRunBody(){
+    const el=$("pv-run-body");
+    if(state.output==="task"){
+      const title = state.taskTitle || state.name;
+      const desc  = state.taskDesc || state.prompt;
+      el.innerHTML =
+        '<dl class="kv">'
+        + '<dt>Title</dt><dd>'+esc(title)+'</dd>'
+        + '<dt>Owner</dt><dd class="mono">'+(state.ownerKind?esc(state.ownerKind)+(state.ownerRef?":"+esc(state.ownerRef):""):"unassigned")+'</dd>'
+        + (state.taskChannel?'<dt>Channel</dt><dd class="mono">'+esc(state.taskChannel)+'</dd>':'')
+        + '<dt>Run status</dt><dd class="mono" style="color:var(--info)">delegated</dd>'
+        + '</dl>'
+        + '<div class="rendered" style="margin-top:11px;padding-top:11px;border-top:1px solid var(--line-soft)">'+esc(desc)+'</div>';
+    } else {
+      el.innerHTML = '<div class="rendered">'+esc(state.prompt)+'</div>';
+    }
+  }
+
+  /* ── request payload (matches contract.CreateJobRequest verbatim) ── */
+  function renderPayload(){
+    const L=[];
+    const k=s=>'<span class="k">"'+s+'"</span>';
+    const str=s=>'<span class="s">"'+esc(String(s))+'"</span>';
+    const num=n=>'<span class="n">'+n+'</span>';
+    const boo=b=>'<span class="b">'+b+'</span>';
+    L.push("{");
+    L.push("  "+k("scope")+": "+str(state.scope)+",");
+    L.push("  "+k("name")+": "+str(state.name)+",");
+    if(state.scope==="workspace") L.push("  "+k("workspace_id")+": "+str(state.workspace)+",");
+    if(state.output==="agent"){
+      L.push("  "+k("agent_name")+": "+str(state.agent)+",");
+      L.push("  "+k("prompt")+": "+str(state.prompt)+",");
+    }
+    // schedule (highlighted)
+    let sched;
+    if(state.schedMode==="cron") sched=k("mode")+": "+str("cron")+", "+k("expr")+": "+str(state.cronExpr);
+    else if(state.schedMode==="every") sched=k("mode")+": "+str("every")+", "+k("interval")+": "+str(state.interval);
+    else { const d=localInputToDate(state.atLocal); sched=k("mode")+": "+str("at")+", "+k("time")+": "+str(rfc3339(d)); }
+    L.push('  <span class="hl">'+k("schedule")+": { "+sched+" }</span>,");
+    if(state.output==="task"){
+      const t=[];
+      if(state.taskTitle) t.push(k("title")+": "+str(state.taskTitle));
+      if(state.taskDesc)  t.push(k("description")+": "+str(state.taskDesc));
+      if(state.ownerKind) t.push(k("owner")+": { "+k("kind")+": "+str(state.ownerKind)+", "+k("ref")+": "+str(state.ownerRef)+" }");
+      if(state.taskChannel) t.push(k("network_channel")+": "+str(state.taskChannel));
+      L.push("  "+k("task")+": { "+(t.length?t.join(", "):"")+" },");
+    }
+    if(state.output==="agent"){
+      if(state.retry==="backoff") L.push("  "+k("retry")+": { "+k("strategy")+": "+str("backoff")+", "+k("max_retries")+": "+num(state.retryMax)+", "+k("base_delay")+": "+str(state.retryDelay)+" },");
+      else L.push("  "+k("retry")+": { "+k("strategy")+": "+str("none")+" },");
+    } else {
+      L.push("  "+k("retry")+": { "+k("strategy")+": "+str("none")+" },");
+    }
+    L.push("  "+k("fire_limit")+": { "+k("max")+": "+num(state.flMax)+", "+k("window")+": "+str(state.flWindow)+" },");
+    L.push("  "+k("enabled")+": "+boo(state.enabled));
+    L.push("}");
+    $("payload").innerHTML = L.join("\n");
+  }
+
+  const IC = {
+    ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a1 1 0 0 0 .86 1.5h16.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+  };
+
+  function renderPreview(){
+    renderSummary();
+    renderNextRuns();
+    renderRunBody();
+    renderPayload();
+  }
+  function renderSchedReads(){ renderCronRead(); renderEveryRead(); renderAtRead(); }
+
+  /* ════════ events ════════ */
+  $("j-name").addEventListener("input",e=>{ state.name=e.target.value; renderPreview(); });
+
+  $("scope-group").querySelectorAll(".pill").forEach(p=>{
+    p.addEventListener("click",()=>{ state.scope=p.dataset.scope; syncScope(); renderPreview(); });
+  });
+  $("ws-select").addEventListener("change",e=>{ state.workspace=e.target.value; renderPreview(); });
+
+  $("output-group").querySelectorAll(".seg").forEach(s=>{
+    s.addEventListener("click",()=>{ state.output=s.dataset.output; syncOutput(); renderPreview(); });
+  });
+  $("agent-select").addEventListener("change",e=>{ state.agent=e.target.value; $("agent-av").textContent=e.target.value.charAt(0); renderPreview(); });
+  $("prompt").addEventListener("input",e=>{ state.prompt=e.target.value; renderPreview(); });
+  $("task-title").addEventListener("input",e=>{ state.taskTitle=e.target.value; renderPreview(); });
+  $("task-channel").addEventListener("input",e=>{ state.taskChannel=e.target.value.trim(); renderPreview(); });
+  $("task-desc").addEventListener("input",e=>{ state.taskDesc=e.target.value; renderPreview(); });
+  $("owner-kind").addEventListener("change",e=>{ state.ownerKind=e.target.value; syncOwner(); renderPreview(); });
+  $("owner-ref").addEventListener("input",e=>{ state.ownerRef=e.target.value.trim(); renderPreview(); });
+
+  $("sched-mode").querySelectorAll(".pill").forEach(p=>{
+    p.addEventListener("click",()=>{ state.schedMode=p.dataset.mode; syncSchedMode(); renderSchedReads(); renderPreview(); });
+  });
+  $("cron-expr").addEventListener("input",e=>{ state.cronExpr=e.target.value; const d=decodeCron(state.cronExpr); if(d) Object.assign(state.cron,d); syncPresetChips(); renderCronRead(); renderPreview(); });
+  $("every-interval").addEventListener("input",e=>{ state.interval=e.target.value.trim(); syncPresetChips(); renderEveryRead(); renderPreview(); });
+  $("at-time").addEventListener("input",e=>{ state.atLocal=e.target.value; renderAtRead(); renderPreview(); });
+
+  $("retry-group").querySelectorAll(".pill").forEach(p=>{
+    p.addEventListener("click",()=>{
+      if(state.output==="task") return;       // locked
+      state.retry=p.dataset.retry;
+      if(state.retry==="backoff"){ if(!(+state.retryMax>0)) state.retryMax="3"; if(!parseDur(state.retryDelay)) state.retryDelay="2s"; }
+      syncRetry(); renderPreview();
+    });
+  });
+  $("retry-max").addEventListener("input",e=>{ state.retryMax=e.target.value; syncRetry(); renderPreview(); });
+  $("retry-delay").addEventListener("input",e=>{ state.retryDelay=e.target.value.trim(); syncRetry(); renderPreview(); });
+  $("fl-max").addEventListener("input",e=>{ state.flMax=e.target.value; syncRetry(); renderPreview(); });
+  $("fl-window").addEventListener("input",e=>{ state.flWindow=e.target.value.trim(); syncRetry(); renderPreview(); });
+  $("enabled-switch").addEventListener("click",()=>{ state.enabled=!state.enabled; syncRetry(); renderPreview(); });
+
+  /* ── preset chips ── */
+  function buildChips(){
+    $("cron-presets").innerHTML = CRON_PRESETS.map(p=>
+      '<button class="chip" data-cron="'+p.expr+'"><span>'+p.label+'</span><span class="cx">'+p.expr+'</span></button>'
+    ).join("");
+    $("every-presets").innerHTML = EVERY_PRESETS.map(v=>
+      '<button class="chip" data-every="'+v+'" style="font-family:var(--font-mono);font-size:11px">'+v+'</button>'
+    ).join("");
+    $("cron-presets").querySelectorAll(".chip").forEach(c=>{
+      c.addEventListener("click",()=>{ adoptExpr(c.dataset.cron); syncCronBuilder(); syncPresetChips(); renderCronRead(); renderPreview(); });
+    });
+    $("every-presets").querySelectorAll(".chip").forEach(c=>{
+      c.addEventListener("click",()=>{ state.interval=c.dataset.every; $("every-interval").value=state.interval; syncPresetChips(); renderEveryRead(); renderPreview(); });
+    });
+  }
+  function syncPresetChips(){
+    $("cron-presets").querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed", String(c.dataset.cron===state.cronExpr.trim())));
+    $("every-presets").querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed", String(c.dataset.every===state.interval.trim())));
+  }
+
+  /* ── init ── */
+  buildCron();
+  buildChips();
+  syncScope();
+  syncOutput();
+  syncSchedMode();
+  syncRetry();
+  syncOwner();
+  syncCronBuilder();
+  syncPresetChips();
+  renderSchedReads();
+  renderPreview();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "settings/settings-extensions.html",
+  "entry": "settings/settings-extensions.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-20T23:24:57.528Z",
+  "updatedAt": "2026-07-20T23:24:57.528Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

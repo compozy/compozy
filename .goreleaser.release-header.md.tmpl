@@ -1,23 +1,32 @@
-## Compozy CLI {{ .Version }}
+## AGH {{ .Version }}
 
-Welcome to the latest release of the Compozy CLI!
+AGH is an agent operating system for running ACP-compatible coding agents as managed sessions.
 
 ### Installation
 
 #### Homebrew
 ```bash
-brew install compozy/compozy/compozy
+brew install compozy/compozy/agh
 ```
 
-#### NPM
+#### npm
 ```bash
-npm install -g @compozy/cli
+npm install -g @compozy/agh
 ```
-
-#### Binary Download
-Download the appropriate `compozy_{{ .Version }}_<os>_<arch>.tar.gz` asset for your platform and extract it.
 
 #### Go Install
 ```bash
-go install github.com/compozy/compozy/cmd/compozy@{{ .Tag }}
+go install github.com/compozy/agh@{{ .Tag }}
 ```
+
+#### Verified Binary Installer
+```bash
+curl -fsSL https://agh.network/install.sh | sh
+```
+
+The installer downloads the release archive for macOS or Linux, uses local `cosign` when present or a
+pinned temporary verifier when absent, verifies it against `checksums.txt`, installs `agh`, and
+starts `agh install` when an interactive terminal is available.
+
+#### Binary Download
+Download the appropriate `agh_<os>_<arch>.tar.gz` asset for your platform and extract it.

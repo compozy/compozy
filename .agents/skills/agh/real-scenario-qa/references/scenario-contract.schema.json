@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGH QA Scenario Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "release_grade", "scope_slug", "minimums", "enforcement"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "release_grade": {
+      "type": "string",
+      "enum": ["broad", "feature"]
+    },
+    "scope_slug": {
+      "type": "string",
+      "minLength": 1
+    },
+    "minimums": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agents",
+        "differentiated_roles",
+        "channels",
+        "tasks",
+        "provider_backed_sessions",
+        "cross_surface_objects",
+        "disruption_probes",
+        "artifacts_used_later",
+        "surfaces_required"
+      ],
+      "properties": {
+        "agents": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "differentiated_roles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "channels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tasks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["roots", "subtasks", "dependencies", "runs"],
+          "properties": {
+            "roots": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "subtasks": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dependencies": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "runs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "provider_backed_sessions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cross_surface_objects": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "disruption_probes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifacts_used_later": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "surfaces_required": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["cli", "api", "web", "runtime", "provider"]
+          },
+          "uniqueItems": true
+        },
+        "required_deliverables": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 },
+          "description": "Per-type deliverable minimums consumed by C16 in the auditor."
+        },
+        "required_collaboration": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "peer_messages_min": { "type": "integer", "minimum": 1 },
+            "review_cycles_min": { "type": "integer", "minimum": 1 },
+            "disagreements_resolved_min": { "type": "integer", "minimum": 0 },
+            "channels_active_min": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "profile_overrides": {
+      "type": "object"
+    },
+    "audit_command": {
+      "type": "string"
+    },
+    "enforcement": {
+      "type": "string",
+      "enum": ["block", "warn-only"]
+    }
+  }
+}

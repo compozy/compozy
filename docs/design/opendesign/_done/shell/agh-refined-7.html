@@ -1,0 +1,2480 @@
+<!doctype html>
+<!-- v5 linear-refined · cache-bust 20260508-2 -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AGH · Workspace</title>
+<link rel="preconnect" href="https://rsms.me/" />
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
+<style>
+:root {
+  color-scheme: dark;
+  --rail:        #0c0b0b;
+  --canvas:      #131211;
+  --canvas-soft: #1a1918;
+  --canvas-tint: #1c1b1a;
+  --sidebar:     #1a1918;
+  --elevated:    #232220;
+  --hover:       #1f1e1d;
+  --disabled:    #4a4847;
+  --fg:        #ececef;
+  --fg-strong: #f6f6f8;
+  --muted:     #9a9a9f;
+  --subtle:    #76767c;
+  --faint:     #545458;
+  --line:        rgba(255, 255, 255, 0.055);
+  --line-soft:   rgba(255, 255, 255, 0.03);
+  --line-strong: rgba(255, 255, 255, 0.09);
+  --accent:        #e8572a;
+  --accent-hover:  #d14e25;
+  --accent-strong: #f6874f;
+  --accent-tint:        rgba(232, 87, 42, 0.10);
+  --accent-tint-strong: rgba(232, 87, 42, 0.16);
+  --accent-dim:         rgba(232, 87, 42, 0.24);
+  --accent-glow:        rgba(232, 87, 42, 0.05);
+  --accent-ink:         #17110f;
+  --success: #5fbf85;
+  --warning: #d6a647;
+  --danger:  #e0635a;
+  --info:    #8e8eb5;
+  --neutral: #7a7a80;
+  --success-tint: rgba(95, 191, 133, 0.08);
+  --warning-tint: rgba(214, 166, 71, 0.08);
+  --danger-tint:  rgba(224, 99, 90, 0.09);
+  --info-tint:    rgba(142, 142, 181, 0.07);
+  --neutral-tint: rgba(150, 150, 155, 0.06);
+  --font-sans:    "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --font-display: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --radius-xs: 4px;
+  --radius-sm: 5px;
+  --radius:    6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-pill: 9999px;
+  --dur:  140ms;
+  --dur-slow: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --shadow-card:    0 1px 0 rgba(0, 0, 0, 0.3);
+  --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
+  --shadow-pop:     0 12px 24px -6px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.035);
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--canvas); color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13.5px; line-height: 1.5; letter-spacing: -0.006em;
+  font-feature-settings: "cv01", "ss03", "cv11";
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  height: 100vh; overflow: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
+::selection { background: var(--accent-tint); color: var(--fg-strong); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; border: 2px solid var(--canvas); }
+::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
+
+.shell { display: grid; grid-template-columns: 56px 244px minmax(0, 1fr); height: 100vh; }
+
+/* RAIL */
+.rail { background: var(--rail); border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; align-items: center; padding: 11px 0 14px; gap: 3px; }
+.rail__logo { width: 30px; height: 30px; border-radius: 7px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: -0.04em; flex-shrink: 0; box-shadow: var(--highlight); margin-bottom: 4px; transition: transform var(--dur) var(--ease); }
+.rail__logo:hover { transform: scale(1.04); }
+.rail__divider { width: 20px; height: 1px; background: var(--line-soft); margin: 5px 0; }
+.rail__avatar { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; letter-spacing: -0.02em; color: var(--subtle); position: relative; transition: color var(--dur) var(--ease), background var(--dur) var(--ease); flex-shrink: 0; }
+.rail__avatar::before { content: ""; position: absolute; left: -10px; top: 50%; transform: translateY(-50%); width: 2px; height: 0; border-radius: 0 2px 2px 0; background: var(--fg-strong); transition: height var(--dur) var(--ease); }
+.rail__avatar:hover { color: var(--fg); background: var(--hover); }
+.rail__avatar[data-active="true"] { color: var(--fg-strong); background: var(--elevated); }
+.rail__avatar[data-active="true"]::before { height: 16px; }
+.rail__add { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; color: var(--faint); border: 1px dashed var(--line-soft); transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease); flex-shrink: 0; }
+.rail__add:hover { color: var(--fg); border-color: var(--line); }
+.rail__spacer { flex: 1; }
+.rail__btn { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; color: var(--subtle); transition: color var(--dur) var(--ease), background var(--dur) var(--ease); flex-shrink: 0; position: relative; }
+.rail__btn:hover { color: var(--fg); background: var(--hover); }
+.rail__btn-dot { position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1.5px var(--rail); }
+.rail__connection { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 2px rgba(95, 191, 133, 0.14); margin-top: 8px; }
+
+/* SIDEBAR */
+.side { background: var(--sidebar); border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; overflow: hidden; }
+.side__header { display: flex; align-items: center; gap: 8px; padding: 0 14px; min-height: 48px; height: 48px; box-sizing: border-box; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; cursor: pointer; transition: background var(--dur) var(--ease); }
+.side__header:hover { background: var(--hover); }
+.side__ws-icon { width: 22px; height: 22px; border-radius: 5px; background: var(--elevated); color: var(--fg-strong); display: grid; place-items: center; font-size: 10.5px; font-weight: 600; letter-spacing: -0.02em; flex-shrink: 0; }
+.side__ws-name { font-size: 13px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.014em; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side__chev { color: var(--faint); transition: transform var(--dur) var(--ease); margin-left: auto; display: inline-flex; }
+.side__ws-badge { display: none; }
+
+.side__scroll { flex: 1; overflow-y: auto; padding: 8px 0 14px; }
+.side__group { padding: 4px 8px; }
+.side__group + .side__group { margin-top: 6px; }
+.side__label { display: flex; align-items: center; gap: 6px; padding: 8px 8px 4px; font-size: 10.5px; font-weight: 510; color: var(--faint); letter-spacing: 0.05em; text-transform: uppercase; }
+.side__label > svg { display: none; }
+.side__label-count { margin-left: auto; font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; }
+
+.nav-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 5px 8px; border-radius: 5px; color: var(--muted); font-size: 12.5px; font-weight: 500; letter-spacing: -0.006em; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); position: relative; text-align: left; min-height: 26px; }
+.nav-row:hover { color: var(--fg-strong); background: var(--hover); }
+.nav-row[data-active="true"] { color: var(--fg-strong); background: var(--elevated); }
+.nav-row[data-active="true"] .nav-row__icon { color: var(--fg-strong); }
+.nav-row__icon { color: var(--subtle); flex-shrink: 0; transition: color var(--dur) var(--ease); display: inline-flex; }
+.nav-row:hover .nav-row__icon { color: var(--fg); }
+.nav-row__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-row__count { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; letter-spacing: 0; flex-shrink: 0; }
+.nav-row[data-active="true"] .nav-row__count { color: var(--muted); }
+.nav-row__pill { font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: 0; padding: 0 5px; border-radius: 3px; background: var(--canvas-soft); font-variant-numeric: tabular-nums; flex-shrink: 0; min-height: 16px; display: inline-flex; align-items: center; }
+
+/* AGENT LIST (flat) */
+.agent-list { display: flex; flex-direction: column; gap: 1px; padding: 0; }
+.agent-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 5px 8px; border-radius: 5px; color: var(--muted); font-size: 12.5px; font-weight: 500; letter-spacing: -0.006em; text-align: left; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); position: relative; min-height: 26px; }
+.agent-row:hover { color: var(--fg-strong); background: var(--hover); }
+.agent-row[data-active="true"] { color: var(--fg-strong); background: var(--elevated); }
+.agent-row__dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--faint); }
+.agent-row__dot[data-live="true"] { background: var(--success); box-shadow: 0 0 0 1.5px rgba(95, 191, 133, 0.16); }
+.agent-row__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-row__meta { font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--faint); letter-spacing: 0; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+.side__footer { border-top: 1px solid var(--line-soft); padding: 9px 12px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.side__footer-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 1.5px rgba(95, 191, 133, 0.14); flex-shrink: 0; }
+.side__footer-label { font-size: 11px; font-weight: 510; color: var(--muted); letter-spacing: -0.005em; }
+.side__footer-meta { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); letter-spacing: 0; }
+
+/* MAIN */
+.main { display: flex; flex-direction: column; background: var(--canvas); overflow: hidden; min-width: 0; }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 11px 22px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; min-height: 48px; }
+.topbar__icon { width: 22px; height: 22px; display: grid; place-items: center; color: var(--muted); flex-shrink: 0; }
+.topbar__title { font-size: 14px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.014em; }
+.topbar__count { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--faint); letter-spacing: 0; padding: 1px 6px; border-radius: 4px; background: var(--canvas-soft); font-variant-numeric: tabular-nums; min-height: 18px; display: inline-flex; align-items: center; }
+.topbar__sep { width: 1px; height: 14px; background: var(--line-soft); }
+.topbar__spacer { flex: 1; }
+
+.pill-group { display: inline-flex; background: var(--canvas-soft); border-radius: 7px; padding: 2px; gap: 1px; }
+.pill-group__btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 12px; font-weight: 510; color: var(--subtle); letter-spacing: -0.005em; border-radius: 5px; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); min-height: 24px; }
+.pill-group__btn:hover { color: var(--fg); }
+.pill-group__btn[data-active="true"] { background: var(--elevated); color: var(--fg-strong); box-shadow: var(--highlight); }
+.pill-group__badge { font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--muted); padding: 0 4px; border-radius: 3px; background: rgba(255,255,255,0.05); font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none; min-height: 14px; display: inline-flex; align-items: center; }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--radius); font-size: 12px; font-weight: 510; letter-spacing: -0.005em; border: 1px solid transparent; background: rgba(255,255,255,0.04); color: var(--fg); transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease); white-space: nowrap; }
+.btn:hover { background: rgba(255,255,255,0.07); color: var(--fg-strong); }
+.btn--primary { background: var(--accent); border-color: transparent; color: var(--accent-ink); box-shadow: var(--highlight), 0 1px 0 rgba(0,0,0,0.25); }
+.btn--primary:hover { background: var(--accent-hover); color: var(--accent-ink); }
+.btn--ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.btn--ghost:hover { background: var(--hover); color: var(--fg); }
+.btn--danger { color: var(--danger); }
+.btn--danger:hover { background: var(--danger-tint); color: var(--danger); }
+.btn--success { color: var(--success); }
+.btn--success:hover { background: var(--success-tint); color: var(--success); }
+.btn--sm { height: 22px; padding: 0 8px; font-size: 11.5px; gap: 5px; }
+.btn--lg { height: 30px; padding: 0 14px; font-size: 12.5px; }
+.btn--icon { padding: 0; width: 26px; justify-content: center; }
+.btn--icon.btn--sm { width: 22px; }
+.btn--block { width: 100%; justify-content: center; }
+.btn > svg { display: inline-flex; flex-shrink: 0; }
+
+.search { display: inline-flex; align-items: center; gap: 7px; padding: 4px 9px; border-radius: var(--radius); background: var(--canvas-soft); color: var(--subtle); transition: background var(--dur) var(--ease); font-size: 12px; min-width: 220px; min-height: 26px; }
+.search:focus-within { background: var(--elevated); color: var(--fg); }
+.search input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; padding: 0; font-size: 12px; }
+.search input::placeholder { color: var(--subtle); }
+.search__icon { color: var(--faint); flex-shrink: 0; display: inline-flex; }
+.search__kbd { font-family: var(--font-mono); font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,0.045); color: var(--faint); letter-spacing: 0; }
+
+.scroll { flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.page { padding: 28px 36px 80px; max-width: 1320px; margin: 0 auto; width: 100%; }
+
+.icon { width: 14px; height: 14px; flex-shrink: 0; stroke-width: 1.75; }
+.icon-xs { width: 11px; height: 11px; flex-shrink: 0; stroke-width: 2; }
+.icon-sm { width: 13px; height: 13px; flex-shrink: 0; stroke-width: 1.75; }
+.icon-md { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 1.75; }
+.icon-lg { width: 20px; height: 20px; flex-shrink: 0; stroke-width: 1.75; }
+
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--neutral)); flex-shrink: 0; }
+.dot--pulse { animation: pulse 1.8s ease-in-out infinite; }
+.dot--ring { background: transparent; border: 1.5px solid var(--c, var(--neutral)); width: 8px; height: 8px; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 2px var(--accent-glow); } 50% { box-shadow: 0 0 0 4px var(--accent-glow); } }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; height: 19px; padding: 0 7px; border-radius: 4px; font-size: 11px; font-weight: 510; letter-spacing: -0.005em; background: var(--neutral-tint); color: var(--muted); border: 0; white-space: nowrap; }
+.pill > svg { flex-shrink: 0; display: inline-flex; }
+.pill--success { background: var(--success-tint); color: var(--success); }
+.pill--warning { background: var(--warning-tint); color: var(--warning); }
+.pill--danger  { background: var(--danger-tint);  color: var(--danger); }
+.pill--info    { background: var(--info-tint);    color: var(--info); }
+.pill--accent  { background: var(--accent-tint);  color: var(--accent); }
+.pill--mono { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0; background: rgba(255,255,255,0.04); color: var(--muted); }
+.pill--ghost { background: transparent; color: var(--muted); }
+.pill--lg { height: 22px; font-size: 11.5px; padding: 0 9px; }
+.pill--sm { height: 17px; font-size: 10.5px; padding: 0 6px; }
+.pill__dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.pill__dot--pulse { box-shadow: 0 0 0 0 currentColor; animation: pill-pulse 2.2s ease-in-out infinite; }
+@keyframes pill-pulse { 0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; } 50% { box-shadow: 0 0 0 1.5px currentColor; opacity: 0.5; } }
+
+.avatar { display: inline-flex; align-items: center; justify-content: center; font-weight: 600; letter-spacing: -0.02em; flex-shrink: 0; border-radius: 50%; }
+.avatar--sm { width: 17px; height: 17px; font-size: 9px; border-radius: 4px; }
+.avatar--md { width: 21px; height: 21px; font-size: 10px; border-radius: 5px; }
+.avatar--lg { width: 26px; height: 26px; font-size: 11px; border-radius: 6px; }
+.avatar--agent { border-radius: 5px; }
+
+.kbd { display: inline-flex; align-items: center; gap: 1px; font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,0.04); color: var(--subtle); letter-spacing: 0; }
+
+/* PAGE HEADER */
+.page-head { margin-bottom: 26px; }
+.page-head__row { display: flex; align-items: center; gap: 12px; }
+.page-head__title { font-size: 22px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.026em; margin: 0; line-height: 1.15; }
+.page-head__count { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; color: var(--faint); letter-spacing: 0; padding: 2px 7px; border-radius: 4px; background: var(--canvas-soft); font-variant-numeric: tabular-nums; min-height: 20px; display: inline-flex; align-items: center; }
+.page-head__meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--subtle); letter-spacing: -0.005em; }
+.page-head__meta-sep { color: var(--faint); }
+.page-head__lane-tabs { display: inline-flex; gap: 0; margin-top: 20px; padding-bottom: 11px; border-bottom: 1px solid var(--line-soft); align-items: center; flex-wrap: wrap; width: 100%; }
+.lane-tab { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 4px; font-size: 12.5px; font-weight: 500; color: var(--muted); letter-spacing: -0.006em; transition: color var(--dur) var(--ease); position: relative; }
+.lane-tab:hover { color: var(--fg-strong); }
+.lane-tab[data-active="true"] { color: var(--fg-strong); font-weight: 510; }
+.lane-tab[data-active="true"]::after { content: ""; position: absolute; bottom: -12px; left: 11px; right: 11px; height: 1.5px; background: var(--fg-strong); border-radius: 1px; }
+.lane-tab__count { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.lane-tab[data-active="true"] .lane-tab__count { color: var(--muted); }
+.lane-tab__sep { color: var(--faint); padding: 0 1px; user-select: none; font-size: 12px; opacity: 0.5; }
+.lane-tabs__spacer { flex: 1; min-width: 8px; }
+.lane-tabs__sort { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--subtle); }
+
+/* TASK LIST */
+.task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.task-group { list-style: none; margin: 0; padding: 0; background: var(--canvas-soft); border: 1px solid var(--line-soft); border-radius: var(--radius-lg); overflow: hidden; }
+.task-group__head { display: flex; align-items: center; gap: 8px; padding: 9px 14px; background: transparent; border-bottom: 1px solid var(--line-soft); }
+.task-group__dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--c, var(--neutral)); }
+.task-group__dot--ring { background: transparent; border: 1.5px solid var(--c, var(--neutral)); }
+.task-group__label { font-size: 11.5px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.005em; }
+.task-group__count { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.task-group__spacer { flex: 1; }
+.task-group__action { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; color: var(--faint); transition: color var(--dur) var(--ease), background var(--dur) var(--ease); }
+.task-group__action:hover { color: var(--fg); background: var(--hover); }
+.task-group__rows { list-style: none; margin: 0; padding: 0; background: var(--canvas); }
+.task-group > .inbox { background: var(--canvas); }
+.task-group__rows > .task-row:last-child,
+.task-group__rows > .inbox-item:last-child,
+.task-group > .inbox > .inbox-item:last-child { border-bottom: 0; }
+.task-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 11px 10px 11px 14px; border-bottom: 1px solid var(--line-soft); cursor: pointer; transition: background var(--dur) var(--ease); position: relative; }
+.task-row:hover { background: rgba(255,255,255,0.022); }
+.task-row[data-selected="true"] { background: rgba(255,255,255,0.03); }
+.task-row[data-selected="true"]::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background: var(--fg-strong); border-radius: 0 2px 2px 0; }
+.task-row__main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.task-row__top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.task-row__title { font-size: 13px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.014em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.task-row__id { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; color: var(--faint); letter-spacing: 0; }
+.task-row__meta { display: flex; align-items: center; gap: 9px; font-size: 11.5px; color: var(--subtle); letter-spacing: -0.005em; min-width: 0; flex-wrap: wrap; }
+.task-row__meta-sep { color: var(--faint); opacity: 0.6; }
+.task-row__meta-item { display: inline-flex; align-items: center; gap: 4px; }
+.task-row__meta-item > svg { display: inline-flex; flex-shrink: 0; }
+.task-row__error { display: flex; align-items: center; gap: 6px; padding: 5px 9px; margin-top: 4px; border-radius: 4px; background: var(--danger-tint); font-family: var(--font-mono); font-size: 10.5px; color: var(--danger); letter-spacing: 0; }
+.task-row__error svg { flex-shrink: 0; }
+.task-row__error-msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.task-row__right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.task-row__time { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--subtle); font-variant-numeric: tabular-nums; min-width: 50px; text-align: right; letter-spacing: 0; }
+
+/* PRIORITY BARS */
+.priority { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 10px; flex-shrink: 0; }
+.priority span { width: 2.5px; background: var(--faint); border-radius: 1px; }
+.priority span:nth-child(1) { height: 4px; }
+.priority span:nth-child(2) { height: 7px; }
+.priority span:nth-child(3) { height: 10px; }
+.priority[data-level="urgent"] span { background: var(--danger); }
+.priority[data-level="high"] span { background: var(--fg); }
+.priority[data-level="medium"] span:nth-child(-n+2) { background: var(--muted); }
+.priority[data-level="low"] span:nth-child(1) { background: var(--muted); }
+
+/* KANBAN */
+.kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 0 0 60px; }
+.kanban__col { background: var(--canvas-soft); border-radius: var(--radius-lg); display: flex; flex-direction: column; min-height: 460px; max-height: calc(100vh - 220px); overflow: hidden; }
+.kanban__head { display: flex; align-items: center; gap: 8px; padding: 11px 12px 9px; flex-shrink: 0; }
+.kanban__head-label { font-size: 12px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.005em; }
+.kanban__head-count { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.kanban__add { margin-left: auto; width: 20px; height: 20px; border-radius: 4px; display: grid; place-items: center; color: var(--faint); transition: color var(--dur) var(--ease), background var(--dur) var(--ease); }
+.kanban__add:hover { color: var(--fg); background: var(--hover); }
+.kanban__cards { padding: 4px 8px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; }
+.k-card { background: var(--canvas-tint); border-radius: var(--radius-md); padding: 11px; cursor: pointer; transition: background var(--dur) var(--ease); display: flex; flex-direction: column; gap: 7px; text-align: left; box-shadow: 0 0 0 1px var(--line-soft); }
+.k-card:hover { background: var(--elevated); box-shadow: 0 0 0 1px var(--line); }
+.k-card[data-live="true"] { background: var(--canvas-tint); }
+.k-card[data-live="true"]::before { display: none; }
+.k-card__title { font-size: 12.5px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.008em; line-height: 1.4; }
+.k-card__row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 11px; color: var(--subtle); }
+.k-card__id { font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--faint); letter-spacing: 0; }
+.k-card__live { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+.k-card__live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: pulse-accent 2s ease-in-out infinite; }
+@keyframes pulse-accent { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-tint); } 50% { opacity: 0.55; box-shadow: 0 0 0 2px var(--accent-tint); } }
+.k-card__bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.k-card__owner { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.k-card__time { font-family: var(--font-mono); font-size: 10px; color: var(--faint); letter-spacing: 0; }
+.k-card__error { padding: 5px 7px; border-radius: 4px; background: var(--danger-tint); font-family: var(--font-mono); font-size: 10.5px; color: var(--danger); display: flex; gap: 5px; align-items: flex-start; letter-spacing: 0; }
+.k-card__error svg { flex-shrink: 0; margin-top: 1px; }
+
+/* DASHBOARD */
+.dash { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.dash__card { background: var(--canvas-soft); border-radius: var(--radius-lg); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.dash__card-head { display: flex; align-items: center; gap: 7px; }
+.dash__card-icon { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--subtle); }
+.dash__card-label { font-size: 12px; font-weight: 510; color: var(--muted); letter-spacing: -0.005em; }
+.dash__card-value { font-size: 28px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.028em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.dash__card-detail { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--subtle); flex-wrap: wrap; letter-spacing: -0.005em; }
+.dash__card-detail strong { color: var(--fg); font-weight: 510; }
+.dash__row2 { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-top: 12px; }
+.dash__panel { background: var(--canvas-soft); border-radius: var(--radius-lg); }
+.dash__panel-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; border-bottom: 1px solid var(--line-soft); }
+.dash__panel-title { font-size: 12.5px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.005em; }
+.dash__panel-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); letter-spacing: 0; }
+.dash__panel-body { padding: 18px; }
+.dash__sparkline { display: flex; align-items: flex-end; gap: 2px; height: 96px; padding-bottom: 14px; position: relative; border-bottom: 1px solid var(--line-soft); }
+.dash__sparkline::after { content: ""; position: absolute; left: 0; right: 0; bottom: 14px; border-bottom: 1px dashed var(--line-soft); }
+.dash__bar { flex: 1; background: rgba(255,255,255,0.085); border-radius: 1px 1px 0 0; min-width: 0; transition: background var(--dur) var(--ease); position: relative; }
+.dash__bar:hover { background: var(--fg); }
+.dash__bar--stuck { background: var(--accent-tint-strong); }
+.dash__bar--stuck:hover { background: var(--accent); }
+.dash__sparkline-axis { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--faint); margin-top: 6px; letter-spacing: 0; }
+
+.dash__breakdown { display: flex; flex-direction: column; gap: 8px; }
+.dash__bd-row { display: grid; grid-template-columns: 12px 1fr 36px; gap: 8px; align-items: center; font-size: 12px; }
+.dash__bd-bar { height: 3px; background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden; }
+.dash__bd-fill { height: 100%; border-radius: 2px; background: var(--c, var(--neutral)); opacity: 0.85; }
+.dash__bd-num { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.dash__bd-label { color: var(--fg); font-weight: 500; letter-spacing: -0.005em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+
+.active-runs-table { list-style: none; margin: 0; padding: 0; }
+.run-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) 96px 100px 84px 84px; gap: 12px; align-items: center; padding: 9px 16px; border-bottom: 1px solid var(--line-soft); font-size: 12px; }
+.run-row:last-child { border-bottom: 0; }
+.run-row:hover { background: rgba(255,255,255,0.022); }
+.run-row__title { color: var(--fg-strong); font-weight: 510; letter-spacing: -0.008em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-row__id { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); letter-spacing: 0; }
+.run-row__cell { font-size: 11.5px; color: var(--muted); }
+.run-row__mono { font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted); letter-spacing: 0; }
+
+/* INBOX */
+.inbox { list-style: none; margin: 0; padding: 0; }
+.inbox-item { display: grid; grid-template-columns: 3px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 14px 12px 11px; border-bottom: 1px solid var(--line-soft); transition: background var(--dur) var(--ease); cursor: pointer; }
+.inbox-item:hover { background: rgba(255,255,255,0.022); }
+.inbox-item__rail { width: 2px; height: 28px; border-radius: 1px; background: transparent; flex-shrink: 0; align-self: center; }
+.inbox-item[data-unread="true"] .inbox-item__rail { background: var(--accent); }
+.inbox-item__main { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.inbox-item__top { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-width: 0; }
+.inbox-item__title { font-size: 13px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.012em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%; }
+.inbox-item__id { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); letter-spacing: 0; }
+.inbox-item__detail { font-size: 11.5px; color: var(--muted); letter-spacing: -0.005em; }
+.inbox-item__detail strong { color: var(--fg); font-weight: 510; }
+.inbox-item__actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+/* EMPTY STATE TEMPLATES */
+.empty { padding: 64px 0 0; }
+.empty__icon { width: 38px; height: 38px; margin: 0 auto 18px; border-radius: 9px; background: var(--canvas-soft); display: grid; place-items: center; color: var(--muted); }
+.empty__title { text-align: center; font-size: 18px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.022em; margin: 0; }
+.empty__msg { text-align: center; max-width: 54ch; margin: 8px auto 0; font-size: 13px; color: var(--muted); line-height: 1.55; letter-spacing: -0.005em; }
+.empty__cta { display: flex; justify-content: center; margin-top: 22px; }
+
+.tpl-section { margin-top: 52px; padding-top: 24px; border-top: 1px solid var(--line-soft); }
+.tpl-section__head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+.tpl-section__label { font-size: 12px; font-weight: 510; color: var(--muted); letter-spacing: -0.005em; }
+.tpl-section__count { font-family: var(--font-mono); font-size: 11px; color: var(--faint); letter-spacing: 0; }
+.tpl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 1080px) { .tpl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tpl-card { background: var(--canvas-soft); border-radius: var(--radius-lg); padding: 16px; cursor: pointer; transition: background var(--dur) var(--ease); display: flex; flex-direction: column; gap: 10px; min-height: 124px; text-align: left; }
+.tpl-card:hover { background: var(--elevated); }
+.tpl-card__head { display: flex; align-items: center; gap: 10px; }
+.tpl-card__icon { width: 24px; height: 24px; border-radius: 6px; background: rgba(255,255,255,0.04); display: grid; place-items: center; color: var(--muted); flex-shrink: 0; }
+.tpl-card__title { font-size: 13px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.012em; }
+.tpl-card__desc { font-size: 12px; color: var(--muted); line-height: 1.5; flex: 1; letter-spacing: -0.005em; }
+.tpl-card__foot { display: flex; align-items: center; gap: 6px; }
+
+/* FORM */
+.form-section { margin-top: 22px; padding: 18px 20px; border-radius: var(--radius-lg); background: var(--canvas-soft); }
+.form-section__head { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.form-section__head-icon { color: var(--subtle); display: inline-flex; }
+.form-section__title { font-size: 13px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.008em; }
+.form-section__sub { margin-left: auto; font-size: 11px; color: var(--faint); letter-spacing: -0.005em; }
+.form-row { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.form-row:first-of-type { margin-top: 0; }
+.form-row__head { display: flex; align-items: baseline; gap: 6px; }
+.form-row__label { font-size: 12px; font-weight: 510; color: var(--fg); letter-spacing: -0.005em; }
+.form-row__req { color: var(--subtle); font-size: 10px; font-weight: 500; }
+.form-row__hint { font-size: 11.5px; color: var(--subtle); letter-spacing: -0.005em; line-height: 1.5; }
+.form-row__grid { display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: start; }
+.form-input, .form-textarea, .form-select { width: 100%; background: rgba(255,255,255,0.025); border: 1px solid transparent; border-radius: var(--radius); padding: 8px 11px; color: var(--fg-strong); font-size: 12.5px; letter-spacing: -0.005em; transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+.form-input:focus, .form-textarea:focus, .form-select:focus { outline: 0; background: var(--canvas); box-shadow: 0 0 0 1px var(--line-strong); }
+.form-input::placeholder, .form-textarea::placeholder { color: var(--faint); }
+.form-textarea { min-height: 92px; resize: vertical; line-height: 1.55; font-family: var(--font-sans); }
+.form-select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a7a80' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+.form-mono { font-family: var(--font-mono); font-size: 12px; }
+
+.radio-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.radio-card { background: rgba(255,255,255,0.025); border: 1px solid transparent; border-radius: var(--radius); padding: 9px 11px; cursor: pointer; transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease); display: flex; align-items: center; gap: 10px; text-align: left; }
+.radio-card:hover { background: rgba(255,255,255,0.05); }
+.radio-card[data-selected="true"] { background: rgba(255,255,255,0.06); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.radio-card__icon { color: var(--subtle); flex-shrink: 0; display: inline-flex; }
+.radio-card[data-selected="true"] .radio-card__icon { color: var(--fg-strong); }
+.radio-card__main { min-width: 0; flex: 1; }
+.radio-card__title { font-size: 12.5px; font-weight: 510; color: var(--fg); letter-spacing: -0.006em; }
+.radio-card__desc { font-size: 11px; color: var(--subtle); margin-top: 2px; line-height: 1.4; letter-spacing: -0.005em; }
+.radio-card[data-selected="true"] .radio-card__title { color: var(--fg-strong); }
+
+.context-box { background: rgba(255,255,255,0.022); border-radius: var(--radius); padding: 13px 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 22px; }
+.context-box__row { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.context-box__label { font-size: 10.5px; font-weight: 500; color: var(--faint); letter-spacing: -0.003em; text-transform: uppercase; letter-spacing: 0.04em; }
+.context-box__value { font-size: 12px; color: var(--fg-strong); font-weight: 510; letter-spacing: -0.005em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.context-box__value--mono { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; letter-spacing: 0; }
+
+.form-footer { display: flex; align-items: center; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.form-footer__hint { font-size: 11.5px; color: var(--subtle); flex: 1; letter-spacing: -0.005em; }
+
+/* TASK DETAIL */
+.detail-head { padding-bottom: 18px; border-bottom: 1px solid var(--line-soft); margin-bottom: 4px; }
+.detail-head__crumbs { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 14px; letter-spacing: -0.005em; }
+.detail-head__crumb { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border-radius: 4px; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
+.detail-head__crumb:hover { background: var(--hover); color: var(--fg); }
+.detail-head__crumb--cur { color: var(--fg-strong); font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0; }
+.detail-head__crumb-sep { color: var(--faint); display: inline-flex; }
+.detail-head__title-row { display: flex; align-items: flex-start; gap: 14px; }
+.detail-head__title { font-size: 24px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.028em; line-height: 1.2; flex: 1; min-width: 0; margin: 0; }
+.detail-head__pills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.detail-head__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; font-size: 11.5px; color: var(--subtle); letter-spacing: -0.005em; }
+.detail-head__meta-item { display: inline-flex; align-items: center; gap: 5px; }
+.detail-head__meta-label { color: var(--faint); font-size: 11.5px; font-weight: 500; letter-spacing: -0.005em; }
+.detail-head__actions { display: flex; align-items: center; gap: 6px; margin-top: 16px; flex-wrap: wrap; }
+
+.detail-tabs { display: flex; gap: 0; padding: 14px 0 0; border-bottom: 1px solid var(--line-soft); margin-bottom: 22px; align-items: center; flex-wrap: wrap; }
+.detail-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px 11px; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: -0.006em; transition: color var(--dur) var(--ease); position: relative; }
+.detail-tab:hover { color: var(--fg-strong); }
+.detail-tab[data-active="true"] { color: var(--fg-strong); font-weight: 510; }
+.detail-tab[data-active="true"]::after { content: ""; position: absolute; bottom: -1px; left: 13px; right: 13px; height: 1.5px; background: var(--fg-strong); border-radius: 1px 1px 0 0; }
+.detail-tab__icon { color: var(--subtle); display: inline-flex; }
+.detail-tab[data-active="true"] .detail-tab__icon { color: var(--fg-strong); }
+.detail-tab__count { font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--faint); padding: 0 5px; border-radius: 3px; background: rgba(255,255,255,0.04); font-variant-numeric: tabular-nums; min-height: 14px; display: inline-flex; align-items: center; letter-spacing: 0; }
+.detail-tab[data-active="true"] .detail-tab__count { color: var(--fg); background: rgba(255,255,255,0.07); }
+
+/* DETAIL CARDS */
+.metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 26px; }
+.metric { background: var(--canvas-soft); border-radius: var(--radius-lg); padding: 14px 16px; }
+.metric__label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 510; color: var(--muted); letter-spacing: -0.005em; }
+.metric__label > svg { display: inline-flex; }
+.metric__value { font-size: 22px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.026em; line-height: 1.1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.metric__detail { font-size: 11.5px; color: var(--subtle); margin-top: 6px; letter-spacing: -0.005em; }
+.metric__detail strong { color: var(--fg); font-weight: 510; }
+
+.detail-section { margin-bottom: 28px; }
+.detail-section__head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.detail-section__icon { color: var(--subtle); display: inline-flex; }
+.detail-section__title { font-size: 13px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.008em; }
+.detail-section__count { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-left: auto; letter-spacing: 0; }
+
+.run-card { background: var(--canvas-soft); border-radius: var(--radius-lg); padding: 14px 16px; }
+.run-card__top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.run-card__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.run-card__cell { display: flex; flex-direction: column; gap: 3px; }
+.run-card__cell-label { font-size: 10.5px; font-weight: 500; color: var(--faint); letter-spacing: 0.04em; text-transform: uppercase; }
+.run-card__cell-value { font-size: 12.5px; color: var(--fg-strong); font-weight: 510; letter-spacing: -0.006em; }
+.run-card__cell-value--mono { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; letter-spacing: 0; }
+
+.descr-card { background: var(--canvas-soft); border-radius: var(--radius-lg); padding: 16px 18px; font-size: 12.5px; line-height: 1.7; color: var(--fg); white-space: pre-wrap; letter-spacing: -0.005em; }
+
+/* TABLE */
+.table { background: var(--canvas-soft); border-radius: var(--radius-lg); overflow: hidden; }
+.table__head { display: grid; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line-soft); font-size: 10.5px; font-weight: 510; color: var(--faint); letter-spacing: 0.04em; text-transform: uppercase; }
+.table__row { display: grid; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line-soft); align-items: center; transition: background var(--dur) var(--ease); }
+.table__row:first-of-type { border-top: 0; }
+.table__row:hover { background: rgba(255,255,255,0.022); }
+.table--runs .table__head, .table--runs .table__row { grid-template-columns: 14px minmax(0, 1.4fr) 80px 100px 100px 80px 22px; }
+.table--children .table__head, .table--children .table__row { grid-template-columns: 14px minmax(0, 2fr) 90px 110px 90px 22px; }
+.table--deps .table__head, .table--deps .table__row { grid-template-columns: 14px minmax(0, 2fr) 100px 90px 22px; }
+.table__cell { font-size: 12px; color: var(--fg); letter-spacing: -0.005em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table__cell--strong { color: var(--fg-strong); font-weight: 510; }
+.table__cell--mono { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.table__cell--muted { color: var(--subtle); }
+
+/* TIMELINE */
+.timeline-controls { display: flex; align-items: center; gap: 10px; padding-bottom: 14px; }
+.timeline { list-style: none; margin: 0; padding: 0; }
+.tl-event { display: grid; grid-template-columns: 22px minmax(0, 1fr) 80px; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+.tl-event:last-child { border-bottom: 0; }
+.tl-event__icon-wrap { display: flex; flex-direction: column; align-items: center; padding-top: 1px; }
+.tl-event__icon { width: 20px; height: 20px; border-radius: 4px; display: grid; place-items: center; background: rgba(255,255,255,0.04); color: var(--subtle); flex-shrink: 0; }
+.tl-event__icon[data-tone="success"] { background: var(--success-tint); color: var(--success); }
+.tl-event__icon[data-tone="danger"] { background: var(--danger-tint); color: var(--danger); }
+.tl-event__icon[data-tone="accent"] { background: var(--accent-tint); color: var(--accent); }
+.tl-event__icon[data-tone="warning"] { background: var(--warning-tint); color: var(--warning); }
+.tl-event__line { width: 1px; flex: 1; background: var(--line-soft); margin-top: 4px; min-height: 8px; }
+.tl-event__body { min-width: 0; }
+.tl-event__msg { font-size: 12.5px; color: var(--fg); letter-spacing: -0.006em; }
+.tl-event__msg strong { color: var(--fg-strong); font-weight: 510; }
+.tl-event__type { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-left: 6px; padding: 0 5px; border-radius: 3px; background: rgba(255,255,255,0.045); letter-spacing: 0; min-height: 14px; display: inline-flex; align-items: center; vertical-align: middle; }
+.tl-event__detail { font-size: 11.5px; color: var(--subtle); margin-top: 3px; line-height: 1.5; letter-spacing: -0.005em; }
+.tl-event__time { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); text-align: right; letter-spacing: 0; padding-top: 3px; }
+
+/* AGENT PANEL CARDS */
+.agent-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1080px) { .agent-grid { grid-template-columns: 1fr; } }
+.agent-card { background: var(--canvas-soft); border-radius: var(--radius-lg); padding: 14px 16px; }
+.agent-card__head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.agent-card__name { font-size: 13px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.008em; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-card__metrics { display: flex; align-items: center; gap: 18px; padding-bottom: 11px; border-bottom: 1px solid var(--line-soft); }
+.agent-card__metric { display: flex; flex-direction: column; gap: 2px; }
+.agent-card__metric-label { font-size: 10.5px; font-weight: 500; color: var(--faint); letter-spacing: 0.04em; text-transform: uppercase; }
+.agent-card__metric-value { font-size: 16px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.018em; font-variant-numeric: tabular-nums; }
+.agent-card__events { margin-top: 11px; display: flex; flex-direction: column; gap: 7px; }
+.agent-card__event { display: grid; grid-template-columns: 14px minmax(0, 1fr) 56px; gap: 9px; align-items: center; font-size: 12px; }
+.agent-card__event > span:first-child { display: inline-flex; align-items: center; }
+.agent-card__event-msg { color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.005em; }
+.agent-card__event-time { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); text-align: right; letter-spacing: 0; }
+.agent-card__foot { margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--line-soft); }
+
+/* ORCHESTRATION */
+.orch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1080px) { .orch-grid { grid-template-columns: 1fr; } }
+.orch-card { background: var(--canvas-soft); border-radius: var(--radius-lg); display: flex; flex-direction: column; }
+.orch-card__head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
+.orch-card__icon { color: var(--subtle); display: inline-flex; }
+.orch-card__title { font-size: 12.5px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.008em; }
+.orch-card__sub { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); letter-spacing: 0; }
+.orch-card__body { padding: 14px 16px; flex: 1; }
+.json-viewer { font-family: var(--font-mono); font-size: 11.5px; line-height: 1.65; color: var(--muted); padding: 12px 14px; background: rgba(0,0,0,0.18); border-radius: var(--radius); overflow-x: auto; max-height: 220px; letter-spacing: 0; }
+.json-key { color: var(--fg); }
+.json-str { color: var(--muted); }
+.json-num { color: var(--fg-strong); }
+.json-bool { color: var(--accent); }
+.json-null { color: var(--faint); }
+.json-comment { color: var(--faint); font-style: italic; }
+
+.review-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; padding: 8px 0; align-items: center; border-bottom: 1px solid var(--line-soft); font-size: 12px; }
+.review-row:last-child { border-bottom: 0; }
+.review-row > svg:first-child { display: inline-flex; flex-shrink: 0; }
+.review-row__title { color: var(--fg); letter-spacing: -0.005em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-row__time { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); letter-spacing: 0; }
+
+/* TWEAKS */
+.tweaks { position: fixed; bottom: 16px; right: 16px; z-index: 50; background: var(--sidebar); border-radius: var(--radius); box-shadow: var(--shadow-pop); width: 240px; }
+.tweaks__head { display: flex; align-items: center; gap: 7px; padding: 9px 11px; cursor: pointer; }
+.tweaks__head .topbar__icon { color: var(--subtle); }
+.tweaks__title { font-size: 11.5px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.006em; flex: 1; }
+.tweaks__chev { color: var(--faint); transition: transform var(--dur) var(--ease); display: inline-flex; }
+.tweaks--open .tweaks__chev { transform: rotate(180deg); }
+.tweaks__body { padding: 0 11px 11px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line-soft); padding-top: 11px; }
+.tweaks__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tweaks__label { font-size: 11.5px; color: var(--muted); letter-spacing: -0.005em; }
+.tweaks__seg { display: inline-flex; background: var(--canvas); border-radius: 5px; padding: 2px; }
+.tweaks__seg button { padding: 3px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--subtle); border-radius: 3px; letter-spacing: 0.04em; text-transform: uppercase; transition: all var(--dur) var(--ease); min-width: 22px; }
+.tweaks__seg button:hover { color: var(--fg); }
+.tweaks__seg button[data-active="true"] { background: var(--elevated); color: var(--fg-strong); }
+.swatches { display: flex; gap: 6px; }
+.swatch { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid transparent; transition: transform var(--dur) var(--ease); }
+.swatch:hover { transform: scale(1.1); }
+.swatch[data-active="true"] { border-color: var(--fg-strong); }
+
+/* MODAL */
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 100; display: grid; place-items: center; padding: 24px; backdrop-filter: blur(3px); }
+.modal { background: var(--sidebar); border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay); width: 100%; max-width: 720px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+.modal__head { display: flex; align-items: center; gap: 9px; padding: 13px 18px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; }
+.modal__icon { color: var(--subtle); display: inline-flex; }
+.modal__title { font-size: 13.5px; font-weight: 510; color: var(--fg-strong); letter-spacing: -0.012em; }
+.modal__close { margin-left: auto; }
+.modal__body { padding: 18px; overflow-y: auto; }
+.modal__footer { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-top: 1px solid var(--line-soft); flex-shrink: 0; background: var(--canvas-soft); }
+
+/* PRIORITY DOT for kanban col header */
+.col-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* MISC */
+.muted { color: var(--muted); }
+.subtle { color: var(--subtle); }
+.faint { color: var(--faint); }
+.mono { font-family: var(--font-mono); }
+.vc { display: inline-flex; align-items: center; gap: 6px; }
+
+@media (max-width: 1100px) {
+  .shell { grid-template-columns: 56px 220px minmax(0, 1fr); }
+  .metric-grid { grid-template-columns: repeat(2, 1fr); }
+  .run-card__grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 880px) {
+  .shell { grid-template-columns: 56px minmax(0, 1fr); }
+  .side { display: none; }
+  .kanban { grid-template-columns: 1fr; }
+  .dash { grid-template-columns: repeat(2, 1fr); }
+  .dash__row2 { grid-template-columns: 1fr; }
+  .tpl-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useMemo, Fragment } = React;
+
+/* ICONS */
+const I = {};
+const mk = (paths) => (p={}) => {
+  const cls = "icon" + (p.size ? ` icon-${p.size}` : "");
+  return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={p.sw||1.75} strokeLinecap="round" strokeLinejoin="round" className={cls} aria-hidden="true">{paths}</svg>;
+};
+I.Plus       = mk(<><path d="M12 5v14"/><path d="M5 12h14"/></>);
+I.Search     = mk(<><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>);
+I.X          = mk(<><path d="M18 6 6 18"/><path d="m6 6 12 12"/></>);
+I.Check      = mk(<><path d="M20 6 9 17l-5-5"/></>);
+I.ArrowRight = mk(<><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></>);
+I.ArrowLeft  = mk(<><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></>);
+I.ArrowUpRight = mk(<><path d="M7 7h10v10"/><path d="M7 17 17 7"/></>);
+I.ChevronRight = mk(<><path d="m9 18 6-6-6-6"/></>);
+I.ChevronDown  = mk(<><path d="m6 9 6 6 6-6"/></>);
+I.MoreH        = mk(<><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></>);
+I.MoreV        = mk(<><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></>);
+I.Settings   = mk(<><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></>);
+I.Bell       = mk(<><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></>);
+I.Cmd        = mk(<><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></>);
+I.Dashboard  = mk(<><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></>);
+I.ListChecks = mk(<><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></>);
+I.Network    = mk(<><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></>);
+I.Briefcase  = mk(<><rect width="20" height="14" x="2" y="6" rx="2"/><path d="M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></>);
+I.Zap        = mk(<><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></>);
+I.Clock      = mk(<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>);
+I.Radio      = mk(<><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></>);
+I.Boxes      = mk(<><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="m7 16.5-4.74-2.85"/><path d="m7 16.5 5-3"/><path d="M7 16.5v5.17"/><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/><path d="m17 16.5-5-3"/><path d="m17 16.5 4.74-2.85"/><path d="M17 16.5v5.17"/><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/><path d="M12 8 7.26 5.15"/><path d="m12 8 4.74-2.85"/><path d="M12 13.5V8"/></>);
+I.Book       = mk(<><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></>);
+I.Wrench     = mk(<><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></>);
+I.Bridge     = mk(<><path d="M3 5h18"/><path d="M3 19h18"/><path d="M5 5v14"/><path d="M19 5v14"/><path d="M9 12c0-2 1-3 3-3s3 1 3 3"/></>);
+I.Server     = mk(<><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></>);
+I.Folder     = mk(<><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></>);
+I.User       = mk(<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>);
+I.UserCheck  = mk(<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></>);
+I.Bot        = mk(<><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>);
+I.Sparkles   = mk(<><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></>);
+I.Globe      = mk(<><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></>);
+I.RefreshCw  = mk(<><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></>);
+I.RotateCcw  = mk(<><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></>);
+I.Edit       = mk(<><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></>);
+I.Eye        = mk(<><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></>);
+I.Archive    = mk(<><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></>);
+I.ArchiveX   = mk(<><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="m9.5 17 5-5"/><path d="m9.5 12 5 5"/></>);
+I.Trash      = mk(<><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>);
+I.Play       = mk(<polygon points="6 3 20 12 6 21 6 3" fill="currentColor" stroke="none"/>);
+I.Pin        = mk(<><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></>);
+I.AlertCircle = mk(<><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></>);
+I.AlertTriangle = mk(<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></>);
+I.Info       = mk(<><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>);
+I.Filter     = mk(<><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></>);
+I.Calendar   = mk(<><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></>);
+I.Layers     = mk(<><path d="m12.83 2.18-9.65 4.82a1 1 0 0 0 0 1.79l9.65 4.83a1 1 0 0 0 .9 0l9.65-4.82a1 1 0 0 0 0-1.79l-9.65-4.83a1 1 0 0 0-.9 0Z"/><path d="m22 17.65-9.17 4.16a1 1 0 0 1-.9 0L2 17.65"/><path d="m22 12.65-9.17 4.16a1 1 0 0 1-.9 0L2 12.65"/></>);
+I.GitBranch  = mk(<><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></>);
+I.GitFork    = mk(<><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></>);
+I.LinkIcon   = mk(<><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></>);
+I.Hash       = mk(<><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></>);
+I.Tag        = mk(<><path d="m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" x2="7.01" y1="7" y2="7"/></>);
+I.Inbox      = mk(<><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>);
+I.Activity   = mk(<><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></>);
+I.Gauge      = mk(<><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></>);
+I.BarChart   = mk(<><path d="M3 3v18h18"/><path d="M7 16v-7"/><path d="M11 16V8"/><path d="M15 16v-5"/><path d="M19 16v-3"/></>);
+I.PieChart   = mk(<><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></>);
+I.Save       = mk(<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>);
+I.Send       = mk(<><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></>);
+I.Code       = mk(<><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></>);
+I.Terminal   = mk(<><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></>);
+I.Database   = mk(<><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></>);
+I.Cpu        = mk(<><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" x2="9" y1="2" y2="4"/><line x1="15" x2="15" y1="2" y2="4"/><line x1="9" x2="9" y1="20" y2="22"/><line x1="15" x2="15" y1="20" y2="22"/><line x1="20" x2="22" y1="9" y2="9"/><line x1="2" x2="4" y1="9" y2="9"/><line x1="20" x2="22" y1="15" y2="15"/><line x1="2" x2="4" y1="15" y2="15"/></>);
+I.Mail       = mk(<><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></>);
+I.Headphones = mk(<><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a2 2 0 0 1-1-1.73v-5.27A9 9 0 0 1 21 14v5.27A2 2 0 0 1 20 21h-2a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></>);
+I.HelpCircle = mk(<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></>);
+I.Power      = mk(<><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77 0"/></>);
+I.Slack      = mk(<><rect width="3" height="8" x="13" y="2" rx="1.5"/><path d="M19 8.5V10h1.5A1.5 1.5 0 1 0 19 8.5"/><rect width="3" height="8" x="8" y="14" rx="1.5"/><path d="M5 15.5V14H3.5A1.5 1.5 0 1 0 5 15.5"/><rect width="8" height="3" x="14" y="13" rx="1.5"/><path d="M15.5 19H14v1.5a1.5 1.5 0 1 0 1.5-1.5"/><rect width="8" height="3" x="2" y="8" rx="1.5"/><path d="M8.5 5H10V3.5A1.5 1.5 0 1 0 8.5 5"/></>);
+I.Square     = mk(<rect x="3" y="3" width="18" height="18" rx="3"/>);
+I.Cloud      = mk(<><path d="M17.5 19a4.5 4.5 0 1 0-1.5-8.7 7 7 0 0 0-13.4 2.7A4 4 0 0 0 5 19h12.5z"/></>);
+I.Box        = mk(<><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></>);
+I.Star       = mk(<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>);
+
+window.I = I;
+
+/* ============ DATA ============ */
+const WORKSPACES = [
+  { id: "general", name: "general", letter: "G", role: "Workspace" },
+  { id: "agh-runtime", name: "agh-runtime", letter: "A", role: "Workspace" },
+  { id: "compozy", name: "compozy", letter: "C", role: "Workspace" },
+  { id: "scratch", name: "scratch", letter: "S", role: "Workspace" },
+];
+
+const AGENTS = [
+  { id: "code-reviewer",  label: "code-reviewer",  short: "reviewer", live: true,  sessions: 2, lastActive: "2m"  },
+  { id: "cto",            label: "cto",            short: "cto",      live: true,  sessions: 1, lastActive: "5m"  },
+  { id: "qa-runner",      label: "qa-runner",      short: "qa",       live: true,  sessions: 1, lastActive: "8m"  },
+  { id: "designer",       label: "designer",       short: "design",   live: true,  sessions: 1, lastActive: "12m" },
+  { id: "researcher",     label: "researcher",     short: "research", live: false, sessions: 0, lastActive: "3h"  },
+  { id: "release-bot",    label: "release-bot",    short: "release",  live: false, sessions: 0, lastActive: "1h"  },
+  { id: "migrations-bot", label: "migrations-bot", short: "migr",     live: false, sessions: 0, lastActive: "2d"  },
+];
+
+const TASKS = [
+  { id: "tsk-7f3a2b", title: "Investigate auth middleware leak in session-bridge", status: "running", priority: "high", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, attempt: { current: 2, max: 3 }, childCount: 1, depCount: 0, time: "2m", watched: true, mine: false, workspace: "agh-runtime", capability: "resolve.session-bridge.leak", lane: "default", origin: "manual" },
+  { id: "tsk-9c4d18", title: "Backfill task_runs.queue_position for legacy rows", status: "in_progress", priority: "medium", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 1, max: 3 }, childCount: 4, depCount: 1, time: "11m", watched: false, mine: true, workspace: "agh-runtime", capability: "migrate.queue_position", lane: "migration", origin: "automation", approvalState: "approved" },
+  { id: "tsk-4d7e23", title: "Resolve typescript errors in @agh/extension-sdk client.ts", status: "failed", priority: "high", owner: { kind: "agent", label: "qa-runner", short: "qa" }, attempt: { current: 3, max: 3 }, childCount: 0, depCount: 0, parent: "tsk-9c4d18", time: "23m", error: "tsc(2345): Argument of type 'Bridge | null' is not assignable to parameter of type 'Bridge'.", watched: true, mine: false, workspace: "agh-runtime", capability: "typecheck.extension-sdk", lane: "build", origin: "child" },
+  { id: "tsk-6b1c44", title: "Land RFC-002 protocol receipt schema", status: "blocked", priority: "high", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 1, max: 1 }, childCount: 3, depCount: 2, time: "1h", blockedReason: "waiting on review of RFC-001", watched: true, mine: true, workspace: "compozy", capability: "rfc.protocol-receipt", lane: "rfc", origin: "manual", approvalPolicy: "manual", approvalState: "pending" },
+  { id: "tsk-3e8b07", title: "Implement gallery view for capability marketplace", status: "ready", priority: "medium", owner: { kind: "agent", label: "designer", short: "design" }, attempt: { current: 0, max: 3 }, childCount: 0, depCount: 0, time: "1h", watched: false, mine: false, workspace: "compozy", capability: "ui.marketplace.gallery", lane: "ui", origin: "remote_peer" },
+  { id: "tsk-8e2a76", title: "Define agent execution profile defaults for sandbox tier", status: "draft", priority: "low", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 0, max: 1 }, childCount: 0, depCount: 0, time: "3h", watched: false, mine: true, workspace: "general", capability: "config.execution-profile", lane: "config", origin: "manual", draft: true },
+  { id: "tsk-2a5f91", title: "Migrate workspace bootstrap fixtures to new manifest format", status: "pending", priority: "low", owner: { kind: "agent", label: "migrations-bot", short: "migr" }, attempt: { current: 0, max: 2 }, childCount: 0, depCount: 1, time: "4h", watched: false, mine: false, workspace: "scratch", capability: "migrate.workspace-fixtures", lane: "migration", origin: "automation" },
+  { id: "tsk-0a3e58", title: "Wire daemon /healthz to status footer", status: "in_progress", priority: "medium", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, attempt: { current: 1, max: 2 }, childCount: 0, depCount: 0, time: "5h", watched: false, mine: false, workspace: "agh-runtime", capability: "ui.status-footer.healthz", lane: "ui", origin: "manual" },
+  { id: "tsk-5f9b32", title: "Patch SQLite migration registry race on first boot", status: "completed", priority: "high", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, attempt: { current: 1, max: 3 }, childCount: 0, depCount: 0, time: "yesterday", watched: false, mine: false, workspace: "agh-runtime", capability: "fix.migration-race", lane: "fix", origin: "manual" },
+  { id: "tsk-1c6d05", title: "Refresh peer card avatar resolver", status: "canceled", priority: "low", owner: { kind: "human", label: "Pedro", short: "Pedro" }, attempt: { current: 0, max: 1 }, childCount: 0, depCount: 0, time: "2d", watched: false, mine: true, workspace: "agh-runtime", capability: "ui.peer-card.avatar", lane: "ui", origin: "manual" },
+];
+
+const STATUS_TONE = {
+  running:     { label: "Running",     c: "var(--accent)",  pulse: true, ring: false, tone: "accent" },
+  in_progress: { label: "In progress", c: "var(--info)",    pulse: false, ring: true,  tone: "info"  },
+  ready:       { label: "Ready",       c: "var(--neutral)", pulse: false, ring: true,  tone: "neutral" },
+  pending:     { label: "Pending",     c: "var(--neutral)", pulse: false, ring: true,  tone: "neutral" },
+  draft:       { label: "Draft",       c: "var(--neutral)", pulse: false, ring: true,  tone: "neutral" },
+  blocked:     { label: "Blocked",     c: "var(--warning)", pulse: false, ring: false, tone: "warning" },
+  failed:      { label: "Failed",      c: "var(--danger)",  pulse: false, ring: false, tone: "danger"  },
+  completed:   { label: "Completed",   c: "var(--success)", pulse: false, ring: false, tone: "success" },
+  canceled:    { label: "Canceled",    c: "var(--neutral)", pulse: false, ring: true,  tone: "neutral" },
+};
+
+const SUB_ISSUES = {
+  "tsk-9c4d18": [
+    { id: "tsk-4d7e23", title: "Resolve typescript errors in @agh/extension-sdk client.ts", status: "failed", priority: "high", owner: { kind: "agent", label: "qa-runner", short: "qa" }, time: "23m" },
+    { id: "tsk-2c11ee", title: "Backfill queue_position for compozy workspace", status: "completed", priority: "medium", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, time: "31m" },
+    { id: "tsk-71b9a5", title: "Backfill queue_position for scratch workspace", status: "running", priority: "medium", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, time: "12m" },
+    { id: "tsk-bb40d2", title: "Backfill queue_position for _root workspace", status: "ready", priority: "low", owner: { kind: "agent", label: "migrations-bot", short: "migr" }, time: "1h" },
+  ],
+  "tsk-7f3a2b": [
+    { id: "tsk-cf02a1", title: "Capture pprof goroutine dump from session-bridge", status: "completed", priority: "high", owner: { kind: "agent", label: "code-reviewer", short: "reviewer" }, time: "8m" },
+  ],
+  "tsk-6b1c44": [
+    { id: "tsk-aa31cd", title: "Draft receipt schema fields", status: "in_progress", priority: "high", owner: { kind: "human", label: "Pedro", short: "Pedro" }, time: "45m" },
+    { id: "tsk-7d99fe", title: "Write validator with negative cases", status: "ready", priority: "medium", owner: { kind: "agent", label: "migrations-bot", short: "migr" }, time: "1h" },
+    { id: "tsk-bf2206", title: "Wire serializer into bridge SDK", status: "draft", priority: "medium", owner: { kind: "agent", label: "designer", short: "design" }, time: "1h" },
+  ],
+};
+
+const DEPENDENCIES = {
+  "tsk-9c4d18": [
+    { id: "tsk-3a02fc", title: "Audit current schema for nullable queue_position", status: "completed", owner: "Pedro" },
+  ],
+  "tsk-6b1c44": [
+    { id: "tsk-rfc001", title: "RFC-001: Capability surface", status: "in_progress", owner: "Pedro" },
+    { id: "tsk-aa11bb", title: "Define receipt event taxonomy", status: "ready", owner: "code-reviewer" },
+  ],
+  "tsk-2a5f91": [
+    { id: "tsk-fix-mfm", title: "Publish manifest format v0.4", status: "completed", owner: "code-reviewer" },
+  ],
+};
+
+const ACTIVITY = {
+  "tsk-7f3a2b": [
+    { time: "2m",  type: "task.run_started",    tone: "accent",  who: "code-reviewer", msg: "Started attempt 2",          detail: "claim acquired · capability resolve.session-bridge.leak" },
+    { time: "9m",  type: "task.run_failed",     tone: "danger",  who: "agh-runtime",     msg: "Attempt 1 timed out",        detail: "no progress for 600s · automatic retry queued" },
+    { time: "14m", type: "task.priority_changed", tone: "warning", who: "Pedro",          msg: "Increased priority to High", detail: "operator reclassified from Medium" },
+    { time: "26m", type: "task.created",        tone: "default", who: "Pedro",           msg: "Created task",               detail: "linked from session sess-aa7c · trigger origin manual" },
+  ],
+  "tsk-9c4d18": [
+    { time: "11m", type: "task.children_spawned", tone: "accent", who: "Pedro",          msg: "Spawned 4 children",         detail: "fan-out across workspaces agh-runtime · compozy · scratch · _root" },
+    { time: "32m", type: "task.plan_accepted",  tone: "success", who: "agh-runtime",     msg: "Plan accepted",              detail: "review gate satisfied · proceed-with-caveats" },
+    { time: "44m", type: "task.plan_submitted", tone: "default", who: "code-reviewer", msg: "Submitted plan for review",  detail: "estimated 4 child runs · 1 dependency" },
+    { time: "1h",  type: "task.dependency_resolved", tone: "success", who: "agh-runtime", msg: "Dependency resolved",       detail: "tsk-3a02fc → completed" },
+    { time: "2h",  type: "task.created",        tone: "default", who: "Pedro",           msg: "Created task",               detail: "scope = workspace · lane = migration" },
+  ],
+  "tsk-4d7e23": [
+    { time: "23m", type: "task.run_failed",     tone: "danger",  who: "agh-runtime",     msg: "Attempt 3 failed",           detail: "tsc exit 1 · max attempts reached · awaiting operator" },
+    { time: "27m", type: "task.run_started",    tone: "accent",  who: "qa-runner",   msg: "Started attempt 3",          detail: "applied last-good fixture, retry under reduced scope" },
+    { time: "38m", type: "task.run_failed",     tone: "danger",  who: "agh-runtime",     msg: "Attempt 2 failed",           detail: "same diagnostic · no patch applied" },
+    { time: "55m", type: "task.run_started",    tone: "accent",  who: "qa-runner",   msg: "Started attempt 2",          detail: "auto-retry from queue" },
+    { time: "1h",  type: "task.run_failed",     tone: "danger",  who: "agh-runtime",     msg: "Attempt 1 failed",           detail: "tsc(2345) on Bridge | null assignment" },
+    { time: "1h",  type: "task.created",        tone: "default", who: "agh-runtime",     msg: "Spawned from parent",        detail: "parent tsk-9c4d18 · lane = build" },
+  ],
+};
+
+const RUNS = {
+  "tsk-7f3a2b": [
+    { id: "run-2x4f", attempt: 2, status: "running",   queued: "2m",   ended: "—",      duration: "—" },
+    { id: "run-1x4f", attempt: 1, status: "failed",    queued: "12m",  ended: "9m",     duration: "10m 02s" },
+  ],
+  "tsk-9c4d18": [
+    { id: "run-1c4d", attempt: 1, status: "in_progress", queued: "32m", ended: "—",      duration: "31m 12s" },
+  ],
+  "tsk-4d7e23": [
+    { id: "run-3d7e", attempt: 3, status: "failed",    queued: "27m",  ended: "23m",    duration: "4m 18s" },
+    { id: "run-2d7e", attempt: 2, status: "failed",    queued: "55m",  ended: "38m",    duration: "16m 42s" },
+    { id: "run-1d7e", attempt: 1, status: "failed",    queued: "1h",   ended: "1h",     duration: "3m 50s" },
+  ],
+  "tsk-5f9b32": [
+    { id: "run-1f9b", attempt: 1, status: "completed", queued: "yesterday",  ended: "yesterday", duration: "12m 33s" },
+  ],
+};
+
+const TEMPLATES = [
+  { id: "one_shot", title: "One-shot", icon: I.Zap, badge: { tone: "accent", label: "1 run" }, desc: "A single task with one run. Good default for ad-hoc work." },
+  { id: "recurring", title: "Recurring via automation", icon: I.RefreshCw, badge: { tone: "info", label: "Automation" }, desc: "Bind a cron or schedule from Automation — re-enqueues a run every tick. Configure the schedule in the Automation area after the draft is saved." },
+  { id: "epic", title: "Epic with children", icon: I.Sparkles, badge: { tone: "accent", label: "Epic" }, desc: "A parent task that decomposes into child tasks. Reconciled via dependencies; child tasks can be added after creation." },
+  { id: "remote_peer", title: "Remote from peer", icon: I.Globe, badge: { tone: "warning", label: "Network" }, desc: "Ingress from a network channel. Remote peers enqueue; local owner claims when ready." },
+  { id: "human_in_loop", title: "Human-in-the-loop", icon: I.UserCheck, badge: { tone: "warning", label: "Approvals" }, desc: "Agent proposes, human approves. Pauses on blocked until approved in Inbox." },
+  { id: "blank", title: "Blank task", icon: I.Plus, badge: { tone: "neutral", label: "Custom" }, desc: "Start with an empty form. Full control over owner, origin, and metadata." },
+];
+
+const AGENT_PALETTE = [
+  { bg: "rgba(232, 144, 99, 0.18)", fg: "#F2B895" },
+  { bg: "rgba(168, 178, 220, 0.16)", fg: "#C5CCE7" },
+  { bg: "rgba(143, 196, 178, 0.18)", fg: "#A9D9C7" },
+  { bg: "rgba(214, 168, 192, 0.18)", fg: "#E0BCD0" },
+];
+const HUMAN_PALETTE = [
+  { bg: "rgba(220, 192, 134, 0.20)", fg: "#E5CC9A" },
+  { bg: "rgba(195, 178, 156, 0.20)", fg: "#D6C5AA" },
+  { bg: "rgba(192, 173, 178, 0.20)", fg: "#D2BFC5" },
+];
+const SYSTEM_PALETTE = { bg: "var(--elevated)", fg: "var(--subtle)" };
+
+function seed(s) { let h=0; for (let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; return Math.abs(h); }
+function colorsFor(owner) {
+  if (!owner) return SYSTEM_PALETTE;
+  if (owner.kind === "system") return SYSTEM_PALETTE;
+  const palette = owner.kind === "agent" ? AGENT_PALETTE : HUMAN_PALETTE;
+  return palette[seed(owner.label || "") % palette.length];
+}
+function initials(label) {
+  const parts = (label||"?").split(/[-_\s.]+/).filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
+  return (parts[0][0]+parts[1][0]).toUpperCase();
+}
+
+/* ============ HELPERS ============ */
+function Avatar({ owner, size = "md" }) {
+  if (!owner) owner = { kind: "system", label: "system" };
+  const c = colorsFor(owner);
+  const cls = `avatar avatar--${size}` + (owner.kind === "agent" ? " avatar--agent" : "");
+  const text = owner.kind === "system" ? "·" : initials(owner.short || owner.label);
+  return <span className={cls} style={{ background: c.bg, color: c.fg }} aria-hidden="true">{text}</span>;
+}
+function StatusDot({ status, size }) {
+  const t = STATUS_TONE[status] || STATUS_TONE.pending;
+  const cls = "dot" + (t.ring ? " dot--ring" : "") + (t.pulse ? " dot--pulse" : "");
+  return <span className={cls} style={{ "--c": t.c }} aria-label={t.label} />;
+}
+function StatusPill({ status, size }) {
+  const t = STATUS_TONE[status] || STATUS_TONE.pending;
+  const cls = `pill pill--${t.tone}` + (size==="sm"?" pill--sm":"");
+  return <span className={cls}><span className={"pill__dot" + (t.pulse?" pill__dot--pulse":"")} />{t.label}</span>;
+}
+function PriorityBars({ level }) {
+  if (!level || level === "none") return null;
+  return <span className="priority" data-level={level} aria-label={`${level} priority`}><span /><span /><span /></span>;
+}
+function Pill({ tone="neutral", icon, mono, children, className="", size }) {
+  const cls = `pill pill--${tone}` + (mono?" pill--mono":"") + (size?` pill--${size}`:"") + (className?` ${className}`:"");
+  return <span className={cls}>{icon}{children}</span>;
+}
+window.AGH = { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill };
+</script>
+
+<script type="text/babel" data-presets="env,react">
+const { I, AGH } = window;
+const { useState, useEffect, useMemo, Fragment } = React;
+const { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = AGH;
+
+/* ============ RAIL ============ */
+function Rail({ activeWs, onSelectWs, onAddWs }) {
+  return (
+    <aside className="rail" role="navigation" aria-label="Workspaces">
+      <button className="rail__logo" title="AGH home" aria-label="AGH home">A</button>
+      <div className="rail__divider" />
+      {WORKSPACES.map((ws) => (
+        <button key={ws.id} className="rail__avatar" data-active={activeWs === ws.id} onClick={() => onSelectWs(ws.id)} title={ws.name} aria-label={`Workspace ${ws.name}`}>
+          {ws.letter}
+        </button>
+      ))}
+      <button className="rail__add" onClick={onAddWs} title="Add workspace" aria-label="Add workspace"><I.Plus size="sm" /></button>
+      <div className="rail__spacer" />
+      <button className="rail__btn" title="Notifications" aria-label="Notifications"><I.Bell size="md" /><span className="rail__btn-dot" aria-hidden="true" /></button>
+      <button className="rail__btn" title="Command palette ⌘K" aria-label="Command palette"><I.Cmd size="md" /></button>
+      <button className="rail__btn" title="Settings" aria-label="Settings"><I.Settings size="md" /></button>
+      <span className="rail__connection" title="Daemon connected" aria-label="Daemon connected" />
+    </aside>
+  );
+}
+
+/* ============ SIDEBAR ============ */
+const NAV_TOP = [
+  { id: "dashboard", label: "Dashboard", icon: I.Dashboard, count: null },
+];
+const NAV_OPERATE = [
+  { id: "network",  label: "Network",  icon: I.Network,   count: 3 },
+  { id: "tasks",    label: "Tasks",    icon: I.ListChecks, count: 10, pill: "10" },
+  { id: "jobs",     label: "Jobs",     icon: I.Layers,    count: 7 },
+  { id: "triggers", label: "Triggers", icon: I.Zap,       count: 4 },
+];
+const NAV_CATALOG = [
+  { id: "knowledge", label: "Knowledge", icon: I.Book,    count: null },
+  { id: "skills",    label: "Skills",    icon: I.Wrench,  count: 18 },
+  { id: "bridges",   label: "Bridges",   icon: I.Bridge,  count: 4 },
+];
+const NAV_SYSTEM = [
+  { id: "sandbox",  label: "Sandbox",  icon: I.Box,      count: null },
+  { id: "settings", label: "Settings", icon: I.Settings, count: null },
+];
+
+function NavRow({ item, active, onClick }) {
+  const Icon = item.icon;
+  return (
+    <button className="nav-row" data-active={active === item.id} onClick={() => onClick(item.id)}>
+      <span className="nav-row__icon"><Icon size="sm" /></span>
+      <span className="nav-row__label">{item.label}</span>
+      {item.pill ? <span className="nav-row__pill">{item.pill}</span> : item.count != null ? <span className="nav-row__count">{item.count}</span> : null}
+    </button>
+  );
+}
+
+function AgentList({ activeAgent, onSelectAgent }) {
+  return (
+    <div className="agent-list">
+      {AGENTS.map((a) => (
+        <button key={a.id} className="agent-row" data-active={activeAgent === a.id} onClick={() => onSelectAgent(a.id)} title={a.label}>
+          <span className="agent-row__dot" data-live={a.live} />
+          <span className="agent-row__name">{a.label}</span>
+          {a.sessions > 0 && <span className="agent-row__meta">{a.sessions}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Sidebar({ activeWs, activeNav, activeAgent, onNav, onSelectAgent, onSwitchWs }) {
+  const ws = WORKSPACES.find(w => w.id === activeWs) || WORKSPACES[0];
+  const liveAgents = AGENTS.filter(a => a.live).length;
+  const totalAgents = AGENTS.length;
+  return (
+    <aside className="side">
+      <button className="side__header" onClick={onSwitchWs} aria-label="Switch workspace">
+        <span className="side__ws-icon">{ws.letter}</span>
+        <span className="side__ws-name">{ws.name}</span>
+        <span className="side__ws-badge">WS</span>
+        <span className="side__chev"><I.ChevronDown size="xs" /></span>
+      </button>
+      <div className="side__scroll">
+        <div className="side__group">
+          {NAV_TOP.map(item => <NavRow key={item.id} item={item} active={activeNav} onClick={onNav} />)}
+        </div>
+
+        <div className="side__group">
+          <div className="side__label"><I.Bot size="xs" />Agents <span className="side__label-count">{liveAgents}/{totalAgents} live</span></div>
+          <AgentList activeAgent={activeAgent} onSelectAgent={onSelectAgent} />
+        </div>
+
+        <div className="side__group">
+          <div className="side__label"><I.Activity size="xs" />Operate</div>
+          {NAV_OPERATE.map(item => <NavRow key={item.id} item={item} active={activeNav} onClick={onNav} />)}
+        </div>
+
+        <div className="side__group">
+          <div className="side__label"><I.Boxes size="xs" />Catalog</div>
+          {NAV_CATALOG.map(item => <NavRow key={item.id} item={item} active={activeNav} onClick={onNav} />)}
+        </div>
+
+        <div className="side__group">
+          <div className="side__label"><I.Server size="xs" />System</div>
+          {NAV_SYSTEM.map(item => <NavRow key={item.id} item={item} active={activeNav} onClick={onNav} />)}
+        </div>
+      </div>
+      <div className="side__footer">
+        <span className="side__footer-dot" />
+        <span className="side__footer-label">Connected</span>
+        <span className="side__footer-meta">v0.41</span>
+      </div>
+    </aside>
+  );
+}
+
+window.AGH_SHELL = { Rail, Sidebar };
+</script>
+
+<script type="text/babel" data-presets="env,react">
+const { I, AGH } = window;
+const { useState, useEffect, useMemo, Fragment } = React;
+const { TASKS, STATUS_TONE, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = AGH;
+
+/* ============ TOPBAR ============ */
+const VIEWS = [
+  { id: "list",      label: "List",      icon: I.ListChecks },
+  { id: "kanban",    label: "Kanban",    icon: I.Layers },
+  { id: "dashboard", label: "Dashboard", icon: I.Gauge },
+  { id: "inbox",     label: "Inbox",     icon: I.Inbox },
+];
+
+function TasksTopBar({ count, view, setView, onNew, unreadInbox, showEmpty, setShowEmpty }) {
+  return (
+    <header className="topbar">
+      <span className="topbar__icon"><I.ListChecks size="md" /></span>
+      <span className="topbar__title">Tasks</span>
+      <span className="topbar__count">{count}</span>
+      <span className="topbar__sep" />
+      <div className="pill-group" role="tablist" aria-label="View">
+        {VIEWS.map(v => {
+          const Icon = v.icon;
+          return (
+            <button key={v.id} className="pill-group__btn" data-active={view === v.id} onClick={() => setView(v.id)} role="tab" aria-selected={view === v.id}>
+              <Icon size="xs" />{v.label}
+              {v.id === "inbox" && unreadInbox > 0 && <span className="pill-group__badge">{unreadInbox}</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="topbar__spacer" />
+      <span className="search">
+        <span className="search__icon"><I.Search size="sm" /></span>
+        <input placeholder="Search tasks…" />
+        <span className="search__kbd">⌘K</span>
+      </span>
+      <button className="btn btn--ghost btn--icon" title="Filter" aria-label="Filter"><I.Filter size="sm" /></button>
+      <button className="btn btn--ghost btn--sm" onClick={() => setShowEmpty(!showEmpty)} title="Toggle empty state">
+        <I.Eye size="xs" />Empty
+      </button>
+      <button className="btn btn--primary" onClick={onNew}><I.Plus size="sm" />New task</button>
+    </header>
+  );
+}
+
+/* ============ PAGE HEADER for List/Kanban/Inbox ============ */
+const LANES = [
+  { id: "all",      label: "All",      match: () => true },
+  { id: "mine",     label: "Mine",     match: (t) => t.mine },
+  { id: "watched",  label: "Watched",  match: (t) => t.watched },
+  { id: "blocked",  label: "Blocked",  match: (t) => t.status === "blocked" },
+  { id: "failed",   label: "Failed",   match: (t) => t.status === "failed" },
+];
+
+function ListLaneTabs({ lane, setLane, sortBy, setSortBy, tasks }) {
+  const totals = Object.fromEntries(LANES.map(L => [L.id, tasks.filter(L.match).length]));
+  return (
+    <div className="page-head__lane-tabs" role="tablist" aria-label="Lane filter">
+      {LANES.map((L, i) => (
+        <Fragment key={L.id}>
+          <button role="tab" aria-selected={lane === L.id} className="lane-tab" data-active={lane === L.id} onClick={() => setLane(L.id)}>
+            {L.label}<span className="lane-tab__count">{totals[L.id]}</span>
+          </button>
+          {i < LANES.length - 1 && <span className="lane-tab__sep">·</span>}
+        </Fragment>
+      ))}
+      <span className="lane-tabs__spacer" />
+      <span className="lane-tabs__sort">
+        <I.Filter size="xs" /><span>Sorted by</span>
+        <select className="form-select" style={{ height: 24, padding: "1px 22px 1px 8px", fontSize: 12, background: "var(--canvas-soft)", border: "1px solid var(--line-soft)", color: "var(--fg)" }} value={sortBy} onChange={e => setSortBy(e.target.value)}>
+          <option value="recent">Most recent</option>
+          <option value="priority">Priority</option>
+        </select>
+      </span>
+    </div>
+  );
+}
+
+/* ============ LIST VIEW ============ */
+const STATUS_GROUPS = [
+  { id: "in_progress", label: "In Progress", statuses: ["running", "in_progress"], color: "var(--accent)",  ring: false },
+  { id: "todo",        label: "Todo",        statuses: ["ready"],                  color: "var(--muted)",   ring: true  },
+  { id: "blocked",     label: "Blocked",     statuses: ["blocked"],                color: "var(--warning)", ring: false },
+  { id: "backlog",     label: "Backlog",     statuses: ["pending", "draft"],       color: "var(--faint)",   ring: true  },
+  { id: "done",        label: "Done",        statuses: ["completed"],              color: "var(--success)", ring: false },
+  { id: "canceled",    label: "Canceled",    statuses: ["canceled", "failed"],     color: "var(--faint)",   ring: true  },
+];
+
+function TaskRow({ task, onSelect, selected }) {
+  return (
+    <li className="task-row" data-selected={selected} onClick={() => onSelect(task.id)} tabIndex={0} onKeyDown={(e) => e.key==="Enter" && onSelect(task.id)}>
+      <StatusDot status={task.status} />
+      <div className="task-row__main">
+        <div className="task-row__top">
+          <span className="task-row__title">{task.title}</span>
+          <Pill mono>{task.id}</Pill>
+          {task.lane && task.lane !== "default" && <Pill tone="ghost" size="sm" icon={<I.Hash size="xs" />}>{task.lane}</Pill>}
+          <PriorityBars level={task.priority} />
+          {task.draft && <Pill tone="neutral" size="sm" icon={<I.Edit size="xs" />}>Draft</Pill>}
+          {task.approvalState === "pending" && <Pill tone="warning" size="sm" icon={<I.UserCheck size="xs" />}>Approval pending</Pill>}
+          {task.approvalState === "approved" && <Pill tone="success" size="sm" icon={<I.Check size="xs" />}>Approved</Pill>}
+        </div>
+        <div className="task-row__meta">
+          <span className="task-row__meta-item"><Avatar owner={task.owner} size="sm" /><span>{task.owner.short || task.owner.label}</span></span>
+          <span className="task-row__meta-sep">·</span>
+          <span className="task-row__meta-item"><I.RefreshCw size="xs" /><span className="mono" style={{fontSize:11}}>attempt {task.attempt.current}/{task.attempt.max}</span></span>
+          {task.childCount > 0 && (<><span className="task-row__meta-sep">·</span><span className="task-row__meta-item"><I.GitBranch size="xs" />{task.childCount} children</span></>)}
+          {task.depCount > 0 && (<><span className="task-row__meta-sep">·</span><span className="task-row__meta-item"><I.LinkIcon size="xs" />{task.depCount} deps</span></>)}
+          {task.parent && (<><span className="task-row__meta-sep">·</span><span className="task-row__meta-item"><I.GitFork size="xs" /><span className="mono" style={{fontSize:11}}>{task.parent}</span></span></>)}
+          {task.blockedReason && (<><span className="task-row__meta-sep">·</span><span className="task-row__meta-item" style={{color:"var(--warning)"}}><I.AlertTriangle size="xs" />{task.blockedReason}</span></>)}
+        </div>
+      </div>
+      <div className="task-row__right">
+        <StatusPill status={task.status} size="sm" />
+        <span className="task-row__time">{task.time}</span>
+      </div>
+    </li>
+  );
+}
+
+function TaskListView({ onSelectTask, lane, setLane, sortBy, setSortBy }) {
+  const visible = useMemo(() => {
+    const m = LANES.find(L => L.id === lane).match;
+    let r = TASKS.filter(m);
+    if (sortBy === "priority") {
+      const ord = { urgent: 0, high: 1, medium: 2, low: 3 };
+      r = [...r].sort((a, b) => (ord[a.priority]||9) - (ord[b.priority]||9));
+    }
+    return r;
+  }, [lane, sortBy]);
+  const groups = useMemo(() => {
+    return STATUS_GROUPS.map(g => ({ ...g, items: visible.filter(t => g.statuses.includes(t.status)) })).filter(g => g.items.length > 0);
+  }, [visible]);
+  return (
+    <>
+      <div className="page-head">
+        <div className="page-head__row">
+          <h1 className="page-head__title">Tasks</h1>
+          <span className="page-head__count">{visible.length} of {TASKS.length}</span>
+        </div>
+        <div className="page-head__meta">
+          <span className="vc"><I.Briefcase size="xs" />workspace agh-runtime</span>
+          <span className="page-head__meta-sep">·</span>
+          <span className="vc"><I.Clock size="xs" />synced 2m ago</span>
+          <span className="page-head__meta-sep">·</span>
+          <span className="vc"><I.GitBranch size="xs" />3 active fan-outs</span>
+        </div>
+        <ListLaneTabs lane={lane} setLane={setLane} sortBy={sortBy} setSortBy={setSortBy} tasks={TASKS} />
+      </div>
+      <div className="task-list">
+        {groups.map(g => (
+          <section key={g.id} className="task-group" aria-label={g.label}>
+            <header className="task-group__head">
+              <span className={"task-group__dot" + (g.ring ? " task-group__dot--ring" : "")} style={{ "--c": g.color }} />
+              <span className="task-group__label">{g.label}</span>
+              <span className="task-group__count">{g.items.length}</span>
+              <span className="task-group__spacer" />
+              <button className="task-group__action" title={`Add to ${g.label}`} aria-label={`Add to ${g.label}`}><I.Plus size="xs" /></button>
+            </header>
+            <ul className="task-group__rows">
+              {g.items.map(t => <TaskRow key={t.id} task={t} onSelect={onSelectTask} selected={false} />)}
+            </ul>
+          </section>
+        ))}
+        {groups.length === 0 && (
+          <div style={{ padding: "60px 14px", textAlign: "center", fontSize: 12.5, color: "var(--faint)" }}>No tasks match this lane.</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ============ KANBAN ============ */
+const KANBAN_COLS = [
+  { id: "pending",   label: "Pending",     statuses: ["pending", "ready", "draft"], colorVar: "var(--neutral)" },
+  { id: "running",   label: "In progress", statuses: ["running", "in_progress"],    colorVar: "var(--accent)" },
+  { id: "blocked",   label: "Blocked",     statuses: ["blocked"],                   colorVar: "var(--warning)" },
+  { id: "done",      label: "Done",        statuses: ["completed", "failed", "canceled"], colorVar: "var(--success)" },
+];
+
+function KanbanCard({ task, onSelect }) {
+  const live = ["running", "in_progress"].includes(task.status);
+  return (
+    <button className="k-card" data-live={live} onClick={() => onSelect(task.id)}>
+      <div className="k-card__title">{task.title}</div>
+      <div className="k-card__row">
+        <span className="k-card__id">{task.id}</span>
+        {live && <span className="k-card__live"><span className="k-card__live-dot" />LIVE · {task.attempt.current}/{task.attempt.max}</span>}
+        <PriorityBars level={task.priority} />
+        {task.blockedReason && <Pill tone="warning" size="sm" icon={<I.AlertTriangle size="xs" />}>Blocked</Pill>}
+      </div>
+      <div className="k-card__bottom">
+        <span className="k-card__owner"><Avatar owner={task.owner} size="sm" />{task.owner.short || task.owner.label}</span>
+        <span className="k-card__time">{task.time} ago</span>
+      </div>
+      {task.status === "failed" && (
+        <button className="btn btn--sm btn--ghost" onClick={(e) => {e.stopPropagation();}} style={{ marginTop: 2, alignSelf: "flex-start" }}><I.RotateCcw size="xs" />Retry</button>
+      )}
+    </button>
+  );
+}
+
+function KanbanView({ onSelectTask }) {
+  return (
+    <div className="kanban">
+      {KANBAN_COLS.map(col => {
+        const items = TASKS.filter(t => col.statuses.includes(t.status));
+        return (
+          <div key={col.id} className="kanban__col">
+            <div className="kanban__head">
+              <span className="col-dot" style={{ background: col.colorVar }} />
+              <span className="kanban__head-label">{col.label}</span>
+              <span className="kanban__head-count">{items.length}</span>
+              <button className="kanban__add" title={`Add to ${col.label}`}><I.Plus size="xs" /></button>
+            </div>
+            <div className="kanban__cards">
+              {items.length === 0 ? (
+                <div style={{ padding: "36px 14px", textAlign: "center", fontSize: 12, color: "var(--faint)", letterSpacing: "-0.003em" }}>
+                  No tasks
+                </div>
+              ) : items.map(t => <KanbanCard key={t.id} task={t} onSelect={onSelectTask} />)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ============ DASHBOARD ============ */
+function DashboardView({ onSelectTask }) {
+  const active = TASKS.filter(t => ["running", "in_progress"].includes(t.status));
+  const sparkData = [3, 5, 4, 6, 8, 5, 4, 7, 9, 11, 8, 6, 7, 9, 12, 8, 5, 4, 6, 7, 9, 11, 8, 6];
+  const stuckIdx = new Set([14, 19]);
+  const max = Math.max(...sparkData);
+  const STATUS_BREAKDOWN = [
+    { id: "running",     label: "Running",     count: 1, c: "var(--accent)" },
+    { id: "in_progress", label: "In progress", count: 2, c: "var(--info)" },
+    { id: "ready",       label: "Ready",       count: 1, c: "var(--neutral)" },
+    { id: "pending",     label: "Pending",     count: 1, c: "var(--neutral)" },
+    { id: "blocked",     label: "Blocked",     count: 1, c: "var(--warning)" },
+    { id: "failed",      label: "Failed",      count: 1, c: "var(--danger)" },
+    { id: "draft",       label: "Draft",       count: 1, c: "var(--neutral)" },
+    { id: "completed",   label: "Completed",   count: 1, c: "var(--success)" },
+  ];
+  const totalBreakdown = STATUS_BREAKDOWN.reduce((s, x) => s + x.count, 0);
+  return (
+    <>
+      <div className="page-head" style={{ marginBottom: 16 }}>
+        <div className="page-head__row">
+          <h1 className="page-head__title">Tasks dashboard</h1>
+          <Pill tone="success" icon={<span className="pill__dot pill__dot--pulse" />}>Live</Pill>
+        </div>
+        <div className="page-head__meta">
+          <span className="vc"><I.Clock size="xs" />observed 12s ago</span>
+          <span className="page-head__meta-sep">·</span>
+          <span className="vc"><I.Database size="xs" />24h window</span>
+          <span className="page-head__meta-sep">·</span>
+          <span className="vc"><I.Gauge size="xs" /><strong style={{color:"var(--fg)"}}>10 tasks</strong> · <strong style={{color:"var(--fg)"}}>17 runs total</strong></span>
+        </div>
+      </div>
+
+      <div className="dash">
+        <div className="dash__card">
+          <div className="dash__card-head">
+            <span className="dash__card-icon"><I.Activity size="sm" /></span>
+            <span className="dash__card-label">Active runs</span>
+          </div>
+          <div className="dash__card-value">3</div>
+          <div className="dash__card-detail"><strong>1</strong> running · <strong>1</strong> queued · <strong>1</strong> claimed</div>
+        </div>
+        <div className="dash__card">
+          <div className="dash__card-head">
+            <span className="dash__card-icon"><I.Gauge size="sm" /></span>
+            <span className="dash__card-label">Success rate</span>
+          </div>
+          <div className="dash__card-value">78%</div>
+          <div className="dash__card-detail"><span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--success)", display: "inline-block" }} /><strong>14</strong> completed</span> · <strong>4</strong> failed · 24h window</div>
+        </div>
+        <div className="dash__card">
+          <div className="dash__card-head">
+            <span className="dash__card-icon"><I.Clock size="sm" /></span>
+            <span className="dash__card-label">Avg duration</span>
+          </div>
+          <div className="dash__card-value mono" style={{ fontSize: 24 }}>4m 18s</div>
+          <div className="dash__card-detail">across <strong>17</strong> samples</div>
+        </div>
+        <div className="dash__card">
+          <div className="dash__card-head">
+            <span className="dash__card-icon"><I.Layers size="sm" /></span>
+            <span className="dash__card-label">Queue depth</span>
+          </div>
+          <div className="dash__card-value">2</div>
+          <div className="dash__card-detail">oldest <strong>11m</strong> · <span style={{ color: "var(--warning)" }}>2 stuck</span> · 0 orphan</div>
+        </div>
+      </div>
+
+      <div className="dash__row2">
+        <div className="dash__panel">
+          <div className="dash__panel-head">
+            <span className="dash__panel-title vc"><I.BarChart size="sm" />Queue health (24h)</span>
+            <span className="dash__panel-meta">2 stuck · 0 orphan</span>
+          </div>
+          <div className="dash__panel-body">
+            <div className="dash__sparkline">
+              {sparkData.map((v, i) => (
+                <span key={i} className={"dash__bar" + (stuckIdx.has(i) ? " dash__bar--stuck" : "")}
+                      style={{ height: `${(v / max) * 100}%` }} title={`hr ${i}: ${v} runs`} />
+              ))}
+            </div>
+            <div className="dash__sparkline-axis">
+              <span>−24h</span><span>−18h</span><span>−12h</span><span>−6h</span><span>now</span>
+            </div>
+          </div>
+        </div>
+        <div className="dash__panel">
+          <div className="dash__panel-head">
+            <span className="dash__panel-title vc"><I.PieChart size="sm" />Status breakdown</span>
+            <span className="dash__panel-meta">{totalBreakdown} tasks</span>
+          </div>
+          <div className="dash__panel-body">
+            <div className="dash__breakdown">
+              {STATUS_BREAKDOWN.map(s => (
+                <div key={s.id} className="dash__bd-row">
+                  <span className="col-dot" style={{ background: s.c }} />
+                  <span className="dash__bd-label">{s.label}</span>
+                  <span className="dash__bd-num">{s.count}</span>
+                  <div style={{ gridColumn: "2 / 4", marginTop: 0 }} className="dash__bd-bar">
+                    <span className="dash__bd-fill" style={{ width: `${(s.count/totalBreakdown)*100}%`, "--c": s.c, background: s.c }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="dash__panel" style={{ marginTop: 14 }}>
+        <div className="dash__panel-head">
+          <span className="dash__panel-title vc"><I.Activity size="sm" />Active runs</span>
+          <button className="btn btn--ghost btn--sm">View all <I.ArrowRight size="xs" /></button>
+        </div>
+        <ul className="active-runs-table">
+          <div className="run-row" style={{ background: "rgba(255,255,255,0.025)", padding: "10px 14px", fontSize: 11, fontWeight: 510, color: "var(--faint)", letterSpacing: "-0.003em", boxShadow: "0 1px 0 var(--line-soft)" }}>
+            <span /><span>TASK</span><span>STATUS</span><span>ATTEMPT</span><span>ELAPSED</span><span>STUCK</span><span /></div>
+          {active.slice(0, 6).map(t => (
+            <li key={t.id} className="run-row" onClick={() => onSelectTask(t.id)} style={{ cursor: "pointer" }}>
+              <StatusDot status={t.status} />
+              <span className="run-row__title">{t.title}<span className="run-row__id" style={{marginLeft:8}}>{t.id}</span></span>
+              <span><StatusPill status={t.status} size="sm" /></span>
+              <span className="run-row__mono">attempt {t.attempt.current}/{t.attempt.max}</span>
+              <span className="run-row__mono">{t.time}</span>
+              <span>{t.id === "tsk-7f3a2b" ? <Pill tone="warning" size="sm">stuck</Pill> : <span className="run-row__cell faint">—</span>}</span>
+              <span><I.ArrowUpRight size="xs" /></span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+}
+
+/* ============ INBOX ============ */
+const INBOX_LANES = [
+  { id: "all",       label: "All" },
+  { id: "mywork",    label: "My work" },
+  { id: "approvals", label: "Approvals" },
+  { id: "failed",    label: "Failed runs" },
+  { id: "blocked",   label: "Blocked" },
+  { id: "archived",  label: "Archived" },
+];
+
+function inboxItemsFor(laneId, tasks, archivedIds) {
+  const live = tasks.filter(t => !archivedIds.has(t.id));
+  const archived = tasks.filter(t => archivedIds.has(t.id));
+  if (laneId === "archived") return archived.map(t => ({ task: t, lane: "archived", unread: false, ts: t.time }));
+  if (laneId === "all")        return live.filter(t => ["failed", "blocked"].includes(t.status) || t.approvalState === "pending" || t.mine).map(t => ({ task: t, lane: t.status === "failed" ? "failed" : t.status === "blocked" ? "blocked" : t.approvalState === "pending" ? "approvals" : "mywork", unread: ["tsk-7f3a2b","tsk-4d7e23"].includes(t.id), ts: t.time }));
+  if (laneId === "mywork")     return live.filter(t => t.mine).map(t => ({ task: t, lane: "mywork", unread: t.mine && t.id === "tsk-9c4d18", ts: t.time }));
+  if (laneId === "approvals")  return live.filter(t => t.approvalState === "pending").map(t => ({ task: t, lane: "approvals", unread: true, ts: t.time }));
+  if (laneId === "failed")     return live.filter(t => t.status === "failed").map(t => ({ task: t, lane: "failed", unread: true, ts: t.time }));
+  if (laneId === "blocked")    return live.filter(t => t.status === "blocked").map(t => ({ task: t, lane: "blocked", unread: false, ts: t.time }));
+  return [];
+}
+
+function InboxItem({ item, onSelect, onAction }) {
+  const t = item.task;
+  return (
+    <li className="inbox-item" data-unread={item.unread} onClick={() => onSelect(t.id)}>
+      <span className="inbox-item__rail" />
+      <div className="inbox-item__main">
+        <div className="inbox-item__top">
+          <StatusPill status={t.status} size="sm" />
+          <span className="inbox-item__title">{t.title}</span>
+          <span className="inbox-item__id">{t.id}</span>
+          {t.attempt && <Pill mono size="sm" icon={<I.RefreshCw size="xs" />}>attempt {t.attempt.current}/{t.attempt.max}</Pill>}
+          <PriorityBars level={t.priority} />
+        </div>
+        {t.blockedReason && <div className="inbox-item__detail">Blocked: <strong>{t.blockedReason}</strong></div>}
+        {t.approvalState === "pending" && <div className="inbox-item__detail">Manual approval required · policy <strong>{t.approvalPolicy || "manual"}</strong></div>}
+        <div className="inbox-item__detail vc" style={{ flexWrap: "wrap" }}>
+          <span className="vc"><Avatar owner={t.owner} size="sm" />{t.owner.short || t.owner.label}</span>
+          <span className="page-head__meta-sep">·</span>
+          <span className="mono" style={{ fontSize: 11 }}>{t.time} ago</span>
+        </div>
+      </div>
+      <div className="inbox-item__actions" onClick={e => e.stopPropagation()}>
+        {item.lane === "approvals" && (<><button className="btn btn--sm btn--danger" onClick={() => onAction("reject", t.id)}><I.X size="xs" />Reject</button><button className="btn btn--sm btn--success" onClick={() => onAction("approve", t.id)}><I.Check size="xs" />Approve</button></>)}
+        {item.lane === "failed"   && (<><button className="btn btn--sm" onClick={() => onAction("retry", t.id)}><I.RotateCcw size="xs" />Retry</button><button className="btn btn--sm btn--ghost" onClick={() => onAction("archive", t.id)}><I.ArchiveX size="xs" />Archive</button></>)}
+        {item.lane === "blocked"  && (<button className="btn btn--sm btn--ghost" onClick={() => onAction("archive", t.id)}><I.Archive size="xs" />Archive</button>)}
+        {item.lane === "mywork"   && (<button className="btn btn--sm btn--ghost" onClick={() => onAction("read", t.id)}><I.Eye size="xs" />Mark read</button>)}
+        {item.lane === "archived" && (<button className="btn btn--sm btn--ghost" onClick={() => onAction("unarchive", t.id)}><I.RefreshCw size="xs" />Unarchive</button>)}
+      </div>
+    </li>
+  );
+}
+
+function InboxView({ onSelectTask, lane, setLane }) {
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [archivedIds, setArchivedIds] = useState(() => new Set(["tsk-1c6d05"]));
+  const items = inboxItemsFor(lane, TASKS, archivedIds);
+  const visible = unreadOnly ? items.filter(i => i.unread) : items;
+  const unreadCount = items.filter(i => i.unread).length;
+  const archivedCount = TASKS.filter(t => archivedIds.has(t.id)).length;
+  const handleAction = (action, id) => {
+    if (action === "archive") setArchivedIds(prev => new Set([...prev, id]));
+    if (action === "unarchive") setArchivedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+  };
+  return (
+    <>
+      <div className="page-head">
+        <div className="page-head__row">
+          <h1 className="page-head__title">Inbox</h1>
+          <Pill tone="accent">{unreadCount} unread</Pill>
+          <Pill tone="ghost">{archivedCount} archived</Pill>
+        </div>
+        <div className="page-head__meta">
+          <span className="vc"><I.AlertTriangle size="xs" />Failed runs, blocked tasks, and approvals waiting on you.</span>
+        </div>
+        <div className="page-head__lane-tabs">
+          {INBOX_LANES.map((L, i) => {
+            const ct = inboxItemsFor(L.id, TASKS, archivedIds).length;
+            return (
+              <Fragment key={L.id}>
+                <button className="lane-tab" data-active={lane === L.id} onClick={() => setLane(L.id)}>
+                  {L.label}<span className="lane-tab__count">{ct}</span>
+                </button>
+                {i < INBOX_LANES.length - 1 && <span className="lane-tab__sep">·</span>}
+              </Fragment>
+            );
+          })}
+          <span className="lane-tabs__spacer" />
+          <label className="vc" style={{ fontSize: 11.5, color: "var(--muted)", cursor: "pointer" }}>
+            <input type="checkbox" checked={unreadOnly} onChange={e => setUnreadOnly(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
+            Unread only
+          </label>
+        </div>
+      </div>
+      {visible.length === 0 ? (
+        <div className="empty" style={{ padding: "60px 0" }}>
+          <div className="empty__icon"><I.Inbox size="lg" /></div>
+          <h2 className="empty__title">Nothing is waiting</h2>
+          <p className="empty__msg">All caught up. Pending approvals and failed runs will land here.</p>
+        </div>
+      ) : (
+        <div className="task-list">
+          {INBOX_GROUPS.map(g => {
+            const items = visible.filter(i => i.lane === g.id);
+            if (items.length === 0) return null;
+            return (
+              <section key={g.id} className="task-group" aria-label={g.label}>
+                <header className="task-group__head">
+                  <span className={"task-group__dot" + (g.ring ? " task-group__dot--ring" : "")} style={{ "--c": g.color }} />
+                  <span className="task-group__label">{g.label}</span>
+                  <span className="task-group__count">{items.length}</span>
+                </header>
+                <ul className="inbox">
+                  {items.map(item => <InboxItem key={item.task.id + item.lane} item={item} onSelect={onSelectTask} onAction={handleAction} />)}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+const INBOX_GROUPS = [
+  { id: "approvals", label: "Approvals pending", color: "var(--warning)", ring: false },
+  { id: "failed",    label: "Failed runs",       color: "var(--danger)",  ring: false },
+  { id: "blocked",   label: "Blocked",           color: "var(--warning)", ring: true  },
+  { id: "mywork",    label: "My work",           color: "var(--accent)",  ring: false },
+  { id: "archived",  label: "Archived",          color: "var(--faint)",   ring: true  },
+];
+
+/* ============ EMPTY STATE ============ */
+function EmptyState({ onNew, onPickTemplate }) {
+  return (
+    <>
+      <div className="empty">
+        <div className="empty__icon"><I.ListChecks size="lg" /></div>
+        <h2 className="empty__title">No tasks yet in <span style={{ fontFamily: "var(--font-mono)", color: "var(--fg-strong)", fontSize: "0.95em" }}>pedronauck</span></h2>
+        <p className="empty__msg">
+          Tasks are durable contracts of work. Each one can spawn runs across agents, respect dependencies, and live in workspace or global scope.
+          Start from a template and keep the operational context visible as the queue grows.
+        </p>
+        <div className="empty__cta">
+          <button className="btn btn--primary btn--lg" onClick={onNew}><I.Plus size="sm" />New task</button>
+        </div>
+      </div>
+
+      <div className="tpl-section">
+        <div className="tpl-section__head">
+          <span className="tpl-section__label">Start from a template</span>
+          <span className="tpl-section__count">{TEMPLATES.length} templates</span>
+        </div>
+        <div className="tpl-grid">
+          {TEMPLATES.map(t => {
+            const Icon = t.icon;
+            return (
+              <button key={t.id} className="tpl-card" onClick={() => onPickTemplate(t.id)}>
+                <div className="tpl-card__head">
+                  <span className="tpl-card__icon"><Icon size="sm" /></span>
+                  <span className="tpl-card__title">{t.title}</span>
+                </div>
+                <p className="tpl-card__desc">{t.desc}</p>
+                <div className="tpl-card__foot">
+                  <Pill tone={t.badge.tone} size="sm">{t.badge.label}</Pill>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
+window.AGH_VIEWS = { TasksTopBar, TaskListView, KanbanView, DashboardView, InboxView, EmptyState };
+</script>
+
+<script type="text/babel" data-presets="env,react">
+const { I, AGH } = window;
+const { useState, useEffect, useMemo, Fragment } = React;
+const { TEMPLATES, Pill } = AGH;
+
+/* ============ NEW TASK EDITOR ============ */
+const TPL_DEFAULTS = {
+  one_shot:      { draft: false, priority: "medium", maxAttempts: 1, enqueueOnSubmit: true,  approvalPolicy: "none",   ownerKind: "agent_session", ownerRef: "code-reviewer" },
+  recurring:     { draft: true,  priority: "medium", maxAttempts: 3, enqueueOnSubmit: false, approvalPolicy: "none",   ownerKind: "automation",    ownerRef: "scheduler" },
+  epic:          { draft: false, priority: "high",   maxAttempts: 3, enqueueOnSubmit: true,  approvalPolicy: "none",   ownerKind: "agent_session", ownerRef: "code-reviewer" },
+  remote_peer:   { draft: false, priority: "medium", maxAttempts: 3, enqueueOnSubmit: true,  approvalPolicy: "none",   ownerKind: "network_peer",  ownerRef: "designer" },
+  human_in_loop: { draft: false, priority: "high",   maxAttempts: 1, enqueueOnSubmit: true,  approvalPolicy: "manual", ownerKind: "human",         ownerRef: "Pedro" },
+  blank:         { draft: false, priority: "medium", maxAttempts: 3, enqueueOnSubmit: true,  approvalPolicy: "none",   ownerKind: "agent_session", ownerRef: "" },
+};
+
+const OWNER_KINDS = [
+  { id: "agent_session", label: "Agent session", icon: I.Bot },
+  { id: "human",         label: "Human",         icon: I.User },
+  { id: "automation",    label: "Automation",    icon: I.Zap },
+  { id: "extension",     label: "Extension",     icon: I.Wrench },
+  { id: "network_peer",  label: "Network peer",  icon: I.Globe },
+  { id: "pool",          label: "Pool",          icon: I.Boxes },
+];
+
+function NewTaskEditor({ initialTemplate = "one_shot", onClose, onCreate }) {
+  const [template, setTemplate] = useState(initialTemplate);
+  const t = TEMPLATES.find(x => x.id === template) || TEMPLATES[0];
+  const defaults = TPL_DEFAULTS[template];
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [scope, setScope] = useState("workspace");
+  const [priority, setPriority] = useState(defaults.priority);
+  const [ownerKind, setOwnerKind] = useState(defaults.ownerKind);
+  const [ownerRef, setOwnerRef] = useState(defaults.ownerRef);
+  const [maxAttempts, setMaxAttempts] = useState(defaults.maxAttempts);
+  const [approvalPolicy, setApprovalPolicy] = useState(defaults.approvalPolicy);
+  const [parent, setParent] = useState("");
+  const [networkChannel, setNetworkChannel] = useState("");
+  const [identifier, setIdentifier] = useState("");
+
+  useEffect(() => {
+    const d = TPL_DEFAULTS[template];
+    setPriority(d.priority); setOwnerKind(d.ownerKind); setOwnerRef(d.ownerRef);
+    setMaxAttempts(d.maxAttempts); setApprovalPolicy(d.approvalPolicy);
+  }, [template]);
+
+  const submitLabel = defaults.enqueueOnSubmit ? "Create & enqueue" : (defaults.draft ? "Save draft" : "Create task");
+  const SCOPE_OPTS = [
+    { id: "workspace", label: "Workspace", desc: "Visible inside this workspace only", icon: I.Briefcase },
+    { id: "global",    label: "Global",    desc: "Visible to all workspaces — careful", icon: I.Globe },
+  ];
+  const PRIO_OPTS = ["low", "medium", "high", "urgent"];
+  const ATTEMPTS_OPTS = [1, 2, 3, 5];
+  const APPROVAL_OPTS = [
+    { id: "none",   label: "None",   desc: "Auto-claim and run", icon: I.Check },
+    { id: "manual", label: "Manual", desc: "Human-in-the-loop in Inbox", icon: I.UserCheck },
+  ];
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal__head">
+          <span className="modal__icon"><I.Plus size="md" /></span>
+          <span className="modal__title">New task</span>
+          <Pill tone="ghost" mono size="sm">{t.id}</Pill>
+          <button className="btn btn--ghost btn--icon modal__close" onClick={onClose} aria-label="Close"><I.X size="sm" /></button>
+        </div>
+        <div className="modal__body">
+
+          {/* TEMPLATE PICKER */}
+          <div className="form-section" style={{ marginTop: 0 }}>
+            <div className="form-section__head">
+              <span className="form-section__head-icon"><I.Sparkles size="sm" /></span>
+              <span className="form-section__title">Template</span>
+              <span className="form-section__sub">choose a starting shape</span>
+            </div>
+            <div className="radio-cards" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+              {TEMPLATES.map(tp => {
+                const Icon = tp.icon;
+                return (
+                  <button key={tp.id} className="radio-card" data-selected={template === tp.id} onClick={() => setTemplate(tp.id)}>
+                    <span className="radio-card__icon"><Icon size="sm" /></span>
+                    <div className="radio-card__main">
+                      <div className="radio-card__title">{tp.title}</div>
+                      <div className="radio-card__desc">{tp.desc.length > 64 ? tp.desc.slice(0, 64) + "…" : tp.desc}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* TASK CONTRACT */}
+          <div className="form-section">
+            <div className="form-section__head">
+              <span className="form-section__head-icon"><I.Edit size="sm" /></span>
+              <span className="form-section__title">Task contract</span>
+              <span className="form-section__sub">what should be done</span>
+            </div>
+            <div className="form-row">
+              <div className="form-row__head">
+                <label className="form-row__label" htmlFor="t-title">Title</label>
+                <span className="form-row__req">required</span>
+              </div>
+              <input id="t-title" className="form-input" placeholder="What should this task accomplish?" value={title} onChange={e => setTitle(e.target.value)} />
+            </div>
+            <div className="form-row">
+              <div className="form-row__head">
+                <label className="form-row__label" htmlFor="t-desc">Description</label>
+                <span className="form-row__hint">Markdown supported · seen by agents</span>
+              </div>
+              <textarea id="t-desc" className="form-textarea" placeholder="Context, constraints, acceptance criteria…" value={description} onChange={e => setDescription(e.target.value)} />
+            </div>
+            <div className="form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div>
+                <div className="form-row__head"><label className="form-row__label">Scope</label></div>
+                <div className="radio-cards" style={{ gridTemplateColumns: "1fr" }}>
+                  {SCOPE_OPTS.map(s => {
+                    const Icon = s.icon;
+                    return (
+                      <button key={s.id} className="radio-card" data-selected={scope === s.id} onClick={() => setScope(s.id)}>
+                        <span className="radio-card__icon"><Icon size="sm" /></span>
+                        <div className="radio-card__main">
+                          <div className="radio-card__title">{s.label}</div>
+                          <div className="radio-card__desc">{s.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div className="form-row__head"><label className="form-row__label">Priority</label></div>
+                <div className="pill-group" style={{ width: "100%", justifyContent: "space-between" }}>
+                  {PRIO_OPTS.map(p => (
+                    <button key={p} className="pill-group__btn" data-active={priority === p} onClick={() => setPriority(p)} style={{ flex: 1, justifyContent: "center" }}>{p}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* QUEUE SETTINGS */}
+          <div className="form-section">
+            <div className="form-section__head">
+              <span className="form-section__head-icon"><I.Layers size="sm" /></span>
+              <span className="form-section__title">Queue settings</span>
+              <span className="form-section__sub">who claims it · how it retries</span>
+            </div>
+            <div className="form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div>
+                <div className="form-row__head"><label className="form-row__label" htmlFor="t-ownerk">Owner kind</label></div>
+                <select id="t-ownerk" className="form-select" value={ownerKind} onChange={e => setOwnerKind(e.target.value)}>
+                  {OWNER_KINDS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="form-row__head"><label className="form-row__label" htmlFor="t-ownerr">Owner reference</label></div>
+                <input id="t-ownerr" className="form-input form-mono" placeholder="e.g. code-reviewer, Pedro, designer" value={ownerRef} onChange={e => setOwnerRef(e.target.value)} />
+              </div>
+            </div>
+            <div className="form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div>
+                <div className="form-row__head"><label className="form-row__label">Max attempts</label></div>
+                <div className="pill-group" style={{ width: "100%", justifyContent: "space-between" }}>
+                  {ATTEMPTS_OPTS.map(n => (
+                    <button key={n} className="pill-group__btn" data-active={maxAttempts === n} onClick={() => setMaxAttempts(n)} style={{ flex: 1, justifyContent: "center", fontFamily: "var(--font-mono)" }}>{n}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="form-row__head"><label className="form-row__label">Approval policy</label></div>
+                <div className="radio-cards" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                  {APPROVAL_OPTS.map(a => {
+                    const Icon = a.icon;
+                    return (
+                      <button key={a.id} className="radio-card" data-selected={approvalPolicy === a.id} onClick={() => setApprovalPolicy(a.id)}>
+                        <span className="radio-card__icon"><Icon size="sm" /></span>
+                        <div className="radio-card__main">
+                          <div className="radio-card__title">{a.label}</div>
+                          <div className="radio-card__desc">{a.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-row__head">
+                <label className="form-row__label" htmlFor="t-parent">Parent task</label>
+                <span className="form-row__hint">Optional · search by id or title to wire as child</span>
+              </div>
+              <input id="t-parent" className="form-input form-mono" placeholder="tsk-… or paste a parent identifier" value={parent} onChange={e => setParent(e.target.value)} />
+            </div>
+          </div>
+
+          {/* SUBMISSION */}
+          <div className="form-section">
+            <div className="form-section__head">
+              <span className="form-section__head-icon"><I.Send size="sm" /></span>
+              <span className="form-section__title">Submission</span>
+              <span className="form-section__sub">how it lands in the queue</span>
+            </div>
+            <div className="form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div>
+                <div className="form-row__head"><label className="form-row__label" htmlFor="t-net">Network channel</label></div>
+                <input id="t-net" className="form-input form-mono" placeholder="optional network channel" value={networkChannel} onChange={e => setNetworkChannel(e.target.value)} />
+              </div>
+              <div>
+                <div className="form-row__head">
+                  <label className="form-row__label" htmlFor="t-id">Identifier override</label>
+                  <span className="form-row__hint">leave blank for auto</span>
+                </div>
+                <input id="t-id" className="form-input form-mono" placeholder="e.g. TASK-123" value={identifier} onChange={e => setIdentifier(e.target.value)} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-row__head">
+                <span className="form-row__label">Read-only context</span>
+              </div>
+              <div className="context-box">
+                <div className="context-box__row"><span className="context-box__label">Scope</span><span className="context-box__value">{scope}</span></div>
+                <div className="context-box__row"><span className="context-box__label">Workspace</span><span className="context-box__value">agh-runtime</span></div>
+                <div className="context-box__row"><span className="context-box__label">Identifier</span><span className="context-box__value context-box__value--mono">{identifier || "auto"}</span></div>
+                <div className="context-box__row"><span className="context-box__label">Parent</span><span className="context-box__value context-box__value--mono">{parent || "—"}</span></div>
+                <div className="context-box__row"><span className="context-box__label">Lane</span><span className="context-box__value">default</span></div>
+                <div className="context-box__row"><span className="context-box__label">Origin</span><span className="context-box__value">{template === "remote_peer" ? "remote_peer" : template === "recurring" ? "automation" : "manual"}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="modal__footer">
+          <span className="form-footer__hint vc"><I.Info size="xs" />The contract is durable — runs descend from this task and respect dependencies.</span>
+          <button className="btn" onClick={onClose}>Cancel</button>
+          {!defaults.enqueueOnSubmit && <button className="btn"><I.Save size="xs" />Save draft</button>}
+          <button className="btn btn--primary" onClick={() => onCreate({ template, title, description, scope, priority, ownerKind, ownerRef, maxAttempts, approvalPolicy, parent, networkChannel, identifier })}>
+            {defaults.enqueueOnSubmit ? <I.Play size="xs" /> : <I.Save size="xs" />}{submitLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+window.AGH_NEW = { NewTaskEditor };
+</script>
+
+<script type="text/babel" data-presets="env,react">
+const { I, AGH } = window;
+const { useState, useEffect, useMemo, Fragment } = React;
+const { TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = AGH;
+
+/* ============ TASK DETAIL ============ */
+const DETAIL_TABS = [
+  { id: "overview",     label: "Overview",     icon: I.Info,        getCount: (t) => null },
+  { id: "runs",         label: "Runs",         icon: I.Activity,    getCount: (t) => (RUNS[t.id]?.length || 0) },
+  { id: "timeline",     label: "Timeline",     icon: I.Clock,       getCount: (t) => (ACTIVITY[t.id]?.length || 2) },
+  { id: "children",     label: "Children",     icon: I.GitBranch,   getCount: (t) => t.childCount || 0 },
+  { id: "dependencies", label: "Dependencies", icon: I.LinkIcon,    getCount: (t) => t.depCount || 0 },
+  { id: "agents",       label: "Agents",       icon: I.Bot,         getCount: (t) => null },
+  { id: "orchestration",label: "Orchestration",icon: I.Cpu,         getCount: (t) => null },
+];
+
+function DetailHeader({ task, onBack }) {
+  return (
+    <div className="detail-head">
+      <div className="detail-head__crumbs">
+        <button className="detail-head__crumb" onClick={onBack}><I.ArrowLeft size="xs" />Tasks</button>
+        <span className="detail-head__crumb-sep"><I.ChevronRight size="xs" /></span>
+        <span className="detail-head__crumb detail-head__crumb--cur">{task.id}</span>
+      </div>
+      <div className="detail-head__title-row">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="vc" style={{ marginBottom: 8 }}>
+            <StatusDot status={task.status} />
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted)", letterSpacing: 0 }}>{task.id}</span>
+            <span className="page-head__meta-sep">·</span>
+            <span style={{ fontSize: 11.5, color: "var(--subtle)", letterSpacing: "-0.005em", fontWeight: 510 }}>{task.workspace}</span>
+          </div>
+          <h1 className="detail-head__title">{task.title}</h1>
+          <div className="detail-head__pills">
+            <StatusPill status={task.status} />
+            <Pill mono>{task.id}</Pill>
+            <Pill tone="ghost" icon={<Avatar owner={task.owner} size="sm" />}>{task.owner.short || task.owner.label}</Pill>
+            <Pill tone={task.priority === "urgent" ? "danger" : "ghost"} icon={<PriorityBars level={task.priority} />}>{task.priority}</Pill>
+            {task.lane && task.lane !== "default" && <Pill tone="ghost" icon={<I.Hash size="xs" />}>{task.lane}</Pill>}
+            {task.draft && <Pill tone="neutral" icon={<I.Edit size="xs" />}>Draft</Pill>}
+            {task.approvalState && <Pill tone={task.approvalState === "pending" ? "warning" : "success"} icon={<I.UserCheck size="xs" />}>Approval {task.approvalState}</Pill>}
+            {task.parent && <Pill tone="ghost" mono icon={<I.GitFork size="xs" />}>parent {task.parent}</Pill>}
+          </div>
+          <div className="detail-head__meta">
+            <span className="detail-head__meta-item"><span className="detail-head__meta-label">Owner</span><Avatar owner={task.owner} size="sm" /><span>{task.owner.label}</span></span>
+            <span className="page-head__meta-sep">·</span>
+            <span className="detail-head__meta-item"><span className="detail-head__meta-label">Origin</span><span>{task.origin}</span></span>
+            <span className="page-head__meta-sep">·</span>
+            <span className="detail-head__meta-item"><span className="detail-head__meta-label">Created by</span><span>{task.owner.kind === "human" ? task.owner.label : "agh-runtime"}</span></span>
+            <span className="page-head__meta-sep">·</span>
+            <span className="detail-head__meta-item"><span className="detail-head__meta-label">Last update</span><span className="mono" style={{fontSize:11}}>{task.time} ago</span></span>
+            <span className="page-head__meta-sep">·</span>
+            <span className="detail-head__meta-item"><span className="detail-head__meta-label">Capability</span><span className="mono" style={{fontSize:11}}>{task.capability}</span></span>
+          </div>
+          <div className="detail-head__actions">
+            <button className="btn"><I.Edit size="xs" />Edit</button>
+            {task.status === "running" || task.status === "in_progress" ? (
+              <button className="btn btn--danger"><I.X size="xs" />Cancel</button>
+            ) : null}
+            {task.status === "ready" || task.status === "draft" ? (
+              <button className="btn btn--primary"><I.Play size="xs" />Enqueue run</button>
+            ) : null}
+            {task.status === "draft" ? (
+              <button className="btn"><I.Send size="xs" />Publish</button>
+            ) : null}
+            {task.status === "failed" ? (
+              <button className="btn btn--success"><I.RotateCcw size="xs" />Retry</button>
+            ) : null}
+            <button className="btn btn--ghost btn--icon" aria-label="More actions"><I.MoreH size="sm" /></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverviewTab({ task }) {
+  const subs = SUB_ISSUES[task.id] || [];
+  const deps = DEPENDENCIES[task.id] || [];
+  const runs = RUNS[task.id] || [];
+  const live = ["running", "in_progress"].includes(task.status);
+  return (
+    <>
+      <div className="metric-grid">
+        <div className="metric">
+          <div className="metric__label"><I.GitBranch size="xs" />Children</div>
+          <div className="metric__value">{subs.length}</div>
+          <div className="metric__detail"><strong>{subs.filter(s => s.status === "completed").length}</strong> completed · <strong>{subs.filter(s => ["running","in_progress"].includes(s.status)).length}</strong> live</div>
+        </div>
+        <div className="metric">
+          <div className="metric__label"><I.LinkIcon size="xs" />Dependencies</div>
+          <div className="metric__value">{deps.length}</div>
+          <div className="metric__detail"><strong>{deps.filter(d => d.status === "completed").length}</strong> resolved · <strong>{deps.filter(d => d.status !== "completed").length}</strong> pending</div>
+        </div>
+        <div className="metric">
+          <div className="metric__label"><I.Activity size="xs" />Runs</div>
+          <div className="metric__value">{runs.length}</div>
+          <div className="metric__detail">attempt <strong>{task.attempt.current}/{task.attempt.max}</strong></div>
+        </div>
+      </div>
+
+      {task.blockedReason && (
+        <div className="detail-section">
+          <div className="detail-section__head">
+            <span className="detail-section__icon" style={{ color: "var(--warning)" }}>
+              <I.AlertTriangle size="sm" />
+            </span>
+            <span className="detail-section__title">Block reason</span>
+          </div>
+          <div className="task-row__error" style={{ background: "var(--warning-tint)", borderColor: "rgba(255,214,10,0.25)", color: "var(--warning)", padding: "10px 14px" }}>
+            <I.AlertTriangle size="sm" />
+            <span style={{ fontSize: 12.5 }}>{task.blockedReason}</span>
+          </div>
+        </div>
+      )}
+
+      {live && (
+        <div className="detail-section">
+          <div className="detail-section__head">
+            <span className="detail-section__icon"><I.Activity size="sm" /></span>
+            <span className="detail-section__title">Active run</span>
+          </div>
+          <div className="run-card">
+            <div className="run-card__top">
+              <StatusPill status={task.status} />
+              <Pill mono>{runs[0]?.id || "run-…"}</Pill>
+              <Pill tone="info" icon={<I.Headphones size="xs" />}>session {task.workspace.slice(0,4)}-aa7c</Pill>
+              <Pill tone="ghost" mono>attempt {task.attempt.current}/{task.attempt.max}</Pill>
+              {task.id === "tsk-7f3a2b" && <Pill tone="warning" icon={<I.AlertTriangle size="xs" />}>stuck · no progress 9m</Pill>}
+            </div>
+            <div className="run-card__grid">
+              <div className="run-card__cell"><span className="run-card__cell-label">Channel</span><span className="run-card__cell-value">runtime/default</span></div>
+              <div className="run-card__cell"><span className="run-card__cell-label">Queued</span><span className="run-card__cell-value run-card__cell-value--mono">2025-05-08 14:31:02</span></div>
+              <div className="run-card__cell"><span className="run-card__cell-label">Started</span><span className="run-card__cell-value run-card__cell-value--mono">2025-05-08 14:31:18</span></div>
+              <div className="run-card__cell"><span className="run-card__cell-label">Elapsed</span><span className="run-card__cell-value run-card__cell-value--mono">{task.time}</span></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="detail-section">
+        <div className="detail-section__head">
+          <span className="detail-section__icon"><I.Edit size="sm" /></span>
+          <span className="detail-section__title">Description</span>
+        </div>
+        <div className="descr-card">
+{`Investigate the auth middleware in session-bridge — recent traces show goroutine accumulation under sustained ws connections.
+
+## Acceptance criteria
+- Reproduce the leak with a load test (>= 200 concurrent ws connections).
+- Identify the offending allocation path; capture pprof.
+- Land a fix that holds steady at p95 = baseline ± 5%.
+
+## Constraints
+- Don't introduce new global locks.
+- The fix must roll out cleanly under a feature flag; we cannot afford a rollback window.`}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function RunsTab({ task }) {
+  const runs = RUNS[task.id] || [];
+  if (!runs.length) {
+    return (
+      <div className="empty" style={{ padding: "40px 0" }}>
+        <div className="empty__icon"><I.Activity size="lg" /></div>
+        <h2 className="empty__title">Saved intent only — no runs yet</h2>
+        <p className="empty__msg">This task hasn't been enqueued yet. Press <kbd className="kbd">Enqueue run</kbd> to start the first attempt.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="table table--runs">
+      <div className="table__head"><span /><span>RUN</span><span>STATUS</span><span>QUEUED</span><span>ENDED</span><span>DURATION</span><span /></div>
+      {runs.map(r => (
+        <div key={r.id} className="table__row">
+          <StatusDot status={r.status} />
+          <span className="table__cell table__cell--strong">{r.id}<span className="table__cell--mono" style={{marginLeft:8}}>attempt {r.attempt}</span></span>
+          <span><StatusPill status={r.status} size="sm" /></span>
+          <span className="table__cell table__cell--mono">{r.queued} ago</span>
+          <span className="table__cell table__cell--mono">{r.ended === "—" ? "—" : `${r.ended} ago`}</span>
+          <span className="table__cell table__cell--mono">{r.duration}</span>
+          <span><I.ArrowUpRight size="xs" /></span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TimelineTab({ task }) {
+  const [mode, setMode] = useState("interleaved");
+  const events = ACTIVITY[task.id] || [
+    { time: task.time, type: "task.created", tone: "default", who: task.owner.label, msg: `Task ${task.status}`, detail: `${task.id} · workspace ${task.workspace}` },
+  ];
+  const iconFor = (type) => {
+    if (type.includes("created"))    return <I.Plus size="xs" />;
+    if (type.includes("started"))    return <I.Play size="xs" />;
+    if (type.includes("completed"))  return <I.Check size="xs" />;
+    if (type.includes("failed"))     return <I.AlertCircle size="xs" />;
+    if (type.includes("priority"))   return <I.Pin size="xs" />;
+    if (type.includes("children"))   return <I.GitBranch size="xs" />;
+    if (type.includes("plan"))       return <I.Edit size="xs" />;
+    if (type.includes("dependency")) return <I.LinkIcon size="xs" />;
+    return <I.Info size="xs" />;
+  };
+  return (
+    <>
+      <div className="timeline-controls">
+        <div className="pill-group">
+          <button className="pill-group__btn" data-active={mode === "by_agent"}    onClick={() => setMode("by_agent")}><I.Bot size="xs" />By agent</button>
+          <button className="pill-group__btn" data-active={mode === "interleaved"} onClick={() => setMode("interleaved")}><I.Layers size="xs" />Interleaved</button>
+          <button className="pill-group__btn" data-active={mode === "by_event_type"} onClick={() => setMode("by_event_type")}><I.Tag size="xs" />By event</button>
+        </div>
+        <span className="lane-tabs__spacer" />
+        <Pill tone="ghost" mono>{events.length} events</Pill>
+        <button className="btn btn--ghost btn--sm"><I.RefreshCw size="xs" />Refresh</button>
+      </div>
+      <ul className="timeline">
+        {events.map((e, i) => (
+          <li key={i} className="tl-event">
+            <div className="tl-event__icon-wrap">
+              <span className="tl-event__icon" data-tone={e.tone}>{iconFor(e.type)}</span>
+              {i < events.length - 1 && <span className="tl-event__line" />}
+            </div>
+            <div className="tl-event__body">
+              <div className="tl-event__msg"><strong>{e.who}</strong> {e.msg}<span className="tl-event__type">{e.type}</span></div>
+              {e.detail && <div className="tl-event__detail">{e.detail}</div>}
+            </div>
+            <span className="tl-event__time">{e.time} ago</span>
+          </li>
+        ))}
+      </ul>
+      <div style={{ marginTop: 14, display: "flex", justifyContent: "center" }}>
+        <button className="btn btn--ghost btn--sm"><I.ChevronDown size="xs" />Load more</button>
+      </div>
+    </>
+  );
+}
+
+function ChildrenTab({ task }) {
+  const subs = SUB_ISSUES[task.id] || [];
+  if (!subs.length) {
+    return (
+      <div className="empty" style={{ padding: "40px 0" }}>
+        <div className="empty__icon"><I.GitBranch size="lg" /></div>
+        <h2 className="empty__title">This task has no children</h2>
+        <p className="empty__msg">Children appear here when this task spawns sub-tasks via fan-out or epic decomposition.</p>
+      </div>
+    );
+  }
+  const completed = subs.filter(s => s.status === "completed").length;
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <Pill tone="ghost">{completed} / {subs.length}</Pill>
+        <div style={{ flex: 1, height: 4, borderRadius: 2, background: "var(--canvas-soft)", overflow: "hidden" }}>
+          <span style={{ display: "block", height: "100%", background: "var(--fg-strong)", borderRadius: 2, width: `${(completed/subs.length)*100}%`, transition: "width var(--dur) var(--ease)" }} />
+        </div>
+        <span className="mono" style={{ fontSize: 11, color: "var(--subtle)" }}>{Math.round((completed/subs.length)*100)}%</span>
+        <button className="btn btn--sm"><I.Plus size="xs" />Add child</button>
+      </div>
+      <div className="table table--children">
+        <div className="table__head"><span /><span>TITLE</span><span>STATUS</span><span>OWNER</span><span>UPDATED</span><span /></div>
+        {subs.map(s => (
+          <div key={s.id} className="table__row">
+            <StatusDot status={s.status} />
+            <span className="table__cell table__cell--strong">{s.title}<span className="table__cell--mono" style={{marginLeft:8}}>{s.id}</span></span>
+            <span><StatusPill status={s.status} size="sm" /></span>
+            <span className="table__cell vc"><Avatar owner={s.owner} size="sm" /><span style={{ fontSize: 12, color: "var(--muted)" }}>{s.owner.short || s.owner.label}</span></span>
+            <span className="table__cell table__cell--mono">{s.time} ago</span>
+            <span><I.ArrowUpRight size="xs" /></span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function DependenciesTab({ task }) {
+  const deps = DEPENDENCIES[task.id] || [];
+  if (!deps.length) {
+    return (
+      <div className="empty" style={{ padding: "40px 0" }}>
+        <div className="empty__icon"><I.LinkIcon size="lg" /></div>
+        <h2 className="empty__title">This task has no dependencies</h2>
+        <p className="empty__msg">Dependencies appear here when this task waits on other tasks before it can be enqueued.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="table table--deps">
+      <div className="table__head"><span /><span>TITLE</span><span>STATUS</span><span>OWNER</span><span /></div>
+      {deps.map(d => (
+        <div key={d.id} className="table__row">
+          <StatusDot status={d.status} />
+          <span className="table__cell table__cell--strong">{d.title}<span className="table__cell--mono" style={{marginLeft:8}}>{d.id}</span></span>
+          <span><StatusPill status={d.status} size="sm" /></span>
+          <span className="table__cell">{d.owner}</span>
+          <span><I.ArrowUpRight size="xs" /></span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AgentsTab({ task }) {
+  const agentEvents = (ACTIVITY[task.id] || []).filter(e => e.who && !["agh-runtime", "Pedro"].includes(e.who) || true);
+  const grouped = {};
+  for (const e of (ACTIVITY[task.id] || [])) {
+    const k = e.who || "unknown";
+    if (!grouped[k]) grouped[k] = { name: k, events: [], live: 0, idle: 0 };
+    grouped[k].events.push(e);
+  }
+  const cards = Object.values(grouped).map(g => ({
+    ...g,
+    live: g.name.includes("code-reviewer") || g.name.includes("qa-runner") ? 1 : 0,
+    descendants: g.name.includes("code-reviewer") ? 3 : g.name.includes("qa-runner") ? 1 : 0,
+  })).filter(c => !["agh-runtime"].includes(c.name));
+  if (!cards.length) cards.push({ name: task.owner.label, events: [], live: STATUS_TONE[task.status]?.pulse ? 1 : 0, idle: 0, descendants: 0 });
+  return (
+    <div className="agent-grid">
+      {cards.map(c => (
+        <div key={c.name} className="agent-card">
+          <div className="agent-card__head">
+            <Avatar owner={{ kind: c.name === "Pedro" ? "human" : "agent", label: c.name }} size="lg" />
+            <span className="agent-card__name">{c.name}</span>
+            {c.live > 0 && <Pill tone="accent" size="sm" icon={<span className="pill__dot pill__dot--pulse" />}>live</Pill>}
+          </div>
+          <div className="agent-card__metrics">
+            <div className="agent-card__metric">
+              <span className="agent-card__metric-label">Live</span>
+              <span className="agent-card__metric-value" style={{ color: c.live > 0 ? "var(--success)" : "var(--faint)" }}>{c.live}</span>
+            </div>
+            <div className="agent-card__metric">
+              <span className="agent-card__metric-label">Events</span>
+              <span className="agent-card__metric-value">{c.events.length}</span>
+            </div>
+            <div className="agent-card__metric">
+              <span className="agent-card__metric-label">Descendants</span>
+              <span className="agent-card__metric-value">{c.descendants}</span>
+            </div>
+          </div>
+          <div className="agent-card__events">
+            {c.events.slice(0, 5).map((e, i) => (
+              <div key={i} className="agent-card__event">
+                <span style={{ color: e.tone === "danger" ? "var(--danger)" : e.tone === "success" ? "var(--success)" : "var(--subtle)", display: "inline-flex" }}>
+                  {e.tone === "danger" ? <I.AlertCircle size="xs" /> : e.tone === "success" ? <I.Check size="xs" /> : <I.Activity size="xs" />}
+                </span>
+                <span className="agent-card__event-msg">{e.msg}</span>
+                <span className="agent-card__event-time">{e.time}</span>
+              </div>
+            ))}
+            {c.events.length === 0 && <span className="faint" style={{ fontSize: 11.5, fontFamily: "var(--font-mono)" }}>no events recorded</span>}
+          </div>
+          <div className="agent-card__foot">
+            <button className="btn btn--ghost btn--sm btn--block"><I.ArrowUpRight size="xs" />View full timeline</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function colorJSON(obj) {
+  const json = JSON.stringify(obj, null, 2);
+  return json
+    .replace(/("(?:[^"\\]|\\.)*"):/g, '<span class="json-key">$1</span>:')
+    .replace(/: ("(?:[^"\\]|\\.)*")/g, ': <span class="json-str">$1</span>')
+    .replace(/: (true|false)/g, ': <span class="json-bool">$1</span>')
+    .replace(/: (null)/g, ': <span class="json-null">$1</span>')
+    .replace(/: (-?\d+(\.\d+)?)/g, ': <span class="json-num">$1</span>');
+}
+
+function OrchestrationTab({ task }) {
+  const profile = {
+    runtime: "agh.runtime/v0",
+    owner_kind: "agent_session",
+    owner_ref: task.owner.short || task.owner.label,
+    sandbox: { tier: "standard", cpu_limit: 4, mem_limit_mb: 4096, network: "egress-allowed" },
+    capability: task.capability,
+    timeout_s: 1800,
+    retries: { max: task.attempt.max, backoff: "exponential", jitter_ms: 500 },
+    review_gate: task.approvalPolicy === "manual" ? "human-approval" : "auto",
+  };
+  return (
+    <div className="orch-grid">
+      <div className="orch-card">
+        <div className="orch-card__head">
+          <span className="orch-card__icon"><I.Cpu size="sm" /></span>
+          <span className="orch-card__title">Execution profile</span>
+          <span className="orch-card__sub">profile/v0</span>
+        </div>
+        <div className="orch-card__body">
+          <pre className="json-viewer" dangerouslySetInnerHTML={{ __html: colorJSON(profile) }} />
+        </div>
+      </div>
+      <div className="orch-card">
+        <div className="orch-card__head">
+          <span className="orch-card__icon"><I.UserCheck size="sm" /></span>
+          <span className="orch-card__title">Reviews</span>
+          <span className="orch-card__sub">{task.approvalState === "pending" ? "1 pending" : "—"}</span>
+        </div>
+        <div className="orch-card__body">
+          {task.approvalPolicy === "manual" ? (
+            <>
+              <div className="review-row">
+                <I.UserCheck size="sm" style={{ color: "var(--warning)" }} />
+                <span className="review-row__title">Awaiting human approval — <strong>Pedro</strong></span>
+                <span className="review-row__time">opened 12m ago</span>
+              </div>
+              <div className="review-row">
+                <I.Check size="sm" style={{ color: "var(--success)" }} />
+                <span className="review-row__title">Plan accepted via review gate</span>
+                <span className="review-row__time">32m ago</span>
+              </div>
+              <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                <button className="btn btn--success btn--sm"><I.Check size="xs" />Approve</button>
+                <button className="btn btn--danger btn--sm"><I.X size="xs" />Reject</button>
+              </div>
+            </>
+          ) : (
+            <p className="muted" style={{ fontSize: 12.5 }}>No review gate configured. Runs auto-claim under the configured profile.</p>
+          )}
+        </div>
+      </div>
+      <div className="orch-card">
+        <div className="orch-card__head">
+          <span className="orch-card__icon"><I.Bell size="sm" /></span>
+          <span className="orch-card__title">Bridge notifications</span>
+          <span className="orch-card__sub">{task.id === "tsk-9c4d18" ? "2 active" : "1 active"}</span>
+        </div>
+        <div className="orch-card__body">
+          <div className="review-row">
+            <I.Slack size="sm" style={{ color: "var(--info)" }} />
+            <span className="review-row__title">#agh-runtime — emit on <strong>completed</strong>, <strong>failed</strong></span>
+            <span className="review-row__time">webhook</span>
+          </div>
+          {task.id === "tsk-9c4d18" && (
+            <div className="review-row">
+              <I.Mail size="sm" style={{ color: "var(--info)" }} />
+              <span className="review-row__title">pedro@compozy.com — emit on <strong>blocked</strong></span>
+              <span className="review-row__time">smtp</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="orch-card">
+        <div className="orch-card__head">
+          <span className="orch-card__icon"><I.Database size="sm" /></span>
+          <span className="orch-card__title">Stream resume</span>
+          <span className="orch-card__sub">checkpoint state</span>
+        </div>
+        <div className="orch-card__body">
+          {task.id === "tsk-9c4d18" || task.id === "tsk-7f3a2b" ? (
+            <>
+              <div className="review-row">
+                <I.Pin size="sm" style={{ color: "var(--subtle)" }} />
+                <span className="review-row__title">Last checkpoint: <strong>row 4,231 / 12,840</strong></span>
+                <span className="review-row__time">11m ago</span>
+              </div>
+              <div className="review-row">
+                <I.RefreshCw size="sm" style={{ color: "var(--success)" }} />
+                <span className="review-row__title">Auto-resume on retry: enabled</span>
+                <span className="review-row__time">policy</span>
+              </div>
+              <button className="btn btn--ghost btn--sm" style={{ marginTop: 10 }}><I.ArrowUpRight size="xs" />Inspect checkpoint</button>
+            </>
+          ) : (
+            <p className="muted" style={{ fontSize: 12.5 }}>Stream not enabled. Tasks under this profile run from scratch on each attempt.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaskDetail({ task, onBack }) {
+  const [tab, setTab] = useState("overview");
+  return (
+    <>
+      <DetailHeader task={task} onBack={onBack} />
+      <div className="detail-tabs">
+        {DETAIL_TABS.map(T => {
+          const Icon = T.icon;
+          const ct = T.getCount(task);
+          return (
+            <button key={T.id} className="detail-tab" data-active={tab === T.id} onClick={() => setTab(T.id)}>
+              <span className="detail-tab__icon"><Icon size="xs" /></span>
+              {T.label}
+              {ct != null && ct > 0 && <span className="detail-tab__count">{ct}</span>}
+            </button>
+          );
+        })}
+      </div>
+      {tab === "overview"     && <OverviewTab task={task} />}
+      {tab === "runs"         && <RunsTab task={task} />}
+      {tab === "timeline"     && <TimelineTab task={task} />}
+      {tab === "children"     && <ChildrenTab task={task} />}
+      {tab === "dependencies" && <DependenciesTab task={task} />}
+      {tab === "agents"       && <AgentsTab task={task} />}
+      {tab === "orchestration"&& <OrchestrationTab task={task} />}
+    </>
+  );
+}
+
+window.AGH_DETAIL = { TaskDetail };
+</script>
+
+<script type="text/babel" data-presets="env,react">
+const { I, AGH, AGH_SHELL, AGH_VIEWS, AGH_NEW, AGH_DETAIL } = window;
+const { useState, useEffect, useMemo, Fragment } = React;
+const { TASKS } = AGH;
+const { Rail, Sidebar } = AGH_SHELL;
+const { TasksTopBar, TaskListView, KanbanView, DashboardView, InboxView, EmptyState } = AGH_VIEWS;
+const { NewTaskEditor } = AGH_NEW;
+const { TaskDetail } = AGH_DETAIL;
+
+const ACCENTS = [
+  { id: "orange", color: "#e8572a", hover: "#d14e25", strong: "#f6874f", ink: "#17110f" },
+  { id: "amber",  color: "#f4a23a", hover: "#e09229", strong: "#ffc06a", ink: "#1a120a" },
+  { id: "moss",   color: "#7fb069", hover: "#6e9b59", strong: "#a4cf90", ink: "#0f1409" },
+  { id: "indigo", color: "#7170ff", hover: "#5e5dee", strong: "#9c9bff", ink: "#0c0d2a" },
+];
+
+function Tweaks({ accent, setAccent, view, setView, mode, setMode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={"tweaks" + (open ? " tweaks--open" : "")}>
+      <button className="tweaks__head" onClick={() => setOpen(!open)}>
+        <span className="topbar__icon" style={{ width: 18, height: 18 }}><I.Sparkles size="xs" /></span>
+        <span className="tweaks__title">Design tweaks</span>
+        <span className="tweaks__chev"><I.ChevronDown size="xs" /></span>
+      </button>
+      {open && (
+        <div className="tweaks__body">
+          <div className="tweaks__row">
+            <span className="tweaks__label">Accent</span>
+            <div className="swatches">
+              {ACCENTS.map(a => (
+                <button key={a.id} className="swatch" data-active={accent === a.id} style={{ background: a.color }} onClick={() => setAccent(a.id)} aria-label={a.id} />
+              ))}
+            </div>
+          </div>
+          <div className="tweaks__row">
+            <span className="tweaks__label">Mode</span>
+            <div className="tweaks__seg">
+              {["dark", "light"].map(m => (
+                <button key={m} data-active={mode === m} onClick={() => setMode(m)}>{m}</button>
+              ))}
+            </div>
+          </div>
+          <div className="tweaks__row">
+            <span className="tweaks__label">View</span>
+            <div className="tweaks__seg">
+              {["list", "kanban", "dashboard", "inbox"].map(v => (
+                <button key={v} data-active={view === v} onClick={() => setView(v)}>{v[0]}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const [activeWs, setActiveWs] = useState("agh-runtime");
+  const [activeNav, setActiveNav] = useState("tasks");
+  const [activeAgent, setActiveAgent] = useState(null);
+  const [view, setView] = useState("list");
+  const [lane, setLane] = useState("all");
+  const [inboxLane, setInboxLane] = useState("all");
+  const [sortBy, setSortBy] = useState("recent");
+  const [taskId, setTaskId] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [newTpl, setNewTpl] = useState("one_shot");
+  const [showEmpty, setShowEmpty] = useState(false);
+  const [accent, setAccent] = useState("orange");
+  const [mode, setMode] = useState("dark");
+
+  useEffect(() => {
+    const a = ACCENTS.find(x => x.id === accent);
+    if (!a) return;
+    const root = document.documentElement;
+    root.style.setProperty("--accent", a.color);
+    root.style.setProperty("--accent-hover", a.hover);
+    root.style.setProperty("--accent-strong", a.strong);
+    root.style.setProperty("--accent-ink", a.ink);
+    const c = a.color.startsWith("#") ? a.color : "#e8572a";
+    const r = parseInt(c.slice(1,3), 16), g = parseInt(c.slice(3,5), 16), b = parseInt(c.slice(5,7), 16);
+    root.style.setProperty("--accent-tint",        `rgba(${r},${g},${b},0.15)`);
+    root.style.setProperty("--accent-tint-strong", `rgba(${r},${g},${b},0.24)`);
+    root.style.setProperty("--accent-dim",         `rgba(${r},${g},${b},0.35)`);
+    root.style.setProperty("--accent-glow",        `rgba(${r},${g},${b},0.08)`);
+  }, [accent]);
+
+  useEffect(() => {
+    if (mode === "light") {
+      const root = document.documentElement;
+      root.style.setProperty("--rail",        "#f0eeec");
+      root.style.setProperty("--canvas",      "#faf8f6");
+      root.style.setProperty("--canvas-soft", "#f4f1ee");
+      root.style.setProperty("--sidebar",     "#f7f4f0");
+      root.style.setProperty("--elevated",    "#eae6e1");
+      root.style.setProperty("--hover",       "#e6e2dc");
+      root.style.setProperty("--fg",        "#1a1a1c");
+      root.style.setProperty("--fg-strong", "#0c0c0e");
+      root.style.setProperty("--muted",     "#48484a");
+      root.style.setProperty("--subtle",    "#636366");
+      root.style.setProperty("--faint",     "#8e8e93");
+      root.style.setProperty("--line",        "#dad6d0");
+      root.style.setProperty("--line-soft",   "#e6e2dc");
+      root.style.setProperty("--line-strong", "#bdb6ad");
+    } else {
+      const root = document.documentElement;
+      root.style.removeProperty("--rail"); root.style.removeProperty("--canvas"); root.style.removeProperty("--canvas-soft"); root.style.removeProperty("--sidebar"); root.style.removeProperty("--elevated"); root.style.removeProperty("--hover");
+      root.style.removeProperty("--fg"); root.style.removeProperty("--fg-strong"); root.style.removeProperty("--muted"); root.style.removeProperty("--subtle"); root.style.removeProperty("--faint");
+      root.style.removeProperty("--line"); root.style.removeProperty("--line-soft"); root.style.removeProperty("--line-strong");
+    }
+  }, [mode]);
+
+  const task = useMemo(() => TASKS.find(t => t.id === taskId), [taskId]);
+  const handleNew = () => { setNewTpl("one_shot"); setShowNew(true); };
+  const handlePickTpl = (id) => { setNewTpl(id); setShowNew(true); };
+  const unreadInbox = TASKS.filter(t => t.status === "failed" || t.status === "blocked" || t.approvalState === "pending").length;
+
+  return (
+    <>
+      <div className="shell">
+        <Rail activeWs={activeWs} onSelectWs={setActiveWs} onAddWs={() => {}} />
+        <Sidebar
+          activeWs={activeWs}
+          activeNav={activeNav}
+          activeAgent={activeAgent}
+          onNav={(id) => { setActiveNav(id); setTaskId(null); }}
+          onSelectAgent={(id) => { setActiveAgent(id); }}
+          onSwitchWs={() => {}}
+        />
+        <main className="main">
+          {task ? (
+            <>
+              <header className="topbar">
+                <button className="btn btn--ghost btn--icon" onClick={() => setTaskId(null)} aria-label="Back"><I.ArrowLeft size="sm" /></button>
+                <span className="topbar__title">Task</span>
+                <span className="topbar__count">{task.id}</span>
+                <span className="topbar__sep" />
+                <span className="vc" style={{ fontSize: 12, color: "var(--muted)" }}><I.Briefcase size="xs" />{task.workspace}</span>
+                <div className="topbar__spacer" />
+                <button className="btn btn--ghost btn--sm"><I.Star size="xs" />Watch</button>
+                <button className="btn btn--ghost btn--icon"><I.MoreH size="sm" /></button>
+              </header>
+              <div className="scroll">
+                <div className="page">
+                  <TaskDetail task={task} onBack={() => setTaskId(null)} />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <TasksTopBar count={TASKS.length} view={view} setView={setView} onNew={handleNew} unreadInbox={unreadInbox} showEmpty={showEmpty} setShowEmpty={setShowEmpty} />
+              <div className="scroll">
+                <div className="page">
+                  {showEmpty ? (
+                    <EmptyState onNew={handleNew} onPickTemplate={handlePickTpl} />
+                  ) : view === "list" ? (
+                    <TaskListView onSelectTask={setTaskId} lane={lane} setLane={setLane} sortBy={sortBy} setSortBy={setSortBy} />
+                  ) : view === "kanban" ? (
+                    <KanbanView onSelectTask={setTaskId} />
+                  ) : view === "dashboard" ? (
+                    <DashboardView onSelectTask={setTaskId} />
+                  ) : view === "inbox" ? (
+                    <InboxView onSelectTask={setTaskId} lane={inboxLane} setLane={setInboxLane} />
+                  ) : null}
+                </div>
+              </div>
+            </>
+          )}
+        </main>
+      </div>
+
+      {showNew && <NewTaskEditor initialTemplate={newTpl} onClose={() => setShowNew(false)} onCreate={() => setShowNew(false)} />}
+
+      <Tweaks accent={accent} setAccent={setAccent} view={view} setView={setView} mode={mode} setMode={setMode} />
+    </>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+
+</body>
+</html>

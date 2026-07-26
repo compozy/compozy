@@ -1,0 +1,44 @@
+---
+title: "agh automation jobs history"
+description: "Show run history for one automation job"
+---
+
+## agh automation jobs history
+
+Show run history for one automation job
+
+```
+agh automation jobs history <id> [flags]
+```
+
+### Options
+
+```
+  -h, --help            help for history
+      --last int        Show only the most recent N runs
+      --since string    Show runs since an RFC3339 timestamp or relative duration
+      --status string   Filter by run status
+      --until string    Show runs until an RFC3339 timestamp or relative duration
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh automation jobs history <id> -o json
+```

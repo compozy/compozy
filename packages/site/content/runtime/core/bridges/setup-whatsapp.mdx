@@ -1,0 +1,323 @@
+---
+title: WhatsApp Setup
+description: Configure Meta's official WhatsApp Cloud API, verify its webhook, and send a real AGH bridge message.
+---
+
+This guide connects a WhatsApp Business phone number to an AGH workspace through Meta's official
+Cloud API. It does not use WhatsApp Web, a QR code, or a personal-account session.
+
+## How the WhatsApp bridge behaves
+
+| Surface             | AGH behavior                                                                                                                                                                      |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Conversations       | Direct-message routing only. The WhatsApp user ID becomes the bridge `peer_id`.                                                                                                   |
+| Inbound messages    | Normalizes text, images, documents, audio, video, stickers, and locations. Media remains a provider attachment reference; the bridge does not claim to download or transcribe it. |
+| Outbound messages   | Sends text through the Cloud API. Long replies split at 4,096 Unicode code points and acknowledge the last `wamid`.                                                               |
+| Updates and deletes | WhatsApp text messages are not edited. Updated accumulated content is posted as another sequence; delete is unsupported.                                                          |
+| Tool progress       | Off by default. If enabled, use `new` plus `separate` because progress is append-only and has no typing or reaction affordance.                                                   |
+
+## Quick start
+
+If the Meta app and public callback already exist:
+
+```bash
+agh bridge setup whatsapp
+```
+
+The wizard validates the common credential mistakes, creates the bridge disabled, and writes the
+three required slots without echoing them. It cannot configure the Meta dashboard for you; the rest
+of this page covers that handoff and the evidence to expect.
+
+## Before you start
+
+| Value               | Where to find it                                                                          | Important distinction                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Phone Number ID     | Meta App Dashboard → **WhatsApp → API Setup**, below the **From** number                  | This is Meta's 15–17 digit internal ID, not the visible phone number.       |
+| Access token        | **WhatsApp → API Setup** for testing; use an appropriate System User token for production | A dashboard test token may expire. Replace it before relying on the bridge. |
+| App secret          | **App settings → Basic → App secret**                                                     | Used for `X-Hub-Signature-256`; it is not the webhook verify token.         |
+| Verify token        | A high-entropy value you choose, or one generated once by AGH                             | Meta sends it during the GET challenge; both sides must match exactly.      |
+| Public callback URL | Your reverse proxy or tunnel                                                              | Must be public HTTPS and include the full provider path.                    |
+
+You need a Meta Business account, a Meta app with the WhatsApp product enabled, and a WhatsApp
+Business phone number. Start in the [Meta app dashboard](https://developers.facebook.com/apps/).
+
+Before configuring Meta, prove that the locally built provider is installed and visible in the
+daemon catalog:
+
+```bash
+PROVIDER=whatsapp
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
+
+## Step 1: Create the Meta app and collect credentials
+
+1. In the Meta app dashboard, select **Create app** and choose the WhatsApp business use case.
+2. Link or create a business portfolio and WhatsApp Business Account.
+3. Open **WhatsApp → API Setup** and add or select the sending phone number.
+4. Copy the **Phone Number ID** from below the number selector.
+5. Generate an access token for initial testing.
+6. Open **App settings → Basic** and reveal the **App secret**.
+
+For a long-running deployment, replace the temporary dashboard token with a System User token that
+has access to the app and WhatsApp Business Account. Follow Meta's current
+[Cloud API getting-started guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started)
+for business verification, permissions, and token lifecycle.
+
+### Choose a testing or production access token
+
+The token shown in API Setup is useful for a first test but may be temporary. For a long-lived bridge,
+use a dedicated System User, assign the app and WhatsApp Business Account assets it needs, and
+generate a token that can read the configured Phone Number ID and send WhatsApp messages. Record who
+owns that System User and how its token will be rotated.
+
+Do not move a temporary token into production and rely on restart behavior to hide its expiry. The
+disabled `provider.identity` check reads the configured Phone Number ID with the bound token; run it
+again after every token change.
+
+## Step 2: Expose the provider listener
+
+Meta sends a GET challenge and signed POST events to the same public URL:
+
+```text
+Meta → https://bridge.example.com/whatsapp/support
+     → reverse proxy or tunnel
+     → http://127.0.0.1:18086/whatsapp/support
+```
+
+The guided wizard asks for the public URL and path, but not the listener address. Before the provider
+starts, choose one of these configurations:
+
+- set `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR=127.0.0.1:18086` in the daemon service environment; or
+- in strict JSON setup, include `webhook.listen_addr` inside `provider_config` as shown below.
+
+If the daemon was already started without the environment variable, changing your interactive shell
+does not change its environment. Update the service and restart the daemon before enabling the bridge.
+
+## Step 3: Run the wizard
+
+Interactive setup prompts for the workspace, callback, Phone Number ID, and secrets:
+
+```bash
+agh bridge setup whatsapp
+```
+
+For automation, send exactly one strict JSON object. This example is self-contained because it also
+sets the local listener:
+
+```bash
+agh bridge setup whatsapp --json <<'JSON'
+{
+  "scope": "workspace",
+  "workspace_id": "ws_8f33a913d23c4fd1",
+  "display_name": "WhatsApp support",
+  "webhook_public_url": "https://bridge.example.com/whatsapp/support",
+  "webhook_path": "/whatsapp/support",
+  "provider_config": {
+    "webhook": {"listen_addr": "127.0.0.1:18086"}
+  },
+  "phone_number_id": "123456789012345",
+  "access_token": "EAA...",
+  "app_secret": "0123456789abcdef0123456789abcdef",
+  "verify_token": "value-from-your-secret-manager"
+}
+JSON
+```
+
+The input rejects unknown fields and trailing objects. If `verify_token` is omitted, AGH can generate
+one only when you explicitly request one-run disclosure:
+
+```bash
+agh bridge setup whatsapp --json --reveal-generated-secrets < whatsapp-setup.json
+```
+
+That response returns only a value generated in this invocation. It never reveals supplied or
+existing credentials. Without the flag, setup stops before writing a generated value that you would
+need to paste into Meta.
+
+Copy the returned bridge ID:
+
+```bash
+BRIDGE_ID=brg_123
+```
+
+## Step 4: Configure the Meta webhook
+
+1. Open the app's WhatsApp **Configuration** page. Depending on the dashboard layout, it can appear
+   under **WhatsApp → Configuration** or inside the configured WhatsApp use case.
+2. In the Webhook section, select **Edit**.
+3. Set **Callback URL** to `provider_config.webhook.public_url` exactly.
+4. Enter the same verify token stored by setup.
+5. Select **Verify and save**. Meta sends a GET challenge; the provider returns the challenge only
+   when the token matches.
+6. Under webhook fields, select **Manage** and subscribe to `messages`.
+
+AGH does not register these settings remotely. A successful challenge proves only the GET handshake;
+signed POST traffic still depends on the app secret and `messages` subscription.
+
+### Add a development recipient
+
+While the Meta app is in development mode, add the phone numbers used for outbound testing to the
+allowed recipient list under WhatsApp API Setup. Complete Meta's verification step for each test
+number before running `send-test`. This provider-side list is separate from AGH `dm_policy`: Meta
+controls who the app can message, while AGH controls whose inbound messages reach the workspace agent.
+
+## Step 5: Restrict access before enablement
+
+An omitted or empty `dm_policy` normalizes to `open`, which admits every WhatsApp sender whose signed
+webhook passes provider authentication. Before exposing the business number, set `allowlist` or
+`pairing` on the disabled bridge. `agh bridge create` and `agh bridge update` do not currently expose
+`--dm-policy`; use the Web editor or HTTP API procedure in [Control direct-message access](./access).
+
+`allowlist` reads `provider_config.dm.allow_user_ids` and `allow_usernames`. `pairing` reads
+pre-populated `paired_user_ids` and `paired_usernames`, then falls back to the allowlist. It does not
+issue a pairing code or start an interactive approval flow.
+
+WhatsApp user IDs are phone numbers with country code and no `+`, spaces, or punctuation, for example
+`15551234567`. A username/display-name rule is more fragile than an ID rule. Keep the bridge disabled
+until `agh bridge get "$BRIDGE_ID" -o json` reports `enabled: false`, the intended policy, and the
+intended lists.
+
+`dm_policy` governs inbound direct messages only. Meta's development-recipient list and messaging
+window remain separate provider controls for outbound delivery.
+
+## Step 6: Verify the disabled bridge
+
+```bash
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+Expected evidence:
+
+- `provider.identity` passes when the access token can read the configured Phone Number ID;
+- app-secret and verify-token checks confirm that both bindings exist;
+- webhook reachability is `skipped` while the bridge is disabled.
+
+The identity check does not simulate a signed webhook POST. Meta's own **Verify and save** flow and a
+real inbound message are separate checkpoints.
+
+## Step 7: Enable and test the full loop
+
+```bash
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+The enabled verification sends a reachability probe to the public URL. Then send a WhatsApp message
+from an allowed phone to the business number and confirm AGH creates a route:
+
+```bash
+agh bridge routes "$BRIDGE_ID" -o json
+```
+
+Finally, make a real outbound delivery:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH WhatsApp connection check" \
+  --peer-id "15551234567" \
+  --json
+```
+
+`send-test` calls Meta. `agh bridge test-delivery` only validates the target and sends nothing.
+
+## Configuration reference
+
+| Field                                   | Default / fallback                | Purpose                                                                         |
+| --------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
+| `api_version`                           | `v21.0`                           | Graph API version used by the in-tree provider.                                 |
+| `phone_number_id`                       | none                              | Required Meta Phone Number ID used for inbound ownership and outbound requests. |
+| `webhook.public_url`                    | none                              | Full public HTTPS callback used in Meta and AGH verification.                   |
+| `webhook.listen_addr`                   | `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR` | Local listener; one address per provider process.                               |
+| `webhook.path`                          | `/whatsapp/<bridge-id>`           | Local callback path.                                                            |
+| `dm.allow_user_ids` / `paired_user_ids` | empty                             | WhatsApp user IDs used by `allowlist` or `pairing` policy.                      |
+| `batching.delay_ms`                     | `0`                               | Batches inbound messages when positive.                                         |
+| `batching.split_delay_ms`               | `delay_ms`                        | Delay after the configured split threshold.                                     |
+| `batching.split_threshold`              | `0`                               | Split threshold for inbound batching.                                           |
+
+`access_token`, `app_secret`, and `verify_token` are required secret bindings. The Graph API base URL
+is operator-owned process configuration, never mutable `provider_config`.
+
+## Known limits
+
+- The provider sends outbound text only; it does not upload outbound media.
+- It does not edit or delete WhatsApp messages.
+- Group routing is not implemented; inbound events map to direct-message peers.
+- Media events preserve provider attachment references and descriptive text. They do not imply local
+  media download, OCR, vision, or transcription.
+- Delivery outside Meta's allowed business-messaging window can be rejected by the Cloud API. AGH
+  does not turn free-form text into an approved template automatically.
+
+## Troubleshooting
+
+| Symptom                                       | What to check                                                                                                                          |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Wizard says the Phone Number ID is invalid    | Copy the 15–17 digit ID below Meta's **From** selector, not the visible phone number.                                                  |
+| Meta says the callback could not be validated | Start the listener, confirm the proxy path, and make sure Meta's verify token matches the AGH binding exactly.                         |
+| `provider.identity` fails                     | The access token is expired, revoked, missing access to the phone number, or paired with the wrong Phone Number ID.                    |
+| GET verification works but signed POSTs fail  | The `app_secret` binding must come from the same Meta app that sends the webhook. Do not use the verify token as the app secret.       |
+| No inbound messages arrive after verification | Subscribe the webhook to the `messages` field and confirm the sending number belongs to the configured Phone Number ID.                |
+| Bridge degrades with a listener error         | Set `webhook.listen_addr` or `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR` in the daemon environment, then restart.                                |
+| Send-test returns a Graph error               | Confirm the recipient is allowed by Meta for the app's current mode, the access token is valid, and the peer ID has country code only. |
+| Progress creates too many messages            | Keep progress off, or use `tool_progress: "new"` with `grouping: "separate"`.                                                          |
+
+## Security notes
+
+- Store a production token with the smallest Meta asset access that still permits messaging.
+- Keep `app_secret` and `verify_token` distinct and rotate both if either leaks.
+- Use a stable HTTPS endpoint and do not forward unrelated paths to the provider listener.
+- Configure DM policy before enablement; a public business number with `open` policy can route any
+  accepted sender into the workspace agent.
+
+## Rotate the access token
+
+1. Create the replacement token and confirm it can access the configured Phone Number ID.
+2. Disable the bridge.
+3. Replace the `access_token` binding.
+4. Enable the bridge and run `verify`.
+5. Receive one real inbound message and run `send-test` to an allowed target.
+6. Revoke the old token only after both directions pass.
+
+```bash
+agh bridge disable "$BRIDGE_ID"
+
+printf '%s' "$NEW_WHATSAPP_ACCESS_TOKEN" | agh bridge secret-bindings put "$BRIDGE_ID" access_token \
+  --secret-ref "vault:bridges/$BRIDGE_ID/access_token" \
+  --kind token \
+  --secret-value-stdin
+
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+The guided wizard uses hidden input for initial setup. Generic rotation reads the value from stdin or
+a permission-restricted file and rejects inline secret arguments; see
+[Bridge operations](/runtime/core/bridges/operations#rotate-a-credential).
+
+## Completion checklist
+
+- The WhatsApp extension is installed, enabled, and healthy in the provider catalog.
+- The Phone Number ID is the Meta resource ID, not the visible phone number.
+- The selected access token passes `provider.identity`.
+- Meta accepts the verification challenge and subscribes the `messages` field.
+- Signed POSTs validate with the bound app secret.
+- The bridge reports the intended `dm_policy` and sender lists before enablement.
+- A permitted sender creates a route in the intended AGH workspace.
+- A real outbound test reaches a Meta-approved recipient and returns a `wamid`.
+- The free-form messaging window and lack of template sending are understood.
+- The bridge returns to `ready` after one restart.
+
+## Related docs
+
+- [Bridge setup](/runtime/core/bridges/setup)
+- [Control direct-message access](./access)
+- [Operate and repair bridges](/runtime/core/bridges/operations)
+- [Message routing](/runtime/core/bridges/routing)
+- [Tool progress](/runtime/core/bridges/progress)
+- [Bridge CLI reference](/runtime/cli-reference/bridge)

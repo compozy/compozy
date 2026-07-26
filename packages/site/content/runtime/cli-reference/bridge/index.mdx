@@ -1,0 +1,51 @@
+---
+title: "agh bridge"
+description: "Manage bridge instances"
+---
+
+## agh bridge
+
+Manage bridge instances
+
+### Options
+
+```
+  -h, --help   help for bridge
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                     | Description                                                      |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [agh bridge create](/runtime/cli-reference/bridge/create)                   | Create a bridge instance                                         |
+| [agh bridge disable](/runtime/cli-reference/bridge/disable)                 | Disable a bridge instance                                        |
+| [agh bridge enable](/runtime/cli-reference/bridge/enable)                   | Enable a bridge instance                                         |
+| [agh bridge get](/runtime/cli-reference/bridge/get)                         | Show one bridge instance                                         |
+| [agh bridge list](/runtime/cli-reference/bridge/list)                       | List bridge instances                                            |
+| [agh bridge manifest](/runtime/cli-reference/bridge/manifest)               | Generate provider setup artifacts                                |
+| [agh bridge resolve](/runtime/cli-reference/bridge/resolve)                 | Resolve a bridge target name without sending                     |
+| [agh bridge restart](/runtime/cli-reference/bridge/restart)                 | Restart a bridge instance                                        |
+| [agh bridge routes](/runtime/cli-reference/bridge/routes)                   | Inspect routes for one bridge instance                           |
+| [agh bridge secret-bindings](/runtime/cli-reference/bridge/secret-bindings) | Manage bridge secret bindings                                    |
+| [agh bridge send-test](/runtime/cli-reference/bridge/send-test)             | Send one real message through a bridge provider                  |
+| [agh bridge setup](/runtime/cli-reference/bridge/setup)                     | Configure a bridge instance and its write-only secrets           |
+| [agh bridge targets](/runtime/cli-reference/bridge/targets)                 | List discovered targets for one bridge instance                  |
+| [agh bridge test-delivery](/runtime/cli-reference/bridge/test-delivery)     | Resolve a typed outbound delivery target for one bridge instance |
+| [agh bridge update](/runtime/cli-reference/bridge/update)                   | Update mutable bridge fields                                     |
+| [agh bridge verify](/runtime/cli-reference/bridge/verify)                   | Run live provider checks for one bridge instance                 |

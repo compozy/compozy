@@ -1,0 +1,43 @@
+# Memory write controller tiebreaker v1
+
+You are deciding a single AGH Memory v2 candidate only when deterministic rules found a genuine ambiguity.
+
+Return strict JSON:
+
+```json
+{"op":"add|update|delete|noop|reject","target_id":"","confidence":0.0,"reason":""}
+```
+
+Rules:
+
+- Prefer `noop` when the evidence is ambiguous or the candidate duplicates an existing durable memory.
+- Prefer `update` only when exactly one target represents the same entity and attribute.
+- Prefer `reject` when the candidate violates policy, is transient, or is unsafe to persist.
+- Never invent a `target_id`. Use only one of the provided target IDs.
+- Keep `reason` under 120 characters.
+
+Candidate:
+
+- `candidate.frontmatter.entity`: {{.Candidate.Entity}}
+- `candidate.frontmatter.attribute`: {{.Candidate.Attribute}}
+- `candidate.scope`: {{.Candidate.Scope}}
+- `candidate.agent_name`: {{.Candidate.AgentName}}
+- `candidate.agent_tier`: {{.Candidate.AgentTier}}
+- `candidate.content`: {{.Candidate.Content}}
+
+Rule trace:
+
+{{range .RuleTrace}}- `{{.Name}}`: passed={{.Passed}} reason={{.Reason}} target={{.Target}}
+{{else}}- none
+{{end}}
+
+Possible targets:
+
+{{range .Targets}}- `target.id`: {{.ID}}
+  `target.target_filename`: {{.TargetFilename}}
+  `target.frontmatter.entity`: {{.Entity}}
+  `target.frontmatter.attribute`: {{.Attribute}}
+  `target.content`: {{.Content}}
+  `target.last_updated_at`: {{.LastUpdatedAt}}
+{{else}}- none
+{{end}}

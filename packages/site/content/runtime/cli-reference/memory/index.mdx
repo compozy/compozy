@@ -1,0 +1,55 @@
+---
+title: "agh memory"
+description: "Show, write, search, and operate Memory v2 durable context"
+---
+
+## agh memory
+
+Show, write, search, and operate Memory v2 durable context
+
+### Options
+
+```
+  -h, --help   help for memory
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                           | Description                                                 |
+| ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| [agh memory adhoc](/runtime/cli-reference/memory/adhoc)           | Inspect ad-hoc Memory v2 notes                              |
+| [agh memory daily](/runtime/cli-reference/memory/daily)           | Inspect Memory v2 daily operation logs                      |
+| [agh memory decisions](/runtime/cli-reference/memory/decisions)   | Inspect and revert Memory v2 controller decisions           |
+| [agh memory delete](/runtime/cli-reference/memory/delete)         | Delete a Memory v2 entry through the controller             |
+| [agh memory dream](/runtime/cli-reference/memory/dream)           | Operate Memory v2 dreaming runs                             |
+| [agh memory edit](/runtime/cli-reference/memory/edit)             | Edit a Memory v2 entry through the controller               |
+| [agh memory extractor](/runtime/cli-reference/memory/extractor)   | Operate Memory v2 extractor runtime                         |
+| [agh memory health](/runtime/cli-reference/memory/health)         | Show Memory v2 health                                       |
+| [agh memory history](/runtime/cli-reference/memory/history)       | Show redaction-safe Memory v2 operation history             |
+| [agh memory list](/runtime/cli-reference/memory/list)             | List Memory v2 entries                                      |
+| [agh memory promote](/runtime/cli-reference/memory/promote)       | Promote a memory entry across Memory v2 scopes              |
+| [agh memory provider](/runtime/cli-reference/memory/provider)     | Operate Memory v2 providers                                 |
+| [agh memory recall](/runtime/cli-reference/memory/recall)         | Inspect Memory v2 recall traces                             |
+| [agh memory reindex](/runtime/cli-reference/memory/reindex)       | Rebuild the derived Memory v2 search catalog                |
+| [agh memory reload](/runtime/cli-reference/memory/reload)         | Invalidate frozen memory snapshots for future session boots |
+| [agh memory reset](/runtime/cli-reference/memory/reset)           | Reset derived Memory v2 state through the daemon            |
+| [agh memory scope-show](/runtime/cli-reference/memory/scope-show) | Show resolved Memory v2 precedence for a selector           |
+| [agh memory search](/runtime/cli-reference/memory/search)         | Search deterministic Memory v2 recall                       |
+| [agh memory show](/runtime/cli-reference/memory/show)             | Show one Memory v2 entry                                    |
+| [agh memory write](/runtime/cli-reference/memory/write)           | Create a Memory v2 entry through the controller             |

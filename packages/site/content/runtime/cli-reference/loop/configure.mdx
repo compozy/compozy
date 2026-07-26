@@ -1,0 +1,44 @@
+---
+title: "agh loop configure"
+description: "Write per-loop runtime config overrides"
+---
+
+## agh loop configure
+
+Write per-loop runtime config overrides
+
+```
+agh loop configure [flags]
+```
+
+### Options
+
+```
+      --file string        Loop config YAML or JSON file
+  -h, --help               help for configure
+      --name string        Loop name
+      --set stringArray    Config field key=value (repeatable; JSON values supported)
+      --workspace string   Workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh loop configure -o json
+```

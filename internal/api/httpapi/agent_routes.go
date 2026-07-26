@@ -1,0 +1,47 @@
+package httpapi
+
+import "github.com/gin-gonic/gin"
+
+func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
+	agent := api.Group("/agent")
+	agent.GET("/me", handlers.AgentMe)
+	agent.GET("/context", handlers.AgentContext)
+	agent.GET("/soul", handlers.AgentSoul)
+	agent.POST("/soul/validate", handlers.ValidateAgentSoul)
+	agent.GET("/coordinator/config", handlers.AgentCoordinatorRole)
+	agent.POST("/spawn", handlers.AgentSpawn)
+	agent.GET("/channels", handlers.AgentChannels)
+	agent.GET("/channels/:channel/recv", handlers.AgentChannelRecv)
+	agent.POST("/channels/:channel/send", handlers.AgentChannelSend)
+	agent.POST("/channels/reply", handlers.AgentChannelReply)
+
+	agentTasks := agent.Group("/tasks")
+	agentTasks.POST("/claim-next", handlers.AgentTaskClaimNext)
+	agentTasks.POST("/:run_id/heartbeat", handlers.AgentTaskHeartbeat)
+	agentTasks.POST("/:run_id/complete", handlers.AgentTaskComplete)
+	agentTasks.POST("/:run_id/fail", handlers.AgentTaskFail)
+	agentTasks.POST("/:run_id/release", handlers.AgentTaskRelease)
+
+	agents := api.Group("/agents")
+	agents.GET("", handlers.ListAgents)
+	agents.GET("/catalog", handlers.ListAgentCatalog)
+	agents.POST("", handlers.CreateAgent)
+	agents.PUT("/:name", handlers.UpdateAgent)
+	agents.DELETE("/:name", handlers.DeleteAgent)
+	agents.POST("/:name/duplicate", handlers.DuplicateAgent)
+	agents.GET("/:name/soul", handlers.GetAgentSoul)
+	agents.POST("/:name/soul/validate", handlers.ValidateAgentSoulDefinition)
+	agents.PUT("/:name/soul", handlers.PutAgentSoul)
+	agents.DELETE("/:name/soul", handlers.DeleteAgentSoul)
+	agents.GET("/:name/soul/history", handlers.ListAgentSoulHistory)
+	agents.POST("/:name/soul/rollback", handlers.RollbackAgentSoul)
+	agents.GET("/:name/heartbeat", handlers.GetAgentHeartbeat)
+	agents.POST("/:name/heartbeat/validate", handlers.ValidateAgentHeartbeat)
+	agents.PUT("/:name/heartbeat", handlers.PutAgentHeartbeat)
+	agents.DELETE("/:name/heartbeat", handlers.DeleteAgentHeartbeat)
+	agents.GET("/:name/heartbeat/history", handlers.ListAgentHeartbeatHistory)
+	agents.POST("/:name/heartbeat/rollback", handlers.RollbackAgentHeartbeat)
+	agents.GET("/:name/heartbeat/status", handlers.GetAgentHeartbeatStatus)
+	agents.POST("/:name/heartbeat/wake", handlers.WakeAgentHeartbeat)
+	agents.GET("/:name", handlers.GetAgent)
+}

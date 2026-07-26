@@ -1,0 +1,157 @@
+---
+title: "Detached lifetime: how AGH keeps agent work running after the HTTP request closes"
+description: "An agent runtime that ties execution to the request that started it can never host real work. AGH detaches execution from request lifetime using context.WithoutCancel, with one owner per goroutine and explicit cancel verbs."
+date: 2026-05-20
+category: runtime
+tags:
+  - runtime
+  - architecture
+  - concurrency
+  - go
+  - context
+author: pedronauck
+archetype:
+  primary: ai-agent
+  absorbed: launch
+  hybrid-note: "AI/agent post in architecture register; design pattern, not incident retrospective"
+audience: peer-engineer-deep
+depth:
+  opening: R1
+  body: R3-R4 yo-yo
+  closing: R2
+  traversal: yo-yo
+status: publishable
+---
+
+The agent stops streaming mid-tool-call. Refresh the tab and the work is gone — not paused, gone. The model already decided to run the tool. The tool already opened a subprocess. The subprocess is still writing to disk. But the goroutine that was going to read its output, persist the result, and emit the next event has been cancelled — because the browser that triggered the prompt navigated away.
+
+Nothing in the agent is broken. The agent never got a chance to finish.
+
+This is the shape every web-bound agent runtime ships with first: the HTTP request that opens a prompt is also the context that cancels it. When the client disconnects, the context fires `Done`, the cancel propagates down through every `select { case <-ctx.Done(): return }` the engineer wrote in good faith, and the entire conversation collapses. Tabs are cheap; agent turns are not. AGH refuses this coupling. The HTTP handler in `internal/api/httpapi/prompt.go` derives the prompt's execution context with `context.WithoutCancel`, so the work outlives the request that started it. The writer loop streams to whoever is listening; the executor keeps going whether or not anyone is.
+
+The rest of this post is about why that distinction is load-bearing for agent runtimes, what AGH does to make it real, and the four rules that follow once the lifetime split is taken seriously.
+
+## Why request context is the wrong cancellation parent
+
+A request and a turn are different units of work. An HTTP request lasts as long as the client keeps the socket open: seconds at most for chat, often much less. A prompt turn lasts as long as the model takes to decide it is done — tool calls, retries, model thinking time, subprocess waits, network sends. Tying them together is a category error. It assumes the client owns the work, when in fact the daemon owns it; the client is one of several views onto it.
+
+The first time the assumption breaks is dramatic — a closed tab kills a 90-second tool call mid-execution — but the subtler failures are worse. Browser navigation issues a transport abort that closes the response stream; the default Go HTTP stack propagates that abort to the request's context; every downstream goroutine reads `ctx.Done()` and shuts itself down. The agent never sees an error. It sees what it has been told is a normal cancellation, and it cleans up. From the outside, this looks like the agent quietly losing its place. From inside the runtime, it looks like the system doing exactly what its lifetime graph said to do.
+
+The fix is not "handle the cancel more carefully." The fix is to stop treating the request as the parent.
+
+## Detaching with `context.WithoutCancel`
+
+`context.WithoutCancel` is the Go primitive that severs cancellation from a context while preserving everything else — values, instrumentation, request IDs. Calling it returns a context that ignores its parent's `Done` channel. Deadlines vanish too; the standing directive in `internal/CLAUDE.md` flags this as a footgun and requires re-attaching one when the work has a real time budget.
+
+AGH applies the primitive at the boundary between the HTTP layer and the session layer:
+
+```go
+// internal/api/httpapi/prompt.go
+func (h *Handlers) promptSession(c *gin.Context) {
+    // ... validation, lookup ...
+    promptCtx, cancelPrompt := context.WithCancel(
+        context.WithoutCancel(c.Request.Context()),
+    )
+    // ...
+    events, err := h.Sessions.Prompt(promptCtx, sessionID, message)
+    // ...
+    for {
+        select {
+        case <-c.Request.Context().Done():
+            h.drainPromptEventsAsync(c.Request.Context(), events, cancelOnReturn)
+            cancelOnReturn = nil
+            return
+        // ... event delivery ...
+        }
+    }
+}
+```
+
+Two contexts live in the same handler. `c.Request.Context()` belongs to the HTTP request — it cancels when the client disconnects, and it governs the writer loop's appetite for emitting events. `promptCtx` is the detached one — it inherits the request's values but ignores its cancellation. The session manager runs the prompt under `promptCtx`. When the client goes away, the writer's `select` fires, the loop returns, and the prompt keeps executing. The drain goroutine consumes whatever events the executor still emits, so no channel deadlocks behind a closed reader.
+
+The reading: the line where the contexts diverge is the line where the agent stops being a request handler and starts being a job.
+
+## One goroutine, one owner
+
+Detached lifetime makes a different problem urgent. A goroutine that ignores its parent's cancel is also a goroutine that will not stop on its own. Fire-and-forget detachment is how runtimes leak. The runtime needs an explicit supervisor or it ships with a slow OOM.
+
+AGH's session manager solves this by giving every prompt turn its own execution context, wired into a fallback lifecycle context the manager owns and cancels on shutdown:
+
+```go
+// internal/session/manager_prompt.go
+func (m *Manager) promptExecutionContext(
+    ctx context.Context,
+) (context.Context, context.CancelFunc) {
+    var base context.Context
+    if ctx != nil {
+        base = context.WithoutCancel(ctx)
+    }
+    if base == nil {
+        base = m.fallbackLifecycleContext()
+    }
+    executionCtx, cancel := context.WithCancel(base)
+    lifecycleStop := context.AfterFunc(m.fallbackLifecycleContext(), cancel)
+    return executionCtx, func() {
+        lifecycleStop()
+        cancel()
+    }
+}
+```
+
+The execution context has three cancellation paths. The handler can call `cancelPromptExecution` directly. The manager's fallback lifecycle context fires on daemon shutdown via `context.AfterFunc`. The cancel endpoint can reach the same handle through the session's stored cancel function. The returned `CancelFunc` releases the `AfterFunc` registration when the turn ends normally — without that release, every completed prompt would leak a registration on the lifecycle context.
+
+The rule the code enforces: every goroutine the session manager spawns is tracked by a manager-owned `sync.WaitGroup` and joined during shutdown. The `agh-code-guidelines` skill states it explicitly — _"No fire-and-forget goroutines. Track with `sync.WaitGroup` (or equivalent owner-side primitive) and join on shutdown."_ `internal/CLAUDE.md` adds the architectural form: _"Goroutines spawned by `internal/session/manager\__.go` MUST be tracked by Manager-owned WaitGroup and joined in Manager shutdown."\*
+
+The combination — detached lifetime _plus_ explicit supervisor — is what makes the pattern safe. Detachment without supervision is leaking. Supervision without detachment is request-bound execution dressed up.
+
+## Three places AGH applies the same shape
+
+The pattern is not a one-off in the prompt path. It recurs across every surface where work outlives the trigger that started it.
+
+- **Prompts.** The HTTP and UDS prompt handlers in `internal/api/httpapi/prompt.go` and `internal/api/udsapi/prompt.go` both derive their execution context with `context.WithoutCancel`. When the operator closes the web tab or the CLI process exits, the daemon keeps streaming events into the session's event store. A reconnecting client picks up from `after_seq` and replays.
+
+- **AGH Network channel sends.** Outbound sends on `agh-network/v0` channels detach the same way. A peer-to-peer envelope can take longer than any single request that triggered it; tying the send to the request would corrupt the receipt path. The daemon owns the send; the request owns the acknowledgement that the send was queued.
+
+- **Automation jobs.** `internal/automation/manager.go` runs scheduled triggers, webhooks, and cron dispatches under a runtime context derived from `context.WithoutCancel(ctx)`. The automation runtime has its own cancel signal — the configuration changes, the trigger is deleted, the daemon stops. None of those reasons should be tangled with whatever request set up the trigger.
+
+Three different surfaces, one pattern: the work is owned by the daemon, not by the requester.
+
+## Explicit cancel verbs are the user contract
+
+If the request can no longer cancel the work, something else has to. The operator needs a way to stop a running prompt, and that way has to be a named verb — not a closed tab, not a transport abort, not a hopeful expectation that disconnect-means-stop.
+
+AGH ships that verb. The route lives at:
+
+```text
+POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel
+```
+
+The handler is six lines (`internal/api/httpapi/sessions.go:52`): require the session, call `Sessions.CancelPrompt(ctx, sessionID)`, return 200. The session manager's `CancelPrompt` in `internal/session/manager_prompt.go` looks up the live session, calls the stored cancel handle (`session.cancelCurrentPrompt()`), then asks the driver to interrupt the underlying ACP subprocess and any scoped tool calls in flight. Idempotent: cancelling an already-finished prompt returns nil.
+
+The same verb exists on the UDS surface for CLI parity. `agh session cancel <id>` is the operator path; the HTTP route is the web path; both end at the same `Manager.CancelPrompt`. The standing directive on supervision codifies the rule: _"`CancelPrompt`, session stop, and timeout collapse into ONE idempotent cancellation path."_
+
+Transport-level aborts are a fact about the wire, not about the work. A WebSocket dropping, a TCP reset, a refresh, a `curl` aborted with Ctrl-C — none of them carry intent. They carry network state. An agent runtime that conflates network state with operator intent has built a coordination layer on top of accident. Named cancel verbs make intent legible. They also make it auditable: every cancellation appears in the event store with `actor_id`, `release_reason`, and `claim_token_hash` populated, so an operator (or a peer agent) can answer the question "who stopped this turn?" later.
+
+## What this implies for any agent runtime
+
+Detached lifetime is not an AGH idiosyncrasy. It is the consequence of taking three observations seriously at the same time.
+
+The agent is the thing doing the work. The request is the thing asking for it. Conflating the two is the same category error as treating a database query as the same thing as the JDBC connection that issued it.
+
+Tool calls are slow and side-effecting. A tool that writes a file, sends a message, or charges a card cannot be cancelled the way a SELECT can be cancelled. Cancelling the parent context can leave the side effect half-done. Detached execution at least makes the inconsistency loud — the work is still going, the operator can see it, and a named cancel verb lets the operator decide whether to roll it back.
+
+Multiple surfaces watch the same work. AGH exposes a prompt's events through HTTP/SSE for the web UI, through UDS for the CLI, and through the network protocol for peer agents. If any one watcher could cancel the work by leaving, the others would live in a runtime where their view of progress was decided by someone else's network. The daemon has to be the owner. Watchers are watchers.
+
+## Four rules to take with you
+
+The pattern decomposes into four rules. They are load-bearing, and they are short.
+
+1. **The executor and the writer are not the same goroutine.** Derive the executor's context from `context.WithoutCancel`. Bind the writer loop to the request context. When the client leaves, the writer dies and the executor does not notice.
+
+2. **Every detached goroutine has one owner with a known stop signal.** Track it in a `sync.WaitGroup` the owner controls. Wire it to a lifecycle context the owner cancels on shutdown. Use `context.AfterFunc` to register cancel propagation without spawning supervisor goroutines.
+
+3. **`context.WithoutCancel` discards deadlines.** Re-attach a timeout when the work has a real time budget. The drain path in `prompt.go` does this explicitly with a 30-second `detachedPromptDrainTimeout` so leftover events do not hold the manager open forever.
+
+4. **Cancellation is a verb, not a side effect.** Expose explicit cancel endpoints with their own routes, their own audit trail, and their own idempotency guarantees. Transport-level aborts are not operator intent; named verbs are.
+
+A runtime that follows the four rules can host work whose lifetime is the daemon's, not the request's. That is the shape an agent operating system needs. AGH ships it today.

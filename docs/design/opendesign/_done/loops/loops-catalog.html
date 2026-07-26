@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Loops · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    --focus-ring-inset:inset 0 0 0 1px var(--line-strong);
+    --size-catalog-logo:24px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  /* JetBrains Mono: reset inherited Inter features + restore subpixel AA (tokens.css contract). */
+  code,kbd,pre,.topbar__count,.count-chip,.group__count,.listing-row__slug,.listing-row__meta .k,
+  .catalog-card__facts .k,.mono-slug,.bindbadge,.listing-row__stat-v,.filter-chip__val--input{
+    -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
+  :is(.btn,.runbtn,.pill-group__item,.head-close,.filter-menu__item,.filter-chip__op,.filter-chip__val,.filter-chip__x):focus-visible{
+    outline:none;box-shadow:var(--focus-ring)}
+  a.listing-row:focus-visible,a.catalog-card:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+  /* topbar — Bridges/Vault shell: icon + title + count | actions */
+  .topbar{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas);min-width:0;overflow:hidden}
+  .topbar__title{display:flex;align-items:center;gap:8px;min-width:0}
+  .topbar__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent)}
+  .topbar__icon svg{width:12px;height:12px}
+  .topbar__h1{font-size:14px;font-weight:500;letter-spacing:-.014em;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar__count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 6px;border-radius:var(--radius-xs);background:var(--canvas-soft);font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+  .topbar__trailing{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+
+  /* SearchInput — packages/ui: 26px row, min 220px, before Filters */
+  .search{display:flex;align-items:center;gap:8px;height:26px;min-width:220px;width:220px;padding:0 8px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--canvas-soft);color:var(--fg);font-size:13px;flex:none}
+  .search svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-size:13px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .search .kbd{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;line-height:1;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 4px;flex:none;background:var(--canvas-soft)}
+  .search:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+
+  /* Button — packages/ui buttonVariants: h26 · 12/500 · tracking eyebrow · radius-md */
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+  .head{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px}
+  .head__main{min-width:0}
+  .head__titlerow{display:flex;align-items:center;gap:10px}
+  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong)}
+  .count-chip{display:inline-flex;align-items:center;min-height:19px;padding:1px 6px;border-radius:var(--radius-xs);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:11px;font-weight:500;
+    color:var(--faint);font-variant-numeric:tabular-nums}
+  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+
+  /* listing toolbar — SearchInput + Filters | PillGroup */
+  .listing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+  .listing-toolbar__leading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1;min-width:0}
+  .listing-toolbar__trailing{display:flex;align-items:center;gap:10px;margin-left:auto;flex:none}
+
+  /* filters — packages/ui reui Filters (vault-redesign pattern) */
+  .filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;position:relative}
+  .filter-add{position:relative}
+  .filter-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;width:220px;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .filter-menu__search{width:100%;height:32px;padding:0 10px;border:0;border-bottom:1px solid var(--line-soft);border-radius:0;background:transparent;color:var(--fg);font-size:12.5px;outline:none;margin-bottom:4px}
+  .filter-menu__search::placeholder{color:var(--faint)}
+  .filter-menu__item{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 8px;border:0;border-radius:var(--radius);background:transparent;color:var(--fg);font-size:12.5px;cursor:pointer;text-align:left}
+  .filter-menu__item:hover,.filter-menu__item:focus{background:var(--row-hover);outline:none}
+  .filter-menu__item svg{width:12px;height:12px;color:var(--muted);flex:none}
+  .filter-menu__empty{padding:10px 8px;font-size:12px;color:var(--subtle)}
+  .filter-menu__sep{height:1px;background:var(--line-soft);margin:4px 0}
+  .filter-submenu{position:absolute;top:0;left:calc(100% + 4px);z-index:31;width:200px;max-height:260px;overflow:auto;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .filter-chip{display:inline-flex;align-items:stretch;width:fit-content;border-radius:var(--radius);overflow:hidden}
+  .filter-chip > *{border:1px solid var(--line);background:var(--canvas);color:var(--fg);font-size:11px;line-height:1;display:inline-flex;align-items:center;height:22px;padding:0 8px;margin:0}
+  .filter-chip > * + *{border-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
+  .filter-chip > *:first-child{border-radius:var(--radius) 0 0 var(--radius);background:var(--canvas);color:var(--fg);gap:6px}
+  .filter-chip > *:last-child{border-radius:0 var(--radius) var(--radius) 0}
+  .filter-chip__label{font-weight:500}
+  .filter-chip__op{color:var(--muted);background:transparent;cursor:pointer;font-family:inherit}
+  .filter-chip__op:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .filter-chip__val{background:transparent;cursor:pointer;font-family:inherit;max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .filter-chip__val:hover{background:var(--row-hover)}
+  .filter-chip__val--input{width:9rem;padding:0 8px;font-family:var(--font-mono);font-size:12px;outline:none;color:var(--fg);cursor:text}
+  .filter-chip__val--input::placeholder{color:var(--faint)}
+  .filter-chip__x{width:22px;padding:0;justify-content:center;cursor:pointer;color:var(--muted);background:transparent}
+  .filter-chip__x:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .filter-chip__x svg{width:12px;height:12px}
+  .filter-op-menu{position:absolute;z-index:32;min-width:140px;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+
+  /* PillGroup — packages/ui: borderless track p2/gap1, radius-xs segments, md 24px */
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;cursor:pointer;transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item svg{width:12px;height:12px}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+
+  /* groups + rows — group label is the Eyebrow contract + bare mono count */
+  .group{margin-top:22px}
+  .group:first-of-type{margin-top:0}
+  .group__label{display:flex;align-items:center;gap:8px;padding:0 2px 8px;font-size:11px;font-weight:600;letter-spacing:-.005em;
+    color:var(--subtle);text-transform:uppercase}
+  .group__count{font-family:var(--font-mono);font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;
+    color:var(--faint);font-variant-numeric:tabular-nums}
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .listing-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:14px 16px;
+    border-bottom:1px solid var(--line-soft);cursor:pointer;transition:background var(--dur) var(--ease);color:inherit}
+  .listing-row:last-child{border-bottom:0}
+  .listing-row:hover{background:var(--row-hover)}
+  .listing-row__icon{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-row__icon svg{width:17px;height:17px}
+  .listing-row__main{min-width:0}
+  .listing-row__name{display:flex;align-items:center;gap:8px;min-width:0}
+  .listing-row__name b{font-size:14px;font-weight:500;color:var(--fg-strong);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* kind tag — packages/ui Pill xs sans neutral (no uppercase mono badges) */
+  .tag{display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;background:var(--neutral-tint);color:var(--muted);flex:none}
+  .listing-row__slug{font-family:var(--font-mono);font-size:11px;color:var(--faint);white-space:nowrap;flex:none}
+  .listing-row__desc{margin-top:3px;font-size:12.5px;line-height:1.45;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__meta{margin-top:5px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--faint);flex-wrap:wrap}
+  .listing-row__meta .k{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .bindbadge{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:1px 6px}
+  .bindbadge svg{width:10px;height:10px;color:var(--faint);flex:none}
+  .listing-row__trail{display:flex;align-items:center;gap:18px;flex:none}
+  .listing-row__cat{font-size:12px;color:var(--subtle);width:96px;text-align:right}
+  .listing-row__stat{display:flex;flex-direction:column;align-items:flex-end;gap:2px;width:80px}
+  .listing-row__stat-v{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
+  .listing-row__stat-l{font-size:10px;color:var(--faint)}
+  .runbtn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;background:var(--btn-fill);border:1px solid var(--line);color:var(--fg);cursor:pointer;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .runbtn svg{width:11px;height:11px}
+  .runbtn:hover{background:var(--accent);border-color:transparent;color:var(--accent-ink)}
+
+  /* cards — CatalogCard compound */
+  .listing-card-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:12px}
+  @media(min-width:640px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(min-width:1280px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  /* CatalogCard — borderless flat surface; hover elevates bg only */
+  .catalog-card{display:flex;flex-direction:column;gap:12px;min-width:0;padding:16px;border-radius:var(--radius-lg);
+    background:var(--canvas-soft);color:inherit;cursor:pointer;
+    transition:background var(--dur) var(--ease)}
+  .catalog-card:hover{background:var(--elevated)}
+  .catalog-card__head{display:flex;align-items:flex-start;gap:12px;min-width:0}
+  .catalog-card__logo{width:var(--size-catalog-logo);height:var(--size-catalog-logo);border-radius:var(--radius);background:var(--surface-glaze);
+    color:var(--muted);display:grid;place-items:center;flex:none}
+  .catalog-card__logo svg{width:14px;height:14px}
+  .catalog-card__title-wrap{min-width:0;flex:1}
+  .catalog-card__title{font-size:13px;font-weight:500;color:var(--fg-strong);letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* CatalogCard.Meta — Eyebrow contract, text-subtle; ids stay mono-id (no uppercase) */
+  .catalog-card__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;font-size:11px;font-weight:600;
+    letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .catalog-card__meta .mono-slug{font-family:var(--font-mono);font-size:10.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--faint)}
+  .catalog-card__desc{font-size:13px;line-height:1.5;color:var(--muted);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .catalog-card__facts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:var(--faint)}
+  .catalog-card__facts .k{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .catalog-card__actions{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding-top:12px;border-top:1px solid var(--line)}
+  .catalog-card__actions .listing-row__stat{width:auto;align-items:flex-start}
+  .catalog-card__actions .runbtn{margin-left:auto}
+
+  /* status pills — packages/ui Pill sans sm: 19px · 11/500 · tracking eyebrow */
+  .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;width:max-content}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .pill--queued{background:var(--info-tint);color:var(--info)}
+  .pill--running{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill--watching{background:var(--info-tint);color:var(--info)}
+  .pill--needs-approval{background:var(--warning-tint);color:var(--warning)}
+  .pill--paused{background:var(--neutral-tint);color:var(--muted)}
+  .pill--done{background:var(--success-tint);color:var(--success)}
+  .pill--no_op{background:var(--neutral-tint);color:var(--muted)}
+  .pill--blocked{background:var(--warning-tint);color:var(--warning)}
+  .pill--failed{background:var(--danger-tint);color:var(--danger)}
+  .pill--exhausted{background:var(--warning-tint);color:var(--warning)}
+  .pill--stalled{background:var(--neutral-tint);color:var(--muted)}
+  .pill .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 34%,transparent)}55%{box-shadow:0 0 0 4px transparent}}
+
+  /* Empty — packages/ui <Empty>: flat centered state, 38px icon well, no dashed frame */
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 24px;
+    border-radius:var(--radius-lg);text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle)}
+  .empty b{font-size:18px;font-weight:500;color:var(--fg-strong);letter-spacing:-.022em}
+  .empty p{font-size:13px;max-width:28rem;line-height:1.6;color:var(--muted)}
+  .empty .btn{margin-top:4px}
+
+  /* Reduced motion — global guard (tokens.css contract; 0.001ms keeps animation callbacks). */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+
+  @media(max-width:920px){
+    .listing-row__trail{gap:12px}
+    .listing-row__cat{display:none}
+    .listing-row__stat{width:auto}
+    .page{padding:22px 18px 64px}
+    .search{min-width:140px;width:160px}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <header class="topbar" data-od-id="catalog-topbar" data-slot="topbar">
+      <div class="topbar__title" data-slot="topbar-title">
+        <span class="topbar__icon" data-slot="topbar-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </span>
+        <h1 class="topbar__h1" data-testid="topbar-title-text">Loops</h1>
+        <span class="topbar__count" data-slot="topbar-count" id="topbar-count">2</span>
+      </div>
+      <div class="topbar__trailing" data-slot="topbar-trailing">
+        <a class="btn btn--ghost btn--sm" href="runs.html" data-od-id="catalog-runs-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>Runs</a>
+        <a class="btn btn--primary btn--sm" href="loop-create.html" data-od-id="catalog-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New from template</a>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+        <div class="head" data-od-id="catalog-head">
+          <div class="head__main">
+            <div class="head__titlerow">
+              <h1 class="head__title">Loops</h1>
+              <span class="count-chip" id="head-count">2</span>
+            </div>
+            <div class="head__meta">
+              <span>Reusable, guardrailed cycles that pursue a goal until it's verified.</span>
+              <span class="dotsep"></span>
+              <span>workspace home</span>
+              <span class="dotsep"></span>
+              <span>synced 2m ago</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="listing-toolbar" data-od-id="catalog-toolbar">
+          <div class="listing-toolbar__leading">
+            <label class="search" data-od-id="catalog-search" data-slot="search-input">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <input id="search-input" type="search" placeholder="Search loops" autocomplete="off" spellcheck="false" />
+              <span class="kbd">/</span>
+            </label>
+            <div class="filters" id="filters-root" data-od-id="catalog-filters"></div>
+          </div>
+          <div class="listing-toolbar__trailing">
+            <div class="pill-group" role="group" aria-label="View mode" data-od-id="catalog-view-toggle">
+              <button type="button" class="pill-group__item" data-view="rows" aria-pressed="true" data-od-id="view-rows">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Rows
+              </button>
+              <button type="button" class="pill-group__item" data-view="cards" aria-pressed="false" data-od-id="view-cards">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Cards
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="list-root" data-od-id="catalog-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var ICON_CODE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+  var ICON_EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var ICON_CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  var ICON_PLAY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>';
+  var FILTER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18"/><path d="M7 12h10"/><path d="M10 19h4"/></svg>';
+  var X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+  var TEXT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M4 12h10"/><path d="M4 17h7"/></svg>';
+  var SELECT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h14"/><circle cx="18" cy="12" r="2"/></svg>';
+  var EMPTY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>';
+
+  var LOOPS = [
+    {
+      id: "software-delivery",
+      name: "software-delivery",
+      kind: "builtin",
+      category: "Engineering",
+      slug: "agh.loop/v1",
+      mode: "delivery",
+      goal: "Ship the tasks you already authored under .compozy/tasks: run them in dependency order, review to acceptance, and verify against the project's own checks.",
+      nodes: 8,
+      inputs: 5,
+      iterationCap: 50,
+      unbounded: false,
+      status: "done",
+      successRate: 92,
+      runs30d: 48,
+      tags: ["Built-in"],
+      binding: { kind: "schedule", label: "0 3 * * *" },
+      icon: "code",
+      href: "loop-detail.html",
+      activityAt: "2026-07-08T14:20:00Z"
+    },
+    {
+      id: "reviews-watch",
+      name: "reviews-watch",
+      kind: "builtin",
+      category: "Engineering",
+      slug: "watch-source",
+      mode: "watch",
+      goal: "Watch an open PR; each time CodeRabbit posts a fresh review of HEAD, fetch the unresolved threads, remediate, resolve them, and optionally push, until the PR is clean.",
+      nodes: 9,
+      inputs: 6,
+      iterationCap: 0,
+      unbounded: true,
+      status: "watching",
+      successRate: 87,
+      runs30d: 21,
+      tags: ["Built-in", "∞ cap"],
+      binding: null,
+      icon: "eye",
+      href: "loop-detail.html",
+      activityAt: "2026-07-08T15:05:00Z"
+    }
+  ];
+
+  var CATEGORIES = ["Engineering", "Operations", "Evaluation", "Content", "Design"];
+  var STATUSES = [
+    { value: "queued", label: "queued" },
+    { value: "running", label: "running" },
+    { value: "watching", label: "watching" },
+    { value: "needs-approval", label: "needs-approval" },
+    { value: "paused", label: "paused" },
+    { value: "done", label: "done" },
+    { value: "no_op", label: "no_op" },
+    { value: "blocked", label: "blocked" },
+    { value: "failed", label: "failed" },
+    { value: "exhausted", label: "exhausted" },
+    { value: "stalled", label: "stalled" }
+  ];
+
+  var FILTER_FIELDS = [
+    {
+      key: "kind",
+      label: "Kind",
+      type: "select",
+      defaultOperator: "is",
+      operators: [
+        { value: "is", label: "is" },
+        { value: "is_not", label: "is not" }
+      ],
+      options: [
+        { value: "builtin", label: "Built-in" },
+        { value: "custom", label: "Custom" }
+      ]
+    },
+    {
+      key: "category",
+      label: "Category",
+      type: "select",
+      defaultOperator: "is",
+      operators: [
+        { value: "is", label: "is" },
+        { value: "is_not", label: "is not" }
+      ],
+      options: CATEGORIES.map(function (c) { return { value: c, label: c }; })
+    },
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      defaultOperator: "is",
+      operators: [
+        { value: "is", label: "is" },
+        { value: "is_not", label: "is not" }
+      ],
+      options: STATUSES
+    },
+    {
+      key: "mode",
+      label: "Mode",
+      type: "select",
+      defaultOperator: "is",
+      operators: [
+        { value: "is", label: "is" },
+        { value: "is_not", label: "is not" }
+      ],
+      options: [
+        { value: "delivery", label: "delivery" },
+        { value: "watch", label: "watch" }
+      ]
+    },
+    {
+      key: "name",
+      label: "Name",
+      type: "text",
+      placeholder: "software-delivery",
+      defaultOperator: "contains",
+      operators: [
+        { value: "contains", label: "contains" },
+        { value: "starts_with", label: "starts with" },
+        { value: "is", label: "is exactly" }
+      ]
+    }
+  ];
+
+  var state = {
+    filters: [],
+    menuOpen: false,
+    menuQuery: "",
+    submenuField: null,
+    editingChipId: null,
+    opMenuId: null,
+    query: "",
+    view: "rows"
+  };
+
+  try {
+    var savedView = localStorage.getItem("loops-catalog:view");
+    if (savedView === "rows" || savedView === "cards") state.view = savedView;
+  } catch (_) {}
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c];
+    });
+  }
+
+  function uid() {
+    return "f_" + Math.random().toString(36).slice(2, 9);
+  }
+
+  function fieldByKey(key) {
+    return FILTER_FIELDS.find(function (f) { return f.key === key; });
+  }
+
+  function opLabel(field, op) {
+    var found = (field.operators || []).find(function (o) { return o.value === op; });
+    return found ? found.label : op;
+  }
+
+  function optionLabel(field, value) {
+    var found = (field.options || []).find(function (o) { return o.value === value; });
+    return found ? found.label : value;
+  }
+
+  function usedFields() {
+    return state.filters.map(function (f) { return f.field; });
+  }
+
+  function loopIcon(loop) {
+    return loop.icon === "eye" ? ICON_EYE : ICON_CODE;
+  }
+
+  function capLabel(loop) {
+    return loop.unbounded || loop.iterationCap === 0 ? "∞" : String(loop.iterationCap);
+  }
+
+  function matchFilter(loop, chip) {
+    var field = fieldByKey(chip.field);
+    if (!field) return true;
+    var val = (chip.values && chip.values[0]) || "";
+    if (chip.field === "kind") {
+      if (chip.operator === "is_not") return loop.kind !== val;
+      return loop.kind === val;
+    }
+    if (chip.field === "category") {
+      if (chip.operator === "is_not") return loop.category !== val;
+      return loop.category === val;
+    }
+    if (chip.field === "status") {
+      if (chip.operator === "is_not") return loop.status !== val;
+      return loop.status === val;
+    }
+    if (chip.field === "mode") {
+      if (chip.operator === "is_not") return loop.mode !== val;
+      return loop.mode === val;
+    }
+    if (chip.field === "name") {
+      if (!val) return true;
+      var name = loop.name.toLowerCase();
+      var q = val.toLowerCase();
+      if (chip.operator === "starts_with") return name.indexOf(q) === 0;
+      if (chip.operator === "is") return name === q;
+      return name.indexOf(q) !== -1;
+    }
+    return true;
+  }
+
+  function matchSearch(loop) {
+    var q = state.query.trim().toLowerCase();
+    if (!q) return true;
+    var hay = [loop.name, loop.goal, loop.category, loop.slug, loop.mode, loop.status].join(" ").toLowerCase();
+    return hay.indexOf(q) !== -1;
+  }
+
+  function filtered() {
+    return LOOPS.filter(function (loop) {
+      if (!matchSearch(loop)) return false;
+      return state.filters.every(function (chip) { return matchFilter(loop, chip); });
+    }).slice().sort(function (a, b) {
+      return (b.activityAt || "").localeCompare(a.activityAt || "");
+    });
+  }
+
+  function closeMenus() {
+    state.menuOpen = false;
+    state.menuQuery = "";
+    state.submenuField = null;
+    state.editingChipId = null;
+    state.opMenuId = null;
+  }
+
+  function setView(view) {
+    if (view !== "rows" && view !== "cards") return;
+    state.view = view;
+    try { localStorage.setItem("loops-catalog:view", view); } catch (_) {}
+    document.querySelectorAll("[data-view]").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", btn.getAttribute("data-view") === view ? "true" : "false");
+    });
+    renderList();
+  }
+
+  function renderFilters() {
+    var root = document.getElementById("filters-root");
+    var used = usedFields();
+    var html = "";
+
+    html += '<div class="filter-add">';
+    html += '<button type="button" class="btn btn--ghost btn--sm" id="filter-add-btn" aria-label="Add filter" data-od-id="catalog-filter-add">';
+    html += FILTER_ICON + " Filter</button>";
+
+    if (state.menuOpen) {
+      var q = state.menuQuery.toLowerCase();
+      html += '<div class="filter-menu" id="filter-menu" role="menu">';
+      html += '<input class="filter-menu__search" id="filter-menu-search" type="text" placeholder="Filter..." value="' + esc(state.menuQuery) + '" autocomplete="off" spellcheck="false" />';
+      html += '<div class="filter-menu__sep"></div>';
+      var shown = 0;
+      FILTER_FIELDS.forEach(function (field) {
+        if (used.indexOf(field.key) !== -1) return;
+        if (q && field.label.toLowerCase().indexOf(q) === -1) return;
+        shown++;
+        var icon = field.type === "text" ? TEXT_ICON : SELECT_ICON;
+        html += '<button type="button" class="filter-menu__item" data-add-field="' + field.key + '" role="menuitem">';
+        html += icon + esc(field.label) + "</button>";
+      });
+      if (!shown) html += '<div class="filter-menu__empty">No filters found.</div>';
+      html += "</div>";
+
+      if (state.submenuField) {
+        var sub = fieldByKey(state.submenuField);
+        if (sub && sub.type === "select") {
+          html += '<div class="filter-submenu" id="filter-submenu">';
+          sub.options.forEach(function (opt) {
+            html += '<button type="button" class="filter-menu__item" data-pick-value="' + esc(opt.value) + '">' + esc(opt.label) + "</button>";
+          });
+          html += "</div>";
+        }
+      }
+    }
+    html += "</div>";
+
+    state.filters.forEach(function (chip) {
+      var field = fieldByKey(chip.field);
+      if (!field) return;
+      var val = (chip.values && chip.values[0]) || "";
+      var display = field.type === "select" ? optionLabel(field, val) : val;
+      html += '<div class="filter-chip" data-chip-id="' + chip.id + '" role="group">';
+      html += '<span class="filter-chip__label">' + esc(field.label) + "</span>";
+      html += '<button type="button" class="filter-chip__op" data-op-toggle="' + chip.id + '">' + esc(opLabel(field, chip.operator)) + "</button>";
+      if (field.type === "text") {
+        html += '<input class="filter-chip__val--input" data-chip-input="' + chip.id + '" type="text" value="' + esc(val) + '" placeholder="' + esc(field.placeholder || "") + '" spellcheck="false" autocomplete="off" />';
+      } else {
+        html += '<button type="button" class="filter-chip__val" data-chip-value="' + chip.id + '">' + esc(display || "Select...") + "</button>";
+      }
+      html += '<button type="button" class="filter-chip__x" data-chip-remove="' + chip.id + '" aria-label="Remove filter">' + X_ICON + "</button>";
+      html += "</div>";
+    });
+
+    if (state.opMenuId) {
+      var opChip = state.filters.find(function (c) { return c.id === state.opMenuId; });
+      var opField = opChip ? fieldByKey(opChip.field) : null;
+      if (opField) {
+        html += '<div class="filter-op-menu" id="filter-op-menu" data-for="' + state.opMenuId + '">';
+        opField.operators.forEach(function (op) {
+          html += '<button type="button" class="filter-menu__item" data-set-op="' + op.value + '">' + esc(op.label) + "</button>";
+        });
+        html += "</div>";
+      }
+    }
+
+    root.innerHTML = html;
+
+    if (state.menuOpen) {
+      var search = document.getElementById("filter-menu-search");
+      if (search) {
+        search.focus();
+        search.setSelectionRange(state.menuQuery.length, state.menuQuery.length);
+        search.addEventListener("input", function () {
+          state.menuQuery = search.value;
+          renderFilters();
+        });
+      }
+    }
+
+    var focusInput = root.querySelector("[data-chip-input]");
+    if (focusInput && document.activeElement !== focusInput && !state.menuOpen && !state.opMenuId) {
+      /* keep typing focus after re-render when editing text chip */
+    }
+
+    if (state.opMenuId) {
+      var toggleBtn = root.querySelector('[data-op-toggle="' + state.opMenuId + '"]');
+      var menu = document.getElementById("filter-op-menu");
+      if (toggleBtn && menu) {
+        var rect = toggleBtn.getBoundingClientRect();
+        var rootRect = root.getBoundingClientRect();
+        menu.style.left = (rect.left - rootRect.left) + "px";
+        menu.style.top = (rect.bottom - rootRect.top + 4) + "px";
+      }
+    }
+
+    if (state.submenuField) {
+      var menuEl = document.getElementById("filter-menu");
+      var submenu = document.getElementById("filter-submenu");
+      if (menuEl && submenu) {
+        submenu.style.left = (menuEl.offsetWidth + 4) + "px";
+        submenu.style.top = "0px";
+      }
+    }
+  }
+
+  function addSelectFilter(fieldKey, value) {
+    var field = fieldByKey(fieldKey);
+    if (!field) return;
+    if (state.editingChipId) {
+      state.filters = state.filters.map(function (c) {
+        if (c.id === state.editingChipId) {
+          return { id: c.id, field: fieldKey, operator: c.operator || field.defaultOperator, values: [value] };
+        }
+        return c;
+      });
+    } else if (usedFields().indexOf(fieldKey) !== -1) {
+      state.filters = state.filters.map(function (c) {
+        if (c.field === fieldKey) return { id: c.id, field: fieldKey, operator: field.defaultOperator, values: [value] };
+        return c;
+      });
+    } else {
+      state.filters.push({ id: uid(), field: fieldKey, operator: field.defaultOperator, values: [value] });
+    }
+    closeMenus();
+    renderAll();
+  }
+
+  function addTextFilter(fieldKey) {
+    if (usedFields().indexOf(fieldKey) !== -1) return;
+    var field = fieldByKey(fieldKey);
+    state.filters.push({ id: uid(), field: fieldKey, operator: field.defaultOperator, values: [""] });
+    closeMenus();
+    renderAll();
+    setTimeout(function () {
+      var input = document.querySelector('[data-chip-input]');
+      if (input) input.focus();
+    }, 0);
+  }
+
+  function removeFilter(id) {
+    state.filters = state.filters.filter(function (c) { return c.id !== id; });
+    if (state.opMenuId === id) state.opMenuId = null;
+    renderAll();
+  }
+
+  function setOperator(id, op) {
+    state.filters = state.filters.map(function (c) {
+      if (c.id === id) return { id: c.id, field: c.field, operator: op, values: c.values };
+      return c;
+    });
+    state.opMenuId = null;
+    renderAll();
+  }
+
+  function setChipValue(id, value) {
+    state.filters = state.filters.map(function (c) {
+      if (c.id === id) return { id: c.id, field: c.field, operator: c.operator, values: [value] };
+      return c;
+    });
+    renderList();
+  }
+
+  function pillHtml(status) {
+    var pulse = (status === "running" || status === "watching" || status === "queued") ? " dot--pulse" : "";
+    return '<span class="pill pill--' + esc(status) + '"><span class="dot' + pulse + '"></span>' + esc(status) + "</span>";
+  }
+
+  function bindingHtml(loop) {
+    if (!loop.binding) return "";
+    return '<span class="bindbadge" title="Attached ' + esc(loop.binding.kind) + '">' + ICON_CLOCK + esc(loop.binding.label) + "</span>";
+  }
+
+  function tagsHtml(loop) {
+    return (loop.tags || []).map(function (t) {
+      return '<span class="tag">' + esc(t) + "</span>";
+    }).join("");
+  }
+
+  function metaFacts(loop) {
+    var html = '<span class="k">' + esc(loop.mode) + "</span>";
+    html += '<span class="dotsep"></span><span class="k">' + (loop.mode === "watch" ? "watch-source" : loop.nodes + " nodes") + "</span>";
+    html += '<span class="dotsep"></span><span class="k">' + loop.inputs + " inputs</span>";
+    html += '<span class="dotsep"></span><span>iteration cap ' + esc(capLabel(loop)) + "</span>";
+    html += bindingHtml(loop);
+    return html;
+  }
+
+  function renderRow(loop) {
+    var html = '<a class="listing-row" href="' + esc(loop.href) + '" data-od-id="loop-row-' + esc(loop.id) + '">';
+    html += '<span class="listing-row__icon" aria-hidden="true">' + loopIcon(loop) + "</span>";
+    html += '<div class="listing-row__main">';
+    html += '<div class="listing-row__name"><b>' + esc(loop.name) + "</b>" + tagsHtml(loop) + '<span class="listing-row__slug">' + esc(loop.slug) + "</span></div>";
+    html += '<div class="listing-row__desc">' + esc(loop.goal) + "</div>";
+    html += '<div class="listing-row__meta">' + metaFacts(loop) + "</div>";
+    html += "</div>";
+    html += '<div class="listing-row__trail">';
+    html += '<span class="listing-row__cat">' + esc(loop.category) + "</span>";
+    html += pillHtml(loop.status);
+    html += '<div class="listing-row__stat"><span class="listing-row__stat-v">' + loop.successRate + '%</span><span class="listing-row__stat-l">' + loop.runs30d + " runs · 30d</span></div>";
+    html += '<button type="button" class="runbtn" data-run="' + esc(loop.id) + '">' + ICON_PLAY + "Run</button>";
+    html += "</div></a>";
+    return html;
+  }
+
+  function renderCard(loop) {
+    var html = '<a class="catalog-card" href="' + esc(loop.href) + '" data-od-id="loop-card-' + esc(loop.id) + '">';
+    html += '<div class="catalog-card__head">';
+    html += '<span class="catalog-card__logo" aria-hidden="true">' + loopIcon(loop) + "</span>";
+    html += '<div class="catalog-card__title-wrap">';
+    html += '<div class="catalog-card__title">' + esc(loop.name) + "</div>";
+    html += '<div class="catalog-card__meta"><span>' + esc(loop.kind === "builtin" ? "Built-in" : "Custom") + "</span>";
+    html += '<span class="dotsep"></span>';
+    html += '<span>' + esc(loop.category) + "</span>";
+    html += '<span class="dotsep"></span>';
+    html += '<span class="mono-slug">' + esc(loop.slug) + "</span></div>";
+    html += "</div></div>";
+    html += '<p class="catalog-card__desc">' + esc(loop.goal) + "</p>";
+    html += '<div class="catalog-card__facts">' + metaFacts(loop) + "</div>";
+    html += '<div class="catalog-card__actions">';
+    html += pillHtml(loop.status);
+    html += '<div class="listing-row__stat"><span class="listing-row__stat-v">' + loop.successRate + '%</span><span class="listing-row__stat-l">' + loop.runs30d + " runs · 30d</span></div>";
+    html += '<button type="button" class="runbtn" data-run="' + esc(loop.id) + '">' + ICON_PLAY + "Run</button>";
+    html += "</div></a>";
+    return html;
+  }
+
+  function renderList() {
+    var root = document.getElementById("list-root");
+    var list = filtered();
+    document.getElementById("head-count").textContent = String(list.length);
+    var topbarCount = document.getElementById("topbar-count");
+    if (topbarCount) topbarCount.textContent = String(list.length);
+
+    if (list.length === 0) {
+      var hasQuery = state.query.trim() || state.filters.length;
+      root.innerHTML = '<div class="empty" data-od-id="catalog-empty">' + EMPTY_ICON +
+        "<b>" + (hasQuery ? "No loops match" : "No loops yet") + "</b>" +
+        "<p>" + (hasQuery
+          ? "Try a different search or clear filters."
+          : "Fork a built-in template to create your first custom loop.") + "</p>" +
+        (hasQuery
+          ? '<button type="button" class="btn" id="clear-filters">Clear filters</button>'
+          : '<a class="btn btn--primary" href="loop-create.html">New from template</a>') +
+        "</div>";
+      var clear = document.getElementById("clear-filters");
+      if (clear) {
+        clear.addEventListener("click", function () {
+          state.filters = [];
+          state.query = "";
+          document.getElementById("search-input").value = "";
+          closeMenus();
+          renderAll();
+        });
+      }
+      return;
+    }
+
+    var groups = { builtin: [], custom: [] };
+    list.forEach(function (loop) {
+      var key = loop.kind === "custom" ? "custom" : "builtin";
+      groups[key].push(loop);
+    });
+
+    var order = [
+      { key: "builtin", label: "Built-in" },
+      { key: "custom", label: "Custom" }
+    ];
+
+    var html = "";
+    order.forEach(function (g) {
+      var rows = groups[g.key];
+      if (!rows.length) return;
+      html += '<section class="group" data-group="' + g.key + '" data-od-id="catalog-group-' + g.key + '">';
+      html += '<div class="group__label">' + g.label + ' <span class="group__count">' + rows.length + "</span></div>";
+      if (state.view === "cards") {
+        html += '<div class="listing-card-grid">';
+        rows.forEach(function (loop) { html += renderCard(loop); });
+        html += "</div>";
+      } else {
+        html += '<div class="list">';
+        rows.forEach(function (loop) { html += renderRow(loop); });
+        html += "</div>";
+      }
+      html += "</section>";
+    });
+    root.innerHTML = html;
+  }
+
+  function renderAll() {
+    renderFilters();
+    renderList();
+  }
+
+  document.getElementById("filters-root").addEventListener("click", function (e) {
+    var addBtn = e.target.closest("#filter-add-btn");
+    if (addBtn) {
+      e.stopPropagation();
+      state.menuOpen = !state.menuOpen;
+      state.submenuField = null;
+      state.editingChipId = null;
+      state.opMenuId = null;
+      renderFilters();
+      return;
+    }
+
+    var addField = e.target.closest("[data-add-field]");
+    if (addField) {
+      e.stopPropagation();
+      var key = addField.getAttribute("data-add-field");
+      var field = fieldByKey(key);
+      if (!field) return;
+      if (field.type === "select") {
+        state.submenuField = key;
+        state.editingChipId = null;
+        renderFilters();
+      } else if (field.type === "text") {
+        addTextFilter(key);
+      }
+      return;
+    }
+
+    var pick = e.target.closest("[data-pick-value]");
+    if (pick) {
+      e.stopPropagation();
+      var fieldKey = state.submenuField;
+      if (state.editingChipId) {
+        var chip = state.filters.find(function (c) { return c.id === state.editingChipId; });
+        if (chip) fieldKey = chip.field;
+      }
+      addSelectFilter(fieldKey, pick.getAttribute("data-pick-value"));
+      return;
+    }
+
+    var remove = e.target.closest("[data-chip-remove]");
+    if (remove) {
+      removeFilter(remove.getAttribute("data-chip-remove"));
+      return;
+    }
+
+    var opToggle = e.target.closest("[data-op-toggle]");
+    if (opToggle) {
+      e.stopPropagation();
+      var oid = opToggle.getAttribute("data-op-toggle");
+      state.opMenuId = state.opMenuId === oid ? null : oid;
+      state.menuOpen = false;
+      state.submenuField = null;
+      state.editingChipId = null;
+      renderFilters();
+      return;
+    }
+
+    var setOp = e.target.closest("[data-set-op]");
+    if (setOp) {
+      e.stopPropagation();
+      if (state.opMenuId) setOperator(state.opMenuId, setOp.getAttribute("data-set-op"));
+      return;
+    }
+
+    var chipVal = e.target.closest("[data-chip-value]");
+    if (chipVal) {
+      e.stopPropagation();
+      var chipId = chipVal.getAttribute("data-chip-value");
+      var editChip = state.filters.find(function (c) { return c.id === chipId; });
+      if (!editChip) return;
+      state.menuOpen = true;
+      state.submenuField = editChip.field;
+      state.editingChipId = chipId;
+      state.opMenuId = null;
+      renderFilters();
+    }
+  });
+
+  document.getElementById("filters-root").addEventListener("input", function (e) {
+    var input = e.target.closest("[data-chip-input]");
+    if (!input) return;
+    setChipValue(input.getAttribute("data-chip-input"), input.value);
+  });
+
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#filters-root")) {
+      if (state.menuOpen || state.opMenuId) {
+        closeMenus();
+        renderFilters();
+      }
+    }
+  });
+
+  document.getElementById("list-root").addEventListener("click", function (e) {
+    var run = e.target.closest("[data-run]");
+    if (run) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.location.href = "loop-run-form.html";
+    }
+  });
+
+  document.querySelectorAll("[data-view]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      setView(btn.getAttribute("data-view"));
+    });
+  });
+
+  var searchInput = document.getElementById("search-input");
+  searchInput.addEventListener("input", function () {
+    state.query = searchInput.value;
+    renderList();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      var t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      searchInput.focus();
+      return;
+    }
+    if (e.key === "Escape") {
+      if (state.menuOpen || state.opMenuId) {
+        closeMenus();
+        renderFilters();
+      } else if (document.activeElement === searchInput) {
+        searchInput.blur();
+      }
+    }
+  });
+
+  document.querySelectorAll("[data-view]").forEach(function (btn) {
+    btn.setAttribute("aria-pressed", btn.getAttribute("data-view") === state.view ? "true" : "false");
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>

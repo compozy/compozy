@@ -1,0 +1,26 @@
+{
+    "title": "Memory",
+    "pages": [
+        "index",
+        "delete",
+        "edit",
+        "health",
+        "history",
+        "list",
+        "promote",
+        "reindex",
+        "reload",
+        "reset",
+        "scope-show",
+        "search",
+        "show",
+        "write",
+        "adhoc",
+        "daily",
+        "decisions",
+        "dream",
+        "extractor",
+        "provider",
+        "recall"
+    ]
+}

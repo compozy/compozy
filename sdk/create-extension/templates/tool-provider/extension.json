@@ -1,0 +1,36 @@
+{
+    "extension": {
+        "name": "__EXTENSION_NAME__",
+        "version": "0.1.0",
+        "description": "AGH tool provider scaffold",
+        "min_agh_version": "0.5.0"
+    },
+    "capabilities": {
+        "provides": ["tool.provider"]
+    },
+    "subprocess": {
+        "command": "node",
+        "args": ["dist/index.js"]
+    },
+    "resources": {
+        "tools": {
+            "search": {
+                "description": "Search extension-owned data",
+                "read_only": true,
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "search"
+                },
+                "input_schema": {
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {
+                        "query": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

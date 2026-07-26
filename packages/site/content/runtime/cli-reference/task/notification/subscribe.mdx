@@ -1,0 +1,48 @@
+---
+title: "agh task notification subscribe"
+description: "Subscribe a bridge target to task terminal notifications"
+---
+
+## agh task notification subscribe
+
+Subscribe a bridge target to task terminal notifications
+
+```
+agh task notification subscribe <task-id> [flags]
+```
+
+### Options
+
+```
+      --bridge string            Bridge instance ID
+      --group string             Bridge group ID
+  -h, --help                     help for subscribe
+      --mode string              Delivery mode: reply or direct-send (default "reply")
+      --peer string              Bridge peer ID
+      --scope string             Bridge scope: global or workspace (default "global")
+      --subscription-id string   Idempotent subscription ID
+      --thread string            Bridge thread ID
+      --workspace string         Workspace ID for workspace bridge scope
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task notification subscribe <task-id> -o json
+```

@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agents · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    --focus-ring-inset:inset 0 0 0 1px var(--line-strong);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  code,kbd,pre,.topbar__count,.count-chip,.listing-row__meta .k,.mono{
+    -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
+  :is(.btn,.pill-group__item,.filter-menu__item,.filter-chip__op,.filter-chip__val,.filter-chip__x):focus-visible{
+    outline:none;box-shadow:var(--focus-ring)}
+  a.listing-row:focus-visible,a.listing-card:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+  .topbar{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas);min-width:0;overflow:hidden}
+  .topbar__title{display:flex;align-items:center;gap:8px;min-width:0}
+  .topbar__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent)}
+  .topbar__icon svg{width:12px;height:12px}
+  .topbar__h1{font-size:14px;font-weight:500;letter-spacing:-.014em;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar__count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 6px;border-radius:var(--radius-xs);background:var(--canvas-soft);font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+  .topbar__trailing{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+
+  .search{display:flex;align-items:center;gap:8px;height:26px;min-width:220px;width:220px;padding:0 8px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--canvas-soft);color:var(--fg);font-size:13px;flex:none}
+  .search svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-size:13px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .search .kbd{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;line-height:1;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 4px;flex:none;background:var(--canvas-soft)}
+  .search:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+  .head{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px}
+  .head__main{min-width:0}
+  .head__titlerow{display:flex;align-items:center;gap:10px}
+  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong)}
+  .count-chip{display:inline-flex;align-items:center;min-height:19px;padding:1px 6px;border-radius:var(--radius-xs);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:11px;font-weight:500;
+    color:var(--muted);font-variant-numeric:tabular-nums}
+  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+
+  .listing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+  .listing-toolbar__leading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1;min-width:0}
+  .listing-toolbar__trailing{display:flex;align-items:center;gap:10px;margin-left:auto;flex:none}
+
+  /* PillGroup — packages/ui: borderless track, elevated active segment */
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;cursor:pointer;
+    transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item svg{width:12px;height:12px}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+
+  .filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;position:relative}
+  .filter-add{position:relative}
+  .filter-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;width:220px;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .filter-menu__search{width:100%;height:32px;padding:0 10px;border:0;border-bottom:1px solid var(--line-soft);border-radius:0;background:transparent;color:var(--fg);font-size:12.5px;outline:none;margin-bottom:4px}
+  .filter-menu__search::placeholder{color:var(--faint)}
+  .filter-menu__item{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 8px;border:0;border-radius:var(--radius);background:transparent;color:var(--fg);font-size:12.5px;cursor:pointer;text-align:left}
+  .filter-menu__item:hover,.filter-menu__item:focus{background:var(--row-hover);outline:none}
+  .filter-menu__item svg{width:12px;height:12px;color:var(--muted);flex:none}
+  .filter-menu__empty{padding:10px 8px;font-size:12px;color:var(--subtle)}
+  .filter-menu__sep{height:1px;background:var(--line-soft);margin:4px 0}
+  .filter-submenu{position:absolute;top:0;left:calc(100% + 4px);z-index:31;width:220px;max-height:260px;overflow:auto;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .filter-chip{display:inline-flex;align-items:stretch;width:fit-content;border-radius:var(--radius);overflow:hidden}
+  .filter-chip > *{border:1px solid var(--line);background:var(--canvas);color:var(--fg);font-size:11px;line-height:1;display:inline-flex;align-items:center;height:22px;padding:0 8px;margin:0}
+  .filter-chip > * + *{border-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
+  .filter-chip > *:first-child{border-radius:var(--radius) 0 0 var(--radius);background:var(--canvas);color:var(--fg);gap:6px}
+  .filter-chip > *:last-child{border-radius:0 var(--radius) var(--radius) 0}
+  .filter-chip__label{font-weight:500}
+  .filter-chip__op{color:var(--muted);background:transparent;cursor:pointer;font-family:inherit}
+  .filter-chip__op:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .filter-chip__val{background:transparent;cursor:pointer;font-family:inherit;max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .filter-chip__val:hover{background:var(--row-hover)}
+  .filter-chip__x{width:22px;padding:0;justify-content:center;cursor:pointer;color:var(--muted);background:transparent}
+  .filter-chip__x:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .filter-chip__x svg{width:12px;height:12px}
+  .filter-op-menu{position:absolute;z-index:32;min-width:140px;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+
+  .notice{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12px;color:var(--muted)}
+  .notice svg{width:14px;height:14px;color:var(--warning);flex:none}
+
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .listing-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:12px 16px;
+    border-bottom:1px solid var(--line-soft);cursor:pointer;transition:background var(--dur) var(--ease);color:inherit}
+  .listing-row:last-child{border-bottom:0}
+  .listing-row:hover{background:var(--row-hover)}
+  .listing-row__leading{width:34px;height:34px;display:grid;place-items:center;flex:none}
+  .provider-logo{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);
+    display:grid;place-items:center;color:var(--fg);box-shadow:var(--highlight)}
+  .provider-logo svg{width:18px;height:18px}
+  .provider-logo[data-fill="true"] svg{width:20px;height:20px}
+  .listing-row__main{min-width:0}
+  .listing-row__name{display:flex;align-items:center;gap:8px;min-width:0}
+  .listing-row__name b{font-size:14px;font-weight:500;color:var(--fg-strong);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__meta{margin-top:4px;display:flex;align-items:center;gap:0;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;min-width:0}
+  .listing-row__meta .k{font-family:var(--font-mono);font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+  .listing-row__meta .sep{margin:0 6px;color:var(--faint);flex:none}
+  .listing-row__trail{display:flex;align-items:center;gap:10px;flex:none}
+  .row-actions{display:flex;align-items:center;gap:4px}
+  .row-actions .btn{height:26px;width:26px;padding:0;justify-content:center;color:var(--muted)}
+  .row-actions .btn:hover{color:var(--fg-strong);background:var(--btn-hover);border-color:transparent}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;width:max-content}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .pill--success{background:var(--success-tint);color:var(--success)}
+  .pill--neutral{background:var(--neutral-tint);color:var(--muted)}
+  .pill--warning{background:var(--warning-tint);color:var(--warning)}
+
+  /* Cards — CatalogCard / LISTING-STANDARD */
+  .listing-card-grid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media (min-width:720px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (min-width:1100px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .listing-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:var(--radius-lg);
+    background:var(--canvas-soft);min-width:0;transition:background var(--dur) var(--ease);color:inherit}
+  .listing-card:hover{background:var(--elevated)}
+  .listing-card__head{display:flex;align-items:flex-start;gap:10px;min-width:0}
+  .listing-card__icon{width:24px;height:24px;border-radius:var(--radius);background:var(--elevated);color:var(--fg);
+    display:grid;place-items:center;flex:none;box-shadow:var(--highlight)}
+  .listing-card__icon svg{width:14px;height:14px}
+  .listing-card__icon[data-fill="true"] svg{width:16px;height:16px}
+  .listing-card__title{min-width:0;flex:1}
+  .listing-card__title b{display:block;font-family:var(--font-sans);font-size:13px;font-weight:500;color:var(--fg-strong);
+    letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-card__eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle);margin-top:4px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-card__eyebrow .mono-slug{font-family:var(--font-mono);font-size:10.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--faint)}
+  .listing-card__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--line);margin-top:auto}
+  .listing-card__foot-meta{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
+  .listing-card__foot .row-actions{margin-left:auto;flex:none}
+
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 24px;
+    border-radius:var(--radius-lg);text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle);box-sizing:content-box}
+  .empty b{font-size:18px;font-weight:500;color:var(--fg-strong);letter-spacing:-.022em}
+  .empty p{font-size:13px;max-width:28rem;line-height:1.6;color:var(--muted)}
+  .empty .btn{margin-top:4px}
+
+  .skeleton-rows{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .skeleton-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:12px 16px;
+    border-bottom:1px solid var(--line-soft)}
+  .skeleton-row:last-child{border-bottom:0}
+  .sk{border-radius:var(--radius);background:linear-gradient(90deg,var(--elevated) 0%,var(--surface-glaze) 50%,var(--elevated) 100%);
+    background-size:200% 100%;animation:shimmer 1.4s var(--ease) infinite}
+  .sk-leading{width:34px;height:34px;display:grid;place-items:center}
+  .sk-avatar{width:34px;height:34px;border-radius:var(--radius-md)}
+  .sk-line{height:12px}
+  .sk-line--title{width:42%;margin-bottom:8px}
+  .sk-line--meta{width:68%;height:10px}
+  .sk-trail{display:flex;align-items:center;gap:10px}
+  .sk-pill{width:58px;height:19px;border-radius:var(--radius-xs)}
+  .sk-icon{width:26px;height:26px;border-radius:var(--radius)}
+  .sk-card-grid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media (min-width:720px){.sk-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (min-width:1100px){.sk-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .sk-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:var(--radius-lg);background:var(--canvas-soft)}
+  .sk-card__head{display:flex;align-items:flex-start;gap:10px}
+  .sk-card__icon{width:24px;height:24px;border-radius:var(--radius);flex:none}
+  .sk-card__foot{display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid var(--line-soft)}
+  @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+
+  @media(max-width:920px){
+    .listing-row{grid-template-columns:34px minmax(0,1fr);gap:12px;row-gap:8px}
+    .listing-row__trail{grid-column:2;justify-content:flex-start;gap:8px}
+    .page{padding:22px 18px 64px}
+    .search{min-width:140px;width:160px}
+  }
+  @media(max-width:560px){
+    .head__title{font-size:1.25rem}
+    .listing-toolbar{gap:8px}
+    .search{width:100%;min-width:0;flex:1 1 100%}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <header class="topbar" data-od-id="agents-topbar" data-slot="topbar">
+      <div class="topbar__title" data-slot="topbar-title">
+        <span class="topbar__icon" data-slot="topbar-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </span>
+        <h1 class="topbar__h1" data-testid="topbar-title-text">Agents</h1>
+        <span class="topbar__count" data-slot="topbar-count" id="topbar-count">0</span>
+      </div>
+      <div class="topbar__trailing" data-slot="topbar-trailing" id="topbar-actions">
+        <button type="button" class="btn btn--primary btn--sm" id="btn-new-agent" data-od-id="agents-new">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New agent
+        </button>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+        <div class="head" data-od-id="agents-head">
+          <div class="head__main">
+            <div class="head__titlerow">
+              <h1 class="head__title">Agents</h1>
+              <span class="count-chip" id="head-count">0</span>
+            </div>
+            <div class="head__meta">
+              <span>Provider, model, and instructions a session runs with.</span>
+              <span class="dotsep"></span>
+              <span>Operate</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="listing-toolbar" data-od-id="agents-toolbar" id="listing-toolbar">
+          <div class="listing-toolbar__leading">
+            <label class="search" data-od-id="agents-search" data-slot="search-input">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <input id="search-input" type="search" placeholder="Search agents" autocomplete="off" spellcheck="false" />
+              <span class="kbd">/</span>
+            </label>
+            <div class="filters" id="filters-root" data-od-id="agents-filters"></div>
+          </div>
+          <div class="listing-toolbar__trailing" id="view-toggle-wrap">
+            <div class="pill-group" role="group" aria-label="View mode" data-od-id="agents-view-toggle" id="view-toggle">
+              <button type="button" class="pill-group__item" data-view="rows" aria-pressed="true" data-od-id="view-rows">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Rows
+              </button>
+              <button type="button" class="pill-group__item" data-view="cards" aria-pressed="false" data-od-id="view-cards">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Cards
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="list-root" data-od-id="agents-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var FILTER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18"/><path d="M7 12h10"/><path d="M10 19h4"/></svg>';
+  var X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+  var SELECT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h14"/><circle cx="18" cy="12" r="2"/></svg>';
+  var USERS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+  var ALERT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+  var WARN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+  var COMMENT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+  /* Provider marks — same registry posture as @agh/ui KindIcon / AgentIcon */
+  var LOGO = {
+    codex:{ vb:"0 0 721 721", inner:'<path fill="currentColor" d="M304.246 294.611V249.028C304.246 245.189 305.687 242.309 309.044 240.392L400.692 187.612C413.167 180.415 428.042 177.058 443.394 177.058C500.971 177.058 537.44 221.682 537.44 269.182C537.44 272.54 537.44 276.379 536.959 280.218L441.954 224.558C436.197 221.201 430.437 221.201 424.68 224.558L304.246 294.611ZM518.245 472.145V363.224C518.245 356.505 515.364 351.707 509.608 348.349L389.174 278.296L428.519 255.743C431.877 253.826 434.757 253.826 438.115 255.743L529.762 308.523C556.154 323.879 573.905 356.505 573.905 388.171C573.905 424.636 552.315 458.225 518.245 472.141V472.145ZM275.937 376.182L236.592 353.152C233.235 351.235 231.794 348.354 231.794 344.515V238.956C231.794 187.617 271.139 148.749 324.4 148.749C344.555 148.749 363.264 155.468 379.102 167.463L284.578 222.164C278.822 225.521 275.942 230.319 275.942 237.039V376.186L275.937 376.182ZM360.626 425.122L304.246 393.455V326.283L360.626 294.616L417.002 326.283V393.455L360.626 425.122ZM396.852 570.989C376.698 570.989 357.989 564.27 342.151 552.276L436.674 497.574C442.431 494.217 445.311 489.419 445.311 482.699V343.552L485.138 366.582C488.495 368.499 489.936 371.379 489.936 375.219V480.778C489.936 532.117 450.109 570.985 396.852 570.985V570.989ZM283.134 463.99L191.486 411.211C165.094 395.854 147.343 363.229 147.343 331.562C147.343 294.616 169.415 261.509 203.48 247.593V356.991C203.48 363.71 206.361 368.508 212.117 371.866L332.074 441.437L292.729 463.99C289.372 465.907 286.491 465.907 283.134 463.99ZM277.859 542.68C223.639 542.68 183.813 501.895 183.813 451.514C183.813 447.675 184.294 443.836 184.771 439.997L279.295 494.698C285.051 498.056 290.812 498.056 296.568 494.698L417.002 425.127V470.71C417.002 474.549 415.562 477.429 412.204 479.346L320.557 532.126C308.081 539.323 293.206 542.68 277.854 542.68H277.859ZM396.852 599.776C454.911 599.776 503.37 558.513 514.41 503.812C568.149 489.896 602.696 439.515 602.696 388.176C602.696 354.587 588.303 321.962 562.392 298.45C564.791 288.373 566.231 278.296 566.231 268.224C566.231 199.611 510.571 148.267 446.274 148.267C433.322 148.267 420.846 150.184 408.37 154.505C386.775 133.392 357.026 119.958 324.4 119.958C266.342 119.958 217.883 161.22 206.843 215.921C153.104 229.837 118.557 280.218 118.557 331.557C118.557 365.146 132.95 397.771 158.861 421.283C156.462 431.36 155.022 441.437 155.022 451.51C155.022 520.123 210.682 571.466 274.978 571.466C287.931 571.466 300.407 569.549 312.883 565.228C334.473 586.341 364.222 599.776 396.852 599.776Z"/>' },
+    claude:{ vb:"0 0 256 257", inner:'<path fill="#D97757" d="m50.228 170.321 50.357-28.257.843-2.463-.843-1.361h-2.462l-8.426-.518-28.775-.778-24.952-1.037-24.175-1.296-6.092-1.297L0 125.796l.583-3.759 5.12-3.434 7.324.648 16.202 1.101 24.304 1.685 17.629 1.037 26.118 2.722h4.148l.583-1.685-1.426-1.037-1.101-1.037-25.147-17.045-27.22-18.017-14.258-10.37-7.713-5.25-3.888-4.925-1.685-10.758 7-7.713 9.397.649 2.398.648 9.527 7.323 20.35 15.75L94.817 91.9l3.889 3.24 1.555-1.102.195-.777-1.75-2.917-14.453-26.118-15.425-26.572-6.87-11.018-1.814-6.61c-.648-2.723-1.102-4.991-1.102-7.778l7.972-10.823L71.42 0 82.05 1.426l4.472 3.888 6.61 15.101 10.694 23.786 16.591 32.34 4.861 9.592 2.592 8.879.973 2.722h1.685v-1.556l1.36-18.211 2.528-22.36 2.463-28.776.843-8.1 4.018-9.722 7.971-5.25 6.222 2.981 5.12 7.324-.713 4.73-3.046 19.768-5.962 30.98-3.889 20.739h2.268l2.593-2.593 10.499-13.934 17.628-22.036 7.778-8.749 9.073-9.657 5.833-4.601h11.018l8.1 12.055-3.628 12.443-11.342 14.388-9.398 12.184-13.48 18.147-8.426 14.518.778 1.166 2.01-.194 30.46-6.481 16.462-2.982 19.637-3.37 8.88 4.148.971 4.213-3.5 8.62-20.998 5.184-24.628 4.926-36.682 8.685-.454.324.519.648 16.526 1.555 7.065.389h17.304l32.21 2.398 8.426 5.574 5.055 6.805-.843 5.184-12.962 6.611-17.498-4.148-40.83-9.721-14-3.5h-1.944v1.167l11.666 11.406 21.387 19.314 26.767 24.887 1.36 6.157-3.434 4.86-3.63-.518-23.526-17.693-9.073-7.972-20.545-17.304h-1.36v1.814l4.73 6.935 25.017 37.59 1.296 11.536-1.814 3.76-6.481 2.268-7.13-1.297-14.647-20.544-15.1-23.138-12.185-20.739-1.49.843-7.194 77.448-3.37 3.953-7.778 2.981-6.48-4.925-3.436-7.972 3.435-15.749 4.148-20.544 3.37-16.333 3.046-20.285 1.815-6.74-.13-.454-1.49.194-15.295 20.999-23.267 31.433-18.406 19.702-4.407 1.75-7.648-3.954.713-7.064 4.277-6.286 25.47-32.405 15.36-20.092 9.917-11.6-.065-1.686h-.583L44.07 198.125l-12.055 1.555-5.185-4.86.648-7.972 2.463-2.593 20.35-13.999-.064.065Z"/>' },
+    gemini:{ vb:"0 0 296 298", inner:'<defs><linearGradient id="gm-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4285F4"/><stop offset=".45" stop-color="#9B72CB"/><stop offset=".75" stop-color="#D96570"/><stop offset="1" stop-color="#F6C013"/></linearGradient></defs><path fill="url(#gm-g)" d="M141.201 4.886c2.282-6.17 11.042-6.071 13.184.148l5.985 17.37a184.004 184.004 0 0 0 111.257 113.049l19.304 6.997c6.143 2.227 6.156 10.91.02 13.155l-19.35 7.082a184.001 184.001 0 0 0-109.495 109.385l-7.573 20.629c-2.241 6.105-10.869 6.121-13.133.025l-7.908-21.296a184 184 0 0 0-109.02-108.658l-19.698-7.239c-6.102-2.243-6.118-10.867-.025-13.132l20.083-7.467A183.998 183.998 0 0 0 133.291 26.28l7.91-21.394Z"/>' },
+    cursor:{ vb:"0 0 466.73 532.09", inner:'<path fill="currentColor" d="M457.43 125.94 244.42 2.96a22.127 22.127 0 0 0-22.12 0L9.3 125.94C3.55 129.26 0 135.4 0 142.05v247.99c0 6.65 3.55 12.79 9.3 16.11l213.01 122.98a22.127 22.127 0 0 0 22.12 0l213.01-122.98c5.75-3.32 9.3-9.46 9.3-16.11V142.05c0-6.65-3.55-12.79-9.3-16.11h-.01Zm-13.38 26.05L238.42 508.15c-1.39 2.4-5.06 1.42-5.06-1.36V273.58c0-4.66-2.49-8.97-6.53-11.31L24.87 145.67c-2.4-1.39-1.42-5.06 1.36-5.06h411.26c5.84 0 9.49 6.33 6.57 11.39h-.01Z"/>' },
+    openrouter:{ vb:"0 0 24 24", inner:'<path fill="currentColor" d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/>' },
+    xai:{ vb:"0 0 841.89 595.28", inner:'<path fill="currentColor" d="m557.09 211.99 8.31 326.37h66.56l8.32-445.18zM640.28 56.91H538.72L379.35 284.53l50.78 72.52zM201.61 538.36h101.56l50.79-72.52-50.79-72.53zM201.61 211.99l228.52 326.37h101.56L303.17 211.99z"/>' },
+    groq:{ vb:"0 0 201 201", fill:true, inner:'<path fill="#F54F35" d="M0 0h201v201H0V0Z"/><path fill="#FEFBFB" d="m128 49 1.895 1.52C136.336 56.288 140.602 64.49 142 73c.097 1.823.148 3.648.161 5.474l.03 3.247.012 3.482.017 3.613c.01 2.522.016 5.044.02 7.565.01 3.84.041 7.68.072 11.521.007 2.455.012 4.91.016 7.364l.038 3.457c-.033 11.717-3.373 21.83-11.475 30.547-4.552 4.23-9.148 7.372-14.891 9.73l-2.387 1.055c-9.275 3.355-20.3 2.397-29.379-1.13-5.016-2.38-9.156-5.17-13.234-8.925 3.678-4.526 7.41-8.394 12-12l3.063 2.375c5.572 3.958 11.135 5.211 17.937 4.625 6.96-1.384 12.455-4.502 17-10 4.174-6.784 4.59-12.222 4.531-20.094l.012-3.473c.003-2.414-.005-4.827-.022-7.241-.02-3.68 0-7.36.026-11.04-.003-2.353-.008-4.705-.016-7.058l.025-3.312c-.098-7.996-1.732-13.21-6.681-19.47-6.786-5.458-13.105-8.211-21.914-7.792-7.327 1.188-13.278 4.7-17.777 10.601C75.472 72.012 73.86 78.07 75 85c2.191 7.547 5.019 13.948 12 18 5.848 3.061 10.892 3.523 17.438 3.688l2.794.103c2.256.082 4.512.147 6.768.209v16c-16.682.673-29.615.654-42.852-10.848-8.28-8.296-13.338-19.55-13.71-31.277.394-9.87 3.93-17.894 9.562-25.875l1.688-2.563C84.698 35.563 110.05 34.436 128 49Z"/>' },
+    moonshot:{ vb:"0 0 1024 1024", inner:'<g transform="translate(0,1024) scale(0.1,-0.1)" fill="currentColor" stroke="none"><path d="M1595 10228 c-360 -40 -727 -206 -1000 -452 -330 -297 -541 -714 -585 -1161 -8 -78 -10 -1110 -8 -3570 4 -3236 5 -3465 21 -3545 62 -302 159 -531 324 -763 79 -111 288 -318 401 -397 241 -169 506 -277 792 -322 126 -19 7034 -19 7160 0 286 45 551 153 792 322 113 79 322 286 401 397 173 243 283 511 329 803 19 126 19 7034 0 7160 -46 292 -156 560 -329 803 -79 111 -287 317 -403 399 -112 80 -307 182 -440 231 -113 42 -288 82 -422 96 -123 14 -6915 13 -7033 -1z m1729 -2534 c14 -14 16 -120 16 -1015 l0 -999 633 0 632 0 470 1001 c258 551 475 1008 483 1015 11 12 94 14 484 12 422 -3 472 -5 481 -19 8 -13 -35 -116 -198 -470 -371 -810 -527 -1143 -562 -1198 -90 -141 -250 -266 -408 -321 -50 -17 -47 -18 305 -22 345 -5 358 -5 455 -31 121 -32 265 -100 357 -168 153 -114 288 -291 348 -458 68 -186 63 -99 67 -1375 3 -867 1 -1162 -8 -1172 -16 -19 -978 -21 -997 -2 -9 9 -12 334 -12 1400 0 763 -4 1388 -9 1388 -4 0 -16 -30 -26 -67 -35 -128 -89 -219 -189 -318 -72 -72 -108 -99 -176 -133 -164 -81 -87 -76 -1167 -80 l-963 -3 0 -1080 c0 -726 -3 -1087 -10 -1100 -10 -18 -26 -19 -498 -19 -366 0 -491 3 -500 12 -17 17 -17 5209 0 5226 9 9 133 12 494 12 425 0 484 -2 498 -16z"/></g>' },
+    zai:{ vb:"0 0 30 30", inner:'<path fill="currentColor" d="M15.47 7.1l-1.3 1.85c-.2.29-.54.47-.9.47h-7.1V7.09H15.47Z"/><path fill="currentColor" d="M24.3 7.1L13.14 22.91H5.7L16.86 7.1H24.3Z"/><path fill="currentColor" d="M14.53 22.91l1.31-1.86c.2-.29.54-.47.9-.47h7.09v2.33H14.53Z"/>' }
+  };
+  var PROVIDER_ALIAS = { anthropic: "claude", openai: "codex", "openai-codex": "codex" };
+  function providerKey(provider) {
+    var key = String(provider || "").trim().toLowerCase();
+    return PROVIDER_ALIAS[key] || key;
+  }
+  function providerGlyph(provider) {
+    var id = providerKey(provider);
+    var L = LOGO[id];
+    if (!L) {
+      // lucide Bot fallback when AGH has no brand mark
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>';
+    }
+    return '<svg viewBox="' + L.vb + '" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + L.inner + '</svg>';
+  }
+  function providerLogo(provider, size) {
+    var id = providerKey(provider);
+    var fill = !!(LOGO[id] && LOGO[id].fill);
+    var cls = size === "sm" ? "listing-card__icon" : "provider-logo";
+    return '<span class="' + cls + '" data-provider="' + id + '" data-fill="' + fill + '" aria-hidden="true">' + providerGlyph(provider) + '</span>';
+  }
+
+
+  /* Sample fleet — names/providers/models mirror AGH agent payloads; session counts are client-derived. */
+  var AGENTS = [
+    {
+      name: "release-captain",
+      category_path: ["Engineering", "Release"],
+      provider: "claude",
+      model: "claude-sonnet-4-5",
+      active: 2,
+      total: 6,
+      diagnostics: []
+    },
+    {
+      name: "code-reviewer",
+      category_path: ["Engineering"],
+      provider: "openai",
+      model: "gpt-5.1",
+      active: 1,
+      total: 4,
+      diagnostics: []
+    },
+    {
+      name: "triage-bot",
+      category_path: [],
+      provider: "codex",
+      model: "gpt-5.1",
+      active: 0,
+      total: 1,
+      diagnostics: []
+    },
+    {
+      name: "docs-writer",
+      category_path: ["Content", "Docs"],
+      provider: "claude",
+      model: "claude-sonnet-4-5",
+      active: 0,
+      total: 3,
+      diagnostics: []
+    },
+    {
+      name: "incident-responder",
+      category_path: ["Operations", "On-call"],
+      provider: "claude",
+      model: "claude-opus-4",
+      active: 3,
+      total: 5,
+      diagnostics: []
+    },
+    {
+      name: "qa-runner",
+      category_path: ["Engineering", "QA", "Nightly"],
+      provider: "openai",
+      model: "gpt-5.1",
+      active: 0,
+      total: 2,
+      diagnostics: [{ error_kind: "config", message: "MCP server github is unreachable" }]
+    },
+    {
+      name: "research-scout",
+      category_path: ["Research"],
+      provider: "claude",
+      model: null,
+      active: 1,
+      total: 1,
+      diagnostics: []
+    },
+    {
+      name: "support-scribe",
+      category_path: ["Support", "Inbox"],
+      provider: "gemini",
+      model: "gemini-2.5-pro",
+      active: 0,
+      total: 0,
+      diagnostics: []
+    }
+  ];
+
+  var FILTER_FIELDS = [
+    {
+      key: "category",
+      label: "Category",
+      type: "select",
+      defaultOperator: "is",
+      operators: [{ value: "is", label: "is" }],
+      options: []
+    },
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      defaultOperator: "is",
+      operators: [{ value: "is", label: "is" }],
+      options: [
+        { value: "active", label: "Active" },
+        { value: "idle", label: "Idle" }
+      ]
+    }
+  ];
+
+  var state = {
+    filters: [],
+    menuOpen: false,
+    menuQuery: "",
+    submenuField: null,
+    editingChipId: null,
+    opMenuId: null,
+    query: "",
+    view: "rows", /* rows | cards — LISTING-STANDARD default */
+    pageState: "ready", /* ready | loading | empty | error | partial */
+    sessionsOk: true
+  };
+
+  function parsePageState() {
+    var params = new URLSearchParams(window.location.search);
+    var s = params.get("state");
+    if (s === "loading" || s === "empty" || s === "error" || s === "partial") {
+      state.pageState = s;
+      state.sessionsOk = s !== "partial";
+    }
+    var view = params.get("view");
+    if (view === "rows" || view === "cards") state.view = view;
+    var q = params.get("q");
+    if (q) state.query = q;
+    var category = params.get("category");
+    if (category) {
+      state.filters.push({ id: uid(), field: "category", operator: "is", values: [category] });
+    }
+    var status = params.get("status");
+    if (status === "active" || status === "idle") {
+      state.filters.push({ id: uid(), field: "status", operator: "is", values: [status] });
+    }
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c];
+    });
+  }
+
+  function uid() {
+    return "f_" + Math.random().toString(36).slice(2, 9);
+  }
+
+  function fieldByKey(key) {
+    return FILTER_FIELDS.find(function (f) { return f.key === key; });
+  }
+
+  function opLabel(field, op) {
+    var found = (field.operators || []).find(function (o) { return o.value === op; });
+    return found ? found.label : op;
+  }
+
+  function optionLabel(field, value) {
+    var found = (field.options || []).find(function (o) { return o.value === value; });
+    return found ? found.label : value;
+  }
+
+  function usedFields() {
+    return state.filters.map(function (f) { return f.field; });
+  }
+
+  function categoryKey(agent) {
+    return (agent.category_path || []).join(" / ");
+  }
+
+  function rebuildCategoryOptions() {
+    var set = {};
+    AGENTS.forEach(function (a) {
+      var key = categoryKey(a);
+      if (key) set[key] = true;
+    });
+    var field = fieldByKey("category");
+    field.options = Object.keys(set).sort().map(function (k) {
+      return { value: k, label: k };
+    });
+  }
+
+  function agentStatus(agent) {
+    if (!state.sessionsOk) return null;
+    return agent.active > 0 ? "active" : "idle";
+  }
+
+
+  function middleTruncate(path, maxCh) {
+    var s = path || "";
+    if (s.length <= maxCh) return s;
+    var parts = s.split(" / ");
+    if (parts.length < 2) return s.slice(0, maxCh - 1) + "…";
+    var first = parts[0];
+    var last = parts[parts.length - 1];
+    var joined = first + " / … / " + last;
+    if (joined.length <= maxCh) return joined;
+    return first.slice(0, Math.max(4, maxCh - last.length - 8)) + "… / " + last;
+  }
+
+  function metaSegments(agent) {
+    var segs = [];
+    var cat = categoryKey(agent);
+    if (cat) segs.push(middleTruncate(cat, 40));
+    if (agent.provider) segs.push(agent.provider);
+    if (agent.model) segs.push(agent.model);
+    return segs;
+  }
+
+  function matchFilter(agent, chip) {
+    var val = (chip.values && chip.values[0]) || "";
+    if (chip.field === "category") {
+      return categoryKey(agent) === val;
+    }
+    if (chip.field === "status") {
+      var st = agentStatus(agent);
+      if (!st) return true;
+      return st === val;
+    }
+    return true;
+  }
+
+  function matchSearch(agent) {
+    var q = state.query.trim().toLowerCase();
+    if (!q) return true;
+    /* Design-spec §3.4: match name + category path only. */
+    var hay = [agent.name, categoryKey(agent)].join(" ").toLowerCase();
+    return hay.indexOf(q) !== -1;
+  }
+
+  function fleet() {
+    if (state.pageState === "empty") return [];
+    if (state.pageState === "error" || state.pageState === "loading") return [];
+    return AGENTS.slice();
+  }
+
+  function filtered() {
+    return fleet().filter(function (agent) {
+      if (!matchSearch(agent)) return false;
+      return state.filters.every(function (chip) { return matchFilter(agent, chip); });
+    }).slice().sort(function (a, b) {
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  function syncUrl() {
+    /* Preview iframes / file:// often reject history writes — never block paint. */
+    try {
+      var params = new URLSearchParams();
+      if (state.pageState !== "ready") params.set("state", state.pageState);
+      if (state.view !== "rows") params.set("view", state.view);
+      if (state.query.trim()) params.set("q", state.query.trim());
+      state.filters.forEach(function (chip) {
+        var val = (chip.values && chip.values[0]) || "";
+        if (chip.field === "category" && val) params.set("category", val);
+        if (chip.field === "status" && val) params.set("status", val);
+      });
+      var qs = params.toString();
+      var next = qs ? (window.location.pathname + "?" + qs) : window.location.pathname;
+      var cur = window.location.pathname + window.location.search;
+      if (next === cur) return;
+      if (window.history && typeof window.history.replaceState === "function") {
+        window.history.replaceState(null, "", next);
+      }
+    } catch (err) {
+      /* ignore SecurityError / NotSupportedError in embedded previews */
+    }
+  }
+
+  function syncViewToggle() {
+    document.querySelectorAll("#view-toggle .pill-group__item").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", btn.getAttribute("data-view") === state.view ? "true" : "false");
+    });
+    var wrap = document.getElementById("view-toggle-wrap");
+    if (wrap) {
+      var hide = state.pageState === "loading" || state.pageState === "error" || state.pageState === "empty";
+      wrap.classList.toggle("hide", hide);
+    }
+  }
+
+  function statusPill(status) {
+    if (status === "active") {
+      return '<span class="pill pill--success"><span class="dot"></span>Active</span>';
+    }
+    if (status === "idle") {
+      return '<span class="pill pill--neutral"><span class="dot"></span>Idle</span>';
+    }
+    return "";
+  }
+
+  function commentButton(agent) {
+    return '<button type="button" class="btn btn--icon" data-new-session="' + esc(agent.name) +
+      '" aria-label="New session with ' + esc(agent.name) + '" title="New session">' + COMMENT_ICON + "</button>";
+  }
+
+  function openNewSession(agentName) {
+    window.alert("Opens a new session with " + agentName + ".");
+  }
+
+  function closeMenus() {
+    state.menuOpen = false;
+    state.menuQuery = "";
+    state.submenuField = null;
+    state.editingChipId = null;
+    state.opMenuId = null;
+  }
+
+  function setCounts(n) {
+    document.getElementById("topbar-count").textContent = String(n);
+    document.getElementById("head-count").textContent = String(n);
+  }
+
+  function setTopbarCtaVisible(visible) {
+    var el = document.getElementById("topbar-actions");
+    el.classList.toggle("hide", !visible);
+  }
+
+  function renderFilters() {
+    var root = document.getElementById("filters-root");
+    if (state.pageState === "loading" || state.pageState === "error" || state.pageState === "empty") {
+      root.innerHTML = "";
+      return;
+    }
+    var used = usedFields();
+    var html = "";
+
+    html += '<div class="filter-add">';
+    html += '<button type="button" class="btn btn--ghost btn--sm" id="filter-add-btn" aria-label="Add filter" data-od-id="agents-filter-add">';
+    html += FILTER_ICON + " Filter</button>";
+
+    if (state.menuOpen) {
+      var q = state.menuQuery.toLowerCase();
+      html += '<div class="filter-menu" id="filter-menu" role="menu">';
+      html += '<input class="filter-menu__search" id="filter-menu-search" type="text" placeholder="Filter..." value="' + esc(state.menuQuery) + '" autocomplete="off" spellcheck="false" />';
+      html += '<div class="filter-menu__sep"></div>';
+      var shown = 0;
+      FILTER_FIELDS.forEach(function (field) {
+        if (used.indexOf(field.key) !== -1) return;
+        if (q && field.label.toLowerCase().indexOf(q) === -1) return;
+        shown++;
+        html += '<button type="button" class="filter-menu__item" data-add-field="' + field.key + '" role="menuitem">';
+        html += SELECT_ICON + esc(field.label) + "</button>";
+      });
+      if (!shown) html += '<div class="filter-menu__empty">No filters found.</div>';
+      html += "</div>";
+
+      if (state.submenuField) {
+        var sub = fieldByKey(state.submenuField);
+        if (sub && sub.type === "select") {
+          html += '<div class="filter-submenu" id="filter-submenu">';
+          sub.options.forEach(function (opt) {
+            html += '<button type="button" class="filter-menu__item" data-pick-value="' + esc(opt.value) + '">' + esc(opt.label) + "</button>";
+          });
+          html += "</div>";
+        }
+      }
+    }
+    html += "</div>";
+
+    state.filters.forEach(function (chip) {
+      var field = fieldByKey(chip.field);
+      if (!field) return;
+      var val = (chip.values && chip.values[0]) || "";
+      var display = optionLabel(field, val);
+      html += '<div class="filter-chip" data-chip-id="' + chip.id + '" role="group">';
+      html += '<span class="filter-chip__label">' + esc(field.label) + "</span>";
+      html += '<button type="button" class="filter-chip__op" data-op-toggle="' + chip.id + '">' + esc(opLabel(field, chip.operator)) + "</button>";
+      html += '<button type="button" class="filter-chip__val" data-chip-value="' + chip.id + '">' + esc(display || "Select...") + "</button>";
+      html += '<button type="button" class="filter-chip__x" data-chip-remove="' + chip.id + '" aria-label="Remove filter">' + X_ICON + "</button>";
+      html += "</div>";
+    });
+
+    if (state.opMenuId) {
+      var opChip = state.filters.find(function (c) { return c.id === state.opMenuId; });
+      var opField = opChip ? fieldByKey(opChip.field) : null;
+      if (opField) {
+        html += '<div class="filter-op-menu" id="filter-op-menu" data-for="' + state.opMenuId + '">';
+        opField.operators.forEach(function (op) {
+          html += '<button type="button" class="filter-menu__item" data-set-op="' + op.value + '">' + esc(op.label) + "</button>";
+        });
+        html += "</div>";
+      }
+    }
+
+    root.innerHTML = html;
+
+    if (state.menuOpen) {
+      var search = document.getElementById("filter-menu-search");
+      if (search) {
+        search.focus();
+        search.setSelectionRange(state.menuQuery.length, state.menuQuery.length);
+        search.addEventListener("input", function () {
+          state.menuQuery = search.value;
+          renderFilters();
+        });
+      }
+    }
+
+    bindFilterEvents();
+  }
+
+  function bindFilterEvents() {
+    var addBtn = document.getElementById("filter-add-btn");
+    if (addBtn) {
+      addBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.menuOpen = !state.menuOpen;
+        state.submenuField = null;
+        state.opMenuId = null;
+        renderFilters();
+      });
+    }
+
+    document.querySelectorAll("[data-add-field]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var key = btn.getAttribute("data-add-field");
+        var field = fieldByKey(key);
+        if (!field) return;
+        if (field.type === "select") {
+          state.submenuField = key;
+          renderFilters();
+          return;
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-pick-value]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var val = btn.getAttribute("data-pick-value");
+        var fieldKey = state.submenuField || (state.editingChipId && (state.filters.find(function (c) { return c.id === state.editingChipId; }) || {}).field);
+        if (state.editingChipId) {
+          var chip = state.filters.find(function (c) { return c.id === state.editingChipId; });
+          if (chip) chip.values = [val];
+          state.editingChipId = null;
+        } else if (fieldKey) {
+          state.filters.push({ id: uid(), field: fieldKey, operator: "is", values: [val] });
+        }
+        closeMenus();
+        renderAll();
+      });
+    });
+
+    document.querySelectorAll("[data-chip-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute("data-chip-remove");
+        state.filters = state.filters.filter(function (c) { return c.id !== id; });
+        closeMenus();
+        renderAll();
+      });
+    });
+
+    document.querySelectorAll("[data-chip-value]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute("data-chip-value");
+        var chip = state.filters.find(function (c) { return c.id === id; });
+        if (!chip) return;
+        state.editingChipId = id;
+        state.submenuField = chip.field;
+        state.menuOpen = true;
+        state.opMenuId = null;
+        renderFilters();
+      });
+    });
+
+    document.querySelectorAll("[data-op-toggle]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute("data-op-toggle");
+        state.opMenuId = state.opMenuId === id ? null : id;
+        state.menuOpen = false;
+        renderFilters();
+      });
+    });
+
+    document.querySelectorAll("[data-set-op]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var op = btn.getAttribute("data-set-op");
+        var chip = state.filters.find(function (c) { return c.id === state.opMenuId; });
+        if (chip) chip.operator = op;
+        state.opMenuId = null;
+        renderAll();
+      });
+    });
+  }
+
+  function renderSkeleton() {
+    if (state.view === "cards") {
+      var cards = '<div class="sk-card-grid" data-od-id="agents-loading" aria-busy="true" aria-label="Loading agents">';
+      for (var c = 0; c < 6; c++) {
+        cards += '<div class="sk-card">';
+        cards += '<div class="sk-card__head"><div class="sk sk-card__icon"></div><div style="flex:1;min-width:0">';
+        cards += '<div class="sk sk-line sk-line--title" style="width:55%"></div>';
+        cards += '<div class="sk sk-line sk-line--meta" style="width:40%;margin-top:8px"></div></div></div>';
+        cards += '<div class="sk-card__foot"><div class="sk sk-pill"></div><div class="sk sk-icon"></div></div>';
+        cards += "</div>";
+      }
+      cards += "</div>";
+      return cards;
+    }
+    var html = '<div class="skeleton-rows" data-od-id="agents-loading" aria-busy="true" aria-label="Loading agents">';
+    for (var i = 0; i < 8; i++) {
+      html += '<div class="skeleton-row">';
+      html += '<div class="sk-leading"><div class="sk sk-avatar"></div></div>';
+      html += '<div><div class="sk sk-line sk-line--title"></div><div class="sk sk-line sk-line--meta"></div></div>';
+      html += '<div class="sk-trail"><div class="sk sk-pill"></div><div class="sk sk-icon"></div></div>';
+      html += "</div>";
+    }
+    html += "</div>";
+    return html;
+  }
+
+  function renderRow(agent, index) {
+    var status = agentStatus(agent);
+    var segs = metaSegments(agent);
+    var ariaStatus = status === "active" ? "Active" : status === "idle" ? "Idle" : "status unavailable";
+    var aria = agent.name + ", " + providerKey(agent.provider) + ", " + ariaStatus;
+
+    var html = '<a class="listing-row" href="agent-detail.html?tab=overview" data-od-id="agent-row-' + (index + 1) + '" aria-label="' + esc(aria) + '">';
+    html += '<span class="listing-row__leading">' + providerLogo(agent.provider) + "</span>";
+    html += '<div class="listing-row__main">';
+    html += '<div class="listing-row__name"><b>' + esc(agent.name) + "</b></div>";
+    html += '<div class="listing-row__meta">';
+    segs.forEach(function (seg, i) {
+      if (i) html += '<span class="sep" aria-hidden="true">·</span>';
+      html += '<span class="k">' + esc(seg) + "</span>";
+    });
+    html += "</div></div>";
+
+    html += '<div class="listing-row__trail">';
+    if (state.sessionsOk) {
+      html += statusPill(status);
+    }
+    if (agent.diagnostics && agent.diagnostics.length) {
+      html += '<span class="pill pill--warning">Invalid</span>';
+    }
+    html += '<div class="row-actions">' + commentButton(agent) + "</div>";
+    html += "</div></a>";
+    return html;
+  }
+
+  function renderCard(agent, index) {
+    var status = agentStatus(agent);
+    var cat = categoryKey(agent);
+    var eyebrowParts = [];
+    if (cat) eyebrowParts.push(middleTruncate(cat, 36));
+    else if (agent.provider) eyebrowParts.push(providerKey(agent.provider));
+    if (agent.model) eyebrowParts.push(agent.model);
+
+    var html = '<a class="listing-card" href="agent-detail.html?tab=overview" data-od-id="agent-card-' + (index + 1) + '">';
+    html += '<div class="listing-card__head">';
+    html += providerLogo(agent.provider, "sm");
+    html += '<div class="listing-card__title">';
+    html += "<b>" + esc(agent.name) + "</b>";
+    if (eyebrowParts.length) {
+      html += '<div class="listing-card__eyebrow">' + esc(eyebrowParts.join(" · ")) + "</div>";
+    }
+    html += "</div></div>";
+    html += '<div class="listing-card__foot">';
+    html += '<div class="listing-card__foot-meta">';
+    if (state.sessionsOk) html += statusPill(status);
+    if (agent.diagnostics && agent.diagnostics.length) {
+      html += '<span class="pill pill--warning">Invalid</span>';
+    }
+    html += "</div>";
+    html += '<div class="row-actions">' + commentButton(agent) + "</div>";
+    html += "</div></a>";
+    return html;
+  }
+
+  function bindListActions(root) {
+    root.querySelectorAll("[data-new-session]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openNewSession(btn.getAttribute("data-new-session"));
+      });
+    });
+  }
+
+  function renderList() {
+    var root = document.getElementById("list-root");
+    var fleetTotal = fleet().length;
+    syncViewToggle();
+    setCounts(state.pageState === "loading" || state.pageState === "error" ? 0 : (state.pageState === "empty" ? 0 : AGENTS.length));
+
+    if (state.pageState === "loading") {
+      setTopbarCtaVisible(true);
+      setCounts(0);
+      root.innerHTML = renderSkeleton();
+      return;
+    }
+
+    if (state.pageState === "error") {
+      /* Accent stays on topbar New agent; Retry is neutral recovery (§2.1). */
+      setTopbarCtaVisible(true);
+      setCounts(0);
+      root.innerHTML =
+        '<div class="empty" data-od-id="agents-error">' + ALERT_ICON +
+        "<b>Couldn't load agents</b>" +
+        "<p>The agents request failed. Check the daemon connection and try again.</p>" +
+        '<button type="button" class="btn" id="btn-retry" data-od-id="agents-retry">Retry</button></div>';
+      var retry = document.getElementById("btn-retry");
+      if (retry) {
+        retry.addEventListener("click", function () {
+          state.pageState = "ready";
+          state.sessionsOk = true;
+          renderAll();
+        });
+      }
+      return;
+    }
+
+    if (state.pageState === "empty" || (fleetTotal === 0 && state.pageState === "ready")) {
+      setTopbarCtaVisible(false);
+      setCounts(0);
+      root.innerHTML =
+        '<div class="empty" data-od-id="agents-empty">' + USERS_ICON +
+        "<b>No agents yet</b>" +
+        "<p>Agents define the provider, model, and instructions a session runs with.</p>" +
+        '<button type="button" class="btn btn--primary" id="btn-empty-new" data-od-id="agents-empty-new">New agent</button></div>';
+      var emptyNew = document.getElementById("btn-empty-new");
+      if (emptyNew) emptyNew.addEventListener("click", openCreate);
+      return;
+    }
+
+    setTopbarCtaVisible(true);
+    setCounts(AGENTS.length);
+
+    var rows = filtered();
+    var html = "";
+
+    if (!state.sessionsOk) {
+      html += '<div class="notice" data-od-id="agents-partial-notice">' + WARN_ICON +
+        "<span>Session status unavailable</span></div>";
+    }
+
+    if (!rows.length) {
+      html +=
+        '<div class="empty" data-od-id="agents-filtered-empty">' + USERS_ICON +
+        "<b>No agents match</b>" +
+        "<p>Try a different search or clear the active filters.</p>" +
+        '<button type="button" class="btn btn--ghost" id="btn-clear-filters" data-od-id="agents-clear-filters">Clear filters</button></div>';
+      root.innerHTML = html;
+      var clear = document.getElementById("btn-clear-filters");
+      if (clear) {
+        clear.addEventListener("click", function () {
+          state.query = "";
+          state.filters = [];
+          document.getElementById("search-input").value = "";
+          closeMenus();
+          renderAll();
+        });
+      }
+      return;
+    }
+
+    if (state.view === "cards") {
+      html += '<div class="listing-card-grid" data-od-id="agents-cards">';
+      rows.forEach(function (agent, i) {
+        html += renderCard(agent, i);
+      });
+      html += "</div>";
+    } else {
+      html += '<div class="list" role="list">';
+      rows.forEach(function (agent, i) {
+        html += renderRow(agent, i);
+      });
+      html += "</div>";
+    }
+    root.innerHTML = html;
+    bindListActions(root);
+  }
+
+  function openCreate() {
+    /* Prototype: create wizard lives in product shell; keep CTA wired. */
+    window.alert("Opens the existing New agent wizard.");
+  }
+
+  function renderAll() {
+    renderFilters();
+    renderList();
+    syncUrl();
+  }
+
+  function bindGlobal() {
+    var input = document.getElementById("search-input");
+    input.value = state.query;
+    var debounce;
+    input.addEventListener("input", function () {
+      clearTimeout(debounce);
+      debounce = setTimeout(function () {
+        state.query = input.value;
+        renderAll();
+      }, 200);
+    });
+
+    document.getElementById("btn-new-agent").addEventListener("click", openCreate);
+
+    document.getElementById("view-toggle").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-view]");
+      if (!btn) return;
+      var next = btn.getAttribute("data-view");
+      if (next !== "rows" && next !== "cards") return;
+      if (state.view === next) return;
+      state.view = next;
+      renderAll();
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        var tag = (document.activeElement && document.activeElement.tagName) || "";
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        e.preventDefault();
+        input.focus();
+      }
+      if (e.key === "Escape") {
+        closeMenus();
+        renderFilters();
+      }
+    });
+
+    document.addEventListener("click", function () {
+      if (state.menuOpen || state.opMenuId) {
+        closeMenus();
+        renderFilters();
+      }
+    });
+  }
+
+  rebuildCategoryOptions();
+  parsePageState();
+  bindGlobal();
+  renderAll();
+})();
+</script>
+</body>
+</html>

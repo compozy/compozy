@@ -1,0 +1,47 @@
+---
+title: "agh window float"
+description: "Toggle a window between floating and tiled placement"
+---
+
+## agh window float
+
+Toggle a window between floating and tiled placement
+
+```
+agh window float [flags]
+```
+
+### Options
+
+```
+      --actor-id string    Optional actor identifier
+      --client string      Connected presentation client ID
+  -h, --help               help for float
+      --id string          Window ID
+      --origin string      Command origin label (default "cli")
+      --rect string        Floating rect as x,y,width,height
+      --revision uint      Expected workspace revision
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh window float -o json
+```

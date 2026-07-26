@@ -1,0 +1,53 @@
+---
+title: "agh tool artifact read"
+description: "Read one workspace-scoped artifact page"
+---
+
+## agh tool artifact read
+
+Read one workspace-scoped artifact page
+
+```
+agh tool artifact read <artifact_uri> [flags]
+```
+
+### Examples
+
+```
+  # Emit one page as structured JSON
+  agh tool artifact read agh://tool-artifacts/art_<sha256> --workspace ws-1 -o json
+
+  # Decode page bytes directly to stdout
+  agh tool artifact read agh://tool-artifacts/art_<sha256> --workspace ws-1 --offset 65536
+```
+
+### Options
+
+```
+  -h, --help               help for read
+      --limit int          Page size in bytes (default and maximum 65536)
+      --offset int         Zero-based byte offset
+      --workspace string   Workspace id that owns the artifact
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh tool artifact read <artifact_uri> -o json
+```

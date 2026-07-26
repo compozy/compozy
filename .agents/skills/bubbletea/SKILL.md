@@ -1,9 +1,12 @@
 ---
 name: bubbletea
-description: Build terminal user interfaces with Go and Bubbletea framework. Use for creating TUI apps with the Elm architecture, dual-pane layouts, accordion modes, mouse/keyboard handling, Lipgloss styling, and reusable components. Includes production-ready templates, effects library, and battle-tested layout patterns from real projects.
+description: Build terminal user interfaces with Go and Bubbletea framework. Use when creating TUI apps with the Elm architecture, dual-pane layouts, accordion modes, mouse/keyboard handling, Lipgloss styling, and reusable components. Includes production-ready templates, effects library, and battle-tested layout patterns from real projects. Don't use for plain-text CLI scripts without an interactive UI, web/desktop GUIs, or non-Go terminal frameworks (Ink, Textual, Ratatui).
 license: MIT
+metadata:
+  author: Pedro Nauck
+  github: https://github.com/pedronauck
+  repository: https://github.com/pedronauck/skills
 ---
-
 # Bubbletea TUI Development
 
 Production-ready skill for building beautiful terminal user interfaces with Go, Bubbletea, and Lipgloss.

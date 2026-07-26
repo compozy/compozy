@@ -1,0 +1,36 @@
+---
+title: "agh memory recall"
+description: "Inspect Memory v2 recall traces"
+---
+
+## agh memory recall
+
+Inspect Memory v2 recall traces
+
+### Options
+
+```
+  -h, --help   help for recall
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                               | Description                          |
+| --------------------------------------------------------------------- | ------------------------------------ |
+| [agh memory recall trace](/runtime/cli-reference/memory/recall/trace) | Show one redaction-safe recall trace |

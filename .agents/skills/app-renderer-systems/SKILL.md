@@ -19,9 +19,9 @@ Activate alongside this skill — systems span multiple technical domains:
 
 | Situation             | Activate                                  |
 | --------------------- | ----------------------------------------- |
-| Any hook or component | `react` + `tanstack-query-best-practices` |
-| Data fetching/caching | `tanstack-query-best-practices`           |
-| Mutations             | `tanstack-query-best-practices`           |
+| Any hook or component | `react` + `tanstack`                      |
+| Data fetching/caching | `agh-data-boundaries` + `tanstack`        |
+| Mutations             | `tanstack`                                |
 | XState store          | `xstate`                                  |
 | Utility functions     | `es-toolkit`                              |
 | Writing/fixing tests  | `test-antipatterns` + `vitest`            |
@@ -61,7 +61,7 @@ systems/<domain>/
 
 ### Step 1 — Define types.ts
 
-- Export clean domain types; never expose raw API response shapes.
+- Export clean component view-model types; preserve API page envelopes in adapters and query caches, then flatten at the hook/view-model read boundary.
 - Derive from the project's API contract types when available.
 - Document complex aggregated types with JSDoc explaining derivation rules and invariants.
 
@@ -116,7 +116,8 @@ export function <domain>DetailOptions(id: string) {
 ```
 
 - Co-locate `queryKey` and `queryFn` via `queryOptions` for type safety and reuse.
-- Export each option factory for use in hooks, prefetching, and route loaders.
+- Export each option factory for hooks, prefetching, route loaders, mutations, and stream writers.
+- Keep stable scope/filters in the base key and continuation cursors only in `pageParam`.
 - Always pass `signal` from the query context through to the API layer.
 
 ### Step 5 — Write hooks
@@ -185,12 +186,12 @@ export { <domain>Api, <Domain>ApiError } from "./adapters/<domain>-api";
 
 ## Critical Rules
 
-1. **Use `queryOptions` for co-location.** Co-locate `queryKey` and `queryFn` in reusable option factories. Never scatter the same query key across multiple files.
+1. **Use `queryOptions` for co-location.** Reuse option/key factories across loaders, hooks, mutations, and streams; never redeclare server-query identity at a consumer.
 2. **Unidirectional dependency flow.** `adapters -> lib -> hooks -> components`. Adapters never import from hooks or components.
-3. **Scope query keys.** Any query depending on an authenticated scope (user, org, tenant) must include that scope ID in its key to prevent stale cross-scope data.
+3. **Scope query keys.** Include every stable scope/filter in the base key and keep pagination cursors in `pageParam` to prevent cross-scope data and cache fragmentation.
 4. **Typed errors in the API layer.** Never throw raw errors from adapters. Use a typed error class so consumers can distinguish error types without inspecting message strings.
 5. **AbortSignal propagation.** Pass `signal` from the `queryFn` context through to every API call for proper query cancellation.
-6. **Always invalidate after mutations.** Use `queryClient.invalidateQueries` in `onSettled` to ensure eventual consistency with the server.
+6. **Follow the owner's mutation contract.** Reconcile through canonical keys; invalidate on settle only when the read model requires a server reread.
 7. **Optimistic updates require rollback.** When using cache-based optimistic updates, snapshot previous data in `onMutate` and restore in `onError`.
 8. **Cancel outgoing queries before optimistic updates.** Call `queryClient.cancelQueries` in `onMutate` to prevent refetches from overwriting optimistic state.
 9. **Zod schemas in lib/.** Place all Zod schemas in `lib/<domain>-schemas.ts` for runtime validation at API boundaries.
@@ -198,7 +199,7 @@ export { <domain>Api, <Domain>ApiError } from "./adapters/<domain>-api";
 ## Error Handling
 
 - **API layer throws typed error**: TanStack Query catches and exposes it via `query.error`.
-- **Mutation fails with optimistic update**: `onError` callback rolls back the cache to the snapshot from `onMutate`, then `onSettled` invalidates to refetch fresh data.
+- **Mutation fails with optimistic update**: `onError` restores the complete cache snapshot; `onSettled` rereads only when the owner contract requires it.
 - **Stale cross-scope data**: Add the scope ID to the query key and verify that `enabled` guards check `Boolean(scopeId)`.
 - **Query cancellation on unmount**: TanStack Query automatically cancels in-flight queries via the `signal` when a component unmounts — ensure `signal` is propagated to the API layer.
 

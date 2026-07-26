@@ -1,0 +1,174 @@
+---
+title: Operate a Goal from a session
+description: Start, inspect, replace, pause, resume, draft, and audit a durable Goal through session commands, native tools, and Run history.
+---
+
+A conversational Goal attaches a durable, judged convergence Run to one existing session. Start it
+through the session prompt surface, keep working in the same thread, and inspect the same Run through
+Web, CLI, HTTP/UDS, or native tools. The daemon remains the source of truth; closing a browser or
+disconnecting the prompt response does not cancel a committed Goal.
+
+<Callout type="info">
+  `/goal` is parsed only at authenticated operator prompt ingress: Web, HTTP, UDS, and `agh session
+  prompt`. Internal, automation, network, extension, and synthetic prompts treat the same text as an
+  ordinary message.
+</Callout>
+
+## Start and inspect
+
+Send a free-form objective to an active session:
+
+```bash
+agh session prompt sess_123 '/goal Ship the requested change and keep make verify green.' -o json
+```
+
+The command returns a structured result. A successful start has `outcome: started` and the canonical
+snapshot. If the session already owns a visible Goal, AGH returns `goal_replace_required` with the
+current snapshot instead of overwriting it.
+
+Read the current Goal through any of these public surfaces:
+
+- Web session header — status, turn meter, context state, Run link, active binding link, and valid controls.
+- `agh session prompt <id> '/goal status' -o json` — structured session command result.
+- `agh__goal_get` — session-scoped native read, including terminal state until clear.
+- `GET /api/workspaces/{workspace_id}/sessions/{session_id}/goal` — canonical snapshot or `{ "goal": null }`.
+
+The snapshot includes `run_id`, `node_id`, objective, origin and bound session IDs, Goal and Run
+status, cause, turn counts, contract summary, latest nullable verdict, and context telemetry. A
+terminal newest Goal remains visible after restart until it is explicitly cleared. Clear returns
+the session projection to `{ "goal": null }`; it does not delete the Run or expose an older Goal.
+
+## Command grammar
+
+| Command                                       | Result                                                                                                                       |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `/goal <objective>`                           | Starts one session-origin Goal. Returns `goal_replace_required` when a visible Goal already exists.                          |
+| `/goal replace <expected-run-id> <objective>` | Replaces exactly the Run the operator reviewed. A stale ID returns `goal_replace_stale` and preserves the current Goal.      |
+| `/goal status`                                | Returns the newest visible snapshot.                                                                                         |
+| `/goal pause`                                 | Records an actor-aware pause request and parks at the next safe prompt boundary.                                             |
+| `/goal resume`                                | Resumes a paused Goal or approves the active synthetic Goal gate. A terminal blocked Run is not resumable.                   |
+| `/goal clear`                                 | Revokes live Goal work when needed, then hides the newest live or terminal projection without deleting its audit.            |
+| `/goal draft <rough text>`                    | Runs one ordinary streamed agent turn that expands the draft; it does not activate a Goal. The composer prefills the result. |
+
+Reserved verbs accept only the arguments shown. Objectives are limited to 4,000 Unicode code
+points. Unknown text after `/goal` is the objective for the start form, not a command registry.
+
+### Replace safely
+
+Use the `run_id` from the current snapshot as the expected ID:
+
+```bash
+agh session prompt sess_123 \
+  '/goal replace run_current Ship the narrower objective and keep make verify green.' \
+  -o json
+```
+
+Replacement prepares the candidate before it stops the old Run. Invalid candidate configuration
+leaves the old Goal live. Concurrent valid replacements have one compare-and-swap winner; other
+callers receive `goal_replace_stale` with the newer snapshot.
+
+### Draft before activation
+
+```bash
+agh session prompt sess_123 '/goal draft fix the flaky checks without broad rewrites'
+```
+
+Draft is the only `/goal` form that stays on the ordinary streaming response path. It is admitted
+only while the session prompt slot is idle. A busy or race-busy session returns
+`goal_draft_requires_idle` before stream headers and does not queue, steer, interrupt, or count a
+Goal turn. Review the generated objective and optional clauses, then submit the prefilled `/goal`
+command yourself.
+
+## Verification and constraints
+
+The start and replace objectives accept line-oriented lowercase clauses:
+
+```text
+/goal Ship the parser cleanup without changing unrelated packages.
+verify: make verify remains green
+verify: generated OpenAPI has no drift
+constraints: preserve the public CLI shape
+```
+
+AGH stores the non-clause lines as the objective. Each `verify:` and `constraints:` line must contain
+text. The synthetic Goal always uses one canonical `agent-judge` criterion. Verification text is
+added to that judge rubric; it is never executed as a shell command. To author an actual command
+criterion, use a [`goal` node in an agh.loop/v1 definition](/runtime/core/loops/goal-node).
+
+## Context and recovery
+
+The context gauge reports evidence from the active Goal checkpoint:
+
+| State     | Meaning                                                                                                 |
+| --------- | ------------------------------------------------------------------------------------------------------- |
+| `known`   | The provider reported a current context window size and usage ratio.                                    |
+| `unknown` | No trustworthy report exists. AGH does not display or infer a percentage.                               |
+| `pending` | Compaction ran, but AGH still needs a strictly newer usage report before it can call the context fresh. |
+
+`[goals].context_nudge_ratio` is pinned when the Run starts. When known usage reaches that threshold,
+AGH requests correlated compaction. Compaction is an operational prompt, not a user-authored human
+message and not a Goal work turn.
+
+AGH does not replay an ACP prompt after its durable start. A restart with exact terminal evidence
+reconciles that terminal result. Missing proof becomes an `ambiguous` turn and a typed approval
+boundary. A `max_tokens` recovery starts a new continuation turn that inspects current state; it is
+not a retry of the previous prompt.
+
+Run-owned Goals may reseed automatically when compaction cannot recover the binding. A session-origin
+Goal requires explicit approval before it moves away from the user's conversation. After approval,
+`origin_session_id` remains the owner and `bound_session_id` points to the active successor session.
+Use the active-session link for ordinary messages; `/goal` controls remain on the origin session.
+
+Pause and approval re-entry enqueue one successor segment under a new control epoch. Repeated
+resume/approve calls do not create multiple successors. A terminal `blocked` Run stays terminal;
+change the objective with expected-Run replacement or clear the projection instead of resuming it.
+
+## Audit turns
+
+Every durably started work prompt consumes one monotonic Goal turn. Compaction does not. Read the
+run-wide total order with:
+
+```bash
+agh loop turns --run run_123 --after-seq 42 --limit 50 -o json
+```
+
+Optional `--node` and `--item` filters narrow one Goal instance. `result_status`, reason, stop reason,
+verdict, evidence, token usage, and `ended_at` are nullable until the corresponding evidence exists.
+The response returns `next_after_seq` for the next page. See the generated
+[`agh loop turns` reference](/runtime/cli-reference/loop/turns).
+
+List only conversational Goal Runs, or one origin session:
+
+```bash
+agh loop runs --origin session --origin-session sess_123 -o json
+```
+
+The Web Run page merges persisted pages with the three Goal Run events without duplicating turns.
+Session discovery remains separate: persisted `goal_snapshot_changed` frames announce `start`,
+`replace`, `status`, `clear`, and `reseed` changes on the always-on transcript stream, including
+changes made through another public surface.
+
+## Prompt metadata and native reports
+
+Persisted transcript events tag engine-owned prompts as `goal-work`, `goal-continuation`, or
+`goal-compaction`, with Run, node, generation, item, prompt attempt, prompt ID, and nullable turn.
+The tags survive reload; clients do not infer them from prompt prose.
+
+Agents operating inside the active binding have three dedicated tools:
+
+- `agh__goal_get` reads the visible snapshot for the caller session and follows an active moved-binding alias.
+- `agh__goal_report` records `complete` or evidenced `blocked` intent for the current prompt binding.
+- `agh__loop_turns` reads the workspace-authorized Run audit with cursor and node/item filters, even after the binding is terminal.
+
+`agh__goal_report` is a durable boundary intent, not immediate completion or proof of provider-side
+effect uniqueness. The daemon revalidates prompt, control, and binding epochs when invoked. Evidence is limited
+to 16 KiB; `blocked` requires evidence. Retries with the same payload deduplicate, while conflicting
+or revoked reports fail with stable reason codes. Resolve each live descriptor with
+`agh__tool_info` before calling it.
+
+## Configure defaults
+
+New conversational and authored Goals consume the resolved `[goals]` defaults where the public
+start path applies them. Active Runs keep their pinned values. See the
+[`[goals]` config reference](/runtime/core/configuration/config-toml#goals) for precedence, mutable
+paths, bounds, and restart lifecycle.

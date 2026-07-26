@@ -1,0 +1,43 @@
+---
+title: "agh desktop clients register"
+description: "Register or refresh a client-local desktop view"
+---
+
+## agh desktop clients register
+
+Register or refresh a client-local desktop view
+
+```
+agh desktop clients register [flags]
+```
+
+### Options
+
+```
+      --client string      Stable client ID; generated when omitted
+      --desktop string     Initial active desktop ID
+  -h, --help               help for register
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh desktop clients register -o json
+```

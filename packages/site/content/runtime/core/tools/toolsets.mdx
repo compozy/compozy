@@ -1,0 +1,103 @@
+---
+title: Toolsets
+description: How AGH groups registry tools into named exposure sets for discovery, policy, and session startup.
+---
+
+Toolsets group related tools so AGH can expose a coherent operating surface without forcing every
+agent or operator to reason about hundreds of individual tool IDs first.
+
+Use toolsets when you need to understand why a session can see one family of tools, why a tool is
+missing, or how a catalog expands into concrete tool IDs.
+
+## In one sentence
+
+A toolset is a named bundle of registry tools with expansion diagnostics.
+
+## Inspect toolsets
+
+List known toolsets:
+
+```bash
+agh toolsets list -o json
+```
+
+Inspect one expansion:
+
+```bash
+agh toolsets info agh__catalog -o json
+```
+
+What happened: AGH resolved the toolset through the registry and returned the expanded tool IDs plus
+diagnostics. Use diagnostics when an expected tool is missing or unavailable in the current scope.
+
+## Bootstrap and catalog shape
+
+Bootstrap and catalog toolsets identify the registry tools that help an agent orient itself:
+
+| Toolset or tool    | Job                                                                    |
+| ------------------ | ---------------------------------------------------------------------- |
+| `agh__bootstrap`   | Gives a managed agent enough initial runtime context to orient itself. |
+| `agh__catalog`     | Exposes the high-level registry catalog.                               |
+| `agh__tool_search` | Searches for tools by descriptor text.                                 |
+| `agh__tool_info`   | Returns one descriptor, schema, and diagnostics before invocation.     |
+
+These toolsets no longer cap the hosted MCP projection for a bare managed session. When no agent or
+session policy narrows the tool surface, hosted MCP projects the full availability-gated callable
+catalog. Explicit `tools`, `toolsets`, `deny_tools`, session lineage, disabled sources, and approval
+gates still restrict invocation.
+
+The goal is precise discovery. Agents should not load every tool schema into context on every turn.
+They resolve the canonical discovery ToolID through the active harness, search, inspect, then invoke
+the returned tool reference. `agh__tool_list` shows the currently callable projection;
+`agh__tool_search` and `agh__tool_info` can also report known but denied tools with reason codes.
+
+## Operational toolsets
+
+AGH groups runtime capabilities by owning subsystem. These toolsets are canonical IDs that can be
+granted through agent definitions or inspected through `agh toolsets info`.
+
+| Toolset                | Includes                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| `agh__tasks`           | Task CRUD, task runs, reviews, execution profiles, and notifications.           |
+| `agh__provider_models` | Provider model catalog list, curation, refresh, and source-status tools.        |
+| `agh__memory`          | Memory list, show, search, proposal, and ad-hoc note tools.                     |
+| `agh__memory_admin`    | Memory health, history, reindex, dream, provider, extractor, and ledger tools.  |
+| `agh__bridges`         | Bridge instance, route, secret-binding, and status diagnostics.                 |
+| `agh__automation`      | Automation job, trigger, and run management.                                    |
+| `agh__extensions`      | Extension marketplace, install, update, enable, disable, and remove tools.      |
+| `agh__bundles`         | Extension bundle catalog, activation, deactivation, and network-default status. |
+| `agh__resources`       | Desired-state resource list, info, and snapshot inspection tools.               |
+| `agh__mcp`             | MCP server probe/status diagnostics without login or logout tool calls.         |
+| `agh__mcp_auth`        | Redacted MCP OAuth status for configured servers.                               |
+| `agh__clarify`         | One bounded operator question through the read-only `agh__clarify` tool.        |
+
+Toolsets expose current canonical tool IDs only. For Memory administration, `agh__memory_admin`
+includes `agh__memory_admin_history` for operation-history inspection.
+
+## How toolsets help operators
+
+Toolsets answer practical questions:
+
+- Which tools are grouped for a policy grant?
+- Which concrete tool IDs are in this catalog?
+- Is a tool unavailable because of scope, policy, missing daemon state, or configuration?
+- Which tools should a managed agent inspect first?
+
+## How toolsets help agents
+
+Agents should treat toolsets as navigation, not as permission to call everything blindly.
+
+Recommended flow:
+
+1. Use the bootstrap/catalog discovery tools.
+2. Search for the task-specific tool family.
+3. Inspect the descriptor and input schema.
+4. Invoke only after the target and required fields are clear.
+5. Report the result or failure using the owning task/session surface.
+
+## Related pages
+
+- [Tool Registry](/runtime/core/tools) explains the registry model.
+- [Policy and Invocation](/runtime/core/tools/policy-and-invocation) explains what happens at call
+  time.
+- [Toolsets CLI Reference](/runtime/cli-reference/toolsets) is the generated command reference.

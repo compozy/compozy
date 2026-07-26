@@ -1,0 +1,279 @@
+---
+title: Agent Heartbeat
+description: Optional HEARTBEAT.md authored wake/reentry policy plus runtime session health, advisory wake decisions, and managed authoring surfaces.
+---
+
+`HEARTBEAT.md` is an optional authored wake/reentry policy beside an agent's `AGENT.md`. It guides
+how an already eligible session should reorient when AGH delivers a synthetic wake. It is not
+liveness, not task ownership, not a scheduler, and not a durable work queue.
+
+`HEARTBEAT.md` always coexists with two separate runtime authorities:
+
+- **Session health.** Metadata-only presence, attachability, and wake eligibility maintained by
+  the daemon. It never injects prompts or renews task leases.
+- **AGH Heartbeat wake service.** Evaluates the latest valid `HEARTBEAT.md` snapshot plus session
+  health, applies cooldown and coalescing, and dispatches one synthetic wake prompt. It never
+  creates, claims, completes, fails, releases, or renews `task_runs`.
+
+<OperatorNote>
+  Four runtime concepts share the word "heartbeat". Keep them separate before writing
+  `HEARTBEAT.md`: task-run lease heartbeat (owned by `task_runs` + `ClaimNextRun`), session activity
+  heartbeat (owned by `[session.supervision]`), session health (metadata-only daemon state), and
+  authored wake policy (`HEARTBEAT.md` + `[agents.heartbeat]`). Authored policy never overrides any
+  of the other three.
+</OperatorNote>
+
+## Where HEARTBEAT.md lives
+
+```text
+~/.agh/agents/<agent>/AGENT.md
+~/.agh/agents/<agent>/HEARTBEAT.md          # optional
+<workspace>/.agh/agents/<agent>/HEARTBEAT.md
+```
+
+`HEARTBEAT.md` follows the same first-wins discovery as `AGENT.md` and `SOUL.md`. A missing file
+disables wake policy for that agent without making any session unhealthy.
+
+## File format
+
+`HEARTBEAT.md` is Markdown with optional strict YAML frontmatter and a body that is bounded
+guidance only.
+
+```text
+---
+version: 1
+enabled: true
+summary: "Reorient, inspect assignments, and claim only through AGH task APIs."
+preferences:
+  min_interval: "30m"
+  active_hours:
+    - timezone: "America/Sao_Paulo"
+      start: "08:00"
+      end: "20:00"
+  quiet_windows:
+    - timezone: "America/Sao_Paulo"
+      start: "22:00"
+      end: "08:00"
+context:
+  include:
+    - self
+    - session_health
+    - task
+    - inbox_summary
+---
+
+When AGH wakes you, inspect `/agent/context` and your inbox before acting.
+Use `agh task next` to obtain claim authority; do not assume work is owned.
+If nothing is claimable, return a concise no-op summary.
+```
+
+| Field                         | Type         | Authored | Notes                                                                                    |
+| ----------------------------- | ------------ | -------- | ---------------------------------------------------------------------------------------- |
+| `version`                     | integer      | optional | Snapshot schema version.                                                                 |
+| `enabled`                     | boolean      | optional | Local toggle; the runtime still consults `[agents.heartbeat].enabled` and config bounds. |
+| `summary`                     | string       | optional | Short reentry hint surfaced in status responses.                                         |
+| `preferences.min_interval`    | duration     | optional | Authored minimum interval; clamped to `[agents.heartbeat].min_interval`.                 |
+| `preferences.active_hours`    | array        | optional | IANA timezone allow windows. Multi-window union, midnight crossing supported.            |
+| `preferences.quiet_windows`   | array        | optional | IANA timezone deny windows; subtracted from `active_hours`.                              |
+| `preferences.context.include` | string array | optional | Hints about what context the agent should re-read on wake.                               |
+| Body                          | Markdown     | optional | Bounded reentry prose. Truncated at `[agents.heartbeat].max_body_bytes`.                 |
+
+The parser is strict. Forbidden operational fields are explicit. Time-window predicates use IANA
+timezone names; fixed offsets fail validation with `heartbeat_invalid_timezone`. If file
+preferences exceed config bounds, the resolver clamps to config and emits a
+`heartbeat_preference_clamped` diagnostic instead of silently dropping the value.
+
+### Forbidden fields
+
+`HEARTBEAT.md` cannot define liveness, claim authority, scheduler intervals, network membership,
+provider configuration, capabilities, lease duration, raw claim tokens, recurring model loops, or
+queue ownership. Use the linked surface instead:
+
+| Forbidden in `HEARTBEAT.md`                            | Belongs in                                |
+| ------------------------------------------------------ | ----------------------------------------- |
+| Raw claim tokens, lease duration overrides             | `task_runs` + `ClaimNextRun` runtime APIs |
+| Task status transitions, queue ownership               | `task_runs` + task CLI/API                |
+| Scheduler sweep cadence, claim cadence                 | Scheduler config                          |
+| Network membership, peer presence, `greet` interval    | `[network]` and AGH Network protocol      |
+| Provider config, model selection, tool grants          | `AGENT.md` and `[providers]`              |
+| Capabilities, hooks, MCP servers, permissions          | `AGENT.md` and `config.toml`              |
+| Recurring model pings or persistent heartbeat sessions | Not supported in MVP                      |
+
+## Snapshot digest and resolution
+
+`HEARTBEAT.md` digest covers `schema_version`, normalized body, canonical frontmatter JSON, and a
+canonical digest of the resolved `[agents.heartbeat]` config subset. Direct file edits resolve at
+daemon load and at wake-decision time when the source digest or config digest has changed; the
+resolver is metadata-only and never calls the model.
+
+Validation outcomes:
+
+- **Missing file:** `present=false`, no diagnostics, sessions remain healthy and wakeable.
+- **Valid file:** snapshot stored in `agent_heartbeat_snapshots`, latest valid snapshot drives
+  wake decisions.
+- **Invalid file:** wake policy is disabled for that agent; status returns `heartbeat_invalid`
+  with diagnostics. Normal sessions and task APIs still work.
+
+## Session health
+
+Session health is a metadata-only runtime primitive. It exists whether or not `HEARTBEAT.md` is
+authored and is the only authority for whether an idle session is wake-eligible.
+
+| Field                  | Meaning                                                      |
+| ---------------------- | ------------------------------------------------------------ |
+| `state`                | `idle`, `prompting`, `stopped`, `detached`.                  |
+| `health`               | `healthy`, `degraded`, `stale`, `dead`, `unknown`.           |
+| `active_prompt`        | An ACP/user prompt is currently in flight.                   |
+| `attachable`           | The runtime can deliver a prompt to this session.            |
+| `eligible_for_wake`    | Wake decisions may target this session.                      |
+| `ineligibility_reason` | Closed enum from the wake-state reason set, never free text. |
+| `last_activity_at`     | Last real activity update from active prompts.               |
+| `last_presence_at`     | Last metadata-only presence touch.                           |
+| `updated_at`           | Last health write.                                           |
+
+Health updates never inject prompts, never renew task leases, and never call the model. On daemon
+restart, AGH recomputes health from runtime/session state before any wake consumer runs; stale
+rows alone cannot make a session wake-eligible.
+
+`agh session health`, `agh session status`, and `agh session inspect` expose this state with
+`-o json` for agent and operator consumption. There is intentionally **no** `agh session
+heartbeat` command — that name conflates liveness with authored wake policy.
+
+## Wake decision flow
+
+```text
+AGENT.md + capabilities + config
+        │
+        ▼
+HEARTBEAT.md ── resolve ──► snapshot
+                                 │
+session.health ──────────────────┤
+                                 ▼
+scheduler/manual/harness ──► HeartbeatWakeService
+                                 │
+                                 ▼
+        ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────────┐  ┌────────┐
+        │  sent   │  │ skipped │  │ coalesced│  │ rate_limited│  │ failed │
+        └─────────┘  └─────────┘  └─────────┘  └─────────────┘  └────────┘
+                                 │
+                            synthetic wake prompt
+```
+
+Wake guarantees:
+
+1. The wake service evaluates the latest valid `HEARTBEAT.md` snapshot at wake-decision time.
+2. Wake never calls `ClaimNextRun`, never creates `task_runs`, never renews leases, and never
+   issues raw claim tokens.
+3. Wake serializes with the session prompt gate. If a user/model prompt starts concurrently, wake
+   records `session_prompt_active_race` and skips delivery.
+4. The synthetic prompt names the wake reason and policy snapshot id, instructs the agent to
+   inspect `/agent/context`, session state, inbox, and task APIs before acting, and never implies
+   claimable work exists.
+5. AGH Network `greet` presence is independent. A peer's derived activity state does not make a
+   session wake-eligible.
+
+Manual operator/agent wake:
+
+```bash
+agh agent heartbeat wake reviewer --session sess_123 --json
+```
+
+`result` is one of `sent`, `skipped`, `coalesced`, `rate_limited`, or `failed`, and `reason` is a
+deterministic enum value: `wake_sent`, `heartbeat_disabled`, `heartbeat_invalid`,
+`heartbeat_no_policy`, `heartbeat_rate_limited`, `cooldown_active`, `quiet_window`,
+`session_not_found`, `session_unhealthy`, `session_not_attachable`, `session_prompt_active`,
+`session_prompt_active_race`, `synthetic_prompt_failed`, or `wake_coalesced`.
+
+## Managed authoring
+
+Mutating `HEARTBEAT.md` always goes through the managed authoring service. CLI, HTTP, UDS, and
+Host API share the same DTOs, validation, CAS, and revision audit. Direct file writes from hooks,
+extensions, tools, MCP sidecars, bridge adapters, or web code are forbidden.
+
+| Action   | CLI                            | HTTP                                         | UDS                        | Host API                    |
+| -------- | ------------------------------ | -------------------------------------------- | -------------------------- | --------------------------- |
+| Inspect  | `agh agent heartbeat inspect`  | `GET /api/agents/{name}/heartbeat`           | `agent.heartbeat.inspect`  | `agents/heartbeat/get`      |
+| Validate | `agh agent heartbeat validate` | `POST /api/agents/{name}/heartbeat/validate` | `agent.heartbeat.validate` | `agents/heartbeat/validate` |
+| Write    | `agh agent heartbeat write`    | `PUT /api/agents/{name}/heartbeat`           | `agent.heartbeat.put`      | `agents/heartbeat/put`      |
+| Delete   | `agh agent heartbeat delete`   | `DELETE /api/agents/{name}/heartbeat`        | `agent.heartbeat.delete`   | `agents/heartbeat/delete`   |
+| History  | `agh agent heartbeat history`  | `GET /api/agents/{name}/heartbeat/history`   | `agent.heartbeat.history`  | `agents/heartbeat/history`  |
+| Rollback | `agh agent heartbeat rollback` | `POST /api/agents/{name}/heartbeat/rollback` | `agent.heartbeat.rollback` | `agents/heartbeat/rollback` |
+| Status   | `agh agent heartbeat status`   | `GET /api/agents/{name}/heartbeat/status`    | `agent.heartbeat.status`   | `agents/heartbeat/status`   |
+| Wake     | `agh agent heartbeat wake`     | `POST /api/agents/{name}/heartbeat/wake`     | `agent.heartbeat.wake`     | `agents/heartbeat/wake`     |
+
+CAS contract: every mutating transport carries `expected_digest` in the request body. HTTP
+`If-Match` headers are explicitly rejected with `heartbeat_if_match_header_unsupported` so CLI,
+HTTP, UDS, Host API, and SDKs share one CAS shape. The CLI alias `--if-match` maps to
+`expected_digest`.
+
+```bash
+agh agent heartbeat validate reviewer --file HEARTBEAT.md --json
+agh agent heartbeat write reviewer --file HEARTBEAT.md --if-match sha256:1234... --json
+agh agent heartbeat status reviewer --json
+```
+
+There is no `agh agent heartbeat refresh` command in MVP. Managed writes create new snapshots,
+and wake decisions evaluate the latest valid snapshot at wake-decision time.
+
+## Diagnostics
+
+Validation and wake responses use one diagnostic shape across CLI, HTTP, UDS, and Host API.
+Common deterministic codes:
+
+| Code                                                   | Meaning                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `heartbeat_disabled`                                   | `[agents.heartbeat].enabled=false` or the file disables policy locally.   |
+| `heartbeat_invalid`                                    | Parser/validation rejected the body or frontmatter.                       |
+| `heartbeat_conflict`                                   | `expected_digest` did not match.                                          |
+| `heartbeat_if_match_header_unsupported`                | HTTP `If-Match` header was sent; use `expected_digest` instead.           |
+| `heartbeat_rate_limited`                               | The agent exceeded `max_wakes_per_cycle` for the current scheduler cycle. |
+| `heartbeat_no_policy`                                  | No valid snapshot exists for the agent.                                   |
+| `cooldown_active`                                      | The session is inside `wake_cooldown` from a prior wake.                  |
+| `quiet_window`                                         | Wake fell inside an authored quiet window.                                |
+| `session_not_found`                                    | The target session id was not resolved.                                   |
+| `session_unhealthy` / `session_not_attachable`         | Session health blocks delivery.                                           |
+| `session_prompt_active` / `session_prompt_active_race` | An active prompt is in flight or started during the wake gate.            |
+| `synthetic_prompt_failed`                              | Synthetic prompt enqueue failed.                                          |
+| `heartbeat_preference_clamped`                         | An authored preference was clamped to a config bound.                     |
+| `heartbeat_invalid_timezone`                           | A time-window timezone was missing or not an IANA name.                   |
+
+Logs and audit rows redact actor identities, never include raw claim tokens or full prompt
+transcripts, and use workspace-relative paths.
+
+## Boundaries with other authorities
+
+- `HEARTBEAT.md` is **not** task-run lease heartbeat. `task_runs` + `ClaimNextRun` +
+  `HeartbeatRunLease` remain the only ownership authority and never read `HEARTBEAT.md`.
+- `HEARTBEAT.md` is **not** session activity supervision. `[session.supervision]` continues to own
+  active prompt activity timers, runtime progress, warnings, and inactivity timeouts. See
+  [Session Lifecycle → Runtime activity supervision](/runtime/core/sessions/lifecycle).
+- `HEARTBEAT.md` is **not** session health. Health is metadata-only and lives in
+  `session_health`. `HEARTBEAT.md` consumes health; it never implements it.
+- `HEARTBEAT.md` is **not** AGH Network membership. Network membership is daemon-local and belongs
+  to the [protocol model](/runtime/core/network/protocol). Membership cannot make a session
+  wake-eligible.
+- `HEARTBEAT.md` is **not** a scheduler. Scheduler eligibility runs first; the wake service is
+  consulted afterward and never claims work.
+- `HEARTBEAT.md` does **not** create work. Wake state and wake events are audit and coalescing
+  records; no row in `agent_heartbeat_wake_*` is a claimable queue entry.
+
+## Common errors
+
+| Error                          | Cause                                                                         | Fix                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `heartbeat_invalid_timezone`   | A time window used a fixed offset or unknown zone.                            | Use IANA names such as `America/Sao_Paulo` or `UTC`.             |
+| `heartbeat_preference_clamped` | File `min_interval` was below `[agents.heartbeat].min_interval`.              | Either align the file or raise the config bound.                 |
+| `heartbeat_conflict`           | `expected_digest` did not match the current file digest.                      | Re-read the digest with `agh agent heartbeat inspect` and retry. |
+| `heartbeat_rate_limited`       | Wake attempts exceeded `max_wakes_per_cycle` for the current scheduler cycle. | Wait for the next cycle or relax the cap.                        |
+| `quiet_window`                 | The current instant fell inside an authored quiet window.                     | Wait for the active window or adjust the policy.                 |
+
+## Related pages
+
+- [`SOUL.md`](/runtime/core/agents/soul) for authored persona/identity context.
+- [`config.toml` → `[agents.heartbeat]`](/runtime/core/configuration/config-toml) for cadence,
+  rate limits, retention, and stale thresholds.
+- [Session Lifecycle](/runtime/core/sessions/lifecycle) for activity supervision and stop reasons.
+- [Network → Protocol](/runtime/core/network/protocol) for AGH Network `greet` presence
+  separation.
+- [`agh agent heartbeat`](/runtime/cli-reference/agent/heartbeat) and
+  [`agh session`](/runtime/cli-reference/session) generated CLI references.

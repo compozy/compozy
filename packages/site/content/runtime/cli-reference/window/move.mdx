@@ -1,0 +1,51 @@
+---
+title: "agh window move"
+description: "Move a window or tiled group to an explicit destination"
+---
+
+## agh window move
+
+Move a window or tiled group to an explicit destination
+
+```
+agh window move [flags]
+```
+
+### Options
+
+```
+      --actor-id string    Optional actor identifier
+      --client string      Connected presentation client ID
+      --desktop string     Destination desktop ID
+      --group              Move the complete tiled group
+  -h, --help               help for move
+      --id string          Window ID
+      --origin string      Command origin label (default "cli")
+      --placement string   Placement: floating, before, after, left, right, top, bottom, or center (default "floating")
+      --rect string        Floating rect as x,y,width,height
+      --revision uint      Expected workspace revision
+      --target string      Target window for structural placement
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh window move -o json
+```

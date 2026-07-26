@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AGH · Session-first sidebar</title>
+  <link rel="preconnect" href="https://rsms.me" />
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;display=swap" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --rail: #0c0b0b;
+      --canvas: #131211;
+      --canvas-soft: #1a1918;
+      --canvas-tint: #1c1b1a;
+      --sidebar: #1a1918;
+      --elevated: #232220;
+      --disabled: #4a4847;
+      --fg: #ececef;
+      --fg-strong: #f6f6f8;
+      --muted: #9a9a9f;
+      --subtle: #76767c;
+      --faint: #545458;
+      --line: rgba(255, 255, 255, 0.055);
+      --line-soft: rgba(255, 255, 255, 0.03);
+      --line-strong: rgba(255, 255, 255, 0.09);
+      --accent: #e8572a;
+      --accent-hover: #d14e25;
+      --accent-strong: #f6874f;
+      --accent-ink: #17110f;
+      --accent-tint: rgba(232, 87, 42, 0.1);
+      --success: #5fbf85;
+      --success-tint: rgba(95, 191, 133, 0.08);
+      --warning: #d6a647;
+      --warning-tint: rgba(214, 166, 71, 0.08);
+      --danger: #e0635a;
+      --danger-tint: rgba(224, 99, 90, 0.09);
+      --info: #8e8eb5;
+      --info-tint: rgba(142, 142, 181, 0.12);
+      --neutral: #7a7a80;
+      --neutral-tint: rgba(150, 150, 155, 0.06);
+      --row-hover: rgba(255, 255, 255, 0.022);
+      --row-selected: rgba(255, 255, 255, 0.03);
+      --btn-fill: rgba(255, 255, 255, 0.04);
+      --btn-hover: rgba(255, 255, 255, 0.07);
+      --overlay-scrim: rgba(0, 0, 0, 0.55);
+      --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+      --radius-xs: 4px;
+      --radius-sm: 5px;
+      --radius: 6px;
+      --radius-md: 8px;
+      --radius-lg: 10px;
+      --radius-pill: 9999px;
+      --duration-fast: 100ms;
+      --duration-base: 140ms;
+      --duration-slow: 200ms;
+      --ease-out: cubic-bezier(0.2, 0, 0, 1);
+      --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+      --shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+      --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
+      --shadow-focus: 0 0 0 2px var(--accent);
+      --rail-width: 56px;
+      --sidebar-width: 244px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--canvas);
+      color: var(--fg);
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      line-height: 1.5;
+      letter-spacing: -0.006em;
+      font-feature-settings: "cv01", "ss03", "cv11";
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    svg { display: block; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    :is(button, a, input, select):focus-visible {
+      outline: none;
+      box-shadow: var(--shadow-focus);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-delay: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr);
+      height: 100vh;
+      min-width: 820px;
+    }
+    .shell[data-sidebar-collapsed="true"] { grid-template-columns: var(--rail-width) 0 minmax(0, 1fr); }
+
+    .rail {
+      position: relative;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      padding: 12px 0;
+      border-right: 1px solid var(--line-soft);
+      background: var(--rail);
+    }
+    .rail__logo, .rail__item, .rail__action {
+      display: inline-flex;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid transparent;
+      border-radius: var(--radius-md);
+      background: transparent;
+      cursor: pointer;
+      color: var(--subtle);
+      transition: color var(--duration-base) var(--ease-out), background var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out);
+    }
+    .rail__logo { padding: 0; margin-bottom: 2px; }
+    .rail__logo svg { width: 28px; height: 28px; }
+    .rail__item { background: var(--elevated); font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
+    .rail__item:hover, .rail__action:hover { background: var(--elevated); color: var(--fg); }
+    .rail__item[aria-pressed="true"] { border-color: var(--accent); color: var(--fg-strong); }
+    .rail__item[data-home="true"] { background: transparent; }
+    .rail__item[data-home="true"] svg, .rail__action svg { width: 14px; height: 14px; }
+    .rail__divider { width: 20px; height: 1px; margin: 1px 0; background: var(--line); }
+    .rail__add { border-style: dashed; border-color: var(--line); background: transparent; }
+    .rail__spacer { flex: 1; }
+
+    .side {
+      position: relative;
+      z-index: 2;
+      width: var(--sidebar-width);
+      min-width: 0;
+      overflow: hidden;
+      border-right: 1px solid var(--line-soft);
+      background: var(--sidebar);
+    }
+    .shell[data-sidebar-collapsed="true"] .side { visibility: hidden; pointer-events: none; }
+    .side__track {
+      display: flex;
+      width: 200%;
+      height: 100%;
+      transform: translate3d(0, 0, 0);
+      transition: transform var(--duration-slow) var(--ease-out);
+      will-change: transform;
+    }
+    .side[data-view="sessions"] .side__track { transform: translate3d(-50%, 0, 0); }
+    .side__pane {
+      display: flex;
+      flex: 0 0 50%;
+      min-width: 0;
+      flex-direction: column;
+      background: var(--sidebar);
+    }
+    .side__header {
+      display: flex;
+      min-height: 48px;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .workspace-switcher {
+      display: flex;
+      width: 100%;
+      min-width: 0;
+      align-items: center;
+      gap: 8px;
+      padding: 6px;
+      border: 0;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--fg);
+      cursor: pointer;
+      text-align: left;
+    }
+    .workspace-switcher:hover { background: var(--row-hover); }
+    .workspace-switcher__mark {
+      display: grid;
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+      place-items: center;
+      border-radius: var(--radius-sm);
+      background: var(--elevated);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--fg-strong);
+    }
+    .workspace-switcher__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+    .workspace-switcher svg { width: 13px; height: 13px; color: var(--faint); }
+    .side__header-title { min-width: 0; flex: 1; font-size: 13px; font-weight: 600; color: var(--fg-strong); }
+    .side__back {
+      display: inline-flex;
+      width: 28px;
+      height: 28px;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .side__back:hover { background: var(--row-hover); color: var(--fg); }
+    .side__back svg { width: 14px; height: 14px; }
+    .side__shortcut { font-family: var(--font-mono); font-size: 9px; color: var(--faint); }
+    .side__scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 8px 0 14px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+    .side__group { padding: 3px 8px; }
+    .side__group + .side__group { margin-top: 7px; }
+    .side__label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 25px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+    .side__label-count { margin-left: auto; font-family: var(--font-mono); font-size: 9px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+    .side__section-head {
+      display: flex;
+      min-height: 28px;
+      align-items: center;
+      gap: 2px;
+    }
+    .side__section-toggle {
+      display: flex;
+      min-width: 0;
+      min-height: 28px;
+      flex: 1;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 6px;
+      border: 0;
+      border-radius: var(--radius-xs);
+      background: transparent;
+      color: var(--faint);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      text-align: left;
+      text-transform: uppercase;
+      transition: background var(--duration-base) var(--ease-out), color var(--duration-base) var(--ease-out);
+    }
+    .side__section-toggle:hover { background: var(--row-hover); color: var(--muted); }
+    .side__section-action {
+      display: inline-flex;
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: var(--radius-xs);
+      background: transparent;
+      color: var(--subtle);
+      cursor: pointer;
+      transition: background var(--duration-base) var(--ease-out), color var(--duration-base) var(--ease-out);
+    }
+    .side__section-action:hover { background: var(--row-hover); color: var(--fg); }
+    .side__section-action svg { width: 12px; height: 12px; }
+    .disclosure-icon {
+      width: 11px;
+      height: 11px;
+      flex: 0 0 11px;
+      color: var(--faint);
+      transform: rotate(0deg);
+      transition: transform var(--duration-base) var(--ease-out), color var(--duration-base) var(--ease-out);
+    }
+    [aria-expanded="true"] > .disclosure-icon { transform: rotate(90deg); }
+    .nav-list, .session-list { display: flex; flex-direction: column; gap: 2px; }
+    .nav-row, .session-row, .show-all {
+      position: relative;
+      display: flex;
+      width: 100%;
+      min-width: 0;
+      min-height: 28px;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      border: 0;
+      border-radius: var(--radius-xs);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      text-align: left;
+      transition: background var(--duration-base) var(--ease-out), color var(--duration-base) var(--ease-out);
+    }
+    .nav-row:hover, .session-row:hover, .show-all:hover { background: var(--row-hover); color: var(--fg); }
+    .nav-row[aria-current="page"], .session-row[aria-current="page"] { background: var(--canvas-soft); color: var(--fg-strong); font-weight: 500; }
+    .nav-row[aria-current="page"]::before, .session-row[aria-current="page"]::before {
+      content: "";
+      position: absolute;
+      inset-block: 4px;
+      left: -8px;
+      width: 2px;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      background: var(--accent);
+    }
+    .nav-row svg { width: 13px; height: 13px; flex: 0 0 13px; color: var(--subtle); }
+    .nav-row__label, .session-row__title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-row__meta { margin-left: auto; font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); }
+    .session-row { gap: 7px; font-size: 12px; }
+    .session-row__status {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 4px;
+      font-size: 9.5px;
+      color: var(--subtle);
+    }
+    .status-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: var(--radius-pill); background: var(--neutral); }
+    [data-status="running"] .status-dot { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-tint); }
+    [data-status="idle"] .status-dot { background: var(--success); }
+    [data-status="waiting-for-auth"] .status-dot { border-radius: 1px; background: var(--warning); transform: rotate(45deg); }
+    [data-status="failed"] .status-dot { border-radius: 1px; background: var(--danger); }
+    [data-status="stopped"] .status-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--neutral); }
+    .session-row__time { flex: 0 0 25px; font-family: var(--font-mono); font-size: 9px; color: var(--faint); text-align: right; }
+    .show-all { justify-content: center; margin-top: 3px; color: var(--subtle); font-size: 11px; }
+    .show-all svg { width: 12px; height: 12px; }
+    .side__nav-divider {
+      height: 1px;
+      margin: 13px 16px 9px;
+      background: var(--line);
+    }
+    .side__footer { display: flex; min-height: 45px; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line-soft); }
+    .runtime-state { display: inline-flex; min-width: 0; flex: 1; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+    .runtime-state .status-dot { background: var(--success); }
+    .side__footer-meta { font-family: var(--font-mono); font-size: 9px; color: var(--faint); }
+
+    .session-search { padding: 8px 8px 3px; }
+    .session-search__field {
+      display: flex;
+      min-height: 30px;
+      align-items: center;
+      gap: 7px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--canvas-soft);
+      color: var(--subtle);
+    }
+    .session-search__field:focus-within { border-color: var(--line-strong); }
+    .session-search__field svg { width: 13px; height: 13px; }
+    .session-search__field input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--fg); font-size: 12px; }
+    .session-search__field input::placeholder { color: var(--subtle); opacity: 1; }
+    .agent-group { padding: 6px 8px 2px; }
+    .agent-group[hidden] { display: none; }
+    .agent-group__head {
+      display: flex;
+      width: 100%;
+      min-height: 30px;
+      align-items: center;
+      gap: 7px;
+      padding: 3px 8px;
+      border: 0;
+      border-radius: var(--radius-xs);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      text-align: left;
+      transition: background var(--duration-base) var(--ease-out), color var(--duration-base) var(--ease-out);
+    }
+    .agent-group__head:hover { background: var(--row-hover); color: var(--fg); }
+    .agent-avatar {
+      display: inline-grid;
+      width: 20px;
+      height: 20px;
+      flex: 0 0 20px;
+      place-items: center;
+      border-radius: var(--radius-sm);
+      background: var(--info-tint);
+      color: var(--info);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 600;
+    }
+    .agent-group:nth-of-type(3n + 1) .agent-avatar { background: var(--success-tint); color: var(--success); }
+    .agent-group:nth-of-type(3n + 2) .agent-avatar { background: var(--warning-tint); color: var(--warning); }
+    .agent-group__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 500; color: var(--fg); }
+    .agent-group__count { margin-left: auto; font-family: var(--font-mono); font-size: 9px; color: var(--faint); }
+    .agent-group .session-row { padding-left: 35px; }
+    .session-empty { display: none; padding: 32px 18px; color: var(--muted); text-align: center; font-size: 12px; }
+    .session-empty[data-visible="true"] { display: block; }
+
+    .main { display: flex; min-width: 0; flex-direction: column; background: var(--canvas); }
+    .topbar { display: flex; min-height: 48px; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+    .breadcrumb { display: flex; min-width: 0; flex: 1; align-items: center; gap: 5px; list-style: none; margin: 0; padding: 0; }
+    .breadcrumb li { min-width: 0; color: var(--subtle); font-size: 12px; }
+    .breadcrumb li:last-child { overflow: hidden; color: var(--fg); text-overflow: ellipsis; white-space: nowrap; }
+    .breadcrumb__sep { color: var(--faint); }
+    .topbar__actions { display: flex; align-items: center; gap: 6px; }
+    .btn {
+      display: inline-flex;
+      min-height: 26px;
+      align-items: center;
+      gap: 6px;
+      padding: 0 9px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-md);
+      background: var(--btn-fill);
+      color: var(--fg);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: background var(--duration-base) var(--ease-out), color var(--duration-base) var(--ease-out);
+    }
+    .btn:hover { background: var(--btn-hover); color: var(--fg-strong); }
+    .btn svg { width: 13px; height: 13px; }
+    .btn--ghost { background: transparent; color: var(--muted); }
+    .btn--primary { background: var(--accent); color: var(--accent-ink); }
+    .btn--primary:hover { background: var(--accent-hover); color: var(--accent-ink); }
+
+    .session-dialog {
+      width: min(480px, calc(100vw - 32px));
+      max-width: none;
+      padding: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      background: var(--canvas-soft);
+      color: var(--fg);
+      box-shadow: var(--shadow-overlay);
+    }
+    .session-dialog::backdrop { background: var(--overlay-scrim); }
+    .session-dialog__form { margin: 0; }
+    .session-dialog__head {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .session-dialog__title { min-width: 0; flex: 1; }
+    .session-dialog__title h2 { margin: 0; color: var(--fg-strong); font-size: 14px; line-height: 1.35; letter-spacing: -0.012em; }
+    .session-dialog__title p { max-width: 52ch; margin: 4px 0 0; color: var(--subtle); font-size: 11.5px; line-height: 1.5; }
+    .session-dialog__close {
+      display: inline-flex;
+      width: 26px;
+      height: 26px;
+      flex: 0 0 26px;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .session-dialog__close:hover { background: var(--row-hover); color: var(--fg); }
+    .session-dialog__close svg { width: 13px; height: 13px; }
+    .session-dialog__body { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+    .session-dialog__field { display: flex; flex-direction: column; gap: 6px; }
+    .session-dialog__field label { color: var(--fg); font-size: 12px; font-weight: 500; }
+    .session-dialog__field p { margin: -2px 0 0; color: var(--subtle); font-size: 10.5px; line-height: 1.45; }
+    .session-dialog__field select {
+      width: 100%;
+      min-height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-md);
+      background: var(--elevated);
+      color: var(--fg);
+      cursor: pointer;
+    }
+    .session-dialog__foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+    .content { min-height: 0; flex: 1; overflow-y: auto; }
+    .page { width: 100%; max-width: 1180px; margin: 0 auto; padding: 30px 34px 72px; }
+    .page-head { display: flex; align-items: flex-start; gap: 12px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+    .page-head__icon { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border-radius: var(--radius-md); background: var(--accent-tint); color: var(--accent-strong); }
+    .page-head__icon svg { width: 16px; height: 16px; }
+    .page-head__main { min-width: 0; flex: 1; }
+    .page-head h1 { margin: 0; color: var(--fg-strong); font-size: 22px; line-height: 1.25; letter-spacing: -0.028em; text-wrap: balance; }
+    .page-head__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 7px; color: var(--subtle); font-size: 12px; }
+    .status-pill { display: inline-flex; align-items: center; gap: 5px; min-height: 19px; padding: 0 7px; border-radius: var(--radius-xs); background: var(--accent-tint); color: var(--accent-strong); font-size: 10px; font-weight: 500; }
+    .status-pill .status-dot { width: 5px; height: 5px; flex-basis: 5px; background: currentColor; }
+    .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 286px; gap: 24px; padding-top: 24px; }
+    .thread { min-width: 0; }
+    .thread__day { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; color: var(--faint); font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .thread__day::before, .thread__day::after { content: ""; height: 1px; flex: 1; background: var(--line-soft); }
+    .event { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; margin-bottom: 17px; }
+    .event__avatar { display: grid; width: 24px; height: 24px; place-items: center; border-radius: var(--radius-sm); background: var(--elevated); color: var(--muted); font-family: var(--font-mono); font-size: 9px; }
+    .event__body { min-width: 0; }
+    .event__head { display: flex; align-items: baseline; gap: 8px; color: var(--fg); font-size: 12px; font-weight: 600; }
+    .event__time { font-family: var(--font-mono); font-size: 9px; font-weight: 400; color: var(--faint); }
+    .event p { max-width: 68ch; margin: 5px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; text-wrap: pretty; }
+    .tool-call { margin-top: 9px; padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--canvas-soft); }
+    .tool-call__head { display: flex; align-items: center; gap: 7px; color: var(--fg); font-size: 11px; }
+    .tool-call__head svg { width: 12px; height: 12px; color: var(--success); }
+    .tool-call__meta { margin-left: auto; font-family: var(--font-mono); font-size: 9px; color: var(--faint); }
+    .composer { margin: 26px 0 0 34px; padding: 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--canvas-soft); }
+    .composer textarea { width: 100%; min-height: 56px; resize: vertical; border: 0; outline: 0; background: transparent; color: var(--fg); font: inherit; line-height: 1.5; }
+    .composer textarea::placeholder { color: var(--subtle); opacity: 1; }
+    .composer__foot { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 10px; }
+    .composer__foot .btn { margin-left: auto; }
+    .inspector { min-width: 0; }
+    .inspector__section { padding: 0 0 18px; }
+    .inspector__section + .inspector__section { padding-top: 18px; border-top: 1px solid var(--line); }
+    .inspector h2 { margin: 0 0 11px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: -0.005em; }
+    .fact { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 10px; padding: 5px 0; color: var(--muted); font-size: 11.5px; }
+    .fact dt { color: var(--faint); }
+    .fact dd { min-width: 0; margin: 0; overflow: hidden; color: var(--fg); text-overflow: ellipsis; white-space: nowrap; }
+    .fact code { font-family: var(--font-mono); font-size: 10px; }
+
+    @media (max-width: 1040px) {
+      .detail-grid { grid-template-columns: minmax(0, 1fr); }
+      .inspector { display: none; }
+      .page { padding-inline: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <svg class="sr-only" aria-hidden="true">
+    <symbol id="agh-glyph" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#e8572a"/><path d="M11.5 21.5 16 10l4.5 11.5M13 18.2h6" fill="none" stroke="#17110f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m7 9 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6M9 12h10" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M9 4v16" fill="none" stroke="currentColor" stroke-width="1.75"/></symbol>
+    <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.75"/><rect x="14" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.75"/><rect x="3" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.75"/><rect x="14" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.75"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M3 20c0-4 2-6 6-6s6 2 6 6M16 5.5a3 3 0 0 1 0 5.8M16 14c3.3 0 5 2 5 5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-network" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.75"/><circle cx="5" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.75"/><circle cx="19" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m11 7-5 9m7-9 5 9M7 18h10" fill="none" stroke="currentColor" stroke-width="1.75"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4m14-1v2a3 3 0 0 1-3 3H3" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4h6a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H4zm16 0h-4a3 3 0 0 0-3 3v13a3 3 0 0 1 3-3h4z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 0-5-5L7 4l3 3-3 3-3-3-2.5 2.5a4 4 0 0 0 5 5L15 23l3-3-8.5-8.5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-waypoints" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.75"/><circle cx="18" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M8.5 6H14a4 4 0 0 1 4 4v5.5M15.5 18H10a4 4 0 0 1-4-4V8.5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-boxes" viewBox="0 0 24 24"><path d="m12 2 4 2.3v4.6L12 11.2 8 8.9V4.3zm-5 9 4 2.3v4.6L7 20.2l-4-2.3v-4.6zm10 0 4 2.3v4.6l-4 2.3-4-2.3v-4.6z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m11 12 8-8m-2 2 2 2m-5 1 2 2" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.75"/><rect x="3" y="14" width="18" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M7 7h.01M7 17h.01M11 7h7M11 17h7" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21h-4v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m20 20-4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-3 2 1-5a9 9 0 1 1 18-5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m7 9 3 3-3 3m6 0h4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-attach" viewBox="0 0 24 24"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L14 3a3.5 3.5 0 0 1 5 5l-9.5 9.5a2 2 0 0 1-3-3L15 6" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <div class="shell" id="shell" data-sidebar-collapsed="false" data-od-id="session-sidebar-shell">
+    <nav class="rail" aria-label="Workspaces" data-od-id="workspace-rail">
+      <a class="rail__logo" href="#dashboard" aria-label="AGH home" data-od-id="agh-home-link">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><use href="#agh-glyph"/></svg>
+      </a>
+      <button class="rail__item" type="button" data-home="true" aria-label="Home workspace: operator home" aria-pressed="false" title="operator home" data-od-id="workspace-home"><svg aria-hidden="true"><use href="#i-home"/></svg></button>
+      <div class="rail__divider" aria-hidden="true"></div>
+      <button class="rail__item" type="button" aria-label="Workspace: agh" aria-pressed="true" title="agh" data-od-id="workspace-agh">A</button>
+      <button class="rail__item" type="button" aria-label="Workspace: runtime labs" aria-pressed="false" title="runtime labs" data-od-id="workspace-runtime">R</button>
+      <button class="rail__item rail__add" type="button" aria-label="Add workspace" title="Add workspace" data-od-id="add-workspace"><svg aria-hidden="true"><use href="#i-plus"/></svg></button>
+      <div class="rail__spacer"></div>
+      <button class="rail__action" type="button" aria-label="Open settings" title="Settings" data-od-id="rail-settings"><svg aria-hidden="true"><use href="#i-settings"/></svg></button>
+      <button class="rail__action" id="collapse-sidebar" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar" data-od-id="collapse-sidebar"><svg aria-hidden="true"><use href="#i-panel"/></svg></button>
+    </nav>
+
+    <aside class="side" id="sidebar" data-view="nav" aria-label="Workspace navigation" data-od-id="session-first-sidebar">
+      <div class="side__track">
+        <section class="side__pane" id="navigation-pane" aria-label="Navigation" aria-hidden="false" data-od-id="navigation-pane">
+          <header class="side__header">
+            <button class="workspace-switcher" type="button" aria-label="Switch workspace" data-od-id="workspace-switcher">
+              <span class="workspace-switcher__mark">A</span>
+              <span class="workspace-switcher__name">agh</span>
+              <svg aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </button>
+          </header>
+          <div class="side__scroll">
+            <section class="side__group" aria-labelledby="recent-sessions-label" data-od-id="recent-sessions-group">
+              <div class="side__section-head">
+                <button class="side__section-toggle" id="recent-sessions-toggle" type="button" aria-expanded="true" aria-controls="recent-sessions-content" data-od-id="toggle-recent-sessions">
+                  <svg class="disclosure-icon" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+                  <span id="recent-sessions-label">Recent sessions</span>
+                  <span class="side__label-count" id="recent-session-count">6</span>
+                </button>
+                <button class="side__section-action" type="button" aria-label="New session" title="New session" data-new-session data-od-id="new-session-recent"><svg aria-hidden="true"><use href="#i-plus"/></svg></button>
+              </div>
+              <div id="recent-sessions-content">
+              <div class="session-list" id="recent-session-list">
+                <a class="session-row" href="#session-review" aria-current="page" data-session-id="session-review" data-session-title="Review authorization boundaries" data-agent="release-engineer" data-status="running" data-status-label="Running" data-od-id="recent-session-review">
+                  <span class="session-row__title">Review authorization boundaries</span>
+                  <span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Running</span></span>
+                  <time class="session-row__time">2m</time>
+                </a>
+                <a class="session-row" href="#session-data" data-session-id="session-data" data-session-title="Map sidebar data flow" data-agent="runtime-debugger" data-status="idle" data-status-label="Idle" data-od-id="recent-session-data">
+                  <span class="session-row__title">Map sidebar data flow</span>
+                  <span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Idle</span></span>
+                  <time class="session-row__time">8m</time>
+                </a>
+                <a class="session-row" href="#session-release" data-session-id="session-release" data-session-title="Publish release notes" data-agent="release-engineer" data-status="waiting-for-auth" data-status-label="Waiting for auth" data-od-id="recent-session-release">
+                  <span class="session-row__title">Publish release notes</span>
+                  <span class="session-row__status" aria-label="Waiting for auth" title="Waiting for auth"><span class="status-dot" aria-hidden="true"></span><span aria-hidden="true">Auth</span></span>
+                  <time class="session-row__time">12m</time>
+                </a>
+                <a class="session-row" href="#session-provider" data-session-id="session-provider" data-session-title="Repair provider lifecycle test" data-agent="runtime-debugger" data-status="failed" data-status-label="Failed" data-od-id="recent-session-provider">
+                  <span class="session-row__title">Repair provider lifecycle test</span>
+                  <span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Failed</span></span>
+                  <time class="session-row__time">31m</time>
+                </a>
+                <a class="session-row" href="#session-sse" data-session-id="session-sse" data-session-title="Trace SSE disconnect" data-agent="runtime-debugger" data-status="stopped" data-status-label="Stopped" data-od-id="recent-session-sse">
+                  <span class="session-row__title">Trace SSE disconnect</span>
+                  <span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Stopped</span></span>
+                  <time class="session-row__time">1h</time>
+                </a>
+                <a class="session-row" href="#session-agent-ui" data-session-id="session-agent-ui" data-session-title="Audit agent details UI" data-agent="ui-reviewer" data-status="idle" data-status-label="Idle" data-od-id="recent-session-agent-ui">
+                  <span class="session-row__title">Audit agent details UI</span>
+                  <span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Idle</span></span>
+                  <time class="session-row__time">2h</time>
+                </a>
+              </div>
+              <button class="show-all" id="show-all-sessions" type="button" aria-expanded="false" aria-controls="sessions-pane" data-od-id="show-all-sessions">Show all sessions <svg aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
+              </div>
+            </section>
+
+            <nav class="side__nav" aria-label="Workspace routes" data-od-id="workspace-route-navigation">
+              <div class="side__nav-divider" aria-hidden="true"></div>
+
+              <section class="side__group" aria-labelledby="operate-label" data-od-id="operate-group">
+                <div class="side__label" id="operate-label">Operate</div>
+                <div class="nav-list">
+                  <a class="nav-row" href="#dashboard" data-route="Dashboard" data-od-id="nav-dashboard"><svg aria-hidden="true"><use href="#i-dashboard"/></svg><span class="nav-row__label">Dashboard</span></a>
+                  <a class="nav-row" href="#agents" data-route="Agents" data-od-id="nav-agents"><svg aria-hidden="true"><use href="#i-users"/></svg><span class="nav-row__label">Agents</span><span class="nav-row__meta">2/6</span></a>
+                  <a class="nav-row" href="#network" data-route="Network" data-od-id="nav-network"><svg aria-hidden="true"><use href="#i-network"/></svg><span class="nav-row__label">Network</span></a>
+                  <a class="nav-row" href="#tasks" data-route="Tasks" data-od-id="nav-tasks"><svg aria-hidden="true"><use href="#i-list"/></svg><span class="nav-row__label">Tasks</span><span class="nav-row__meta">10</span></a>
+                  <a class="nav-row" href="#loops" data-route="Loops" data-od-id="nav-loops"><svg aria-hidden="true"><use href="#i-repeat"/></svg><span class="nav-row__label">Loops</span></a>
+                  <a class="nav-row" href="#jobs" data-route="Jobs" data-od-id="nav-jobs"><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="nav-row__label">Jobs</span></a>
+                  <a class="nav-row" href="#triggers" data-route="Triggers" data-od-id="nav-triggers"><svg aria-hidden="true"><use href="#i-zap"/></svg><span class="nav-row__label">Triggers</span></a>
+                </div>
+              </section>
+
+              <section class="side__group" aria-labelledby="catalog-label" data-od-id="catalog-group">
+                <div class="side__label" id="catalog-label">Catalog</div>
+                <div class="nav-list">
+                  <a class="nav-row" href="#knowledge" data-route="Knowledge" data-od-id="nav-knowledge"><svg aria-hidden="true"><use href="#i-book"/></svg><span class="nav-row__label">Knowledge</span></a>
+                  <a class="nav-row" href="#skills" data-route="Skills" data-od-id="nav-skills"><svg aria-hidden="true"><use href="#i-wrench"/></svg><span class="nav-row__label">Skills</span></a>
+                  <a class="nav-row" href="#bridges" data-route="Bridges" data-od-id="nav-bridges"><svg aria-hidden="true"><use href="#i-waypoints"/></svg><span class="nav-row__label">Bridges</span></a>
+                </div>
+              </section>
+
+              <section class="side__group" aria-labelledby="system-label" data-od-id="system-group">
+                <div class="side__label" id="system-label">System</div>
+                <div class="nav-list">
+                  <a class="nav-row" href="#sandbox" data-route="Sandbox" data-od-id="nav-sandbox"><svg aria-hidden="true"><use href="#i-boxes"/></svg><span class="nav-row__label">Sandbox</span></a>
+                  <a class="nav-row" href="#vault" data-route="Vault" data-od-id="nav-vault"><svg aria-hidden="true"><use href="#i-key"/></svg><span class="nav-row__label">Vault</span></a>
+                  <a class="nav-row" href="#mcp" data-route="MCP" data-od-id="nav-mcp"><svg aria-hidden="true"><use href="#i-server"/></svg><span class="nav-row__label">MCP</span></a>
+                  <a class="nav-row" href="#settings" data-route="Settings" data-od-id="nav-settings"><svg aria-hidden="true"><use href="#i-settings"/></svg><span class="nav-row__label">Settings</span></a>
+                </div>
+              </section>
+            </nav>
+          </div>
+          <footer class="side__footer" data-od-id="runtime-footer">
+            <span class="runtime-state"><span class="status-dot" aria-hidden="true"></span><span>Daemon connected</span></span>
+            <span class="side__footer-meta">v0.41</span>
+          </footer>
+        </section>
+
+        <section class="side__pane" id="sessions-pane" aria-label="Sessions by agent" aria-hidden="true" inert data-od-id="sessions-pane">
+          <header class="side__header">
+            <button class="side__back" id="back-to-navigation" type="button" aria-label="Back to navigation" title="Back to navigation" data-od-id="back-to-navigation"><svg aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
+            <span class="side__header-title">Sessions</span>
+            <button class="side__section-action" type="button" aria-label="New session" title="New session" data-new-session data-od-id="new-session-all"><svg aria-hidden="true"><use href="#i-plus"/></svg></button>
+            <span class="side__shortcut">⌥←</span>
+          </header>
+          <div class="side__scroll">
+            <div class="session-search">
+              <label class="session-search__field" for="session-search" data-od-id="session-search-field">
+                <svg aria-hidden="true"><use href="#i-search"/></svg>
+                <span class="sr-only">Search sessions</span>
+                <input id="session-search" type="search" placeholder="Search sessions" autocomplete="off" spellcheck="false" />
+              </label>
+            </div>
+
+            <section class="agent-group" data-agent-group="release-engineer" aria-labelledby="agent-release" data-od-id="agent-group-release">
+              <button class="agent-group__head" type="button" aria-expanded="true" aria-controls="agent-release-sessions" data-agent-toggle data-od-id="toggle-agent-release"><span class="agent-avatar" aria-hidden="true">RE</span><span class="agent-group__name" id="agent-release">release-engineer</span><span class="agent-group__count">2 sessions</span><svg class="disclosure-icon" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
+              <div class="session-list" id="agent-release-sessions">
+                <a class="session-row" href="#session-review" aria-current="page" data-session-id="session-review" data-session-title="Review authorization boundaries" data-agent="release-engineer" data-status="running" data-status-label="Running" data-od-id="all-session-review"><span class="session-row__title">Review authorization boundaries</span><span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Running</span></span></a>
+                <a class="session-row" href="#session-release" data-session-id="session-release" data-session-title="Publish release notes" data-agent="release-engineer" data-status="waiting-for-auth" data-status-label="Waiting for auth" data-od-id="all-session-release"><span class="session-row__title">Publish release notes</span><span class="session-row__status" aria-label="Waiting for auth" title="Waiting for auth"><span class="status-dot" aria-hidden="true"></span><span aria-hidden="true">Auth</span></span></a>
+              </div>
+            </section>
+
+            <section class="agent-group" data-agent-group="runtime-debugger" aria-labelledby="agent-runtime" data-od-id="agent-group-runtime">
+              <button class="agent-group__head" type="button" aria-expanded="true" aria-controls="agent-runtime-sessions" data-agent-toggle data-od-id="toggle-agent-runtime"><span class="agent-avatar" aria-hidden="true">RD</span><span class="agent-group__name" id="agent-runtime">runtime-debugger</span><span class="agent-group__count">4 sessions</span><svg class="disclosure-icon" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
+              <div class="session-list" id="agent-runtime-sessions">
+                <a class="session-row" href="#session-data" data-session-id="session-data" data-session-title="Map sidebar data flow" data-agent="runtime-debugger" data-status="idle" data-status-label="Idle" data-od-id="all-session-data"><span class="session-row__title">Map sidebar data flow</span><span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Idle</span></span></a>
+                <a class="session-row" href="#session-provider" data-session-id="session-provider" data-session-title="Repair provider lifecycle test" data-agent="runtime-debugger" data-status="failed" data-status-label="Failed" data-od-id="all-session-provider"><span class="session-row__title">Repair provider lifecycle test</span><span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Failed</span></span></a>
+                <a class="session-row" href="#session-sse" data-session-id="session-sse" data-session-title="Trace SSE disconnect" data-agent="runtime-debugger" data-status="stopped" data-status-label="Stopped" data-od-id="all-session-sse"><span class="session-row__title">Trace SSE disconnect</span><span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Stopped</span></span></a>
+                <a class="session-row" href="#session-heartbeat" data-session-id="session-heartbeat" data-session-title="Inspect heartbeat wake state" data-agent="runtime-debugger" data-status="idle" data-status-label="Idle" data-od-id="all-session-heartbeat"><span class="session-row__title">Inspect heartbeat wake state</span><span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Idle</span></span></a>
+              </div>
+            </section>
+
+            <section class="agent-group" data-agent-group="ui-reviewer" aria-labelledby="agent-ui" data-od-id="agent-group-ui">
+              <button class="agent-group__head" type="button" aria-expanded="true" aria-controls="agent-ui-sessions" data-agent-toggle data-od-id="toggle-agent-ui"><span class="agent-avatar" aria-hidden="true">UI</span><span class="agent-group__name" id="agent-ui">ui-reviewer</span><span class="agent-group__count">2 sessions</span><svg class="disclosure-icon" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
+              <div class="session-list" id="agent-ui-sessions">
+                <a class="session-row" href="#session-agent-ui" data-session-id="session-agent-ui" data-session-title="Audit agent details UI" data-agent="ui-reviewer" data-status="idle" data-status-label="Idle" data-od-id="all-session-agent-ui"><span class="session-row__title">Audit agent details UI</span><span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Idle</span></span></a>
+                <a class="session-row" href="#session-chrome" data-session-id="session-chrome" data-session-title="Align page chrome contract" data-agent="ui-reviewer" data-status="stopped" data-status-label="Stopped" data-od-id="all-session-chrome"><span class="session-row__title">Align page chrome contract</span><span class="session-row__status"><span class="status-dot" aria-hidden="true"></span><span>Stopped</span></span></a>
+              </div>
+            </section>
+            <div class="session-empty" id="session-empty" role="status" data-visible="false">No sessions match this search.</div>
+          </div>
+          <footer class="side__footer" data-od-id="sessions-summary-footer">
+            <span class="runtime-state"><span class="status-dot" aria-hidden="true"></span><span id="active-session-summary">2 active sessions</span></span>
+            <span class="side__footer-meta" id="total-session-summary">8 total</span>
+          </footer>
+        </section>
+      </div>
+    </aside>
+
+    <main class="main" data-od-id="session-detail-main">
+      <header class="topbar" data-od-id="session-topbar">
+        <ol class="breadcrumb" aria-label="Breadcrumb">
+          <li><a href="#agents">Agents</a></li><li class="breadcrumb__sep" aria-hidden="true">/</li>
+          <li id="crumb-agent">release-engineer</li><li class="breadcrumb__sep" aria-hidden="true">/</li>
+          <li id="crumb-session">Review authorization boundaries</li>
+        </ol>
+        <div class="topbar__actions">
+          <button class="btn btn--ghost" type="button" data-od-id="open-terminal"><svg aria-hidden="true"><use href="#i-terminal"/></svg>Open terminal</button>
+          <button class="btn" type="button" data-od-id="attach-session"><svg aria-hidden="true"><use href="#i-attach"/></svg>Attach session</button>
+        </div>
+      </header>
+      <div class="content">
+        <div class="page">
+          <header class="page-head" data-od-id="session-page-head">
+            <span class="page-head__icon" aria-hidden="true"><svg><use href="#i-message"/></svg></span>
+            <div class="page-head__main">
+              <h1 id="page-title">Review authorization boundaries</h1>
+              <div class="page-head__meta"><span id="page-agent">release-engineer</span><span aria-hidden="true">·</span><span class="status-pill" id="page-status" data-status="running"><span class="status-dot" aria-hidden="true"></span><span>Running</span></span><span aria-hidden="true">·</span><span>Claude Code</span><span aria-hidden="true">·</span><span class="mono">claude-sonnet-4-5</span></div>
+            </div>
+          </header>
+
+          <div class="detail-grid">
+            <section class="thread" aria-label="Session events" data-od-id="session-thread">
+              <div class="thread__day">Today</div>
+              <article class="event" data-od-id="session-event-operator">
+                <span class="event__avatar" aria-hidden="true">OP</span>
+                <div class="event__body"><div class="event__head">operator <time class="event__time">10:42</time></div><p>Review the workspace authorization boundaries for session reads. Keep the HTTP, UDS, CLI, and web behavior aligned.</p></div>
+              </article>
+              <article class="event" data-od-id="session-event-agent">
+                <span class="event__avatar" aria-hidden="true">RE</span>
+                <div class="event__body"><div class="event__head">release-engineer <time class="event__time">10:43</time></div><p>I found the canonical ownership checks and am tracing workspace propagation through the session catalog before changing anything.</p><div class="tool-call"><div class="tool-call__head"><svg aria-hidden="true"><use href="#i-terminal"/></svg><span>Search workspace-scoped session reads</span><span class="tool-call__meta">completed · 184 ms</span></div></div></div>
+              </article>
+              <article class="event" data-od-id="session-event-agent-progress">
+                <span class="event__avatar" aria-hidden="true">RE</span>
+                <div class="event__body"><div class="event__head">release-engineer <time class="event__time">10:45</time></div><p>The runtime paths are scoped correctly. I am checking whether the web cache key carries the same workspace identity before reporting the result.</p></div>
+              </article>
+              <form class="composer" id="composer" data-od-id="session-composer">
+                <label class="sr-only" for="composer-message">Message session</label>
+                <textarea id="composer-message" placeholder="Message release-engineer"></textarea>
+                <div class="composer__foot"><span>⌘ Enter to send</span><button class="btn" type="submit">Send message</button></div>
+              </form>
+            </section>
+
+            <aside class="inspector" aria-label="Session facts" data-od-id="session-inspector">
+              <section class="inspector__section"><h2>Session</h2><dl><div class="fact"><dt>ID</dt><dd><code>sess_9f4a2c</code></dd></div><div class="fact"><dt>Workspace</dt><dd>agh</dd></div><div class="fact"><dt>Provider</dt><dd>Claude Code</dd></div><div class="fact"><dt>Started</dt><dd>18 minutes ago</dd></div></dl></section>
+              <section class="inspector__section"><h2>Runtime</h2><dl><div class="fact"><dt>State</dt><dd>active</dd></div><div class="fact"><dt>Badge</dt><dd>running</dd></div><div class="fact"><dt>Channel</dt><dd><code>release-review</code></dd></div><div class="fact"><dt>Attachable</dt><dd>yes</dd></div></dl></section>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <dialog class="session-dialog" id="new-session-dialog" aria-labelledby="new-session-title" aria-describedby="new-session-description" data-od-id="new-session-dialog">
+    <form class="session-dialog__form" id="new-session-form">
+      <header class="session-dialog__head" data-od-id="new-session-dialog-head">
+        <div class="session-dialog__title">
+          <h2 id="new-session-title">Start a new session</h2>
+          <p id="new-session-description">Pick the agent and runtime for this session in agh.</p>
+        </div>
+        <button class="session-dialog__close" id="close-new-session" type="button" aria-label="Close new session dialog" title="Close"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="session-dialog__body">
+        <div class="session-dialog__field">
+          <label for="new-session-agent">Agent</label>
+          <p id="new-session-agent-hint">The agent supplies the default prompt, tools, and provider.</p>
+          <select id="new-session-agent" aria-describedby="new-session-agent-hint" required data-od-id="new-session-agent">
+            <option value="">Select an agent</option>
+            <option value="release-engineer">release-engineer</option>
+            <option value="runtime-debugger">runtime-debugger</option>
+            <option value="ui-reviewer">ui-reviewer</option>
+          </select>
+        </div>
+        <div class="session-dialog__field">
+          <label for="new-session-runtime">Runtime</label>
+          <p id="new-session-runtime-hint">Use the agent default or override it for this session only.</p>
+          <select id="new-session-runtime" aria-describedby="new-session-runtime-hint" data-od-id="new-session-runtime">
+            <option value="agent-default">Agent default</option>
+            <option value="claude-sonnet-4-5">Claude Code · claude-sonnet-4-5</option>
+            <option value="gpt-5">Codex · gpt-5</option>
+          </select>
+        </div>
+      </div>
+      <footer class="session-dialog__foot" data-od-id="new-session-dialog-actions">
+        <button class="btn btn--ghost" id="cancel-new-session" type="button" data-od-id="cancel-new-session">Cancel</button>
+        <button class="btn btn--primary" type="submit" data-od-id="start-new-session">Start session</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="sr-only" id="sidebar-announcement" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      var sidebar = document.getElementById("sidebar");
+      var shell = document.getElementById("shell");
+      var navigationPane = document.getElementById("navigation-pane");
+      var sessionsPane = document.getElementById("sessions-pane");
+      var openButton = document.getElementById("show-all-sessions");
+      var backButton = document.getElementById("back-to-navigation");
+      var searchInput = document.getElementById("session-search");
+      var recentToggle = document.getElementById("recent-sessions-toggle");
+      var recentContent = document.getElementById("recent-sessions-content");
+      var recentList = document.getElementById("recent-session-list");
+      var recentCount = document.getElementById("recent-session-count");
+      var newSessionDialog = document.getElementById("new-session-dialog");
+      var newSessionForm = document.getElementById("new-session-form");
+      var newSessionAgent = document.getElementById("new-session-agent");
+      var newSessionRuntime = document.getElementById("new-session-runtime");
+      var announcement = document.getElementById("sidebar-announcement");
+      var title = document.getElementById("page-title");
+      var pageAgent = document.getElementById("page-agent");
+      var pageStatus = document.getElementById("page-status");
+      var crumbAgent = document.getElementById("crumb-agent");
+      var crumbSession = document.getElementById("crumb-session");
+      var composerMessage = document.getElementById("composer-message");
+      var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var lastNewSessionTrigger = null;
+
+      function afterSlide(callback) {
+        window.setTimeout(callback, reduceMotion.matches ? 0 : 210);
+      }
+
+      function setPanelAccess(view) {
+        var sessionsOpen = view === "sessions";
+        navigationPane.inert = sessionsOpen;
+        navigationPane.setAttribute("aria-hidden", sessionsOpen ? "true" : "false");
+        sessionsPane.inert = !sessionsOpen;
+        sessionsPane.setAttribute("aria-hidden", sessionsOpen ? "false" : "true");
+      }
+
+      function showSessions() {
+        sidebar.dataset.view = "sessions";
+        setPanelAccess("sessions");
+        openButton.setAttribute("aria-expanded", "true");
+        announcement.textContent = "Session browser opened. Sessions are grouped by agent.";
+        afterSlide(function () { backButton.focus(); });
+      }
+
+      function showNavigation() {
+        sidebar.dataset.view = "nav";
+        setPanelAccess("nav");
+        openButton.setAttribute("aria-expanded", "false");
+        announcement.textContent = "Workspace navigation restored.";
+        afterSlide(function () { openButton.focus(); });
+      }
+
+      function clearCurrent() {
+        document.querySelectorAll("[aria-current='page']").forEach(function (node) { node.removeAttribute("aria-current"); });
+      }
+
+      function setDisclosure(toggle, content, expanded, label) {
+        toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+        content.hidden = !expanded;
+        if (label) announcement.textContent = label + (expanded ? " expanded." : " collapsed.");
+      }
+
+      function selectSession(row) {
+        var sessionId = row.dataset.sessionId;
+        var sessionTitle = row.dataset.sessionTitle;
+        var agent = row.dataset.agent;
+        var status = row.dataset.status;
+        var statusLabel = row.dataset.statusLabel;
+        clearCurrent();
+        document.querySelectorAll("[data-session-id='" + sessionId + "']").forEach(function (match) { match.setAttribute("aria-current", "page"); });
+        title.textContent = sessionTitle;
+        pageAgent.textContent = agent;
+        crumbAgent.textContent = agent;
+        crumbSession.textContent = sessionTitle;
+        pageStatus.dataset.status = status;
+        pageStatus.querySelector("span:last-child").textContent = statusLabel;
+        composerMessage.placeholder = "Message " + agent;
+        announcement.textContent = sessionTitle + ", " + statusLabel + ", opened.";
+      }
+
+      function selectRoute(link) {
+        clearCurrent();
+        link.setAttribute("aria-current", "page");
+        var route = link.dataset.route;
+        title.textContent = route;
+        crumbAgent.textContent = "agh";
+        crumbSession.textContent = route;
+        pageAgent.textContent = "workspace agh";
+        pageStatus.dataset.status = "idle";
+        pageStatus.querySelector("span:last-child").textContent = "Idle";
+        announcement.textContent = route + " opened.";
+      }
+
+      function bindSessionRow(row) {
+        row.addEventListener("click", function (event) {
+          event.preventDefault();
+          selectSession(row);
+        });
+      }
+
+      function createSessionRow(sessionId, sessionTitle, agent, includeTime) {
+        var row = document.createElement("a");
+        row.className = "session-row";
+        row.href = "#" + sessionId;
+        row.dataset.sessionId = sessionId;
+        row.dataset.sessionTitle = sessionTitle;
+        row.dataset.agent = agent;
+        row.dataset.status = "running";
+        row.dataset.statusLabel = "Running";
+        row.dataset.odId = "started-" + sessionId;
+
+        var rowTitle = document.createElement("span");
+        rowTitle.className = "session-row__title";
+        rowTitle.textContent = sessionTitle;
+        row.appendChild(rowTitle);
+
+        var rowStatus = document.createElement("span");
+        rowStatus.className = "session-row__status";
+        var rowDot = document.createElement("span");
+        rowDot.className = "status-dot";
+        rowDot.setAttribute("aria-hidden", "true");
+        var rowStatusLabel = document.createElement("span");
+        rowStatusLabel.textContent = "Running";
+        rowStatus.appendChild(rowDot);
+        rowStatus.appendChild(rowStatusLabel);
+        row.appendChild(rowStatus);
+
+        if (includeTime) {
+          var rowTime = document.createElement("time");
+          rowTime.className = "session-row__time";
+          rowTime.textContent = "now";
+          row.appendChild(rowTime);
+        }
+
+        bindSessionRow(row);
+        return row;
+      }
+
+      function openNewSession(trigger) {
+        lastNewSessionTrigger = trigger;
+        newSessionForm.reset();
+        newSessionDialog.showModal();
+        announcement.textContent = "New session dialog opened.";
+        window.setTimeout(function () { newSessionAgent.focus(); }, 0);
+      }
+
+      function closeNewSession() {
+        if (!newSessionDialog.open) return;
+        newSessionDialog.close();
+        if (lastNewSessionTrigger) lastNewSessionTrigger.focus();
+      }
+
+      openButton.addEventListener("click", showSessions);
+      backButton.addEventListener("click", showNavigation);
+
+      recentToggle.addEventListener("click", function () {
+        var expanded = recentToggle.getAttribute("aria-expanded") === "true";
+        setDisclosure(recentToggle, recentContent, !expanded, "Recent sessions");
+      });
+
+      document.querySelectorAll("[data-agent-toggle]").forEach(function (toggle) {
+        toggle.addEventListener("click", function () {
+          var content = document.getElementById(toggle.getAttribute("aria-controls"));
+          var expanded = toggle.getAttribute("aria-expanded") === "true";
+          var agent = toggle.closest("[data-agent-group]").dataset.agentGroup;
+          setDisclosure(toggle, content, !expanded, agent + " sessions");
+        });
+      });
+
+      document.querySelectorAll("[data-new-session]").forEach(function (button) {
+        button.addEventListener("click", function () { openNewSession(button); });
+      });
+
+      document.getElementById("close-new-session").addEventListener("click", closeNewSession);
+      document.getElementById("cancel-new-session").addEventListener("click", closeNewSession);
+
+      newSessionDialog.addEventListener("click", function (event) {
+        if (event.target === newSessionDialog) closeNewSession();
+      });
+
+      newSessionForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        if (!newSessionForm.checkValidity()) {
+          newSessionForm.reportValidity();
+          return;
+        }
+
+        var agent = newSessionAgent.value;
+        var runtime = newSessionRuntime.options[newSessionRuntime.selectedIndex].text;
+        var sessionId = "session-new-" + Date.now();
+        var sessionTitle = "New session with " + agent;
+        var recentRow = createSessionRow(sessionId, sessionTitle, agent, true);
+        recentList.prepend(recentRow);
+        recentCount.textContent = recentList.querySelectorAll("[data-session-id]").length;
+        setDisclosure(recentToggle, recentContent, true, "");
+
+        var agentGroup = document.querySelector("[data-agent-group='" + agent + "']");
+        var groupRow = null;
+        if (agentGroup) {
+          var groupToggle = agentGroup.querySelector("[data-agent-toggle]");
+          var groupList = document.getElementById(groupToggle.getAttribute("aria-controls"));
+          groupRow = createSessionRow(sessionId, sessionTitle, agent, false);
+          groupList.prepend(groupRow);
+          agentGroup.hidden = false;
+          setDisclosure(groupToggle, groupList, true, "");
+          var groupTotal = groupList.querySelectorAll("[data-session-id]").length;
+          agentGroup.querySelector(".agent-group__count").textContent = groupTotal + " sessions";
+        }
+
+        searchInput.value = "";
+        searchInput.dispatchEvent(new Event("input"));
+        var activeSummary = document.getElementById("active-session-summary");
+        var totalSummary = document.getElementById("total-session-summary");
+        var activeTotal = Number.parseInt(activeSummary.textContent, 10) + 1;
+        var sessionTotal = Number.parseInt(totalSummary.textContent, 10) + 1;
+        activeSummary.textContent = activeTotal + " active sessions";
+        totalSummary.textContent = sessionTotal + " total";
+        selectSession(recentRow);
+        newSessionDialog.close();
+        announcement.textContent = sessionTitle + " started with " + runtime + ".";
+        window.setTimeout(function () {
+          var focusTarget = sidebar.dataset.view === "sessions" && groupRow ? groupRow : recentRow;
+          focusTarget.focus();
+        }, 0);
+      });
+
+      document.querySelectorAll("[data-session-id]").forEach(function (row) {
+        bindSessionRow(row);
+      });
+
+      document.querySelectorAll("[data-route]").forEach(function (link) {
+        link.addEventListener("click", function (event) {
+          event.preventDefault();
+          selectRoute(link);
+        });
+      });
+
+      searchInput.addEventListener("input", function () {
+        var query = searchInput.value.trim().toLowerCase();
+        var visibleCount = 0;
+        document.querySelectorAll("[data-agent-group]").forEach(function (group) {
+          var groupVisible = 0;
+          group.querySelectorAll("[data-session-id]").forEach(function (row) {
+            var haystack = (row.dataset.sessionTitle + " " + row.dataset.agent + " " + row.dataset.statusLabel).toLowerCase();
+            var visible = !query || haystack.indexOf(query) !== -1;
+            row.hidden = !visible;
+            if (visible) groupVisible += 1;
+          });
+          group.hidden = groupVisible === 0;
+          if (query && groupVisible > 0) {
+            var groupToggle = group.querySelector("[data-agent-toggle]");
+            var groupContent = document.getElementById(groupToggle.getAttribute("aria-controls"));
+            setDisclosure(groupToggle, groupContent, true, "");
+          }
+          visibleCount += groupVisible;
+        });
+        document.getElementById("session-empty").dataset.visible = visibleCount === 0 ? "true" : "false";
+        announcement.textContent = visibleCount + " sessions match.";
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (sidebar.dataset.view !== "sessions") return;
+        if (event.key === "Escape" || (event.altKey && event.key === "ArrowLeft")) {
+          event.preventDefault();
+          showNavigation();
+        }
+      });
+
+      document.querySelectorAll(".rail__item").forEach(function (button) {
+        button.addEventListener("click", function () {
+          document.querySelectorAll(".rail__item").forEach(function (item) { item.setAttribute("aria-pressed", "false"); });
+          button.setAttribute("aria-pressed", "true");
+        });
+      });
+
+      document.getElementById("collapse-sidebar").addEventListener("click", function (event) {
+        var collapsed = shell.dataset.sidebarCollapsed === "true";
+        shell.dataset.sidebarCollapsed = collapsed ? "false" : "true";
+        event.currentTarget.setAttribute("aria-expanded", collapsed ? "true" : "false");
+        event.currentTarget.setAttribute("aria-label", collapsed ? "Collapse sidebar" : "Expand sidebar");
+      });
+
+      document.getElementById("composer").addEventListener("submit", function (event) {
+        event.preventDefault();
+        if (!composerMessage.value.trim()) {
+          composerMessage.focus();
+          announcement.textContent = "Write a message before sending.";
+          return;
+        }
+        announcement.textContent = "Message queued for " + pageAgent.textContent + ".";
+        composerMessage.value = "";
+      });
+
+      composerMessage.addEventListener("keydown", function (event) {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          event.preventDefault();
+          document.getElementById("composer").requestSubmit();
+        }
+      });
+
+      if (new URLSearchParams(window.location.search).get("view") === "sessions") {
+        sidebar.dataset.view = "sessions";
+        openButton.setAttribute("aria-expanded", "true");
+        setPanelAccess("sessions");
+      } else {
+        setPanelAccess("nav");
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+[extension]
+name = "secret-guard"
+version = "0.1.0"
+description = "Blocks prompt submissions that contain obvious secrets"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["content.validate"]
+
+[actions]
+requires = ["sessions/list"]
+
+[[resources.hooks]]
+name = "secret-guard-hook"
+event = "input.pre_submit"
+mode = "sync"
+executor.kind = "subprocess"
+executor.command = "./bin/secret-guard"
+executor.args = ["hook", "input_pre_submit"]
+
+[subprocess]
+command = "./bin/secret-guard"
+args = ["serve"]
+
+[subprocess.env]
+AGH_SECRET_GUARD_HANDSHAKE_PATH = "{{env:AGH_SECRET_GUARD_HANDSHAKE_PATH}}"
+AGH_SECRET_GUARD_HOST_CALL_PATH = "{{env:AGH_SECRET_GUARD_HOST_CALL_PATH}}"
+AGH_SECRET_GUARD_STARTS_PATH = "{{env:AGH_SECRET_GUARD_STARTS_PATH}}"
+AGH_SECRET_GUARD_CRASH_ONCE_PATH = "{{env:AGH_SECRET_GUARD_CRASH_ONCE_PATH}}"
+AGH_SECRET_GUARD_SHUTDOWN_PATH = "{{env:AGH_SECRET_GUARD_SHUTDOWN_PATH}}"
+
+[security]
+capabilities = ["session.read"]

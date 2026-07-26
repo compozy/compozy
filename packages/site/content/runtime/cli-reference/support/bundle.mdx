@@ -1,0 +1,52 @@
+---
+title: "agh support bundle"
+description: "Create and download a redacted support bundle"
+---
+
+## agh support bundle
+
+Create and download a redacted support bundle
+
+```
+agh support bundle [flags]
+```
+
+### Examples
+
+```
+  # Create a bundle and write it under $AGH_HOME/support-bundles
+  agh support bundle --yes
+
+  # Write the daemon-built bundle to a specific path
+  agh support bundle --yes --output /tmp/agh-support-bundle.tar.gz
+```
+
+### Options
+
+```
+  -h, --help            help for bundle
+      --no-status       Omit status.json, doctor.json, providers.json, and runtime status snapshots
+      --output string   Path or directory for the downloaded bundle
+      --yes             Confirm support bundle creation without an interactive prompt
+```
+
+### Options inherited from parent commands
+
+```
+      --json   Emit JSON output
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh support bundle -o json
+```

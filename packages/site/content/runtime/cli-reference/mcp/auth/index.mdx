@@ -1,0 +1,38 @@
+---
+title: "agh mcp auth"
+description: "Authenticate remote MCP servers through the daemon"
+---
+
+## agh mcp auth
+
+Authenticate remote MCP servers through the daemon
+
+### Options
+
+```
+  -h, --help   help for auth
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                       | Description                                                |
+| ------------------------------------------------------------- | ---------------------------------------------------------- |
+| [agh mcp auth login](/runtime/cli-reference/mcp/auth/login)   | Authorize a remote MCP server through the daemon           |
+| [agh mcp auth logout](/runtime/cli-reference/mcp/auth/logout) | Revoke or delete remote MCP auth tokens through the daemon |
+| [agh mcp auth status](/runtime/cli-reference/mcp/auth/status) | Show redacted remote MCP auth status                       |

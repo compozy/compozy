@@ -1,0 +1,39 @@
+---
+title: "agh network coordination"
+description: "Inspect or change workspace network coordination"
+---
+
+## agh network coordination
+
+Inspect or change workspace network coordination
+
+### Options
+
+```
+  -h, --help   help for coordination
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                                 | Description                                              |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [agh network coordination disable](/runtime/cli-reference/network/coordination/disable) | Disable workspace coordination conversations             |
+| [agh network coordination enable](/runtime/cli-reference/network/coordination/enable)   | Enable workspace coordination conversations              |
+| [agh network coordination status](/runtime/cli-reference/network/coordination/status)   | Show workspace network coordination and invitation state |

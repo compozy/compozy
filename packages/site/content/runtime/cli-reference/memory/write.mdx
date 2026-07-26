@@ -1,0 +1,60 @@
+---
+title: "agh memory write"
+description: "Create a Memory v2 entry through the controller"
+---
+
+## agh memory write
+
+Create a Memory v2 entry through the controller
+
+```
+agh memory write --type <type> --name <name> --content <@file|text> [flags]
+```
+
+### Examples
+
+```
+  # Write workspace-scoped project memory from a file
+  agh memory write --scope workspace --type project --name "Runtime docs" --content @runtime.md
+
+  # Write agent-global feedback
+  agh memory write --scope agent --agent reviewer --agent-tier global \
+    --type feedback --name "Review tone" --content @feedback.md
+```
+
+### Options
+
+```
+      --agent string         Agent name for agent-scoped memory
+      --agent-tier string    Agent memory tier: workspace or global
+      --content string       Memory content; use @file to read from disk or - for stdin
+      --description string   One-line durable memory description
+      --dry-run              Ask the controller for a decision without applying it
+  -h, --help                 help for write
+      --name string          Memory display name
+      --scope string         Memory scope: global, workspace, or agent
+      --type string          Memory type: user, feedback, project, or reference
+      --workspace string     Workspace ID or path for workspace-bound memory
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory write --type <type> --name <name> --content <@file|text> -o json
+```

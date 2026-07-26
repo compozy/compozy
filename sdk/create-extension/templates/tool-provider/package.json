@@ -1,0 +1,20 @@
+{
+    "name": "__EXTENSION_NAME__",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "start": "node dist/index.js"
+    },
+    "dependencies": {
+        "@agh/extension-sdk": "__SDK_SPEC__"
+    },
+    "devDependencies": {
+        "@types/node": "^25.5.2",
+        "typescript": "^6.0.2"
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}

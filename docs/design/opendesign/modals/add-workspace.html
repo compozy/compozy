@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGH · Add workspace</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body>
+
+<div class="product" aria-hidden="true">
+  <aside class="product__rail"><div class="product__mark"></div><div class="product__mark"></div><div class="product__mark"></div></aside>
+  <div class="product__main">
+    <div class="product__title"></div><div class="product__sub"></div>
+    <div class="product__grid"><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i></div>
+  </div>
+</div>
+
+<div class="scrim">
+  <form class="dialog dialog--split" role="dialog" aria-modal="true" aria-label="Add workspace" data-od-component="dialog" data-success="Workspace is ready to add." data-od-id="workspace-add-dialog">
+
+    <!-- HEADER -->
+    <header class="dialog__head" data-od-id="workspace-add-header">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg></div>
+      <div class="head-copy">
+        <div class="eyebrow">Workspace</div>
+        <h1 data-od-id="workspace-add-title">Add workspace</h1>
+        <p>Register a local directory as a workspace. <b>The root becomes immutable</b> — defaults stay editable afterwards.</p>
+      </div>
+      <button class="icon-button" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- CONTEXT BAR -->
+    <div class="modebar" data-od-id="workspace-add-modebar">
+      <span class="modebar__label">Registration</span>
+      <span class="modebar__value">Local workspace</span>
+      <div class="modebar__spacer"></div>
+      <span class="modebar__status" data-od-id="workspace-add-status"><i class="status-dot"></i> daemon available</span>
+    </div>
+
+    <!-- BODY: location browser | session defaults -->
+    <div class="dialog__body dialog__body--split">
+
+      <!-- LEFT: LOCATION -->
+      <section class="pane pane--main" data-od-id="workspace-location-pane">
+        <div class="sec" data-od-component="form-section" data-od-id="workspace-location-section">
+          <div class="sec__head">
+            <span class="sec__title">Location</span>
+            <span class="sec__sub">Browse the daemon's filesystem and pick the folder sessions run in.</span>
+          </div>
+
+          <div class="field field--browser" data-od-id="workspace-root-field">
+            <span class="label" id="workspace-root-label">Root directory <span class="req">required</span></span>
+            <div class="dir-browser" role="group" aria-labelledby="workspace-root-label" data-od-component="directory-browser" data-dir-current="/Users/you/Dev" data-dir-home="/Users/you" data-dir-input="root" data-dir-card="root-card-slot" data-dir-name="name" data-od-id="workspace-dir-browser">
+              <div class="dir-browser__toolbar" data-od-id="workspace-dir-toolbar">
+                <button class="icon-button" type="button" data-dir-action="home" aria-label="Go to home directory">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg>
+                </button>
+                <button class="icon-button" type="button" data-dir-action="up" aria-label="Go to parent directory">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+                </button>
+                <span class="dir-browser__path" data-dir-path data-od-id="workspace-dir-path"></span>
+                <button class="btn btn--small btn--outline" type="button" data-dir-action="use" data-od-id="workspace-dir-use">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                  Use this folder
+                </button>
+              </div>
+              <div class="dir-browser__list" data-dir-list data-od-id="workspace-dir-list"></div>
+            </div>
+            <input type="hidden" id="root" required data-absolute-path value="/Users/you/Dev/checkout-platform" data-od-id="workspace-root-input">
+            <span class="error">Pick the workspace root in the browser above.</span>
+          </div>
+
+          <div class="field" data-od-id="workspace-root-selected-field">
+            <span class="label">Selected root</span>
+            <div id="root-card-slot" data-od-id="workspace-root-card"></div>
+            <span class="hint">Sessions read and write inside this root — it cannot change later.</span>
+          </div>
+
+          <div class="field">
+            <label class="label" for="name">Display name <span class="opt">— defaults to the folder name</span></label>
+            <input id="name" class="input" value="Checkout platform" placeholder="Checkout platform" data-od-id="workspace-name-input">
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: SESSION DEFAULTS -->
+      <aside class="pane pane--side" data-od-id="workspace-defaults-pane">
+        <div class="sec" data-od-component="form-section" data-od-id="workspace-defaults-section">
+          <div class="sec__head">
+            <span class="sec__title">Session defaults</span>
+            <span class="sec__sub">Optional — every one of these can change later.</span>
+          </div>
+
+          <div class="field">
+            <span class="label" id="workspace-agent-label">Default agent</span>
+            <button class="command-select" id="agent" type="button" aria-labelledby="workspace-agent-label" aria-controls="workspace-agent-popover" data-component-trigger="command-select" data-od-component="agent-select" data-od-id="workspace-agent-select"><span class="command-select__avatar" aria-hidden="true">I</span><span class="command-select__copy"><strong data-component-value>incident-triage</strong><span>Anthropic · operations/incident</span></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+          </div>
+
+          <div class="field">
+            <span class="label" id="workspace-sandbox-label">Sandbox profile</span>
+            <button class="command-select" id="sandbox" type="button" aria-labelledby="workspace-sandbox-label" aria-controls="workspace-sandbox-popover" data-component-trigger="command-select" data-od-component="command-select" data-od-id="workspace-sandbox-select"><span class="command-select__avatar" aria-hidden="true">S</span><span class="command-select__copy"><strong data-component-value>isolated-dev</strong><span>Daytona · reset each session</span></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+          </div>
+
+          <div class="field">
+            <label class="label" for="add-dir">Additional directories <span class="opt">— extra roots sessions may read</span></label>
+            <div class="row">
+              <input id="add-dir" class="input input--mono" placeholder="/Users/you/Dev/shared-libs" data-od-id="workspace-adddir-input">
+              <button class="btn btn--small" type="button" data-add-chip>Add</button>
+            </div>
+            <div class="chip-list" data-od-id="workspace-adddir-chips"></div>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="dialog__foot" data-od-component="dialog-footer" data-od-id="workspace-add-footer">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span>Registration is instant — sessions can launch here right away.</span>
+      </div>
+      <button class="btn btn--outline" type="button" data-close>Cancel</button>
+      <button class="btn btn--primary" type="submit" data-od-id="workspace-add-submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Add workspace
+      </button>
+    </footer>
+
+  </form>
+</div>
+
+<div class="closed-state">Workspace setup dismissed.</div>
+<div class="toast" data-toast></div>
+<div class="component-popover" id="workspace-agent-popover" role="listbox" aria-label="Agents"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search agents" placeholder="Search agents…"></div><div class="component-popover__list"><button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="incident-triage"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>incident-triage</strong><span><b>Anthropic</b> · operations</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="release-coordinator"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>release-coordinator</strong><span><b>OpenAI</b> · delivery</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="None"><span class="opt-copy"><strong>None</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button></div></div>
+<div class="component-popover" id="workspace-sandbox-popover" role="listbox" aria-label="Sandbox profiles"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search sandbox profiles" placeholder="Search sandbox profiles…"></div><div class="component-popover__list"><button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="isolated-dev"><span class="opt-ic mono" aria-hidden="true">I</span><span class="opt-copy"><strong>isolated-dev</strong><span><b>Daytona</b></span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="None"><span class="opt-copy"><strong>None</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button></div></div>
+<script src="modal-system.js"></script>
+</body>
+</html>

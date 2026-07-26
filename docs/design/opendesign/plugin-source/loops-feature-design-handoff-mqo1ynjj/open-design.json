@@ -1,0 +1,22 @@
+{
+  "$schema": "https://open-design.ai/schemas/plugin.v1.json",
+  "specVersion": "1.0.0",
+  "name": "loops-feature-design-handoff-mqo1ynjj",
+  "title": "Loops feature — design handoff",
+  "version": "0.1.0",
+  "description": "> **Purpose of this file.** A cold-start briefing so a *new chat with another LLM* > can continue designing AGH's \"Loops\" feature screens without re-deriving anything. > Paste this whole file into the new conversation as",
+  "od": {
+    "kind": "skill",
+    "taskKind": "new-generation",
+    "context": {
+      "skills": [
+        {
+          "path": "./SKILL.md"
+        }
+      ]
+    },
+    "capabilities": [
+      "prompt:inject"
+    ]
+  }
+}

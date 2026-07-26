@@ -1,0 +1,63 @@
+---
+title: "agh scheduler"
+description: "Inspect and control task scheduler dispatch"
+---
+
+## agh scheduler
+
+Inspect and control task scheduler dispatch
+
+```
+agh scheduler [flags]
+```
+
+### Examples
+
+```
+  # Show scheduler pause and backlog pressure
+  agh scheduler status
+
+  # Pause all new scheduler dispatch while active claims continue
+  agh scheduler pause --reason "incident response"
+
+  # Pause and wait up to 30 seconds for active claims to finish
+  agh scheduler drain --timeout 30s
+```
+
+### Options
+
+```
+  -h, --help   help for scheduler
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh scheduler -o json
+```
+
+## Subcommands
+
+| Command                                                           | Description                                              |
+| ----------------------------------------------------------------- | -------------------------------------------------------- |
+| [agh scheduler backlog](/runtime/cli-reference/scheduler/backlog) | List queued runs visible to scheduler dispatch           |
+| [agh scheduler drain](/runtime/cli-reference/scheduler/drain)     | Pause dispatch and wait for active task claims to finish |
+| [agh scheduler pause](/runtime/cli-reference/scheduler/pause)     | Pause new scheduler dispatch                             |
+| [agh scheduler resume](/runtime/cli-reference/scheduler/resume)   | Resume scheduler dispatch                                |
+| [agh scheduler status](/runtime/cli-reference/scheduler/status)   | Show scheduler pause and queue pressure                  |

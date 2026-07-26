@@ -1,0 +1,49 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "cost-provenance-agent",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You report deterministic token usage for cost provenance.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "cost-metered-model",
+                    "values": [
+                        {
+                            "value": "cost-metered-model",
+                            "label": "Cost Metered Model"
+                        },
+                        {
+                            "value": "cost-included-model",
+                            "label": "Cost Included Model"
+                        }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "usage-response",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Summarize the cost provenance run"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Cost provenance run recorded."
+                        }
+                    ],
+                    "stop_reason": "end_turn",
+                    "usage": {
+                        "input_tokens": 128400,
+                        "output_tokens": 24900,
+                        "total_tokens": 153300
+                    }
+                }
+            ]
+        }
+    ]
+}

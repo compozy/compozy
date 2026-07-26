@@ -1,0 +1,69 @@
+---
+title: "agh ch send"
+description: "Send one task-run coordination message"
+---
+
+## agh ch send
+
+Send one task-run coordination message
+
+```
+agh ch send <channel> [flags]
+```
+
+### Examples
+
+```
+  # Send a non-authoritative status message for a run
+  agh ch send coord-run-123 \
+    --task-id task-123 \
+    --run-id run-123 \
+    --kind status \
+    --correlation-id run-123 \
+    --body '{"status":"investigating"}'
+
+  # Report a blocker in the same task-bound channel
+  agh ch send coord-run-123 \
+    --task-id task-123 \
+    --run-id run-123 \
+    --kind blocker \
+    --correlation-id run-123 \
+		--body '{"blocked_by":"missing credentials"}'
+```
+
+### Options
+
+```
+      --body string              Raw JSON body for the channel message
+      --channel-id string        Channel id; defaults to channel
+      --correlation-id string    Correlation id; defaults to run id
+  -h, --help                     help for send
+      --idempotency-key string   Optional idempotency key/message id
+      --kind string              Coordination message kind (default "status")
+      --metadata-ext string      Optional JSON object for coordination metadata ext
+      --run-id string            Run id for coordination metadata
+      --task-id string           Task id for coordination metadata
+      --workflow-id string       Workflow id for coordination metadata
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh ch send <channel> -o json
+```

@@ -1,68 +1,36 @@
 package core
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
-	"sync"
 	"time"
 
+	ssepkg "github.com/compozy/agh/internal/sse"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
-
-	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
-type StreamCursor = contract.StreamCursor
-type SSEMessage = contract.SSEMessage
-type HeartbeatPayload = contract.HeartbeatPayload
-type OverflowPayload = contract.OverflowPayload
-
-// FlushWriter is the subset of the response writer needed for streaming.
-type FlushWriter interface {
-	io.Writer
-	http.Flusher
-}
-
-var sseBufferPool = sync.Pool{
-	New: func() any {
-		return new(bytes.Buffer)
-	},
-}
-
-const (
-	// RunSnapshotSSEEvent is the canonical snapshot event name for daemon run streams.
-	RunSnapshotSSEEvent = "run.snapshot"
-	// RunEventSSEEvent is the canonical live event name for daemon run streams.
-	RunEventSSEEvent = "run.event"
-	// RunHeartbeatSSEEvent is the canonical heartbeat event name for daemon run streams.
-	RunHeartbeatSSEEvent = "run.heartbeat"
-	// RunOverflowSSEEvent is the canonical overflow event name for daemon run streams.
-	RunOverflowSSEEvent = "run.overflow"
-)
-
-// PrepareSSE configures one Gin response for server-sent events.
+// PrepareSSE configures a Gin response for SSE streaming.
 func PrepareSSE(c *gin.Context) (FlushWriter, error) {
-	if c == nil {
-		return nil, errors.New("sse context is required")
-	}
 	writer, ok := c.Writer.(FlushWriter)
 	if !ok {
 		return nil, errors.New("response writer does not support flushing")
 	}
 
-	headers := c.Writer.Header()
-	headers.Set("Content-Type", "text/event-stream")
-	headers.Set("Cache-Control", "no-cache")
-	headers.Set("Connection", "keep-alive")
-	headers.Set("X-Accel-Buffering", "no")
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
 	c.Status(http.StatusOK)
 	c.Writer.WriteHeaderNow()
 	writer.Flush()
+
 	return writer, nil
 }
 
@@ -80,102 +48,180 @@ func WriteSSE(writer FlushWriter, msg SSEMessage) error {
 		payload = []byte("null")
 	}
 
-	buffer, ok := sseBufferPool.Get().(*bytes.Buffer)
-	if !ok || buffer == nil {
-		buffer = new(bytes.Buffer)
-	}
-	buffer.Reset()
-	defer sseBufferPool.Put(buffer)
+	return writeSSERaw(writer, msg.ID, payload, msg.Name)
+}
 
-	if strings.TrimSpace(msg.ID) != "" {
-		buffer.WriteString("id: ")
-		buffer.WriteString(strings.TrimSpace(msg.ID))
-		buffer.WriteByte('\n')
-	}
+// WriteTaskStreamEvent writes one task-native live event as a standard SSE message.
+// TaskStreamEventPayload.Type is the event identity consumed by clients.
+func WriteTaskStreamEvent(writer FlushWriter, event taskpkg.StreamEvent) error {
+	return WriteSSE(writer, SSEMessage{
+		ID:   strconv.FormatInt(event.Sequence, 10),
+		Data: TaskStreamEventPayloadFromEvent(event),
+	})
+}
 
-	if strings.TrimSpace(msg.Event) != "" {
-		buffer.WriteString("event: ")
-		buffer.WriteString(strings.TrimSpace(msg.Event))
-		buffer.WriteByte('\n')
+// WriteSSEComment writes one SSE comment frame. EventSource clients ignore
+// comment frames, so stream keep-alives must use this helper instead of data events.
+func WriteSSEComment(writer FlushWriter, comment string) error {
+	if writer == nil {
+		return errors.New("sse writer is required")
 	}
-
-	buffer.WriteString("data: ")
-	if _, err := buffer.Write(payload); err != nil {
-		return fmt.Errorf("write sse payload: %w", err)
+	trimmed := strings.TrimSpace(comment)
+	if trimmed == "" {
+		return errors.New("sse comment is required")
 	}
-	buffer.WriteString("\n\n")
-	if written, err := writer.Write(buffer.Bytes()); err != nil {
-		return fmt.Errorf("write sse payload: %w", err)
-	} else if written != buffer.Len() {
-		return fmt.Errorf("write sse payload: %w", io.ErrShortWrite)
+	if strings.ContainsAny(trimmed, "\r\n") {
+		return errors.New("sse comment must be a single line")
+	}
+	if err := writeSSEString(writer, "write sse comment prefix", ": "); err != nil {
+		return err
+	}
+	if err := writeSSEString(writer, "write sse comment", trimmed); err != nil {
+		return err
+	}
+	if err := writeSSEString(writer, "write sse comment terminator", "\n\n"); err != nil {
+		return err
 	}
 	writer.Flush()
 	return nil
 }
 
-// FormatCursor renders the canonical cursor form.
-func FormatCursor(timestamp time.Time, sequence uint64) string {
-	return contract.FormatCursor(timestamp, sequence)
-}
-
-// CursorFromEvent builds the canonical cursor for one persisted event.
-func CursorFromEvent(event events.Event) StreamCursor {
-	return contract.CursorFromEvent(event)
-}
-
-// ParseCursor parses a Last-Event-ID or pagination cursor.
-func ParseCursor(raw string) (StreamCursor, error) {
-	return contract.ParseCursor(raw)
-}
-
-// EventAfterCursor reports whether an event should be emitted after the given cursor.
-func EventAfterCursor(event events.Event, cursor StreamCursor) bool {
-	return contract.EventAfterCursor(event, cursor)
-}
-
-// EventMessage builds the canonical live-event SSE frame.
-func EventMessage(event events.Event) SSEMessage {
-	return SSEMessage{
-		ID:    FormatCursor(event.Timestamp, event.Seq),
-		Event: RunEventSSEEvent,
-		Data:  event,
+func (h *BaseHandlers) writeSSEBestEffort(writer FlushWriter, msg SSEMessage) {
+	if err := WriteSSE(writer, msg); err != nil && h != nil && h.Logger != nil {
+		h.Logger.Warn("api: failed to emit sse message", "event", msg.Name, "error", err)
 	}
 }
 
-// HeartbeatMessage builds the canonical heartbeat SSE event.
-func HeartbeatMessage(runID string, cursor StreamCursor, now time.Time) SSEMessage {
-	return SSEMessage{
-		Event: RunHeartbeatSSEEvent,
-		Data: HeartbeatPayload{
-			RunID:  strings.TrimSpace(runID),
-			Cursor: FormatCursor(cursor.Timestamp, cursor.Sequence),
-			TS:     now.UTC(),
-		},
+func (h *BaseHandlers) logSSEWriteFailure(eventName string, err error) {
+	if err != nil && h != nil && h.Logger != nil {
+		h.Logger.Warn("api: failed to emit sse message", "event", eventName, "error", err)
 	}
 }
 
-// OverflowMessage builds the canonical overflow SSE event.
-func OverflowMessage(runID string, cursor StreamCursor, now time.Time, reason string) SSEMessage {
-	return SSEMessage{
-		Event: RunOverflowSSEEvent,
-		Data: OverflowPayload{
-			RunID:  strings.TrimSpace(runID),
-			Cursor: FormatCursor(cursor.Timestamp, cursor.Sequence),
-			Reason: strings.TrimSpace(reason),
-			TS:     now.UTC(),
-		},
-	}
+// WriteSSERaw writes one SSE message using a pre-encoded payload.
+func WriteSSERaw(writer FlushWriter, id string, raw string, names ...string) error {
+	return writeSSERaw(writer, id, []byte(raw), names...)
 }
 
-func resetTimer(timer *time.Timer, interval time.Duration) {
-	if timer == nil {
-		return
+func writeSSERaw(writer FlushWriter, id string, raw []byte, names ...string) error {
+	if writer == nil {
+		return errors.New("sse writer is required")
 	}
-	if !timer.Stop() {
-		select {
-		case <-timer.C:
-		default:
+	if len(raw) == 0 {
+		raw = []byte("null")
+	}
+	raw = ssepkg.ScrubMemoryContextBytes(raw)
+
+	if id != "" {
+		if err := writeSSEString(writer, "write sse id prefix", "id: "); err != nil {
+			return err
+		}
+		if err := writeSSEString(writer, "write sse id", id); err != nil {
+			return err
+		}
+		if err := writeSSEString(writer, "write sse id terminator", "\n"); err != nil {
+			return err
 		}
 	}
-	timer.Reset(interval)
+	if len(names) > 0 && strings.TrimSpace(names[0]) != "" {
+		if err := writeSSEString(writer, "write sse event prefix", "event: "); err != nil {
+			return err
+		}
+		if err := writeSSEString(writer, "write sse event", names[0]); err != nil {
+			return err
+		}
+		if err := writeSSEString(writer, "write sse event terminator", "\n"); err != nil {
+			return err
+		}
+	}
+	if err := writeSSEString(writer, "write sse data prefix", "data: "); err != nil {
+		return err
+	}
+	if _, err := writer.Write(raw); err != nil {
+		return fmt.Errorf("write sse data payload: %w", err)
+	}
+	if err := writeSSEString(writer, "write sse message terminator", "\n\n"); err != nil {
+		return err
+	}
+	writer.Flush()
+	return nil
+}
+
+func writeSSEString(writer FlushWriter, operation string, value string) error {
+	if _, err := io.WriteString(writer, value); err != nil {
+		return fmt.Errorf("%s: %w", operation, err)
+	}
+	return nil
+}
+
+// EmitLogs writes log events newer than the supplied cursor.
+func EmitLogs(writer FlushWriter, events []store.EventSummary, cursor LogsCursor) LogsCursor {
+	next := cursor
+	for _, event := range events {
+		if !LogEventAfterCursor(event, next) {
+			continue
+		}
+		if err := WriteSSE(writer, SSEMessage{
+			ID:   LogEventID(event),
+			Name: event.Type,
+			Data: LogEventPayloadFromSummary(event),
+		}); err != nil {
+			return next
+		}
+		next = LogsCursor{
+			Timestamp: event.Timestamp.UTC(),
+			Sequence:  event.Sequence,
+			ID:        event.ID,
+		}
+	}
+	return next
+}
+
+// LogEventAfterCursor reports whether a log event should be emitted after the cursor.
+func LogEventAfterCursor(event store.EventSummary, cursor LogsCursor) bool {
+	if cursor.Timestamp.IsZero() && cursor.Sequence == 0 && strings.TrimSpace(cursor.ID) == "" {
+		return true
+	}
+
+	timestamp := event.Timestamp.UTC()
+	switch {
+	case timestamp.After(cursor.Timestamp):
+		return true
+	case timestamp.Before(cursor.Timestamp):
+		return false
+	default:
+		if cursor.Sequence > 0 && event.Sequence > 0 {
+			return event.Sequence > cursor.Sequence
+		}
+		return event.ID > cursor.ID
+	}
+}
+
+// LogEventID builds a stable Last-Event-ID value for logs streaming.
+func LogEventID(event store.EventSummary) string {
+	buffer := make([]byte, 0, len(time.RFC3339Nano)+1+20)
+	buffer = event.Timestamp.UTC().AppendFormat(buffer, time.RFC3339Nano)
+	buffer = append(buffer, '|')
+	if event.Sequence > 0 {
+		buffer = appendZeroPaddedInt64(buffer, event.Sequence, 20)
+		return string(buffer)
+	}
+	buffer = append(buffer, event.ID...)
+	return string(buffer)
+}
+
+func appendZeroPaddedInt64(buffer []byte, value int64, width int) []byte {
+	for digitCount := decimalDigitCount(value); digitCount < width; digitCount++ {
+		buffer = append(buffer, '0')
+	}
+	return strconv.AppendInt(buffer, value, 10)
+}
+
+func decimalDigitCount(value int64) int {
+	count := 1
+	for value >= 10 {
+		value /= 10
+		count++
+	}
+	return count
 }

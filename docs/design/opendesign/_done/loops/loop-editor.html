@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>software-delivery · Fork & edit · AGH</title>
+<style>
+  :root{
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09); --danger-dim:rgba(224,99,90,.22);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05); --btn-fill:rgba(255,255,255,.04);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1); --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit}
+  svg{display:block}
+  ::selection{background:var(--accent-tint)}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+  /* topbar */
+  .topbar{display:flex;align-items:center;gap:10px;height:48px;padding:0 16px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas)}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb a:hover{color:var(--fg-strong)}
+  .crumb b{color:var(--fg-strong);font-weight:560}
+  .crumb svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .spacer{flex:1}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:var(--radius-pill);font-size:11px;font-weight:520;border:1px solid var(--line-soft)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .chip--draft{background:var(--warning-tint);color:var(--warning);border-color:transparent}
+  .verbtn{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 9px;border-radius:var(--radius);border:1px solid var(--line);background:var(--btn-fill);color:var(--muted);font-size:12px;cursor:pointer}
+  .verbtn b{color:var(--fg-strong);font-weight:560}
+  .verbtn svg{width:12px;height:12px;color:var(--faint)}
+  .verbtn:hover{border-color:var(--line-strong);color:var(--fg)}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:var(--radius);font-size:12.5px;font-weight:520;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:rgba(255,255,255,.07);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--icon{width:28px;padding:0;justify-content:center}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;background:var(--btn-fill);border-color:var(--line);color:var(--muted);box-shadow:none}
+  .btn[disabled]:hover{background:var(--btn-fill);border-color:var(--line);color:var(--muted)}
+
+  /* sub-toolbar */
+  .editbar{display:flex;align-items:center;gap:10px;height:42px;padding:0 14px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas-soft)}
+  .tgrp{display:inline-flex;align-items:center;gap:2px;padding:2px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-md)}
+  .ticon{width:26px;height:24px;display:grid;place-items:center;border:0;background:transparent;color:var(--muted);border-radius:var(--radius-sm);cursor:pointer}
+  .ticon svg{width:14px;height:14px}
+  .ticon:hover{background:var(--elevated);color:var(--fg-strong)}
+  .zlabel{font-family:var(--font-mono);font-size:11px;color:var(--subtle);padding:0 4px;min-width:38px;text-align:center}
+  .seg{display:inline-flex;padding:2px;gap:2px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-md)}
+  .seg button{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:520;height:24px;padding:0 12px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--dur) var(--ease)}
+  .seg button svg{width:13px;height:13px}
+  .seg button[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+  .ctx{font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:7px}
+  .ctx svg{width:13px;height:13px;color:var(--faint)}
+  .lintchips{display:flex;align-items:center;gap:7px;margin-left:auto}
+  .inv{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:var(--radius-pill);font-size:11px;font-weight:520;background:var(--success-tint);color:var(--success)}
+  .inv svg{width:12px;height:12px}
+  .inv--bad{background:var(--danger-tint);color:var(--danger)}
+
+  /* work area */
+  .work{flex:1;min-height:0;display:grid;grid-template-columns:190px minmax(0,1fr) 344px}
+
+  /* palette */
+  .palette{border-right:1px solid var(--line);background:var(--canvas);overflow-y:auto;padding:14px 12px 22px}
+  .pal-h{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin:0 2px 9px}
+  .pal-group{margin-bottom:16px}
+  .pal-group__lbl{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:0 2px 6px}
+  .pal-item{display:flex;flex-wrap:wrap;align-items:center;gap:8px;row-gap:2px;padding:7px 8px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft);margin-bottom:5px;cursor:grab;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pal-item:hover{border-color:var(--line-strong);background:var(--canvas-tint)}
+  .pal-item .grip{color:var(--faint);flex:none}
+  .pal-item .grip svg{width:11px;height:11px}
+  .pal-item .pn{font-size:12px;color:var(--fg-strong);font-weight:500}
+  .pal-item .pk{font-family:var(--font-mono);font-size:9px;color:var(--subtle);margin-left:auto}
+  .pal-note{font-size:11px;line-height:1.5;color:var(--faint);padding:11px 9px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft);margin-top:4px}
+  .pal-note b{color:var(--subtle);font-weight:540}
+
+  /* canvas */
+  .canvaswrap{position:relative;min-width:0;display:flex;flex-direction:column;background-color:var(--canvas)}
+  .canvas-scroll{flex:1;min-height:0;overflow:auto;position:relative;
+    background-image:radial-gradient(circle, rgba(255,255,255,.028) 1px, transparent 1px);
+    background-size:22px 22px;background-position:14px 14px}
+  /* start summary · read-only chip strip pinned at the canvas origin (graph view only) */
+  .startstrip{position:absolute;top:12px;left:14px;z-index:6;display:flex;align-items:center;gap:6px;padding:5px 9px;background:var(--canvas-soft);border:1px solid var(--line-soft);border-radius:var(--radius-md)}
+  .startstrip .ss-k{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .startstrip .ss-chip{font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
+  .startstrip .ss-note{font-size:10.5px;color:var(--faint);margin-left:2px}
+  .view{display:none}
+  .view.on{display:block}
+  .canvas{position:relative;width:1820px;height:380px;margin:26px}
+  .edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+  .edges path{fill:none;stroke:var(--line-strong);stroke-width:1.5}
+  .edges .e-fan{stroke:var(--line);stroke-width:1.4}
+  .edges .ehead{fill:var(--faint)}
+
+  .enode{position:absolute;width:132px;min-height:56px;padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--canvas-tint);cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+  .enode:hover{border-color:var(--line-strong)}
+  .enode .ecls{font-family:var(--font-mono);font-size:8px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .enode .ename{font-size:12.5px;font-weight:540;color:var(--fg-strong);letter-spacing:-.01em}
+  .enode .ekind{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .enode--sel{border-color:var(--accent-dim);background:var(--canvas-soft);box-shadow:0 0 0 1px var(--accent-dim)}
+  .enode--sel .ecls{color:var(--accent-strong)}
+  .enode--err{border-color:var(--danger-dim)}
+  .enode--err.enode--sel{box-shadow:0 0 0 1px var(--danger-dim)}
+  .enode__badge{position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--danger);color:var(--accent-ink);border:2px solid var(--canvas)}
+  .enode__badge svg{width:10px;height:10px}
+  .ebranch{position:absolute;width:168px;height:32px;padding:0 10px;display:flex;align-items:center;gap:8px;border:1px solid var(--line-soft);border-radius:var(--radius-sm);background:var(--canvas-soft);font-size:11px;color:var(--muted)}
+  .ebranch .bd{width:5px;height:5px;border-radius:50%;background:var(--subtle);flex:none}
+  .ebranch .bl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ebranch .bk{font-family:var(--font-mono);font-size:8.5px;color:var(--faint);margin-left:auto;flex:none}
+
+  /* DSL view */
+  .dsl{padding:24px 28px;max-width:920px}
+  .dsl-note{font-size:12px;color:var(--subtle);line-height:1.55;margin-bottom:14px;max-width:74ch}
+  .dsl-note b{color:var(--fg);font-weight:520}
+  .dsl pre{font-family:var(--font-mono);font-size:12px;line-height:1.7;color:var(--fg);background:var(--rail);border:1px solid var(--line-soft);border-radius:var(--radius-md);padding:18px 18px;overflow-x:auto;white-space:pre}
+  .dsl .k{color:var(--info)}
+  .dsl .s{color:var(--success)}
+  .dsl .c{color:var(--faint)}
+  .dsl .err{background:var(--danger-tint);color:var(--danger);border-radius:3px;padding:0 3px;box-shadow:inset 0 0 0 1px var(--danger-dim)}
+
+  /* linter dock */
+  .dock{flex:none;border-top:1px solid var(--line);background:var(--canvas-soft);max-height:188px;display:flex;flex-direction:column}
+  .dock__head{display:flex;align-items:center;gap:10px;height:38px;padding:0 14px;cursor:pointer;flex:none}
+  .dock__head .dt{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .dock__head .cnt{font-family:var(--font-mono);font-size:10px;color:var(--danger);background:var(--danger-tint);border-radius:var(--radius-xs);padding:2px 7px}
+  .dock__head .cnt--ok{color:var(--success);background:var(--success-tint)}
+  .dock__head .chev{margin-left:auto;color:var(--muted);transition:transform var(--dur)}
+  .dock__head .chev svg{width:15px;height:15px}
+  .dock.collapsed .chev{transform:rotate(-90deg)}
+  .dock.collapsed .dock__body{display:none}
+  .dock__body{overflow-y:auto;padding:2px 0 8px}
+  .issue{display:flex;align-items:flex-start;gap:11px;padding:10px 14px;border-top:1px solid var(--line-soft)}
+  .issue__ic{flex:none;width:16px;height:16px;color:var(--danger);margin-top:1px}
+  .issue__ic svg{width:16px;height:16px}
+  .issue__b{min-width:0;flex:1}
+  .issue__t{font-size:12.5px;color:var(--fg);line-height:1.45}
+  .issue__t b{color:var(--fg-strong);font-weight:540;font-family:var(--font-mono);font-size:11.5px}
+  .issue__m{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);margin-top:3px}
+  .issue__act{flex:none;font-size:11.5px;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line-soft);border-radius:var(--radius);padding:4px 9px;background:var(--btn-fill)}
+  .issue__act:hover{color:var(--fg-strong);border-color:var(--line-strong)}
+  .dock__clean{padding:16px 14px;font-size:12.5px;color:var(--success);display:none;align-items:center;gap:9px}
+  .dock__clean svg{width:15px;height:15px}
+  .dock.is-clean .issue{display:none}
+  .dock.is-clean .dock__clean{display:flex}
+
+  /* inspector */
+  .inspector{border-left:1px solid var(--line);background:var(--canvas);overflow-y:auto}
+  .insp-head{padding:16px 16px 14px;border-bottom:1px solid var(--line-soft);position:sticky;top:0;background:var(--canvas);z-index:2}
+  .insp-head .ihtop{display:flex;align-items:center;gap:8px}
+  .insp-head .ihname{font-size:15px;font-weight:560;color:var(--fg-strong);letter-spacing:-.01em}
+  .insp-head .ihtag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
+  .insp-head .ihmeta{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);margin-top:7px;display:flex;align-items:center;gap:7px}
+  .insp-head .ihmeta .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint)}
+  .insp-body{padding:16px 16px 28px}
+  .field{margin-bottom:15px}
+  .field:last-child{margin-bottom:0}
+  .label{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:520;color:var(--fg-strong);margin-bottom:7px}
+  .label .req{color:var(--accent-strong);font-weight:600}
+  .label .opt{font-size:10.5px;font-weight:400;color:var(--faint)}
+  .input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);border-radius:var(--radius-md);font-family:inherit;font-size:12.5px;outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+  .input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .input::placeholder{color:var(--faint)}
+  .input--mono{font-family:var(--font-mono);font-size:12px;letter-spacing:0}
+  .input--err{border-color:var(--danger-dim);box-shadow:0 0 0 1px var(--danger-dim)}
+  textarea.input{height:auto;min-height:74px;padding:9px 11px;line-height:1.55;resize:vertical}
+  select.input{appearance:none;cursor:pointer;padding-right:30px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center}
+  .numwrap{display:flex;align-items:center;gap:9px}
+  .numwrap .input{width:108px}
+  .ceil{font-family:var(--font-mono);font-size:10.5px;color:var(--faint)}
+  .ferr{font-size:11px;color:var(--danger);margin-top:6px;display:none;align-items:center;gap:6px}
+  .ferr svg{width:12px;height:12px}
+  .ferr.on{display:flex}
+  .hint{font-size:11px;color:var(--subtle);margin-top:6px;line-height:1.45}
+  .hint code{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+  .stat{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--fg)}
+  .stat .sv{font-family:var(--font-mono);font-size:12px;color:var(--fg-strong)}
+  .ro{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 6px;margin-left:auto}
+  .switchrow{display:flex;align-items:center;gap:11px;padding:11px 12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft)}
+  .switch{flex:none;width:32px;height:18px;border-radius:99px;background:var(--elevated);border:1px solid var(--line);position:relative;cursor:pointer;transition:all var(--dur)}
+  .switch::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:all var(--dur) var(--ease)}
+  .switch[aria-checked="true"]{background:var(--accent);border-color:transparent}
+  .switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--accent-ink)}
+  .switchrow .stxt b{display:block;font-size:12px;color:var(--fg-strong);font-weight:520}
+  .switchrow .stxt span{font-size:11px;color:var(--subtle)}
+  .insp-sec{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin:22px 0 11px;padding-bottom:8px;border-bottom:1px solid var(--line-soft)}
+  .verrow{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-top:1px solid var(--line-soft);font-size:12px}
+  .verrow:first-of-type{border-top:0}
+  .verrow .vt{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 6px;border-radius:var(--radius-xs);flex:none;background:var(--badge-fill);color:var(--subtle);min-width:78px;text-align:center}
+  .verrow .vb b{color:var(--fg-strong);font-weight:520}
+  .verrow .vb .vm{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);margin-top:2px}
+
+  /* gate criteria list editor */
+  .crit{border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft);padding:9px 10px;margin-bottom:7px}
+  .crit__head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .crit__id{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-strong)}
+  .crit__type{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);margin-left:auto}
+  .crit__rm{border:0;background:transparent;color:var(--faint);cursor:pointer;width:18px;height:18px;display:grid;place-items:center;border-radius:var(--radius-xs);flex:none}
+  .crit__rm:hover{color:var(--danger);background:var(--danger-tint)}
+  .crit__rm svg{width:11px;height:11px}
+  .crit__body{display:flex;flex-direction:column;gap:7px}
+  .crit__row{display:flex;gap:7px}
+  .crit__row .input{flex:1;min-width:0}
+  .crit__row .input--expect{flex:none;width:122px}
+  .addcrit{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;height:30px;border:1px dashed var(--line);border-radius:var(--radius-md);background:transparent;color:var(--muted);font-size:11.5px;cursor:pointer;margin-top:2px}
+  .addcrit:hover{border-color:var(--line-strong);color:var(--fg)}
+  .addcrit svg{width:12px;height:12px}
+  /* collapsed overrides */
+  .fold{border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft);margin-bottom:15px}
+  .fold summary{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;list-style:none;font-size:12px;font-weight:520;color:var(--fg-strong)}
+  .fold summary::-webkit-details-marker{display:none}
+  .fold summary .fsub{font-size:10.5px;font-weight:400;color:var(--faint)}
+  .fold summary .fchev{margin-left:auto;color:var(--faint);transition:transform var(--dur)}
+  .fold summary .fchev svg{width:13px;height:13px}
+  .fold[open] summary .fchev{transform:rotate(180deg)}
+  .fold .fold__body{padding:2px 12px 12px}
+  /* validation dock code reference */
+  .dock__codes{padding:9px 14px 3px;border-top:1px solid var(--line-soft);font-family:var(--font-mono);font-size:10px;color:var(--faint);line-height:1.7}
+  .dock__codes b{color:var(--subtle);font-weight:600}
+
+  @media (max-width:1180px){.work{grid-template-columns:170px minmax(0,1fr) 320px}}
+  @media (max-width:980px){
+    .palette{display:none}
+    .work{grid-template-columns:minmax(0,1fr) 300px}
+    .lintchips .inv span{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <nav class="crumb">
+        <a href="loops-catalog.html">Loops</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <a href="loop-detail.html">software-delivery</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <b>Fork &amp; edit</b>
+      </nav>
+      <div class="spacer"></div>
+      <span class="chip chip--draft"><span class="d"></span>Unsaved changes</span>
+      <button class="verbtn" id="verbtn"><b>v5</b> · draft <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <button class="btn" id="validateBtn" title="POST /loops/software-delivery/validate · lint + compile without saving"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Validate</button>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Save draft</button>
+      <button class="btn btn--primary" id="publishBtn" disabled title="PATCH /loops/software-delivery · expected_version compare-and-swap: a stale draft returns 409 with the current version"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><polyline points="5 12 12 5 19 12"/></svg>Publish</button>
+    </header>
+
+    <!-- SUB-TOOLBAR -->
+    <div class="editbar">
+      <div class="tgrp">
+        <button class="ticon" title="Auto layout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></button>
+        <button class="ticon" title="Zoom out" id="zoomOut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        <span class="zlabel" id="zlabel">100%</span>
+        <button class="ticon" title="Zoom in" id="zoomIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        <button class="ticon" title="Fit" id="fitBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+      </div>
+      <div class="seg" role="tablist">
+        <button aria-pressed="true" data-view="graph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="12" r="2.4"/><circle cx="6" cy="18" r="2.4"/><path d="M8.2 7.1l7.6 3.8M8.2 16.9l7.6-3.8"/></svg>Graph</button>
+        <button aria-pressed="false" data-view="dsl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>DSL</button>
+      </div>
+      <span class="ctx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Fork of built-in <b style="color:var(--muted);font-weight:520">software-delivery</b> v4</span>
+      <div class="lintchips" id="lintchips">
+        <span class="inv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Acyclicity</span></span>
+        <span class="inv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Reachability</span></span>
+        <span class="inv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Termination</span></span>
+        <span class="inv" title="Every template path and CEL identifier resolves against declared output schemas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>References</span></span>
+        <span class="inv inv--bad" id="invFanout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>Fan-out bounds</span></span>
+      </div>
+    </div>
+
+    <!-- WORK -->
+    <div class="work">
+
+      <!-- PALETTE -->
+      <aside class="palette">
+        <div class="pal-h">Add node</div>
+        <div class="pal-group">
+          <div class="pal-group__lbl">Action</div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Run agent</span><span class="pk">run-agent</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Run loop</span><span class="pk">run-loop</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Transform</span><span class="pk">transform</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Channel post</span><span class="pk">agh__network_send</span></div>
+          <div class="pal-item" title="Opens a searchable picker over the runtime registry: 181 native tools plus every ext__ and mcp__ tool"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Call tool…</span><span class="pk">registry</span></div>
+        </div>
+        <div class="pal-group">
+          <div class="pal-group__lbl">Control</div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Fan-out</span><span class="pk">fan-out</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Collect</span><span class="pk">collect</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Branch</span><span class="pk">branch</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Gate</span><span class="pk">gate</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Sub-loop</span><span class="pk">sub-loop</span></div>
+        </div>
+        <div class="pal-group">
+          <div class="pal-group__lbl">Source</div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Watch source</span><span class="pk">watch-source</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">File import</span><span class="pk">file-import</span></div>
+          <div class="pal-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span><span class="pn">Input</span><span class="pk">input</span></div>
+        </div>
+        <div class="pal-note"><b>Kinds are ToolIDs.</b> Beyond <b>run-agent</b>, <b>run-loop</b> and <b>transform</b>, an action's kind is the tool it calls. Channel post is a shortcut that inserts a pre-filled <b>agh__network_send</b> node. Params forms render from the tool's input schema.</div>
+        <div class="pal-note"><b>Fork &amp; edit only.</b> The builder opens an existing Loop or built-in. Drag a node onto the canvas to extend the body, then connect it. Edits create a new version on publish.</div>
+      </aside>
+
+      <!-- CANVAS -->
+      <section class="canvaswrap">
+        <div class="startstrip" id="startStrip" title="Declared in the DSL start[] block; read-only here">
+          <span class="ss-k">start</span>
+          <span class="ss-chip">manual</span><span class="ss-chip">cli</span><span class="ss-chip">http</span><span class="ss-chip">uds</span><span class="ss-chip">native_tool</span><span class="ss-chip">schedule</span>
+          <span class="ss-note">edited in the DSL view</span>
+        </div>
+        <div class="canvas-scroll">
+          <!-- GRAPH VIEW -->
+          <div class="view on" id="view-graph">
+            <div class="canvas" id="canvas">
+              <svg class="edges" viewBox="0 0 1820 380" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <marker id="ah" markerWidth="7" markerHeight="7" refX="5.5" refY="3" orient="auto"><path class="ehead" d="M0,0 L6,3 L0,6 Z"/></marker>
+                </defs>
+                <path d="M148,196 L176,196" marker-end="url(#ah)"/>
+                <path d="M308,196 L336,196" marker-end="url(#ah)"/>
+                <path d="M468,196 L496,196" marker-end="url(#ah)"/>
+                <path class="e-fan" d="M628,196 C644,196 640,121 660,121"/>
+                <path class="e-fan" d="M628,196 C644,196 640,171 660,171"/>
+                <path class="e-fan" d="M628,196 C644,196 640,221 660,221"/>
+                <path class="e-fan" d="M628,196 C644,196 640,271 660,271"/>
+                <path class="e-fan" d="M828,121 C844,121 840,196 856,196"/>
+                <path class="e-fan" d="M828,171 C844,171 840,196 856,196"/>
+                <path class="e-fan" d="M828,221 C844,221 840,196 856,196"/>
+                <path class="e-fan" d="M828,271 C844,271 840,196 856,196" marker-end="url(#ah)"/>
+                <path d="M988,196 L1016,196" marker-end="url(#ah)"/>
+                <path d="M1148,196 L1176,196" marker-end="url(#ah)"/>
+                <path d="M1308,196 L1336,196" marker-end="url(#ah)"/>
+              </svg>
+
+              <div class="enode" data-node="slug" style="left:16px;top:168px"></div>
+              <div class="enode" data-node="load_tasks" style="left:176px;top:168px"></div>
+              <div class="enode enode--err" data-node="implement" style="left:336px;top:168px">
+                <span class="enode__badge" title="1 issue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg></span>
+              </div>
+              <div class="enode" data-node="execute_task" style="left:496px;top:168px"></div>
+              <div class="ebranch" style="left:660px;top:105px"><span class="bd"></span><span class="bl">task_01 · schema migration</span><span class="bk">b1</span></div>
+              <div class="ebranch" style="left:660px;top:155px"><span class="bd"></span><span class="bl">task_02 · store method</span><span class="bk">b2</span></div>
+              <div class="ebranch" style="left:660px;top:205px"><span class="bd"></span><span class="bl">task_03 · api handler</span><span class="bk">b3</span></div>
+              <div class="ebranch" style="left:660px;top:255px"><span class="bd"></span><span class="bl">task_04 · contract test</span><span class="bk">b4</span></div>
+              <div class="enode" data-node="collect" style="left:856px;top:168px"></div>
+              <div class="enode" data-node="review" style="left:1016px;top:168px"></div>
+              <div class="enode" data-node="verify" style="left:1176px;top:168px"></div>
+              <div class="enode" data-node="approve" style="left:1336px;top:168px"></div>
+            </div>
+          </div>
+
+          <!-- DSL VIEW -->
+          <div class="view" id="view-dsl">
+            <div class="dsl">
+              <p class="dsl-note">The definition on disk is the source of truth. The graph and this <b>agh.loop/v1</b> document are two views of the same file, edited losslessly in either direction. String values interpolate with Go templates (<b>{{ }}</b>); conditions are CEL over the same namespace; node ids are snake_case. The highlighted value is the open issue.</p>
+              <pre><span class="c"># .agh/loops/software-delivery.loop.yaml  (fork of built-in v4)</span>
+<span class="k">apiVersion</span>: agh.loop/v1
+<span class="k">kind</span>: Loop
+<span class="k">meta</span>:
+  <span class="k">name</span>: <span class="s">software-delivery</span>
+  <span class="k">category</span>: <span class="s">Engineering</span>
+<span class="k">concurrency</span>: forbid              <span class="c"># forbid (default) | allow | queue · 2nd concurrent start → 409 + active run id</span>
+<span class="k">inputs</span>:
+  <span class="k">slug</span>:           { <span class="k">type</span>: string,  <span class="k">required</span>: true }   <span class="c"># tasks are authored OUTSIDE the loop (C5)</span>
+  <span class="k">implementer</span>:    { <span class="k">type</span>: agent,   <span class="k">default</span>: <span class="s">code_implementer</span> }
+  <span class="k">verify_command</span>: { <span class="k">type</span>: string,  <span class="k">default</span>: <span class="s">""</span> }       <span class="c"># the project's OWN check (C2) · empty = disabled</span>
+  <span class="k">auto_commit</span>:    { <span class="k">type</span>: boolean, <span class="k">default</span>: false }
+  <span class="k">target_branch</span>:  { <span class="k">type</span>: string,  <span class="k">default</span>: <span class="s">main</span> }
+<span class="k">contract</span>:
+  <span class="k">goal</span>: <span class="s">"Ship every authored task under .compozy/tasks/{{ .inputs.slug }} · implemented, reviewed to acceptance, and verified by the project's own checks."</span>
+  <span class="k">definition_of_done</span>: <span class="s">"All loaded tasks reached a terminal state, the acceptance judge approved with evidence, and the project verification passed."</span>
+  <span class="k">iteration_cap</span>: 50            <span class="c"># generations (re-attempt rounds), not tasks · 0 = unbounded (watch)</span>
+  <span class="k">no_progress</span>: { <span class="k">window</span>: 3, <span class="k">hash_fields</span>: [delivery_artifact, gate_verdict] }
+  <span class="k">budget</span>: { <span class="k">tokens</span>: 0, <span class="k">wall_clock_sec</span>: 0, <span class="k">on_exceeded</span>: halt }   <span class="c"># 0 = unlimited · a SET budget is enforced</span>
+  <span class="k">terminal_states</span>: [done, no_op, blocked, failed, exhausted, stalled]
+<span class="k">graph</span>:
+  <span class="k">nodes</span>:
+    - { <span class="k">id</span>: slug,       <span class="k">class</span>: source,  <span class="k">kind</span>: input, <span class="k">input_ref</span>: slug }
+    - { <span class="k">id</span>: load_tasks, <span class="k">class</span>: source,  <span class="k">kind</span>: file-import,
+        <span class="k">pattern</span>: <span class="s">".compozy/tasks/{{ .inputs.slug }}/task_*.md"</span>, <span class="k">parse</span>: md_tasks }
+    - { <span class="k">id</span>: implement,  <span class="k">class</span>: control, <span class="k">kind</span>: fan-out,           <span class="c"># sequential, dependency order (blocks)</span>
+        <span class="k">collection</span>: <span class="s">"{{ .nodes.load_tasks.output.tasks }}"</span>,
+        <span class="k">batch_size</span>: 1, <span class="k">max_parallel</span>: 1, <span class="k">max_fan_out</span>: <span class="err">80</span> }   <span class="c"># 80 &gt; ceiling 64</span>
+    - <span class="k">id</span>: execute_task
+      <span class="k">class</span>: action
+      <span class="k">kind</span>: run-agent
+      <span class="k">params</span>:
+        <span class="k">agent</span>: <span class="s">"{{ .inputs.implementer }}"</span>
+        <span class="k">prompt</span>: |
+          Begin work on {{ .item.title }} using the installed cy-execute-task skill.
+          <span class="c">…  (kickoff + required skills + repo AGENTS.md / PRD context folded)</span>
+          Task file: {{ .item.path }}
+          {{ if .inputs.auto_commit }}Create one commit after verification.{{ else }}Leave changes uncommitted.{{ end }}
+          ## Task Specification
+          {{ .item.body }}
+        <span class="k">output_schema</span>:                                <span class="c"># schema fail → one FREE retry (ADR-021)</span>
+          <span class="k">type</span>: object
+          <span class="k">required</span>: [status, summary]
+          <span class="k">properties</span>:
+            <span class="k">status</span>:  { <span class="k">enum</span>: [completed, blocked] }
+            <span class="k">summary</span>: { <span class="k">type</span>: string }
+      <span class="k">session</span>: { <span class="k">isolated</span>: true }
+      <span class="k">timeout</span>: 45m
+      <span class="k">retry</span>: { <span class="k">max</span>: 2 }
+    - { <span class="k">id</span>: collect, <span class="k">class</span>: control, <span class="k">kind</span>: collect }
+    - <span class="k">id</span>: review
+      <span class="k">class</span>: control
+      <span class="k">kind</span>: gate
+      <span class="k">criteria</span>:
+        - { <span class="k">id</span>: acceptance, <span class="k">type</span>: agent-judge, <span class="k">agent</span>: reviewer, <span class="k">rubric</span>: <span class="s">"Diff satisfies every task's acceptance; cite evidence, emit stable blocking ids…"</span> }
+      <span class="k">verdict_policy</span>: revise_until_clean   <span class="c"># requires a judge or human criterion</span>
+      <span class="k">on_result</span>: { <span class="k">pass</span>: verify, <span class="k">fail</span>: next_generation }
+      <span class="k">max_revisions</span>: 3
+    - <span class="k">id</span>: verify
+      <span class="k">class</span>: control
+      <span class="k">kind</span>: gate
+      <span class="k">criteria</span>:
+        - { <span class="k">id</span>: project_check, <span class="k">type</span>: command, <span class="k">check</span>: <span class="s">"{{ .inputs.verify_command }}"</span>, <span class="k">expect</span>: exit_zero }
+      <span class="k">verdict_policy</span>: fixed_passes         <span class="c"># the project's OWN check, never hardcoded (C2)</span>
+      <span class="k">on_result</span>: { <span class="k">pass</span>: approve, <span class="k">fail</span>: next_generation }
+    - <span class="k">id</span>: approve
+      <span class="k">class</span>: control
+      <span class="k">kind</span>: gate
+      <span class="k">criteria</span>:
+        - { <span class="k">id</span>: ship, <span class="k">type</span>: human, <span class="k">prompt</span>: <span class="s">"Approve the delivered work for {{ .inputs.slug }} into {{ .inputs.target_branch }}?"</span> }
+      <span class="k">verdict_policy</span>: fixed_passes
+      <span class="k">on_result</span>: { <span class="k">pass</span>: done, <span class="k">fail</span>: next_generation }
+  <span class="k">edges</span>:
+    - { <span class="k">from</span>: slug,             <span class="k">to</span>: load_tasks }
+    - { <span class="k">from</span>: load_tasks,       <span class="k">to</span>: implement }
+    - { <span class="k">from</span>: implement,        <span class="k">to</span>: execute_task }
+    - { <span class="k">from</span>: execute_task,     <span class="k">to</span>: collect }
+    - { <span class="k">from</span>: collect,          <span class="k">to</span>: review }
+    - { <span class="k">from</span>: review,           <span class="k">to</span>: verify }
+    - { <span class="k">from</span>: verify,           <span class="k">to</span>: approve }
+<span class="k">start</span>: [ { <span class="k">kind</span>: manual }, { <span class="k">kind</span>: cli }, { <span class="k">kind</span>: http }, { <span class="k">kind</span>: uds }, { <span class="k">kind</span>: native_tool }, { <span class="k">kind</span>: schedule } ]</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- LINTER DOCK -->
+        <div class="dock" id="dock">
+          <div class="dock__head" id="dockHead">
+            <span class="dt">Validation</span>
+            <span class="cnt" id="dockCount">1 issue</span>
+            <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </div>
+          <div class="dock__body">
+            <div class="dock__clean"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>All invariants pass. Acyclicity, reachability, termination, references and fan-out bounds are clean. Publish compiles the resolved form and saves with an expected_version compare-and-swap; a stale draft returns 409 with the current version.</div>
+            <div class="issue" id="issueFanout">
+              <span class="issue__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16"/></svg></span>
+              <div class="issue__b">
+                <div class="issue__t"><b>implement</b> · max_fan_out (80) exceeds the daemon ceiling of 64.</div>
+                <div class="issue__m">code: fan_out_ceiling_exceeded · publish returns 422 until resolved</div>
+              </div>
+              <button class="issue__act" id="revealBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Reveal node</button>
+            </div>
+            <div class="dock__codes"><b>Deterministic codes</b> · fan_out_ceiling_exceeded · unknown_reference · node_id_invalid · verdict_policy_requires_judge · condition_not_bool · item_outside_fanout · the same 422-shaped per-node errors come from Validate (no save) and publish</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- INSPECTOR -->
+      <aside class="inspector">
+        <div class="insp-head">
+          <div class="ihtop"><span class="ihname" id="inspName">implement</span><span class="ihtag" id="inspTag">control</span></div>
+          <div class="ihmeta"><span id="inspKind">fan-out</span><span class="dotsep"></span><span id="inspId">id: implement</span></div>
+        </div>
+        <div class="insp-body" id="inspBody"><!-- rendered by JS --></div>
+      </aside>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ── Node model (grounded in agh.loop/v1; fields per class/kind) ──────────
+  var NODES = {
+    "slug": {cls:"source", kind:"input", id:"slug", fields:[
+      {t:"text", k:"Node id", v:"slug", mono:true},
+      {t:"static", k:"Input ref", v:"slug", ro:"declared"},
+      {t:"static", k:"Type", v:"string · required", ro:"schema"},
+      {t:"static", k:"Produces", v:"nodes.slug.output", ro:"derived"},
+      {t:"hint", v:"Sources the declared task <code>slug</code>. Inputs are edited in the Loop's <code>inputs</code> block, not on the node; <code>produces</code> derives from the input's declared type."}
+    ]},
+    "load_tasks": {cls:"source", kind:"file-import", id:"load_tasks", fields:[
+      {t:"text", k:"Node id", v:"load_tasks", mono:true},
+      {t:"text", k:"Pattern", v:".compozy/tasks/{{ .inputs.slug }}/task_*.md", mono:true, hint:"Template over the loop namespace. Globs the task files the operator already authored outside the Loop (via cy-create-tasks)."},
+      {t:"select", k:"Parse", v:"md_tasks", opts:["md_tasks","json","text"], hint:"<code>md_tasks</code> parses Compozy-convention task files; the <code>blocks</code> edges in the manifest drive dependency order."},
+      {t:"static", k:"Produces", v:"nodes.load_tasks.output.tasks[]", ro:"derived"},
+      {t:"hint", v:"Large files are never inlined: payloads land in the content-addressed store and the output carries artifact refs. A template referencing a file value receives a handle, not megabytes."}
+    ]},
+    "implement": {cls:"control", kind:"fan-out", id:"implement", err:true, fields:[
+      {t:"text", k:"Node id", v:"implement", mono:true},
+      {t:"text", k:"Collection", v:"{{ .nodes.load_tasks.output.tasks }}", mono:true, hint:"Template resolving to a provably materialized, finite collection. Validated against <code>load_tasks</code>' declared output schema at publish; an unknown path fails with <code>unknown_reference</code>."},
+      {t:"number", k:"Batch size", v:1, hint:"Items per agent session; the branch's <code>item</code> is the batch. software-delivery forces 1 (one task per session)."},
+      {t:"number", k:"Max parallel", v:1, hint:"Concurrent branches; <code>1</code> = sequential. Default comes from config <code>fan_out_width</code>."},
+      {t:"number", k:"Max fan-out", v:80, ceil:64, watch:"fanout", hint:"Structural cap on materialized branches = ⌈N / batch size⌉. Capped by the daemon ceiling of 64."},
+      {t:"static", k:"Order", v:"dependency (blocks)", ro:"manifest"},
+      {t:"static", k:"Branch body", v:"execute_task · run-agent", ro:"per item"},
+      {t:"static", k:"Paired with", v:"collect · join", ro:"barrier"},
+      {t:"hint", v:"Fans the authored tasks into batch branches; <code>item</code> and <code>index</code> enter scope inside the branch body. With <code>batch_size 1</code> each branch is one task, and <code>max_parallel 1</code> runs them sequentially in <code>blocks</code> order. Width is capped by the daemon ceiling (64)."}
+    ]},
+    "execute_task": {cls:"action", kind:"run-agent", id:"execute_task", fields:[
+      {t:"text", k:"Node id", v:"execute_task", mono:true},
+      {t:"static", k:"Runs", v:"once per fanned task", ro:"branch body"},
+      {t:"text", k:"Agent", v:"{{ .inputs.implementer }}", mono:true, req:true, hint:"Interpolable agent profile ref, so the executor can be swapped per run without forking. The profile stays the identity and config authority."},
+      {t:"textarea", k:"Prompt", req:true, mono:true, v:"Begin work on **{{ .item.title }}** immediately using the installed `cy-execute-task` skill. This run is the operator's authorization to proceed; do NOT ask for confirmation.\n\n…\n\nTask file: {{ .item.path }}\n{{ if .inputs.auto_commit }}Create exactly one commit for this task after verification.{{ else }}Leave changes uncommitted for manual review.{{ end }}\n\n## Task Specification\n{{ .item.body }}", hint:"The node's work order, a template over the loop namespace. Type <code>{{</code> to autocomplete references from declared output schemas. The long kickoff body is folded with <code>…</code>; the contract block still renders into the worker prompt context."},
+      {t:"textarea", k:"Output schema", lbl2:"optional · JSON Schema", mono:true, v:'{ "type": "object",\n  "required": ["status", "summary"],\n  "properties": {\n    "status": { "enum": ["completed", "blocked"] },\n    "summary": { "type": "string" },\n    "files_changed": { "type": "array" } } }', hint:"Structured harvest. A validation failure feeds the error back into one FREE retry before the retry budget is touched."},
+      {t:"fold", k:"Overrides", sub:"model · allowed_tools · max_turns", fields:[
+        {t:"text", k:"model", v:"", mono:true, ph:"profile default"},
+        {t:"text", k:"allowed_tools", v:"", mono:true, ph:"profile default"},
+        {t:"text", k:"max_turns", v:"", mono:true, ph:"profile default"}
+      ]},
+      {t:"text", k:"Session handle", v:"per-task", mono:true},
+      {t:"switch", k:"Isolated session", on:true, sub:"Each task runs in its own one-shot session."},
+      {t:"text", k:"Timeout", v:"45m", mono:true},
+      {t:"text", k:"Retry", v:"max 2", mono:true, hint:"Plus one FREE schema-validation retry outside this budget (ADR-021)."},
+      {t:"static", k:"Produces", v:"nodes.execute_task.output", ro:"from schema"},
+      {t:"static", k:"Executes as", v:"AGH task run", ro:"linked"},
+      {t:"hint", v:"Every node execution is an AGH task run. Open it from Run detail for the full transcript, meters and artifacts."}
+    ]},
+    "collect": {cls:"control", kind:"collect", id:"collect", fields:[
+      {t:"text", k:"Node id", v:"collect", mono:true},
+      {t:"static", k:"Joins", v:"implement", ro:"fan-out"},
+      {t:"hint", v:"Barrier that waits for every fanned task before the run continues to review."}
+    ]},
+    "review": {cls:"control", kind:"gate", id:"review", fields:[
+      {t:"text", k:"Node id", v:"review", mono:true},
+      {t:"crits", k:"Criteria", rows:[
+        {id:"acceptance", type:"agent-judge", agent:"reviewer", rubric:"Judge the aggregate diff for {{ .inputs.slug }} against each task's acceptance criteria and the definition of done. Cite evidence for every pass; emit stable blocking_issue ids for every failure."}
+      ]},
+      {t:"select", k:"Verdict policy", v:"revise_until_clean", opts:["revise_until_clean","fixed_passes"], hint:"<code>revise_until_clean</code> requires at least one agent-judge or human criterion as the verdict source; a command-only gate can declare only <code>fixed_passes</code>."},
+      {t:"select", k:"On result", lbl2:"pass → verify · fail → next_generation", v:"revise", opts:["continue","revise","branch","halt","escalate"]},
+      {t:"number", k:"Max revisions", v:3, ceil:10},
+      {t:"hint", v:"The judge emits a structured verdict: <code>{verdict, blocking_issues[{id, note}], confidence, evidence}</code>. Malformed output degrades to <code>revise</code>, never to pass. A <code>request_changes</code> decision routes to <code>revise</code>; the failed-only re-attempt re-runs just the affected tasks in the next generation."}
+    ]},
+    "verify": {cls:"control", kind:"gate", id:"verify", fields:[
+      {t:"text", k:"Node id", v:"verify", mono:true},
+      {t:"crits", k:"Criteria", rows:[
+        {id:"project_check", type:"command", cmd:"{{ .inputs.verify_command }}", expect:"exit_zero"}
+      ]},
+      {t:"select", k:"Verdict policy", v:"fixed_passes", opts:["revise_until_clean","fixed_passes"], hint:"Command-only criterion, so only <code>fixed_passes</code> is valid here. Adding an agent-judge or human criterion unlocks <code>revise_until_clean</code>."},
+      {t:"select", k:"On result", lbl2:"pass → approve · fail → next_generation", v:"next_generation", opts:["continue","next_generation","halt","escalate"]},
+      {t:"hint", v:"The definition-of-done gate runs the project's OWN check, never a hardcoded gate (requirements C2): <code>{{ .inputs.verify_command }}</code>, empty = check disabled. Passing continues; failing spins a next generation."}
+    ]},
+    "approve": {cls:"control", kind:"gate", id:"approve", fields:[
+      {t:"text", k:"Node id", v:"approve", mono:true},
+      {t:"crits", k:"Criteria", rows:[
+        {id:"ship", type:"human", prompt:"Approve the delivered work for {{ .inputs.slug }} into {{ .inputs.target_branch }}?"}
+      ]},
+      {t:"select", k:"Verdict policy", v:"fixed_passes", opts:["revise_until_clean","fixed_passes"], hint:"Either is valid because the gate carries a human criterion as its verdict source; the built-in ships <code>fixed_passes</code> (one approval)."},
+      {t:"select", k:"On result", lbl2:"pass → done · fail → next_generation", v:"next_generation", opts:["continue","next_generation","halt","escalate"]},
+      {t:"vlist", k:"Human decision", rows:[
+        {vt:"approve", b:"Approve & resume", vm:"→ done"},
+        {vt:"request", b:"Request changes", vm:"→ revise (next generation)"},
+        {vt:"reject", b:"Reject & halt", vm:"→ terminal failed"}
+      ]},
+      {t:"hint", v:"A live <code>needs-approval</code> pause, not a terminal state: the run parks here until a human approves, requests changes, or rejects. This is the built-in's final gate before <code>done</code>."}
+    ]}
+  };
+
+  var inspBody = document.getElementById("inspBody");
+  var inspName = document.getElementById("inspName");
+  var inspTag = document.getElementById("inspTag");
+  var inspKind = document.getElementById("inspKind");
+  var inspId = document.getElementById("inspId");
+  var current = "implement";
+
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+  function labelHTML(f){
+    return '<label class="label">'+esc(f.k)+(f.req?'<span class="req" title="required">*</span>':'')+(f.lbl2?'<span class="opt">'+esc(f.lbl2)+'</span>':'')+'</label>';
+  }
+
+  function fieldHTML(f){
+    if(f.t==="hint") return '<p class="hint">'+f.v+'</p>';
+    if(f.t==="sec") return '<div class="insp-sec">'+esc(f.k)+'</div>';
+    if(f.t==="static"){
+      return '<div class="field"><div class="label">'+esc(f.k)+'</div>'+
+        '<div class="stat"><span class="sv">'+esc(f.v)+'</span>'+(f.ro?'<span class="ro">'+esc(f.ro)+'</span>':'')+'</div></div>';
+    }
+    if(f.t==="switch"){
+      return '<div class="field"><div class="switchrow"><div class="switch" role="switch" aria-checked="'+(f.on?'true':'false')+'" tabindex="0"></div>'+
+        '<div class="stxt"><b>'+esc(f.k)+'</b><span>'+esc(f.sub||'')+'</span></div></div></div>';
+    }
+    if(f.t==="text"){
+      return '<div class="field">'+labelHTML(f)+
+        '<input class="input'+(f.mono?' input--mono':'')+'" value="'+esc(f.v)+'"'+(f.ph?' placeholder="'+esc(f.ph)+'"':'')+' />'+(f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    }
+    if(f.t==="number"){
+      var watchAttr = f.watch?' data-watch="'+f.watch+'"':'';
+      var hasCeil = (f.ceil!==undefined && f.ceil!==null);
+      var over = hasCeil && f.v>f.ceil;
+      var ceilSpan = hasCeil?'<span class="ceil">ceiling '+esc(f.ceil)+'</span>':'';
+      var ferrBlock = hasCeil?('<div class="ferr'+(over?' on':'')+'" data-ferr="'+(f.watch||'')+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16"/></svg>Exceeds the daemon ceiling of '+esc(f.ceil)+'. Lower the value to publish.</div>'):'';
+      return '<div class="field">'+labelHTML(f)+
+        '<div class="numwrap"><input class="input input--mono'+(over?' input--err':'')+'" type="number" value="'+esc(f.v)+'"'+watchAttr+' />'+ceilSpan+'</div>'+
+        ferrBlock+(f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    }
+    if(f.t==="select"){
+      var o = f.opts.map(function(x){return '<option'+(x===f.v?' selected':'')+'>'+esc(x)+'</option>';}).join('');
+      return '<div class="field">'+labelHTML(f)+
+        '<select class="input">'+o+'</select>'+(f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    }
+    if(f.t==="textarea"){
+      return '<div class="field">'+labelHTML(f)+'<textarea class="input'+(f.mono?' input--mono':'')+'">'+esc(f.v)+'</textarea>'+(f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    }
+    if(f.t==="vlist"){
+      var rows = f.rows.map(function(r){return '<div class="verrow"><span class="vt">'+esc(r.vt)+'</span><div class="vb"><b>'+esc(r.b)+'</b><div class="vm">'+esc(r.vm)+'</div></div></div>';}).join('');
+      return '<div class="insp-sec">'+esc(f.k)+'</div>'+rows;
+    }
+    if(f.t==="crits"){
+      var crows = f.rows.map(function(r){
+        var body = '';
+        if(r.type==="command"){
+          body = '<div class="crit__row"><input class="input input--mono" value="'+esc(r.cmd)+'" /><select class="input input--mono input--expect"><option'+(r.expect==="exit_zero"?' selected':'')+'>exit_zero</option><option'+(r.expect==="stdout_match"?' selected':'')+'>stdout_match</option></select></div>';
+        } else if(r.type==="agent-judge"){
+          body = '<input class="input input--mono" value="'+esc(r.agent)+'" /><textarea class="input">'+esc(r.rubric)+'</textarea>';
+        } else if(r.type==="human"){
+          body = '<input class="input input--mono" value="'+esc(r.prompt)+'" />';
+        } else {
+          body = '<input class="input input--mono" value="'+esc(r.tool||'')+'" />';
+        }
+        return '<div class="crit"><div class="crit__head"><span class="crit__id">'+esc(r.id)+'</span><span class="crit__type">'+esc(r.type)+'</span><button class="crit__rm" title="Remove criterion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="crit__body">'+body+'</div></div>';
+      }).join('');
+      return '<div class="field"><div class="label">'+esc(f.k)+'</div>'+crows+
+        '<button class="addcrit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add criterion · command / agent-judge / human / extension</button>'+
+        (f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    }
+    if(f.t==="fold"){
+      return '<details class="fold"><summary>'+esc(f.k)+(f.sub?'<span class="fsub">'+esc(f.sub)+'</span>':'')+'<span class="fchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></summary><div class="fold__body">'+f.fields.map(fieldHTML).join('')+'</div></details>';
+    }
+    return '';
+  }
+
+  function render(id){
+    var n = NODES[id]; if(!n) return;
+    current = id;
+    inspName.textContent = n.id;
+    inspTag.textContent = n.cls;
+    inspKind.textContent = n.kind;
+    inspId.textContent = "id: "+n.id;
+    inspBody.innerHTML = n.fields.map(fieldHTML).join("");
+    bindInspector();
+    document.querySelectorAll(".enode").forEach(function(el){el.classList.toggle("enode--sel", el.getAttribute("data-node")===id);});
+  }
+
+  // ── Canvas nodes: paint label + click to select ──────────────────────────
+  document.querySelectorAll(".enode").forEach(function(el){
+    var id = el.getAttribute("data-node"); var n = NODES[id];
+    el.insertAdjacentHTML("afterbegin",
+      '<span class="ecls">'+(n.cls+(n.kind==="gate"||n.kind==="fan-out"||n.kind==="collect"||n.kind==="branch"?" · "+n.kind:""))+'</span>'+
+      '<span class="ename">'+esc(n.id)+'</span>'+
+      '<span class="ekind">'+esc(n.kind)+'</span>');
+    el.addEventListener("click", function(){ render(id); });
+  });
+
+  // ── Switch toggles (inspector) ───────────────────────────────────────────
+  function bindInspector(){
+    inspBody.querySelectorAll(".switch").forEach(function(sw){
+      sw.addEventListener("click", function(){ sw.setAttribute("aria-checked", sw.getAttribute("aria-checked")==="true"?"false":"true"); });
+      sw.addEventListener("keydown", function(e){ if(e.key===" "||e.key==="Enter"){e.preventDefault(); sw.click();} });
+    });
+    var fan = inspBody.querySelector('[data-watch="fanout"]');
+    if(fan){ fan.addEventListener("input", function(){ checkFanout(parseInt(fan.value,10), fan); }); }
+  }
+
+  // ── The linter: editing fan-out width past the ceiling blocks publish ─────
+  var CEIL = 64;
+  var dock = document.getElementById("dock");
+  var dockCount = document.getElementById("dockCount");
+  var invFanout = document.getElementById("invFanout");
+  var publishBtn = document.getElementById("publishBtn");
+  var implNode = document.querySelector('.enode[data-node="implement"]');
+
+  function setOk(ok){
+    dock.classList.toggle("is-clean", ok);
+    dockCount.textContent = ok ? "0 issues" : "1 issue";
+    dockCount.classList.toggle("cnt--ok", ok);
+    invFanout.classList.toggle("inv--bad", !ok);
+    invFanout.innerHTML = ok
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Fan-out bounds</span>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>Fan-out bounds</span>';
+    implNode.classList.toggle("enode--err", !ok);
+    var badge = implNode.querySelector(".enode__badge");
+    if(badge) badge.style.display = ok ? "none" : "grid";
+    publishBtn.disabled = !ok;
+    NODES["implement"].err = !ok;
+  }
+
+  function checkFanout(val, input){
+    var bad = !(val>0) || val>CEIL;
+    if(input){
+      input.classList.toggle("input--err", bad);
+      var ferr = input.closest(".field").querySelector(".ferr");
+      if(ferr) ferr.classList.toggle("on", bad);
+    }
+    NODES["implement"].fields.forEach(function(f){ if(f.watch==="fanout") f.v = isNaN(val)?f.v:val; });
+    setOk(!bad);
+  }
+
+  document.getElementById("revealBtn").addEventListener("click", function(){ render("implement"); });
+  document.getElementById("validateBtn").addEventListener("click", function(){ dock.classList.remove("collapsed"); });
+
+  // ── Dock collapse ────────────────────────────────────────────────────────
+  document.getElementById("dockHead").addEventListener("click", function(){ dock.classList.toggle("collapsed"); });
+
+  // ── View toggle: Graph / DSL ─────────────────────────────────────────────
+  document.querySelectorAll(".seg button").forEach(function(b){
+    b.addEventListener("click", function(){
+      document.querySelectorAll(".seg button").forEach(function(x){x.setAttribute("aria-pressed", x===b?"true":"false");});
+      var v = b.getAttribute("data-view");
+      document.getElementById("view-graph").classList.toggle("on", v==="graph");
+      document.getElementById("view-dsl").classList.toggle("on", v==="dsl");
+      document.getElementById("startStrip").style.display = (v==="graph") ? "" : "none";
+    });
+  });
+
+  // ── Zoom ─────────────────────────────────────────────────────────────────
+  var zoom = 100, canvas = document.getElementById("canvas"), zlabel = document.getElementById("zlabel");
+  function applyZoom(){ canvas.style.transform = "scale("+(zoom/100)+")"; canvas.style.transformOrigin="top left"; zlabel.textContent = zoom+"%"; }
+  document.getElementById("zoomIn").addEventListener("click", function(){ zoom=Math.min(140,zoom+10); applyZoom(); });
+  document.getElementById("zoomOut").addEventListener("click", function(){ zoom=Math.max(60,zoom-10); applyZoom(); });
+  document.getElementById("fitBtn").addEventListener("click", function(){ zoom=100; applyZoom(); });
+
+  render("implement");
+})();
+</script>
+</body>
+</html>

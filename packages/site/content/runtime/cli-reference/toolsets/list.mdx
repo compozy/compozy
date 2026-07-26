@@ -1,0 +1,50 @@
+---
+title: "agh toolsets list"
+description: "List registry toolsets"
+---
+
+## agh toolsets list
+
+List registry toolsets
+
+```
+agh toolsets list [flags]
+```
+
+### Examples
+
+```
+  # List known toolsets and expansion diagnostics
+  agh toolsets list -o json
+```
+
+### Options
+
+```
+      --agent string       Agent name for scoped diagnostics
+  -h, --help               help for list
+      --session string     Session id for scoped diagnostics
+      --workspace string   Workspace id for scoped diagnostics
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh toolsets list -o json
+```

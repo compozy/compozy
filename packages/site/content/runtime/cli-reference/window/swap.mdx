@@ -1,0 +1,47 @@
+---
+title: "agh window swap"
+description: "Swap two window placements"
+---
+
+## agh window swap
+
+Swap two window placements
+
+```
+agh window swap [flags]
+```
+
+### Options
+
+```
+      --actor-id string    Optional actor identifier
+      --client string      Connected presentation client ID
+      --first string       First window ID
+  -h, --help               help for swap
+      --origin string      Command origin label (default "cli")
+      --revision uint      Expected workspace revision
+      --second string      Second window ID
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh window swap -o json
+```

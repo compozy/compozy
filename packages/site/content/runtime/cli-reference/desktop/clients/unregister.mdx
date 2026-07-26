@@ -1,0 +1,42 @@
+---
+title: "agh desktop clients unregister"
+description: "Remove a connected client-local view"
+---
+
+## agh desktop clients unregister
+
+Remove a connected client-local view
+
+```
+agh desktop clients unregister [flags]
+```
+
+### Options
+
+```
+      --client string      Connected client ID
+  -h, --help               help for unregister
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh desktop clients unregister -o json
+```

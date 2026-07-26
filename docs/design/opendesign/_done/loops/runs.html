@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runs · AGH</title>
+<style>
+  :root{
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f; --accent-tint:rgba(232,87,42,.10);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05); --btn-fill:rgba(255,255,255,.04); --bar-fill:rgba(255,255,255,.18);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1); --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit}
+  ::selection{background:var(--accent-tint)}
+  /* content-only reference · the workspace rail + nav panel live in the app shell, not here */
+  .shell{height:100vh}
+
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:10px;height:48px;padding:0 18px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas)}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)}
+  .crumb a:hover{color:var(--fg-strong)}
+  .crumb b{color:var(--fg-strong);font-weight:560}
+  .crumb svg{width:13px;height:13px;color:var(--faint)}
+  .topbar__spacer{flex:1}
+  .search{display:flex;align-items:center;gap:8px;width:230px;height:28px;padding:0 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--input-fill);color:var(--subtle);font-size:12.5px}
+  .search svg{width:14px;height:14px;flex:none}
+  .search .kbd{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+  .head{margin-bottom:20px}
+  .head__titlerow{display:flex;align-items:center;gap:10px}
+  .head__title{font-size:22px;font-weight:560;letter-spacing:-.028em;color:var(--fg-strong)}
+  .count-chip{display:inline-flex;align-items:center;min-height:20px;padding:1px 7px;border-radius:var(--radius-xs);background:var(--canvas-soft);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--faint);font-variant-numeric:tabular-nums}
+  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle)}
+  .head__meta .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint)}
+  .head__meta .live{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+  .head__meta .live .d{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 36%,transparent)}55%{box-shadow:0 0 0 4px transparent}}
+  @media (prefers-reduced-motion:reduce){.live .d,.dot--pulse{animation:none}}
+
+  /* KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
+  .kpi{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px 16px}
+  .kpi__l{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  .kpi__l .d{width:6px;height:6px;border-radius:50%;background:var(--c,var(--neutral))}
+  .kpi__l .d--pulse{animation:pulse 1.8s var(--ease) infinite;color:var(--c)}
+  .kpi__v{font-size:22px;font-weight:560;color:var(--fg-strong);letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+  .kpi__sub{font-size:11.5px;color:var(--subtle);margin-top:7px}
+
+  /* toolbar */
+  .toolbar{display:flex;align-items:center;gap:10px;margin:24px 0 4px;flex-wrap:wrap}
+  .segment{display:inline-flex;gap:1px;padding:2px;background:var(--canvas-soft);border:1px solid var(--line-soft);border-radius:var(--radius-md);flex-wrap:wrap}
+  .seg{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 10px;border-radius:var(--radius);font-size:12px;font-weight:510;color:var(--muted);background:transparent;border:0;cursor:pointer;transition:color var(--dur) var(--ease)}
+  .seg:hover{color:var(--fg-strong)}
+  .seg--active{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+  .seg__count{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .seg--active .seg__count{color:var(--muted)}
+  .toolbar__spacer{flex:1}
+  .sel{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 11px;border:1px solid var(--line);border-radius:var(--radius);background:var(--btn-fill);color:var(--muted);font-size:12.5px;cursor:pointer}
+  .sel svg{width:13px;height:13px;color:var(--faint)}
+  .sel b{color:var(--fg);font-weight:520}
+
+  /* table */
+  .sec-label{display:flex;align-items:center;gap:9px;margin:24px 0 0;padding:0 2px 8px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .listbox{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .thead,.trow{display:grid;grid-template-columns:128px 196px minmax(0,1fr) 84px 116px 132px 16px;gap:14px;align-items:center}
+  .thead{padding:9px 16px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--line-soft)}
+  .trow{padding:12px 16px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:background var(--dur) var(--ease)}
+  .trow:last-child{border-bottom:0}
+  .trow:hover{background:var(--row-hover)}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--radius-xs);font-size:11px;font-weight:520;width:max-content}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .pill .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  /* live */
+  .pill--queued{background:var(--info-tint);color:var(--info)}
+  .pill--running{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill--watching{background:var(--info-tint);color:var(--info)}
+  .pill--needs-approval{background:var(--warning-tint);color:var(--warning)}
+  .pill--paused{background:var(--neutral-tint);color:var(--muted)}
+  /* terminal */
+  .pill--done{background:var(--success-tint);color:var(--success)}
+  .pill--no_op{background:var(--neutral-tint);color:var(--muted)}
+  .pill--blocked{background:var(--warning-tint);color:var(--warning)}
+  .pill--failed{background:var(--danger-tint);color:var(--danger)}
+  .pill--exhausted{background:var(--warning-tint);color:var(--warning)}
+  .pill--stalled{background:var(--neutral-tint);color:var(--muted)}
+
+  .loopcell{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .loopcell .ln1{font-size:13px;font-weight:520;color:var(--fg-strong);letter-spacing:-.008em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .loopcell .ln2{font-family:var(--font-mono);font-size:10.5px;color:var(--faint)}
+  .goalcell{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gens{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .when{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .when .sub{display:block;font-size:10.5px;color:var(--faint)}
+  .budget{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .budget .bl{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .bbar{height:3px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
+  .bbar__f{height:100%;border-radius:3px;background:var(--bar-fill)}
+  .bbar__f--warn{background:var(--warning)}
+  .bbar__f--danger{background:var(--danger)}
+  .tchev{color:var(--faint);justify-self:end}.tchev svg{width:14px;height:14px}
+
+  .hide{display:none!important}
+  @media(max-width:1140px){.kpis{grid-template-columns:repeat(2,1fr)}
+    .thead{display:none}
+    .trow{grid-template-columns:128px 1fr 110px;grid-template-areas:"st loop when";gap:12px}
+    .trow .goalcell,.trow .gens,.trow .budget,.trow .tchev{display:none}
+    .trow>.pill{grid-area:st}.trow>.loopcell{grid-area:loop}.trow>.when{grid-area:when}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <header class="topbar">
+      <nav class="crumb"><a href="loops-catalog.html">Loops</a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg><b>Runs</b></nav>
+      <div class="topbar__spacer"></div>
+      <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Search runs<span class="kbd">/</span></div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+        <div class="head">
+          <div class="head__titlerow"><h1 class="head__title">Runs</h1><span class="count-chip">15</span></div>
+          <div class="head__meta">
+            <span>Every execution of a Loop, across the full outcome spectrum.</span>
+            <span class="dotsep"></span>
+            <span class="live"><span class="d"></span>4 active</span>
+            <span class="dotsep"></span>
+            <span>last 7 days</span>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><div class="kpi__l"><span class="d d--pulse" style="--c:var(--accent)"></span>Active now</div><div class="kpi__v">2</div><div class="kpi__sub">1 running · 1 watching</div></div>
+          <div class="kpi"><div class="kpi__l"><span class="d" style="--c:var(--warning)"></span>Awaiting you</div><div class="kpi__v">1</div><div class="kpi__sub">needs-approval gate</div></div>
+          <div class="kpi"><div class="kpi__l"><span class="d" style="--c:var(--success)"></span>Done today</div><div class="kpi__v">3</div><div class="kpi__sub">acceptance judge approved</div></div>
+          <div class="kpi"><div class="kpi__l"><span class="d" style="--c:var(--warning)"></span>Needs a look</div><div class="kpi__v">6</div><div class="kpi__sub">2 exhausted · 2 stalled</div></div>
+        </div>
+
+        <div class="toolbar">
+          <div class="segment" role="tablist" aria-label="Filter by terminal outcome">
+            <button class="seg seg--active" data-f="all" role="tab" aria-selected="true">All <span class="seg__count">15</span></button>
+            <button class="seg" data-f="done" role="tab">done <span class="seg__count">3</span></button>
+            <button class="seg" data-f="no_op" role="tab">no_op <span class="seg__count">2</span></button>
+            <button class="seg" data-f="blocked" role="tab">blocked <span class="seg__count">1</span></button>
+            <button class="seg" data-f="failed" role="tab">failed <span class="seg__count">1</span></button>
+            <button class="seg" data-f="exhausted" role="tab">exhausted <span class="seg__count">2</span></button>
+            <button class="seg" data-f="stalled" role="tab">stalled <span class="seg__count">2</span></button>
+          </div>
+          <span class="toolbar__spacer"></span>
+          <span class="sel">Loop: <b>All</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+          <span class="sel">Last <b>7 days</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </div>
+
+        <!-- ACTIVE -->
+        <div class="sec-label" id="lbl-active">Active <span class="count-chip">4</span></div>
+        <div class="listbox" id="tbl-active">
+          <div class="thead"><span>Outcome</span><span>Loop</span><span>Goal</span><span>Gens</span><span>Started</span><span>Budget</span><span></span></div>
+          <a class="trow" href="run-detail.html" data-f="running">
+            <span class="pill pill--running"><span class="dot dot--pulse"></span>running</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-8f3a2b · schedule</span></span>
+            <span class="goalcell">Ship every authored task under .compozy/tasks/loops-catalog-api</span>
+            <span class="gens">2 / 50</span>
+            <span class="when">14m ago<span class="sub">running 14m</span></span>
+            <span class="budget"><span class="bl"><span>412K tok</span><span>21%</span></span><span class="bbar"><span class="bbar__f" style="width:21%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+          <a class="trow" href="run-detail.html" data-f="watching">
+            <span class="pill pill--watching"><span class="dot dot--pulse"></span>watching</span>
+            <span class="loopcell"><span class="ln1">reviews-watch</span><span class="ln2">r-2e77b1 · webhook</span></span>
+            <span class="goalcell">Zero unresolved CodeRabbit threads on PR #482 for a review of the current HEAD</span>
+            <span class="gens">5 / ∞</span>
+            <span class="when">3h ago<span class="sub">idle · quiet 20s</span></span>
+            <span class="budget"><span class="bl"><span>2.4M tok</span><span>48%</span></span><span class="bbar"><span class="bbar__f" style="width:48%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+          <a class="trow" href="run-detail.html" data-f="needs-approval">
+            <span class="pill pill--needs-approval"><span class="dot"></span>needs-approval</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-9d40af · cli</span></span>
+            <span class="goalcell">Ship every authored task under .compozy/tasks/billing-webhooks · held at approve gate</span>
+            <span class="gens">3 / 50</span>
+            <span class="when">38m ago<span class="sub">waiting 4m</span></span>
+            <span class="budget"><span class="bl"><span>1.1M tok</span><span>55%</span></span><span class="bbar"><span class="bbar__f" style="width:55%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+          <a class="trow" href="run-detail.html" data-f="paused">
+            <span class="pill pill--paused"><span class="dot"></span>paused</span>
+            <span class="loopcell"><span class="ln1">reviews-watch</span><span class="ln2">r-6c31e0 · manual</span></span>
+            <span class="goalcell">Zero unresolved CodeRabbit threads on PR #493 · paused mid-watch</span>
+            <span class="gens">2 / ∞</span>
+            <span class="when">1h ago<span class="sub">paused 12m</span></span>
+            <span class="budget"><span class="bl"><span>640K tok</span><span>13%</span></span><span class="bbar"><span class="bbar__f" style="width:13%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+        </div>
+
+        <!-- PAST -->
+        <div class="sec-label" id="lbl-past">Past <span class="count-chip">11</span></div>
+        <div class="listbox" id="tbl-past">
+          <div class="thead"><span>Outcome</span><span>Loop</span><span>Goal</span><span>Gens</span><span>Ended</span><span>Budget used</span><span></span></div>
+
+          <a class="trow" href="run-detail.html" data-f="done">
+            <span class="pill pill--done"><span class="dot"></span>done</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-5a2f8c · cli</span></span>
+            <span class="goalcell">Ship every authored task under .compozy/tasks/search-reindex · acceptance approved</span>
+            <span class="gens">2 / 50</span>
+            <span class="when">22m ago<span class="sub">took 11m 40s</span></span>
+            <span class="budget"><span class="bl"><span>520K tok</span><span>26%</span></span><span class="bbar"><span class="bbar__f" style="width:26%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="exhausted">
+            <span class="pill pill--exhausted"><span class="dot"></span>exhausted</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-c4a8e2 · cli</span></span>
+            <span class="goalcell">Hit the 50-generation iteration cap before acceptance</span>
+            <span class="gens">50 / 50</span>
+            <span class="when">1h ago<span class="sub">took 29m</span></span>
+            <span class="budget"><span class="bl"><span>1.9M tok</span><span>95%</span></span><span class="bbar"><span class="bbar__f bbar__f--warn" style="width:95%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="done">
+            <span class="pill pill--done"><span class="dot"></span>done</span>
+            <span class="loopcell"><span class="ln1">reviews-watch</span><span class="ln2">r-e58d21 · webhook</span></span>
+            <span class="goalcell">Zero unresolved CodeRabbit threads on PR #475 · clean tick</span>
+            <span class="gens">3 / ∞</span>
+            <span class="when">2h ago<span class="sub">took 6m</span></span>
+            <span class="budget"><span class="bl"><span>380K tok</span><span>8%</span></span><span class="bbar"><span class="bbar__f" style="width:8%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="no_op">
+            <span class="pill pill--no_op"><span class="dot"></span>no_op</span>
+            <span class="loopcell"><span class="ln1">reviews-watch</span><span class="ln2">r-1f6a07 · webhook</span></span>
+            <span class="goalcell">Watch tick on PR #468 · no new review, nothing to do</span>
+            <span class="gens">1 / ∞</span>
+            <span class="when">3h ago<span class="sub">took 41s</span></span>
+            <span class="budget"><span class="bl"><span>12K tok</span><span>1%</span></span><span class="bbar"><span class="bbar__f" style="width:1%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="stalled">
+            <span class="pill pill--stalled"><span class="dot"></span>stalled</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-4f01dd · cli</span></span>
+            <span class="goalcell">No progress for 3 generations · same blocker ids each round</span>
+            <span class="gens">4 / 50</span>
+            <span class="when">4h ago<span class="sub">stalled at 18m</span></span>
+            <span class="budget"><span class="bl"><span>610K tok</span><span>30%</span></span><span class="bbar"><span class="bbar__f" style="width:30%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="blocked">
+            <span class="pill pill--blocked"><span class="dot"></span>blocked</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-a2c9f7 · cli</span></span>
+            <span class="goalcell">task_03 blocked · an external dependency is unavailable</span>
+            <span class="gens">2 / 50</span>
+            <span class="when">5h ago<span class="sub">blocked at 2m</span></span>
+            <span class="budget"><span class="bl"><span>140K tok</span><span>7%</span></span><span class="bbar"><span class="bbar__f" style="width:7%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="failed">
+            <span class="pill pill--failed"><span class="dot"></span>failed</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-3b8c92 · schedule</span></span>
+            <span class="goalcell">Reject at the approve gate · reviewer requested a different approach</span>
+            <span class="gens">2 / 50</span>
+            <span class="when">6h ago<span class="sub">failed at 7m</span></span>
+            <span class="budget"><span class="bl"><span>340K tok</span><span>17%</span></span><span class="bbar"><span class="bbar__f" style="width:17%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="done">
+            <span class="pill pill--done"><span class="dot"></span>done</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-7c1d44 · schedule</span></span>
+            <span class="goalcell">Ship every authored task under .compozy/tasks/loops-catalog-api · verified</span>
+            <span class="gens">1 / 50</span>
+            <span class="when">8h ago<span class="sub">took 4m 10s</span></span>
+            <span class="budget"><span class="bl"><span>180K tok</span><span>9%</span></span><span class="bbar"><span class="bbar__f" style="width:9%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="no_op">
+            <span class="pill pill--no_op"><span class="dot"></span>no_op</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-9e12c8 · cli</span></span>
+            <span class="goalcell">All authored tasks under .compozy/tasks/whatsapp-inbox already completed, nothing to ship</span>
+            <span class="gens">1 / 50</span>
+            <span class="when">12h ago<span class="sub">took 22s</span></span>
+            <span class="budget"><span class="bl"><span>8K tok</span><span>1%</span></span><span class="bbar"><span class="bbar__f" style="width:1%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="exhausted">
+            <span class="pill pill--exhausted"><span class="dot"></span>exhausted</span>
+            <span class="loopcell"><span class="ln1">software-delivery</span><span class="ln2">r-0d5e3a · manual</span></span>
+            <span class="goalcell">Token budget reached · halt ended the run at the generation boundary</span>
+            <span class="gens">6 / 50</span>
+            <span class="when">1d ago<span class="sub">took 26m</span></span>
+            <span class="budget"><span class="bl"><span>2.0M tok</span><span>100%</span></span><span class="bbar"><span class="bbar__f bbar__f--danger" style="width:100%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+          <a class="trow" href="run-detail.html" data-f="stalled">
+            <span class="pill pill--stalled"><span class="dot"></span>stalled</span>
+            <span class="loopcell"><span class="ln1">reviews-watch</span><span class="ln2">r-b71f55 · webhook</span></span>
+            <span class="goalcell">PR #461 · same blocking threads across 2 generations, no progress</span>
+            <span class="gens">3 / ∞</span>
+            <span class="when">1d ago<span class="sub">stalled · went quiet</span></span>
+            <span class="budget"><span class="bl"><span>1.2M tok</span><span>24%</span></span><span class="bbar"><span class="bbar__f" style="width:24%"></span></span></span>
+            <span class="tchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </a>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    var segs = Array.prototype.slice.call(document.querySelectorAll('.seg'));
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.trow'));
+    segs.forEach(function(s){
+      s.addEventListener('click', function(){
+        segs.forEach(function(x){x.classList.remove('seg--active');x.setAttribute('aria-selected','false');});
+        s.classList.add('seg--active'); s.setAttribute('aria-selected','true');
+        var key=s.getAttribute('data-f');
+        rows.forEach(function(r){ r.classList.toggle('hide', !(key==='all'||r.getAttribute('data-f')===key)); });
+        ['active','past'].forEach(function(g){
+          var box=document.getElementById('tbl-'+g);
+          var any=Array.prototype.slice.call(box.querySelectorAll('.trow')).some(function(r){return !r.classList.contains('hide');});
+          box.classList.toggle('hide', !any);
+          document.getElementById('lbl-'+g).classList.toggle('hide', !any);
+        });
+      });
+    });
+  })();
+</script>
+</body>
+</html>

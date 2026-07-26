@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "os-v2/agh-os-v2.html",
+  "entry": "os-v2/agh-os-v2.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-19T00:41:52.425Z",
+  "updatedAt": "2026-07-19T00:41:52.425Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

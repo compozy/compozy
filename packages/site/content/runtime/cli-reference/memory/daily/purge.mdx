@@ -1,0 +1,42 @@
+---
+title: "agh memory daily purge"
+description: "Reserved Memory v2 command"
+---
+
+## agh memory daily purge
+
+Reserved Memory v2 command
+
+```
+agh memory daily purge [flags]
+```
+
+### Options
+
+```
+      --dry-run             Show retention work without applying it
+  -h, --help                help for purge
+      --older-than string   Retention age threshold
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory daily purge -o json
+```

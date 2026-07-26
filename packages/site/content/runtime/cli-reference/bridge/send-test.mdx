@@ -1,0 +1,45 @@
+---
+title: "agh bridge send-test"
+description: "Send one real message through a bridge provider"
+---
+
+## agh bridge send-test
+
+Send one real message through a bridge provider
+
+```
+agh bridge send-test <id> [flags]
+```
+
+### Options
+
+```
+      --group-id string    Override target group ID
+  -h, --help               help for send-test
+      --message string     Message to send through the provider
+      --mode string        Delivery mode: direct-send or reply
+      --peer-id string     Override target peer ID
+      --thread-id string   Override target thread ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh bridge send-test <id> -o json
+```

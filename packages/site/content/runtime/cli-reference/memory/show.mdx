@@ -1,0 +1,55 @@
+---
+title: "agh memory show"
+description: "Show one Memory v2 entry"
+---
+
+## agh memory show
+
+Show one Memory v2 entry
+
+```
+agh memory show <filename> [flags]
+```
+
+### Examples
+
+```
+  # Show a workspace memory entry
+  agh memory show runtime-notes.md --scope workspace
+
+  # Show an agent-global memory entry as JSON
+  agh memory show prefs.md --scope agent --agent reviewer --agent-tier global -o json
+```
+
+### Options
+
+```
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+  -h, --help                help for show
+      --include-system      Allow showing _system memory entries
+      --scope string        Memory scope: global, workspace, or agent
+      --workspace string    Workspace ID or path for workspace-bound memory
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory show <filename> -o json
+```

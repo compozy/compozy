@@ -1,0 +1,42 @@
+---
+title: "agh desktop"
+description: "Manage virtual desktops in a workspace"
+---
+
+## agh desktop
+
+Manage virtual desktops in a workspace
+
+### Options
+
+```
+  -h, --help   help for desktop
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                       | Description                                                        |
+| ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [agh desktop clients](/runtime/cli-reference/desktop/clients) | Manage connected window-manager clients                            |
+| [agh desktop create](/runtime/cli-reference/desktop/create)   | Create a persistent virtual desktop                                |
+| [agh desktop delete](/runtime/cli-reference/desktop/delete)   | Delete a desktop with an explicit transfer destination when needed |
+| [agh desktop list](/runtime/cli-reference/desktop/list)       | List persistent virtual desktops                                   |
+| [agh desktop reorder](/runtime/cli-reference/desktop/reorder) | Move a desktop to an ordered position                              |
+| [agh desktop switch](/runtime/cli-reference/desktop/switch)   | Switch one connected client to a desktop                           |
+| [agh desktop update](/runtime/cli-reference/desktop/update)   | Rename a virtual desktop                                           |

@@ -1,0 +1,72 @@
+---
+title: Review a Change
+description: Use an AGH session to inspect a code change and return durable review evidence.
+---
+
+This flow is for a maintainer who wants a review that can be inspected after the terminal closes.
+The agent can run locally or inside a configured sandbox; the important part is that AGH owns the
+session, events, and history.
+
+## Setup
+
+Register the repository once:
+
+```bash
+agh workspace add /Users/you/project --name project
+```
+
+If the review should run away from the host filesystem, attach a sandbox profile:
+
+```bash
+agh workspace edit project --sandbox daytona-dev
+```
+
+## Flow
+
+<Workflow>
+  <WorkflowStep title="Start a named session">
+    Create a session in the registered workspace so every later command can reference one durable
+    session id.
+  </WorkflowStep>
+  <WorkflowStep title="Ask for bounded review evidence">
+    Give the agent the files, branch, or diff boundary and ask for findings with file references,
+    reproduction notes, and residual risk.
+  </WorkflowStep>
+  <WorkflowStep title="Watch the event stream">
+    Follow events while the agent reads files, calls tools, and produces output.
+  </WorkflowStep>
+  <WorkflowStep title="Read the final history">
+    Use history after the run to see the same turns without relying on terminal scrollback.
+  </WorkflowStep>
+</Workflow>
+
+```bash
+agh session new --workspace project --agent reviewer --name review-checkout -o json
+agh session prompt sess_1234 "Review the current change. Return only actionable findings with file paths and evidence."
+agh session events sess_1234 --follow
+agh session history sess_1234
+```
+
+## Evidence to keep
+
+| Evidence                     | Command                                  | Why it matters                                                   |
+| ---------------------------- | ---------------------------------------- | ---------------------------------------------------------------- |
+| Session identity and status  | `agh session status sess_1234 -o json`   | Shows workspace, agent, status, failure, and sandbox metadata.   |
+| Tool and model activity      | `agh session events sess_1234 --last 50` | Shows whether the agent actually inspected the right surfaces.   |
+| Review output by turn        | `agh session history sess_1234`          | Gives a durable transcript to paste into a PR or release note.   |
+| Remote execution, if enabled | `agh session status sess_1234 -o json`   | The `sandbox` object proves which backend and profile were used. |
+
+## Failure path
+
+| Symptom                        | First check                                      | Next page                                                        |
+| ------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------- |
+| Agent reviewed the wrong tree  | `agh workspace info project -o json`             | [Workspace Resolution](/runtime/core/workspaces/resolver)        |
+| Session has no useful events   | `agh session events sess_1234 --last 50 -o json` | [Event Streaming](/runtime/core/sessions/events)                 |
+| Sandbox did not attach         | `agh session status sess_1234 -o json`           | [Sandbox](/runtime/core/sandbox)                                 |
+| Follow-up prompt does not move | `agh session status sess_1234 -o json`           | [Debug a Failed Session](/runtime/guides/debug-a-failed-session) |
+
+## When to use tasks instead
+
+Use a plain session for one review. Use [task runs](/runtime/core/autonomy/task-runs-and-leases)
+when review work needs assignment, leases, retry visibility, or completion records that other agents
+can claim.

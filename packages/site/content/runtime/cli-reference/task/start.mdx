@@ -1,0 +1,46 @@
+---
+title: "agh task start"
+description: "Enqueue a run for an executable task"
+---
+
+## agh task start
+
+Enqueue a run for an executable task
+
+```
+agh task start <id> [flags]
+```
+
+### Options
+
+```
+  -h, --help                              help for start
+      --idempotency-key string            Optional idempotency key
+      --metadata string                   Optional run metadata JSON
+      --network string                    Network participation mode: local or live
+      --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
+      --network-channel string            Named channel id when strategy is named
+      --network-channel-strategy string   Live channel strategy: named, run, or loop_run
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task start <id> -o json
+```

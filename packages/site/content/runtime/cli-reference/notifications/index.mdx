@@ -1,0 +1,37 @@
+---
+title: "agh notifications"
+description: "Manage notification presets"
+---
+
+## agh notifications
+
+Manage notification presets
+
+### Options
+
+```
+  -h, --help   help for notifications
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                   | Description                    |
+| ------------------------------------------------------------------------- | ------------------------------ |
+| [agh notifications preset](/runtime/cli-reference/notifications/preset)   | Manage one notification preset |
+| [agh notifications presets](/runtime/cli-reference/notifications/presets) | List notification presets      |

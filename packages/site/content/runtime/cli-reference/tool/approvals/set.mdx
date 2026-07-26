@@ -1,0 +1,44 @@
+---
+title: "agh tool approvals set"
+description: "Set an explicit agent-wide or tool-wide approval decision"
+---
+
+## agh tool approvals set
+
+Set an explicit agent-wide or tool-wide approval decision
+
+```
+agh tool approvals set <tool_id> [flags]
+```
+
+### Options
+
+```
+      --agent string       Agent name required by agent scope
+      --decision string    Remembered decision: allow or reject
+  -h, --help               help for set
+      --scope string       Wider scope: agent or tool
+      --workspace string   Workspace id or reference
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh tool approvals set <tool_id> -o json
+```

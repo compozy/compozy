@@ -1,0 +1,55 @@
+---
+title: "agh observe overview"
+description: "Show the home overview: what agents did, what needs you, what it costs"
+---
+
+## agh observe overview
+
+Show the home overview: what agents did, what needs you, what it costs
+
+```
+agh observe overview [flags]
+```
+
+### Examples
+
+```
+  # Show the home overview
+  agh observe overview
+
+  # Return the machine-readable overview for agents
+  agh observe overview -o json
+
+  # Scope aggregates to one workspace with a 7-day usage window
+  agh observe overview --workspace launch-hq --usage-window 7
+```
+
+### Options
+
+```
+  -h, --help               help for overview
+      --usage-window int   Usage window in days: 7, 30, or 90 (default 30)
+      --workspace string   Scope aggregates to one workspace (path, name, or ID)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh observe overview -o json
+```

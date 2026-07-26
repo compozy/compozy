@@ -1,0 +1,149 @@
+---
+title: Loops
+description: Named, goal-seeking, self-correcting units of work the daemon owns, runs unattended, and always stops cleanly with a named outcome.
+---
+
+{/* Design reference: docs/design/opendesign/loops-index.html (design-doc launcher, not a product route) — LOOPS-DESIGN-SPEC §1–§2. Daemon truth wins on divergence (ADR-017 §9). */}
+
+A **Loop** is a named, reusable definition of goal-seeking, self-correcting, bounded work that
+the daemon owns, runs unattended, and always ends with one named outcome. It is the runtime's
+answer to "run this until it is actually done, and tell me honestly how it ended."
+
+A Loop is not a script and not a chat session. What makes it a Loop is a **contract** — a goal, a
+way to verify the goal is met, and the conditions under which it stops — carried by every Loop,
+even one that finishes on its first pass.
+
+## The contract: goal → verify → stop
+
+Every Loop answers four questions, and the daemon holds it to all four:
+
+- **What is the goal?** The definition-of-done.
+- **How do we verify it?** A verification gate — a project command, an agent judging against a
+  rubric, or a human approval. Verification is project-agnostic.
+- **When does it stop?** Structural stop limits: an attempt cap, a no-progress window, optional
+  budgets, and a breadth ceiling.
+- **How does it end?** Exactly one of six named [terminal outcomes](/runtime/core/loops/guardrails).
+
+Iteration is simply what happens when verification says "not done." A single-pass linear body is
+still a Loop — one that finished on its first pass — and it still gains the contract, which is the
+value no plain task graph delivers.
+
+## Two nouns, nothing else
+
+The workspace surfaces exactly two things under one **Loops** umbrella:
+
+- **Loops** — the [catalog](/runtime/core/loops/catalog) of _definitions_, each with declared
+  inputs, a goal, and last-run state.
+- **Runs** — the _executions_, active and past, observed on the [run page](/runtime/core/loops/running).
+
+There is no third noun. Running a Loop means supplying its declared inputs, which produces a Run.
+There is no separate "work to run," no standing work-list to browse, and no "ready" state to manage.
+
+## A Loop is made of three parts
+
+1. **A contract** — goal, verification, stop conditions, and the fixed set of named terminal
+   outcomes.
+2. **A body** — a static DAG of typed nodes the daemon runs to completion. Node classes are
+   `action`, `control`, and `source`. The body's shape varies per Loop; not every Loop has tasks.
+3. **Typed declared inputs** — the parameters a caller supplies to run it (`string`, `number`,
+   `boolean`, `file`, `agent`, or `ref`).
+
+The full data model lives in the [DSL reference](/runtime/core/loops/dsl-reference).
+
+## Loop vs. capability
+
+A Loop and a [capability](/runtime/core/agents/capabilities) are different artifacts, and Loops do
+not replace capabilities:
+
+- A **Loop** is a **deterministic runtime program** the daemon owns and runs. It rides AGH's
+  existing durable foundations — the work queue, sessions, [automation](/runtime/core/automation),
+  [network](/runtime/core/network), and [memory](/runtime/core/memory) — rather than adding a
+  second execution engine.
+- A **capability** is an **interpretive network artifact** — what an agent offers to peers over
+  AGH Network. Capabilities stay interpretive; the network protocol does not carry Loop execution.
+
+AGH Network remains, by design, not a workflow engine: envelopes do not carry loop execution. The
+Loop domain lives entirely in the runtime.
+
+## Arrive and use
+
+The common path never touches a graph. Two first-party Loops come installed through the
+default-enrolled `dev-cycle` extension and run directly — supply a couple of inputs and go:
+
+- **`software-delivery`** — executes already-authored tasks in dependency order, reviews results
+  (agent-judge or human approval), remediates failures, and verifies against the project's own
+  checks.
+- **`reviews-watch`** — watches an open change; each time new review comments land, it fetches and
+  remediates them, repeating until nothing is unresolved. CodeRabbit-backed runs require `gh` to be
+  installed and authenticated.
+
+If you disable `dev-cycle`, those Loops, their default agents, their provider tools, and the
+`coderabbit_pr_review` watch source leave the catalog together; enabling it restores the package.
+
+Authoring, configuring, and forking are an opt-in power ceiling, never the entry toll.
+
+## Three ways to commit
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/loops/running"
+    label="Use"
+    title="Run a default Loop"
+    description="Supply declared inputs and start a run. The hero path — no graph, no assembly. Observe it live and stop it cleanly."
+    meta="Operate"
+  />
+  <RouteRow
+    href="/runtime/core/loops/configure"
+    label="Configure"
+    title="Tweak how a Loop runs"
+    description="Point a gate at your project's check, toggle a human-approval gate, or pick a re-attempt strategy — without changing the Loop's structure."
+    meta="No fork"
+  />
+  <RouteRow
+    href="/runtime/core/loops/authoring"
+    label="Author"
+    title="Fork, create, and publish"
+    description="Adapt a Loop's structure or build a new one by file, agent, or the visual editor — all over one canonical definition."
+    meta="Power ceiling"
+  />
+</RouteList>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/loops/catalog"
+    label="Operate"
+    title="Catalog and detail"
+    description="Browse default and forked Loops, read a Loop's contract and body, and launch a run."
+    meta="Browse"
+  />
+  <RouteRow
+    href="/runtime/core/loops/running"
+    label="Operate"
+    title="Running and observing"
+    description="Fill the run form, dry-run a plan, watch generations stream live, and handle approval gates."
+    meta="Run page"
+  />
+  <RouteRow
+    href="/runtime/core/loops/dsl-reference"
+    label="Reference"
+    title="agh.loop/v1 DSL"
+    description="The definition schema: inputs, node classes and kinds, the gate contract, and start bindings."
+    meta="Schema"
+  />
+  <RouteRow
+    href="/runtime/core/loops/guardrails"
+    label="Reference"
+    title="Guardrails and outcomes"
+    description="The stop model: no-progress axes, the blocker-ID stall signature, budgets and ceilings, and the eleven run states."
+    meta="Limits"
+  />
+</RouteList>
+
+## Manage from any surface
+
+Every Loop capability — author, configure, run, observe, approve, stop — is operable by an agent
+through structured non-UI surfaces. The [`agh loop`](/runtime/cli-reference/loop) CLI, the
+[Loops HTTP API](/runtime/api-reference/loops), and the `agh__loop_*` native tools all reach the
+same validators and writers as the web UI. Web-UI-only control would be incomplete by definition.

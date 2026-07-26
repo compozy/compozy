@@ -1,0 +1,96 @@
+---
+title: Coordinator Handoff
+description: When AGH starts a workspace coordinator and why coordinator bootstrap is independent from Network participation.
+---
+
+The coordinator is a managed AGH session that performs semantic orchestration for executable,
+workspace-scoped runs. It can decompose work, create follow-up tasks, route workers, and synthesize
+results, but it does not own task-run state.
+
+## Trigger boundary
+
+The daemon considers coordinator bootstrap when:
+
+- a publish, start, approval, automation approval, or equivalent API enqueues a workspace run
+- resolved coordinator config has `enabled = true`
+- the workspace has no healthy active coordinator
+- spawn caps, TTL, and permission policy allow a coordinator root session
+
+Task creation alone does not start a coordinator. A coordination channel is not a bootstrap
+precondition. Local runs can use the coordinator without creating Network state, and enabling
+workspace coordination does not start a coordinator by itself.
+
+Global-scope runs do not auto-start a coordinator. Manual sessions, task APIs, and run claims stay
+available regardless of coordinator configuration.
+
+## Network participation
+
+Coordinator bootstrap and Network participation are orthogonal:
+
+- the coordinator is Local unless its owning execution resolves Live
+- a Live task run binds coordinator and worker sessions to the run's immutable snapshot
+- availability never makes the coordinator Live
+- changing workspace coordination affects future coordinated runs only
+
+This keeps orchestration useful without paying the Network tool/context/wake cost for every run.
+
+## Configuration
+
+Coordinator routing and coordinator-owned session limits live under `[roles.coordinator]` in global
+or workspace `config.toml`:
+
+```toml
+[roles.coordinator]
+enabled = true
+agent = ""
+provider = "codex"
+model = "gpt-5.6-sol"
+reasoning_effort = "high"
+ttl = "2h"
+max_children = 5
+max_active_sessions_per_workspace = 5
+```
+
+| Field                               | Default | Meaning                                                                              |
+| ----------------------------------- | ------- | ------------------------------------------------------------------------------------ |
+| `enabled`                           | `false` | Allows coordinator bootstrap after run enqueue.                                      |
+| `agent`                             | empty   | Empty selects the virtual builtin `coordinator`; a name routes to an authored agent. |
+| `provider`                          | empty   | Optional provider override.                                                          |
+| `model`                             | empty   | Optional exact model override.                                                       |
+| `reasoning_effort`                  | empty   | Optional reasoning override.                                                         |
+| `fallback_chain`                    | empty   | Ordered provider/model routes tried only before ACP accepts the session.             |
+| `ttl`                               | `2h`    | Coordinator lifetime, from `1m` through `24h`.                                       |
+| `max_children`                      | `5`     | Maximum child sessions the coordinator may spawn.                                    |
+| `max_active_sessions_per_workspace` | `5`     | Active autonomy-managed sessions allowed in one workspace.                           |
+
+Workspace config wins over global config, then builtin or authored-agent/provider defaults apply.
+Changes are Live for later coordinator starts; an active coordinator keeps its accepted routing.
+The builtin identity is virtual, reserved from authoring, and absent from the public agent catalog.
+The coordinator remains idempotent per workspace and cannot spawn another coordinator. Inspect the
+effective projection with `agh roles show coordinator --workspace <workspace> -o json`.
+
+## Operator control
+
+```bash
+# Intent only: no run and no coordinator yet.
+agh task create --scope workspace --workspace checkout-api --title "Audit auth flow"
+
+# Enqueue a normal Local run; coordinator handoff can still happen.
+agh task start task-123 --network local -o json
+
+# Enqueue one bounded Live coordinated run.
+agh task start task-123 \
+  --network live \
+  --network-channel-strategy run \
+  -o json
+```
+
+Manual sessions, task APIs, and run claims remain available. The coordinator never bypasses claim,
+lease, review, permission, workspace, or tool policy.
+
+## Related pages
+
+- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases)
+- [Task-Run Coordination Conversations](/runtime/core/autonomy/coordination-channels)
+- [Task Execution Profiles](/runtime/core/autonomy/execution-profiles)
+- [config.toml](/runtime/core/configuration/config-toml)

@@ -1,31 +1,41 @@
-## 0.2.15 - 2026-07-17
+## 0.0.9 - 2026-07-04
 
-### 🎉 Features
+### ♻️ Refactoring
 
-- Cy-capture-decisions — skill-only extension for durable decision capture (#237)
+- Tasks orchestration (#269)
+
 ### 🐛 Bug Fixes
 
-- Recover stalled and wedged multi-runs (#230)- Share parallel task status enum (#241)- Surface progress and bound the reviews-fix daemon start (#236)- Package cy-qa-workflow as a module and make host.tasks.create v2-aware (#234)- Correct Kiro CLI ACP model handling (#226)- Isolate sync tests and clarify ignore checks (#248)- Isolate task artifacts and add complexity runtime defaults (#250)
+- Network optimizations (#263)
+- Native tools (#266)
+- Align release-gated network integration tests with #263 behavior
+
 ### 📚 Documentation
 
-- Add v0.2.15 release highlights
+- Update skills
+- New skill
+- Add feature stories
+- Add v0.0.9 release notes
+
+### 📦 Build System
+
+- Update go deps
+- Gitignore
 
 ### Release Notes
 
 #### Features
 
-##### Durable architecture decisions
-The new cy-capture-decisions skill-only extension reconciles accepted ADRs against the code and review outcome, then promotes only proven, cross-feature decisions into a compact project index with detailed records on demand. The log survives workflow archival and is safe to rerun. (PR #237)
+##### Network delivery policies, subscriptions, and thread-to-task promotion
 
-##### Runtime defaults by task complexity
-Workspace defaults can now select IDE, model, and reasoning effort for low, medium, high, and critical tasks, with field-wise workspace merging and complexity to type to task-ID precedence while preserving explicit CLI choices. Parallel child snapshots also stop reporting mirrored runtime task artifacts as agent output. (PR #250)
+AGH network channels gain durable delivery control. Each channel now carries a fan-out policy — deliver to all members, route to a designated coordinator peer, or match by capability (the default) — managed with `agh network channels create` and `agh network channels update`. Peers and tasks can subscribe to channels: inspect subscriptions with `agh network subscriptions` and manage per-task subscriptions with `agh task subscribe <task-id>`. Executable thread messages can be promoted into durable workspace tasks straight from the CLI with `agh network promote`, or by an agent through the `agh__task_promote_from_thread` native tool, and designated sibling task runs can be fanned out as part of a workflow. Network and task views now surface task links, peer and coordination cost, and delivered size and token metrics, while mentions are normalized (trimmed, empties removed) and size and token limits are enforced as non-negative.
+
+##### Task blocking, recovery, and needs-attention triage
+
+Tasks are now first-class to block, triage, and recover. A task can be explicitly blocked and unblocked with `agh task block <id>` and `agh task unblock <id>`, and every block is kept as durable history you can inspect with `agh task blocks <id>`. A new `needs_attention` status surfaces tasks that stalled and need a human or coordinator to step in — task details now carry the blocked reason and the wake creator so it is clear why a task is waiting and who nudged it. Clear the state with `agh task recover <id>`, recover a specific stalled run with `agh task run recover <run-id>`, or let an agent do it through the `agh__task_recover` native tool and the HTTP/UDS API. Task completion now returns the IDs of any tasks it created, and stronger validation rejects invalid created-task references before they are persisted. Claim tokens are redacted across task outputs and hook payloads, and the new `needs_attention_after` setting controls how long a task may wait before it is flagged for attention.
 
 #### Fixes
 
-##### More reliable task and review workflows
-QA task injection now supports compozy.tasks/v2 graphs and the cy-qa-workflow extension ships as a verified standalone module. Kiro ACP runs use a valid bootstrap model, slow reviews fix startup is visible and bounded, and parallel task settlement uses one canonical status contract. Test isolation and decision-log ignore guidance were tightened as well. (PRs #234, #226, #236, #241, #248)
+##### Clearer native tool errors and availability diagnostics
 
-#### Highlights
-
-##### Runs that recover instead of hanging
-Compozy now detects silent ACP stalls, retries once from a clean worktree, and parks persistent failures with journals and worktrees preserved for triage. Parallel parents can reap wedged children, terminal commands are cancellable and bounded, and the UI reports stalled, retrying, recovered, and parked outcomes. (PR #230)
+Native and hosted tool calls now fail legibly. Hosted MCP tool calls return richer, structured JSON error details — the tool ID, an error code, and any denial reasons — instead of opaque failures, and advertised tools carry improved metadata and descriptions. When runtime diagnostic data cannot be retrieved, native tool lookups report a clear "unavailable" diagnostic rather than a silent miss. Hosted and session MCP availability handling is safer overall, with clearer informational and warning logs and graceful fallbacks when a feature is disabled. Documentation and the runtime envelope now consistently direct agents to the canonical `agh__*` tool IDs and the harness-returned tool references.

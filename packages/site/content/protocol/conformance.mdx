@@ -1,0 +1,84 @@
+---
+title: Conformance Levels
+description: Reference for AGH Network Core and Trust roles, required behavior, test coverage, and self-certification.
+icon: Award
+---
+
+Conformance describes protocol behavior, not an implementation's carrier or AGH Runtime's
+Local/Live policy.
+
+<OperatorNote label="Implementation status">
+  This repository tests AGH Runtime's v0 behavior but does not yet ship a standalone third-party
+  conformance runner.
+</OperatorNote>
+
+## Roles and levels
+
+| Claim           | Meaning                                                                     |
+| --------------- | --------------------------------------------------------------------------- |
+| `Core Sender`   | Emits valid envelopes for the kinds it claims.                              |
+| `Core Receiver` | Validates and receives core messages.                                       |
+| `Core Peer`     | Satisfies both Core Sender and Core Receiver.                               |
+| `Trust Peer`    | Core Peer plus the complete Ed25519 + JCS verification and signing profile. |
+
+An implementation can name its carrier separately, but carrier choice does not create a higher
+protocol level.
+
+## Core requirements
+
+A Core implementation MUST enforce required fields, workspace/channel scope, kind-specific body
+rules, conversation-surface pairing, `work_id` container binding, expiration, terminal-state rules,
+and unknown-extension handling. It MUST reject legacy `kind:"direct"` and `interaction_id` shapes.
+
+A Core Receiver SHOULD deduplicate by `id` in a bounded window and SHOULD emit receipts when a
+directed sender needs visible acceptance or rejection.
+
+## Trust requirements
+
+A Trust Peer additionally MUST:
+
+- use `agh-network.trust.ed25519-jcs/v1`
+- bind `from`, `proof.key_id`, and `proof.pubkey`
+- canonicalize with RFC 8785 JCS while omitting only `proof.sig`
+- verify the Ed25519 signature over the canonical bytes
+- reject proof-stripped verified handles
+- distinguish `verified`, `unverified`, and `rejected`
+- apply authorization policy only after cryptographic verification
+
+See [Ed25519 + JCS](/protocol/ed25519-jcs/) and [Signature Verification](/protocol/verification/).
+
+## Conformance suites
+
+| Suite                 | Required coverage                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| Envelope fixtures     | Valid/invalid fields, timestamps, IDs, surfaces, containers, and legacy rejection. |
+| Message-kind fixtures | All claimed kinds and their required body fields.                                  |
+| Lifecycle fixtures    | Open, receipt, trace, terminal state, actor, and container binding.                |
+| Delivery fixtures     | Duplicate, expired, unsupported, retry, and reason-code behavior.                  |
+| Extension fixtures    | Unknown keys and processing only after core validation.                            |
+| Trust fixtures        | Golden proof, tamper cases, key mismatch, fingerprint mismatch, proof stripping.   |
+| Carrier integration   | Implementation-owned send/receive, failure, reconnect, and correlation tests.      |
+
+Carrier acknowledgements must never stand in for protocol acceptance.
+
+## Self-certification
+
+Publish the claimed role, protocol/profile identifiers, fixture version, passed groups, carrier
+integration evidence, optional behavior, and known deviations. Do not claim Trust when signing or
+verification is delegated to deployment policy.
+
+```json
+{
+  "implementation": "example-runtime",
+  "version": "0.5.0",
+  "claim": "Core Peer",
+  "protocol": "agh-network/v0",
+  "fixture_suite": "agh-network-conformance@2026-07-14",
+  "passed": ["core.envelope", "core.message-kinds", "core.lifecycle", "core.delivery"],
+  "carrier": "implementation-defined",
+  "deviations": []
+}
+```
+
+Test runners should distinguish malformed envelopes, unsupported profiles, verification failures,
+expiration, duplication, carrier failures, and application-level rejection receipts.

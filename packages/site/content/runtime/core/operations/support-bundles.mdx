@@ -1,0 +1,106 @@
+---
+title: Support Bundles
+description: Create redacted, daemon-owned support bundles for incident response and maintainer triage.
+---
+
+Support bundles package the runtime signals maintainers need without copying session transcripts or
+raw credentials. The daemon owns bundle creation through an operation API; the CLI and web UI only
+request, poll, and download that daemon-built archive.
+
+## Create A Bundle
+
+Use the CLI when you are on the machine that owns the AGH home:
+
+```bash
+agh support bundle
+```
+
+The command prompts for consent in human mode because the bundle contains operational metadata,
+redacted config, a log tail, recent event summaries, provider metadata, and home-tree paths. Use
+`--yes` for automation:
+
+```bash
+agh support bundle --yes
+agh support bundle --yes --output /tmp/agh-support-bundle.tar.gz
+agh support bundle --yes --no-status
+```
+
+Structured output is intentionally write-gated:
+
+```bash
+agh support bundle --yes --json
+```
+
+The daemon stores its archive under `$AGH_HOME/support-bundles/`. Passing `--output` downloads the
+completed daemon archive to a specific file or directory.
+
+## Operation API
+
+HTTP and UDS expose the same operation lifecycle:
+
+| Method | Path                                           | Purpose                                         |
+| ------ | ---------------------------------------------- | ----------------------------------------------- |
+| `POST` | `/api/support/bundles`                         | Create a daemon-owned support bundle operation. |
+| `GET`  | `/api/support/bundles/{operation_id}`          | Poll operation status and manifest metadata.    |
+| `GET`  | `/api/support/bundles/{operation_id}/download` | Download the completed `.tar.gz` archive.       |
+
+The create payload accepts `include_status`. It defaults to `true`; set it to `false` to omit
+`status.json` and related runtime-status snapshots from the archive.
+
+The operation response includes `operation_id`, `status`, `status_url`, `download_url` after
+completion, `file_name`, `size_bytes`, timestamps, and the manifest when available.
+
+## Bundle Contents
+
+Every archive contains `manifest.json`. The manifest records the schema version, redaction version,
+byte caps, and one row per planned artifact with inclusion, omission, byte count, and truncation
+metadata.
+
+| Artifact                    | Contents                                                           |
+| --------------------------- | ------------------------------------------------------------------ |
+| `manifest.json`             | Bundle metadata, caps, redaction version, and artifact accounting. |
+| `doctor.json`               | Current doctor diagnostics.                                        |
+| `status.json`               | Runtime status snapshot unless omitted by request.                 |
+| `providers.json`            | Provider inventory and state.                                      |
+| `config-apply-records.json` | Recent config apply audit records.                                 |
+| `event-summaries.json`      | Recent global event summaries, redacted and capped.                |
+| `sessions.json`             | Session summary metadata without transcripts.                      |
+| `config-redacted.json`      | Effective config after diagnostics redaction.                      |
+| `logs-tail.txt`             | Recent `agh.log` tail after diagnostics redaction.                 |
+| `versions.json`             | AGH version, build, OS, and architecture metadata.                 |
+| `home-tree.json`            | Metadata-only AGH home tree; no file contents.                     |
+
+The v1 contract excludes transcripts and per-session event databases. Support bundles are for
+operational triage, not prompt-content export.
+
+## Caps And Redaction
+
+The daemon enforces a 25 MiB archive cap before compression. Most artifacts cap at 1 MiB, the log
+tail caps at 2 MiB, and event summaries cap at 5 MiB. When a source exceeds its cap, AGH writes a
+truncated artifact and records that truncation in `manifest.json`.
+
+Every JSON artifact flows through the diagnostics redaction layer. Log tails use bounded redaction,
+and the home tree records path metadata only. Operators still own transmission security for the
+downloaded file.
+
+## Retention
+
+Operations are retained in the daemon's in-memory operation store for the current daemon lifetime
+and cleaned up after the support-bundle retention window. Archive files remain under
+`$AGH_HOME/support-bundles/` until the operator removes them.
+
+## Log Rotation
+
+Support bundles depend on recent `agh.log` content, so AGH rotates that file natively through the
+`[log]` config block:
+
+```toml
+[log]
+level = "info"
+max_size_mb = 10
+max_backups = 5
+max_age_days = 30
+compress_backups = false
+```
+
+These keys are `restart-required` in v1. Restart the daemon after changing log rotation settings.

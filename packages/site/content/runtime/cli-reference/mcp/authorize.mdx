@@ -1,0 +1,44 @@
+---
+title: "agh mcp authorize"
+description: "Authorize a remote MCP server through the daemon"
+---
+
+## agh mcp authorize
+
+Authorize a remote MCP server through the daemon
+
+```
+agh mcp authorize <server> [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for authorize
+      --manual             Paste an authorization code or redirect URL
+      --scope string       MCP server scope: global or workspace (default "global")
+      --timeout duration   Authorization timeout (default 5m0s)
+      --workspace string   Workspace ID for workspace scope
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh mcp authorize <server> -o json
+```

@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AGH · Create task — redesign</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ───────────────────────────────────────────────────────────
+   AGH tokens — canonical set shared with create-trigger-redesign.html
+   warm-dark surface ramp · single operator-orange accent · flat depth
+   ─────────────────────────────────────────────────────────── */
+:root{
+  color-scheme: dark;
+  --rail:#0c0b0b; --canvas:#131211; --surface:#1a1918; --surface-2:#1c1b1a;
+  --elevated:#232220; --hover:rgba(255,255,255,0.022); --selected:rgba(255,255,255,0.03);
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,0.055); --line-soft:rgba(255,255,255,0.03); --line-strong:rgba(255,255,255,0.09);
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,0.10); --accent-tint-strong:rgba(232,87,42,0.16); --accent-dim:rgba(232,87,42,0.24);
+  --success:#5fbf85; --success-tint:rgba(95,191,133,0.08);
+  --warning:#d6a647; --warning-tint:rgba(214,166,71,0.08);
+  --danger:#e0635a;  --danger-tint:rgba(224,99,90,0.09);
+  --info:#8e8eb5;    --info-tint:rgba(142,142,181,0.12);
+  --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,0.06);
+  --input-fill:rgba(255,255,255,0.025); --badge-fill:rgba(255,255,255,0.05);
+  --btn-fill:rgba(255,255,255,0.04); --btn-fill-hover:rgba(255,255,255,0.07);
+  --scrim:rgba(0,0,0,0.62);
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+  --dur-fast:100ms; --dur:140ms; --dur-slow:200ms; --ease:cubic-bezier(.2,0,0,1);
+  --shadow-overlay:0 24px 48px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.045);
+  --highlight:inset 0 1px 0 rgba(255,255,255,0.035);
+  --focus-ring:0 0 0 1px var(--line-strong);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--fg);
+  font-family:var(--font-sans); font-size:13.5px; line-height:1.5; letter-spacing:-0.006em;
+  font-feature-settings:"cv01","ss03","cv11";
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow:hidden;
+}
+::selection{background:var(--accent-dim);color:var(--fg-strong)}
+svg{display:block}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.hide{display:none!important}
+
+/* ── faint product backdrop (the tasks board, dimmed behind the modal) ── */
+.backdrop{position:fixed;inset:0;display:flex;filter:saturate(.9);opacity:.42;pointer-events:none}
+.bd-rail{width:52px;background:var(--rail);border-right:1px solid var(--line-soft);flex:none}
+.bd-rail span{display:block;width:24px;height:24px;margin:16px auto;border-radius:7px;background:var(--surface)}
+.bd-main{flex:1;padding:26px 40px}
+.bd-h{height:30px;width:160px;border-radius:6px;background:var(--surface);margin-bottom:6px}
+.bd-sub{height:13px;width:300px;border-radius:5px;background:var(--surface-2);margin-bottom:26px}
+.bd-cols{display:flex;gap:14px}
+.bd-col{flex:1}
+.bd-col .bd-ch{height:12px;width:80px;border-radius:5px;background:var(--surface-2);margin-bottom:10px}
+.bd-card{height:64px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface);margin-bottom:10px}
+
+/* ── scrim + modal shell ── */
+.scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(2px);display:grid;place-items:center;padding:28px}
+.modal{
+  width:min(760px,100%); height:min(852px,93vh);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-overlay); display:grid; grid-template-rows:auto auto 1fr auto; overflow:hidden;
+}
+.modal__head{display:flex;align-items:flex-start;gap:16px;padding:20px 24px 18px;border-bottom:1px solid var(--line-soft)}
+.head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+  background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.head-icon svg{width:18px;height:18px}
+.head-txt{flex:1;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+.modal__title{font-size:16px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em;margin-top:3px}
+.modal__sub{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:64ch}
+.head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);
+  background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:all var(--dur) var(--ease)}
+.head-close:hover{background:var(--hover);color:var(--fg)}
+.head-close svg{width:16px;height:16px}
+
+/* ── mode toolbar (Simple | Advanced) — pinned at top, always visible ── */
+.toolbar{display:flex;align-items:center;gap:14px;padding:12px 24px;border-bottom:1px solid var(--line-soft);
+  background:var(--surface-2)}
+.toolbar__spacer{flex:1}
+.toolbar__scope{display:flex;align-items:center;gap:10px}
+.toolbar__lbl{font-size:11.5px;font-weight:500;color:var(--subtle);letter-spacing:-0.005em}
+
+.modal__body{display:grid;grid-template-columns:1fr;min-height:0}
+.form{overflow-y:auto;padding:22px 24px 26px}
+.form::-webkit-scrollbar{width:10px}
+.form::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06);border-radius:99px;border:3px solid transparent;background-clip:padding-box}
+
+/* ── field primitives ── */
+.field{margin-bottom:18px}
+.field:last-child{margin-bottom:0}
+.label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--fg-strong);margin-bottom:7px}
+.label .opt{font-size:11px;font-weight:400;color:var(--faint);letter-spacing:0}
+.label .req{color:var(--accent-strong);font-weight:600;font-size:11px}
+.hint{font-size:11.5px;color:var(--subtle);margin-top:7px;line-height:1.45}
+.hint code{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.input,.textarea,select.input{
+  width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);
+  border:1px solid var(--line);border-radius:var(--radius-md);font-family:inherit;font-size:13px;
+  outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease);
+}
+.input::placeholder,.textarea::placeholder{color:var(--faint)}
+.input:focus,.textarea:focus,select.input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+.input:disabled{opacity:.45;cursor:not-allowed}
+.textarea{height:auto;padding:10px 11px;resize:vertical;min-height:84px;line-height:1.55}
+.input--mono,.textarea--mono{font-family:var(--font-mono);font-size:12px;letter-spacing:0}
+select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;cursor:pointer}
+
+/* ── section heading (advanced grouping) ──
+   Divider lives on every section EXCEPT the very first one in the form.
+   Scope the reset to `.form > .sec:first-child` so it only clears the
+   Contract section — the advanced groups live inside #adv-groups, and
+   their first child (Placement) must keep its divider from Priority. */
+.sec{margin-top:28px;padding-top:22px;border-top:1px solid var(--line)}
+.form > .sec:first-child{margin-top:0;padding-top:0;border-top:0}
+.sec__head{display:flex;align-items:baseline;gap:9px;margin-bottom:15px}
+.sec__num{font-family:var(--font-mono);font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:.04em}
+.sec__title{font-size:13px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em}
+.sec__sub{font-size:11.5px;color:var(--subtle)}
+
+/* ── template / "how it runs" cards ── */
+.tpl-grid{display:grid;gap:8px}
+.tpl-grid.cols2{grid-template-columns:1fr 1fr}
+.tpl-grid.cols3{grid-template-columns:1fr 1fr 1fr}
+.tpl{display:flex;flex-direction:column;gap:0;text-align:left;padding:13px 13px 12px;cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--radius-md);position:relative;
+  transition:all var(--dur) var(--ease)}
+.tpl:hover{background:var(--elevated);border-color:var(--line)}
+.tpl[aria-pressed="true"]{background:var(--accent-tint);border-color:transparent;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.tpl__top{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+.tpl__ic{flex:none;width:28px;height:28px;border-radius:var(--radius);display:grid;place-items:center;
+  background:var(--badge-fill);color:var(--muted)}
+.tpl[aria-pressed="true"] .tpl__ic{background:rgba(232,87,42,.16);color:var(--accent-strong)}
+.tpl__ic svg{width:15px;height:15px}
+.tpl__name{flex:1;font-size:12.5px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em}
+.tpl[aria-pressed="true"] .tpl__name{color:var(--accent-strong)}
+.tpl__check{flex:none;width:15px;height:15px;color:var(--accent-strong);opacity:0;transition:opacity var(--dur)}
+.tpl[aria-pressed="true"] .tpl__check{opacity:1}
+.tpl__desc{font-size:11.5px;color:var(--subtle);line-height:1.45}
+.tpl__badge{display:inline-flex;align-items:center;align-self:flex-start;margin-top:9px;font-size:10px;font-weight:600;
+  letter-spacing:.03em;padding:2px 7px;border-radius:var(--radius-pill);text-transform:none}
+.b-neutral{background:var(--neutral-tint);color:var(--neutral)}
+.b-info{background:var(--info-tint);color:var(--info)}
+.b-warn{background:var(--warning-tint);color:var(--warning)}
+.b-acc{background:var(--accent-tint-strong);color:var(--accent-strong)}
+
+/* ── pillgroups ── */
+.pillgroup{display:inline-flex;padding:2px;gap:2px;background:var(--input-fill);border:1px solid var(--line);border-radius:var(--radius-md);flex-wrap:wrap}
+.pill{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:500;
+  height:25px;padding:0 13px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  transition:all var(--dur) var(--ease)}
+.pill[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+.pill svg{width:13px;height:13px}
+.pill .dot{width:7px;height:7px;border-radius:50%}
+.pill[data-priority="low"] .dot{background:var(--neutral)}
+.pill[data-priority="medium"] .dot{background:var(--info)}
+.pill[data-priority="high"] .dot{background:var(--warning)}
+.pill[data-priority="urgent"] .dot{background:var(--accent-strong)}
+
+.scope-row{display:flex;align-items:center;gap:10px}
+.ws-pick{display:none;align-items:center}
+.ws-pick[data-show="1"]{display:flex}
+.ws-pick .input{height:28px;min-width:150px;font-size:12.5px}
+
+/* two-up grid */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px 16px}
+.grid2 .full{grid-column:1/-1}
+
+/* owner composite */
+.owner-row{display:grid;grid-template-columns:170px 1fr;gap:10px}
+
+/* switch */
+.switch-row{display:flex;align-items:center;gap:12px;padding:12px 13px;border:1px solid var(--line-soft);border-radius:var(--radius-md);
+  background:var(--surface-2)}
+.switch{flex:none;width:32px;height:18px;border-radius:99px;background:var(--elevated);border:1px solid var(--line);position:relative;cursor:pointer;transition:all var(--dur)}
+.switch::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:all var(--dur) var(--ease)}
+.switch[aria-checked="true"]{background:var(--accent);border-color:transparent}
+.switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--accent-ink)}
+.switch-txt{flex:1}
+.switch-txt b{display:block;font-size:12.5px;color:var(--fg-strong);font-weight:500}
+.switch-txt span{font-size:11.5px;color:var(--subtle)}
+
+/* contextual note */
+.note{display:flex;align-items:flex-start;gap:9px;font-size:11.5px;color:var(--subtle);line-height:1.45;
+  padding:10px 12px;border:1px solid var(--line-soft);border-left:2px solid var(--accent-dim);border-radius:var(--radius-md);
+  background:var(--surface-2);margin-top:12px}
+.note svg{flex:none;width:14px;height:14px;color:var(--accent-strong);margin-top:1px}
+.note b{color:var(--fg);font-weight:500}
+
+/* collapsible */
+.coll{margin-top:28px;border-top:1px solid var(--line);padding-top:4px}
+.coll__trigger{display:flex;align-items:center;gap:8px;width:100%;padding:11px 2px;background:transparent;border:0;cursor:pointer;
+  font:inherit;color:var(--fg-strong);font-size:13px;font-weight:600;list-style:none}
+.coll__trigger::-webkit-details-marker{display:none}
+.coll__trigger::marker{content:""}
+.coll__trigger .chev{width:15px;height:15px;color:var(--muted);transition:transform var(--dur)}
+.coll[open] .chev{transform:rotate(90deg)}
+.coll__trigger .grow{flex:1;text-align:left}
+.coll__trigger .badge{font-size:11px;font-weight:400;color:var(--subtle)}
+.coll__body{padding:8px 2px 4px;display:none}
+.coll[open] .coll__body{display:block}
+
+/* ── footer ── */
+.modal__foot{display:flex;align-items:center;gap:12px;padding:14px 24px;border-top:1px solid var(--line-soft);background:var(--surface)}
+.foot-note{flex:1;font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:7px;line-height:1.4}
+.foot-note svg{flex:none;width:13px;height:13px;color:var(--faint)}
+.btn{height:30px;padding:0 14px;border-radius:var(--radius);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;transition:all var(--dur) var(--ease)}
+.btn:active{transform:translateY(1px)}
+.btn--outline{background:transparent;border-color:var(--line);color:var(--fg)}
+.btn--outline:hover{background:var(--hover)}
+.btn--primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--primary svg{width:14px;height:14px}
+
+@media (max-width:980px){
+  .modal{height:95vh}
+  .tpl-grid.cols3{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- faint product context behind the modal -->
+<div class="backdrop" aria-hidden="true">
+  <div class="bd-rail"><span></span><span></span><span></span></div>
+  <div class="bd-main">
+    <div class="bd-h"></div><div class="bd-sub"></div>
+    <div class="bd-cols">
+      <div class="bd-col"><div class="bd-ch"></div><div class="bd-card"></div><div class="bd-card"></div></div>
+      <div class="bd-col"><div class="bd-ch"></div><div class="bd-card"></div><div class="bd-card"></div></div>
+      <div class="bd-col"><div class="bd-ch"></div><div class="bd-card"></div></div>
+      <div class="bd-col"><div class="bd-ch"></div><div class="bd-card"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim">
+  <div class="modal" role="dialog" aria-label="Create task">
+
+    <!-- HEADER -->
+    <header class="modal__head">
+      <div class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <div class="head-txt">
+        <div class="eyebrow">Autonomy · Task</div>
+        <div class="modal__title">Create task</div>
+        <p class="modal__sub">A task is a durable <b style="color:var(--muted);font-weight:500">contract</b> — a unit of work that gets claimed and run by an owner. Runs descend from it and respect its dependencies.</p>
+      </div>
+      <button class="head-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- MODE TOOLBAR -->
+    <div class="toolbar">
+      <div class="pillgroup" id="mode-seg" role="group" aria-label="Editor mode">
+        <button class="pill" data-mode="simple" aria-pressed="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M5 12l4-4M5 12l4 4"/></svg>
+          Simple
+        </button>
+        <button class="pill" data-mode="advanced" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          Advanced
+        </button>
+      </div>
+      <div class="toolbar__spacer"></div>
+      <div class="toolbar__scope">
+        <span class="toolbar__lbl">Scope</span>
+        <div class="scope-row">
+          <div class="pillgroup" id="scope-group" role="group" aria-label="Scope">
+            <button class="pill" data-scope="global" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+              Global
+            </button>
+            <button class="pill" data-scope="workspace" aria-pressed="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>
+              Workspace
+            </button>
+          </div>
+          <div class="ws-pick" id="ws-pick" data-show="1">
+            <select class="input" id="ws-select">
+              <option value="test">test</option>
+              <option value="checkout-api">checkout-api</option>
+              <option value="billing">billing</option>
+              <option value="growth-experiments">growth-experiments</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BODY: single-column form -->
+    <div class="modal__body">
+
+      <section class="form">
+
+        <!-- ── CONTRACT (always visible) ── -->
+        <div class="sec">
+          <div class="sec__head">
+            <span class="sec__num" data-adv>01</span>
+            <span class="sec__title">The contract</span>
+            <span class="sec__sub">What should get done?</span>
+          </div>
+
+          <div class="field">
+            <label class="label" for="t-title">Title <span class="req">required</span></label>
+            <input id="t-title" class="input" value="Generate API client for payments-v3" placeholder="Generate API client for payments-v3">
+          </div>
+
+          <div class="field">
+            <label class="label" for="t-desc">Description <span class="opt">— the outcome, constraints &amp; done criteria</span></label>
+            <textarea id="t-desc" class="textarea" placeholder="Describe the task contract for the agent: expected outcome, constraints, and what 'done' means.">Generate a typed client for the payments-v3 OpenAPI spec. Cover all endpoints, include retry + auth handling, and add a smoke test. Done when the suite passes against the staging mock.</textarea>
+          </div>
+        </div>
+
+        <!-- ── HOW IT RUNS (simple) / TEMPLATE (advanced) ── -->
+        <div class="sec">
+          <div class="sec__head">
+            <span class="sec__num" data-adv>02</span>
+            <span class="sec__title" id="tpl-title">How should it run?</span>
+            <span class="sec__sub" id="tpl-sub">Pick the closest fit — you can change details after.</span>
+          </div>
+          <div class="tpl-grid cols3" id="tpl-grid"></div>
+          <div class="note hide" id="tpl-note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span id="tpl-note-txt"></span>
+          </div>
+        </div>
+
+        <!-- ── PRIORITY (always) ── -->
+        <div class="sec">
+          <div class="sec__head">
+            <span class="sec__num" data-adv>03</span>
+            <span class="sec__title">Priority</span>
+            <span class="sec__sub">Higher priority gets claimed sooner.</span>
+          </div>
+          <div class="pillgroup" id="priority-group" role="group" aria-label="Priority">
+            <button class="pill" data-priority="low" aria-pressed="false"><span class="dot"></span>Low</button>
+            <button class="pill" data-priority="medium" aria-pressed="true"><span class="dot"></span>Medium</button>
+            <button class="pill" data-priority="high" aria-pressed="false"><span class="dot"></span>High</button>
+            <button class="pill" data-priority="urgent" aria-pressed="false"><span class="dot"></span>Urgent</button>
+          </div>
+        </div>
+
+        <!-- ░░░ ADVANCED-ONLY GROUPS ░░░ -->
+        <div id="adv-groups" class="hide">
+
+          <!-- placement -->
+          <div class="sec">
+            <div class="sec__head">
+              <span class="sec__num">04</span>
+              <span class="sec__title">Placement</span>
+              <span class="sec__sub">Where it sits in the task hierarchy.</span>
+            </div>
+            <div class="field">
+              <label class="label" for="t-parent">Parent task <span class="opt">— makes this a child in an epic</span></label>
+              <input id="t-parent" class="input mono" value="" placeholder="Search by identifier or task id (e.g. TASK-118)">
+              <p class="hint">Scope &amp; workspace are set in the toolbar above. Global tasks aren’t bound to a workspace — any owner across the runtime can claim them.</p>
+            </div>
+          </div>
+
+          <!-- queue & ownership -->
+          <div class="sec">
+            <div class="sec__head">
+              <span class="sec__num">05</span>
+              <span class="sec__title">Queue &amp; ownership</span>
+              <span class="sec__sub">Who runs it, and how retries behave.</span>
+            </div>
+
+            <div class="field">
+              <label class="label" for="owner-kind">Owner <span class="opt">— leave unassigned to let a pool claim it</span></label>
+              <div class="owner-row">
+                <select class="input" id="owner-kind">
+                  <option value="">Unassigned</option>
+                  <option value="pool">Agent pool</option>
+                  <option value="agent_session">Agent session</option>
+                  <option value="human">Human</option>
+                  <option value="automation">Automation</option>
+                  <option value="extension">Extension</option>
+                  <option value="network_peer">Network peer</option>
+                </select>
+                <input class="input mono" id="owner-ref" value="" placeholder="select an owner kind first" disabled>
+              </div>
+            </div>
+
+            <div class="grid2">
+              <div class="field" style="margin-bottom:0">
+                <label class="label">Max attempts</label>
+                <div class="pillgroup" id="attempts-group" role="group" aria-label="Max attempts">
+                  <button class="pill mono" data-attempts="1" aria-pressed="true">1</button>
+                  <button class="pill mono" data-attempts="2" aria-pressed="false">2</button>
+                  <button class="pill mono" data-attempts="3" aria-pressed="false">3</button>
+                  <button class="pill mono" data-attempts="5" aria-pressed="false">5</button>
+                </div>
+              </div>
+              <div class="field" style="margin-bottom:0">
+                <label class="label">Approval</label>
+                <div class="pillgroup" id="approval-group" role="group" aria-label="Approval policy">
+                  <button class="pill" data-approval="none" aria-pressed="true">None</button>
+                  <button class="pill" data-approval="manual" aria-pressed="false">Human-in-the-loop</button>
+                </div>
+              </div>
+            </div>
+            <p class="hint" id="approval-hint">A run is retried up to its max attempts before the task is marked failed.</p>
+          </div>
+
+          <!-- ingress & identity -->
+          <div class="sec">
+            <div class="sec__head">
+              <span class="sec__num">06</span>
+              <span class="sec__title">Ingress &amp; identity</span>
+              <span class="sec__sub">Optional — for peer ingress and stable references.</span>
+            </div>
+            <div class="grid2">
+              <div class="field" style="margin-bottom:0">
+                <label class="label" for="t-channel">Network channel <span class="opt">— peer ingress</span></label>
+                <input id="t-channel" class="input mono" value="" placeholder="ingress channel id">
+              </div>
+              <div class="field" style="margin-bottom:0">
+                <label class="label" for="t-identifier">Identifier <span class="opt">— override</span></label>
+                <input id="t-identifier" class="input mono" value="" placeholder="TASK-123">
+              </div>
+            </div>
+          </div>
+
+          <!-- execution flags -->
+          <details class="coll" id="coll-exec">
+            <summary class="coll__trigger">
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="grow">Execution</span>
+              <span class="badge" id="exec-badge">Enqueue on create</span>
+            </summary>
+            <div class="coll__body">
+              <div class="field">
+                <div class="switch-row">
+                  <div class="switch" id="draft-switch" role="switch" aria-checked="false"></div>
+                  <div class="switch-txt">
+                    <b>Save as draft</b>
+                    <span>Create the contract without enqueueing a run. Enqueue it later from the task.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="field" style="margin-bottom:0">
+                <div class="switch-row">
+                  <div class="switch" id="autoenq-switch" role="switch" aria-checked="false"></div>
+                  <div class="switch-txt">
+                    <b>Auto-enqueue when ready</b>
+                    <span>Once dependencies resolve, queue a run automatically without manual action.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+
+        </div><!-- /adv-groups -->
+
+      </section>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="modal__foot">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span id="foot-note-txt">The contract is durable — runs descend from this task and respect dependencies.</span>
+      </div>
+      <button class="btn btn--outline">Cancel</button>
+      <button class="btn btn--primary" id="submit-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span id="submit-label">Enqueue task</span>
+      </button>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  /* ── icons ── */
+  const IC = {
+    oneshot:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>',
+    recurring:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
+    epic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+    remote:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.2 10.8 16.8 7.2M7.2 13.2 16.8 16.8"/></svg>',
+    human:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11l2 2 4-4"/><path d="M14 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="8" cy="7" r="4"/></svg>',
+    blank:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    dot:'<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="5"/></svg>',
+    lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+  };
+
+  /* ── template catalog (autonomy task templates — NO scheduling) ──
+     `simple` flags the three a normal user sees in Simple mode. Each preset
+     mirrors web/ lib/task-templates.ts: which draft fields it sets, the
+     badge, and whether submit enqueues immediately or saves a draft.        */
+  const TEMPLATES = {
+    one_shot:    { label:"Run once",        advLabel:"One-shot",                 icon:"oneshot",   simple:true,  badge:["1 run","b-neutral"],
+      advDesc:"A single task with one run. Good default for ad-hoc work.",
+      simpleDesc:"Do it now, once. Best for most things.",
+      preset:{ priority:"medium", maxAttempts:1, approval:"none", draft:false }, enqueue:true },
+    human_in_loop:{ label:"Needs approval", advLabel:"Human-in-the-loop",        icon:"human",     simple:true,  badge:["Approvals","b-warn"],
+      advDesc:"Agent proposes, human approves. Pauses on blocked until approved in Inbox.",
+      simpleDesc:"The agent waits for your sign-off before acting.",
+      preset:{ priority:"high", approval:"manual", draft:false }, enqueue:true },
+    epic:        { label:"Break into steps",advLabel:"Epic with children",       icon:"epic",      simple:true,  badge:["Epic","b-info"],
+      advDesc:"A parent task that decomposes into child tasks. Reconciled via dependencies; children added after creation.",
+      simpleDesc:"A big goal — add sub-tasks under it afterward.",
+      preset:{ priority:"high", approval:"none", draft:false }, enqueue:true },
+    recurring:   { label:"Recurring",       advLabel:"Recurring via automation", icon:"recurring", simple:false, badge:["Automation","b-info"],
+      advDesc:"Bind a schedule from Automation — re-enqueues a run every tick. Configure it from Automation after the draft is saved.",
+      simpleDesc:"",
+      preset:{ priority:"medium", approval:"none", draft:true }, enqueue:false },
+    remote_peer: { label:"Remote",          advLabel:"Remote from peer",         icon:"remote",    simple:false, badge:["Network","b-info"],
+      advDesc:"Ingress from a network channel. Remote peers enqueue; the local owner claims when ready.",
+      simpleDesc:"",
+      preset:{ priority:"medium", approval:"none", draft:false }, enqueue:true },
+    blank:       { label:"Blank",           advLabel:"Blank task",               icon:"blank",     simple:false, badge:["Custom","b-neutral"],
+      advDesc:"Start with an empty form. Full control over owner, origin, and identity.",
+      simpleDesc:"",
+      preset:{ draft:false }, enqueue:true }
+  };
+  const SIMPLE_TPLS = ["one_shot","human_in_loop","epic"];
+
+  const OWNER_PH = {
+    pool:"worker-pool id or agent name", agent_session:"sess-…", human:"human id or handle",
+    automation:"automation id", extension:"extension id", network_peer:"peer id"
+  };
+
+  /* ── state ── */
+  const state = {
+    mode:"simple",
+    template:"one_shot",
+    title:$("t-title").value,
+    description:$("t-desc").value,
+    scope:"workspace", workspace:"test",
+    priority:"medium",
+    ownerKind:"", ownerRef:"",
+    parentTaskId:"",
+    maxAttempts:1,
+    approval:"none",
+    networkChannel:"", identifier:"",
+    draft:false, autoEnqueue:false,
+    priorityTouched:false   // templates set priority unless the user overrode it
+  };
+
+  /* ── template application (preset the draft fields) ── */
+  function applyTemplate(id){
+    state.template = id;
+    const p = TEMPLATES[id].preset;
+    if(p.priority && !state.priorityTouched) state.priority = p.priority;
+    if("maxAttempts" in p) state.maxAttempts = p.maxAttempts;
+    if("approval" in p) state.approval = p.approval;
+    state.draft = !!p.draft;
+  }
+
+  /* ── render template cards (mode-aware) ── */
+  function renderTemplates(){
+    const grid = $("tpl-grid");
+    const adv = state.mode==="advanced";
+    grid.className = "tpl-grid " + (adv ? "cols2" : "cols3");
+    const ids = adv ? Object.keys(TEMPLATES) : SIMPLE_TPLS;
+    grid.innerHTML = ids.map(id=>{
+      const t = TEMPLATES[id];
+      const on = id===state.template;
+      const name = adv ? t.advLabel : t.label;
+      const desc = adv ? t.advDesc : t.simpleDesc;
+      const badge = adv ? '<span class="tpl__badge '+t.badge[1]+'">'+t.badge[0]+'</span>' : '';
+      return '<button class="tpl" data-tpl="'+id+'" aria-pressed="'+on+'">'
+        +   '<span class="tpl__top">'
+        +     '<span class="tpl__ic">'+IC[t.icon]+'</span>'
+        +     '<span class="tpl__name">'+esc(name)+'</span>'
+        +     '<span class="tpl__check">'+IC.check+'</span>'
+        +   '</span>'
+        +   '<span class="tpl__desc">'+esc(desc)+'</span>'
+        +   badge
+        + '</button>';
+    }).join("");
+    grid.querySelectorAll(".tpl").forEach(b=>{
+      b.addEventListener("click",()=>{ applyTemplate(b.dataset.tpl); syncControls(); render(); });
+    });
+  }
+
+  /* ── sync standalone controls to state ── */
+  function syncControls(){
+    $("priority-group").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed", String(p.dataset.priority===state.priority)));
+    $("scope-group").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed", String(p.dataset.scope===state.scope)));
+    $("ws-pick").dataset.show = state.scope==="workspace" ? "1" : "0";
+    $("attempts-group").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed", String(+p.dataset.attempts===state.maxAttempts)));
+    $("approval-group").querySelectorAll(".pill").forEach(p=>p.setAttribute("aria-pressed", String(p.dataset.approval===state.approval)));
+    $("owner-kind").value = state.ownerKind;
+    const ref = $("owner-ref");
+    ref.disabled = !state.ownerKind;
+    ref.placeholder = state.ownerKind ? OWNER_PH[state.ownerKind] : "select an owner kind first";
+    if(!state.ownerKind) ref.value = "";
+    $("draft-switch").setAttribute("aria-checked", String(state.draft));
+    $("autoenq-switch").setAttribute("aria-checked", String(state.autoEnqueue));
+    $("exec-badge").textContent = state.draft ? "Saved as draft" : "Enqueue on create";
+    $("approval-hint").textContent = state.approval==="manual"
+      ? "The first run waits for approval in your Inbox before an owner can claim it."
+      : "A run is retried up to its max attempts before the task is marked failed.";
+  }
+
+  /* ── render mode (show/hide advanced groups) ── */
+  function renderMode(){
+    const adv = state.mode==="advanced";
+    $("adv-groups").classList.toggle("hide", !adv);
+    $("mode-seg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.mode===state.mode)));
+    document.querySelectorAll("[data-adv]").forEach(el=>el.classList.toggle("hide", !adv));
+    $("tpl-title").textContent = adv ? "Template" : "How should it run?";
+    $("tpl-sub").textContent = adv ? "Presets the contract fields below — tweak any of them." : "Pick the closest fit — you can change details after.";
+    const note = state.template==="recurring";
+    $("tpl-note").classList.toggle("hide", !note);
+    if(note) $("tpl-note-txt").innerHTML = "Saved as a <b>draft</b>. Attach the schedule from <b>Automation</b> after it’s created — scheduling lives there, not on the task.";
+  }
+
+  function renderFooter(){
+    $("submit-label").textContent = state.draft ? "Save draft" : "Enqueue task";
+    $("foot-note-txt").innerHTML = state.draft
+      ? "Saved as a <b style=\"color:var(--muted);font-weight:500\">draft</b> — no run is queued until you enqueue it."
+      : "The contract is durable — runs descend from this task and respect dependencies.";
+  }
+
+  function render(){
+    renderTemplates();
+    renderMode();
+    renderFooter();
+  }
+
+  /* ── events ── */
+  $("mode-seg").querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click",()=>{
+      state.mode = b.dataset.mode;
+      // dropping to Simple while on an advanced-only template → snap to one-shot
+      if(state.mode==="simple" && SIMPLE_TPLS.indexOf(state.template)<0) applyTemplate("one_shot");
+      syncControls(); render();
+    });
+  });
+
+  $("t-title").addEventListener("input",e=>{ state.title=e.target.value; });
+  $("t-desc").addEventListener("input",e=>{ state.description=e.target.value; });
+  $("t-parent").addEventListener("input",e=>{ state.parentTaskId=e.target.value.trim(); });
+  $("t-channel").addEventListener("input",e=>{ state.networkChannel=e.target.value.trim(); });
+  $("t-identifier").addEventListener("input",e=>{ state.identifier=e.target.value.trim(); });
+
+  $("priority-group").querySelectorAll(".pill").forEach(p=>{
+    p.addEventListener("click",()=>{ state.priority=p.dataset.priority; state.priorityTouched=true; syncControls(); });
+  });
+  $("scope-group").querySelectorAll(".pill").forEach(p=>{
+    p.addEventListener("click",()=>{ state.scope=p.dataset.scope; syncControls(); });
+  });
+  $("ws-select").addEventListener("change",e=>{ state.workspace=e.target.value; });
+  $("attempts-group").querySelectorAll(".pill").forEach(p=>{
+    p.addEventListener("click",()=>{ state.maxAttempts=+p.dataset.attempts; syncControls(); });
+  });
+  $("approval-group").querySelectorAll(".pill").forEach(p=>{
+    p.addEventListener("click",()=>{ state.approval=p.dataset.approval; syncControls(); });
+  });
+  $("owner-kind").addEventListener("change",e=>{ state.ownerKind=e.target.value; if(!state.ownerKind) state.ownerRef=""; syncControls(); });
+  $("owner-ref").addEventListener("input",e=>{ state.ownerRef=e.target.value.trim(); });
+  $("draft-switch").addEventListener("click",()=>{ state.draft=!state.draft; syncControls(); renderFooter(); });
+  $("autoenq-switch").addEventListener("click",()=>{ state.autoEnqueue=!state.autoEnqueue; syncControls(); });
+
+  /* ── init ── */
+  applyTemplate("one_shot");
+  syncControls();
+  render();
+})();
+</script>
+</body>
+</html>

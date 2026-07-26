@@ -1,0 +1,181 @@
+---
+title: Runtime Overview
+description: What AGH Runtime is, why it exists, and when it's the right operating model for your agent work.
+---
+
+AGH is the runtime you reach for when one-off terminal sessions stop being enough. It takes the
+agent CLIs you already trust — Claude Code, OpenClaw, Hermes, and others — and turns them into
+durable work with replayable history, workspace-aware memory, automation, and one operator surface
+across the CLI, HTTP/SSE, and the web UI.
+
+You can call AGH an agent operating system, but the useful part of that label is not the
+metaphor. It is what the runtime actually gives you: agent work that stays alive, inspectable, and
+governable after the terminal window is gone.
+
+## Start by job
+
+<RouteList>
+  <RouteRow
+    href="/runtime/how-to-use-these-docs"
+    label="Orientation"
+    title="Choose the right docs path"
+    description="Use this when you are unsure whether you need a tutorial, guide, use case, concept page, CLI reference, or API route map."
+    meta="Start here"
+  />
+  <RouteRow
+    href="/runtime/core/getting-started/quick-start"
+    label="Tutorial"
+    title="Run your first durable session"
+    description="Start the daemon, register a workspace, create one session, follow events, stop it, and resume it."
+    meta="First loop"
+  />
+  <RouteRow
+    href="/runtime/guides"
+    label="Guides"
+    title="Solve an operator problem"
+    description="Choose a surface, debug a failed session, or coordinate agents through AGH Network without reading every subsystem page first."
+    meta="How-to"
+  />
+  <RouteRow
+    href="/runtime/use-cases"
+    label="Use Cases"
+    title="Start from a real operating scenario"
+    description="Review a code change, run a release readiness sweep, or hand off work between agents with concrete commands and evidence checkpoints."
+    meta="Examples"
+  />
+  <RouteRow
+    href="/runtime/core/sessions"
+    label="Concepts"
+    title="Understand the runtime model"
+    description="Read the operating model behind sessions, workspaces, agents, memory, tools, automation, hooks, and extensions."
+    meta="Mental model"
+  />
+  <RouteRow
+    href="/runtime/cli-reference"
+    label="Reference"
+    title="Look up exact commands"
+    description="Use the generated CLI reference for flags, output formats, subcommands, and command-specific examples."
+    meta="Generated"
+  />
+</RouteList>
+
+<figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--line) bg-(--canvas-soft) p-2">
+  <img
+    src="/images/runtime/runtime-overview-storyboard-v1.png"
+    alt="Hand-drawn AGH Runtime poster showing real agent CLIs becoming durable sessions, the runtime hub for memory and workspaces, unified operator surfaces, and AGH Network as the coordination layer."
+    loading="eager"
+    decoding="async"
+    className="h-auto w-full rounded-md"
+  />
+</figure>
+
+## The problem AGH solves
+
+Most agent CLIs are excellent at doing work inside one session, but weak at everything around the
+session:
+
+- the run disappears when the terminal closes
+- there is no clean replay or audit trail
+- each project needs its own context, defaults, and guardrails
+- coordinating multiple specialized agents turns into custom glue code
+- operators end up stitching together scripts, logs, and dashboards that never become a product
+
+AGH fills that gap with a local-first runtime that keeps work durable and observable without asking
+you to abandon the agent CLIs you already use.
+
+## What AGH Runtime adds
+
+### Run real agent CLIs as durable work
+
+AGH does not reimplement agent logic behind API wrappers. It orchestrates real agent CLIs as
+managed sessions, so Claude Code stays Claude Code, OpenClaw stays OpenClaw, and Hermes stays
+Hermes.
+
+That matters because you keep the native tools, context behavior, and interaction style of each
+agent instead of flattening everything into one abstraction layer.
+
+### Keep sessions durable, replayable, and auditable
+
+Each session becomes a durable unit of work. You can stop it, resume it, inspect the event history,
+and reconstruct what happened when a run needs review or recovery.
+
+Instead of losing the context after a crash, restart, or handoff, AGH keeps the operational record
+around the work itself.
+
+### Standardize behavior per workspace
+
+AGH layers configuration, memory, and skills around the workspace, so each project can carry its
+own defaults without forcing one global setup to fit every team and repository.
+
+That gives operators a cleaner way to keep agent behavior consistent without rebuilding prompts and
+context on every run.
+
+### Operate from one control surface
+
+The same runtime is available through the CLI, HTTP/SSE, and the web UI. Sessions, memory,
+automation, bridges, and observability live in one local control plane instead of a pile of
+separate tools.
+
+### Add AGH Network when agents need to coordinate
+
+AGH Runtime is only half the story. When you need specialized agents to discover peers, delegate
+work, exchange updates, and report results cleanly, AGH Network provides the open coordination
+layer behind the runtime.
+
+That layer is intentionally separate: AGH ships the reference implementation, but the network
+boundary is documented so other runtimes can adopt it too. Agents can publish
+[capability catalogs](/runtime/core/agents/capabilities) so peers discover outcomes instead of
+internal tool names.
+
+Under the hood, AGH runs as a single local daemon that manages sessions, persists events, and
+talks to compatible agents through a standardized protocol layer. The operating model matters more
+than the internals — head into [Sessions](/runtime/core/sessions) when you want the package-level view.
+
+## Why AGH vs. other models
+
+The AI agent ecosystem is crowded. The useful question is not "which project exists," but "which
+operating model are you actually buying into?"
+
+AGH is the local-first runtime for durable agent work, plus **AGH Network** — the open agent
+network protocol for interoperable coordination across runtimes. That is a different lane from a
+channel-native assistant, a hosted gateway, or a framework for building custom orchestration from
+scratch.
+
+| Operating model                             | Best fit                                                                                             | Where AGH differs                                                                                                   |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Personal assistant or channel-native helper | You want one assistant surface that lives inside chat tools and user-facing channels.                | AGH focuses on durable runtime governance and an open agent network, not on being one assistant persona everywhere. |
+| Hosted or multi-tenant gateway              | You need a centralized control plane, shared tenancy, and platform-style operations.                 | AGH stays local-first and self-hosted on the machine doing the work.                                                |
+| Agent framework                             | You want to design custom reasoning loops, graphs, or orchestration logic from scratch.              | AGH manages real agent CLIs you already use instead of asking you to rebuild them as a framework abstraction.       |
+| Tool protocol only                          | You need one agent to talk to tools and resources.                                                   | AGH covers runtime behavior and durable sessions; AGH Network is the open agent network protocol.                   |
+| Durable agent runtime                       | You want local sessions, replay, memory, automation, and operational control around real agent CLIs. | This is AGH's primary lane.                                                                                         |
+
+Most alternatives optimize for one of these lanes: assistant surface, hosted gateway, framework for
+custom orchestration, or protocol for tool access. AGH sits at a different seam — **AGH Runtime**
+gives operators durable sessions, replay, memory, automation, and observability around real agent
+CLIs, while **AGH Network** gives the ecosystem a protocol boundary for discovery, delegation, and
+structured coordination.
+
+### When AGH is the right choice
+
+AGH is a strong fit when you:
+
+- run real agent CLIs and need them to behave like durable work instead of ephemeral chat
+- want replay, auditability, and observability without bolting on external control planes
+- need project-specific memory, policies, and behavior without rebuilding prompts every time
+- expect specialized agents to coordinate later and want that future to stay open
+
+### When another lane may fit better
+
+- Choose a channel-native assistant product if the main job is user-facing help inside chat tools.
+- Choose a hosted gateway if the main job is centralized multi-tenant operations.
+- Choose an agent framework if the main job is building custom orchestration logic from the ground up.
+- Choose a protocol-only layer if the problem is tool connectivity, not runtime control or coordination.
+
+AGH exists for the gap between those categories: durable runtime governance for real agent work,
+paired with an open coordination layer that does not have to stay AGH-only.
+
+## What AGH is not
+
+- **Not an agent framework.** AGH does not ask you to rebuild your agents as chains, graphs, or wrapper abstractions.
+- **Not an API wrapper.** The point is to keep real agent CLIs intact, not to flatten them into thin model calls.
+- **Not a hosted control plane.** AGH is local-first. The runtime lives on your machine and keeps data close to the workspace.

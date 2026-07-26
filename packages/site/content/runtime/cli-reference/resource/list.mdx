@@ -1,0 +1,48 @@
+---
+title: "agh resource list"
+description: "List desired-state resources"
+---
+
+## agh resource list
+
+List desired-state resources
+
+```
+agh resource list [flags]
+```
+
+### Options
+
+```
+  -h, --help                 help for list
+      --kind string          Filter by resource kind
+      --last int             Maximum number of resources to return
+      --owner-id string      Filter by owner id
+      --owner-kind string    Filter by owner kind
+      --scope-id string      Filter by scope id
+      --scope-kind string    Filter by scope kind
+      --source-id string     Filter by source id
+      --source-kind string   Filter by source kind
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh resource list -o json
+```

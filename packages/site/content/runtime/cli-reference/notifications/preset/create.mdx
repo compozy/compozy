@@ -1,0 +1,44 @@
+---
+title: "agh notifications preset create"
+description: "Create a notification preset"
+---
+
+## agh notifications preset create
+
+Create a notification preset
+
+```
+agh notifications preset create <name> [flags]
+```
+
+### Options
+
+```
+      --enabled              Create the preset as enabled
+      --event stringArray    Event pattern to match; repeat for multiple patterns
+      --filter string        Optional filter expression
+  -h, --help                 help for create
+      --target stringArray   Target as bridge_id:canonical_route; repeat for multiple targets
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh notifications preset create <name> -o json
+```

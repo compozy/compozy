@@ -1,0 +1,306 @@
+---
+title: SKILL.md Format
+description: The accepted SKILL.md frontmatter schema, Markdown body rules, MCP sidecars, hooks, and complete examples.
+---
+
+`SKILL.md` is the authoring contract for AGH skills. The file starts with YAML frontmatter, then a
+Markdown body with procedural instructions for the agent.
+
+```text
+---
+name: refactor-checklist
+description: Review small refactors for behavior, test coverage, and rollback risk.
+version: "1.0.0"
+---
+
+# Refactor Checklist
+
+Use this skill when you are reviewing or performing a scoped refactor.
+```
+
+Missing or unterminated frontmatter is a parse error. A missing `name` is also a parse error.
+Missing descriptions are allowed by code but logged as a warning and are poor catalog entries.
+
+## Top-level Frontmatter
+
+AGH currently maps these top-level fields into the runtime skill model.
+
+| Field         | Type   | Required                        | Current behavior                                                                                                                        |
+| ------------- | ------ | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | string | yes                             | Trimmed and used as the unique skill identifier. Missing names fail parsing.                                                            |
+| `description` | string | no in code, yes for useful docs | Trimmed and injected into the prompt catalog. Descriptions over 200 runes are truncated in prompts. Missing descriptions log a warning. |
+| `version`     | string | no                              | Stored as metadata and used for marketplace provenance/update comparisons when available.                                               |
+| `metadata`    | object | no                              | Free-form metadata. AGH currently acts on `metadata.agh.when`, `metadata.agh.mcp_servers`, and `metadata.agh.hooks`.                    |
+
+Unknown top-level fields are logged as warnings but do not fail parsing. Avoid relying on that
+leniency for portable skills.
+
+Common AgentSkills or Claude-style fields such as `allowed-tools`, `user-invocable`, and
+`argument-hint` are examples of that leniency today. AGH may load a file that contains them, but the
+current runtime does not use those fields for tool permissions, invocation, or catalog behavior.
+Use `metadata.agh.mcp_servers`, `metadata.agh.hooks`, and normal AGH configuration for behavior AGH
+must enforce.
+
+## AGH Metadata
+
+AGH-specific runtime behavior lives under `metadata.agh` so the file remains compatible with plain
+AgentSkills readers.
+
+| Field                      | Type                        | Required | Current behavior                                                                                                          |
+| -------------------------- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `metadata.agh.when`        | activation gate object      | no       | Controls whether the skill is offered in the current prompt catalog. Unknown gate names or malformed values fail parsing. |
+| `metadata.agh.mcp_servers` | array of MCP server objects | no       | Parsed into skill MCP declarations and merged into session startup MCP servers. Malformed entries are warned and skipped. |
+| `metadata.agh.hooks`       | array of hook declarations  | no       | Parsed into skill-sourced hooks. Invalid hook declarations fail skill parsing.                                            |
+| `metadata.agh.memory_tags` | string array                | no       | RFC-only today. The current runtime does not use this field.                                                              |
+
+### `metadata.agh.when`
+
+Activation gates keep a skill out of agent prompt catalogs when its declared runtime requirements
+are not met. They do not disable or hide the skill from management surfaces: `agh skill list`,
+`agh skill info`, the Skills UI, and the HTTP/UDS skill payloads retain the skill with
+`activation.active: false` and structured `activation.reasons`. Explicit `skill view` reads also
+remain available.
+
+```yaml
+metadata:
+  agh:
+    when:
+      platforms: [darwin, linux]
+      requires_tools: [agh__browser_screenshot]
+      requires_capabilities: [browser.operate]
+```
+
+| Gate                    | Match rule | Runtime input                                                                                                                         |
+| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `platforms`             | any        | The current Go operating system (`darwin`, `linux`, or another canonical `runtime.GOOS` value). AGH does not accept platform aliases. |
+| `environments`          | any        | An explicit activation environment context. The current daemon does not provide one, so a non-empty gate fails closed.                |
+| `requires_tools`        | all        | Tool IDs callable for the current workspace, agent, and session. Availability is resolved when the catalog is built.                  |
+| `requires_capabilities` | all        | Capabilities authored on the effective agent. Network or extension capabilities are not merged into this gate.                        |
+
+Different gate families compose with AND: every declared family must pass. Values are trimmed,
+lowercased, deduplicated, and kept in author order. Every gate value must be a non-empty string;
+`when` must be a mapping; and unknown `when` keys are parse errors.
+
+The current inactive reason codes are `platform_mismatch`, `environment_context_unavailable`,
+`environment_mismatch`, `tool_context_unavailable`, `missing_tool`,
+`capability_context_unavailable`, and `missing_capability`. Each reason also identifies its gate,
+missing values, and a human-readable message. Tool availability is late-bound, so the next catalog
+projection automatically offers the skill after its required tools become callable; no daemon
+restart is required.
+
+### `metadata.agh.mcp_servers`
+
+Each MCP server object accepts:
+
+| Field     | Type         | Required | Behavior                                                                                 |
+| --------- | ------------ | -------- | ---------------------------------------------------------------------------------------- |
+| `name`    | string       | yes      | Used for deduplication and merge replacement. Missing names skip that server.            |
+| `command` | string       | yes      | Launched directly by the ACP runtime path. Missing commands skip that server.            |
+| `args`    | string array | no       | Passed as process arguments.                                                             |
+| `env`     | string map   | no       | Passed as literal environment values. AGH does not perform shell expansion in the value. |
+
+```yaml
+metadata:
+  agh:
+    mcp_servers:
+      - name: filesystem
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
+        env:
+          LOG_LEVEL: "info"
+```
+
+### `metadata.agh.hooks`
+
+Skill hooks use the same event names as the runtime hook system.
+
+| Field      | Type              | Required | Behavior                                                                                                                                    |
+| ---------- | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event`    | string            | yes      | Must be a current dot-form event such as `session.post_create` or `tool.pre_call`. Legacy RFC names like `on_session_created` are rejected. |
+| `command`  | string            | yes      | Subprocess command to run.                                                                                                                  |
+| `args`     | string array      | no       | Subprocess arguments.                                                                                                                       |
+| `timeout`  | duration          | no       | Hook timeout.                                                                                                                               |
+| `env`      | string map        | no       | Hook environment values.                                                                                                                    |
+| `mode`     | `sync` or `async` | no       | Defaults to `async`.                                                                                                                        |
+| `priority` | integer           | no       | Used by hook ordering when set.                                                                                                             |
+| `matcher`  | object            | no       | Narrows when the hook is eligible.                                                                                                          |
+
+```yaml
+metadata:
+  agh:
+    hooks:
+      - event: session.post_create
+        command: ./scripts/session-context
+        args: ["--format", "json"]
+        timeout: 5s
+        mode: async
+```
+
+## Markdown Body
+
+The body after the closing `---` is the instruction set. Write it as concrete steps, not as marketing
+copy. A useful skill body usually includes:
+
+| Section      | Purpose                                                                            |
+| ------------ | ---------------------------------------------------------------------------------- |
+| When to use  | The trigger conditions that tell an agent this skill applies.                      |
+| Inputs       | Files, commands, environment variables, or assumptions the agent should inspect.   |
+| Sequence     | Ordered steps the agent should follow.                                             |
+| Verification | How the agent should prove the work is correct.                                    |
+| Edge cases   | Mistakes the skill should prevent.                                                 |
+| Resources    | Relative file names the agent can read with `agh skill view <name> --file <path>`. |
+
+AGH scans the body for critical prompt-injection, destructive command, and credential-extraction
+patterns. Critical findings block the skill from loading. Warning findings are logged but allowed.
+Content over 50,000 characters creates an info warning.
+
+## Sidecar Files
+
+### MCP sidecar
+
+Place `mcp.json` next to `SKILL.md` when MCP configuration is easier to maintain as JSON or should
+be generated by another tool.
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+      "env": {
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+`mcp_servers` is also accepted as the top-level key. If the same server name appears in
+frontmatter and sidecar JSON, the sidecar replaces the whole server object.
+
+### Marketplace provenance sidecar
+
+Marketplace installs write `.agh-meta.json` next to `SKILL.md`. Users normally do not create this
+file by hand.
+
+```json
+{
+  "hash": "sha256-like-hex-value",
+  "registry": "clawhub",
+  "slug": "@author/refactor-checklist",
+  "version": "1.0.0",
+  "installed_at": "2026-04-16T12:00:00Z"
+}
+```
+
+All fields are required. AGH recomputes the installed directory hash at load time and blocks the
+marketplace skill if it does not match the stored hash.
+
+## Complete Example: Simple Skill
+
+```text
+---
+name: refactor-checklist
+description: Review scoped refactors for behavior preservation, tests, and rollback risk.
+version: "1.0.0"
+---
+
+# Refactor Checklist
+
+Use this skill when a task changes structure without intending to change behavior.
+
+## Sequence
+
+1. Identify the public behavior that must stay the same.
+2. Inspect the smallest call path that proves the behavior.
+3. Make the refactor in small steps.
+4. Run the narrow tests first, then the package or project gate.
+5. Compare the diff for accidental behavior changes.
+
+## Verification
+
+- Prefer tests that exercise the real public surface.
+- Do not weaken assertions to match broken behavior.
+- If behavior changes, document why and add coverage for the new contract.
+```
+
+Create it locally with:
+
+```bash
+agh skill create refactor-checklist
+```
+
+Then replace the generated `SKILL.md` body with the content above.
+
+## Complete Example: Skill With MCP Sidecar
+
+```text
+<workspace>/.agh/skills/workspace-files/
+  SKILL.md
+  mcp.json
+```
+
+`SKILL.md`:
+
+```text
+---
+name: workspace-files
+description: Inspect workspace files through a filesystem MCP server before changing project structure.
+version: "1.0.0"
+---
+
+# Workspace Files
+
+Use this skill when the agent needs a structured file inventory before changing project layout.
+
+## Sequence
+
+1. Use the filesystem MCP server to inspect the target directory.
+2. Compare discovered files with the repository's documented package layout.
+3. Propose the smallest file movement or rename that satisfies the task.
+4. Run the relevant build or test command after the change.
+
+## Rules
+
+- Stay inside the current workspace.
+- Do not move generated files unless the task explicitly requires it.
+- Prefer repository-native commands such as `rg --files` when local shell access is enough.
+```
+
+`mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "workspace-filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/absolute/path/to/workspace"],
+      "env": {
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+For marketplace-installed skills, the MCP server above would be blocked until the skill's slug,
+`registry:slug`, or hash is listed in `skills.allowed_marketplace_mcp`.
+
+## Validation Failures
+
+| Failure                         | Cause                                                                          | Fix                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `missing YAML frontmatter`      | File does not start with `---`.                                                | Add a frontmatter block.                                      |
+| `unterminated YAML frontmatter` | Opening delimiter has no closing delimiter.                                    | Close frontmatter before the Markdown body.                   |
+| `skill name is required`        | `name` is missing or blank.                                                    | Add a non-empty `name`.                                       |
+| `metadata.agh.when` parse error | `when` has an unknown key, non-array value, non-string item, or blank item.    | Use only the four documented gates with non-empty strings.    |
+| MCP server skipped              | One `metadata.agh.mcp_servers` entry is malformed or missing `name`/`command`. | Fix that entry or move the server into `mcp.json`.            |
+| Hook parse failure              | A hook has an unknown field, invalid event, or missing command.                | Use current dot-form hook events and supported hook fields.   |
+| Skill blocked                   | Verification found critical content or marketplace hash verification failed.   | Remove the unsafe content or reinstall the marketplace skill. |
+
+## Related Pages
+
+- [Skills Overview](/runtime/core/skills) explains how this file is discovered and injected.
+- [Marketplace](/runtime/core/skills/marketplace) explains `.agh-meta.json` provenance.
+- [Hooks CLI Reference](/runtime/cli-reference/hooks) lists hook inspection commands.
+- [Skill CLI Reference](/runtime/cli-reference/skill) lists every generated skill command.

@@ -1,0 +1,2034 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AGH · Refined operator surface</title>
+  <link rel="preconnect" href="https://rsms.me/" />
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
+  />
+
+  <style>
+    /* ─────────────────────────────────────────────────────────────────
+     * AGH refined — tokens
+     *
+     * Goal: drop the operator/dev/tech register without leaving the AGH
+     * warm-dark identity. Three strict rules:
+     *
+     *   1. Accent (orange) is SCARCE. It appears at most twice per
+     *      screen — primary CTA, the "running" status, and the
+     *      active-state focus rail are the canonical homes. Nothing
+     *      else gets it.
+     *
+     *   2. Status colors are DESATURATED. A red that screams "alarm"
+     *      reads as control panel. The status palette here is one
+     *      semantic step away from neutral so the eye sees content,
+     *      not status chrome.
+     *
+     *   3. Borders are SEMI-TRANSPARENT WHITE on a warm-dark canvas.
+     *      Solid dark-on-dark borders are invisible at the wrong
+     *      lightness; transparent-white borders glide between
+     *      elevations cleanly.
+     * ─────────────────────────────────────────────────────────── */
+
+    :root {
+      color-scheme: dark;
+
+      /* Surface ladder — warm but cooler than current AGH.
+         OKLch keeps the steps perceptually even. */
+      --bg:        oklch(13.2% 0.005 60);
+      --surface:   oklch(15.8% 0.005 55);
+      --elevated:  oklch(19.5% 0.006 55);
+      --hover:     oklch(22% 0.006 55);
+      --rail:      oklch(11.5% 0.005 60);
+
+      /* Text — warm off-white, never #fff */
+      --fg:     oklch(94.5% 0.006 80);
+      --fg-emp: oklch(98.5% 0.005 80);
+      --muted:  oklch(66% 0.008 70);
+      --subtle: oklch(50% 0.008 70);
+      --faint:  oklch(38% 0.008 70);
+
+      /* Borders — semi-transparent warm-white */
+      --border:        rgba(255, 248, 240, 0.07);
+      --border-strong: rgba(255, 248, 240, 0.12);
+      --border-soft:   rgba(255, 248, 240, 0.04);
+      --hairline:      rgba(255, 248, 240, 0.05);
+
+      /* Accent — keep the AGH orange identity */
+      --accent:       oklch(67% 0.165 40);
+      --accent-hover: oklch(72% 0.17 42);
+      --accent-soft:  oklch(67% 0.165 40 / 0.12);
+      --accent-faint: oklch(67% 0.165 40 / 0.06);
+      --accent-ink:   oklch(15% 0.04 35);
+
+      /* Status — DESATURATED. Each ~half the saturation
+         of a "screaming" alarm color. The eye registers
+         them as semantic, not as decoration. */
+      --status-running:  oklch(67% 0.165 40);   /* same as accent — only orange status */
+      --status-progress: oklch(72% 0.06 240);   /* muted blue */
+      --status-success:  oklch(70% 0.075 150);  /* muted moss */
+      --status-warning:  oklch(74% 0.065 80);   /* muted ochre */
+      --status-danger:   oklch(65% 0.105 28);   /* muted brick */
+      --status-neutral:  oklch(58% 0.008 70);   /* warm gray */
+
+      /* Type */
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+
+      /* Radii */
+      --radius-xs: 4px;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 10px;
+      --radius-xl: 14px;
+      --radius-pill: 9999px;
+
+      /* Spacing */
+      --gutter: 28px;
+
+      /* Motion */
+      --ease: cubic-bezier(0.2, 0, 0, 1);
+      --dur:  140ms;
+
+      /* Highlights */
+      --highlight: inset 0 1px 0 rgba(255, 250, 240, 0.025);
+    }
+
+    /* density tweaks (set by the Tweaks panel) */
+    [data-density="cozy"] {
+      --row-padding-y: 14px;
+      --section-padding-y: 56px;
+    }
+    [data-density="comfortable"] {
+      --row-padding-y: 18px;
+      --section-padding-y: 72px;
+    }
+    [data-density="dense"] {
+      --row-padding-y: 10px;
+      --section-padding-y: 40px;
+    }
+
+    /* light-mode override (toggleable) */
+    [data-mode="light"] {
+      --bg:        oklch(98.5% 0.004 70);
+      --surface:   oklch(100% 0 0);
+      --elevated:  oklch(96.5% 0.005 70);
+      --hover:     oklch(94% 0.006 70);
+      --rail:      oklch(97% 0.004 70);
+
+      --fg:     oklch(20% 0.012 70);
+      --fg-emp: oklch(12% 0.014 70);
+      --muted:  oklch(46% 0.011 70);
+      --subtle: oklch(56% 0.009 70);
+      --faint:  oklch(72% 0.007 70);
+
+      --border:        rgba(20, 16, 12, 0.08);
+      --border-strong: rgba(20, 16, 12, 0.14);
+      --border-soft:   rgba(20, 16, 12, 0.05);
+      --hairline:      rgba(20, 16, 12, 0.06);
+
+      --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Reset + base
+     * ─────────────────────────────────────────────────────────── */
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      letter-spacing: -0.005em;
+      font-feature-settings: "cv11", "ss01", "ss03";
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100vh;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      background: none;
+      border: 0;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    input, textarea {
+      font: inherit;
+      color: inherit;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    ::selection {
+      background: var(--accent-soft);
+      color: var(--fg-emp);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Shell — sidebar + main column
+     * ─────────────────────────────────────────────────────────── */
+
+    .shell {
+      display: grid;
+      grid-template-columns: 244px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────── */
+
+    .side {
+      background: var(--rail);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 22px 12px 14px;
+    }
+
+    .side__brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 8px 22px;
+    }
+
+    .brandmark {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: var(--accent-ink);
+      display: grid;
+      place-items: center;
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: -0.04em;
+      flex-shrink: 0;
+    }
+
+    .side__brand-name {
+      font-weight: 510;
+      font-size: 14px;
+      letter-spacing: -0.018em;
+      color: var(--fg-emp);
+    }
+
+    .side__brand-meta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      color: var(--faint);
+      text-transform: uppercase;
+      margin-left: auto;
+    }
+
+    .side__group { padding: 6px 0; }
+    .side__group + .side__group { margin-top: 18px; }
+
+    .side__label {
+      padding: 0 10px 6px;
+      font-size: 11px;
+      font-weight: 510;
+      color: var(--faint);
+      letter-spacing: -0.005em;
+    }
+
+    .nav-row {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      font-size: 13.5px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+      position: relative;
+    }
+
+    .nav-row:hover {
+      color: var(--fg-emp);
+      background: var(--hover);
+    }
+
+    .nav-row--active {
+      color: var(--fg-emp);
+      background: var(--elevated);
+      box-shadow: var(--highlight);
+    }
+
+    .nav-row__count {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--subtle);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .side__footer {
+      margin-top: auto;
+      padding: 12px 10px;
+      border-top: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .side__user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .side__user-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg);
+      letter-spacing: -0.01em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .side__user-meta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--faint);
+    }
+
+    /* ── Main ────────────────────────────────────────────────── */
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Top bar — quiet, thin */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px var(--gutter);
+      border-bottom: 1px solid var(--hairline);
+      background: var(--bg);
+      position: sticky; top: 0; z-index: 10;
+    }
+
+    .topbar__crumbs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: -0.005em;
+      min-width: 0;
+    }
+
+    .topbar__crumb-sep { color: var(--faint); }
+    .topbar__crumb-current { color: var(--fg-emp); font-weight: 500; }
+
+    .topbar__back {
+      width: 26px; height: 26px;
+      display: grid; place-items: center;
+      border-radius: 6px;
+      color: var(--muted);
+      transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+    }
+    .topbar__back:hover {
+      color: var(--fg-emp);
+      background: var(--hover);
+    }
+
+    .topbar__spacer { flex: 1; }
+
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px 5px 8px;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      color: var(--subtle);
+      font-size: 13px;
+      letter-spacing: -0.005em;
+      transition: border-color var(--dur) var(--ease);
+    }
+    .search:hover { border-color: var(--border-strong); }
+    .search svg { color: var(--faint); }
+
+    .search__kbd {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      color: var(--faint);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 28px;
+      padding: 0 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 510;
+      letter-spacing: -0.005em;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg);
+      transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+    }
+    .btn:hover {
+      background: var(--hover);
+      border-color: var(--border-strong);
+      color: var(--fg-emp);
+    }
+
+    .btn--primary {
+      background: var(--accent);
+      border-color: transparent;
+      color: var(--accent-ink);
+      box-shadow: var(--highlight);
+    }
+    .btn--primary:hover {
+      background: var(--accent-hover);
+      color: var(--accent-ink);
+    }
+
+    .btn--ghost {
+      background: transparent;
+      border-color: transparent;
+    }
+    .btn--ghost:hover {
+      background: var(--hover);
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Page header — editorial, generous
+     * ─────────────────────────────────────────────────────────── */
+
+    .page {
+      padding: 56px var(--gutter) 0;
+      max-width: 1280px;
+      width: 100%;
+      align-self: center;
+    }
+
+    .page__eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: var(--faint);
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+
+    .page__eyebrow-dot {
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: var(--faint);
+    }
+
+    .page__title {
+      margin: 0;
+      font-weight: 510;
+      font-size: 40px;
+      line-height: 1.05;
+      letter-spacing: -0.028em;
+      color: var(--fg-emp);
+    }
+
+    .page__lead {
+      margin: 14px 0 0;
+      max-width: 64ch;
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--muted);
+      letter-spacing: -0.005em;
+    }
+
+    .page__lead em {
+      font-style: normal;
+      color: var(--fg);
+      font-weight: 510;
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Filters — text-led, pill-free
+     * ─────────────────────────────────────────────────────────── */
+
+    .filters {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-top: 36px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--hairline);
+      flex-wrap: wrap;
+    }
+
+    .filter {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      font-size: 13.5px;
+      letter-spacing: -0.005em;
+      color: var(--muted);
+      transition: color var(--dur) var(--ease);
+      border-radius: var(--radius-sm);
+      position: relative;
+    }
+    .filter:hover { color: var(--fg-emp); }
+
+    .filter__count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--faint);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .filter--active {
+      color: var(--fg-emp);
+      font-weight: 510;
+    }
+    .filter--active::before {
+      content: "";
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+      margin-right: 1px;
+    }
+    .filter--active .filter__count { color: var(--fg); }
+
+    .filter-sep {
+      color: var(--faint);
+      font-size: 14px;
+      padding: 0 2px;
+      user-select: none;
+    }
+
+    .filters__spacer { flex: 1; min-width: 12px; }
+
+    .filters__sort {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12.5px;
+      color: var(--subtle);
+    }
+    .filters__sort-value {
+      color: var(--fg);
+      font-weight: 500;
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Task list — generous rows, no chrome
+     * ─────────────────────────────────────────────────────────── */
+
+    .list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) 132px 110px 88px;
+      gap: 16px;
+      align-items: center;
+      padding: var(--row-padding-y, 14px) 8px;
+      border-bottom: 1px solid var(--hairline);
+      cursor: pointer;
+      transition: background var(--dur) var(--ease);
+      position: relative;
+    }
+    .row:hover { background: var(--hover); }
+    .row:hover .row__id { color: var(--muted); }
+
+    .row--selected {
+      background: var(--elevated);
+    }
+    .row--selected::before {
+      content: "";
+      position: absolute;
+      left: -8px; top: 8px; bottom: 8px;
+      width: 2px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* status indicator — quiet dot */
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--c, var(--status-neutral));
+      flex-shrink: 0;
+    }
+
+    .status-dot--running {
+      box-shadow: 0 0 0 3px var(--accent-faint);
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    .status-dot--ring {
+      background: transparent;
+      border: 1.5px solid var(--c, var(--status-neutral));
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px var(--accent-faint); }
+      50%      { box-shadow: 0 0 0 5px var(--accent-faint); }
+    }
+
+    .row__main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+
+    .row__title {
+      font-size: 14px;
+      font-weight: 510;
+      color: var(--fg-emp);
+      letter-spacing: -0.012em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .row__meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--subtle);
+      letter-spacing: -0.003em;
+      min-width: 0;
+    }
+    .row__id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--faint);
+      transition: color var(--dur) var(--ease);
+    }
+    .row__meta-sep { color: var(--faint); }
+
+    .row__assignee {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .row__assignee-name {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: -0.005em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .row__status-label {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: -0.003em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .row__time {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--subtle);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Avatars
+     * ─────────────────────────────────────────────────────────── */
+
+    .avatar {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      flex-shrink: 0;
+      box-shadow: var(--highlight);
+    }
+    .avatar--agent { border-radius: 6px; }
+    .avatar--system {
+      border-radius: 6px;
+      background: var(--elevated);
+      color: var(--subtle);
+    }
+
+    .avatar--lg { width: 28px; height: 28px; font-size: 11.5px; }
+    .avatar--xs { width: 18px; height: 18px; font-size: 9px; }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Task detail
+     * ─────────────────────────────────────────────────────────── */
+
+    .detail {
+      max-width: 880px;
+      width: 100%;
+      align-self: center;
+      padding: 40px var(--gutter) 96px;
+    }
+
+    .detail__eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--subtle);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+
+    .detail__title {
+      margin: 0;
+      font-weight: 510;
+      font-size: 30px;
+      line-height: 1.18;
+      letter-spacing: -0.024em;
+      color: var(--fg-emp);
+      max-width: 28ch;
+    }
+
+    .detail__lead {
+      margin: 16px 0 0;
+      font-size: 15.5px;
+      line-height: 1.6;
+      color: var(--muted);
+      max-width: 64ch;
+      letter-spacing: -0.005em;
+    }
+
+    /* Properties strip — inline, hairline-divided */
+    .props {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0;
+      margin-top: 32px;
+      border-top: 1px solid var(--hairline);
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .prop {
+      padding: 14px 18px 14px 0;
+      border-right: 1px solid var(--hairline);
+      min-width: 0;
+    }
+    .prop:last-child { border-right: 0; }
+
+    .prop__label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--faint);
+      letter-spacing: 0.005em;
+      margin-bottom: 5px;
+    }
+
+    .prop__value {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      font-weight: 510;
+      color: var(--fg-emp);
+      letter-spacing: -0.005em;
+    }
+
+    /* Section headings inside detail */
+    .section { margin-top: 44px; }
+
+    .section__head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .section__title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 510;
+      color: var(--fg-emp);
+      letter-spacing: -0.005em;
+    }
+
+    .section__count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--subtle);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Sub-issues */
+    .subs {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      border-top: 1px solid var(--hairline);
+    }
+    .sub {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) 100px 120px;
+      gap: 12px;
+      align-items: center;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--hairline);
+      cursor: pointer;
+      transition: background var(--dur) var(--ease);
+    }
+    .sub:hover { background: var(--hover); }
+
+    .sub__title {
+      font-size: 13.5px;
+      color: var(--fg);
+      letter-spacing: -0.005em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sub__status {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sub__assignee {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-self: end;
+    }
+
+    .progress {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .progress__bar {
+      flex: 1;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--hairline);
+      overflow: hidden;
+    }
+    .progress__fill {
+      height: 100%;
+      background: var(--fg);
+      border-radius: 2px;
+      transition: width var(--dur) var(--ease);
+    }
+    .progress__text {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--subtle);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Activity feed */
+    .feed { list-style: none; margin: 0; padding: 0; }
+
+    .feed__event {
+      display: grid;
+      grid-template-columns: 26px minmax(0, 1fr) auto;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .feed__event:first-child { border-top: 1px solid var(--hairline); }
+
+    .feed__avatar { padding-top: 1px; }
+
+    .feed__body { min-width: 0; }
+    .feed__msg {
+      font-size: 13.5px;
+      color: var(--fg);
+      letter-spacing: -0.005em;
+    }
+    .feed__msg em {
+      font-style: normal;
+      color: var(--fg-emp);
+      font-weight: 510;
+    }
+    .feed__detail {
+      margin-top: 4px;
+      font-size: 12.5px;
+      color: var(--subtle);
+      line-height: 1.5;
+    }
+
+    .feed__time {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--faint);
+      text-align: right;
+      letter-spacing: 0.02em;
+      padding-top: 2px;
+    }
+
+    /* Error block — quiet pull-quote */
+    .error-quote {
+      margin: 14px 0 0;
+      padding: 12px 14px;
+      border-left: 2px solid var(--status-danger);
+      background: rgba(255, 100, 80, 0.04);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+    .error-quote__body {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--fg);
+      line-height: 1.5;
+    }
+    .error-quote__src {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--subtle);
+      margin-top: 6px;
+      letter-spacing: 0.02em;
+    }
+
+    /* Composer */
+    .composer {
+      margin-top: 24px;
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      transition: border-color var(--dur) var(--ease);
+    }
+    .composer:focus-within { border-color: var(--border-strong); }
+
+    .composer__body {
+      width: 100%;
+      padding: 14px;
+      background: transparent;
+      border: 0;
+      outline: 0;
+      resize: vertical;
+      min-height: 70px;
+      font-size: 13.5px;
+      color: var(--fg);
+      letter-spacing: -0.005em;
+      line-height: 1.55;
+    }
+    .composer__body::placeholder { color: var(--faint); }
+
+    .composer__bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-top: 1px solid var(--hairline);
+    }
+    .composer__hint {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--faint);
+      letter-spacing: 0.02em;
+      margin-right: auto;
+    }
+    .composer__kbd {
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      color: var(--subtle);
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Empty state
+     * ─────────────────────────────────────────────────────────── */
+
+    .empty {
+      padding: 80px 0 24px;
+      text-align: left;
+    }
+    .empty__eyebrow {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: var(--faint);
+      text-transform: uppercase;
+      margin: 0 0 14px;
+    }
+    .empty__msg {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 510;
+      color: var(--fg);
+      letter-spacing: -0.02em;
+      line-height: 1.4;
+      max-width: 48ch;
+    }
+    .empty__msg em {
+      font-style: italic;
+      color: var(--fg-emp);
+    }
+    .empty__hint {
+      margin: 18px 0 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--subtle);
+      letter-spacing: 0.04em;
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Tweaks panel
+     * ─────────────────────────────────────────────────────────── */
+
+    .tweaks {
+      position: fixed;
+      bottom: 18px;
+      right: 18px;
+      z-index: 50;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: 0 12px 32px -10px rgba(0,0,0,0.45), var(--highlight);
+      max-width: 280px;
+    }
+
+    .tweaks__head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--hairline);
+      cursor: pointer;
+    }
+    .tweaks__title {
+      font-size: 12px;
+      font-weight: 510;
+      color: var(--fg-emp);
+      letter-spacing: -0.005em;
+    }
+    .tweaks__chevron {
+      margin-left: auto;
+      color: var(--subtle);
+      transition: transform var(--dur) var(--ease);
+    }
+    .tweaks--open .tweaks__chevron { transform: rotate(180deg); }
+
+    .tweaks__body {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .tweaks__row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .tweaks__label {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: -0.005em;
+    }
+
+    .tweaks__seg {
+      display: inline-flex;
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+    }
+    .tweaks__seg button {
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--subtle);
+      border-radius: 3px;
+      letter-spacing: -0.005em;
+    }
+    .tweaks__seg button:hover { color: var(--fg); }
+    .tweaks__seg button[data-active="true"] {
+      background: var(--elevated);
+      color: var(--fg-emp);
+      box-shadow: var(--highlight);
+    }
+
+    .swatches {
+      display: flex;
+      gap: 6px;
+    }
+    .swatch {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 1.5px solid transparent;
+      transition: transform var(--dur) var(--ease);
+    }
+    .swatch:hover { transform: scale(1.12); }
+    .swatch[data-active="true"] {
+      border-color: var(--fg-emp);
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Misc helpers
+     * ─────────────────────────────────────────────────────────── */
+
+    .icon { width: 14px; height: 14px; flex-shrink: 0; }
+    .icon-sm { width: 12px; height: 12px; flex-shrink: 0; }
+
+    .priority {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 1.5px;
+      height: 11px;
+      flex-shrink: 0;
+    }
+    .priority span {
+      width: 2.5px;
+      background: var(--faint);
+      border-radius: 1px;
+    }
+    .priority span:nth-child(1) { height: 4px; }
+    .priority span:nth-child(2) { height: 7px; }
+    .priority span:nth-child(3) { height: 11px; }
+    .priority[data-level="high"] span    { background: var(--fg); }
+    .priority[data-level="medium"] span:nth-child(-n+2) { background: var(--fg); }
+    .priority[data-level="low"] span:nth-child(1)       { background: var(--fg); }
+    .priority[data-level="none"] { display: none; }
+
+    /* responsive — collapse columns gracefully */
+    @media (max-width: 880px) {
+      .row {
+        grid-template-columns: 14px minmax(0, 1fr) 88px;
+      }
+      .row__assignee, .row__time { display: none; }
+      .props { grid-template-columns: 1fr 1fr; }
+      .prop { border-right: 0; border-bottom: 1px solid var(--hairline); }
+      .prop:nth-child(2n) { border-right: 0; }
+      .prop:last-child { border-bottom: 0; }
+      .shell { grid-template-columns: 1fr; }
+      .side { display: none; }
+      .page__title { font-size: 32px; }
+    }
+  </style>
+</head>
+<body data-mode="dark" data-density="cozy">
+  <div id="root"></div>
+
+  <script
+    src="https://unpkg.com/react@18.3.1/umd/react.development.js"
+    integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"
+    integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"
+    integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y"
+    crossorigin="anonymous"
+  ></script>
+
+  <script type="text/babel" data-presets="env,react">
+    /* ─────────────────────────────────────────────────────────────────
+     * Mock data — close to AGH's real shape, full status coverage.
+     * ─────────────────────────────────────────────────────────── */
+
+    const TASKS = [
+      {
+        id: "tsk-7f3a2b",
+        title: "Investigate auth middleware leak in session-bridge",
+        status: "running",
+        priority: "high",
+        owner: { kind: "agent", label: "claude-opus-4-7", short: "claude" },
+        attempt: { current: 2, max: 3 },
+        childCount: 1,
+        time: "2m ago",
+        watched: true,
+        mine: false,
+      },
+      {
+        id: "tsk-9c4d18",
+        title: "Backfill task_runs.queue_position for legacy rows",
+        status: "in_progress",
+        priority: "medium",
+        owner: { kind: "human", label: "Pedro", short: "Pedro" },
+        attempt: { current: 1, max: 3 },
+        childCount: 4,
+        time: "11m ago",
+        watched: false,
+        mine: true,
+      },
+      {
+        id: "tsk-4d7e23",
+        title: "Resolve typescript errors in @agh/extension-sdk client.ts",
+        status: "failed",
+        priority: "high",
+        owner: { kind: "agent", label: "codex-gpt-5.4", short: "codex" },
+        attempt: { current: 3, max: 3 },
+        childCount: 0,
+        parent: "tsk-9c4d18",
+        time: "23m ago",
+        error: "tsc(2345): Argument of type 'Bridge | null' is not assignable to parameter of type 'Bridge'.",
+        watched: true,
+        mine: false,
+      },
+      {
+        id: "tsk-6b1c44",
+        title: "Land RFC-002 protocol receipt schema",
+        status: "blocked",
+        priority: "high",
+        owner: { kind: "human", label: "Pedro", short: "Pedro" },
+        childCount: 3,
+        time: "1h ago",
+        blockedReason: "waiting on review of RFC-001",
+        watched: true,
+        mine: true,
+      },
+      {
+        id: "tsk-3e8b07",
+        title: "Implement gallery view for capability marketplace",
+        status: "ready",
+        priority: "medium",
+        owner: { kind: "agent", label: "hermes-sonnet", short: "hermes" },
+        childCount: 0,
+        time: "1h ago",
+        watched: false,
+        mine: false,
+      },
+      {
+        id: "tsk-8e2a76",
+        title: "Define agent execution profile defaults for sandbox tier",
+        status: "draft",
+        priority: "low",
+        owner: { kind: "human", label: "Pedro", short: "Pedro" },
+        childCount: 0,
+        time: "3h ago",
+        watched: false,
+        mine: true,
+      },
+      {
+        id: "tsk-2a5f91",
+        title: "Migrate workspace bootstrap fixtures to new manifest format",
+        status: "pending",
+        priority: "low",
+        owner: { kind: "agent", label: "openclaw", short: "claw" },
+        childCount: 0,
+        time: "4h ago",
+        watched: false,
+        mine: false,
+      },
+      {
+        id: "tsk-0a3e58",
+        title: "Wire daemon /healthz to status footer",
+        status: "in_progress",
+        priority: "medium",
+        owner: { kind: "agent", label: "claude-opus-4-7", short: "claude" },
+        attempt: { current: 1, max: 2 },
+        childCount: 0,
+        time: "5h ago",
+        watched: false,
+        mine: false,
+      },
+      {
+        id: "tsk-5f9b32",
+        title: "Patch SQLite migration registry race on first boot",
+        status: "completed",
+        priority: "high",
+        owner: { kind: "agent", label: "claude-opus-4-7", short: "claude" },
+        childCount: 0,
+        time: "yesterday",
+        watched: false,
+        mine: false,
+      },
+      {
+        id: "tsk-1c6d05",
+        title: "Refresh peer card avatar resolver",
+        status: "canceled",
+        priority: "low",
+        owner: { kind: "human", label: "Pedro", short: "Pedro" },
+        childCount: 0,
+        time: "2d ago",
+        watched: false,
+        mine: true,
+      },
+    ];
+
+    const STATUS_TONE = {
+      running:     { label: "Running",     c: "var(--status-running)",  shape: "dot",  pulse: true  },
+      in_progress: { label: "In progress", c: "var(--status-progress)", shape: "ring" },
+      ready:       { label: "Ready",       c: "var(--status-neutral)",  shape: "ring" },
+      pending:     { label: "Pending",     c: "var(--status-neutral)",  shape: "ring" },
+      draft:       { label: "Draft",       c: "var(--status-neutral)",  shape: "ring" },
+      blocked:     { label: "Blocked",     c: "var(--status-warning)",  shape: "dot"  },
+      failed:      { label: "Failed",      c: "var(--status-danger)",   shape: "dot"  },
+      completed:   { label: "Completed",   c: "var(--status-success)",  shape: "dot"  },
+      canceled:    { label: "Canceled",    c: "var(--status-neutral)",  shape: "ring" },
+    };
+
+    const SUB_ISSUES = {
+      "tsk-9c4d18": [
+        { id: "tsk-4d7e23", title: "Resolve typescript errors in @agh/extension-sdk client.ts", status: "failed", assignee: { kind: "agent", label: "codex-gpt-5.4", short: "codex" } },
+        { id: "tsk-2c11ee", title: "Backfill queue_position rows for compozy workspace",        status: "completed", assignee: { kind: "agent", label: "claude-opus-4-7", short: "claude" } },
+        { id: "tsk-71b9a5", title: "Backfill queue_position rows for scratch workspace",        status: "running",   assignee: { kind: "agent", label: "claude-opus-4-7", short: "claude" } },
+        { id: "tsk-bb40d2", title: "Backfill queue_position rows for _root workspace",          status: "ready",     assignee: { kind: "agent", label: "openclaw", short: "claw" } },
+      ],
+      "tsk-7f3a2b": [
+        { id: "tsk-cf02a1", title: "Capture pprof goroutine dump from session-bridge", status: "completed", assignee: { kind: "agent", label: "claude-opus-4-7", short: "claude" } },
+      ],
+      "tsk-6b1c44": [
+        { id: "tsk-aa31cd", title: "Draft receipt schema fields",       status: "in_progress", assignee: { kind: "human", label: "Pedro", short: "Pedro" } },
+        { id: "tsk-7d99fe", title: "Write validator with negative cases", status: "ready",       assignee: { kind: "agent", label: "openclaw", short: "claw" } },
+        { id: "tsk-bf2206", title: "Wire serializer into bridge SDK",     status: "draft",       assignee: { kind: "agent", label: "hermes-sonnet", short: "hermes" } },
+      ],
+    };
+
+    const ACTIVITY = {
+      "tsk-7f3a2b": [
+        { time: "2m ago",  who: { kind: "agent", label: "claude-opus-4-7", short: "claude" }, msg: "Started attempt 2",        detail: "claim acquired · capability resolve.session-bridge.leak" },
+        { time: "9m ago",  who: { kind: "system", label: "agh-runtime" },                     msg: "Attempt 1 timed out",      detail: "no progress for 600s · automatic retry queued" },
+        { time: "14m ago", who: { kind: "human",  label: "Pedro", short: "Pedro" },           msg: "Increased priority to High", detail: "operator reclassified from Medium" },
+        { time: "26m ago", who: { kind: "human",  label: "Pedro", short: "Pedro" },           msg: "Created task",             detail: "linked from session sess-aa7c · trigger origin manual" },
+      ],
+      "tsk-9c4d18": [
+        { time: "11m ago", who: { kind: "human",  label: "Pedro", short: "Pedro" },                 msg: "Spawned 4 children",      detail: "fan-out across workspaces agh-runtime · compozy · scratch · _root" },
+        { time: "32m ago", who: { kind: "system", label: "agh-runtime" },                            msg: "Plan accepted",           detail: "review gate satisfied · proceed-with-caveats" },
+        { time: "44m ago", who: { kind: "agent",  label: "claude-opus-4-7", short: "claude" },       msg: "Submitted plan for review", detail: "estimated 4 child runs · 2 dependencies" },
+      ],
+      "tsk-4d7e23": [
+        { time: "23m ago", who: { kind: "system", label: "agh-runtime" },                            msg: "Attempt 3 failed",        detail: "tsc exit 1 · max attempts reached · awaiting operator" },
+        { time: "27m ago", who: { kind: "agent",  label: "codex-gpt-5.4", short: "codex" },          msg: "Started attempt 3",       detail: "applied last-good fixture, retry under reduced scope" },
+        { time: "38m ago", who: { kind: "system", label: "agh-runtime" },                            msg: "Attempt 2 failed",        detail: "same diagnostic · no patch applied" },
+      ],
+    };
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Avatar helpers — deterministic, palette decided up front
+     * ─────────────────────────────────────────────────────────── */
+
+    const AGENT_PALETTE = [
+      { bg: "rgba(232, 144, 99, 0.16)", fg: "#F2B895" },
+      { bg: "rgba(168, 178, 220, 0.14)", fg: "#C5CCE7" },
+      { bg: "rgba(143, 196, 178, 0.16)", fg: "#A9D9C7" },
+      { bg: "rgba(214, 168, 192, 0.16)", fg: "#E0BCD0" },
+    ];
+
+    const HUMAN_PALETTE = [
+      { bg: "rgba(220, 192, 134, 0.18)", fg: "#E5CC9A" },
+      { bg: "rgba(195, 178, 156, 0.18)", fg: "#D6C5AA" },
+      { bg: "rgba(192, 173, 178, 0.18)", fg: "#D2BFC5" },
+    ];
+
+    const SYSTEM_PALETTE = { bg: "var(--elevated)", fg: "var(--subtle)" };
+
+    function seed(label) {
+      let h = 0;
+      for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) | 0;
+      return Math.abs(h);
+    }
+
+    function colorsFor(owner) {
+      if (owner.kind === "system") return SYSTEM_PALETTE;
+      const palette = owner.kind === "agent" ? AGENT_PALETTE : HUMAN_PALETTE;
+      return palette[seed(owner.label) % palette.length];
+    }
+
+    function initials(label) {
+      const parts = label.split(/[-_\s.]+/).filter(Boolean);
+      if (!parts.length) return "?";
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Reusable components
+     * ─────────────────────────────────────────────────────────── */
+
+    function Avatar({ owner, size }) {
+      const c = colorsFor(owner);
+      const cls =
+        "avatar" +
+        (owner.kind === "agent"  ? " avatar--agent"  : "") +
+        (owner.kind === "system" ? " avatar--system" : "") +
+        (size === "lg" ? " avatar--lg" : "") +
+        (size === "xs" ? " avatar--xs" : "");
+      const style = { background: c.bg, color: c.fg };
+      const text = owner.kind === "system" ? "·" : initials(owner.short || owner.label);
+      return (
+        <span className={cls} style={style} aria-hidden="true">
+          {text}
+        </span>
+      );
+    }
+
+    function StatusDot({ status }) {
+      const t = STATUS_TONE[status];
+      const cls =
+        "status-dot" +
+        (t.shape === "ring"  ? " status-dot--ring"   : "") +
+        (t.pulse             ? " status-dot--running" : "");
+      return <span className={cls} style={{ "--c": t.c }} aria-label={t.label} />;
+    }
+
+    function StatusLabel({ status }) {
+      const t = STATUS_TONE[status];
+      return (
+        <span className="row__status-label">
+          <StatusDot status={status} />
+          {t.label}
+        </span>
+      );
+    }
+
+    function Priority({ level }) {
+      if (level === "none") return null;
+      return (
+        <span className="priority" data-level={level} aria-label={`${level} priority`}>
+          <span /><span /><span />
+        </span>
+      );
+    }
+
+    function IconArrowLeft() {
+      return (
+        <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12" />
+          <polyline points="12 19 5 12 12 5" />
+        </svg>
+      );
+    }
+
+    function IconSearch() {
+      return (
+        <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+      );
+    }
+
+    function IconPlus() {
+      return (
+        <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5"  x2="12" y2="19" />
+          <line x1="5"  y1="12" x2="19" y2="12" />
+        </svg>
+      );
+    }
+
+    function IconChevron({ down }) {
+      return (
+        <svg className="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      );
+    }
+
+    function IconExternal() {
+      return (
+        <svg className="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="7" y1="17" x2="17" y2="7" />
+          <polyline points="7 7 17 7 17 17" />
+        </svg>
+      );
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Sidebar
+     * ─────────────────────────────────────────────────────────── */
+
+    const NAV_PRIMARY = [
+      { id: "tasks",    label: "Tasks",    count: 12 },
+      { id: "jobs",     label: "Jobs",     count: 7  },
+      { id: "sessions", label: "Sessions", count: 3  },
+      { id: "network",  label: "Network",  count: null },
+    ];
+    const NAV_LIBRARY = [
+      { id: "automation", label: "Automation", count: null },
+      { id: "bridges",    label: "Bridges",    count: 4 },
+      { id: "knowledge",  label: "Knowledge",  count: null },
+      { id: "skills",     label: "Skills",     count: 18 },
+    ];
+
+    function Sidebar({ active, onNavigate }) {
+      return (
+        <aside className="side">
+          <div className="side__brand">
+            <span className="brandmark" aria-hidden="true">A</span>
+            <span className="side__brand-name">AGH Runtime</span>
+            <span className="side__brand-meta">v0.41</span>
+          </div>
+
+          <nav className="side__group" aria-label="Primary">
+            <div className="side__label">Workspace</div>
+            {NAV_PRIMARY.map((item) => (
+              <button
+                key={item.id}
+                className={"nav-row" + (active === item.id ? " nav-row--active" : "")}
+                onClick={() => onNavigate(item.id)}
+                aria-current={active === item.id ? "page" : undefined}
+              >
+                {item.label}
+                {item.count != null && <span className="nav-row__count">{item.count}</span>}
+              </button>
+            ))}
+          </nav>
+
+          <nav className="side__group" aria-label="Library">
+            <div className="side__label">Library</div>
+            {NAV_LIBRARY.map((item) => (
+              <button
+                key={item.id}
+                className={"nav-row" + (active === item.id ? " nav-row--active" : "")}
+                onClick={() => onNavigate(item.id)}
+              >
+                {item.label}
+                {item.count != null && <span className="nav-row__count">{item.count}</span>}
+              </button>
+            ))}
+          </nav>
+
+          <div className="side__footer">
+            <Avatar owner={{ kind: "human", label: "Pedro", short: "Pedro" }} size="xs" />
+            <div className="side__user">
+              <span className="side__user-name">Pedro</span>
+            </div>
+            <span className="side__user-meta">⌘K</span>
+          </div>
+        </aside>
+      );
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Topbar — quiet breadcrumb + search + new task
+     * ─────────────────────────────────────────────────────────── */
+
+    function TopBar({ view, task, onBack, onNewTask }) {
+      return (
+        <header className="topbar">
+          {view === "detail" ? (
+            <>
+              <button className="topbar__back" aria-label="Back" onClick={onBack}>
+                <IconArrowLeft />
+              </button>
+              <div className="topbar__crumbs">
+                <button className="btn btn--ghost" onClick={onBack} style={{ height: 24, padding: "0 8px", fontSize: 12.5 }}>
+                  Tasks
+                </button>
+                <span className="topbar__crumb-sep">/</span>
+                <span className="topbar__crumb-current" style={{ fontFamily: "var(--font-mono)", fontSize: 12.5, fontWeight: 500 }}>
+                  {task?.id}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="topbar__crumbs">
+              <span style={{ color: "var(--subtle)" }}>Workspace</span>
+              <span className="topbar__crumb-sep">/</span>
+              <span className="topbar__crumb-current">Tasks</span>
+            </div>
+          )}
+
+          <div className="topbar__spacer" />
+
+          <span className="search">
+            <IconSearch />
+            Search tasks
+            <span className="search__kbd">⌘K</span>
+          </span>
+
+          <button className="btn btn--primary" onClick={onNewTask}>
+            <IconPlus /> New task
+          </button>
+        </header>
+      );
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Task list page
+     * ─────────────────────────────────────────────────────────── */
+
+    const FILTERS = [
+      { id: "all",     label: "All",     match: () => true },
+      { id: "active",  label: "Active",  match: (t) => ["running","in_progress","ready","pending"].includes(t.status) },
+      { id: "yours",   label: "Yours",   match: (t) => t.mine },
+      { id: "watched", label: "Watched", match: (t) => t.watched },
+      { id: "blocked", label: "Blocked", match: (t) => t.status === "blocked" },
+      { id: "failed",  label: "Failed",  match: (t) => t.status === "failed" },
+    ];
+
+    function TaskList({ onSelect, filter, setFilter }) {
+      const visible = TASKS.filter(FILTERS.find((f) => f.id === filter).match);
+      const totals = Object.fromEntries(
+        FILTERS.map((f) => [f.id, TASKS.filter(f.match).length])
+      );
+
+      const open    = TASKS.filter((t) => !["completed","canceled"].includes(t.status)).length;
+      const blocked = TASKS.filter((t) => t.status === "blocked").length;
+      const failed  = TASKS.filter((t) => t.status === "failed").length;
+
+      return (
+        <div className="page">
+          <p className="page__eyebrow">
+            <span className="page__eyebrow-dot" />
+            Workspace · agh-runtime · synced 2m ago
+          </p>
+          <h1 className="page__title">Tasks</h1>
+          <p className="page__lead">
+            <em>{open} open</em> across 3 workspaces.{" "}
+            {blocked > 0 && <>{blocked} waiting on review. </>}
+            {failed > 0 && <>{failed} failed in the last hour. </>}
+            Click any row to open the run timeline.
+          </p>
+
+          <div className="filters" role="tablist" aria-label="Filters">
+            {FILTERS.map((f, i) => (
+              <React.Fragment key={f.id}>
+                <button
+                  role="tab"
+                  aria-selected={filter === f.id}
+                  className={"filter" + (filter === f.id ? " filter--active" : "")}
+                  onClick={() => setFilter(f.id)}
+                >
+                  {f.label}
+                  <span className="filter__count">{totals[f.id]}</span>
+                </button>
+                {i < FILTERS.length - 1 && <span className="filter-sep">·</span>}
+              </React.Fragment>
+            ))}
+            <span className="filters__spacer" />
+            <span className="filters__sort">
+              Sorted by <span className="filters__sort-value">recently active</span>
+              <IconChevron />
+            </span>
+          </div>
+
+          {visible.length === 0 ? (
+            <div className="empty">
+              <p className="empty__eyebrow">No matches</p>
+              <p className="empty__msg">
+                Nothing under <em>{filter}</em> right now. The runtime is idle here — try{" "}
+                <button
+                  className="filter filter--active"
+                  style={{ padding: 0, fontSize: "inherit" }}
+                  onClick={() => setFilter("all")}
+                >
+                  All
+                </button>{" "}
+                to widen the lens.
+              </p>
+              <p className="empty__hint">↑↓ navigate · ⏎ open · ⌘K jump</p>
+            </div>
+          ) : (
+            <ul className="list">
+              {visible.map((t) => (
+                <li
+                  key={t.id}
+                  className="row"
+                  onClick={() => onSelect(t.id)}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter") onSelect(t.id); }}
+                >
+                  <StatusDot status={t.status} />
+                  <div className="row__main">
+                    <span className="row__title">{t.title}</span>
+                    <span className="row__meta">
+                      <span className="row__id">{t.id}</span>
+                      {t.attempt && (
+                        <>
+                          <span className="row__meta-sep">·</span>
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
+                            attempt {t.attempt.current}/{t.attempt.max}
+                          </span>
+                        </>
+                      )}
+                      {t.childCount > 0 && (
+                        <>
+                          <span className="row__meta-sep">·</span>
+                          <span>{t.childCount} sub-issues</span>
+                        </>
+                      )}
+                      {t.parent && (
+                        <>
+                          <span className="row__meta-sep">·</span>
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>parent {t.parent}</span>
+                        </>
+                      )}
+                      {t.blockedReason && (
+                        <>
+                          <span className="row__meta-sep">·</span>
+                          <span>{t.blockedReason}</span>
+                        </>
+                      )}
+                      <Priority level={t.priority} />
+                    </span>
+                  </div>
+
+                  <div className="row__assignee">
+                    <Avatar owner={t.owner} size="xs" />
+                    <span className="row__assignee-name">{t.owner.short || t.owner.label}</span>
+                  </div>
+
+                  <StatusLabel status={t.status} />
+
+                  <span className="row__time">{t.time}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Task detail page
+     * ─────────────────────────────────────────────────────────── */
+
+    function TaskDetail({ task }) {
+      const subs = SUB_ISSUES[task.id] || [];
+      const acts = ACTIVITY[task.id] || [
+        { time: task.time, who: { kind: "system", label: "agh-runtime" }, msg: `Task ${STATUS_TONE[task.status].label.toLowerCase()}`, detail: `${task.id} · workspace agh-runtime` },
+        { time: "earlier",  who: task.owner,                              msg: "Created task",                            detail: "trigger origin = manual" },
+      ];
+
+      const completed = subs.filter((s) => s.status === "completed").length;
+      const total = subs.length;
+
+      return (
+        <div className="detail">
+          <p className="detail__eyebrow">
+            <span style={{ color: "var(--accent)", fontFamily: "var(--font-mono)", fontWeight: 500 }}>
+              {task.id}
+            </span>
+            <span style={{ color: "var(--faint)" }}>·</span>
+            <span>workspace agh-runtime</span>
+            <span style={{ color: "var(--faint)" }}>·</span>
+            <span>updated {task.time}</span>
+          </p>
+
+          <h1 className="detail__title">{task.title}</h1>
+
+          {task.error && (
+            <div className="error-quote" style={{ marginTop: 24 }}>
+              <div className="error-quote__body">{task.error}</div>
+              <div className="error-quote__src">
+                attempt {task.attempt.current}/{task.attempt.max} · {task.id}
+              </div>
+            </div>
+          )}
+
+          {task.blockedReason && !task.error && (
+            <div className="error-quote" style={{ marginTop: 24, borderLeftColor: "var(--status-warning)", background: "rgba(255, 200, 80, 0.04)" }}>
+              <div className="error-quote__body" style={{ fontFamily: "var(--font-sans)", fontSize: 13.5 }}>
+                {task.blockedReason}
+              </div>
+              <div className="error-quote__src">blocked · {task.id}</div>
+            </div>
+          )}
+
+          <div className="props">
+            <div className="prop">
+              <div className="prop__label">Status</div>
+              <div className="prop__value"><StatusDot status={task.status} /> {STATUS_TONE[task.status].label}</div>
+            </div>
+            <div className="prop">
+              <div className="prop__label">Priority</div>
+              <div className="prop__value">
+                <Priority level={task.priority} />
+                <span style={{ textTransform: "capitalize" }}>{task.priority}</span>
+              </div>
+            </div>
+            <div className="prop">
+              <div className="prop__label">Assignee</div>
+              <div className="prop__value">
+                <Avatar owner={task.owner} size="xs" />
+                {task.owner.short || task.owner.label}
+              </div>
+            </div>
+            <div className="prop">
+              <div className="prop__label">Attempt</div>
+              <div className="prop__value" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>
+                {task.attempt ? `${task.attempt.current} / ${task.attempt.max}` : "—"}
+              </div>
+            </div>
+          </div>
+
+          {subs.length > 0 && (
+            <section className="section">
+              <div className="section__head">
+                <h2 className="section__title">Sub-issues</h2>
+                <span className="section__count">{completed} / {total}</span>
+              </div>
+              <div className="progress">
+                <span className="progress__bar">
+                  <span className="progress__fill" style={{ width: total ? `${(completed/total)*100}%` : "0%" }} />
+                </span>
+                <span className="progress__text">
+                  {Math.round((completed/total)*100)}%
+                </span>
+              </div>
+              <ul className="subs">
+                {subs.map((s) => (
+                  <li key={s.id} className="sub">
+                    <StatusDot status={s.status} />
+                    <span className="sub__title">{s.title}</span>
+                    <span className="sub__status">{STATUS_TONE[s.status].label}</span>
+                    <span className="sub__assignee">
+                      <Avatar owner={s.assignee} size="xs" />
+                      <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                        {s.assignee.short || s.assignee.label}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section className="section">
+            <div className="section__head">
+              <h2 className="section__title">Activity</h2>
+              <span className="section__count">{acts.length} events</span>
+            </div>
+            <ul className="feed">
+              {acts.map((a, i) => (
+                <li key={i} className="feed__event">
+                  <span className="feed__avatar">
+                    <Avatar owner={a.who} size="xs" />
+                  </span>
+                  <div className="feed__body">
+                    <div className="feed__msg">
+                      <em>{a.who.label}</em> {a.msg}
+                    </div>
+                    {a.detail && <div className="feed__detail">{a.detail}</div>}
+                  </div>
+                  <span className="feed__time">{a.time}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="composer">
+              <textarea className="composer__body" placeholder="Leave a comment, or type a /command…" />
+              <div className="composer__bar">
+                <span className="composer__hint">
+                  <span className="composer__kbd">⌘</span> <span className="composer__kbd">⏎</span> to send
+                </span>
+                <button className="btn btn--ghost">Attach</button>
+                <button className="btn btn--primary">Comment</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * Tweaks panel
+     * ─────────────────────────────────────────────────────────── */
+
+    const ACCENTS = [
+      { id: "orange", color: "oklch(67% 0.165 40)" },
+      { id: "amber",  color: "oklch(72% 0.16 65)" },
+      { id: "moss",   color: "oklch(64% 0.105 145)" },
+      { id: "indigo", color: "oklch(60% 0.18 270)" },
+    ];
+
+    function Tweaks({ accent, setAccent, density, setDensity, mode, setMode }) {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <div className={"tweaks" + (open ? " tweaks--open" : "")}>
+          <button className="tweaks__head" onClick={() => setOpen(!open)}>
+            <span className="brandmark" style={{ width: 14, height: 14, fontSize: 9 }}>T</span>
+            <span className="tweaks__title">Design tweaks</span>
+            <span className="tweaks__chevron"><IconChevron /></span>
+          </button>
+          {open && (
+            <div className="tweaks__body">
+              <div className="tweaks__row">
+                <span className="tweaks__label">Accent</span>
+                <div className="swatches">
+                  {ACCENTS.map((a) => (
+                    <button
+                      key={a.id}
+                      className="swatch"
+                      data-active={accent === a.id}
+                      style={{ background: a.color }}
+                      onClick={() => setAccent(a.id)}
+                      aria-label={a.id}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="tweaks__row">
+                <span className="tweaks__label">Density</span>
+                <div className="tweaks__seg">
+                  {["dense","cozy","comfortable"].map((d) => (
+                    <button key={d} data-active={density === d} onClick={() => setDensity(d)}>
+                      {d[0].toUpperCase() + d.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="tweaks__row">
+                <span className="tweaks__label">Mode</span>
+                <div className="tweaks__seg">
+                  {["dark","light"].map((m) => (
+                    <button key={m} data-active={mode === m} onClick={() => setMode(m)}>
+                      {m[0].toUpperCase() + m.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ─────────────────────────────────────────────────────────────────
+     * App
+     * ─────────────────────────────────────────────────────────── */
+
+    function App() {
+      const [view, setView] = React.useState("list"); // 'list' | 'detail'
+      const [activeNav, setActiveNav] = React.useState("tasks");
+      const [taskId, setTaskId] = React.useState(null);
+      const [filter, setFilter] = React.useState("all");
+
+      const [accent, setAccent] = React.useState("orange");
+      const [density, setDensity] = React.useState("cozy");
+      const [mode, setMode] = React.useState("dark");
+
+      React.useEffect(() => {
+        document.body.dataset.density = density;
+        document.body.dataset.mode = mode;
+        const a = ACCENTS.find((x) => x.id === accent);
+        if (a) {
+          document.documentElement.style.setProperty("--accent", a.color);
+          // hover ~5% lighter
+          document.documentElement.style.setProperty("--accent-hover",
+            a.color.replace(/oklch\(\s*([0-9.]+)%/, (m, l) => `oklch(${Math.min(parseFloat(l)+5, 95)}%`)
+          );
+          document.documentElement.style.setProperty(
+            "--accent-soft", a.color.replace(")", " / 0.12)")
+          );
+          document.documentElement.style.setProperty(
+            "--accent-faint", a.color.replace(")", " / 0.06)")
+          );
+        }
+      }, [density, mode, accent]);
+
+      function handleSelect(id) {
+        setTaskId(id);
+        setView("detail");
+        window.scrollTo({ top: 0 });
+      }
+
+      function handleBack() {
+        setView("list");
+        setTaskId(null);
+      }
+
+      function handleNew() {
+        // demo: just shake the page header — not adding modal logic
+        const t = document.querySelector(".page__title, .detail__title");
+        if (t) {
+          t.animate(
+            [{ transform: "translateX(0)" }, { transform: "translateX(-3px)" }, { transform: "translateX(3px)" }, { transform: "translateX(0)" }],
+            { duration: 220, easing: "cubic-bezier(.36,.07,.19,.97)" }
+          );
+        }
+      }
+
+      const task = TASKS.find((t) => t.id === taskId);
+
+      return (
+        <div className="shell">
+          <Sidebar
+            active={activeNav}
+            onNavigate={(id) => { setActiveNav(id); if (view === "detail") setView("list"); }}
+          />
+          <main className="main">
+            <TopBar view={view} task={task} onBack={handleBack} onNewTask={handleNew} />
+            {view === "list" || !task ? (
+              <TaskList onSelect={handleSelect} filter={filter} setFilter={setFilter} />
+            ) : (
+              <TaskDetail task={task} />
+            )}
+          </main>
+          <Tweaks
+            accent={accent} setAccent={setAccent}
+            density={density} setDensity={setDensity}
+            mode={mode} setMode={setMode}
+          />
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "golden",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are golden.",
+            "turns": [
+                {
+                    "name": "tool-and-permission",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "exercise golden"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["hello ", "from golden"]
+                        },
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "tool-1",
+                            "title": "Inspect fixture",
+                            "tool_kind": "read",
+                            "path": "demo.txt",
+                            "status": "completed",
+                            "content_text": "read done"
+                        },
+                        {
+                            "kind": "permission",
+                            "tool_call_id": "perm-1",
+                            "title": "Need approval",
+                            "tool_kind": "edit",
+                            "path": "danger.txt",
+                            "status": "pending",
+                            "expect_decision": "allow-always",
+                            "emit_decision": true
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

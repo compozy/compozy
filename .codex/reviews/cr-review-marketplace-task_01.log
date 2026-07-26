@@ -1,0 +1,271 @@
+Notice: Detected codex environment. Use `coderabbit review --agent` for structured agent-friendly output.
+Connecting to CodeRabbit... 0s elapsed
+Preparing review... 3s elapsed
+────────────────────────────────────────
+CodeRabbit Review
+
+Diff      : uncommitted changes only
+Compare   : marketplace → 76f36527a
+Directory : agh
+────────────────────────────────────────
+
+(\(\
+(• .•)  Never go full rewrite. You don't buy that? Ask Netscape Navigator.
+
+Preparing sandbox... 4s elapsed
+Summarizing changes... 19s elapsed
+Summarizing changes... 1m 00s elapsed - still working
+Summarizing changes... 2m 00s elapsed - still working
+Finishing analysis tools... 2m 06s elapsed - still working
+Writing review comments... 2m 06s elapsed - still working
+
+────────────────────────────────────────────────────────────────────────
+  minor [Data Integrity & Integration]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/events/registry_test.go:95internal/events/registry_test.go:95-102]8;;
+
+  Assert the marketplace event family explicitly.
+
+  The registration contract uses marketplace.catalog, but this test only
+  checks the component, outcome, and global scope. Add the family assertion
+  so an incorrect non-empty family cannot pass the suite.
+
+
+  Proposed assertion
+
+  -		if catalogRefresh.Component != ComponentMarketplace ||
+  +		if catalogRefresh.Family != "marketplace.catalog" ||
+  +			catalogRefresh.Component != ComponentMarketplace ||
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/config/provider_test.go:1723internal/config/provider_test.go:1723-1779]8;;
+
+  Move the positive cases into Should... subtests.
+
+  The default and valid-override assertions at Lines 1726-1744 run directly
+  in the parent test; only the invalid table entries use t.Run. Wrap those
+  positive cases in named Should... subtests so every case follows the
+  required structure.
+
+  As per path instructions, /*_test.go tests MUST use the
+  t.Run("Should...") pattern for ALL test cases.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/config/merge_test.go:108internal/config/merge_test.go:108-136]8;;
+
+  Wrap this test in a required Should... subtest.
+
+  The new test is a standalone case without t.Run(...). Wrap its body in
+  t.Run("Should apply marketplace catalog overlay", ...) and keep
+  t.Parallel() inside that subtest.
+
+  As per path instructions, /*_test.go tests MUST use the
+  t.Run("Should...") pattern for ALL test cases.
+
+Writing review comments... 4m 29s elapsed - still working - 3 findings so far
+Writing review comments... 5m 29s elapsed - still working - 3 findings so far
+Writing review comments... 6m 29s elapsed - still working - 3 findings so far
+Writing review comments... 7m 29s elapsed - still working - 3 findings so far
+Writing review comments... 8m 29s elapsed - still working - 3 findings so far
+Writing review comments... 9m 29s elapsed - still working - 3 findings so far
+
+────────────────────────────────────────────────────────────────────────
+  minor [Security & Privacy]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/marketplace/entry_mcp.go:89internal/marketplace/entry_mcp.go:89-99]8;;
+
+  secret: true env fields can carry a plaintext default.
+
+  Nothing prevents an entry from declaring an env field as secret: true
+  while also setting a non-empty default. Since commonEntry marshals the
+  whole decoded struct into Entry.Payload, that default is persisted
+  verbatim and returned by Browse/Detail — i.e. a "secret" field's default
+  value would be openly exposed through catalog reads.
+
+
+
+
+
+  🔧 Proposed guard
+
+   		if _, exists := seenEnv[name]; exists {
+   			return fmt.Errorf("marketplace catalog MCP entry %q env name %q is duplicated", e.EntryID, name)
+   		}
+   		seenEnv[name] = struct{}{}
+  +		if field.Secret && strings.TrimSpace(field.Default) != "" {
+  +			return fmt.Errorf("marketplace catalog MCP entry %q env[%d] must not set default for secret fields", e.EntryID, index)
+  +		}
+   	}
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/marketplace/entry_common.go:24internal/marketplace/entry_common.go:24-33]8;;
+
+  Make validation errors deterministic. entryCommon.validate ranges over a
+  map, so when multiple required fields are empty the reported field can
+  vary between runs. Use an ordered slice here so the first missing field is
+  stable.
+
+Writing review comments... 10m 45s elapsed - still working - 5 findings so far
+Writing review comments... 11m 45s elapsed - still working - 5 findings so far
+Writing review comments... 12m 45s elapsed - still working - 5 findings so far
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/marketplace/source_test.go:298internal/marketplace/source_test.go:298-320]8;;
+
+  Missing t.Run("Should...") wrapping; two unrelated behaviors bundled in
+  one test.
+
+  TestDecodeRemoteMCPAndTimestamps tests both remote-MCP timestamp parsing
+  and trailing-JSON-value rejection without any subtests, so a failure in
+  either assertion is ambiguous and neither case follows the required
+  subtest naming.
+
+
+  🔧 Proposed fix
+
+   func TestDecodeRemoteMCPAndTimestamps(t *testing.T) {
+   	t.Parallel()
+  
+  -	raw := `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+  -		`"entry_id":"remote","name":"Remote","description":"OAuth remote",` +
+  -		`"published_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-12T00:00:00Z",` +
+  -		`"transport":"http","url":"https://mcp.example.test/v1",` +
+  -		`"oauth":{"issuer_url":"https://auth.example.test","client_id":"agh-desktop","scopes":["mcp.read"]},` +
+  -		`"default_scope":"workspace"}]}`
+  -	document, err := DecodeDocument(KindMCP, []byte(raw))
+  -	if err != nil {
+  -		t.Fatalf("DecodeDocument(remote MCP) error = %v", err)
+  -	}
+  -	entry := document.Entries[0]
+  -	if entry.PublishedAt == nil || entry.UpdatedAt == nil {
+  -		t.Fatalf("DecodeDocument(remote MCP) timestamps = %#v/%#v, want both", entry.PublishedAt, entry.UpdatedAt)
+  -	}
+  -
+  -	_, err = DecodeDocument(KindSkill, []byte(validSkillDocumentJSON()+` {}`))
+  -	if err == nil || !strings.Contains(err.Error(), "multiple values") {
+  -		t.Fatalf("DecodeDocument(trailing value) error = %v, want multiple-values diagnostic", err)
+  -	}
+  +	t.Run("Should parse published_at and updated_at for a remote MCP entry", func(t *testing.T) {
+  +		t.Parallel()
+  +		raw := `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+  +			`"entry_id":"remote","name":"Remote","description":"OAuth remote",` +
+  +			`"published_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-12T00:00:00Z",` +
+  +			`"transport":"http","url":"https://mcp.example.test/v1",` +
+  +			`"oauth":{"issuer_url":"https://auth.example.test","client_id":"agh-desktop","scopes":["mcp.read"]},` +
+  +			`"default_scope":"workspace"}]}`
+  +		document, err := DecodeDocument(KindMCP, []byte(raw))
+  +		if err != nil {
+  +			t.Fatalf("DecodeDocument(remote MCP) error = %v", err)
+  +		}
+  +		entry := document.Entries[0]
+  +		if entry.PublishedAt == nil || entry.UpdatedAt == nil {
+  +			t.Fatalf("DecodeDocument(remote MCP) timestamps = %#v/%#v, want both", entry.PublishedAt, entry.UpdatedAt)
+  +		}
+  +	})
+  +
+  +	t.Run("Should reject a document with trailing JSON values", func(t *testing.T) {
+  +		t.Parallel()
+  +		_, err := DecodeDocument(KindSkill, []byte(validSkillDocumentJSON()+` {}`))
+  +		if err == nil || !strings.Contains(err.Error(), "multiple values") {
+  +			t.Fatalf("DecodeDocument(trailing value) error = %v, want multiple-values diagnostic", err)
+  +		}
+  +	})
+   }
+
+  As per path instructions, /*_test.go: "MUST use t.Run(\"Should...\")
+  pattern for ALL test cases".
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/marketplace/source_test.go:165internal/marketplace/source_test.go:165-180]8;;
+
+  Missing t.Run("Should...") subtest wrapper.
+
+  TestDigestFile runs directly without a t.Run("Should ...", ...)
+  subtest, unlike every other test in this file.
+
+
+  🔧 Proposed fix
+
+   func TestDigestFile(t *testing.T) {
+   	t.Parallel()
+  -
+  -	artifactPath := filepath.Join(t.TempDir(), "extension.tar.gz")
+  -	if err := os.WriteFile(artifactPath, []byte("abc"), 0o600); err != nil {
+  -		t.Fatalf("WriteFile() error = %v", err)
+  -	}
+  -	digest, err := DigestFile(artifactPath)
+  -	if err != nil {
+  -		t.Fatalf("DigestFile() error = %v", err)
+  -	}
+  -	const want = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  -	if digest != want {
+  -		t.Fatalf("DigestFile() = %q, want %q", digest, want)
+  -	}
+  +
+  +	t.Run("Should compute the lowercase SHA-256 digest of a file", func(t *testing.T) {
+  +		t.Parallel()
+  +
+  +		artifactPath := filepath.Join(t.TempDir(), "extension.tar.gz")
+  +		if err := os.WriteFile(artifactPath, []byte("abc"), 0o600); err != nil {
+  +			t.Fatalf("WriteFile() error = %v", err)
+  +		}
+  +		digest, err := DigestFile(artifactPath)
+  +		if err != nil {
+  +			t.Fatalf("DigestFile() error = %v", err)
+  +		}
+  +		const want = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  +		if digest != want {
+  +			t.Fatalf("DigestFile() = %q, want %q", digest, want)
+  +		}
+  +	})
+   }
+
+  As per path instructions, /*_test.go: "MUST use t.Run(\"Should...\")
+  pattern for ALL test cases".
+
+Writing review comments... 14m 35s elapsed - still working - 7 findings so far
+Writing review comments... 15m 35s elapsed - still working - 7 findings so far
+
+────────────────────────────────────────────────────────────────────────
+  major [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/agh/internal/daemon/marketplace.go:217internal/daemon/marketplace.go:217-230]8;;
+
+  Bound the detached marketplace event write
+
+  context.WithoutCancel(ctx) removes the deadline too, so this SQLite
+  write can block indefinitely. Reattach a short timeout before calling
+  WriteEventSummary (same pattern used elsewhere for detached post-request
+  work).
+
+
+────────────────────────────────────────
+Review complete
+8 findings ✔
+
+Major    3
+Minor    5
+
+73 files reviewed:
+- .agents/skills/cy-loop-tasks/scripts/_state_io.py
+- .agents/skills/cy-loop-tasks/scripts/test_scripts.py
+- internal/config/config.go
+- internal/config/config_validate_features.go
+- internal/config/lifecycle/lifecycle.go
+- internal/config/lifecycle/lifecycle_test.go
+- internal/config/merge_overlay.go
+- internal/config/merge_test.go
+- internal/config/provider_test.go
+- internal/daemon/boot.go
+... and 63 more files
+────────────────────────────────────────
+
+Print all AI prompts: coderabbit review --show-prompts
+
+CODEX_CODERABBIT_REVIEW_COMPLETE exit=0 head=08c1797bd11a8e2f8a51e99a8c8101d38b3386ba

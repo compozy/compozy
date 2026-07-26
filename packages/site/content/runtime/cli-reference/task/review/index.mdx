@@ -1,0 +1,49 @@
+---
+title: "agh task review"
+description: "Manage task-run reviews"
+---
+
+## agh task review
+
+Manage task-run reviews
+
+```
+agh task review [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for review
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task review -o json
+```
+
+## Subcommands
+
+| Command                                                               | Description                        |
+| --------------------------------------------------------------------- | ---------------------------------- |
+| [agh task review list](/runtime/cli-reference/task/review/list)       | List task-run reviews              |
+| [agh task review request](/runtime/cli-reference/task/review/request) | Request review for a task run      |
+| [agh task review show](/runtime/cli-reference/task/review/show)       | Show one task-run review           |
+| [agh task review submit](/runtime/cli-reference/task/review/submit)   | Submit one task-run review verdict |

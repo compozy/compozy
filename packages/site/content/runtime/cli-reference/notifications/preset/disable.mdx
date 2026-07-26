@@ -1,0 +1,41 @@
+---
+title: "agh notifications preset disable"
+description: "Disable a notification preset"
+---
+
+## agh notifications preset disable
+
+Disable a notification preset
+
+```
+agh notifications preset disable <name> [flags]
+```
+
+### Options
+
+```
+  -h, --help                 help for disable
+      --target stringArray   Replace targets using bridge_id:canonical_route
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh notifications preset disable <name> -o json
+```

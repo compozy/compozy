@@ -1,0 +1,41 @@
+---
+title: "agh layout export"
+description: "Export a history-free declarative layout document"
+---
+
+## agh layout export
+
+Export a history-free declarative layout document
+
+```
+agh layout export [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for export
+      --workspace string   Workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh layout export -o json
+```

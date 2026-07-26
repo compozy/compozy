@@ -1,0 +1,171 @@
+---
+title: Installation
+description: Install the AGH binary, verify it works, and bootstrap the local runtime before you start the daemon.
+---
+
+This page gets AGH onto one machine and prepares the local runtime for real work. By the end, you
+will have a working `agh` binary, a bootstrapped `~/.agh` home, and the prerequisites needed for
+your first durable session.
+
+## Before You Begin
+
+Make sure you have:
+
+- **macOS or Linux**. AGH currently targets local-first Unix-like environments.
+- **An install method that fits your machine**. Use Homebrew, npm, or Go for managed installs.
+  The verified binary installer additionally requires `curl`, `tar`, and either `sha256sum` or
+  `shasum`. It uses a local `cosign` when available; otherwise it downloads a pinned temporary
+  cosign verifier before checking AGH release provenance.
+- **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
+  ACP-compatible agent runtime you already use.
+- **At least one provider authenticated in its native way**. Direct ACP providers such as Claude
+  Code, Codex, Gemini CLI, OpenCode, Hermes, and OpenClaw use their own CLI login/session state by
+  default. The direct `pi` provider uses Pi's `/login` and auth file by default. Wrapped API-key
+  providers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and
+  Groq use `auth_mode = "bound_secret"` by default and need an `env:` or
+  `vault:providers/<provider>/<slot>` credential configured for the daemon.
+
+Example for a built-in wrapped provider:
+
+```bash
+export OPENROUTER_API_KEY="..."
+```
+
+## Install the Binary
+
+### Option 1: managed install
+
+Use one of the managed install methods when you want updates to stay attached to the package
+manager that installed AGH.
+
+#### Homebrew
+
+```bash
+brew install compozy/compozy/agh
+```
+
+Use this path on macOS or Linuxbrew. Make sure Homebrew's `bin` directory is on `PATH` before
+running `agh version`.
+
+#### npm
+
+```bash
+npm install -g @compozy/agh
+```
+
+#### Go
+
+```bash
+go install github.com/compozy/agh@latest
+```
+
+Homebrew, npm, and Go installs should be updated with the same tool that installed them.
+`agh update --check` reports the exact command to run when it detects a managed install.
+
+### Option 2: verified binary installer
+
+Use the verified installer when you want a standalone binary install on macOS or Linux:
+
+```bash
+curl -fsSL https://agh.network/install.sh | sh
+```
+
+The installer detects your platform, downloads a pinned temporary cosign verifier when `cosign` is
+not already on `PATH`, downloads the matching GitHub release archive, verifies `checksums.txt`
+against `checksums.txt.sigstore.json`, verifies the archive checksum, installs `agh`, runs
+`agh version`, and opens `agh install` when an interactive terminal is available.
+
+Use flags when you need a pinned or scripted install:
+
+```bash
+curl -fsSL https://agh.network/install.sh | sh -s -- --version v0.1.0 --dir "$HOME/.local/bin"
+curl -fsSL https://agh.network/install.sh | sh -s -- --skip-bootstrap
+curl -fsSL https://agh.network/install.sh | sh -s -- --dry-run
+```
+
+Environment variables are equivalent for automation:
+
+```bash
+curl -fsSL https://agh.network/install.sh |
+  AGH_VERSION=v0.1.0 AGH_INSTALL_DIR="$HOME/.local/bin" AGH_SKIP_BOOTSTRAP=1 sh
+```
+
+If the target directory is not on your `PATH`, the installer prints the exact directory to add.
+
+### Option 3: Linux packages
+
+Tagged releases publish archive checksums, `checksums.txt.sigstore.json`, SBOMs, and Linux `.deb`
+and `.rpm` packages. Download the package for your architecture from the GitHub release, verify it
+against `checksums.txt`, then install it with your distribution package manager.
+
+### Option 4: build from a repository checkout
+
+Use this when you are already working from the AGH source tree or want a local build artifact you
+control explicitly. This path requires Go 1.25 or later.
+
+```bash
+git clone https://github.com/compozy/agh
+cd agh
+go build -o ./bin/agh .
+export PATH="$PWD/bin:$PATH"
+```
+
+## Verify the Install
+
+Confirm that the binary is available:
+
+```bash
+agh version
+```
+
+If your shell reports `command not found`, fix `PATH` first. Do that before you continue.
+
+## Bootstrap the AGH Home
+
+The verified binary installer runs this step automatically when it can access an interactive
+terminal. If you used `--skip-bootstrap`, a managed install, a Linux package, or a source build, run
+the interactive bootstrap once:
+
+```bash
+agh install
+```
+
+This creates or updates:
+
+- `~/.agh/config.toml`
+- `~/.agh/agents/general/AGENT.md`
+
+The bootstrap flow lets you pick a default provider and model for the built-in `general` agent.
+
+## Manage the Install
+
+Use `agh config path` to inspect the exact global and workspace config files AGH will read, and use
+`agh config validate` after manual edits. `agh config show`, `agh config list`, and
+`agh config get <path>` always redact environment-backed MCP and config values before printing.
+Use `agh config validate --repair-env --workspace <path>` when a workspace `.env` needs an explicit,
+bounded repair.
+
+`agh update` applies the latest stable release for direct-binary macOS and Linux installs. Use
+`agh update --check` when you want a status-only check. Managed installs defer to the package
+manager and return the exact upgrade command instead of mutating files directly, such as
+`brew upgrade compozy/compozy/agh`, `npm update -g @compozy/agh`, or
+`go install github.com/compozy/agh@latest`. Windows direct-binary installs remain manual in
+this first cut. `agh uninstall` removes runtime launch
+artifacts idempotently and preserves `~/.agh` unless you explicitly pass `--purge --force`.
+
+## Sanity Check the Runtime Inputs
+
+Before moving to Quick Start, verify these four things:
+
+1. `agh version` succeeds.
+2. `agh install` completed, either through the verified binary installer's automatic bootstrap, a
+   managed install, a Linux package, or a manual run, and created `~/.agh/config.toml`.
+3. `agh config validate` reports a valid config.
+4. Your selected provider is authenticated. For native CLI providers, run the provider's own login
+   command first; for `bound_secret` providers, make sure the daemon can resolve the configured
+   `env:` or `vault:` secret.
+
+## Next Step
+
+Continue to [Quick Start](/runtime/core/getting-started/quick-start). That tutorial assumes the
+binary works, `~/.agh` exists, and your selected provider is authenticated.

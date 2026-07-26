@@ -1,0 +1,73 @@
+---
+title: Automation Suggestions
+description: Review workspace-scoped Job proposals, create the useful ones, and durably dismiss the rest.
+---
+
+Automation suggestions provide prefilled scheduled Jobs for one workspace. The shipped catalog
+emitter proposes provider-neutral Jobs using the workspace's default agent. AGH does not create or
+run a proposed Job until an operator or agent accepts it.
+
+Open the Jobs page to review pending suggestions, or use a structured surface:
+
+```bash
+agh automation suggestions --workspace /absolute/path/to/workspace -o json
+```
+
+The first list for a workspace idempotently seeds the starter catalog. Each proposal contains the
+exact Job payload AGH will validate at acceptance time, including its agent, prompt, schedule, catch-up
+policy, and workspace ownership.
+
+## Create a suggested Job
+
+Accepting a pending suggestion changes it to `accepted` and creates its deterministic Job through the
+same validation and persistence path as ordinary dynamic Job creation:
+
+```bash
+agh automation suggestions accept <suggestion-id> \
+  --workspace /absolute/path/to/workspace \
+  -o json
+```
+
+The lifecycle-command guard runs before consent is persisted. A proposed prompt that asks an agent to
+restart, stop, or kill the AGH daemon is rejected and remains pending; no Job is created. Concurrent
+acceptance is compare-and-swap protected, so only one caller creates the Job.
+
+## Dismiss a suggestion
+
+Dismiss a proposal when the Job is not useful for that workspace:
+
+```bash
+agh automation suggestions dismiss <suggestion-id> \
+  --workspace /absolute/path/to/workspace \
+  -o json
+```
+
+Dismissal is durable. The `(workspace_id, dedup_key)` latch prevents the same catalog proposal from
+returning on later lists. AGH keeps at most five pending suggestions per workspace by default. Set a
+different positive cap in `config.toml` when a workspace needs a tighter or wider review queue:
+
+```toml
+[automation.suggestions]
+pending_cap = 5
+```
+
+The cap is enforced inside the same serialized store write as deduplication and pending-count
+validation. Changes are restart-required;
+`agh config set automation.suggestions.pending_cap <value>` provides the structured
+agent-management path.
+
+## Public surfaces
+
+| Operation      | Native tool                           | HTTP and UDS                                                                         |
+| -------------- | ------------------------------------- | ------------------------------------------------------------------------------------ |
+| List           | `agh__automation_suggestions_list`    | `GET /api/workspaces/{workspace_id}/automation/suggestions?status=pending`           |
+| Create the Job | `agh__automation_suggestions_accept`  | `POST /api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/accept`  |
+| Dismiss        | `agh__automation_suggestions_dismiss` | `POST /api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss` |
+
+Every operation resolves the workspace from its path or required input and applies that workspace id
+to the store predicate. A suggestion from one workspace cannot be listed, accepted, or dismissed
+through another workspace.
+
+Use the generated [`agh automation suggestions`](/runtime/cli-reference/automation/suggestions)
+reference for the current flags and output options. Agents should resolve each native descriptor
+before calling it rather than reconstructing the input schema from this page.

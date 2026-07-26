@@ -1,0 +1,54 @@
+---
+title: Supported Bridge Behavior
+description: Compare the inbound events, route shapes, outbound text operations, progress behavior, and capability limits of every in-tree provider.
+---
+
+Use this reference after choosing a provider and before promising platform behavior to users. It
+describes the current shared contract and the provider implementations in this repository, not every
+feature offered by the external platform.
+
+## Provider matrix
+
+| Provider        | Accepted inbound use                                                              | Route shapes                                                                      | Outbound text                                                                     | Tool progress                                                          |
+| --------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Slack           | Messages, app mentions, reactions, `/agh` prompts, and interactive actions        | Channel as `group`, or DM as `peer`; normal message replies can preserve a thread | Create, edit, and delete; mrkdwn; 40,000 UTF-16 units                             | `new + accumulate` by default; editable status, typing, and reactions  |
+| Telegram        | Messages, edited messages, channel posts, and edited channel posts                | Private `peer`, ordinary `group`, or forum `group + thread`                       | Create, edit, and delete; MarkdownV2 with plain-text fallback; 4,096 UTF-16 units | `new + accumulate` by default; editable status, typing, and reactions  |
+| Discord         | Message create, reaction add/remove, application commands, and message components | DM `peer`, guild `group`, or guild `group + thread`                               | Create, edit, and delete; 2,000 Unicode code points                               | `new + accumulate` by default; editable status, typing, and reactions  |
+| WhatsApp        | Direct text, image, document, audio, video, sticker, and location messages        | Direct-message `peer` only                                                        | Create text only; 4,096 Unicode code points                                       | Off by default; append-only when enabled, with no typing or reactions  |
+| Microsoft Teams | Messages, message/action submissions, invoke actions, and reactions               | Direct `peer + thread`, or channel/group `group + thread`                         | Create, edit, and delete; 28,000 Unicode code points                              | Off by default; editable status and typing, without progress reactions |
+| Google Chat     | Messages, actions, and reactions through direct, Pub/Sub, or hybrid ingress       | DM `peer + thread`, or space `group + thread`                                     | Create, edit, and delete; 32,000 UTF-8 bytes                                      | Off by default; editable plain text, without typing or reactions       |
+| GitHub          | Newly created issue comments and pull-request review comments                     | Repository `group` plus issue or review `thread`                                  | Create, edit, and delete comments in the matching surface                         | Acknowledged without writing progress to GitHub                        |
+| Linear          | New comments, or Agent Session `created` and `prompted` events                    | Organization/issue or Agent Session identity selected by mode                     | Comments are editable; Agent Activities are append-only                           | Acknowledged without writing progress to Linear                        |
+
+Every multi-part terminal reply is ordered and acknowledges its final materialized remote message.
+The provider setup guides describe exact authentication modes, routing flags, platform permissions,
+and unsupported events.
+
+## Capability boundaries
+
+| Capability                             | Current contract                                                                                                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Generic inbound text                   | Supported by every in-tree provider on its documented event surface.                                                   |
+| Typed commands/actions/reactions/edits | Provider-specific. Only the event families listed above are normalized.                                                |
+| Inbound attachment metadata            | Slack, Discord, WhatsApp, Teams, and Google Chat preserve supported provider references.                               |
+| Binary attachment processing           | Not shared. Attachment metadata does not imply download, OCR, vision, or transcription.                                |
+| Generic outbound media upload          | Not supported by bridge delivery v1. Outbound delivery is text-oriented.                                               |
+| Common in-chat administration          | Not supported. Use CLI, HTTP/UDS, or Web management surfaces.                                                          |
+| Direct-message admission               | Controlled by `dm_policy` on chat providers; see [Control bridge access](/runtime/core/bridges/access).                |
+| Group/channel admission                | Controlled by platform installation/permissions, provider validation, and route-specific instances—not by `dm_policy`. |
+| Session reset                          | Stop the route's AGH session; the next accepted event creates a replacement.                                           |
+
+## Read “supported” precisely
+
+- A platform may expose features that its AGH provider does not ingest. For example, the Discord
+  HTTP provider does not open a Gateway connection and does not ingest ordinary `MESSAGE_UPDATE`.
+- A provider can acknowledge an unsupported or irrelevant webhook without creating a route. An HTTP
+  success from the platform boundary is not proof that an AGH prompt was admitted.
+- A progress acknowledgement can be intentionally side-effect-free. GitHub and Linear do this so
+  tool status does not create issue noise.
+- Provider-native IDs, routes, and reply references remain the authority. AGH does not fabricate a
+  remote ID or silently choose an ambiguous target.
+
+Continue with the provider's [setup guide](/runtime/core/bridges/setup) for executable configuration,
+or read [Bridge conversations and sessions](/runtime/core/bridges/conversations) for session reuse
+and busy-ingress behavior.

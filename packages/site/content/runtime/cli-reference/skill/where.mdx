@@ -1,0 +1,49 @@
+---
+title: "agh skill where"
+description: "Show every path participating in skill resolution"
+---
+
+## agh skill where
+
+Show every path participating in skill resolution
+
+```
+agh skill where <name> [flags]
+```
+
+### Examples
+
+```
+  # Show which skill declaration wins and which ones are shadowed
+  agh skill where code-review
+```
+
+### Options
+
+```
+      --for-agent string   Resolve the effective skill set for one logical agent
+  -h, --help               help for where
+      --workspace string   Resolve the daemon-managed skill from a workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh skill where <name> -o json
+```

@@ -1,0 +1,104 @@
+---
+title: Oversized Tool Results
+description: Open, page, and retain exact tool results that exceed the active result budget.
+---
+
+Tool calls keep a bounded result in the transcript. When the final post-hook, redacted result is
+larger than its effective byte budget, AGH also retains the exact canonical JSON envelope and
+returns an opaque workspace-scoped artifact reference.
+
+Use this guide when a tool card says the result is truncated or a structured result contains
+`truncated: true` with an `agh://tool-artifacts/...` URI.
+
+<OperatorNote label="Workspace boundary">
+  An artifact is readable only from the workspace that produced it. Missing, expired, and
+  foreign-workspace references return the same not-found response.
+</OperatorNote>
+
+## Open a result in the Web UI
+
+1. Keep the preview visible for immediate context.
+2. Select **Open full result** on the tool-result card.
+3. Select **Load more** while the server returns another byte offset.
+
+AGH combines the exact page bytes before decoding the JSON, so a multi-byte character split across
+two pages remains intact. Closing or reopening the viewer does not change the retained bytes.
+
+## Read a result from the CLI
+
+Read the first page as exact bytes:
+
+```bash
+agh tool artifact read \
+  agh://tool-artifacts/art_<sha256> \
+  --workspace <workspace-id>
+```
+
+For scripts, request structured output:
+
+```bash
+agh tool artifact read \
+  agh://tool-artifacts/art_<sha256> \
+  --workspace <workspace-id> \
+  --offset 0 \
+  --limit 65536 \
+  -o json
+```
+
+The structured page includes `data_base64`, `offset`, `bytes`, `total_bytes`, `next_offset`, and
+`eof`. Decode `data_base64`, append bytes in offset order, and continue from `next_offset` until
+`eof` is true. Human output writes one page directly to stdout without a wrapper.
+
+## Read a result from a managed session
+
+Resolve canonical `agh__tool_artifact_read` through tool search or tool info, then invoke the exact
+tool reference exposed by the harness. Pass:
+
+- `artifact_uri`: the opaque URI returned with the truncated result
+- `offset`: the next byte offset, starting at `0`
+- `limit`: up to `65536` bytes
+
+The native reader belongs to the bootstrap and tool-artifacts toolsets, so an agent can recover a
+large result without shell access. Hosted MCP returns the same page envelope as the native registry.
+
+## HTTP and UDS reads
+
+HTTP and UDS share the generated route:
+
+```text
+GET /api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}?offset=0&limit=65536
+```
+
+Use the opaque `artifact_id` from the returned URI. The response contains base64 page bytes and the
+same paging fields as structured CLI output. Invalid ranges return `400`; unavailable artifacts
+return `404`; corrupt or unreadable retained bytes return `502`.
+
+## Retention
+
+`[tools.artifacts]` sets three positive daemon-wide bounds:
+
+```toml
+[tools.artifacts]
+max_count = 200
+max_bytes = 1073741824
+max_age = "720h"
+```
+
+AGH applies count, byte, and age cleanup deterministically. These settings are
+`restart-required`; a config update changes desired state, and the restarted daemon owns the new
+retention envelope. See [Configuration Reference](/runtime/core/configuration/config-toml) for the
+complete field contract.
+
+## Persistence failures
+
+If AGH cannot retain an oversized result, the tool call returns the typed
+`result_persistence_failed` error with a bounded partial result. No durable artifact is promised in
+that response. Keep the partial result as evidence and fix the storage or retention failure before
+invoking the original mutating tool again; a retry could repeat an already committed side effect.
+
+## Related pages
+
+- [Tool Registry](/runtime/core/tools)
+- [Policy and Invocation](/runtime/core/tools/policy-and-invocation)
+- [Configuration Reference](/runtime/core/configuration/config-toml)
+- [Tool CLI Reference](/runtime/cli-reference/tool)

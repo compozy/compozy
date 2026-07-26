@@ -1,419 +1,484 @@
+// Package core provides the shared transport-facing API layer used by HTTP and UDS bindings.
 package core
 
 import (
 	"context"
-	"encoding/json"
-	"log/slog"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bundlepkg "github.com/compozy/agh/internal/bundles"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/heartbeat"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/network"
+	presetspkg "github.com/compozy/agh/internal/notifications/presets"
+	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/support"
+	taskpkg "github.com/compozy/agh/internal/task"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/agh/internal/vault"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
-const defaultHeartbeatInterval = contract.DefaultHeartbeatInterval
+// AgentLoader loads one parsed AGENT.md definition.
+type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error)
 
-// HandlerConfig wires the shared daemon transport handlers.
-type HandlerConfig struct {
-	TransportName                 string
-	Logger                        *slog.Logger
-	Now                           func() time.Time
-	HeartbeatInterval             time.Duration
-	StreamDone                    <-chan struct{}
-	WorkspaceSocketOriginPatterns []string
-
-	Daemon          DaemonService
-	Workspaces      WorkspaceService
-	WorkspaceEvents WorkspaceEventService
-	Tasks           TaskService
-	Reviews         ReviewService
-	Runs            RunService
-	Sync            SyncService
-	Exec            ExecService
+// AgentCatalog exposes projected resource-backed agent definitions.
+type AgentCatalog interface {
+	ListAgents(ctx context.Context) ([]AgentCatalogEntry, error)
+	GetAgent(ctx context.Context, name string) (AgentCatalogEntry, error)
 }
 
-// DaemonService exposes daemon-wide status, health, metrics, and shutdown control.
-type DaemonService interface {
-	Status(context.Context) (DaemonStatus, error)
-	Health(context.Context) (DaemonHealth, error)
-	Metrics(context.Context) (MetricsPayload, error)
-	Stop(context.Context, bool) error
+// AgentCatalogEntry carries one definition with its durable ownership scope.
+type AgentCatalogEntry struct {
+	Def         aghconfig.AgentDef
+	Origin      contract.AgentOrigin
+	WorkspaceID string
 }
 
-// WorkspaceService exposes workspace registration and lookup.
-type WorkspaceService interface {
-	Register(context.Context, string, string) (WorkspaceRegisterResult, error)
-	List(context.Context) ([]Workspace, error)
-	Get(context.Context, string) (Workspace, error)
-	Update(context.Context, string, WorkspaceUpdateInput) (Workspace, error)
-	Delete(context.Context, string) error
-	Resolve(context.Context, string) (Workspace, error)
-	Sync(context.Context) (WorkspaceSyncResult, error)
+// AgentDefinitionSync converges authored definitions into runtime projections.
+type AgentDefinitionSync interface {
+	Sync(ctx context.Context) error
 }
 
-// WorkspaceEventService exposes workspace-scoped browser event streams.
-type WorkspaceEventService interface {
-	OpenWorkspaceStream(context.Context, string) (WorkspaceEventStream, error)
+// SoulHistoryPurger removes history owned by one effective definition.
+type SoulHistoryPurger interface {
+	PurgeAgentHistory(ctx context.Context, ref soul.WorkspaceRef, agentName string, sourcePath string) error
 }
 
-// TaskService exposes workflow summary, rich read-model, validation, and run-start surfaces.
+// HeartbeatHistoryPurger removes history owned by one effective definition.
+type HeartbeatHistoryPurger interface {
+	PurgeAgentHistory(ctx context.Context, ref heartbeat.WorkspaceRef, agentName string, sourcePath string) error
+}
+
+// ModelCatalogService exposes daemon-owned provider model catalog reads and refreshes.
+type ModelCatalogService interface {
+	modelcatalog.Service
+}
+
+// SessionManager is the runtime session surface exposed by API transports.
+// List returns the current in-memory session snapshot without performing I/O.
+// ListAll may perform I/O to return the authoritative session set, so it accepts a context.
+type SessionManager interface {
+	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	List() []*session.Info
+	ListAll(ctx context.Context) ([]*session.Info, error)
+	Status(ctx context.Context, id string) (*session.Info, error)
+	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
+	LatestSessionEventByType(ctx context.Context, id string, eventType string) (*store.SessionEvent, error)
+	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
+	TranscriptPage(ctx context.Context, id string, query transcript.PageQuery) (transcript.Page, error)
+	TranscriptChanges(ctx context.Context, id string, query transcript.ChangeQuery) (transcript.ChangePage, error)
+	RepairSession(ctx context.Context, opts session.RepairOpts) (*session.RepairResult, error)
+	Delete(ctx context.Context, id string) error
+	Stop(ctx context.Context, id string) error
+	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
+	Resume(ctx context.Context, id string) (*session.Session, error)
+	ClearConversation(ctx context.Context, id string) (*session.Session, error)
+	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
+	PromptWithOpts(ctx context.Context, id string, opts session.PromptOpts) (<-chan acp.AgentEvent, error)
+	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
+	SendPrompt(ctx context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error)
+	InterruptPrompt(ctx context.Context, id string) (session.SendPromptResult, error)
+	SteerPrompt(ctx context.Context, id string, msg string) (session.SendPromptResult, error)
+	CancelQueuedPrompt(ctx context.Context, id string, queueEntryID string) (session.SendPromptResult, error)
+	CancelPrompt(ctx context.Context, id string) error
+	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error
+	InputQueueSummary(ctx context.Context, id string) (session.InputQueueSummary, error)
+}
+
+// SessionAcceptanceManager durably accepts user-created sessions without
+// waiting for provider startup.
+type SessionAcceptanceManager interface {
+	CreateAccepted(ctx context.Context, opts session.CreateAcceptedOpts) (*session.Info, error)
+}
+
+// DaemonDrainController owns daemon-global new-work admission state.
+type DaemonDrainController interface {
+	Drain(ctx context.Context) error
+	Undrain(ctx context.Context) error
+	DrainState() contract.DrainState
+}
+
+// SessionPageManager is the bounded public catalog capability implemented by
+// the runtime manager without widening internal full-snapshot consumers.
+type SessionPageManager interface {
+	ListPage(ctx context.Context, query session.ListQuery) (session.ListPage, error)
+}
+
+// AgentSessionMetricsReader exposes exact workspace-scoped session aggregates.
+type AgentSessionMetricsReader interface {
+	AggregateSessionsByAgent(
+		ctx context.Context,
+		workspaceID string,
+	) (map[string]session.AgentSessionMetrics, error)
+}
+
+// SessionAttachManager owns durable attach CAS and live-session synchronization.
+type SessionAttachManager interface {
+	AttachSession(ctx context.Context, req store.SessionAttachRequest) (store.SessionAttach, error)
+}
+
+// SessionCatalog exposes daemon-owned session catalog operations that must not
+// create a second live session authority.
+type SessionCatalog interface {
+	ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error)
+}
+
+// Observer is the observability surface exposed by API transports.
+type Observer interface {
+	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
+	QueryHookCatalog(ctx context.Context, filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
+	QueryHookRuns(ctx context.Context, query store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
+	QueryHookEvents(ctx context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
+	QueryTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error)
+	QueryBridgeHealth(ctx context.Context) ([]observe.BridgeInstanceHealth, error)
+	Health(ctx context.Context) (observe.Health, error)
+	QueryTaskDashboard(ctx context.Context, query observe.TaskDashboardQuery) (observe.TaskDashboardView, error)
+	QueryTaskInbox(
+		ctx context.Context,
+		query observe.TaskInboxQuery,
+		actor taskpkg.ActorIdentity,
+	) (observe.TaskInboxView, error)
+	QueryObserveOverview(ctx context.Context, query observe.OverviewQuery) (observe.OverviewView, error)
+}
+
+// NotificationPresetService is the daemon-owned notification preset runtime.
+type NotificationPresetService interface {
+	List(ctx context.Context, query presetspkg.Query) ([]presetspkg.Preset, error)
+	Get(ctx context.Context, name string) (presetspkg.Preset, error)
+	Create(ctx context.Context, req presetspkg.CreateRequest) (presetspkg.Preset, error)
+	Update(ctx context.Context, name string, req presetspkg.UpdateRequest) (presetspkg.Preset, error)
+	Delete(ctx context.Context, name string) error
+}
+
+// BundleService exposes extension bundle catalog, activation, and declared
+// network channels to API transports.
+type BundleService interface {
+	Catalog(ctx context.Context) ([]bundlepkg.CatalogEntry, error)
+	PreviewActivation(ctx context.Context, req bundlepkg.ActivateRequest) (bundlepkg.ActivationPreview, error)
+	Activate(ctx context.Context, req bundlepkg.ActivateRequest) (bundlepkg.ActivationPreview, error)
+	ListActivations(ctx context.Context) ([]bundlepkg.ActivationPreview, error)
+	GetActivation(ctx context.Context, id string) (bundlepkg.ActivationPreview, error)
+	UpdateActivation(ctx context.Context, req bundlepkg.UpdateActivationRequest) (bundlepkg.ActivationPreview, error)
+	Deactivate(ctx context.Context, id string) error
+	NetworkSettings(ctx context.Context) (bundlepkg.NetworkSettings, error)
+}
+
+// NetworkService is the runtime network surface exposed to daemon transports.
+type NetworkService interface {
+	Send(ctx context.Context, req network.SendRequest) (string, error)
+	ListPeers(ctx context.Context, workspaceID string, channel string) ([]network.PeerInfo, error)
+	ListChannels(ctx context.Context, workspaceID string) ([]network.ChannelInfo, error)
+	Status(ctx context.Context) (*network.Status, error)
+	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
+	WaitInbox(ctx context.Context, sessionID string, channel string) ([]network.Envelope, error)
+}
+
+// AgentContextService assembles the bounded situation payload for a validated agent session.
+type AgentContextService interface {
+	ContextForSession(ctx context.Context, info *session.Info) (contract.AgentContextPayload, error)
+}
+
+// SoulAuthoringService exposes managed SOUL.md authoring and read validation to API handlers.
+type SoulAuthoringService interface {
+	soul.AuthoringService
+}
+
+// SoulRefresher refreshes a session's resolved Soul snapshot through service-owned CAS.
+type SoulRefresher interface {
+	RefreshSoulWithExpectedDigest(
+		ctx context.Context,
+		id string,
+		expectedDigest string,
+	) (session.SoulRefreshResult, error)
+}
+
+// HeartbeatAuthoringService exposes managed HEARTBEAT.md authoring to API handlers.
+type HeartbeatAuthoringService interface {
+	heartbeat.AuthoringService
+}
+
+// HeartbeatStatusService composes read-only Heartbeat policy, wake state, and health.
+type HeartbeatStatusService interface {
+	heartbeat.StatusService
+}
+
+// HeartbeatWakeService evaluates one advisory manual Heartbeat wake.
+type HeartbeatWakeService interface {
+	Wake(ctx context.Context, req heartbeat.WakeRequest) (heartbeat.WakeDecision, error)
+}
+
+// SessionHealthReader reads metadata-only session health rows.
+type SessionHealthReader interface {
+	GetSessionHealth(ctx context.Context, sessionID string) (heartbeat.SessionHealth, error)
+}
+
+// SessionHealthPageReader returns health for one bounded session catalog page
+// without per-session metadata or store reads.
+type SessionHealthPageReader interface {
+	SessionHealthForPage(ctx context.Context, infos []*session.Info) (map[string]heartbeat.SessionHealth, error)
+}
+
+// HeartbeatWakeEventReader lists retained Heartbeat wake audit rows.
+type HeartbeatWakeEventReader interface {
+	ListHeartbeatWakeEvents(ctx context.Context, query heartbeat.WakeEventListQuery) ([]heartbeat.WakeEvent, error)
+}
+
+// CoordinatorRoleResolver resolves safe coordinator policy for agent-facing reads.
+type CoordinatorRoleResolver interface {
+	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error)
+}
+
+// RolesStatusProvider projects effective role configuration without simulating an invocation.
+type RolesStatusProvider interface {
+	RoleStatuses(ctx context.Context, workspaceID string) ([]contract.RoleStatus, error)
+	RoleStatus(ctx context.Context, workspaceID, role string) (contract.RoleStatus, error)
+}
+
+// NetworkStore exposes persisted network audit, channel metadata CRUD, and timeline queries to the API layer.
+type NetworkStore interface {
+	store.NetworkConversationStore
+	store.NetworkAuditStore
+	store.NetworkChannelStore
+	store.NetworkMessageStore
+	store.NetworkPreferenceStore
+}
+
+// OnboardingStore persists the global first-run onboarding completion flag.
+type OnboardingStore interface {
+	store.OnboardingStore
+}
+
+// DreamTrigger exposes consolidation controls and state to the API layer.
+type DreamTrigger interface {
+	Trigger(ctx context.Context, workspace string) (bool, string, error)
+	LastConsolidatedAt() (time.Time, error)
+	Enabled() bool
+}
+
+// MemoryExtractorService exposes the daemon-owned Memory v2 extractor runtime.
+type MemoryExtractorService interface {
+	Status(ctx context.Context) (contract.MemoryExtractorStatusPayload, error)
+	ListFailures(ctx context.Context) ([]contract.MemoryExtractorFailurePayload, error)
+	Retry(ctx context.Context, req contract.MemoryExtractorRetryRequest) (contract.MemoryExtractorRetryResponse, error)
+	Drain(ctx context.Context) (contract.MemoryExtractorDrainResponse, error)
+}
+
+// MemoryProviderService exposes the active MemoryProvider registry.
+type MemoryProviderService interface {
+	List(ctx context.Context, workspaceID string) ([]contract.MemoryProviderPayload, error)
+	Get(ctx context.Context, workspaceID string, name string) (contract.MemoryProviderPayload, error)
+	Select(ctx context.Context, workspaceID string, name string) (contract.MemoryProviderPayload, error)
+	Enable(
+		ctx context.Context,
+		workspaceID string,
+		name string,
+		reason string,
+	) (contract.MemoryProviderLifecycleResponse, error)
+	Disable(
+		ctx context.Context,
+		workspaceID string,
+		name string,
+		reason string,
+	) (contract.MemoryProviderLifecycleResponse, error)
+}
+
+// MemorySessionLedgerService exposes materialized session ledgers and replay.
+type MemorySessionLedgerService interface {
+	Get(ctx context.Context, sessionID string) (contract.MemorySessionLedgerResponse, error)
+	Replay(
+		ctx context.Context,
+		sessionID string,
+		req contract.MemorySessionReplayRequest,
+	) (contract.MemorySessionReplayResponse, error)
+	Prune(ctx context.Context, req contract.MemorySessionsPruneRequest) (contract.MemorySessionsPruneResponse, error)
+	Repair(ctx context.Context) (contract.MemorySessionsRepairResponse, error)
+}
+
+// SupportBundleService exposes daemon-owned support bundle operations to transports.
+type SupportBundleService interface {
+	Create(ctx context.Context, req support.CreateRequest) (support.Operation, error)
+	Get(ctx context.Context, operationID string) (support.Operation, error)
+	DownloadPath(ctx context.Context, operationID string) (support.Operation, string, error)
+}
+
+// SkillsRegistry exposes the daemon-owned skill catalog.
+type SkillsRegistry interface {
+	Get(name string) (*skills.Skill, bool)
+	List() []*skills.Skill
+	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
+	ForAgent(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace, agentName string) ([]*skills.Skill, error)
+	LoadContent(ctx context.Context, skill *skills.Skill) (string, error)
+	LoadResource(ctx context.Context, skill *skills.Skill, relativePath string) (string, error)
+	SetEnabled(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
+	SetEnabledForAgent(name string, resolved *workspacepkg.ResolvedWorkspace, agentName string, enabled bool) error
+}
+
+// SkillsRegistryRefresher refreshes the daemon global skill catalog after on-disk mutations.
+type SkillsRegistryRefresher interface {
+	RefreshGlobal(ctx context.Context) error
+}
+
+// SkillResourceSyncer synchronizes resource-backed skill declarations after on-disk mutations.
+type SkillResourceSyncer interface {
+	SyncSkills(ctx context.Context) error
+}
+
+// VaultService exposes redacted secret metadata and write-only mutations to API transports.
+type VaultService interface {
+	GetMetadata(ctx context.Context, ref string) (vault.Metadata, error)
+	ListMetadata(ctx context.Context, prefix string) ([]vault.Metadata, error)
+	PutSecret(ctx context.Context, ref string, kind string, plaintext string) (vault.Metadata, error)
+	DeleteSecret(ctx context.Context, ref string) error
+}
+
+// SettingsRestartOperation is the daemon-owned restart record exposed to settings transports.
+type SettingsRestartOperation struct {
+	OperationID        string
+	Status             string
+	OldPID             int
+	OldStartedAt       time.Time
+	OldSocketPath      string
+	NewPID             int
+	ActiveSessionCount int
+	FailureReason      string
+	StartedAt          time.Time
+	UpdatedAt          time.Time
+	CompletedAt        *time.Time
+}
+
+// SettingsRestartController exposes the daemon-owned restart action and persisted status surface.
+type SettingsRestartController interface {
+	RequestRestart(ctx context.Context) (SettingsRestartOperation, error)
+	GetRestartOperation(ctx context.Context, operationID string) (SettingsRestartOperation, error)
+}
+
+// SettingsUpdateStatus is the daemon-owned software-update snapshot exposed to settings transports.
+type SettingsUpdateStatus struct {
+	Supported      bool
+	Managed        bool
+	InstallMethod  string
+	CurrentVersion string
+	LatestVersion  string
+	Available      bool
+	Status         string
+	Recommendation string
+	ReleaseURL     string
+	CheckedAt      *time.Time
+	LastError      string
+}
+
+// SettingsUpdateController exposes the daemon-owned update status surface to settings transports.
+type SettingsUpdateController interface {
+	GetUpdate(ctx context.Context) (SettingsUpdateStatus, error)
+}
+
+// ResourceService exposes the operator-facing desired-state CRUD surface to API transports.
+type ResourceService interface {
+	List(ctx context.Context, filter resources.ResourceFilter) ([]resources.RawRecord, error)
+	Get(ctx context.Context, kind resources.ResourceKind, id string) (resources.RawRecord, error)
+	Put(ctx context.Context, draft resources.RawDraft) (resources.RawRecord, error)
+	Delete(ctx context.Context, kind resources.ResourceKind, id string, expectedVersion int64) error
+}
+
+// ToolRegistry exposes registry projection and dispatch without binding API handlers to backend packages.
+type ToolRegistry interface {
+	List(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.ToolView, error)
+	Search(ctx context.Context, scope toolspkg.Scope, q toolspkg.SearchQuery) ([]toolspkg.ToolView, error)
+	Get(ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolID) (toolspkg.ToolView, error)
+	Call(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error)
+}
+
+// ToolsetRegistry exposes named toolset projections.
+type ToolsetRegistry interface {
+	ListToolsets(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.ToolsetView, error)
+	GetToolset(ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolsetID) (toolspkg.ToolsetView, error)
+}
+
+// ToolApprovalIssuer mints local one-shot approval references for operator transports.
+type ToolApprovalIssuer interface {
+	CreateToolApproval(
+		ctx context.Context,
+		scope toolspkg.Scope,
+		req toolspkg.ApprovalRequest,
+	) (toolspkg.ApprovalTokenGrant, error)
+}
+
+// ToolApprovalGrantService manages workspace-scoped remembered native-tool approval decisions.
+type ToolApprovalGrantService interface {
+	toolspkg.ApprovalGrantStore
+}
+
+// AutomationManager exposes automation state and control surfaces to the API layer.
+type AutomationManager interface {
+	ListSuggestions(
+		ctx context.Context,
+		workspaceRef string,
+		status automationpkg.SuggestionStatus,
+	) ([]automationpkg.Suggestion, error)
+	AcceptSuggestion(
+		ctx context.Context,
+		workspaceRef string,
+		suggestionID string,
+	) (automationpkg.SuggestionAcceptance, error)
+	DismissSuggestion(
+		ctx context.Context,
+		workspaceRef string,
+		suggestionID string,
+	) (automationpkg.Suggestion, error)
+	ListJobs(ctx context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error)
+	Jobs(ctx context.Context) ([]automationpkg.Job, error)
+	GetJob(ctx context.Context, id string) (automationpkg.Job, error)
+	CreateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
+	UpdateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
+	DeleteJob(ctx context.Context, id string) error
+	TriggerJob(ctx context.Context, id string) (automationpkg.Run, error)
+	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error)
+	Triggers(ctx context.Context) ([]automationpkg.Trigger, error)
+	GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error)
+	CreateTrigger(
+		ctx context.Context,
+		trigger automationpkg.Trigger,
+		webhookSecret automationpkg.WebhookSecretWrite,
+	) (automationpkg.Trigger, error)
+	UpdateTrigger(
+		ctx context.Context,
+		trigger automationpkg.Trigger,
+		webhookSecret *automationpkg.WebhookSecretWrite,
+	) (automationpkg.Trigger, error)
+	DeleteTrigger(ctx context.Context, id string) error
+	ListRuns(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
+	Runs(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
+	GetRun(ctx context.Context, id string) (automationpkg.Run, error)
+	Status(ctx context.Context) (automationpkg.ManagerStatus, error)
+	SetJobEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Job, error)
+	SetTriggerEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Trigger, error)
+	HandleWebhook(ctx context.Context, request automationpkg.WebhookRequest) (automationpkg.TriggerResult, error)
+}
+
+// TaskService exposes task-domain state and lifecycle surfaces to the API layer.
 type TaskService interface {
-	Dashboard(context.Context, string) (DashboardPayload, error)
-	ListWorkflows(context.Context, string) ([]WorkflowSummary, error)
-	GetWorkflow(context.Context, string, string) (WorkflowSummary, error)
-	WorkflowOverview(context.Context, string, string) (WorkflowOverviewPayload, error)
-	ListItems(context.Context, string, string) ([]TaskItem, error)
-	TaskBoard(context.Context, string, string) (TaskBoardPayload, error)
-	WorkflowSpec(context.Context, string, string) (WorkflowSpecDocument, error)
-	WorkflowMemoryIndex(context.Context, string, string) (WorkflowMemoryIndex, error)
-	WorkflowMemoryFile(context.Context, string, string, string) (MarkdownDocument, error)
-	TaskDetail(context.Context, string, string, string) (TaskDetailPayload, error)
-	Validate(context.Context, string, string) (ValidationSuccess, error)
-	StartRun(context.Context, string, string, TaskRunRequest) (Run, error)
-	StartRunMultiple(context.Context, string, TaskRunMultipleRequest) (Run, error)
-	RunMultipleSnapshot(context.Context, string) (TaskRunMultipleSnapshot, error)
-	Archive(context.Context, string, string, ArchiveRequest) (ArchiveResult, error)
+	taskpkg.Manager
+	taskpkg.CatalogManager
 }
 
-// ReviewService exposes review round state, review detail reads, and review-fix run starts.
-type ReviewService interface {
-	Fetch(context.Context, string, string, ReviewFetchRequest) (ReviewFetchResult, error)
-	GetLatest(context.Context, string, string) (ReviewSummary, error)
-	GetRound(context.Context, string, string, int) (ReviewRound, error)
-	ListIssues(context.Context, string, string, int) ([]ReviewIssue, error)
-	ReviewDetail(context.Context, string, string, int, string) (ReviewDetailPayload, error)
-	StartRun(context.Context, string, string, int, ReviewRunRequest) (Run, error)
-	StartWatch(context.Context, string, string, ReviewWatchRequest) (Run, error)
+// WorkspaceService exposes workspace registration and resolution to the API layer.
+type WorkspaceService interface {
+	Register(ctx context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error)
+	Unregister(ctx context.Context, id string) error
+	Update(ctx context.Context, id string, opts workspacepkg.UpdateOptions) error
+	List(ctx context.Context) ([]workspacepkg.Workspace, error)
+	Get(ctx context.Context, idOrNameOrPath string) (workspacepkg.Workspace, error)
+	Resolve(ctx context.Context, idOrNameOrPath string) (workspacepkg.ResolvedWorkspace, error)
+	ResolveOrRegister(ctx context.Context, path string) (workspacepkg.ResolvedWorkspace, error)
 }
-
-// RunService exposes run snapshots, rich run detail, pagination, streaming, and cancellation.
-type RunService interface {
-	List(context.Context, RunListQuery) ([]Run, error)
-	Get(context.Context, string) (Run, error)
-	Snapshot(context.Context, string) (RunSnapshot, error)
-	Transcript(context.Context, string) (RunTranscript, error)
-	RunDetail(context.Context, string) (RunDetailPayload, error)
-	Events(context.Context, string, RunEventPageQuery) (RunEventPage, error)
-	OpenStream(context.Context, string, StreamCursor) (RunStream, error)
-	Cancel(context.Context, string) error
-	PauseRunJob(context.Context, string, string) (RunJobControlResponse, error)
-	SendRunJobMessage(context.Context, string, string, RunJobMessageRequest) (RunJobControlResponse, error)
-}
-
-// SyncService exposes explicit workflow reconciliation.
-type SyncService interface {
-	Sync(context.Context, SyncRequest) (SyncResult, error)
-}
-
-// ExecService exposes ad-hoc daemon-backed exec starts.
-type ExecService interface {
-	Start(context.Context, ExecRequest) (Run, error)
-}
-
-// RunStream is the live run event subscription surfaced to the transport layer.
-type RunStream interface {
-	Events() <-chan RunStreamItem
-	Errors() <-chan error
-	Close() error
-}
-
-// RunStreamItem carries one live stream delivery or an overflow notice.
-type RunStreamItem struct {
-	Event    *events.Event
-	Overflow *RunStreamOverflow
-}
-
-// RunStreamOverflow notifies the transport that the client must reconnect from the last cursor.
-type RunStreamOverflow struct {
-	Reason string
-}
-
-// WorkspaceEventStream is the live workspace event subscription surfaced to the transport layer.
-type WorkspaceEventStream interface {
-	Events() <-chan WorkspaceStreamItem
-	Errors() <-chan error
-	Close() error
-}
-
-// WorkspaceStreamItem carries one workspace event delivery or an overflow notice.
-type WorkspaceStreamItem struct {
-	Event    *WorkspaceEvent
-	Overflow *WorkspaceStreamOverflow
-}
-
-// WorkspaceStreamOverflow notifies the browser that workspace events were dropped.
-type WorkspaceStreamOverflow struct {
-	Reason string `json:"reason"`
-}
-
-type WorkspaceEventKind string
-
-const (
-	WorkspaceEventKindRunCreated            WorkspaceEventKind = "run.created"
-	WorkspaceEventKindRunStatusChanged      WorkspaceEventKind = "run.status_changed"
-	WorkspaceEventKindRunTerminal           WorkspaceEventKind = "run.terminal"
-	WorkspaceEventKindWorkflowSyncCompleted WorkspaceEventKind = "workflow.sync_completed"
-	WorkspaceEventKindArtifactChanged       WorkspaceEventKind = "artifact.changed"
-)
-
-// WorkspaceEvent is a lightweight daemon-owned invalidation event for one workspace.
-type WorkspaceEvent struct {
-	Seq          uint64             `json:"seq"`
-	TS           time.Time          `json:"ts"`
-	WorkspaceID  string             `json:"workspace_id"`
-	WorkflowID   *string            `json:"workflow_id,omitempty"`
-	WorkflowSlug string             `json:"workflow_slug,omitempty"`
-	RunID        string             `json:"run_id,omitempty"`
-	Mode         string             `json:"mode,omitempty"`
-	Status       string             `json:"status,omitempty"`
-	Kind         WorkspaceEventKind `json:"kind"`
-	Paths        []string           `json:"paths,omitempty"`
-}
-
-// MetricsPayload carries pre-rendered metrics text.
-type MetricsPayload struct {
-	Body        string
-	ContentType string
-}
-
-type DaemonStatus = contract.DaemonStatus
-type DaemonHealth = contract.DaemonHealth
-type HealthDetail = contract.HealthDetail
-type DaemonModeCount = contract.DaemonModeCount
-type DaemonDatabaseDiagnostics = contract.DaemonDatabaseDiagnostics
-type DaemonReconcileDiagnostics = contract.DaemonReconcileDiagnostics
-type Workspace = contract.Workspace
-type WorkspaceRegisterResult = contract.WorkspaceRegisterResult
-type WorkspaceUpdateInput = contract.WorkspaceUpdateInput
-type WorkspaceSyncResult = contract.WorkspaceSyncResult
-type WorkflowSummary = contract.WorkflowSummary
-type TaskItem = contract.TaskItem
-type ValidationSuccess = contract.ValidationSuccess
-type ArchiveRequest = contract.WorkflowArchiveRequest
-type ArchiveResult = contract.ArchiveResult
-
-// DashboardPayload is the workspace-scoped dashboard aggregate for the daemon web UI.
-type DashboardPayload struct {
-	Workspace      Workspace             `json:"workspace"`
-	Daemon         DaemonStatus          `json:"daemon"`
-	Health         DaemonHealth          `json:"health"`
-	Queue          DashboardQueueSummary `json:"queue"`
-	Workflows      []WorkflowCard        `json:"workflows,omitempty"`
-	ActiveRuns     []Run                 `json:"active_runs,omitempty"`
-	PendingReviews int                   `json:"pending_reviews"`
-}
-
-// DashboardQueueSummary captures the current run queue health for one workspace.
-type DashboardQueueSummary struct {
-	Total     int `json:"total"`
-	Active    int `json:"active"`
-	Completed int `json:"completed"`
-	Failed    int `json:"failed"`
-	Canceled  int `json:"canceled"`
-}
-
-// WorkflowCard is the dashboard-friendly workflow summary card.
-type WorkflowCard struct {
-	Workflow         WorkflowSummary `json:"workflow"`
-	TaskTotal        int             `json:"task_total"`
-	TaskCompleted    int             `json:"task_completed"`
-	TaskPending      int             `json:"task_pending"`
-	LatestReview     *ReviewSummary  `json:"latest_review,omitempty"`
-	ReviewRoundCount int             `json:"review_round_count"`
-	ActiveRuns       int             `json:"active_runs"`
-}
-
-// WorkflowOverviewPayload is the richer workflow summary aggregate used by browser reads.
-type WorkflowOverviewPayload struct {
-	Workspace       Workspace          `json:"workspace"`
-	Workflow        WorkflowSummary    `json:"workflow"`
-	TaskCounts      WorkflowTaskCounts `json:"task_counts"`
-	LatestReview    *ReviewSummary     `json:"latest_review,omitempty"`
-	RecentRuns      []Run              `json:"recent_runs,omitempty"`
-	ArchiveEligible bool               `json:"archive_eligible"`
-	ArchiveReason   string             `json:"archive_reason,omitempty"`
-}
-
-// WorkflowTaskCounts summarizes task progress for one workflow.
-type WorkflowTaskCounts = contract.WorkflowTaskCounts
-
-type ReviewFetchRequest = contract.ReviewFetchRequest
-type ReviewFetchResult = contract.ReviewFetchResult
-type ReviewSummary = contract.ReviewSummary
-type ReviewRound = contract.ReviewRound
-type ReviewIssue = contract.ReviewIssue
-type ReviewWatchRequest = contract.ReviewWatchRequest
-type ReviewWatchResponse = contract.RunResponse
-
-// TaskBoardPayload captures the workflow task-board read model.
-type TaskBoardPayload struct {
-	Workspace  Workspace          `json:"workspace"`
-	Workflow   WorkflowSummary    `json:"workflow"`
-	TaskCounts WorkflowTaskCounts `json:"task_counts"`
-	Lanes      []TaskLane         `json:"lanes,omitempty"`
-}
-
-// TaskLane groups task cards under one normalized status lane.
-type TaskLane struct {
-	Status string     `json:"status"`
-	Title  string     `json:"title"`
-	Items  []TaskCard `json:"items,omitempty"`
-}
-
-// TaskCard is the compact task row used by board and detail reads.
-type TaskCard struct {
-	TaskNumber int       `json:"task_number"`
-	TaskID     string    `json:"task_id"`
-	Title      string    `json:"title"`
-	Status     string    `json:"status"`
-	Type       string    `json:"type"`
-	DependsOn  []string  `json:"depends_on,omitempty"`
-	UpdatedAt  time.Time `json:"updated_at"`
-}
-
-// MarkdownDocument is the normalized daemon-served markdown payload.
-type MarkdownDocument struct {
-	ID        string          `json:"id"`
-	Kind      string          `json:"kind"`
-	Title     string          `json:"title"`
-	UpdatedAt time.Time       `json:"updated_at"`
-	Markdown  string          `json:"markdown"`
-	Metadata  json.RawMessage `json:"metadata,omitempty"`
-}
-
-// WorkflowSpecDocument captures the canonical workflow spec artifacts.
-type WorkflowSpecDocument struct {
-	Workspace Workspace          `json:"workspace"`
-	Workflow  WorkflowSummary    `json:"workflow"`
-	PRD       *MarkdownDocument  `json:"prd,omitempty"`
-	TechSpec  *MarkdownDocument  `json:"techspec,omitempty"`
-	ADRs      []MarkdownDocument `json:"adrs,omitempty"`
-}
-
-// WorkflowMemoryIndex lists workflow memory files using opaque daemon-issued identifiers.
-type WorkflowMemoryIndex struct {
-	Workspace Workspace             `json:"workspace"`
-	Workflow  WorkflowSummary       `json:"workflow"`
-	Entries   []WorkflowMemoryEntry `json:"entries,omitempty"`
-}
-
-// WorkflowMemoryEntry describes one memory file without exposing raw filesystem paths.
-type WorkflowMemoryEntry struct {
-	FileID      string    `json:"file_id"`
-	DisplayPath string    `json:"display_path"`
-	Kind        string    `json:"kind"`
-	Title       string    `json:"title"`
-	SizeBytes   int64     `json:"size_bytes"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-// TaskDetailPayload captures the richer workflow task detail read model.
-type TaskDetailPayload struct {
-	Workspace         Workspace             `json:"workspace"`
-	Workflow          WorkflowSummary       `json:"workflow"`
-	Task              TaskCard              `json:"task"`
-	Document          MarkdownDocument      `json:"document"`
-	MemoryEntries     []WorkflowMemoryEntry `json:"memory_entries,omitempty"`
-	RelatedRuns       []Run                 `json:"related_runs,omitempty"`
-	LiveTailAvailable bool                  `json:"live_tail_available"`
-}
-
-// ReviewIssueDetail captures the detail metadata for one review issue.
-type ReviewIssueDetail struct {
-	ID          string    `json:"id"`
-	IssueNumber int       `json:"issue_number"`
-	Severity    string    `json:"severity"`
-	Status      string    `json:"status"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-// ReviewDetailPayload captures the richer review issue detail read model.
-type ReviewDetailPayload struct {
-	Workspace   Workspace         `json:"workspace"`
-	Workflow    WorkflowSummary   `json:"workflow"`
-	Round       ReviewRound       `json:"round"`
-	Issue       ReviewIssueDetail `json:"issue"`
-	Document    MarkdownDocument  `json:"document"`
-	RelatedRuns []Run             `json:"related_runs,omitempty"`
-}
-
-type SessionViewSnapshot = contract.SessionViewSnapshot
-type SessionEntryKind = contract.SessionEntryKind
-type SessionEntry = contract.SessionEntry
-type SessionPlanState = contract.SessionPlanState
-type SessionPlanEntry = contract.SessionPlanEntry
-type SessionMetaState = contract.SessionMetaState
-type SessionAvailableCommand = contract.SessionAvailableCommand
-type SessionStatus = contract.SessionStatus
-type ToolCallState = contract.ToolCallState
-type ContentBlock = contract.ContentBlock
-type ContentBlockType = contract.ContentBlockType
-type Run = contract.Run
-type RunJobSummary = contract.RunJobSummary
-type RunJobState = contract.RunJobState
-type RunTranscriptMessage = contract.RunTranscriptMessage
-type RunUIMessage = contract.RunUIMessage
-type RunUIMessagePart = contract.RunUIMessagePart
-type RunTranscript = contract.RunTranscript
-type RunJobMessageRequest = contract.RunJobMessageRequest
-type RunJobControlResponse = contract.RunJobControlResponse
-type RunShutdownState = contract.RunShutdownState
-type RunSnapshot = contract.RunSnapshot
-
-// RunJobCounts summarizes run jobs by status.
-type RunJobCounts struct {
-	Queued    int `json:"queued"`
-	Running   int `json:"running"`
-	Retrying  int `json:"retrying"`
-	Completed int `json:"completed"`
-	Failed    int `json:"failed"`
-	Canceled  int `json:"canceled"`
-}
-
-// RunRuntimeSummary captures the distinct runtime settings observed in one run snapshot.
-type RunRuntimeSummary struct {
-	IDEs              []string `json:"ides,omitempty"`
-	Models            []string `json:"models,omitempty"`
-	ReasoningEfforts  []string `json:"reasoning_efforts,omitempty"`
-	AccessModes       []string `json:"access_modes,omitempty"`
-	PresentationModes []string `json:"presentation_modes,omitempty"`
-}
-
-// RunArtifactSyncEntry is one artifact sync history row from the run database.
-type RunArtifactSyncEntry struct {
-	Sequence     uint64    `json:"sequence"`
-	RelativePath string    `json:"relative_path"`
-	ChangeKind   string    `json:"change_kind"`
-	Checksum     string    `json:"checksum,omitempty"`
-	SyncedAt     time.Time `json:"synced_at"`
-}
-
-// RunDetailPayload captures the richer run detail read model exposed to the browser.
-type RunDetailPayload struct {
-	Run          Run                    `json:"run"`
-	Snapshot     RunSnapshot            `json:"snapshot"`
-	JobCounts    RunJobCounts           `json:"job_counts"`
-	Runtime      RunRuntimeSummary      `json:"runtime"`
-	Timeline     []events.Event         `json:"timeline,omitempty"`
-	ArtifactSync []RunArtifactSyncEntry `json:"artifact_sync,omitempty"`
-}
-
-type RunListQuery = contract.RunListQuery
-type RunEventPageQuery = contract.RunEventPageQuery
-type RunEventPage = contract.RunEventPage
-type TaskRunRequest = contract.TaskRunRequest
-type TaskExecutionDescriptor = contract.TaskExecutionDescriptor
-type TaskRunMultipleRequest = contract.TaskRunMultipleRequest
-type TaskRunMultipleItem = contract.TaskRunMultipleItem
-type TaskRunMultipleSnapshot = contract.TaskRunMultipleSnapshot
-
-const (
-	ExecutionKindTaskStandard      = contract.ExecutionKindTaskStandard
-	ExecutionKindTaskParallel      = contract.ExecutionKindTaskParallel
-	ExecutionKindTaskMultiEnqueued = contract.ExecutionKindTaskMultiEnqueued
-	ExecutionKindTaskMultiParallel = contract.ExecutionKindTaskMultiParallel
-)
-
-type ReviewRunRequest = contract.ReviewRunRequest
-type SyncRequest = contract.SyncRequest
-type SyncResult = contract.SyncResult
-type ExecRequest = contract.ExecRequest

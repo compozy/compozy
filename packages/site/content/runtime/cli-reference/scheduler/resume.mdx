@@ -1,0 +1,41 @@
+---
+title: "agh scheduler resume"
+description: "Resume scheduler dispatch"
+---
+
+## agh scheduler resume
+
+Resume scheduler dispatch
+
+```
+agh scheduler resume [flags]
+```
+
+### Options
+
+```
+  -h, --help            help for resume
+      --reason string   Optional scheduler resume reason
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh scheduler resume -o json
+```

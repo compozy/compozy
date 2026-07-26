@@ -1,0 +1,52 @@
+---
+title: "agh session history"
+description: "Show session history grouped by turn"
+---
+
+## agh session history
+
+Show session history grouped by turn
+
+```
+agh session history <id> [flags]
+```
+
+### Examples
+
+```
+  # Show replayable turn history for one session
+  agh session history sess_1234
+
+  # Show turns after a known event sequence
+  agh session history sess_1234 --after 120 --last 10
+```
+
+### Options
+
+```
+      --after int   Show turns after the supplied event sequence
+  -h, --help        help for history
+      --last int    Show only the most recent N turns
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh session history <id> -o json
+```

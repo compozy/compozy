@@ -1,0 +1,41 @@
+---
+title: "agh tool approvals revoke"
+description: "Revoke one remembered native-tool approval decision"
+---
+
+## agh tool approvals revoke
+
+Revoke one remembered native-tool approval decision
+
+```
+agh tool approvals revoke <grant_id> [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for revoke
+      --workspace string   Workspace id or reference
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh tool approvals revoke <grant_id> -o json
+```

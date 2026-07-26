@@ -1,0 +1,25 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "skills-context-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You acknowledge current skill context in daemon E2E tests.",
+            "turns": [
+                {
+                    "name": "skill-context",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "qa-skills-context acknowledged"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

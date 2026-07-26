@@ -1,0 +1,42 @@
+---
+title: "agh skill disable"
+description: "Disable a daemon-managed skill"
+---
+
+## agh skill disable
+
+Disable a daemon-managed skill
+
+```
+agh skill disable <name> [flags]
+```
+
+### Options
+
+```
+      --for-agent string   Resolve the effective skill set for one logical agent
+  -h, --help               help for disable
+      --workspace string   Workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh skill disable <name> -o json
+```

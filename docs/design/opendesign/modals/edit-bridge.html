@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGH · Edit bridge</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body>
+
+<div class="product" aria-hidden="true">
+  <aside class="product__rail"><div class="product__mark"></div><div class="product__mark"></div><div class="product__mark"></div></aside>
+  <div class="product__main">
+    <div class="product__title"></div><div class="product__sub"></div>
+    <div class="product__grid"><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i></div>
+  </div>
+</div>
+
+<div class="scrim">
+  <form class="dialog" role="dialog" aria-modal="true" aria-label="Edit bridge" data-od-component="dialog" data-success="Bridge changes saved." data-od-id="bridge-edit-dialog">
+
+    <!-- HEADER -->
+    <header class="dialog__head" data-od-id="bridge-edit-header">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <div class="head-copy">
+        <div class="eyebrow">Catalog · Bridge</div>
+        <h1 data-od-id="bridge-edit-title">Edit Support operations</h1>
+        <p>Update delivery behavior and rotate credentials. <b>Identity stays fixed</b> and stored secrets are never displayed.</p>
+      </div>
+      <button class="icon-button" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- MODE TOOLBAR -->
+    <div class="modebar" data-od-id="bridge-edit-modebar">
+      <div class="pillgroup" role="group" aria-label="Editor mode">
+        <button class="pill" type="button" data-mode="simple" aria-pressed="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M5 12l4-4M5 12l4 4"/></svg>
+          Simple
+        </button>
+        <button class="pill" type="button" data-mode="advanced" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          Advanced
+        </button>
+      </div>
+      <div class="modebar__spacer"></div>
+      <span class="modebar__status" data-od-id="bridge-edit-status"><i class="status-dot"></i> connected · slack</span>
+    </div>
+
+    <!-- BODY -->
+    <div class="dialog__body">
+
+      <!-- identity -->
+      <div class="sec" data-od-component="form-section" data-od-id="bridge-edit-identity-section">
+        <div class="identity-row" data-od-component="immutable-identity" data-od-id="bridge-edit-identity">
+          <span class="identity-row__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+          <div class="identity-row__copy">
+            <strong>slack · support-ops-bot</strong>
+            <span>workspace · support — provider and account are fixed for this bridge</span>
+          </div>
+          <span class="identity-row__badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            Locked
+          </span>
+        </div>
+        <div class="field">
+          <label class="label" for="display">Display name <span class="req">required</span></label>
+          <input id="display" class="input" required value="Support operations" data-od-id="bridge-display-input">
+          <span class="error">Enter a display name.</span>
+        </div>
+        <div class="switch-row mt-16" data-od-id="bridge-enabled-row">
+          <div class="switch-copy">
+            <b>Bridge enabled</b>
+            <span>Disabled bridges keep their configuration but stop receiving platform events.</span>
+          </div>
+          <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Bridge enabled"></button>
+        </div>
+      </div>
+
+      <!-- credentials -->
+      <div class="sec" data-od-component="form-section" data-od-id="bridge-edit-credentials-section">
+        <div class="sec__head">
+          <span class="sec__title">Credentials</span>
+          <span class="sec__sub">Only presence is returned. Rotate a slot to send a new write-only value.</span>
+        </div>
+        <div class="field">
+          <label class="label">Bot token</label>
+          <div class="secret" data-editing="false" data-present="true" data-od-component="secret-field">
+            <span class="secret__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div class="secret__state">
+              <strong>Present</strong>
+              <span>vault://bridges/support/bot_token</span>
+            </div>
+            <button class="btn btn--small" type="button" data-secret-action="Rotate">Rotate</button>
+          </div>
+          <div class="secret__editor">
+            <input class="input input--mono" type="password" placeholder="Enter replacement value" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Signing secret</label>
+          <div class="secret" data-editing="false" data-present="true" data-od-component="secret-field">
+            <span class="secret__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div class="secret__state">
+              <strong>Present</strong>
+              <span>vault://bridges/support/signing_secret</span>
+            </div>
+            <button class="btn btn--small" type="button" data-secret-action="Rotate">Rotate</button>
+          </div>
+          <div class="secret__editor">
+            <input class="input input--mono" type="password" placeholder="Enter replacement value" autocomplete="new-password">
+          </div>
+        </div>
+      </div>
+
+      <!-- ░░░ ADVANCED ░░░ -->
+      <div class="advanced" hidden>
+        <div class="sec" data-od-component="form-section" data-od-id="bridge-edit-routing-section">
+          <div class="sec__head">
+            <span class="sec__title">Routing &amp; delivery</span>
+            <span class="sec__sub">Optional policies from the bridge request contract.</span>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label class="label">DM policy</label>
+              <div class="pillgroup" data-pillgroup="dm-policy">
+                <button class="pill" type="button" data-value="pairing" aria-pressed="true">Pairing</button>
+                <button class="pill" type="button" data-value="allowlist">Allowlist</button>
+                <button class="pill" type="button" data-value="open">Open</button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="label">Delivery mode</label>
+              <div class="pillgroup" data-pillgroup="delivery-mode">
+                <button class="pill" type="button" data-value="default" aria-pressed="true">Default</button>
+                <button class="pill" type="button" data-value="direct">Direct</button>
+              </div>
+            </div>
+          </div>
+          <div class="field mt-16">
+            <label class="label" for="routing">Routing policy</label>
+            <select id="routing" data-od-component="native-select" data-od-id="bridge-routing-select">
+              <option selected>Include peer + thread</option>
+              <option>Include peer only</option>
+              <option>Include peer + group</option>
+            </select>
+          </div>
+          <div class="switch-row mt-16">
+            <div class="switch-copy">
+              <b>Suppress bridge notifications</b>
+              <span>Prevent notification fanout for deliveries from this bridge.</span>
+            </div>
+            <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Suppress bridge notifications"></button>
+          </div>
+        </div>
+
+        <details class="coll" data-od-id="bridge-edit-config-coll">
+          <summary class="coll__trigger">
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="grow">Provider configuration</span>
+            <span class="badge">1 key set</span>
+          </summary>
+          <div class="coll__body">
+            <div class="field">
+              <label class="label" for="config">Configuration <span class="opt">— non-secret JSON</span></label>
+              <textarea id="config" class="textarea textarea--code" data-safe-json>{ "default_channel": "support" }</textarea>
+              <span class="hint">Secret-shaped keys (<code>token</code>, <code>api_key</code>, …) are rejected by the runtime.</span>
+              <span class="error">Use valid JSON without secret, token, password, credential, or API-key fields.</span>
+            </div>
+          </div>
+        </details>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="dialog__foot" data-od-component="dialog-footer" data-od-id="bridge-edit-footer">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span data-delivery-status>Only changed mutable fields are sent.</span>
+      </div>
+      <button class="btn btn--outline" type="button" data-close>Cancel</button>
+      <button class="btn btn--outline" type="button" data-delivery-test data-od-id="bridge-test-delivery">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Test delivery
+      </button>
+      <button class="btn btn--primary" type="submit" data-od-id="bridge-edit-submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Save changes
+      </button>
+    </footer>
+
+  </form>
+</div>
+
+<div class="closed-state">Bridge editor dismissed.</div>
+<div class="toast" data-toast></div>
+<script src="modal-system.js"></script>
+</body>
+</html>

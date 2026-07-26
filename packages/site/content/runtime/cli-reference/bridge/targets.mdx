@@ -1,0 +1,42 @@
+---
+title: "agh bridge targets"
+description: "List discovered targets for one bridge instance"
+---
+
+## agh bridge targets
+
+List discovered targets for one bridge instance
+
+```
+agh bridge targets <id> [flags]
+```
+
+### Options
+
+```
+  -h, --help           help for targets
+      --limit int      Maximum targets to return
+  -q, --query string   Filter targets by display name, qualifier, or route
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh bridge targets <id> -o json
+```

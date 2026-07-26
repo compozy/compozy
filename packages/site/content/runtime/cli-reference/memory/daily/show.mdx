@@ -1,0 +1,44 @@
+---
+title: "agh memory daily show"
+description: "Reserved Memory v2 command"
+---
+
+## agh memory daily show
+
+Reserved Memory v2 command
+
+```
+agh memory daily show <date> [flags]
+```
+
+### Options
+
+```
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+  -h, --help                help for show
+      --scope string        Memory scope: global, workspace, or agent
+      --workspace string    Workspace ID or path for workspace-bound memory
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory daily show <date> -o json
+```

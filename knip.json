@@ -1,0 +1,31 @@
+{
+    "$schema": "https://unpkg.com/knip@6/schema.json",
+    "workspaces": {
+        "packages/site": {
+            "entry": [
+                "app/**/*.{ts,tsx}",
+                "components/**/*.{ts,tsx}",
+                "lib/**/*.{ts,tsx}",
+                "remotion/**/*.{ts,tsx}",
+                "source.config.ts",
+                "velite.config.ts"
+            ],
+            "project": [
+                "app/**/*.{ts,tsx}",
+                "components/**/*.{ts,tsx}",
+                "lib/**/*.{ts,tsx}",
+                "remotion/**/*.{ts,tsx}",
+                "source.config.ts",
+                "velite.config.ts"
+            ]
+        },
+        "packages/ui": {
+            "entry": ["src/**/*.{ts,tsx}"],
+            "project": ["src/**/*.{ts,tsx}"]
+        },
+        "web": {
+            "entry": ["src/**/*.{ts,tsx}"],
+            "project": ["src/**/*.{ts,tsx}"]
+        }
+    }
+}

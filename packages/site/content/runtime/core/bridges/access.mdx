@@ -1,0 +1,161 @@
+---
+title: Control Bridge Access
+description: Restrict direct messages before enabling a bridge, without confusing webhook authentication, sender authorization, and route isolation.
+---
+
+Bridge access has three separate boundaries. Configure all three before treating a public callback
+as ready:
+
+| Boundary                 | Question it answers                                 | Owner                                        |
+| ------------------------ | --------------------------------------------------- | -------------------------------------------- |
+| Transport authentication | Did this request come from the configured platform? | Provider signature, token, or JWT validation |
+| Sender authorization     | May this direct-message sender reach the bridge?    | `dm_policy` plus `provider_config.dm`        |
+| Route isolation          | Which accepted conversations share an AGH session?  | `routing_policy`                             |
+
+`dm_policy` controls direct messages only. It does not authorize or deny channels, servers, groups,
+spaces, repositories, or issues. Use the provider's platform permissions and a route-specific bridge
+instance for those shared surfaces.
+
+<OperatorNote>
+  An omitted or empty `dm_policy` normalizes to `open`. Treat that as permissive: any authenticated
+  direct-message sender passes sender authorization. The event must still match the bridge's route
+  shape.
+</OperatorNote>
+
+## Choose a direct-message policy
+
+| Policy      | Direct message is accepted when                                                                  | Operational meaning                                   |
+| ----------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `open`      | The provider authenticated the request.                                                          | Any sender passes the DM authorization check.         |
+| `allowlist` | The normalized sender ID or username appears in `allow_user_ids` or `allow_usernames`.           | Use for an explicit operator-maintained access list.  |
+| `pairing`   | The sender appears in `paired_user_ids` or `paired_usernames`; the allowlist remains a fallback. | Use for identities the operator designated as paired. |
+
+`pairing` is not an interactive enrollment flow in the current runtime. AGH does not issue a code,
+wait for approval, or add a sender automatically. Populate the `paired_user_ids` or
+`paired_usernames` arrays yourself. If those arrays do not contain the sender, the provider checks
+the allowlist arrays before denying the DM.
+
+GitHub and Linear do not expose a chat-style DM surface. Their repository, organization, webhook,
+and credential checks are documented in their provider setup guides instead.
+
+## Keep the bridge disabled while configuring access
+
+Start from a disabled instance:
+
+```bash
+BRIDGE_ID=brg_123
+
+agh bridge disable "$BRIDGE_ID"
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+The readback should report `enabled: false`. Preserve the complete existing `provider_config`; an
+API update replaces that object rather than merging nested keys.
+
+## Configure access in the Web UI
+
+1. Open **Bridges**, select the disabled instance, and choose **Edit**.
+2. Set **DM policy** to **Allowlist** or **Pairing**.
+3. In **Provider config**, preserve every existing provider key and add or update its `dm` object.
+4. Save the instance, then inspect it again before enabling.
+
+For an allowlist, merge this shape into the existing provider configuration:
+
+```json
+{
+  "dm": {
+    "allow_user_ids": ["provider-user-id"],
+    "allow_usernames": ["provider-username"]
+  }
+}
+```
+
+For a pre-paired identity, use the paired arrays and keep any deliberate fallback allowlist:
+
+```json
+{
+  "dm": {
+    "paired_user_ids": ["provider-user-id"],
+    "paired_usernames": ["provider-username"],
+    "allow_user_ids": [],
+    "allow_usernames": []
+  }
+}
+```
+
+These are fragments, not complete provider configurations. Saving only the fragment would remove
+required webhook, tenant, repository, or mode settings.
+
+## Configure access through HTTP or UDS
+
+The current `agh bridge create` and `agh bridge update` commands do not expose a `--dm-policy`
+flag. Use the Web editor or `PATCH /api/bridges/:id`. The same route is available through the UDS
+transport.
+
+The following example reads the current provider configuration, merges one Slack-style user ID into
+its `dm` object, and sends the full object back:
+
+```bash
+BRIDGE_ID=brg_123
+ALLOWED_USER_ID=U0123456789
+
+CURRENT_BRIDGE="$(curl -fsS "http://127.0.0.1:2123/api/bridges/$BRIDGE_ID")"
+PATCH_BODY="$(
+  printf '%s' "$CURRENT_BRIDGE" |
+    jq --arg user_id "$ALLOWED_USER_ID" '{
+      dm_policy: "allowlist",
+      provider_config: (
+        (.bridge.provider_config // {}) |
+        .dm = ((.dm // {}) + {
+          allow_user_ids: [$user_id],
+          allow_usernames: []
+        })
+      )
+    }'
+)"
+
+curl -fsS -X PATCH "http://127.0.0.1:2123/api/bridges/$BRIDGE_ID" \
+  -H 'Content-Type: application/json' \
+  --data "$PATCH_BODY" |
+  jq '.bridge | {enabled, dm_policy, dm: .provider_config.dm}'
+```
+
+Use the provider-native immutable sender ID when one exists. Usernames can change and are therefore
+a weaker long-lived boundary. The provider guide names the identity form visible in its webhook or
+administration console.
+
+## Prove admission and inspect the denial boundary
+
+After the saved resource shows the intended policy and list, enable the bridge:
+
+```bash
+agh bridge enable "$BRIDGE_ID"
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+Then test the observable sides of the boundary:
+
+1. Send one DM from an allowed test identity. Confirm that `agh bridge routes "$BRIDGE_ID" -o json`
+   contains its peer route and that the prompt reaches the expected workspace agent. This is the
+   positive admission proof.
+2. If you control an excluded test identity, send one DM and inspect the route/session output. A
+   route for that peer is definitive evidence that the boundary failed. The absence of a route is
+   only supporting evidence: the current public surfaces do not emit a durable “sender denied”
+   receipt, and transport delay or delivery failure can look the same.
+3. Send one event on each configured group/channel/space surface. Confirm its route separately;
+   `dm_policy` does not validate those shared-conversation permissions.
+
+If the excluded identity creates a route, disable the bridge immediately and inspect the saved
+policy, normalized sender identity, and full `provider_config.dm` object before retrying. Do not
+treat the external webhook's HTTP status alone as either admission or denial proof.
+
+## Change an access list safely
+
+Disable the bridge before a broad policy change or list replacement. Read the current instance,
+apply the full updated provider configuration, verify the readback, then enable and repeat the allow
+and boundary checks. Existing routed sessions remain historical records; changing DM admission does
+not erase them.
+
+Continue with [Bridge conversations and sessions](/runtime/core/bridges/conversations) to understand
+what happens after a sender is admitted, or return to the provider-specific setup guide for its
+transport and platform permission boundary.

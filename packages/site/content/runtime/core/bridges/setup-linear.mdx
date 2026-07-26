@@ -1,0 +1,358 @@
+---
+title: Linear Setup
+description: Connect Linear comments or Agent Sessions with API-key or OAuth client-credentials authentication.
+---
+
+This guide connects a Linear workspace to AGH through either ordinary issue comments or Linear's
+Agent Session surface. Runtime mode and authentication mode are independent choices; configure both
+explicitly.
+
+## How the Linear bridge behaves
+
+| Surface               | AGH behavior                                                                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `comments` mode       | Ingests newly created `Comment` webhooks. Replies become Linear comments; existing bridge comments can be updated or deleted.                 |
+| `agent_sessions` mode | Ingests `AgentSessionEvent` actions `created` and `prompted`. Responses become append-only Agent Activities; edit and delete are unsupported. |
+| Authentication        | `api_key` sends the bound key as a bearer credential. `oauth` uses the client-credentials grant and caches the app token.                     |
+| Workspace ownership   | Every webhook and live identity result must match `provider_config.organization_id`.                                                          |
+| Tool progress         | Acknowledged without creating a Linear comment or Agent Activity.                                                                             |
+
+## Choose the two modes
+
+| Setting                     | Values                       | Conditional bindings                                                        |
+| --------------------------- | ---------------------------- | --------------------------------------------------------------------------- |
+| `provider_config.mode`      | `comments`, `agent_sessions` | Selects accepted webhook type and delivery behavior.                        |
+| `provider_config.auth_mode` | `api_key`, `oauth`           | API key requires `api_key`; OAuth requires `client_id` and `client_secret`. |
+
+The runtime accepts either auth mode with either provider mode. In practice, Linear Agent Sessions
+are configured on an OAuth application because its app identity is what users mention or assign.
+
+## Fastest supported path
+
+Use `comments + api_key` for the first proof:
+
+1. Create a dedicated Linear API key and copy the organization ID returned for that identity.
+2. Create one Comment webhook with a unique signing secret.
+3. Create the AGH bridge disabled with explicit `mode: "comments"` and `auth_mode: "api_key"`.
+4. Bind `webhook_secret` and `api_key`.
+5. Verify configuration, enable, and inspect runtime health.
+6. Create one real issue comment and confirm the AGH route.
+7. Reply through `send-test` and confirm the remote Linear comment ID.
+
+Use `agent_sessions + oauth` when the app must be mentionable/assignable and produce append-only Agent
+Activities.
+
+## Before you start
+
+- Linear workspace admin access, or help from an admin who can create webhooks/apps.
+- The workspace's organization ID.
+- A public HTTPS callback and local provider listener.
+- Either a personal API key or an OAuth application with client-credentials tokens enabled.
+- An AGH workspace with a default agent.
+
+Before configuring Linear, prove that the locally built provider is installed and visible in the
+daemon catalog:
+
+```bash
+PROVIDER=linear
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
+
+Find the organization ID in Linear's API explorer with the same identity the bridge will use:
+
+```graphql
+query LinearProviderViewer {
+  viewer {
+    id
+    displayName
+    organization {
+      id
+    }
+  }
+}
+```
+
+Copy `viewer.organization.id` exactly. Runtime initialization compares the authenticated value with
+`provider_config.organization_id` and degrades on a mismatch.
+
+## Step 1: Expose the provider endpoint
+
+```text
+Linear → https://bridge.example.com/linear/product
+       → reverse proxy or tunnel
+       → http://127.0.0.1:18089/linear/product
+```
+
+Store the listener in `provider_config.webhook.listen_addr`, or set
+`AGH_BRIDGE_LINEAR_LISTEN_ADDR=127.0.0.1:18089` in the daemon environment. One Linear provider
+process uses one listener address. A shared path is allowed because the provider selects an instance
+by organization and runtime mode before verifying that instance's secret.
+
+## Step 2A: Prepare API-key authentication
+
+For the quickest comments setup:
+
+1. Open Linear **Settings → API**.
+2. Create a personal API key for the identity that should own AGH's comments.
+3. Copy it when Linear displays it.
+
+The key inherits that user's team access. Use a dedicated integration identity if comments should not
+appear as a human operator.
+
+## Step 2B: Prepare OAuth client credentials
+
+For app-owned comments or Agent Sessions:
+
+1. In Linear's API/application settings, create an OAuth application.
+2. Enable **client credentials tokens** for the application.
+3. Record the client ID and client secret.
+4. Configure the app's team access in the workspace.
+5. For `agent_sessions`, enable the **Agent session events** webhook category and give the app a short,
+   recognizable name and icon; that identity appears in mention and assignment menus.
+
+AGH requests `read`, `write`, `comments:create`, and `issues:create`; Agent Session mode also requests
+`app:mentionable`. Linear's [OAuth client-credentials reference](https://linear.app/developers/oauth-2-0-authentication#client-credentials-tokens)
+documents the enablement toggle and token behavior. The [Agents setup guide](https://linear.app/developers/agents)
+covers app installation and Agent Session event registration.
+
+## Step 3: Create the bridge disabled
+
+Linear has no guided `agh bridge setup` command. API-key comments example:
+
+```bash
+agh bridge create \
+  --scope workspace \
+  --workspace-id ws_8f33a913d23c4fd1 \
+  --platform linear \
+  --extension linear \
+  --display-name "Linear product comments" \
+  --enabled=false \
+  --include-group \
+  --include-thread \
+  --provider-config '{
+    "organization_id": "org_123",
+    "mode": "comments",
+    "auth_mode": "api_key",
+    "webhook": {
+      "public_url": "https://bridge.example.com/linear/product",
+      "listen_addr": "127.0.0.1:18089",
+      "path": "/linear/product"
+    }
+  }' \
+  -o json
+```
+
+OAuth Agent Session example:
+
+```json
+{
+  "organization_id": "org_123",
+  "mode": "agent_sessions",
+  "auth_mode": "oauth",
+  "webhook": {
+    "public_url": "https://bridge.example.com/linear/agent",
+    "listen_addr": "127.0.0.1:18089",
+    "path": "/linear/agent"
+  }
+}
+```
+
+Copy the returned bridge ID:
+
+```bash
+BRIDGE_ID=brg_123
+```
+
+## Step 4: Bind the webhook and auth secrets
+
+Every mode requires the signing secret from the Linear webhook or OAuth application settings:
+
+```bash
+printf '%s' "$LINEAR_WEBHOOK_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
+  --secret-ref "vault:bridges/$BRIDGE_ID/webhook_secret" \
+  --kind secret \
+  --secret-value-stdin
+```
+
+API-key authentication:
+
+```bash
+printf '%s' "$LINEAR_API_KEY" | agh bridge secret-bindings put "$BRIDGE_ID" api_key \
+  --secret-ref "vault:bridges/$BRIDGE_ID/api_key" \
+  --kind token \
+  --secret-value-stdin
+```
+
+OAuth client credentials:
+
+```bash
+printf '%s' "$LINEAR_CLIENT_ID" | agh bridge secret-bindings put "$BRIDGE_ID" client_id \
+  --secret-ref "vault:bridges/$BRIDGE_ID/client_id" \
+  --kind credential \
+  --secret-value-stdin
+
+printf '%s' "$LINEAR_CLIENT_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" client_secret \
+  --secret-ref "vault:bridges/$BRIDGE_ID/client_secret" \
+  --kind secret \
+  --secret-value-stdin
+```
+
+<OperatorNote>
+  The generic command rejects inline secret values. Use stdin for short-lived environment values or
+  `--secret-value-file <path>` for materialized secrets; see [Bridge
+  operations](/runtime/core/bridges/operations#rotate-a-credential).
+</OperatorNote>
+
+## Step 5A: Create a comments webhook
+
+For `comments` mode:
+
+1. Open Linear **Settings → API → Webhooks**.
+2. Select **New webhook**.
+3. Set its URL to `provider_config.webhook.public_url`.
+4. Choose all public teams or the specific team scope AGH should receive.
+5. Select the **Comment** resource type.
+6. Save the webhook and copy its signing secret into the `webhook_secret` binding.
+
+AGH ingests only `type: "Comment"` with `action: "create"`; update/remove webhooks are acknowledged
+without starting another agent turn. Linear's [webhook guide](https://linear.app/developers/webhooks)
+documents the current settings page, public-HTTPS requirement, retries, and signature header.
+
+## Step 5B: Configure Agent Session events
+
+For `agent_sessions` mode, use the OAuth application's webhook configuration rather than a separate
+data-change webhook:
+
+1. Set the OAuth application's webhook URL to the AGH public callback.
+2. Enable **Agent session events**.
+3. Copy the app webhook signing secret into the AGH binding.
+4. Install/authorize the app in the intended workspace and grant its team access.
+5. Confirm the app is mentionable or assignable in a test issue according to the scopes you enabled.
+
+AGH handles `created` and `prompted` Agent Session actions. Linear expects an agent to acknowledge a
+new session quickly; keep the public endpoint and AGH daemon continuously available.
+
+## Step 6: Verify configuration, then runtime identity
+
+```bash
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+Linear currently reports `provider.identity` as `skipped` in the control command. While disabled,
+webhook reachability is also `skipped`. The records still prove that the shared public URL is valid
+and make the skipped checks explicit.
+
+Enable the bridge so runtime initialization can perform the live GraphQL viewer query:
+
+```bash
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+Runtime health should reach `ready`. It fails authentication when the API key/client credentials are
+invalid and degrades when the viewer's organization differs from `organization_id`.
+
+## Step 7: Establish a route and send
+
+For comments mode, create a new comment on an issue. For Agent Sessions, mention or assign the app so
+Linear sends a `created` event. Then inspect the route:
+
+```bash
+agh bridge routes "$BRIDGE_ID" -o json
+```
+
+Use the route's issue group and encoded thread in a real delivery:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH Linear connection check" \
+  --group-id "<group-id-from-route>" \
+  --thread-id "<thread-id-from-route>" \
+  --mode reply \
+  --json
+```
+
+The thread target is not valid by itself: Linear routes anchor it to the issue ID in `group_id`. In
+comments mode, the response appears as a Linear comment. In Agent Session mode, it appears as an
+Agent Activity and subsequent updates append rather than editing the earlier activity.
+
+## Configuration reference
+
+| Field                 | Requirement / fallback          | Purpose                                                                 |
+| --------------------- | ------------------------------- | ----------------------------------------------------------------------- |
+| `organization_id`     | yes                             | Linear organization that owns webhook routing and authenticated viewer. |
+| `mode`                | yes                             | `comments` or `agent_sessions`.                                         |
+| `auth_mode`           | yes                             | `api_key` or `oauth`, independent of runtime mode.                      |
+| `webhook.public_url`  | yes for setup/verification      | Full public HTTPS webhook URL.                                          |
+| `webhook.listen_addr` | `AGH_BRIDGE_LINEAR_LISTEN_ADDR` | Local provider listener.                                                |
+| `webhook.path`        | `/linear`                       | Local callback path; shared paths remain organization/mode scoped.      |
+
+The GraphQL and OAuth token destinations are official defaults or operator-owned process variables.
+`provider_config.api_base_url` and `oauth_token_url` are rejected.
+
+## Known limits
+
+- Comment mode only starts turns from newly created comments.
+- Agent Session activities are append-only; edit and delete delivery operations are unsupported.
+- Tool progress has no Linear side effect.
+- `agh bridge verify` does not run the viewer query; enabled runtime health does.
+- The provider validates a recent positive webhook timestamp, but the signing secret and organization/
+  mode selection remain the primary documented trust boundary.
+
+## Troubleshooting
+
+| Symptom                                             | What to check                                                                                                   |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Runtime reports organization mismatch               | Run the viewer query with the same credential and copy `viewer.organization.id` exactly.                        |
+| API-key auth is unauthorized                        | Recreate the API key, confirm its identity has access to the intended teams, and replace the binding.           |
+| OAuth token exchange fails                          | Enable client-credentials tokens, verify client ID/secret, and confirm the app's requested scopes are allowed.  |
+| Webhook signature fails                             | Copy the signing secret from the exact webhook/app configuration and ensure the proxy preserves the raw body.   |
+| Comments webhook returns success but starts no turn | Select the Comment resource and create a new comment; updates/removals are intentionally ignored.               |
+| Agent is missing from mention/assignment UI         | Install the OAuth app, grant team access, enable Agent session events, and request the appropriate app scopes.  |
+| Agent Session starts but later output cannot edit   | Agent Activities are append-only in this provider; do not use edit/delete expectations from comments mode.      |
+| Webhook becomes disabled in Linear                  | Restore a fast public 200 response, verify listener health, then re-enable the webhook in Linear settings.      |
+| Two bridge instances conflict                       | Give different organization/mode ownership or distinct paths; one ownership key cannot belong to two instances. |
+
+## Security notes
+
+- Prefer an OAuth app identity or dedicated integration user over a personal admin key.
+- Scope team access to the work the agent should see.
+- Keep the public handler fast and preserve the raw request body for HMAC verification.
+- Store `api_key`, `client_secret`, and `webhook_secret` only through AGH secret bindings.
+
+## Rotate Linear credentials
+
+For API-key mode, create the replacement key for the same integration identity and team-access
+boundary. For OAuth, create/rotate the client secret on the same app. Disable the bridge, replace the
+binding, enable it, and wait for the GraphQL viewer check to return `ready` before revoking the old
+credential.
+
+Rotate `webhook_secret` in the Linear webhook/app and AGH during the same disabled window. Prove a
+new signed event after rotation; a successful GraphQL identity call does not validate webhook HMAC.
+
+## Completion checklist
+
+- The Linear extension is installed, enabled, and healthy in the provider catalog.
+- `organization_id` matches the authenticated viewer.
+- Provider mode and auth mode are explicit and have the required bindings.
+- The webhook emits the event family selected by the provider mode.
+- Runtime health performs the live identity proof omitted by the short-lived control check.
+- Comment mode creates editable comments; Agent Session mode creates append-only activities.
+- A real event establishes the expected issue/session route.
+- `send-test` returns the remote Linear artifact ID.
+- The bridge returns to `ready` after one restart.
+
+## Related docs
+
+- [Bridge setup](/runtime/core/bridges/setup)
+- [Operate and repair bridges](/runtime/core/bridges/operations)
+- [Message routing](/runtime/core/bridges/routing)
+- [Bridge delivery and progress](/runtime/core/bridges/progress)
+- [Bridge CLI reference](/runtime/cli-reference/bridge)

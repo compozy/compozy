@@ -14,17 +14,17 @@
 
 ## Id minting
 
-- Ids are `BUG-NNNN` (4-digit, zero-padded), **global and monotonic across the whole project, forever**. Next id = highest existing id in `<qa-docs-path>/bugs/` + 1.
-- Ids never reset per round, per area, or per release. `BUG-0001` means exactly one bug for the life of the project.
-- Mint by listing the registry: `ls <qa-docs-path>/bugs/ | sort | tail -1` — no counter file to drift.
-- Migrated bugs (from pre-registry rounds) get fresh ids with an `Origin:` field pointing at the old artifact. Old per-round ids are aliases recorded inside the file, never reused as registry ids.
+- Ids are `BUG-<YYYYMMDD>-<slug>` — the date the bug was found plus 2-5 kebab-case words naming the symptom from the user's side (e.g. `BUG-20260711-cart-lost-on-refresh`). Global and stable for the life of the project; the date prefix keeps the registry chronologically sorted.
+- The id is **content-addressed** — minted from the symptom, never from a counter. Nothing reads "the highest existing number", so parallel branches cannot collide on minting; two branches filing the same symptom on the same day mint the same id, and that add/add merge conflict *is* the dedup step surfacing itself — fold the two files into one.
+- Ids never reset per round, per area, or per release, and are never renamed after filing — even when the symptom's understanding evolves; the title line carries the current wording.
+- Adopted bugs keep unique v1 ids as-is (grandfathered — the format governs new minting only); only bugs from colliding per-round registries get fresh ids, dated by original discovery when known, with an `Origin:` field pointing at the old artifact and the old id recorded as an alias, never reused.
 
 ## Dedup before filing
 
 Before minting, search the registry for the symptom:
 
 1. Grep `<qa-docs-path>/bugs/` for the observable (error copy, journey step, affected element).
-2. Check the affected scenario's `bug_ids` in `state.csv` — a scenario that failed before likely links the prior bug.
+2. Check the affected scenario file's `bug_ids` — a scenario that failed before likely links the prior bug.
 3. **Same symptom, bug not `verified`** → update the existing file (append a `## Re-found` section with date, persona, report path). Re-finding is signal about persistence, not a new bug.
 4. **Same symptom, bug `verified` (fix confirmed)** → the bug regressed: reopen it (status back to `open`, append a `## Regressed` section). A regression on the same id is far more informative than a fresh id.
 5. Only mint a new id when the symptom is genuinely new.
@@ -39,7 +39,7 @@ Before minting, search the registry for the symptom:
 | `wont-fix` | Consciously declined with recorded reasoning (usually a human decision) |
 | `invalid` | Not a product bug (tester error, environment artifact) — kept for the record, reasoning required |
 
-The status lives in the bug file's frontmatter/header and is mirrored into `state.csv` via `fix_status`/`retest_status` on the linked rows.
+The status lives in the bug file's frontmatter/header and is mirrored into the linked scenario files via `fix_status`/`retest_status`.
 
 ## The five user-impact tiers
 
@@ -90,14 +90,14 @@ Every bug file (template: `<qa-docs-path>/templates/bug.md`, seed: `assets/bug-t
 
 - `Impact (user-side):` — one of the five tiers.
 - `Persona Affected:` + `Journey Step:` — who is hurt, and when. These two fields let a product owner read the queue without opening the bug.
-- `Reproduction:` — exact steps from the persona's entry point, with the charter id (`CH-NNN`) and tour named.
+- `Reproduction:` — exact steps from the persona's entry point, with the charter id (`CH-<slug>`) and tour named.
 - `Evidence:` — screenshot/report paths proving the observable.
-- `Scenarios:` — the `state.csv` ids this bug affects (kept in sync with their `bug_ids`).
+- `Scenarios:` — the scenario ids this bug affects (kept in sync with their `bug_ids`).
 - After a fix: `Fix commit:` (SHA) and `Regression test:` (the test that failed before and passes after — or the documented replay and the stated reason no automated test is meaningful).
 
 ## Anti-patterns
 
-- **Per-round numbering** — `BUG-001` restarting each cycle destroys cross-round tracking; it is the single biggest data-integrity failure of per-round QA trees.
+- **Counter ids** — `BUG-001` restarting each cycle destroys cross-round tracking, and a global monotonic counter makes parallel branches mint the same number and collide on merge. Both are the same mistake: identity from a sequence instead of from the symptom.
 - **Duplicate filing** — a re-found symptom filed under a new id splits the history that makes persistent bugs visible.
 - **"Critical" inflation** — reserve Critical for actual Blocks-Completion/Data-Loss, or the scale stops meaning anything.
 - **Technical framing** — "API returns 500" is an observation; the bug is "a returning user loses their cart at checkout step 3". Lead with the user, cite the technical detail in reproduction.

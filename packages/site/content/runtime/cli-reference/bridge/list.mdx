@@ -1,0 +1,49 @@
+---
+title: "agh bridge list"
+description: "List bridge instances"
+---
+
+## agh bridge list
+
+List bridge instances
+
+```
+agh bridge list [flags]
+```
+
+### Options
+
+```
+      --cursor string         Continue from a bridge catalog cursor
+  -h, --help                  help for list
+      --limit int             Maximum bridges to return (default 50, max 200)
+      --platform string       Filter by messaging platform
+      --q string              Search display name, platform, extension, or status
+      --scope string          Filter by scope: all, global, or workspace
+      --sort string           Stable ordering: name (default "name")
+      --status string         Filter by effective runtime status
+      --workspace string      Filter by workspace ID, name, or path
+      --workspace-id string   Filter by active workspace ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh bridge list -o json
+```

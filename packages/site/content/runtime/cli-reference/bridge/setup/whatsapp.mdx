@@ -1,0 +1,42 @@
+---
+title: "agh bridge setup whatsapp"
+description: "Configure a whatsapp bridge"
+---
+
+## agh bridge setup whatsapp
+
+Configure a whatsapp bridge
+
+```
+agh bridge setup whatsapp [flags]
+```
+
+### Options
+
+```
+  -h, --help                       help for whatsapp
+      --instance string            Re-run setup for an existing bridge instance
+      --reveal-generated-secrets   Reveal only secrets generated during this setup in JSON output
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh bridge setup whatsapp -o json
+```

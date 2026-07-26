@@ -1,0 +1,53 @@
+---
+title: "agh skill list"
+description: "List locally available skills"
+---
+
+## agh skill list
+
+List locally available skills
+
+```
+agh skill list [flags]
+```
+
+### Examples
+
+```
+  # List every skill visible in the current workspace
+  agh skill list
+
+  # Show only bundled skills
+  agh skill list --source bundled
+```
+
+### Options
+
+```
+      --for-agent string   Resolve the effective skill set for one logical agent
+  -h, --help               help for list
+      --source string      Filter by source: bundled, marketplace, user, additional, workspace, or agent-local
+      --workspace string   Resolve daemon-managed skills from a workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh skill list -o json
+```

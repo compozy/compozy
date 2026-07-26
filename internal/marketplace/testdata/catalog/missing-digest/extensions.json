@@ -1,0 +1,14 @@
+{
+    "manifest_version": 1,
+    "generated_at": "2026-07-13T00:00:00Z",
+    "entries": [
+        {
+            "entry_id": "fixture-extension",
+            "name": "Fixture extension",
+            "description": "Must fail without a digest",
+            "version": "1.0.0",
+            "install_slug": "compozy/fixture-extension",
+            "artifact_url": "https://downloads.example.test/fixture-extension-v1.0.0.tar.gz"
+        }
+    ]
+}

@@ -1,0 +1,51 @@
+---
+title: Runtime Guides
+description: Goal-oriented guides for running, debugging, and coordinating real AGH work without reading the full reference first.
+---
+
+Runtime Guides are problem-oriented. Use them when you already know what you want AGH to do and
+need the shortest reliable path through the daemon, CLI, API, and web surfaces.
+
+<OperatorNote label="How to use these guides">
+  Start with the guide that matches the job in front of you. Each guide points back to the generated
+  CLI and API reference when exact flags, fields, or status values matter.
+</OperatorNote>
+
+## Pick the job
+
+<GuideGrid>
+  <GuideCard
+    href="/runtime/guides/choose-an-operator-surface"
+    label="Operate"
+    title="Choose the right operator surface"
+    description="Decide when to use CLI, HTTP/SSE, UDS, or the web UI for humans, scripts, and agent-managed work."
+    meta="Decision guide"
+  />
+  <GuideCard
+    href="/runtime/guides/debug-a-failed-session"
+    label="Repair"
+    title="Debug a failed or stuck session"
+    description="Walk from daemon health to session status, event history, repair, and stored runtime files without guessing."
+    meta="Troubleshooting"
+  />
+  <GuideCard
+    href="/runtime/guides/coordinate-agents-over-network"
+    label="Coordinate"
+    title="Coordinate agents over AGH Network"
+    description="Turn durable sessions into peers, inspect channels, send a direct envelope, and follow receipts and traces."
+    meta="Use case"
+  />
+</GuideGrid>
+
+## What belongs here
+
+Guides focus on operator outcomes:
+
+- choose the AGH surface that matches the actor and task
+- recover a session or daemon state you can prove from events
+- connect sessions, peers, and task handoff through AGH Network
+- route from a scenario into generated CLI/API reference only when exact syntax matters
+
+If you are brand new to AGH, start with [Quick Start](/runtime/core/getting-started/quick-start).
+If you need exact machinery, use the [CLI Reference](/runtime/cli-reference) and
+[API Reference](/runtime/api-reference).

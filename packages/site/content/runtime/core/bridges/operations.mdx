@@ -1,0 +1,822 @@
+---
+title: Bridge Operations
+description: Inspect, repair, rotate, restart, and validate an existing bridge without losing track of its workspace or provider boundary.
+---
+
+Use this runbook after initial setup. It keeps repair work in a predictable order: contain the
+bridge, inspect typed state, change one boundary, restart the provider, and prove both inbound and
+outbound behavior before returning the bridge to normal use.
+
+## Establish a healthy baseline
+
+Start with structured output:
+
+```bash
+BRIDGE_ID=brg_123
+
+agh bridge get "$BRIDGE_ID" -o json
+agh bridge verify "$BRIDGE_ID" --json
+agh doctor --only bridge --json
+agh bridge secret-bindings list "$BRIDGE_ID" -o json
+agh bridge routes "$BRIDGE_ID" -o json
+agh bridge targets "$BRIDGE_ID" -o json
+```
+
+A healthy bridge has five independent proofs:
+
+| Proof         | Evidence                                                                                                         |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Configuration | Required provider checks pass; conditional mode fields and bindings are present.                                 |
+| Runtime       | Effective state is `ready` with no unresolved degradation reason.                                                |
+| Transport     | Enabled verification reaches the complete public callback.                                                       |
+| Inbound       | A real supported provider event creates or reuses the expected workspace route.                                  |
+| Outbound      | `send-test --json` reports `status: "delivered"` and a non-empty `remote_message_id` for a route-derived target. |
+
+Do not collapse these into one “connected” result. For example, GitHub and Linear can truthfully
+skip a short-lived identity check while their enabled runtime health performs live authentication.
+
+## Read the effective state
+
+| Status          | Meaning                                                        | First action                                                                    |
+| --------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `disabled`      | The operator intentionally stopped the instance.               | Inspect configuration and bindings before enabling.                             |
+| `starting`      | The extension is launching, restarting, or reconnecting.       | Wait for a terminal state; if it persists, inspect provider degradation/error.  |
+| `ready`         | The provider can accept the configured work.                   | Prove the specific route and remote delivery if behavior still appears wrong.   |
+| `degraded`      | The provider reported a known issue but may still accept work. | Read degradation details and run `verify`; do not assume every operation works. |
+| `auth_required` | A required credential or provider authorization is absent/bad. | Disable, repair the binding/provider grant, then restart and verify.            |
+| `error`         | The provider reached a terminal or repeated fault.             | Disable, repair the named root cause, and use a controlled restart.             |
+
+The state is provider-owned evidence. A process that is alive but reports `auth_required` is not a
+healthy bridge.
+
+## Monitor live health
+
+Bridge list and get responses are point-in-time reads. For a long-running monitor, subscribe to the
+bounded health stream for the exact IDs already visible in the bridge catalog:
+
+```bash
+WORKSPACE_ID=ws_8f33a913d23c4fd1
+BRIDGE_IDS=brg_123,brg_456
+
+curl -N --get 'http://localhost:2123/api/bridges/health/stream' \
+  --data-urlencode "bridge_ids=$BRIDGE_IDS" \
+  --data-urlencode 'scope=workspace' \
+  --data-urlencode "workspace_id=$WORKSPACE_ID"
+```
+
+The stream emits an initial `snapshot` event, then emits another only when health changes. Its
+`data` value has this shape:
+
+```json
+{
+  "generated_at": "2026-07-13T12:00:00Z",
+  "bridge_health": {
+    "brg_123": {
+      "bridge_instance_id": "brg_123",
+      "status": "ready",
+      "route_count": 4,
+      "delivery_backlog": 0,
+      "delivery_dropped_total": 0,
+      "delivery_failures_total": 0,
+      "auth_failures_total": 0
+    }
+  }
+}
+```
+
+`bridge_ids` is required, comma-separated, deduplicated, and capped at 200 IDs. Use the same scope
+filter as the catalog page that supplied those IDs: `scope=workspace` requires `workspace_id` or
+`workspace`; `scope=global` forbids either workspace filter. Omitting `scope` reads both scopes,
+optionally constrained by a workspace filter.
+
+| Signal                    | Operator action                                                                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `status` / `degradation`  | Run `verify`; repair the named configuration, credential, transport, or provider dependency.                |
+| `delivery_backlog`        | Compare with the normal baseline; inspect provider rate limits and repeated transport failures.             |
+| `delivery_dropped_*`      | Read `delivery_dropped_by_reason`; confirm the configured backpressure policy before increasing load.       |
+| `delivery_failures_total` | Correlate `last_error` and `last_error_at` with provider logs and remote API responses.                     |
+| `auth_failures_total`     | Contain the bridge, verify provider grants, and rotate or repair the affected binding.                      |
+| `route_count`             | Compare with the intended conversation footprint; unexpected growth can indicate a routing-policy mismatch. |
+
+Correlate a changing snapshot with structured runtime logs:
+
+```bash
+agh logs --follow --provider slack --since 10m -o jsonl
+```
+
+Keep the daemon HTTP/SSE endpoint on its trusted local boundary. External monitoring should reach it
+through an authenticated operator channel, not through the public provider webhook hostname.
+
+## Use the recovery ladder
+
+When the root cause is not already obvious:
+
+1. Disable the bridge if continued ingest or delivery could create duplicates or expose wrong data.
+2. Save `agh bridge get`, `verify`, and `doctor --only bridge` output.
+3. List bindings and confirm the required slot names exist without requesting plaintext.
+4. Inspect the public URL, local listener address, and path as one topology.
+5. Correct one provider-console, configuration, or credential boundary.
+6. Restart the bridge provider.
+7. Run provider verification again.
+8. Enable if it remains disabled.
+9. Trigger one real inbound event and inspect its route.
+10. Run a real `send-test` against that route.
+
+The commands are:
+
+```bash
+agh bridge disable "$BRIDGE_ID"
+# Apply the root fix.
+agh bridge restart "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge enable "$BRIDGE_ID"
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+If `restart` is not meaningful while the instance is disabled in your repair sequence, enable it
+after the fix and treat that lifecycle transition as the provider relaunch. The terminal proof is
+the resulting state and real provider behavior, not the command name used to relaunch it.
+
+## Rotate a credential
+
+Plan the provider and AGH changes as one operation. Avoid a window where a live bridge accepts
+events signed with a value different from its bound secret.
+
+1. Disable the bridge.
+2. Create the replacement credential in the provider console.
+3. Update the AGH binding.
+4. Update the provider-side webhook/signature secret when the credential is shared across both sides.
+5. Restart or enable the bridge so the provider receives fresh launch material.
+6. Verify identity/configuration and public reachability.
+7. Prove inbound and outbound behavior.
+8. Revoke the old credential.
+
+```bash
+agh bridge disable "$BRIDGE_ID"
+
+printf '%s' "$NEW_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" <slot> \
+  --secret-ref "vault:bridges/$BRIDGE_ID/<slot>" \
+  --kind <kind> \
+  --secret-value-stdin
+
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+<OperatorNote>
+  The generic command accepts secret material only through `--secret-value-stdin` or
+  `--secret-value-file <path>`. Prefer the guided hidden-input setup for WhatsApp, Telegram, and
+  Discord. For generic providers, expand a short-lived environment variable into `printf` or point
+  at a permission-restricted file. The file path may appear in process arguments, but its contents
+  do not.
+</OperatorNote>
+
+The daemon stores only the write-only value behind the scoped binding and never returns it in bridge
+reads. Stdin and file input are bounded to 4 MiB, trimmed at the outer edges, and never echoed by the
+command.
+
+### Remove a retired binding
+
+Delete a binding only after the provider no longer accepts the credential it references. Deleting
+the AGH record does not revoke a token, signing secret, or application grant at the provider.
+
+```bash
+agh bridge disable "$BRIDGE_ID"
+agh bridge secret-bindings list "$BRIDGE_ID" -o json
+agh bridge secret-bindings delete "$BRIDGE_ID" <binding-name> -o json
+agh bridge secret-bindings list "$BRIDGE_ID" -o json
+```
+
+If the binding is required by the provider manifest, leave the bridge disabled until a replacement
+has been written. Enabling without it should surface `auth_required`; it is not a credential-removal
+proof. After deletion, confirm both the binding list and the provider-side revocation record.
+
+## Move or expose a callback
+
+### Development tunnel
+
+For a temporary local test, point a tunnel at the provider listener port:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:18082
+# or
+ngrok http 18082
+```
+
+Copy the generated public HTTPS origin and append the exact provider path. Temporary origins can
+change after restart; when they do, update both the bridge's `webhook.public_url` and the external
+provider console/registration.
+
+### Stable deployment
+
+For a long-lived bridge, terminate TLS at a stable domain and reverse-proxy only the configured
+provider paths. This Caddy example keeps every provider listener on loopback and preserves the full
+request path:
+
+```text
+bridge.example.com {
+  @slack path /slack /slack/*
+  reverse_proxy @slack 127.0.0.1:18081
+
+  @telegram path /telegram /telegram/*
+  reverse_proxy @telegram 127.0.0.1:18082
+
+  @discord path /discord /discord/*
+  reverse_proxy @discord 127.0.0.1:18083
+
+  @teams path /teams /teams/*
+  reverse_proxy @teams 127.0.0.1:18085
+
+  @whatsapp path /whatsapp /whatsapp/*
+  reverse_proxy @whatsapp 127.0.0.1:18086
+
+  @gchat path /gchat /gchat/*
+  reverse_proxy @gchat 127.0.0.1:18087
+
+  @github path /github /github/*
+  reverse_proxy @github 127.0.0.1:18088
+
+  @linear path /linear /linear/*
+  reverse_proxy @linear 127.0.0.1:18089
+}
+```
+
+Define the same loopback listeners in the daemon's existing systemd environment file when the
+instance does not set `provider_config.webhook.listen_addr`:
+
+```dotenv
+AGH_BRIDGE_SLACK_LISTEN_ADDR=127.0.0.1:18081
+AGH_BRIDGE_TELEGRAM_LISTEN_ADDR=127.0.0.1:18082
+AGH_BRIDGE_DISCORD_LISTEN_ADDR=127.0.0.1:18083
+AGH_BRIDGE_TEAMS_LISTEN_ADDR=127.0.0.1:18085
+AGH_BRIDGE_WHATSAPP_LISTEN_ADDR=127.0.0.1:18086
+AGH_BRIDGE_GCHAT_LISTEN_ADDR=127.0.0.1:18087
+AGH_BRIDGE_GITHUB_LISTEN_ADDR=127.0.0.1:18088
+AGH_BRIDGE_LINEAR_LISTEN_ADDR=127.0.0.1:18089
+```
+
+The systemd unit in [Daemon Operations](/runtime/core/operations/daemon#run-under-systemd) reads
+`/etc/agh/agh.env`. After changing it, reload the service and confirm the listener before changing a
+provider console:
+
+```bash
+sudo systemctl restart agh
+sudo systemctl status agh
+sudo ss -ltnp | grep -E ':(18081|18082|18083|18085|18086|18087|18088|18089)\\b'
+
+PUBLIC_CALLBACK_URL=https://bridge.example.com/slack/support
+curl -sS -o /dev/null -w '%{http_code}\n' "$PUBLIC_CALLBACK_URL"
+```
+
+Set `PUBLIC_CALLBACK_URL` to the exact `provider_config.webhook.public_url`, not a guessed provider
+path. A provider-authentication `401`/`403` or method rejection proves that request reached the
+adapter. A `404` can come from either the proxy or an unmatched adapter path and is not sufficient
+evidence; a `502`, `503`, or timeout points to DNS, TLS, proxy, listener, or service ownership. The
+authoritative check remains `agh bridge verify "$BRIDGE_ID" --json`, followed by one signed inbound
+event and a route-derived `send-test`.
+
+The proxy must preserve:
+
+- HTTP method;
+- request path;
+- raw body bytes;
+- content type;
+- provider signature or authorization headers.
+
+Do not use `handle_path` or another prefix-stripping rule unless the bridge's configured local path
+is changed to match. Do not expose the AGH daemon API on port `2123` as a substitute for a provider
+listener. They are separate surfaces.
+
+### Change an existing URL
+
+1. Disable the bridge.
+2. Read and save the complete current `provider_config`.
+3. Update the full object with the new `public_url`, `listen_addr`, and/or `path`.
+4. Update the provider console or registration.
+5. Restart/enable and verify.
+
+```bash
+agh bridge get "$BRIDGE_ID" -o json
+
+agh bridge update "$BRIDGE_ID" \
+  --provider-config '{
+    "webhook": {
+      "public_url": "https://new.example.com/telegram/support",
+      "listen_addr": "127.0.0.1:18082",
+      "path": "/telegram/support"
+    }
+  }'
+```
+
+`--provider-config` replaces the provider configuration object. Preserve mode, repository,
+organization, verification, DM, batching, and other provider fields that are not changing.
+
+For Telegram, rerun webhook registration while the bridge is disabled. For Slack, regenerate the app
+manifest or update Events API, interactivity, and slash-command URLs together.
+
+## Upgrade or roll back a locally built provider
+
+The eight in-tree providers are installed from local directories. `agh extension update` only
+updates marketplace extensions that have registry slug metadata, so it is not the upgrade path for
+these providers. A local replacement is a planned outage: disable every bridge instance owned by
+the extension, remove the managed copy, and install a prebuilt replacement.
+
+Removing the extension does not delete its bridge instances, bindings, routes, or delivery records.
+It does delete the managed provider copy under `AGH_HOME`, so preserve a known-good source tree and
+build its binary _before_ starting the outage. Do not use the installed directory itself as the
+rollback artifact.
+
+### Prepare the candidate and rollback artifacts
+
+Use separate trusted checkouts or immutable source archives for the candidate and known-good
+versions. Build both with the same Go toolchain and target environment used by the daemon:
+
+```bash
+PROVIDER=slack
+CANDIDATE_ROOT=/srv/agh/source-candidate
+ROLLBACK_ROOT=/srv/agh/source-known-good
+
+(
+  cd "$CANDIDATE_ROOT"
+  mkdir -p "./extensions/bridges/$PROVIDER/bin"
+  go build \
+    -o "./extensions/bridges/$PROVIDER/bin/$PROVIDER" \
+    "./extensions/bridges/$PROVIDER"
+)
+
+(
+  cd "$ROLLBACK_ROOT"
+  mkdir -p "./extensions/bridges/$PROVIDER/bin"
+  go build \
+    -o "./extensions/bridges/$PROVIDER/bin/$PROVIDER" \
+    "./extensions/bridges/$PROVIDER"
+)
+```
+
+Capture the installed package evidence and inventory every bridge that names the exact extension:
+
+```bash
+agh extension status "$PROVIDER" -o json
+agh extension provenance "$PROVIDER" -o json
+
+agh bridge list --scope all --q "$PROVIDER" --limit 200 -o json | \
+  jq --arg provider "$PROVIDER" '{
+    bridges: [.bridges[] | select(.extension_name == $provider)],
+    page
+  }'
+```
+
+`--q` is a search, not an ownership predicate; the `extension_name` comparison is authoritative.
+When `page.has_more` is true, continue with `--cursor <page.next_cursor>` until every page has been
+checked. Save each bridge ID, its complete `bridge get` response, and the route-derived target used
+for the post-upgrade delivery proof.
+
+### Replace the managed provider
+
+Disable each owned bridge explicitly and confirm that active work has drained. One provider process
+can own multiple bridge instances, so leaving one enabled makes the replacement unsafe.
+
+```bash
+BRIDGE_ID=brg_123
+
+agh bridge disable "$BRIDGE_ID" -o json
+agh bridge get "$BRIDGE_ID" -o json
+
+# Repeat the two commands for every bridge whose extension_name equals $PROVIDER.
+agh extension disable "$PROVIDER" -o json
+agh extension remove "$PROVIDER" -o json
+agh extension install \
+  "$CANDIDATE_ROOT/extensions/bridges/$PROVIDER" \
+  --allow-unverified \
+  --yes \
+  -o json
+
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" \
+    '.providers[] | select(.extension_name == $provider)'
+```
+
+The local install enables the replacement extension. Do not edit or copy files directly into its
+managed `AGH_HOME` directory; doing so bypasses provenance, trust evaluation, runtime reload, and
+extension events.
+
+Enable one bridge as a canary. A successful process start is not enough: prove configuration,
+transport, routing, and delivery before enabling the remaining instances one at a time.
+
+```bash
+agh bridge enable "$BRIDGE_ID" -o json
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge routes "$BRIDGE_ID" -o json
+
+# Use the peer/group/thread identifiers saved from the real inbound route.
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH provider upgrade check" \
+  --group-id "<route-group-id>" \
+  --json
+```
+
+Send one signed provider event as the inbound proof. Use the provider guide's target shape for
+`send-test`; the `--group-id` example is not valid for a peer-only bridge. The outbound canary
+passes only when its JSON reports `status: "delivered"` and a non-empty `remote_message_id`.
+`committed_result_unavailable` is an indeterminate canary even though the control command itself
+returns successfully. Check status and logs again after all instances are enabled.
+
+### Roll back on any failed proof
+
+Rollback repeats the same controlled replacement with the prepared known-good source. First
+disable every instance again; then remove the candidate, install the preserved artifact, and rerun
+the full canary proof:
+
+```bash
+# Disable every bridge owned by $PROVIDER before replacing the process.
+agh bridge disable "$BRIDGE_ID" -o json
+agh extension disable "$PROVIDER" -o json
+agh extension remove "$PROVIDER" -o json
+agh extension install \
+  "$ROLLBACK_ROOT/extensions/bridges/$PROVIDER" \
+  --allow-unverified \
+  --yes \
+  -o json
+
+agh extension status "$PROVIDER" -o json
+agh bridge enable "$BRIDGE_ID" -o json
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+If the candidate changed a bridge's `provider_config`, restore the complete saved object before
+enabling the rollback. If it changed an external app, webhook, subscription, permission, or grant,
+restore that provider-side contract too. Reinstalling the binary cannot reverse remote state.
+
+| Provider        | Reapply or roll back remote configuration when these contracts change                                     |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
+| Slack           | Manifest, callback URLs, event subscriptions, OAuth scopes, interactivity, or slash command.              |
+| Telegram        | Webhook URL/path, webhook secret, allowed updates, or BotFather privacy settings.                         |
+| Discord         | Interaction endpoint, webhook-event subscription, bot permissions, or installation scopes.                |
+| WhatsApp        | Callback URL, verify token, subscribed fields, phone number, app mode, or recipient grants.               |
+| Microsoft Teams | Azure Bot messaging endpoint, app ID/domain, app package, tenant policy, or permissions.                  |
+| Google Chat     | HTTP/Pub/Sub ingress, service account, project number, event subscriptions, visibility, or space install. |
+| GitHub          | Webhook URL/secret/events, repository installation, PAT scopes, or GitHub App permissions.                |
+| Linear          | Webhook URL/secret/events, organization/team access, OAuth grant, PAT, or Agent Sessions registration.    |
+
+Keep the bridge disabled if neither the candidate nor the rollback passes. Preserve the captured
+status, provenance, verification records, provider logs, and external delivery evidence for the
+next repair attempt.
+
+## Tune progress without changing final delivery
+
+Progress is presentation-only and does not enter the transcript. Change it independently of the
+provider's final-text path:
+
+```bash
+agh bridge update "$BRIDGE_ID" \
+  --delivery-progress new \
+  --delivery-progress-grouping accumulate \
+  --delivery-progress-typing=true \
+  --delivery-progress-reactions=true
+```
+
+To stop all provider-side progress calls:
+
+```bash
+agh bridge update "$BRIDGE_ID" \
+  --delivery-progress off \
+  --delivery-progress-typing=false \
+  --delivery-progress-reactions=false
+```
+
+Slack, Telegram, and Discord default to progress on. Teams, WhatsApp, Google Chat, GitHub, and Linear
+default to off. GitHub and Linear acknowledge progress without creating issue-side artifacts.
+
+## Replace raw delivery defaults
+
+Use the typed progress flags for progress-only changes. Use `--delivery-defaults` when automation
+must replace the complete target-default object, including provider-owned string fields:
+
+```bash
+agh bridge get "$BRIDGE_ID" -o json
+
+agh bridge update "$BRIDGE_ID" \
+  --delivery-defaults '{
+    "mode": "reply",
+    "group_id": "-1001234567890",
+    "thread_id": "42",
+    "progress": {
+      "tool_progress": "new",
+      "grouping": "accumulate",
+      "typing": true,
+      "reactions": true
+    }
+  }' \
+  -o json
+```
+
+`--delivery-defaults` is a replacement, not a merge. Read the current object first and carry forward
+every field that should survive. The common fields are `mode`, `peer_id`, `group_id`, `thread_id`,
+and `progress`; additional provider-owned defaults must be strings. Pass `null` to clear the object:
+
+```bash
+agh bridge update "$BRIDGE_ID" --delivery-defaults null -o json
+```
+
+When raw defaults and typed `--delivery-progress*` flags appear in the same update, AGH applies the
+typed progress changes to the supplied object before validation. Confirm the canonical stored result
+with `agh bridge get`.
+
+## Inspect routing before changing it
+
+Routes are workspace-scoped runtime state. Inspect them before changing `include_peer`,
+`include_group`, or `include_thread`:
+
+```bash
+agh bridge routes "$BRIDGE_ID" -o json
+agh bridge targets "$BRIDGE_ID" --query launch --limit 25 -o json
+agh bridge resolve "$BRIDGE_ID" "launch room" -o json
+```
+
+`--query` filters by display name, qualifier, or route. `--limit` bounds the number of discovered
+targets returned and rejects negative values; it is a response cap, not a cursor. Keep the limit in
+agent-operated calls so target discovery cannot produce unbounded context, then use `resolve` to
+prove the intended name without sending.
+
+Resolver ambiguity is returned as structured diagnostics; AGH does not silently choose a target.
+Provider guides name the identity units to use for real delivery.
+
+Changing route dimensions changes how future inbound identities select sessions. Treat that as a
+workspace/session ownership decision and test it with a new inbound event.
+
+## Start a fresh routed session
+
+Use this procedure when one platform conversation needs a fresh session transcript without deleting
+the bridge or its prior session history. Stopping the current session leaves its events available for
+inspection. The next genuinely new inbound event for the same route creates a replacement session and
+rebinds the route.
+
+First list the bridge routes and identify the exact platform conversation by its peer, group, and
+thread fields. Copy that row's `routing_key_hash` rather than assuming the bridge has only one route:
+
+```bash
+BRIDGE_ID=brg_123
+ROUTING_KEY_HASH='<routing-key-hash>'
+
+agh bridge routes "$BRIDGE_ID" -o json
+
+SESSION_ID=$( \
+  agh bridge routes "$BRIDGE_ID" -o json | \
+    jq -er --arg hash "$ROUTING_KEY_HASH" \
+      '.[] | select(.routing_key_hash == $hash) | .session_id'
+)
+
+agh session stop "$SESSION_ID" -o json
+agh session events "$SESSION_ID" --last 20 -o json
+```
+
+Send one new supported event from the same platform conversation. Do not replay the old webhook or
+reuse its platform event ID: an active deduplication record can suppress it. Then confirm that the
+route hash is unchanged and its session ID is new:
+
+```bash
+NEW_SESSION_ID=$( \
+  agh bridge routes "$BRIDGE_ID" -o json | \
+    jq -er --arg hash "$ROUTING_KEY_HASH" \
+      '.[] | select(.routing_key_hash == $hash) | .session_id'
+)
+
+test "$NEW_SESSION_ID" != "$SESSION_ID"
+printf 'Route %s moved from %s to %s\n' \
+  "$ROUTING_KEY_HASH" "$SESSION_ID" "$NEW_SESSION_ID"
+
+# The stopped session remains available as historical evidence.
+agh session events "$SESSION_ID" --last 20 -o json
+```
+
+This creates a fresh session transcript for the route; it does not erase workspace-scoped memory or
+change the workspace default agent. Use `agh session stop`, not `agh session remove`, when preserving
+the prior session is part of the recovery goal. See [Bridge conversations](./conversations) for the
+route, session, and history boundaries.
+
+## Choose disable or notification suppression
+
+These controls solve different problems:
+
+- `agh bridge disable <id>` stops the provider instance from accepting bridge work.
+- `notification_suppress` skips common notification deliveries while leaving the bridge lifecycle
+  available for other supported work.
+
+Suppress planned notification noise:
+
+```bash
+agh bridge update "$BRIDGE_ID" --notification-suppress=true
+```
+
+Restore it explicitly:
+
+```bash
+agh bridge update "$BRIDGE_ID" --notification-suppress=false
+```
+
+Suppression is not a security containment control. Disable the bridge when inbound or outbound
+provider work must stop.
+
+## Retire a bridge safely
+
+Bridge instances are desired-state resources. Deleting `bridge.instance` removes the projected
+instance and its instance-owned bindings, routes, deduplication records, subscriptions, targets, and
+delivery rows. Historical sessions remain available under their own lifecycle. Removing a provider
+extension does not delete a bridge resource and can leave an orphaned instance if done first.
+
+Use this order:
+
+1. Read the bridge and record its actual `extension_name`; platform and extension identity are
+   separate contracts.
+2. Inventory every instance owned by that extension.
+3. Disable the retiring instance and wait for delivery backlog and active deliveries to reach a
+   terminal state. Active delivery rows deliberately block deletion.
+4. Revoke or delete the webhook, app installation, bot grant, token, and signing secret at the
+   external provider.
+5. Read the current desired-state resource version and delete it with optimistic concurrency.
+6. Confirm the bridge is absent and preserve any historical session IDs needed for audit.
+7. Disable or remove the extension only when no remaining bridge instance uses it.
+
+```bash
+set -euo pipefail
+
+BRIDGE_ID=brg_123
+EXTENSION_NAME=$(agh bridge get "$BRIDGE_ID" -o json | jq -er '.extension_name')
+
+list_owned_bridges() {
+  local cursor=""
+  local page
+  local args=(--scope all --q "$EXTENSION_NAME" --limit 200 -o json)
+
+  while :; do
+    if [[ -n "$cursor" ]]; then
+      page=$(agh bridge list "${args[@]}" --cursor "$cursor")
+    else
+      page=$(agh bridge list "${args[@]}")
+    fi
+
+    printf '%s\n' "$page" |
+      jq -c --arg extension "$EXTENSION_NAME" '.bridges[] | select(.extension_name == $extension)'
+
+    if [[ $(printf '%s\n' "$page" | jq -r '.page.has_more') != "true" ]]; then
+      break
+    fi
+    cursor=$(printf '%s\n' "$page" | jq -er '.page.next_cursor')
+  done
+}
+
+# Save this complete, exact-match inventory before changing desired state.
+list_owned_bridges | jq -s .
+
+agh bridge disable "$BRIDGE_ID"
+agh bridge get "$BRIDGE_ID" -o json
+
+# Wait for delivery_backlog=0, then revoke the provider-side app, webhook, and credentials.
+agh bridge secret-bindings list "$BRIDGE_ID" -o json
+
+RESOURCE_VERSION=$( \
+  agh resource get bridge.instance "$BRIDGE_ID" -o json | jq -er '.record.version'
+)
+agh resource delete bridge.instance "$BRIDGE_ID" \
+  --expected-version "$RESOURCE_VERSION" \
+  -o json
+
+# Re-read every page and prove zero exact owners immediately before extension mutation.
+list_owned_bridges | jq -s -e 'length == 0'
+agh extension disable "$EXTENSION_NAME" -o json
+agh extension remove "$EXTENSION_NAME" -o json
+```
+
+`--q` only narrows the candidate set; the exact `extension_name` predicate proves ownership. The
+function follows `page.has_more` and `page.next_cursor` until the inventory is complete. If the final
+zero-owner assertion exits nonzero, stop and leave the extension installed until the remaining
+instances have been retired.
+
+The resource delete cascades the instance-owned secret-binding records; provider-side credential
+revocation is still a separate external operation. If `owner` or `source` shows that a bundle
+activation owns the resource, update or remove that owner instead of deleting its projected child,
+or reconciliation can recreate it. If the bridge may return to service, stop after disablement and
+provider-side revocation rather than deleting the resource.
+
+## Handle an indeterminate committed result
+
+`committed_result_unavailable` means a provider mutation may have crossed its commit boundary and a
+commit cannot be ruled out. The adapter could not reliably read or validate the response or obtain the
+required remote message ID. For broker-managed response delivery, AGH terminalizes the delivery
+without replay and records a delivery failure. It does not invent an ID or assume that the remote
+message is absent.
+
+When this occurs during `agh bridge send-test`, structured output reports
+`status: "committed_result_unavailable"`, omits `remote_message_id`, and includes a redacted
+`error.message`. `send-test` is a synchronous control probe, not a broker-managed response delivery,
+so it does not create a durable delivery-ledger row or broker failure metric. Do not treat the
+successful control-plane response as proof that no provider message exists.
+
+Do not resend the content first. Inspect both sides before taking another mutating action:
+
+1. Preserve the originating evidence. For broker delivery, capture the bridge, route,
+   `delivery_failures_total`, `last_error`, and `last_error_at`. For `send-test`, save its status,
+   delivery ID, target, and redacted error instead; broker health does not record that direct probe.
+2. Read provider-specific AGH logs around `last_error_at` for broker delivery, or around the saved
+   command timestamp and delivery ID for `send-test`, without exposing bound secrets.
+3. Inspect the exact remote conversation identified by the route. Search around the same timestamp
+   for the expected post, edit, reaction, comment, or activity.
+4. If the mutation exists, record its provider ID when available and do not resend it. Continue with a
+   new user turn if more work is needed.
+5. If the provider proves that the mutation is absent, create a new, explicit user turn. Do not try to
+   revive or replay the terminalized delivery ID.
+
+```bash
+agh bridge get "$BRIDGE_ID" -o json
+agh bridge routes "$BRIDGE_ID" -o json
+
+curl -sS "http://127.0.0.1:2123/api/bridges/$BRIDGE_ID" | \
+  jq '.health | {
+    delivery_failures_total,
+    last_error,
+    last_error_at,
+    delivery_dropped_total,
+    delivery_dropped_by_reason
+  }'
+
+PROVIDER=$(agh bridge get "$BRIDGE_ID" -o json | jq -er '.platform')
+agh logs --provider "$PROVIDER" --since 10m -o jsonl
+```
+
+For an indeterminate progress mutation, health can instead show the
+`progress_delivery_indeterminate` drop reason. AGH discards that progress update, but final text can
+still be delivered. Check for a final message before attempting any manual follow-up.
+
+## Recover after a daemon restart
+
+AGH persists sent and acknowledged sequence checkpoints for in-flight bridge delivery, not streamed
+response or progress text. Before each durable provider mutation, it records a write-ahead send
+intent. Startup reconciliation therefore has two explicit paths before new registrations are
+admitted:
+
+- If the sent sequence is ahead of the acknowledged sequence, the prior mutation may already exist at
+  the provider. AGH closes the delivery locally as indeterminate and makes no provider call.
+- If there is no unmatched intent, AGH records a new intent and posts one visible terminal error with
+  the standard session-stopped message. It never reconstructs or replays the partial answer.
+
+The first path is commit ambiguity, not proof that the provider mutated anything. The daemon may have
+stopped after persisting intent but before the provider call, after the provider accepted the
+mutation, or before its acknowledgement was checkpointed. Inspect the routed provider conversation
+before any manual resend. In both paths, recovery starts a new turn rather than reviving the old
+delivery ID.
+
+After a restart:
+
+1. Wait for bridge reconciliation to finish.
+2. Inspect bridge status and durable metrics.
+3. Classify `last_error`: `delivery outcome indeterminate after restart` is the local, no-provider-call
+   path; `session stopped before delivery completed` is the attempted visible terminal-error path.
+   Sent and acknowledged sequence numbers are internal ledger state, not public health fields.
+4. Inspect the routed provider conversation and confirm that reconciliation did not duplicate a prior
+   mutation. A visible terminal error is expected only when no unmatched send intent existed.
+5. Treat the old delivery as closed and start a new user turn only when the provider is ready.
+
+See [Message routing](/runtime/core/bridges/routing) for the durable checkpoint contract and
+[Bridge conversations](./conversations) for the route/session lifecycle.
+
+## Provider-specific first checks
+
+| Provider        | First checks after a failure                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Slack           | Bot identity, every `scope.*` record, signing secret, request URL, and app reinstall after scope changes.           |
+| Telegram        | Bot token, webhook secret, `setWebhook` registration, BotFather privacy mode, chat/topic IDs.                       |
+| Discord         | Application/bot identity match, Ed25519 public key, endpoint PING, webhook-event subscription, channel permissions. |
+| WhatsApp        | Phone Number ID, access token, app secret, verify token, `messages` subscription, development recipient/window.     |
+| Microsoft Teams | App ID/secret/tenant alignment, Azure Bot messaging endpoint, Teams app installation, Bot Framework user IDs.       |
+| Google Chat     | Ingress mode, service-account JSON, project number or Pub/Sub OIDC fields, app visibility, space installation.      |
+| GitHub          | Repository match, webhook recent delivery, PAT/App grants, installation ID, accepted comment event family.          |
+| Linear          | Organization ID, auth mode, webhook mode, team/app access, mentionability for Agent Sessions.                       |
+
+Use the provider setup guide for symptom-specific remediation.
+
+## Automation and agent operation
+
+All lifecycle, binding, verification, route, target, and delivery operations are available through
+structured CLI output. HTTP and UDS use the same handlers; use the generated
+[API reference](/runtime/api-reference/bridges) for exact request schemas.
+
+Agents should record:
+
+- bridge instance ID;
+- workspace ID;
+- provider/mode;
+- check names and statuses;
+- route-derived target IDs;
+- `send-test` status and delivery ID, plus the remote message ID when present or the redacted error
+  when the status is not `delivered`;
+- remediation text for every non-pass record.
+
+Never record plaintext bindings.
+
+## Related docs
+
+- [Bridge setup](/runtime/core/bridges/setup)
+- [Message routing](/runtime/core/bridges/routing)
+- [Tool progress](/runtime/core/bridges/progress)
+- [Bridge CLI reference](/runtime/cli-reference/bridge)

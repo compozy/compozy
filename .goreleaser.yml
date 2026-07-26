@@ -3,15 +3,15 @@
 version: 2
 pro: true
 
-project_name: compozy
+project_name: agh
 
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
-  license: "BSL-1.1"
-  homepage: "https://github.com/compozy/compozy"
-  description: "Compozy CLI"
+  license: "MIT"
+  homepage: "https://agh.network"
+  description: "AGH — Artificial General Hivemind"
   maintainers:
-    - "Compozy Team <support@compozy.com>"
+    - "AGH Team"
 
 env:
   - GO111MODULE=on
@@ -22,12 +22,14 @@ git:
 
 before:
   hooks:
-    - make frontend-build
+    - go run github.com/magefile/mage@v1.17.2 daytonaSidecarsCheck
+    - go run github.com/magefile/mage@v1.17.2 webBuild
+    - go run github.com/magefile/mage@v1.17.2 webAssetsCheck
 
 builds:
-  - id: compozy
-    main: ./cmd/compozy
-    binary: compozy
+  - id: agh
+    main: ./cmd/agh
+    binary: agh
     goos:
       - linux
       - darwin
@@ -40,9 +42,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
-      - -X github.com/compozy/compozy/internal/version.Version={{ .Version }}
-      - -X github.com/compozy/compozy/internal/version.Commit={{ .ShortCommit }}
-      - -X github.com/compozy/compozy/internal/version.Date={{ .Date }}
+      - -X github.com/compozy/agh/internal/version.Version={{ .Version }}
+      - -X github.com/compozy/agh/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/compozy/agh/internal/version.BuildDate={{ .Date }}
     env:
       - CGO_ENABLED=0
     flags:
@@ -50,11 +52,11 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - id: compozy-archive
+  - id: agh-archive
     ids:
-      - compozy
+      - agh
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
+      {{ .ProjectName }}_{{ .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
@@ -63,10 +65,57 @@ archives:
       - goos: windows
         formats:
           - zip
-    files:
-      - README.md
-      - LICENSE*
-    # Keep the binary at the archive root so Homebrew formulas can install it directly.
+
+brews:
+  - name: agh
+    ids:
+      - agh-archive
+    directory: Formula
+    homepage: "https://agh.network"
+    description: "AGH — Artificial General Hivemind"
+    license: "MIT"
+    test: |
+      system "#{bin}/agh", "version"
+    caveats: |
+      AGH is distributed through the Compozy Homebrew tap. Use `brew upgrade compozy/compozy/agh`
+      for managed updates, or set AGH_MANAGED=homebrew in shell wrappers that need
+      managed lifecycle diagnostics from `agh update` and `agh uninstall`.
+    repository:
+      owner: compozy
+      name: homebrew-compozy
+      branch: main
+      token: "{{ .Env.RELEASE_TOKEN }}"
+
+nfpms:
+  - id: agh-linux-packages
+    package_name: agh
+    file_name_template: "{{ .ConventionalFileName }}"
+    ids:
+      - agh
+    if: '{{ eq .Os "linux" }}'
+    vendor: AGH
+    homepage: "https://agh.network"
+    maintainer: "AGH Team"
+    description: "AGH — Artificial General Hivemind"
+    license: "MIT"
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    formats:
+      - deb
+      - rpm
+
+npms:
+  - name: "@compozy/agh"
+    ids:
+      - agh-archive
+    description: "AGH — Artificial General Hivemind"
+    repository: "git+https://github.com/compozy/agh.git"
+    bugs: "https://github.com/compozy/agh/issues"
+    access: public
+    format: tar.gz
+    license: "MIT"
+    homepage: "https://agh.network"
 
 checksum:
   name_template: "checksums.txt"
@@ -74,11 +123,10 @@ checksum:
 
 signs:
   - cmd: cosign
-    certificate: "${artifact}.pem"
+    signature: "${artifact}.sigstore.json"
     args:
       - sign-blob
-      - "--output-certificate=${certificate}"
-      - "--output-signature=${signature}"
+      - "--bundle=${signature}"
       - "${artifact}"
       - "--yes"
     artifacts: checksum
@@ -91,7 +139,6 @@ source:
   enabled: true
 
 changelog:
-  # Use git history so the first release works before a previous tag exists on GitHub.
   use: git
   sort: asc
   abbrev: 7
@@ -148,80 +195,21 @@ changelog:
 release:
   github:
     owner: compozy
-    name: compozy
+    name: agh
+  target_commitish: "{{ .Commit }}"
   name_template: "Release {{ .Version }}"
   mode: replace
+  replace_existing_artifacts: true
   draft: false
   prerelease: auto
+  extra_files:
+    - glob: ./packages/site/public/install.sh
+      name_template: install.sh
 
 sboms:
-  - artifacts: archive
+  - id: archive
+    artifacts: archive
+  - id: package
+    artifacts: package
   - id: source
     artifacts: source
-
-# Homebrew formula configuration
-brews:
-  - name: compozy
-    ids:
-      - compozy-archive
-    repository:
-      owner: compozy
-      name: homebrew-compozy
-      branch: main
-      token: "{{ .Env.RELEASE_TOKEN }}"
-
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
-    directory: Formula
-    caveats: |
-      To get started with Compozy, see https://github.com/compozy/compozy
-    homepage: "https://github.com/compozy/compozy"
-    description: "Compozy CLI"
-    license: "BSL-1.1"
-    test: |
-      system "#{bin}/compozy", "--version"
-    skip_upload: auto
-
-# NPM package configuration
-npms:
-  - name: "@compozy/cli"
-    description: "Compozy CLI"
-    repository: "git+https://github.com/compozy/compozy.git"
-    bugs: https://github.com/compozy/compozy/issues
-    access: public
-    license: BSL-1.1
-    homepage: "https://compozy.com"
-
-# Arch User Repository (AUR) configuration
-# Temporarily disabled until the AUR package exists and `AUR_KEY` is configured.
-# Uncomment this block to re-enable AUR publishing.
-# aurs:
-#   - name: compozy-bin
-#     homepage: "https://github.com/compozy/compozy"
-#     description: "Compozy CLI"
-#     maintainers:
-#       - "Compozy Team <support@compozy.com>"
-#     license: "MIT"
-#     private_key: '{{ .Env.AUR_KEY }}'
-#     git_url: 'ssh://aur@aur.archlinux.org/compozy-bin.git'
-#     provides:
-#       - compozy
-#     conflicts:
-#       - compozy
-#       - compozy-git
-#     package: |-
-#       # Binaries
-#       install -Dm755 "${srcdir}/${pkgname%-bin}" "${pkgdir}/usr/bin/${pkgname%-bin}"
-#
-#       # License
-#       install -Dm644 "${srcdir}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
-#
-#       # README
-#       install -Dm644 "${srcdir}/README.md" "${pkgdir}/usr/share/doc/${pkgname}/README.md"
-#     commit_author:
-#       name: goreleaserbot
-#       email: bot@goreleaser.com
-#     commit_msg_template: "AUR package update for {{ .ProjectName }} version {{ .Tag }}"

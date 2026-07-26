@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGH · Create network channel</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body>
+
+<div class="product" aria-hidden="true">
+  <aside class="product__rail"><div class="product__mark"></div><div class="product__mark"></div><div class="product__mark"></div></aside>
+  <div class="product__main">
+    <div class="product__title"></div><div class="product__sub"></div>
+    <div class="product__grid"><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i></div>
+  </div>
+</div>
+
+<div class="scrim">
+  <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Create network channel" data-od-component="dialog" data-success="Network channel is ready to create." data-od-id="network-channel-create-dialog">
+
+    <!-- HEADER -->
+    <header class="dialog__head" data-od-id="channel-create-header">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></div>
+      <div class="head-copy">
+        <div class="eyebrow">Network · Channel</div>
+        <h1 data-od-id="channel-create-title">Create channel</h1>
+        <p>A channel gives agents a <b>shared purpose</b> — members receive delegated work according to the fanout policy.</p>
+      </div>
+      <button class="icon-button" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- CONTEXT BAR -->
+    <div class="modebar" data-od-id="channel-create-modebar">
+      <span class="modebar__label">Workspace</span>
+      <span class="modebar__value">checkout-platform</span>
+      <div class="modebar__spacer"></div>
+      <span class="modebar__status" data-od-id="channel-create-status"><i class="status-dot"></i> 8 agents available</span>
+    </div>
+
+    <!-- BODY -->
+    <div class="dialog__body">
+
+      <div class="sec" data-od-component="form-section" data-od-id="channel-identity-section">
+        <div class="sec__head">
+          <span class="sec__title">The channel</span>
+          <span class="sec__sub">Name and membership are fixed after creation.</span>
+        </div>
+        <div class="field">
+          <label class="label" for="channel">Channel name <span class="req">required</span></label>
+          <input id="channel" class="input input--mono" required value="incident-response" placeholder="incident-response" autofocus data-od-id="channel-name-input">
+          <span class="error">Enter a channel name.</span>
+        </div>
+        <div class="field">
+          <label class="label" for="purpose">Purpose <span class="req">required</span></label>
+          <input id="purpose" class="input" required value="Coordinate production incident response" placeholder="Coordinate production incident response" data-od-id="channel-purpose-input">
+          <span class="error">Describe the channel purpose.</span>
+          <span class="hint">Peers use the purpose to decide whether to delegate here.</span>
+        </div>
+      </div>
+
+      <div class="sec" data-od-component="form-section" data-od-id="channel-members-section">
+        <div class="sec__head">
+          <span class="sec__title">Members</span>
+          <span class="sec__sub">Agents from the workspace catalog.</span>
+        </div>
+        <div class="field">
+          <span class="label" id="channel-member-label">Members <span class="req">at least one</span></span>
+          <button class="command-select" id="member" type="button" aria-labelledby="channel-member-label" aria-controls="channel-member-popover" data-component-trigger="agent-multi-select" data-chip-target="channel-member-chip-list" data-selection-noun="agents" data-empty-copy="Select at least one agent" data-od-component="agent-multi-select" data-od-id="channel-member-select">
+            <span class="command-select__avatar" aria-hidden="true">2</span>
+            <span class="command-select__copy"><strong data-component-value>2 agents selected</strong><span data-component-summary>incident-triage, release-coordinator</span></span>
+            <span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span>
+          </button>
+          <div class="chip-list" id="channel-member-chip-list" data-members-list data-required-members data-od-id="channel-members-chips">
+            <span class="chip" data-value="incident-triage">incident-triage<button type="button" aria-label="Remove incident-triage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></span>
+            <span class="chip" data-value="release-coordinator">release-coordinator<button type="button" aria-label="Remove release-coordinator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></span>
+          </div>
+          <span class="error">Select at least one channel member.</span>
+        </div>
+      </div>
+
+      <div class="sec" data-od-component="form-section" data-od-id="channel-fanout-section">
+        <div class="sec__head">
+          <span class="sec__title">Who receives a message?</span>
+          <span class="sec__sub">The fanout policy routes incoming work.</span>
+        </div>
+        <div class="tpl-grid cols3" data-choice-group="fanout" data-od-component="radio-card" data-od-id="channel-fanout-group">
+          <button class="tpl" type="button" data-choice data-reveal="fanout-capability" aria-pressed="true">
+            <span class="tpl__top">
+              <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></span>
+              <span class="tpl__name">Best match</span>
+              <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            </span>
+            <span class="tpl__desc">Routes to the member whose capabilities match.</span>
+            <span class="tpl__badge b-info">capability_match</span>
+          </button>
+          <button class="tpl" type="button" data-choice data-reveal="fanout-coordinator">
+            <span class="tpl__top">
+              <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21c.6-4 2.8-6 6.5-6s5.9 2 6.5 6"/></svg></span>
+              <span class="tpl__name">Coordinator</span>
+              <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            </span>
+            <span class="tpl__desc">One member triages everything and delegates.</span>
+            <span class="tpl__badge b-neutral">coordinator</span>
+          </button>
+          <button class="tpl" type="button" data-choice data-reveal="fanout-all">
+            <span class="tpl__top">
+              <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+              <span class="tpl__name">Everyone</span>
+              <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            </span>
+            <span class="tpl__desc">Every member receives every message.</span>
+            <span class="tpl__badge b-neutral">all_members</span>
+          </button>
+        </div>
+        <div class="field mt-16" data-conditional="fanout" data-match="fanout-coordinator" hidden>
+          <span class="label" id="channel-coordinator-label">Coordinator peer <span class="req">required</span></span>
+          <button class="command-select" id="coordinator" type="button" aria-labelledby="channel-coordinator-label" aria-controls="channel-coordinator-popover" data-component-trigger="command-select" data-required-when-visible data-required-selection data-member-coordinator data-od-component="command-select" data-od-id="channel-coordinator-select"><span class="command-select__avatar" aria-hidden="true">C</span><span class="command-select__copy"><strong data-component-value>Select coordinator</strong><span>Derived from selected members</span></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+          <span class="error">Select the coordinator peer.</span>
+          <span class="hint">Must be one of the members above — the list stays in sync.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="dialog__foot" data-od-component="dialog-footer" data-od-id="channel-create-footer">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <span>Name and membership are <b>fixed after creation</b> — purpose and fanout stay editable.</span>
+      </div>
+      <button class="btn btn--outline" type="button" data-close>Cancel</button>
+      <button class="btn btn--primary" type="submit" data-od-id="channel-create-submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Create channel
+      </button>
+    </footer>
+
+  </form>
+</div>
+
+<div class="closed-state">Channel creation dismissed.</div>
+<div class="toast" data-toast></div>
+<div class="component-popover" id="channel-member-popover" role="listbox" aria-label="Agents" aria-multiselectable="true"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search agents" placeholder="Search agents…"></div><div class="component-popover__list"><button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="incident-triage"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>incident-triage</strong><span><b>Anthropic</b> · operations</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="release-coordinator"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>release-coordinator</strong><span><b>OpenAI</b> · delivery</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="customer-support"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>customer-support</strong><span><b>Anthropic</b> · support</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="oncall-escalator"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>oncall-escalator</strong><span><b>OpenAI</b> · operations</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button></div></div>
+<div class="component-popover" id="channel-coordinator-popover" role="listbox" aria-label="Coordinator members"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search selected members" placeholder="Search selected members…"></div><div class="component-popover__list"></div></div>
+<script src="modal-system.js"></script>
+</body>
+</html>

@@ -19,6 +19,7 @@ This skill enforces consistent Storybook story creation patterns across the appl
 - ❌ **NEVER** create components from scratch when a base component exists in `@agh/ui`
 - ❌ **NEVER** use explicit color values (e.g., `bg-white`, `text-black`) - always use design tokens
 - ❌ **NEVER** duplicate component logic - compose from base components
+- ❌ **NEVER** set `tags: ["autodocs"]` or enable Storybook autodocs on any story meta (`packages/ui`, `web/src/components/ui`, or `web/src/systems/**`). Use `parameters.docs.description.component`, JSDoc on stories, and the Docs addon manually if needed.
 
 **Available Base Components:**
 All components from `packages/ui/src/components` are available via `@agh/ui`:
@@ -55,6 +56,7 @@ All components from `packages/ui/src/components` are available via `@agh/ui`:
    - Add `parameters.docs.description.component` to describe the component.
    - Use `decorators` if the component requires a specific container width or context.
    - **MANDATORY**: Use explicit type annotation: `const meta: Meta<typeof Component> = { ... }`
+   - **MANDATORY**: Do not add `tags: ["autodocs"]` to meta (any layer). Autodocs inflates generated docs noise and is forbidden in this repo.
    - `web` system stories may rely on the shared QueryClient + router + MSW decorators from `web/.storybook/preview.ts`; prefer those global decorators over per-story provider duplication.
 
 4. **Story Definition**
@@ -198,9 +200,9 @@ export const AllVariants: Story = {
 
 ## Best Practices
 
-### Autodocs Policy
+### Autodocs (forbidden)
 
-Use `tags: ["autodocs"]` only for public `packages/ui` primitives or stories that intentionally document configuration-heavy public APIs. Do not add it by default to `web/src/components/ui` or `web/src/systems/**` stories; that policy comes from ADR-003 and keeps domain-story docs noise low.
+**Do not use Storybook autodocs.** Never set `tags: ["autodocs"]` on `meta` for `packages/ui`, `web/src/components/ui`, or `web/src/systems/**` stories. Rationale: autodocs-generated pages add noise and duplicate what we already express with concise stories, `parameters.docs.description.component`, and per-story JSDoc. If a component needs richer prose, write it in the description fields and keep the canvas as the source of truth.
 
 ### Conciseness & Simplicity
 
@@ -264,13 +266,30 @@ export const Good: Story = {
 };
 ```
 
-## References
+❌ **Enabling autodocs on meta:**
 
-- TechSpec: [`../../../.compozy/tasks/storybook-stories/_techspec.md`](../../../.compozy/tasks/storybook-stories/_techspec.md)
-- ADR-001: [`../../../.compozy/tasks/storybook-stories/adrs/adr-001.md`](../../../.compozy/tasks/storybook-stories/adrs/adr-001.md)
-- ADR-002: [`../../../.compozy/tasks/storybook-stories/adrs/adr-002.md`](../../../.compozy/tasks/storybook-stories/adrs/adr-002.md)
-- ADR-003: [`../../../.compozy/tasks/storybook-stories/adrs/adr-003.md`](../../../.compozy/tasks/storybook-stories/adrs/adr-003.md)
-- ADR-004: [`../../../.compozy/tasks/storybook-stories/adrs/adr-004.md`](../../../.compozy/tasks/storybook-stories/adrs/adr-004.md)
+```tsx
+// ❌ BAD: autodocs tag (forbidden in this repo)
+const meta: Meta<typeof Button> = {
+  title: "ui/Button",
+  component: Button,
+  tags: ["autodocs"],
+};
+
+// ✅ GOOD: no autodocs tag; describe the component in parameters.docs
+const meta: Meta<typeof Button> = {
+  title: "ui/Button",
+  component: Button,
+  parameters: {
+    layout: "centered",
+    docs: {
+      description: {
+        component: "Primary action button with variants and sizes.",
+      },
+    },
+  },
+};
+```
 
 ❌ **Using explicit colors instead of design tokens:**
 

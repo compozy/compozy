@@ -1,0 +1,97 @@
+---
+title: Running and observing
+description: Fill the run form, dry-run a plan, watch generations stream live, handle approval gates, and track every run across the workspace.
+---
+
+{/* Design reference: docs/design/opendesign/loop-run-form.html (§4.3), run-detail.html (§4.4), runs.html (§4.5) — LOOPS-DESIGN-SPEC. Daemon truth wins on divergence (ADR-017 §9). */}
+
+Running a Loop is the arrive-and-use moment: supply its declared inputs, optionally dry-run the
+plan, then watch the run stream live until it reaches one named outcome.
+
+## The run form
+
+The run form is generated from the Loop's [declared inputs](/runtime/core/loops/dsl-reference#declared-inputs)
+— a typed field per input, each with a type badge, a required marker, and inline validation. An
+`agent` input renders a picker; a `boolean` renders a switch. A sticky preview beside the form shows
+"what will run" — the contract, the verification rows, the six terminal chips, and a lifecycle line
+— and recomputes on every change.
+
+Three actions sit in the action bar:
+
+- **Run loop** — start the run. Disabled until required inputs are filled.
+- **Dry run** — validate the inputs and render the first generation's plan **without starting a
+  run**. It spends no budget and creates no run row. See [authoring](/runtime/core/loops/authoring).
+- **Cancel**.
+
+An **Advanced** section exposes six per-run limit overrides — iteration cap, token budget,
+wall-clock budget, no-progress window, fan-out ceiling, and gate max revisions. Each shows the
+per-Loop default and the hard daemon ceiling, and clamps at the ceiling. A badge flips from "using
+Loop defaults" to "overrides set" when you touch one.
+
+<OperatorNote label="What the run form does not offer">
+  There is no cost cap — cost is
+  [display-only](/runtime/core/loops/guardrails#cost-is-a-meter-not-a-cap). Re-attempt strategy is a
+  [configure](/runtime/core/loops/configure)-time choice, not a per-run one. The canonical defaults
+  are `iteration_cap: 50` and budgets off (`0`); a watch Loop's cap is `∞`.
+</OperatorNote>
+
+## The live run page
+
+The run page is the truthful, real-time view of one execution. It streams over SSE and never renders
+a control the runtime does not support.
+
+**A sticky contract header** carries the live status pill (pulsing only while `running` or
+`watching`), the generation and attempt count, the run's start metadata, the goal, and the
+**Pause** and **Stop** actions.
+
+**Five meters** track spend against limits — attempts, tokens, wall clock, cost, and breadth
+(fan-out). Bars warn-tint only near a ceiling. The cost meter is derived (tokens × price) and never
+a cap.
+
+**A generation timeline** shows each generation as a collapsible card on a flat node spine. A
+fan-out renders as batch branches; a gate renders as a flat verdict card (`pass` tinted success,
+`fail` tinted danger) with its reason and route (`revise` or `next_generation`). When a Loop drives
+a channel conversation, the [converse](/runtime/core/loops/converse-and-decide) exchange is embedded
+inline. A right rail streams the live event feed and the run facts.
+
+### Approval gates
+
+A `human` gate parks the run in `needs-approval` — a **live pause**, never a terminal outcome. The
+page shows the decision context (for a merge gate: the branch, diff, test result, and verifier) and
+three actions:
+
+- **Approve** → the run resumes.
+- **Request changes** → the run revises and continues into the next generation.
+- **Reject** → the run halts on a `blocked` terminal outcome.
+
+### Pause, resume, stop
+
+- **Pause** is a **generation-boundary** operation, not a mid-node kill. The daemon records a pause
+  intent; the in-flight generation's already-claimed nodes finish; the status flips `running →
+paused` only at the boundary. Pause is hidden or disabled outside `running`.
+- **Resume** continues a paused (or pause-requested) run.
+- **Stop** ends the run immediately with the truthful cause `operator_stop` — recorded as a `failed`
+  terminal outcome, never disguised as `done`.
+
+## Runs across the workspace
+
+The **Runs** view is a first-class, workspace-wide list of every execution across every Loop. A KPI
+strip surfaces "Active now," "Awaiting you" (the `needs-approval` queue), "Done today," and "Needs a
+look." An outcome filter spans the full status spectrum, rendering a segment for each status present
+in the window, plus Loop and date filters. Active and Past runs list in tables with an outcome pill,
+the Loop and run id, the goal, the generation count, timing, and a budget mini-bar.
+
+## Every surface, not just the UI
+
+| Action          | CLI                                         | HTTP                                    | Native tool                            |
+| --------------- | ------------------------------------------- | --------------------------------------- | -------------------------------------- |
+| Start / dry-run | `agh loop run [--dry-run]`                  | `POST /loops/:name/run[?dry=true]`      | `agh__loop_run`                        |
+| Run status      | `agh loop status`                           | `GET /loop-runs/:id`                    | `agh__loop_status`                     |
+| List runs       | `agh loop runs`                             | `GET /loop-runs`                        | `agh__loop_runs`                       |
+| Pause / resume  | `agh loop pause` · `agh loop resume`        | `POST /loop-runs/:id/pause` · `/resume` | `agh__loop_pause` · `agh__loop_resume` |
+| Approve         | `agh loop approve --gate-id … --decision …` | `POST /loop-runs/:id/approve`           | `agh__loop_approve`                    |
+| Stop            | `agh loop stop`                             | `POST /loop-runs/:id/stop`              | `agh__loop_stop`                       |
+
+Live events stream from `GET /loop-runs/:id/events` (SSE). HTTP routes are workspace-scoped under
+`/api/workspaces/{workspace_id}/…`; the [Loops API](/runtime/api-reference/loops) reference lists
+the exact paths and payloads. See also the [`agh loop`](/runtime/cli-reference/loop) CLI.

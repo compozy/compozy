@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "settings/settings-automation.html",
+  "entry": "settings/settings-automation.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-20T23:13:03.291Z",
+  "updatedAt": "2026-07-20T23:13:03.291Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

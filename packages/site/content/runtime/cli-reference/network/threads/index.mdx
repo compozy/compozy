@@ -1,0 +1,40 @@
+---
+title: "agh network threads"
+description: "Inspect public network threads"
+---
+
+## agh network threads
+
+Inspect public network threads
+
+### Options
+
+```
+  -h, --help   help for threads
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                         | Description                                    |
+| ------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [agh network threads list](/runtime/cli-reference/network/threads/list)         | List public threads in a channel               |
+| [agh network threads messages](/runtime/cli-reference/network/threads/messages) | List messages in one public thread             |
+| [agh network threads promote](/runtime/cli-reference/network/threads/promote)   | Promote one thread message into a durable task |
+| [agh network threads show](/runtime/cli-reference/network/threads/show)         | Show one public thread                         |

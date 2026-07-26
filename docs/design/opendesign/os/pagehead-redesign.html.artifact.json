@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "os/pagehead-redesign.html",
+  "entry": "os/pagehead-redesign.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-20T16:56:57.063Z",
+  "updatedAt": "2026-07-20T16:56:57.063Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

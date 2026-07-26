@@ -1,0 +1,40 @@
+---
+title: "agh memory provider list"
+description: "List registered Memory v2 providers"
+---
+
+## agh memory provider list
+
+List registered Memory v2 providers
+
+```
+agh memory provider list [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for list
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory provider list -o json
+```

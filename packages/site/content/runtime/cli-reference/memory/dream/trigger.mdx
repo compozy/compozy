@@ -1,0 +1,45 @@
+---
+title: "agh memory dream trigger"
+description: "Trigger Memory v2 dreaming"
+---
+
+## agh memory dream trigger
+
+Trigger Memory v2 dreaming
+
+```
+agh memory dream trigger [flags]
+```
+
+### Options
+
+```
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+      --force               Trigger even if normal gates would skip the run
+  -h, --help                help for trigger
+      --scope string        Memory scope: global, workspace, or agent
+      --workspace string    Workspace ID or path for workspace-bound memory
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory dream trigger -o json
+```

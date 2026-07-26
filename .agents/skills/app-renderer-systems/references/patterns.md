@@ -304,7 +304,7 @@ export function useCreateFooOptimistic(scopeId: string) {
     },
 
     onSettled: () => {
-      // Always invalidate to sync with the server
+      // This read model has no live writer, so its owner requires a server reread.
       queryClient.invalidateQueries({ queryKey: listKey });
     },
   });

@@ -1,0 +1,433 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/preset.css";
+@import "fumadocs-ui/css/neutral.css";
+@import "@agh/ui/tokens.css";
+
+/*
+ * Tailwind v4 JIT scans source files relative to this stylesheet and ignores
+ * node_modules by default. The @agh/ui workspace package contains components
+ * (Button, Badge, etc.) that use utilities like `bg-primary` — register its
+ * sources explicitly so those classes get emitted in this app's CSS.
+ */
+@source "../../ui/src/**/*.{ts,tsx}";
+
+/*
+ * Wire Next.js font variables into Tailwind's font tokens.
+ * `--font-inter`, `--font-jetbrains-mono`, and `--font-playfair` are injected
+ * by next/font in app/layout.tsx via the html className.
+ */
+@theme inline {
+  --font-sans: var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: var(--font-playfair), "Playfair Display", serif;
+  --font-mono:
+    var(--font-jetbrains-mono), "JetBrains Mono Variable", "JetBrains Mono", "Courier New",
+    monospace;
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1rem;
+  --text-display-2xl: 1.75rem;
+  --text-display-2xl--line-height: 1;
+  --text-site-lead: 1.1875rem;
+  --text-site-lead--line-height: 1.5;
+  --text-micro: 0.65625rem;
+  --text-micro--line-height: 0.75rem;
+  --text-inline-code: 0.9em;
+  --text-accent-glyph: 0.85em;
+  --text-ui-title-lg: 1.35rem;
+  --text-site-hero: clamp(2.8rem, 6.5vw, 5.4rem);
+  --text-site-error-title: clamp(2.6rem, 6vw, 4.8rem);
+  --text-site-hero-section: clamp(2.6rem, 5.5vw, 4.2rem);
+  --text-site-blog-title: clamp(2.6rem, 5.4vw, 4.6rem);
+  --text-site-doc-title: clamp(2.55rem, 4.7vw, 4rem);
+  --text-site-protocol-title: clamp(2.4rem, 5vw, 3.8rem);
+  --text-site-page-title: clamp(2.4rem, 4.4vw, 4rem);
+  --text-site-article-title: clamp(2.4rem, 4.4vw, 3.6rem);
+  --text-site-section-title: clamp(2.2rem, 4.6vw, 3.6rem);
+  --text-site-category-title: clamp(2.2rem, 4vw, 3.4rem);
+  --text-site-cta-title: clamp(2rem, 4.5vw, 3.2rem);
+  --text-site-feature-title: clamp(2rem, 3.4vw, 2.8rem);
+  --text-site-subsection-title: clamp(1.9rem, 3.4vw, 2.6rem);
+  --text-site-doc-heading: clamp(1.7rem, 3vw, 2.45rem);
+  --text-site-release-title: clamp(1.6rem, 3vw, 2.1rem);
+  --text-site-empty-title: clamp(1.55rem, 3vw, 2rem);
+  --text-site-quote: clamp(1.5rem, 2.4vw, 1.95rem);
+  --text-site-card-title: clamp(1.45rem, 3vw, 1.9rem);
+  --text-site-subheading: clamp(1.3rem, 2.2vw, 1.7rem);
+  --text-site-bento-2xl: 2.5rem;
+  --text-site-bento-xl: 2.35rem;
+  --text-site-bento-lg: 2rem;
+  --text-site-bento-md: 1.9rem;
+  --text-site-bento-sm: 1.8rem;
+  --text-site-bento-xs: 1.65rem;
+  --leading-small-body: var(--text-small-body--line-height);
+  --leading-doc-body: 1.8;
+  --tracking-badge: var(--tracking-badge);
+  --radius-chip: var(--radius-chip);
+  --radius-mono-badge: var(--radius-mono-badge);
+  --radius-diagram: var(--radius-xl);
+  --radius-icon-well: 0.625rem;
+  --container-site-layout-width: var(--site-layout-width);
+}
+
+:root {
+  --site-layout-width: 1200px;
+  --site-doc-layout-width: 96rem;
+  --site-doc-sidebar-width: 16rem;
+  --site-doc-toc-width: 14rem;
+}
+
+/*
+ * Override Fumadocs UI tokens with the DESIGN.md dark operator palette.
+ * The root layout pins `.dark` on <html>; docs routes additionally mount
+ * Fumadocs RootProvider with forced dark theme. Canvas → Surface → Elevated,
+ * single warm accent #E8572A.
+ */
+.dark {
+  --color-fd-background: #141312;
+  --color-fd-foreground: #e5e5e7;
+  --color-fd-muted: #1e1c1b;
+  --color-fd-muted-foreground: #8e8e93;
+  --color-fd-popover: #2e2c2b;
+  --color-fd-popover-foreground: #e5e5e7;
+  --color-fd-card: #1e1c1b;
+  --color-fd-card-foreground: #e5e5e7;
+  --color-fd-border: #3c3a39;
+  --color-fd-primary: #e8572a;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: #1e1c1b;
+  --color-fd-secondary-foreground: #e5e5e7;
+  --color-fd-accent: #2e2c2b;
+  --color-fd-accent-foreground: #e5e5e7;
+  --color-fd-ring: #e8572a;
+  --color-fd-info: var(--color-info);
+  --color-fd-warning: var(--color-warning);
+  --color-fd-error: var(--color-danger);
+  --color-fd-success: var(--color-success);
+  --color-fd-idea: var(--color-accent);
+  --color-fd-diff-remove: var(--color-danger-tint);
+  --color-fd-diff-remove-symbol: var(--color-danger);
+  --color-fd-diff-add: var(--color-success-tint);
+  --color-fd-diff-add-symbol: var(--color-success);
+}
+
+/* Remove fumadocs banner wrapper padding on landing page only */
+body:has(.site-home) .bg-fd-secondary\/50.p-3 {
+  padding: 0;
+  background: transparent;
+}
+
+/* neutral.css ships a sidebar-specific override; realign it to DESIGN.md. */
+.dark #nd-sidebar {
+  --color-fd-muted: #1e1c1b;
+  --color-fd-secondary: #1e1c1b;
+  --color-fd-muted-foreground: #8e8e93;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  text-underline-offset: 0.24em;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  color: var(--color-fg);
+}
+
+#nd-sidebar {
+  border-inline-end: 1px solid var(--color-line);
+  border-color: var(--color-line);
+  background: color-mix(in srgb, var(--color-canvas-soft) 92%, var(--color-canvas)) !important;
+}
+
+#nd-sidebar [data-active="true"] {
+  background: var(--color-accent-tint);
+  color: var(--color-accent);
+}
+
+#nd-sidebar [data-active="true"]::before {
+  background: var(--color-accent);
+}
+
+#nd-sidebar [data-sidebar-body] {
+  background: transparent;
+}
+
+#nd-page {
+  background: transparent;
+}
+
+#nd-page > * {
+  max-width: 100% !important;
+}
+
+#nd-notebook-layout {
+  --fd-layout-width: 100vw !important;
+}
+
+#nd-toc {
+  width: var(--site-doc-toc-width);
+  border-inline-start: 1px solid var(--color-line);
+  padding-inline-start: 1rem;
+}
+
+#nd-toc [aria-current="true"],
+#nd-toc [data-active="true"],
+#nd-toc a:hover {
+  color: var(--color-accent);
+}
+
+.site-doc-body {
+  color: var(--color-muted);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.site-doc-body > :first-child {
+  margin-top: 0;
+}
+
+.site-doc-body h2 {
+  margin-top: 4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-line);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(1.7rem, 3vw, 2.45rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-fg);
+}
+
+.site-doc-body h3 {
+  margin-top: 2.25rem;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-fg);
+}
+
+.site-doc-body :is(h1, h2, h3, h4, h5, h6) a.peer {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.site-doc-body p,
+.site-doc-body ul,
+.site-doc-body ol,
+.site-doc-body blockquote {
+  max-width: 72ch;
+}
+
+.site-doc-body ul,
+.site-doc-body ol {
+  padding-inline-start: 1.3rem;
+}
+
+.site-doc-body li::marker {
+  color: var(--color-accent);
+}
+
+.site-doc-body strong {
+  color: var(--color-fg);
+}
+
+.site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-elevated);
+  padding-inline: 0.38rem;
+  padding-block: 0.12rem;
+  color: var(--color-fg);
+}
+
+.site-doc-body hr {
+  border-color: var(--color-line);
+}
+
+.site-doc-body table {
+  border-color: var(--color-line);
+}
+
+.site-doc-body a {
+  color: var(--color-fg);
+}
+
+.site-doc-body a:hover {
+  color: var(--color-accent);
+}
+
+a p.text-fd-muted-foreground.truncate {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+button span.truncate[class*="transition-"] {
+  overflow: visible;
+  line-height: 1.15;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.agh-mermaid {
+  --agh-mermaid-bg: var(--color-canvas-soft);
+  --agh-mermaid-node-bg: var(--color-elevated);
+  --agh-mermaid-node-border: var(--color-accent);
+  --agh-mermaid-node-text: var(--color-fg);
+  --agh-mermaid-muted: var(--color-muted);
+}
+
+.agh-mermaid .agh-mermaid-svg {
+  color: var(--color-fg);
+}
+
+.agh-mermaid .node rect,
+.agh-mermaid .node circle,
+.agh-mermaid .node ellipse,
+.agh-mermaid .node polygon,
+.agh-mermaid .node path {
+  fill: var(--agh-mermaid-node-bg) !important;
+  stroke: var(--agh-mermaid-node-border) !important;
+  stroke-width: 1.4px !important;
+}
+
+.agh-mermaid .cluster rect {
+  fill: var(--color-canvas-soft) !important;
+  stroke: var(--color-line) !important;
+}
+
+.agh-mermaid .edgePath path,
+.agh-mermaid .flowchart-link,
+.agh-mermaid .messageLine0,
+.agh-mermaid .messageLine1,
+.agh-mermaid .transition {
+  stroke: var(--color-subtle) !important;
+}
+
+.agh-mermaid marker path,
+.agh-mermaid marker polygon {
+  fill: var(--color-subtle) !important;
+  stroke: var(--color-subtle) !important;
+}
+
+.agh-mermaid text,
+.agh-mermaid .label,
+.agh-mermaid .nodeLabel,
+.agh-mermaid .edgeLabel,
+.agh-mermaid .messageText,
+.agh-mermaid .actor,
+.agh-mermaid .stateLabel {
+  color: var(--agh-mermaid-node-text) !important;
+  fill: var(--agh-mermaid-node-text) !important;
+  font-family: var(--font-mono) !important;
+  letter-spacing: 0 !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+}
+
+.agh-mermaid foreignObject,
+.agh-mermaid foreignObject > * {
+  overflow: visible !important;
+  white-space: normal !important;
+}
+
+.agh-mermaid .edgeLabel,
+.agh-mermaid .loopText,
+.agh-mermaid .noteText {
+  color: var(--agh-mermaid-muted) !important;
+  fill: var(--agh-mermaid-muted) !important;
+}
+
+.agh-mermaid .actor {
+  fill: var(--color-elevated) !important;
+  stroke: var(--color-line) !important;
+}
+
+.agh-mermaid .note,
+.agh-mermaid .labelBox {
+  fill: var(--color-canvas-soft) !important;
+  stroke: var(--color-line) !important;
+}
+
+.site-home h1,
+.site-home h2 {
+  font-family: var(--font-display), var(--font-sans);
+}
+
+.site-bento-overlay-runtime {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-rail) 68%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 18%, transparent) 42%,
+    transparent 68%
+  );
+}
+
+.site-bento-overlay-network {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-rail) 94%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 78%, transparent) 21%,
+    transparent 48%
+  );
+}
+
+.site-bento-overlay-bridges {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-rail) 84%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 40%, transparent) 30%,
+    transparent 64%
+  );
+}
+
+.site-bento-overlay-memory {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 72%, transparent) 27%,
+    transparent 58%
+  );
+}
+
+.site-bento-overlay-extensibility {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 66%, transparent) 26%,
+    transparent 58%
+  );
+}
+
+@media (max-width: 1024px) {
+  #nd-toc {
+    width: 100%;
+    border-inline-start: 0;
+    padding-inline-start: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .site-doc-body {
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+
+  .site-doc-body h2 {
+    margin-top: 3.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

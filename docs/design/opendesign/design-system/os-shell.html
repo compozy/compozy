@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGH DS · 02 OS Shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-shell.css">
+<style>
+body{background:var(--canvas);overflow-y:auto}
+.doc{max-width:1080px;margin:0 auto;padding:0 32px 120px}
+.docnav{
+  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:2px;
+  margin:0 -32px 40px;padding:10px 32px;
+  background:color-mix(in srgb,var(--canvas) 86%,transparent);
+  backdrop-filter:blur(14px);border-bottom:1px solid var(--line);
+}
+.docnav__brand{display:flex;align-items:center;gap:8px;margin-right:14px;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+.docnav__brand i{width:16px;height:16px;border-radius:5px;background:var(--accent);display:inline-block}
+.docnav a{font-size:12px;font-weight:500;color:var(--muted);padding:5px 9px;border-radius:var(--radius);text-decoration:none}
+.docnav a:hover{color:var(--fg);background:var(--row-hover)}
+.docnav a[aria-current="page"]{color:var(--fg-strong);background:var(--row-selected)}
+.hero{padding:48px 0 8px}
+.hero .eyebrow{color:var(--accent-strong);letter-spacing:.1em}
+.hero h1{font-size:26px;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);margin:8px 0 10px}
+.hero p{font-size:13.5px;line-height:1.6;color:var(--muted);max-width:70ch}
+.sec{margin-top:56px}
+.sec__head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.sec__num{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+.sec__head h2{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
+.sec>p{font-size:13px;line-height:1.6;color:var(--muted);max-width:76ch;margin-bottom:16px}
+.spec{width:100%;border-collapse:collapse;font-size:12.5px}
+.spec th{text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+.spec td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--muted);vertical-align:top}
+.spec td:first-child{color:var(--fg);white-space:nowrap}
+.spec code{font-size:11px;color:var(--fg);background:var(--badge-fill);border-radius:3px;padding:1px 5px}
+.rule-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+.rule{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+.rule:first-child{border-top:0}
+.rule i{font-family:var(--font-mono);font-size:10px;color:var(--accent-strong);padding-top:2px}
+.rule b{color:var(--fg-strong);font-weight:600}
+/* demo stage: neutralize fixed shell positioning */
+.demo{position:relative;padding:22px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(700px 420px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(640px 380px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.demo .menubar{position:relative;border-radius:10px;border:1px solid var(--line)}
+.demo .win{position:relative;resize:none;animation:none;min-width:0}
+.demo .win + .win{margin-top:18px}
+.demo .dock-zone{position:relative;left:auto;right:auto;bottom:auto;padding:0;pointer-events:auto}
+.demo .popover{position:relative;display:inline-block;animation:none}
+.demo .toasts{position:relative;top:auto;right:auto}
+.demo-note{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin:10px 2px 0}
+.measure{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0}
+.measure span{font-family:var(--font-mono);font-size:10px;color:var(--subtle);border:1px solid var(--line);border-radius:var(--radius-sm);padding:2px 7px;background:var(--canvas-soft)}
+</style>
+</head>
+<body>
+<div class="doc" data-od-id="ds-os-shell">
+  <nav class="docnav" data-od-id="ds-nav">
+    <span class="docnav__brand"><i></i>AGH DS</span>
+    <a href="index.html">Overview</a>
+    <a href="foundations.html">01 Foundations</a>
+    <a href="os-shell.html" aria-current="page">02 OS Shell</a>
+    <a href="components.html">03 Components</a>
+    <a href="patterns.html">04 Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">AGH Design System · Chapter 02</p>
+    <h1>OS Shell</h1>
+    <p>AGH is an operating system for agents. The shell is three fixed zones — a 44px menu bar, a
+    wallpapered desktop of floating windows, and a bottom dock — with Spaces per workspace and ⌘K as
+    the universal entry point. Chrome lives in <code class="mono">ds-shell.css</code> under the radius
+    waiver (12–22px); everything inside a window returns to the content scale. Reference behavior:
+    <code class="mono">os/os-v2.js</code>.</p>
+  </header>
+
+  <!-- ============ 01 MENU BAR ============ -->
+  <section class="sec" id="menubar" data-od-id="sec-menubar">
+    <div class="sec__head"><span class="sec__num">01</span><h2>Menu bar — 44px</h2></div>
+    <p>Left: 28px logo · workspace trigger (18px monogram + name + chevrons) · Session / View / Help menus.
+    Right tray is fixed and minimal: <b>approvals bell · ⌘K chip · Settings cog</b> — no clock, no cost,
+    no mesh chips, no avatar (AGH has no user concept). Glass: <code class="mono">--shell-glass</code> + blur 26.</p>
+    <div class="demo" data-od-id="demo-menubar">
+      <header class="menubar" style="z-index:1">
+        <div class="mb-side">
+          <button class="mb-logo" aria-label="AGH"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg></button>
+          <button class="ws-trigger" aria-haspopup="true" aria-expanded="false">
+            <span class="ws-avatar mono">AG</span><span class="ws-name">agh</span>
+            <svg class="chevrons" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <nav class="mb-menus" aria-label="Menus">
+            <button class="mb-menu">Session</button><button class="mb-menu">View</button><button class="mb-menu">Help</button>
+          </nav>
+        </div>
+        <div class="mb-side mb-right">
+          <button class="mb-icon" aria-label="Approvals"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.2a4.6 4.6 0 0 0-4.6 4.6c0 3.4-1.2 4.6-1.9 5.2h13c-.7-.6-1.9-1.8-1.9-5.2A4.6 4.6 0 0 0 10 3.2ZM8.3 15.6a1.8 1.8 0 0 0 3.4 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="badge">2</span></button>
+          <button class="mb-chip"><span class="mono">⌘K</span></button>
+          <button class="mb-icon" aria-label="Settings"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 3v2.2M10 14.8V17M17 10h-2.2M5.2 10H3M14.9 5.1l-1.5 1.5M6.6 13.4l-1.5 1.5M14.9 14.9l-1.5-1.5M6.6 6.6 5.1 5.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+        </div>
+      </header>
+    </div>
+    <div class="measure"><span>height 44</span><span>logo 28 · svg 17</span><span>ws trigger 28 · avatar 18</span><span>menus 28 · 12.5px</span><span>tray icons 28 · svg 16</span><span>⌘K chip 26</span><span>badge 14 accent</span></div>
+  </section>
+
+  <!-- ============ 02 WINDOW ============ -->
+  <section class="sec" id="window" data-od-id="sec-window">
+    <div class="sec__head"><span class="sec__num">02</span><h2>Window — the unified 44px head</h2></div>
+    <p><b>Identity renders once.</b> One 44px head: controls (12px dots: close→accent, min→muted,
+    zoom→success on hover) · quiet 22px glyph + 13px/600 title · optional route tabs · drag flex ·
+    status chip (color = state) + at most <b>two actions</b> (one primary + one ··· overflow).
+    An optional 38px context strip below carries tools only. Two bars maximum — a route that wants a
+    third bar has an IA problem.</p>
+
+    <div class="demo" data-od-id="demo-window-root">
+      <!-- root window with route tabs + context strip -->
+      <section class="win is-focused" style="width:100%">
+        <header class="win-head">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+            <span class="w2-title">Tasks</span>
+            <span class="w2-count mono">6</span>
+          </div>
+          <div class="w2-tabs" role="tablist" aria-label="Task views">
+            <button class="w2-tab is-on" role="tab" aria-selected="true">List</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Kanban</button>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>2 running</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--primary btn--sm">New task</button><button class="btn btn--sm btn--icon" aria-label="More">···</button></div>
+          </div>
+        </header>
+        <div class="win-toolbar">
+          <div class="app-toolbar">
+            <div class="pill-group" role="group" aria-label="Task filter">
+              <button class="pill-group__item is-on">All <span class="mono">6</span></button>
+              <button class="pill-group__item">Running <span class="mono">2</span></button>
+              <button class="pill-group__item">Needs you <span class="mono">1</span></button>
+            </div>
+            <span class="w2-flex" aria-hidden="true"></span>
+            <div class="pill-group" role="group" aria-label="View mode">
+              <button class="pill-group__item is-on">Rows</button>
+              <button class="pill-group__item">Cards</button>
+            </div>
+          </div>
+        </div>
+        <div class="win-body" style="height:120px;display:grid;place-items:center;color:var(--faint);font-size:11px">route content · production scale</div>
+      </section>
+    </div>
+    <p class="demo-note">root state — glyph + title + count, peer tabs after title (left), tools hoisted into the 38px strip</p>
+
+    <div class="demo" data-od-id="demo-window-drill" style="margin-top:14px">
+      <!-- drilled-in window: breadcrumb owns identity -->
+      <section class="win is-focused" style="width:100%">
+        <header class="win-head">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id" style="max-width:70%">
+            <button class="w2-back" aria-label="Back"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <span class="w2-crumbs">
+              <button class="w2-crumb">Tasks</button><span class="w2-sep">/</span>
+              <button class="w2-crumb">Nightly triage</button><span class="w2-sep">/</span>
+            </span>
+            <span class="w2-title">Run #418</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>Running</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--sm">Stop run</button></div>
+          </div>
+        </header>
+        <div class="win-body" style="height:84px;display:grid;place-items:center;color:var(--faint);font-size:11px">level content · trail, status and actions swap per level</div>
+      </section>
+    </div>
+    <p class="demo-note">drill-in state — back chevron takes the glyph slot; parents click straight back; &gt;2 parents collapse into a “…” crumb; crumbs truncate at 150px</p>
+
+    <div class="demo" data-od-id="demo-window-doc" style="margin-top:14px">
+      <!-- document window: live session titles itself -->
+      <section class="win is-focused" data-doc="true" style="width:100%">
+        <header class="win-head">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="d d--run d--pulse" aria-hidden="true"></span>
+            <span class="w2-title">Polish checkout flow</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status"><span class="agent-chip">WG</span>webgen</span>
+            <span class="w2-meta mono">claude-fable-5</span>
+            <span class="w2-vsep"></span>
+            <span class="w2-meta mono">12:41</span>
+          </div>
+        </header>
+        <div class="win-body" style="height:64px;display:grid;place-items:center;color:var(--faint);font-size:11px">transcript · composer</div>
+      </section>
+    </div>
+    <p class="demo-note">document window — pulsing state dot replaces the glyph; session name is the title; document windows never breadcrumb</p>
+
+    <table class="spec" style="margin-top:18px">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Frame</td><td>radius 12 (<code>--r-win</code>) · border line-strong (focused: white ·14) · <code>--shadow-win</code> + highlight · min 400×280 · resize both · enters .24s spring</td></tr>
+      <tr><td>Head</td><td>44px · padding 0 12 · gap 10 · grab cursor on the flex gutter · scrolled state adds hairline shadow</td></tr>
+      <tr><td>Controls</td><td>3 dots 12px, radius 4, colored on window hover (accent / muted / success)</td></tr>
+      <tr><td>Identity</td><td>glyph 22 (neutral well, svg 13) + title 13/600 + count 10 mono · max-width 55%</td></tr>
+      <tr><td>Route tabs</td><td><code>.w2-tabs</code> immediately after title · segments 24px · hidden at drill-in depth · absent when the route has no peers</td></tr>
+      <tr><td>Trail</td><td>status 10.5/600 (tone = state) · 1×14 vsep · ≤2 actions (26px buttons)</td></tr>
+      <tr><td>Context strip</td><td>38px min · tools only (filters / search / Rows|Cards) · rendered only when needed</td></tr>
+      <tr><td>Minimize</td><td>genie .3s spring into the app's dock icon — dimmed glyph + hollow dot; click restores. No tray, ever.</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 03 DOCK ============ -->
+  <section class="sec" id="dock" data-od-id="sec-dock">
+    <div class="sec__head"><span class="sec__num">03</span><h2>Dock</h2></div>
+    <p>Centered glass segment (radius 22, blur 28) + a separate accent “New session” segment.
+    <b>1:1 parity with production navigation</b> (app-sidebar order), separators at the group breaks
+    (operate · catalog · system), Sessions first, Dashboard second — Settings deliberately absent
+    (menu-bar cog). Magnification: radius 96px, scale +.34, translateY −7px.</p>
+    <div class="demo" data-od-id="demo-dock">
+      <div class="dock-zone">
+        <nav class="dock-seg dock" aria-label="Dock">
+          <button class="dock-item is-open" aria-label="Sessions"><svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="run-dot"></span><span class="dk-badge">2</span></button>
+          <button class="dock-item" aria-label="Dashboard"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span class="run-dot"></span></button>
+          <span class="dock-sep" aria-hidden="true"></span>
+          <button class="dock-item is-min" aria-label="Tasks (minimized)"><svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="run-dot"></span></button>
+          <button class="dock-item" aria-label="Agents"><svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 16.5c.8-3 2.8-4.5 5.5-4.5s4.7 1.5 5.5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="run-dot"></span></button>
+          <span class="dock-sep" aria-hidden="true"></span>
+          <button class="dock-item" aria-label="Marketplace"><svg viewBox="0 0 20 20"><path d="M4 7 10 3.5 16 7v6l-6 3.5L4 13z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span class="run-dot"></span></button>
+        </nav>
+        <div class="dock-seg dock-actions">
+          <button class="dock-new" aria-label="New session"><svg viewBox="0 0 20 20"><path d="M10 4.5v11M4.5 10h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="measure"><span>icon 46 · svg 21 · radius 13</span><span>segment pad 7 · radius 22</span><span>sep 1×32</span><span>open = 4px dot</span><span>minimized = hollow dot + dim glyph</span><span>badge = waiting-on-you count</span></div>
+  </section>
+
+  <!-- ============ 04 OVERLAYS ============ -->
+  <section class="sec" id="overlays" data-od-id="sec-overlays">
+    <div class="sec__head"><span class="sec__num">04</span><h2>⌘K, Spaces, popovers, toasts</h2></div>
+    <table class="spec">
+      <tr><th>Surface</th><th>Spec</th></tr>
+      <tr><td>Command palette</td><td>min(560px, 92vw) · radius 14 · glass-pop + blur 34 · head 52px · items 36px · active = row-hover + inset 2px accent bar · groups Apps / Sessions / Actions · every shell action is reachable here</td></tr>
+      <tr><td>Spaces (⇧⌘S)</td><td>one space per workspace, windows persist per space · cards 264px, radius 14, thumb 148px with scaled mini-windows · active = accent border</td></tr>
+      <tr><td>Shell popovers</td><td>min-width 224 · pad 6 · radius 12 · glass-pop + blur 30 · items 30px (ws list 34px) · eyebrow 10/600 caps · anchored +6px below trigger</td></tr>
+      <tr><td>Approvals bell</td><td>324px popover reusing dashboard <code>.att__row</code> approval rows — approvals live here only (no desktop widgets)</td></tr>
+      <tr><td>Toasts</td><td>top 54 right 16 · 324px · radius 13 · glass-pop · in .28s spring, leave .22s · auto-dismiss 6s</td></tr>
+      <tr><td>Scrim</td><td><code>--scrim</code> black ·55 + blur 8 · click closes</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 05 WALLPAPERS ============ -->
+  <section class="sec" id="wallpapers" data-od-id="sec-wallpapers">
+    <div class="sec__head"><span class="sec__num">05</span><h2>Wallpapers</h2></div>
+    <p>Three registered wallpapers — ember (accent + teal), mesh (success + teal), carbon (neutral) —
+    each a pair of radial glows over the ramp plus a 26px dot-grain layer. Teal #225555 exists only here.
+    Per-space, picked in Settings › Appearance.</p>
+    <div class="demo" style="display:flex;gap:14px;background:var(--canvas-soft)">
+      <div style="flex:1;height:120px;border-radius:10px;border:1px solid var(--line-strong);background:radial-gradient(300px 180px at 12% 110%, var(--accent-tint-strong), transparent 62%),radial-gradient(280px 160px at 92% -12%, color-mix(in oklab, #225555 38%, transparent), transparent 60%),linear-gradient(180deg,var(--canvas-soft),var(--rail) 60%)"></div>
+      <div style="flex:1;height:120px;border-radius:10px;border:1px solid var(--line-strong);background:radial-gradient(260px 160px at 85% 108%, var(--success-tint), transparent 60%),radial-gradient(320px 180px at 8% -8%, color-mix(in oklab, #225555 40%, transparent), transparent 64%),linear-gradient(180deg,var(--canvas),var(--rail) 60%)"></div>
+      <div style="flex:1;height:120px;border-radius:10px;border:1px solid var(--line-strong);background:radial-gradient(300px 170px at 50% -14%, rgba(255,255,255,.04), transparent 58%),linear-gradient(180deg,var(--canvas),var(--rail) 50%)"></div>
+    </div>
+    <p class="demo-note">ember · mesh · carbon — defaults: agh=ember, branasio=mesh, labs=carbon</p>
+  </section>
+
+  <!-- ============ 06 MOBILE ============ -->
+  <section class="sec" id="mobile" data-od-id="sec-mobile">
+    <div class="sec__head"><span class="sec__num">06</span><h2>Mobile mode &lt;960px — reflow, don't block</h2></div>
+    <table class="spec">
+      <tr><th>Zone</th><th>Behavior</th></tr>
+      <tr><td>Windows</td><td>stacked fullscreen (z-order picks the visible one) · no border/radius/shadow · drag/resize/zoom disabled via <code>isMobile()</code> guards so desktop rects survive</td></tr>
+      <tr><td>Dock</td><td>becomes a 56px bottom tab bar · full route parity kept via horizontal scroll · icons 44px · tap = switch, never minimize · no magnification/tooltips/separators</td></tr>
+      <tr><td>Menu bar</td><td>keeps logo · workspace · bell · ⌘K · cog; Session/View/Help hide (actions stay in ⌘K)</td></tr>
+      <tr><td>Controls</td><td>wc dots 15px + 9px inset hit area · zoom hidden · toolbar wraps · 44px targets</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 07 SHELL RULES ============ -->
+  <section class="sec" id="rules" data-od-id="sec-shell-rules">
+    <div class="sec__head"><span class="sec__num">07</span><h2>Shell rules</h2></div>
+    <div class="rule-list">
+      <div class="rule"><i>S1</i><span><b>Identity renders once per window.</b> Never breadcrumb + accent tile + H1 stacks; the route PageHead is absorbed by the 44px head.</span></div>
+      <div class="rule"><i>S2</i><span><b>Two bars maximum</b> — 44px head + optional 38px strip. The strip is tools only; route tabs never live there.</span></div>
+      <div class="rule"><i>S3</i><span><b>Route tabs sit after the title</b>, left in the head; hidden on drill-in; absent without peers.</span></div>
+      <div class="rule"><i>S4</i><span><b>Depth grows a breadcrumb, never a new window.</b> The trail is window-local (menu bar owns workspace, dock owns routes); status, actions and strip swap per level.</span></div>
+      <div class="rule"><i>S5</i><span><b>Document windows self-title</b> with a pulsing state dot and never breadcrumb.</span></div>
+      <div class="rule"><i>S6</i><span><b>Sessions is a normal OS window</b> — first dock icon, same WindowFrame as everything; no rail, no dock slide.</span></div>
+      <div class="rule"><i>S7</i><span><b>Minimize folds into the app's dock icon</b> (dimmed glyph + hollow dot). No minimize tray. No desktop widgets — approvals live in the bell.</span></div>
+      <div class="rule"><i>S8</i><span><b>Settings opens from the menu-bar cog</b>, not the dock. Dock mirrors production navigation 1:1 with group separators.</span></div>
+      <div class="rule"><i>S9</i><span><b>Accent in chrome = state or primary action only.</b> The window glyph is neutral; live dots and the single primary button are the only orange in the frame.</span></div>
+      <div class="rule"><i>S10</i><span><b>Radius waiver is chrome-only</b> (12–22px shell, content 3–14px) and never extends to color — the palette is mandatory everywhere.</span></div>
+      <div class="rule"><i>S11</i><span><b>State persists per space</b> — window rects, wallpaper, minimized set, collapse states (localStorage, 250ms debounce). Keyboard: ⌘K palette · ⌘N session · ⇧⌘S spaces · Esc closes · ⌘[ back.</span></div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

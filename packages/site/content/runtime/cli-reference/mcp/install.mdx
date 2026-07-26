@@ -1,0 +1,47 @@
+---
+title: "agh mcp install"
+description: "Install a curated MCP server"
+---
+
+## agh mcp install
+
+Install a curated MCP server
+
+```
+agh mcp install <entry> [flags]
+```
+
+### Options
+
+```
+  -h, --help                                   help for install
+      --name string                            Override the installed MCP server name
+      --oauth-client-secret                    Read the write-only OAuth client secret from stdin or a hidden terminal prompt
+      --oauth-client-secret-vault-ref string   Bind the OAuth client secret to an existing vault:mcp/... ref
+      --scope string                           Install scope: global or workspace (default "global")
+      --set stringArray                        Read one feed field value from stdin or a hidden terminal prompt (repeatable)
+      --vault-ref stringArray                  Bind a feed field as KEY=vault:mcp/...
+      --workspace string                       Workspace ID for workspace scope
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh mcp install <entry> -o json
+```

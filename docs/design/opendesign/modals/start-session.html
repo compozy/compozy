@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGH · Start session</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body>
+
+<div class="product" aria-hidden="true">
+  <aside class="product__rail"><div class="product__mark"></div><div class="product__mark"></div><div class="product__mark"></div></aside>
+  <div class="product__main">
+    <div class="product__title"></div><div class="product__sub"></div>
+    <div class="product__grid"><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i></div>
+  </div>
+</div>
+
+<div class="scrim">
+  <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Start session" data-od-component="dialog" data-success="Session launch is ready." data-od-id="session-start-dialog">
+
+    <!-- HEADER -->
+    <header class="dialog__head" data-od-id="session-start-header">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+      <div class="head-copy">
+        <div class="eyebrow">Operate · Session</div>
+        <h1 data-od-id="session-start-title">Start session</h1>
+        <p>Launch an agent in a workspace. <b>This starts a run</b> — it doesn't create or edit any definition.</p>
+      </div>
+      <button class="icon-button" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- MODE TOOLBAR -->
+    <div class="modebar" data-od-id="session-start-modebar">
+      <div class="pillgroup" role="group" aria-label="Editor mode">
+        <button class="pill" type="button" data-mode="simple" aria-pressed="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M5 12l4-4M5 12l4 4"/></svg>
+          Simple
+        </button>
+        <button class="pill" type="button" data-mode="advanced" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          Advanced
+        </button>
+      </div>
+      <div class="modebar__spacer"></div>
+      <span class="modebar__status" data-od-id="session-start-status"><i class="status-dot"></i> ready to launch</span>
+    </div>
+
+    <!-- BODY -->
+    <div class="dialog__body">
+
+      <div class="sec" data-od-component="form-section" data-od-id="session-launch-section">
+        <div class="sec__head">
+          <span class="sec__title">Who runs, and where</span>
+          <span class="sec__sub">Both choices come from runtime-backed catalogs.</span>
+        </div>
+        <div class="field">
+          <span class="label" id="session-agent-label">Agent <span class="req">required</span></span>
+          <button class="command-select" id="agent" type="button" aria-labelledby="session-agent-label" aria-controls="session-agent-popover" data-component-trigger="command-select" data-agent-catalog data-od-component="agent-select" data-od-id="session-agent-select" autofocus>
+            <span class="command-select__avatar" id="agent-av" aria-hidden="true">I</span>
+            <span class="command-select__copy"><strong data-component-value>incident-triage</strong><span>Anthropic · operations/incident</span></span>
+            <span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span>
+          </button>
+          <span class="error">Select an agent.</span>
+        </div>
+        <div class="field">
+          <span class="label" id="session-workspace-label">Workspace <span class="req">required</span></span>
+          <button class="command-select" id="workspace" type="button" aria-labelledby="session-workspace-label" aria-controls="session-workspace-popover" data-component-trigger="command-select" data-od-component="workspace-select" data-od-id="session-workspace-select">
+            <span class="command-select__avatar" aria-hidden="true">C</span>
+            <span class="command-select__copy"><strong data-component-value>checkout-platform</strong><span>/Users/pedronauck/Dev/checkout-platform</span></span>
+            <span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span>
+          </button>
+        </div>
+        <div class="field">
+          <label class="label" for="session-name">Session name <span class="opt">— optional, shown in the sidebar</span></label>
+          <input id="session-name" class="input" value="Investigate checkout latency" placeholder="Investigate checkout latency" data-od-id="session-name-input">
+        </div>
+      </div>
+
+      <!-- ░░░ ADVANCED ░░░ -->
+      <div class="advanced" hidden>
+        <div class="sec" data-od-component="form-section" data-od-id="session-overrides-section">
+          <div class="sec__head">
+            <span class="sec__title">Launch overrides</span>
+            <span class="sec__sub">Override the agent defaults for this launch only.</span>
+          </div>
+          <div class="field">
+            <span class="label" id="session-runtime-label">Runtime override <span class="opt">— agent default</span></span>
+            <div class="runtime-trigger" role="group" aria-labelledby="session-runtime-label" data-od-component="runtime-selector" data-od-id="session-runtime-selector">
+              <button class="runtime-trigger__segment" type="button" aria-controls="session-runtime-popover" data-component-trigger="runtime-selector" data-runtime-segment="provider"><span class="command-select__avatar" aria-hidden="true">A</span><strong>Anthropic</strong></button>
+              <span class="runtime-trigger__divider" aria-hidden="true"></span>
+              <button class="runtime-trigger__segment" id="model" type="button" aria-controls="session-runtime-popover" data-component-trigger="runtime-selector" data-runtime-segment="model"><strong data-component-value>Agent default</strong></button>
+              <span class="runtime-trigger__divider" aria-hidden="true"></span>
+              <button class="runtime-trigger__segment runtime-trigger__reasoning" id="reasoning" type="button" aria-controls="session-runtime-popover" data-component-trigger="runtime-selector" data-runtime-segment="reasoning"><span class="im" data-level="4" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><strong>Default</strong></button>
+              <button class="runtime-trigger__segment" type="button" aria-label="Open runtime selector" aria-controls="session-runtime-popover" data-component-trigger="runtime-selector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+            </div>
+            <input id="provider" type="hidden" value="anthropic" data-provider-catalog>
+          </div>
+          <div class="grid-2 mt-16">
+            <div class="field">
+              <span class="label" id="session-channel-label">Network channel <span class="opt">— optional</span></span>
+              <button class="command-select" id="channel" type="button" aria-labelledby="session-channel-label" aria-controls="session-channel-popover" data-component-trigger="command-select" data-od-component="command-select" data-od-id="session-channel-select"><span class="command-select__avatar" aria-hidden="true">#</span><span class="command-select__copy"><strong data-component-value>None</strong><span>Optional routing context</span></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+            </div>
+            <div class="field">
+              <label class="label" for="workspace-path">Working path <span class="opt">— override</span></label>
+              <input id="workspace-path" class="input input--mono" placeholder="services/checkout" data-od-id="session-path-input">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="dialog__foot" data-od-component="dialog-footer" data-od-id="session-start-footer">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span>The session opens as a <b>durable, inspectable run</b> — resume or repair it anytime.</span>
+      </div>
+      <button class="btn btn--outline" type="button" data-close>Cancel</button>
+      <button class="btn btn--primary" type="submit" data-od-id="session-start-submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        Start session
+      </button>
+    </footer>
+
+  </form>
+</div>
+
+<div class="closed-state">Session launcher dismissed.</div>
+<div class="toast" data-toast></div>
+<div class="component-popover" id="session-agent-popover" role="listbox" aria-label="Agents"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search agents" placeholder="Search agents…"></div><div class="component-popover__list"><button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="incident-triage"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>incident-triage</strong><span><b>Anthropic</b> · operations/incident</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="release-coordinator"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>release-coordinator</strong><span><b>OpenAI</b> · delivery</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="customer-support"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>customer-support</strong><span><b>Anthropic</b> · support</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button></div></div>
+<div class="component-popover" id="session-workspace-popover" role="listbox" aria-label="Workspaces"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search workspaces" placeholder="Search workspaces…"></div><div class="component-popover__list"><button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="checkout-platform"><span class="opt-ic mono" aria-hidden="true">C</span><span class="opt-copy"><strong>checkout-platform</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="agh-core"><span class="opt-ic mono" aria-hidden="true">A</span><span class="opt-copy"><strong>agh-core</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="billing"><span class="opt-ic mono" aria-hidden="true">B</span><span class="opt-copy"><strong>billing</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button></div></div>
+<div class="component-popover" id="session-channel-popover" role="listbox" aria-label="Network channels"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search network channels" placeholder="Search channels…"></div><div class="component-popover__list"><button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="None"><span class="opt-copy"><strong>None</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="operations"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span><span class="opt-copy"><strong>operations</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="incident-response"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span><span class="opt-copy"><strong>incident-response</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button></div></div>
+<div class="component-popover" id="session-runtime-popover" role="dialog" aria-label="Runtime selector"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input role="combobox" aria-expanded="true" aria-controls="session-runtime-list" aria-label="Search models and providers" placeholder="Search models and providers…"><button class="icon-button" type="button" aria-label="Refresh model catalog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button></div><div class="component-popover__body"><div class="component-popover__rail" role="radiogroup" aria-label="Provider filter"><button type="button" role="radio" aria-checked="true">All</button><button type="button" role="radio" aria-checked="false">A</button><button type="button" role="radio" aria-checked="false">O</button></div><div class="component-popover__list" id="session-runtime-list" role="listbox"><button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="Agent default"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>Agent default</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="Claude Sonnet 4"><span class="opt-ic mono" aria-hidden="true">C</span><span class="opt-copy"><strong>Claude Sonnet 4</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="GPT-5"><span class="opt-ic mono" aria-hidden="true">G</span><span class="opt-copy"><strong>GPT-5</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button></div></div><div class="component-popover__model-actions"><button class="favorite-toggle" type="button" aria-pressed="false" data-favorite-key="anthropic:claude-sonnet-4"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span><span data-favorite-copy>Add to favorites</span></button></div><div class="component-popover__reasoning" role="group" aria-label="Reasoning effort" data-pressed-group><button class="pill reasoning-default" type="button" aria-pressed="true" data-value="default"><span class="reasoning-ring" aria-hidden="true"></span>Default</button><span class="reasoning-divider" aria-hidden="true"></span><button class="pill" type="button" aria-pressed="false" data-value="none"><span class="im" data-level="1" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>None</button><button class="pill" type="button" aria-pressed="false" data-value="minimal"><span class="im" data-level="2" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Minimal</button><button class="pill" type="button" aria-pressed="false" data-value="low"><span class="im" data-level="3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Low</button><button class="pill" type="button" aria-pressed="false" data-value="medium"><span class="im" data-level="4" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Medium</button><button class="pill" type="button" aria-pressed="false" data-value="high"><span class="im" data-level="5" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>High</button><button class="pill" type="button" aria-pressed="false" data-value="xhigh"><span class="im" data-level="6" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Extra high</button><button class="pill" type="button" aria-pressed="false" data-value="max"><span class="im" data-level="7" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Max</button></div></div>
+<script src="modal-system.js"></script>
+</body>
+</html>

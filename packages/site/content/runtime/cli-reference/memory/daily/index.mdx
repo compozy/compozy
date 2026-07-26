@@ -1,0 +1,40 @@
+---
+title: "agh memory daily"
+description: "Inspect Memory v2 daily operation logs"
+---
+
+## agh memory daily
+
+Inspect Memory v2 daily operation logs
+
+### Options
+
+```
+  -h, --help   help for daily
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                 | Description                         |
+| ----------------------------------------------------------------------- | ----------------------------------- |
+| [agh memory daily archive](/runtime/cli-reference/memory/daily/archive) | Reserved Memory v2 command          |
+| [agh memory daily ls](/runtime/cli-reference/memory/daily/ls)           | List Memory v2 daily operation logs |
+| [agh memory daily purge](/runtime/cli-reference/memory/daily/purge)     | Reserved Memory v2 command          |
+| [agh memory daily restore](/runtime/cli-reference/memory/daily/restore) | Reserved Memory v2 command          |
+| [agh memory daily show](/runtime/cli-reference/memory/daily/show)       | Reserved Memory v2 command          |

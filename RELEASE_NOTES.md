@@ -1,1447 +1,653 @@
-## 0.2.15 - 2026-07-17
+## 0.0.9 - 2026-07-04
 
-### 🎉 Features
+### ♻️ Refactoring
 
-- Cy-capture-decisions — skill-only extension for durable decision capture (#237)
+- Tasks orchestration (#269)
+
 ### 🐛 Bug Fixes
 
-- Recover stalled and wedged multi-runs (#230)- Share parallel task status enum (#241)- Surface progress and bound the reviews-fix daemon start (#236)- Package cy-qa-workflow as a module and make host.tasks.create v2-aware (#234)- Correct Kiro CLI ACP model handling (#226)- Isolate sync tests and clarify ignore checks (#248)- Isolate task artifacts and add complexity runtime defaults (#250)
+- Network optimizations (#263)
+- Native tools (#266)
+- Align release-gated network integration tests with #263 behavior
+
 ### 📚 Documentation
 
-- Add v0.2.15 release highlights
+- Update skills
+- New skill
+- Add feature stories
+- Add v0.0.9 release notes
+
+### 📦 Build System
+
+- Update go deps
+- Gitignore
 
 ### Release Notes
 
 #### Features
 
-##### Durable architecture decisions
-The new cy-capture-decisions skill-only extension reconciles accepted ADRs against the code and review outcome, then promotes only proven, cross-feature decisions into a compact project index with detailed records on demand. The log survives workflow archival and is safe to rerun. (PR #237)
+##### Network delivery policies, subscriptions, and thread-to-task promotion
 
-##### Runtime defaults by task complexity
-Workspace defaults can now select IDE, model, and reasoning effort for low, medium, high, and critical tasks, with field-wise workspace merging and complexity to type to task-ID precedence while preserving explicit CLI choices. Parallel child snapshots also stop reporting mirrored runtime task artifacts as agent output. (PR #250)
+AGH network channels gain durable delivery control. Each channel now carries a fan-out policy — deliver to all members, route to a designated coordinator peer, or match by capability (the default) — managed with `agh network channels create` and `agh network channels update`. Peers and tasks can subscribe to channels: inspect subscriptions with `agh network subscriptions` and manage per-task subscriptions with `agh task subscribe <task-id>`. Executable thread messages can be promoted into durable workspace tasks straight from the CLI with `agh network promote`, or by an agent through the `agh__task_promote_from_thread` native tool, and designated sibling task runs can be fanned out as part of a workflow. Network and task views now surface task links, peer and coordination cost, and delivered size and token metrics, while mentions are normalized (trimmed, empties removed) and size and token limits are enforced as non-negative.
 
-#### Fixes
+##### Task blocking, recovery, and needs-attention triage
 
-##### More reliable task and review workflows
-QA task injection now supports compozy.tasks/v2 graphs and the cy-qa-workflow extension ships as a verified standalone module. Kiro ACP runs use a valid bootstrap model, slow reviews fix startup is visible and bounded, and parallel task settlement uses one canonical status contract. Test isolation and decision-log ignore guidance were tightened as well. (PRs #234, #226, #236, #241, #248)
-
-#### Highlights
-
-##### Runs that recover instead of hanging
-Compozy now detects silent ACP stalls, retries once from a clean worktree, and parks persistent failures with journals and worktrees preserved for triage. Parallel parents can reap wedged children, terminal commands are cancellable and bounded, and the UI reports stalled, retrying, recovered, and parked outcomes. (PR #230)
-
-## 0.2.14 - 2026-07-15
-
-### 🐛 Bug Fixes
-
-- Acp integratoin
-
-## 0.2.13 - 2026-07-10
-
-### 🐛 Bug Fixes
-
-- Codex acp
-
-## 0.2.12 - 2026-07-10
-
-### 🐛 Bug Fixes
-
-- Parallel tasks (#231)
-
-### Release Notes
-
-#### Features
-
-##### GPT-5.6, Claude Fable 5, and ACP session model negotiation
-Compozy now negotiates model, reasoning, and permission mode from the options advertised by ACP `session/new` / `session/load`, and applies the resolved configuration **before the first prompt** on both new and resumed sessions.
-
-### New models and defaults
-
-- **Codex / Droid** default to `gpt-5.6-sol`. Supported GPT-5.6 IDs include `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna` when the installed adapter advertises them.
-- **Claude Fable 5** accepts `--model fable`, `fable-5`, or `claude-fable-5`. Fable always uses Claude's `auto` permission mode (never `bypassPermissions`), even when `--access-mode full` was requested.
-- **Cursor** model names resolve against its ACP catalog (for example `--model grok-4.5` → the advertised catalog ID). Cursor does not get a separate reasoning option when the session does not advertise one.
-
-### Reasoning effort
-
-`max` and `ultra` are now first-class reasoning levels in the CLI forms, setup wizard, and recovery flags. Claude's `max` is an advertised ACP effort value; if a requested effort is not advertised, Compozy stops before the prompt and lists the valid choices.
-
-### Codex ACP adapter
-
-The preferred Codex ACP package is now `@agentclientprotocol/codex-acp` (GPT-5.6 and `max`/`ultra` need `>= 1.1.2`). The legacy `@zed-industries/codex-acp` path remains only for older combinations such as GPT-5.5 with reasoning through `xhigh`.
+Tasks are now first-class to block, triage, and recover. A task can be explicitly blocked and unblocked with `agh task block <id>` and `agh task unblock <id>`, and every block is kept as durable history you can inspect with `agh task blocks <id>`. A new `needs_attention` status surfaces tasks that stalled and need a human or coordinator to step in — task details now carry the blocked reason and the wake creator so it is clear why a task is waiting and who nudged it. Clear the state with `agh task recover <id>`, recover a specific stalled run with `agh task run recover <run-id>`, or let an agent do it through the `agh__task_recover` native tool and the HTTP/UDS API. Task completion now returns the IDs of any tasks it created, and stronger validation rejects invalid created-task references before they are persisted. Claim tokens are redacted across task outputs and hook payloads, and the new `needs_attention_after` setting controls how long a task may wait before it is flagged for attention.
 
 #### Fixes
 
-##### Safer parallel task and multi-run worktree lifecycle
-Parallel execution no longer surprises you with worktrees or silent merges. Activation is explicit, results are retained on named branches, and cleanup refuses to delete uncommitted or unretained output.
+##### Clearer native tool errors and availability diagnostics
 
-### Explicit activation for `--parallel-tasks`
+Native and hosted tool calls now fail legibly. Hosted MCP tool calls return richer, structured JSON error details — the tool ID, an error code, and any denial reasons — instead of opaque failures, and advertised tools carry improved metadata and descriptions. When runtime diagnostic data cannot be retrieved, native tool lookups report a clear "unavailable" diagnostic rather than a silent miss. Hosted and session MCP availability handling is safer overall, with clearer informational and warning logs and graceful fallbacks when a feature is disabled. Documentation and the runtime envelope now consistently direct agents to the canonical `agh__*` tool IDs and the harness-returned tool references.
 
-`[tasks.run.parallel] enabled` is now a compatibility field only — it does **not** authorize worktree-backed execution by itself. A single-workflow run uses per-task worktrees and an integration branch only after an explicit per-run choice:
+## 0.0.8 - 2026-06-22
 
-- `--parallel-tasks=true` (or the wizard)
-- `runtime_overrides.parallel_tasks.enabled=true`
-- `--parallel-tasks=false` keeps the standard serial runner
+### 🐛 Bug Fixes
 
-### Named result branches and safe cleanup
+- Acp update and general fixes (#256)
+- Make docs markdown copy retryable
 
-Multi-spec (`--multiple --parallel`) children get deterministic `compozy/multi-*` result branches. Output is **never auto-merged** into the user's branch. After settlement:
+### 📦 Build System
 
-- a clean worktree can be removed while committed output stays on the result branch
-- an empty result branch is deleted when it still points at the base
-- dirty trees or output without a proven retention point stay `preserved` with an explicit reason
+- Update deps
+- Fix msw setup
 
-`compozy runs purge` applies the same ownership, dirty-tree, and commit-retention checks.
+### 🧪 Testing
 
-### Single-workflow waves
+- Remove not needed test
 
-Within one workflow, successful dependency-wave output is squash-merged into a temporary integration branch and fast-forwarded only if every required task succeeds. On failure the user's branch is unchanged; partial output and unsafe trees are preserved for inspection.
+## 0.0.7 - 2026-06-04
 
-### Clearer handoff and wizard
+### ♻️ Refactoring
 
-The CLI prints the resolved execution kind, whether worktrees are used, and the source of that choice before starting. Stream/TUI handoff now includes `result_branch`, `worktree_status`, and `worktree_reason` so every retained or preserved tree is locatable.
+- Improvements on create modals (#252)
 
-## 0.2.11 - 2026-07-03
+### 🐛 Bug Fixes
+
+- Repair daemon-served e2e flows
+
+## 0.0.6 - 2026-06-03
 
 ### 🎉 Features
 
-- Agentic runs (#212)- Simplify repo-level default setup overrides (#90)- Support COMPOZY_HOME env override for home directory (#216)
+- Dependency-driven auto-enqueue (opt-in) (#232)
+
 ### 🐛 Bug Fixes
 
-- Parallel execution (#217)- Specifying the model on ACP (#215)- Worktree management (#223)- Restore run TUI elapsed timer across retry, failure, cancel, and remote paths (#221)
-### 📚 Documentation
+- Wake coordinator sessions reliably (#240)
+- Enable runtime evidence profiles (#242)
+- React doctor fixes (#245)
+- Verify marketplace skill installs (#244)
+- Persist active workspace and redirect on session/workspace mismatch (#238)
+- Safe workspace delete and agh session remove command (#239)
+- Unblock release CI (bootstrapRun complexity, stale gate tests) (#249)
 
-- Update skills- Add v0.2.11 release notes
-
-### Release Notes
-
-#### Features
-
-##### Agentic recovery for failed runs
-Run-producing commands can now **automatically remediate and restart a failed run** with a dedicated recovery agent. When enabled, a failed run is handed to the recovery agent, which diagnoses and attempts a fix, then the run is restarted — up to a bounded number of attempts — instead of stopping at the first failure.
-
-### Enabling recovery
-
-Recovery is **off by default**. Turn it on per invocation:
-
-```bash
-# Enable agentic recovery for this run
-compozy tasks run my-feature --recovery
-
-# Pick the recovery runtime and bound the attempts
-compozy tasks run my-feature --recovery \
-  --recovery-ide codex --recovery-model gpt-5.5 \
-  --recovery-reasoning high --recovery-max-attempts 2
-```
-
-Use `--no-recovery` to force it off for a single invocation even when the workspace enables it.
-
-### Flags
-
-| Flag                      | Default   | Meaning                                             |
-| ------------------------- | --------- | --------------------------------------------------- |
-| `--recovery`              | `false`   | Enable agentic recovery for failed runs             |
-| `--no-recovery`           | `false`   | Disable recovery for this invocation                |
-| `--recovery-ide`          | `codex`   | ACP runtime used by the recovery agent              |
-| `--recovery-model`        | `gpt-5.5` | Model used by the recovery agent                    |
-| `--recovery-reasoning`    | `medium`  | Reasoning effort (`low`, `medium`, `high`, `xhigh`) |
-| `--recovery-max-attempts` | `1`       | Maximum remediation-and-restart cycles (1–3)        |
-
-### Configuration
-
-Set workspace defaults under `[recovery]`:
-
-```toml
-[recovery]
-enabled = true
-ide = "codex"
-model = "gpt-5.5"
-reasoning_effort = "medium"
-max_attempts = 1
-```
-
-Recovery config is resolved fresh for each invocation and is **not** persisted into run or exec metadata; the flags above always override `[recovery]` for a single command.
-
-##### Dependency-aware parallel task execution
-`compozy tasks run <slug> --parallel-tasks` now executes the pending task files of a single PRD workflow **in dependency-aware waves** instead of one task at a time. Independent tasks in the same wave run concurrently, each in its own isolated git worktree, and dependent tasks wait for their prerequisites to finish.
-
-### Starting a parallel-tasks run
-
-```bash
-# Run one workflow's tasks by dependency waves
-compozy tasks run my-feature --parallel-tasks
-```
-
-`--parallel-tasks` targets a single workflow and cannot be combined with `--multiple` (that flag drives the separate multi-slug queue). It overrides the workspace `[tasks.run.parallel] enabled` value for one invocation.
-
-### Task-graph manifest
-
-Waves are computed from a `_tasks.md` task-graph manifest (`compozy.tasks/v2`) that describes the task nodes and their dependency edges. The manifest is the source of truth for which tasks may run together and which must wait, so ordering is explicit and reproducible rather than inferred at runtime.
-
-### Configuration
-
-Set defaults per workspace under `[tasks.run.parallel]`:
-
-| Key                                      | Default | Meaning                                                                                    |
-| ---------------------------------------- | ------- | ------------------------------------------------------------------------------------------ |
-| `enabled`                                | `false` | Turn on dependency-aware parallel task execution                                           |
-| `max_concurrency`                        | `4`     | Cap on concurrent task worktrees within a single wave                                      |
-| `[tasks.run.parallel.conflict_resolver]` | —       | Agent (`ide`, `model`, `reasoning_effort`, `max_attempts`) used to resolve merge conflicts |
-
-### Agentic conflict resolution
-
-When concurrent task worktrees are squash-merged back and collide, a bounded **conflict-resolver agent** attempts to resolve the merge automatically before the run fails. You can override the resolver per invocation with the hidden `--parallel-conflict-resolver-ide`, `--parallel-conflict-resolver-model`, and `--parallel-conflict-resolver-reasoning` flags, or configure it under `[tasks.run.parallel.conflict_resolver]`.
-
-### Notes
-
-- The task-run wizard and CLI both understand parallel-tasks mode, and the run emits richer parallel plan/start and per-task failure events so the TUI and journal reflect wave progress.
-- Worktree isolation means concurrent tasks never edit the same checkout; merges back to the workspace are serialized deterministically.
-
-##### Isolated Compozy homes with COMPOZY_HOME
-Compozy now honors a `COMPOZY_HOME` environment variable as an opt-in override for the home root that everything home-scoped resolves against. When set to a non-empty value, Compozy uses that path instead of the implicit `$HOME/.compozy`.
-
-### Why
-
-The daemon is a singleton per home: every workspace that talks to `~/.compozy/daemon/daemon.sock` serializes through one engine. Operators running several independent projects in parallel previously had no first-class way to isolate them (the workaround was a fragile "mirror home" of symlinks).
-
-`COMPOZY_HOME` is the official escape hatch. Point one shell at one home and another shell at a different home, and each gets its **own daemon, socket, lock, state, and global database**:
-
-```bash
-COMPOZY_HOME=~/.compozy-projectA compozy tasks run feature-a
-COMPOZY_HOME=~/.compozy-projectB compozy tasks run feature-b
-```
-
-### What it covers
-
-The override is honored consistently across every home-scoped consumer, not just the daemon socket:
-
-- Home path resolution and layout (`ResolveHomeDir` / `ResolveHomePaths` / `EnsureHomeLayout`) and daemon startup.
-- Global config loading and global workspace-marker detection.
-- Extension discovery and enablement.
-- Global reusable-agent discovery.
-
-`~` and `~/` prefixes inside `COMPOZY_HOME` are expanded against the current user's home, so `COMPOZY_HOME=~/alt-compozy` works. When the variable is unset or empty, behavior is unchanged (`$HOME/.compozy`).
-
-### Scope
-
-This delivers the isolation escape hatch; a dedicated CLI `--home` flag and true parallel runs across workspaces inside a single daemon are intentionally out of scope and can layer on top later.
-
-##### Repo-level default overrides in compozy setup
-`compozy setup` can now save repo-level runtime defaults for you, so you no longer have to hand-edit `.compozy/config.toml` to change the built-in defaults for a project.
-
-### What changed
-
-After skill installation, interactive setup offers an optional step to override the built-in runtime defaults and persist them to the workspace config:
-
-```toml
-[defaults]
-ide = "..."
-model = "..."
-reasoning_effort = "..."
-```
-
-- The IDE is chosen from a dropdown of supported runtimes, and the recommended model comes from the runtime registry's per-IDE default.
-- The override prompt defaults to **No** — opt out and you keep the built-in defaults with no config change.
-- Defaults are only written after setup completes with zero failures, and existing config sections are preserved on write.
-
-### Notes
-
-- The write is workspace-scoped: it lands in the repo's `.compozy/config.toml`.
-- `compozy setup --global` does not prompt for repo defaults and never modifies workspace config.
-- If your repo already has a custom model, setup preserves it; if the current model still matches the previously recommended one, changing the IDE updates the recommendation to the new IDE's default.
-
-#### Fixes
-
-##### ACP runs consistently apply the selected model
-ACP-backed runs now apply the selected model reliably for both newly created and resumed sessions. Previously the chosen model could fail to take effect on some session paths, so an agent could run against the wrong model.
-
-### What changed
-
-- The model is trimmed and validated, then **set before the first prompt turn** for both new and resumed runs, so the very first turn already uses the intended model.
-- When switching the model on a session fails, Compozy now performs a best-effort session cleanup instead of leaving a half-configured session around, reducing spurious retry, cancellation, and timeout errors on subsequent turns.
-
-This makes `--model` (and the resolved workspace default) behave consistently across every ACP runtime, whether a run is started fresh or resumed.
-
-##### Run TUI elapsed timer restored across all terminal outcomes
-The run TUI's elapsed **timer no longer disappears after a retried job succeeds**, and the fix now covers every terminal outcome — success, failure, and cancel — as well as remote tabs that attach after a job has already finished.
-
-### What was wrong
-
-The UI derived a job's elapsed time from a locally tracked start timestamp that the retry flow never seeded: retry attempts emit no fresh "job started" event, and a remote tab can bootstrap a job mid-retry. The authoritative duration the executor already computes was being discarded, so the timer showed blank on retry and roughly `00:00` on remote pre-attach.
-
-### What changed
-
-- The executor's authoritative job duration is now threaded into the UI and preferred over the locally tracked value, with the local start timestamp backfilled for coherence.
-- Duration is carried on **all** terminal payloads — completed, failed, and cancelled — using a zero-guarded elapsed calculation (a job can be given up or canceled before any attempt starts).
-- The remote run-job summary contract carries the duration too, with a start→terminal timestamp fallback for historical journals, so remote tabs that attach after completion show the correct elapsed time.
-
-The result is a correct timer for every job across retry, failure, cancel, and remote-attach paths, with no persistence or schema migration required.
-
-##### Safer worktree management for parallel runs
-This release hardens the git-worktree machinery that backs parallel runs (`--parallel-tasks` and `--multiple --parallel`), closing several ways a run could start in an unsafe state or leave worktrees behind.
-
-### Preflight guards
-
-- **Detached HEAD is rejected** before the daemon is contacted, so a parallel run can't start from a checkout with no branch to base worktrees on.
-- **Parallel runs inside a managed worktree are refused** up front, preventing nested parallel execution from colliding with the worktree it's already running in.
-
-### Purge and cleanup
-
-- `compozy` purge now reports **both** purged runs and purged worktrees, with safer containment checks so it only removes paths it actually owns.
-- Worktree purge uses deferred handling that behaves correctly for nested active runs and missing workspace roots, and tracks produced-vs-pre-existing task worktree changes accurately.
-- Terminal shutdown now also stops spawned child processes, so quitting a run doesn't leave orphaned agent processes running.
-
-### Git environment isolation
-
-Git subprocesses now **ignore inherited repository-scoped Git environment variables** (e.g. `GIT_DIR`, `GIT_WORK_TREE`). Previously an ambient Git env from the parent shell or a wrapping tool could redirect worktree operations at the wrong repository; each worktree command now runs against the repository Compozy intends.
-
-### Also
-
-- Bumped the Go toolchain patch version (1.26.3 → 1.26.4).
-
-## 0.2.10 - 2026-06-18
-
-### ♻️  Refactoring
-
-- Tui redesign (#201)
-### 🎉 Features
-
-- Worktree-backed parallel multi-run for tasks run --multiple (#200)- Add Devin CLI agent support (#204)
-### 🐛 Bug Fixes
-
-- Reviews watch bug
 ### 📚 Documentation
 
 - Release notes
-### 📦 Build System
-
-- Skeeper config (#206)- Converge skeeper sidecar lock to main branch
 
 ### Release Notes
 
 #### Features
 
-##### Devin CLI agent support
-Compozy now supports [Devin CLI](https://devin.ai/cli) as a first-class ACP execution runtime, alongside Claude Code, Codex, Copilot, Cursor, Droid, OpenCode, and the others.
+##### Dependency-driven auto-enqueue
 
-### Usage
+Tasks can now opt into dependency-driven auto-enqueue. When a task is marked `auto_enqueue_on_ready`, AGH enqueues its next task run automatically as soon as a blocking dependency completes and the task reconciles to `ready` — so a dependency graph advances without a manual `agh task enqueue` at each step. The behavior is conservative: only a successful completion satisfies a `blocks` edge, paused dependents are skipped, and the queued-run reservation keeps at most one open run per dependent under concurrent or retried completions. Enqueue happens only after the completion has durably committed and is best-effort — a failed enqueue is logged, never rolled back onto the completing run. It is off by default; enable it per task with `--auto-enqueue-on-ready` on `agh task create` / `agh task child create`, toggle it with `agh task update`, or set the `auto_enqueue_on_ready` field over HTTP/UDS and the extension SDK.
 
-Install Devin CLI and expose `devin` on your `PATH`, then select it like any other runtime:
+##### Runtime evidence mode for task execution profiles
 
-```bash
-compozy tasks run my-feature --ide devin
-```
-
-Compozy launches it via `devin acp`. Skill installation (`compozy setup`) and the runtime registry both recognize `devin`, so it shows up in agent detection and the setup catalog.
-
-### Notes
-
-- Devin CLI resolves its own model, reasoning, and access defaults, so Compozy does not pass model/reasoning/access bootstrap flags to it.
-- The default model recorded for the runtime is `anthropic/claude-opus-4-6`.
-
-##### Parallel multi-run with git worktree isolation
-`compozy tasks run --multiple` can now execute the batched task workflows **in parallel**, each in its own isolated git worktree, instead of running them one at a time. This builds on the `--multiple` queue introduced in 0.2.8 and is fully additive — the default behavior (enqueued, one-at-a-time) is unchanged.
-
-### Starting a parallel run
-
-```bash
-# Run children concurrently, each in its own worktree
-compozy tasks run --multiple alpha,beta --parallel
-
-# Bound how many children start at once (default 2)
-compozy tasks run --multiple alpha,beta --parallel --parallel-limit 3
-```
-
-### Configuration
-
-The mode and fanout limit can be set per workspace under `[tasks.run]`:
-
-| Key                           | Flag override      | Default    | Meaning                                         |
-| ----------------------------- | ------------------ | ---------- | ----------------------------------------------- |
-| `run_multiple_mode`           | `--parallel`       | `enqueued` | `enqueued` or `parallel`                        |
-| `run_multiple_parallel_limit` | `--parallel-limit` | `2`        | Max children started concurrently (must be > 0) |
-
-`--parallel` and `--parallel-limit` are valid only with `--multiple`, and each flag overrides the corresponding config value for that invocation. Passing `--parallel-limit` while the resolved mode is `enqueued` is now rejected rather than silently ignored.
-
-### Behavior
-
-- **Worktree isolation.** Each child run gets a dedicated git worktree so concurrent agents never collide on the working tree. Worktree paths include a SHA-256 digest of the parent run id, so distinct parent runs can't collide on the same slug.
-- **Bounded fanout with fail-late aggregation.** Children start up to the parallel limit at a time; a failing child no longer aborts its siblings — failures are aggregated and reported after the batch settles.
-- **Worktree handoff surfaced.** The TUI and CLI render each child's worktree path so you know exactly where each run executed.
-- **Contract aligned.** Multi-run item status now reports `running` (matching the daemon and `docs/events.md`) instead of the stale `active` that leaked into the OpenAPI schema and generated TypeScript client; a contract test now pins the runtime constants to the published enum so they can't drift again.
-
-##### Steer running agents — pause, message, and resume
-You can now interrupt a running agent mid-task and steer it without killing the run. While a job is active in the run TUI, press `p` to pause it. Pausing happens at a safe boundary between ACP prompt turns — the current turn finishes, then the job holds.
-
-### How it works
-
-- **Pause (`p`).** The timeline help advertises the shortcut whenever the focused job is pausable. Pausing emits `job.pausing` then `job.paused` and parks the job between turns instead of cancelling it.
-- **Message and resume.** Once paused, a composer opens (`Message paused task`). Type guidance for the agent — up to 64KB — and send it. The job resumes with your message as the next user turn, emitting `job.resumed` with the new message ID.
-- **No lost context.** The agent keeps its session; your message is folded into the existing conversation rather than starting over.
-
-### Under the hood
-
-The daemon exposes new run-job control endpoints (`PauseRunJob`, `SendRunJobMessage`) and three new event kinds — `job.pausing`, `job.paused`, `job.resumed` — published to the run journal and the live event stream. The public OpenAPI schema and generated TypeScript client were regenerated to cover the new control surface, so external consumers can drive pause/message programmatically.
+Task execution profiles can now drive worker startup and opt into runtime evidence mode. A task with no pool owner but a `worker.mode = "select"` profile now starts the selected agent, provider, and model and propagates the profile's required capabilities into its claim command. Setting `runtime.mode = "evidence"` boots that worker with guidance to run browser, simulator, and local-app validation and to capture runtime evidence. AGH elevates the session to auto-approve permissions only when the profile also pins an explicit sandbox reference (`sandbox.mode = "ref"`); otherwise the configured permission policy stays in force, and evidence mode grants no extra task authority. The profile's new `runtime` block is surfaced through the execution-profile CLI, the HTTP/UDS endpoints, and the native task tools.
 
 #### Fixes
 
-##### Reviews watch reliability and clearer ACP setup failures
-`compozy reviews watch` could fail a remediation round on a transient agent startup stall, and the resulting error gave little to go on. This release fixes the reliability gap and makes ACP session-setup failures diagnosable across every command, not just reviews watch.
+##### Coordinator sessions wake reliably on new work
 
-### What was wrong
+Coordinator sessions now wake reliably when new work arrives. When a task run is enqueued for a workspace that already has a running coordinator session, AGH delivers a synthetic wake to that session — interrupting the agent's current turn if it is idle and waiting — so queued runs are picked up promptly instead of stalling. The same interrupt-if-waiting delivery now applies to harness re-entry and heartbeat wakes, force-retried and force-recovered runs re-trigger a coordinator wake, and heartbeat wakes skipped for non-transient reasons are recorded as dropped rather than silently lost. Wake delivery is de-duplicated per session and run and drained safely across daemon shutdown.
 
-- A slow ACP session setup (creating, loading, or setting the mode of a session) that hit the inactivity timeout was treated as a hard, non-retryable failure — even though an inactivity stall is a transport/runtime hiccup, not a protocol rejection.
-- Setup failures surfaced as opaque errors: no launch command, no agent stderr, and no indication when the real cause was a context cancellation (e.g. `Ctrl+C` or a parent timeout).
-- Reviews watch child runs did not consistently honor the project's configured retry policy.
+##### Marketplace skill installs are verified end-to-end
 
-### What changed
+Marketplace skill installs are now verified end-to-end. After downloading and writing a skill, AGH confirms the runtime can actually discover it as an enabled marketplace skill with matching provenance, instead of reporting success for an install that would never resolve. Installs that are disabled, shadowed by a higher-precedence skill of the same name, missing provenance, or resolved to a different slug now fail with a clear, terminal error and remediation guidance across `agh skill install` and the daemon API. Use `agh skill where <name>` to inspect the winning source before retrying.
 
-- **Setup-stage inactivity timeouts are now retryable.** A stalled session create/load/set-mode is handled as a timeout and retried, instead of failing the job outright.
-- **Richer setup diagnostics.** When ACP session setup fails, the error now includes the launch command, the agent's stderr, and — when the context was cancelled — the underlying cancellation cause joined into the error chain. This applies to all ACP runtimes.
-- **Child retries honor project config.** Reviews-watch child runs now pass through whether the project configured `max_retries`, so the watch loop respects the workspace retry policy rather than guessing.
+##### Safe workspace deletion, plus agh session remove and agh open
 
-#### Highlights
+Workspace deletion is now safe: AGH refuses to delete a workspace while any of its sessions are still active — returning a 409 that names the blocking sessions — and cleans up the workspace's stopped session history transactionally when deletion proceeds. Two agent-manageable CLI commands ship alongside it: `agh session remove <id>` deletes a single session and its persisted history, and `agh open` opens the AGH web UI in your default browser. The CLI reference also gains documentation for `agh open`, `agh session remove`, and the existing `agh onboarding` command group.
 
-##### Redesigned run TUI
-The interactive terminal UI for `compozy tasks run`, `compozy exec`, and `compozy reviews watch` has been rebuilt from the ground up. The wizard (workspace/agent/model selection and validation) and the live execution view now share a single, consistent layout system with a redesigned sidebar, timeline, and run summary.
+##### Web UI remembers your active workspace
 
-### What changed
+The web UI now remembers your active workspace across reloads and browser restarts, so a refresh no longer snaps you back to the first workspace. Direct and shared session links resolve a session's owning workspace from its ID and load reliably regardless of which workspace is selected, and the UI redirects to the agent page when an opened session belongs to a different workspace than the active one.
 
-- **Wizard flow.** Workspace, runtime, and validation steps were reworked for clearer state, tighter spacing, and more legible status. The validation form and run summary render with the same theme as the execution view.
-- **Execution layout.** The sidebar, timeline, and summary panes were redesigned for denser, more readable run state — per-job status, attempts, and streamed ACP activity are easier to follow at a glance.
-- **Multi-run tabs.** The `--multiple` tab strip was polished so the brand renders once, the spinner survives idle/active tab switches, and an idle tab no longer leaves a dangling spinner.
+## 0.0.5 - 2026-05-29
 
-### Why it matters
+### ♻️ Refactoring
 
-This is a visual and structural overhaul of the entire run experience. Existing commands and flags are unchanged — only the presentation and interaction model improved. It also lays the groundwork for the new interactive job control described in the "Steer running agents" note.
-
-## 0.2.9 - 2026-06-13
-
-### 🐛 Bug Fixes
-
-- Record ACP token usage and adapt to acp-go-sdk v0.13.5 (#198)
-
-### Release Notes
-
-#### Fixes
-
-##### ACP agents now record token usage
-Token usage from ACP-backed agents (Claude Code, Codex, and other ACP runtimes) is now recorded and surfaced. Previously the engine discarded the usage payload returned with each prompt response, so run journals and the Compozy UI always reported zero tokens for ACP agents. Usage is now converted after every prompt response and published as a session update, so it reaches the run journal and the live event stream.
-
-### What gets reported
-
-After each ACP prompt response, Compozy maps the runtime's usage payload into the run's usage totals:
-
-| Reported field       | Source                                                                     |
-| -------------------- | -------------------------------------------------------------------------- |
-| Input tokens         | ACP `inputTokens`                                                          |
-| Output tokens        | ACP `outputTokens` + `thoughtTokens` (reasoning tokens folded into output) |
-| Total tokens         | ACP `totalTokens` (the session-wide sum of all token types)                |
-| Cache reads / writes | ACP `cachedReadTokens` / `cachedWriteTokens`                               |
-
-Reasoning/thought tokens are summed into output tokens for this release; a dedicated reasoning-token field is planned for a later milestone. Totals stay self-consistent because ACP's `totalTokens` already includes reasoning tokens, so `input + output` continues to match `total` after folding.
-
-### Behavior
-
-- **Accumulates across turns.** Each prompt response adds to both the per-job and the aggregate run totals, so long-running sessions report cumulative usage rather than only the last turn.
-- **Zero-usage updates are skipped.** Empty payloads never perturb the totals or emit spurious usage events.
-- **Streamed to the UI and journal.** Every non-empty update emits a usage event and is appended to the durable run journal, so token counts show up live and on replay.
-
-### Under the hood
-
-This change upgrades the ACP SDK (`github.com/coder/acp-go-sdk`) to v0.13.5. The SDK dropped the `session/set_model` RPC, so model selection for ACP agents is resolved at session creation rather than switched at runtime — pass the model up front (Compozy already pins the Claude agent's model via the environment).
-
-## 0.2.8 - 2026-06-11
+- Optimize prompt consumption (#222)
+- Orchestration improvements (#230)
 
 ### 🎉 Features
 
-- Warn when tasks run starts beside active runs in other workspaces (#190)
-### 🐛 Bug Fixes
-
-- Keep multi-run task timers ticking (#179)- Treat model auto as runtime default (#181)- Pin claude model via ANTHROPIC_MODEL instead of unsupported session/set_model (#187)- Restart stale daemon when CLI and daemon versions mismatch (#191)- Surface ACP session setup errors in job logs and fail runs fast (#192)- Reviews watch (#196)
-
-### Release Notes
-
-#### Features
-
-##### Run multiple task workflows from one command
-`compozy tasks run` now accepts a `--multiple` flag that enqueues several task workflows through a single daemon-owned parent run, with one TUI tab per requested slug. The single-workflow path (`compozy tasks run <slug>`) is unchanged — `--multiple` is purely additive, so existing habits, scripts, and CI invocations keep working byte-for-byte.
-
-### Starting a multi-run
-
-Pass one comma-separated slug list. The same runtime flags (`--ide`, `--model`, `--stream`, `--detach`, `--attach`, etc.) apply to every workflow in the batch:
-
-```bash
-# Enqueue two workflows with shared runtime defaults
-compozy tasks run --multiple alpha,beta
-
-# Pick the runtime once for the whole queue
-compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
-
-# Stream or detach the parent queue
-compozy tasks run --multiple alpha,beta --stream
-compozy tasks run --multiple alpha,beta --detach
-```
-
-Use `--multiple` when one command should drive an ordered batch with identical flags. Keep using `tasks run <slug>` for a single workflow or for scripts that expect exactly one run ID per invocation.
-
-`--multiple` cannot be combined with a positional slug or with `--name`.
-
-### Scheduling mode
-
-Scheduling is controlled by `[tasks.run] run_multiple_mode` in `.compozy/config.toml` or `~/.compozy/config.toml`:
-
-```toml
-[tasks.run]
-run_multiple_mode = "enqueued"
-```
-
-| Mode         | Behavior                                                                                                                       |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `"enqueued"` | **Default.** Runs one child workflow at a time, in the requested order. Later slugs stay queued until the active one finishes. |
-| `"parallel"` | Accepted for forward-compatible config, but V1 prints a fallback message and still runs the queue enqueued.                    |
-
-When unset, the built-in default is `"enqueued"`. The value is validated at config load: an empty string is rejected, and anything other than `"enqueued"` or `"parallel"` fails with a clear error.
-
-Real parallel multi-run waits on git worktree isolation so concurrent agents never edit the same checkout simultaneously — that lands in V2. Configuring `"parallel"` today is safe: Compozy explains the fallback and proceeds in enqueued order.
-
-### Tabbed TUI
-
-The task-run TUI shows one tab per requested slug:
-
-- Queued tabs appear before their child run exists.
-- The running tab shows the familiar single-task surface.
-- Completed, failed, and canceled tabs stay available for inspection.
-
-The quit dialog applies to the parent queue:
-
-- **Close TUI** — detaches and leaves the queue running in the daemon.
-- **Stop Run** — cancels the parent queue, cancels the active child, and marks queued workflows canceled.
-- **Cancel** — returns to the TUI without changing execution.
-
-### Notes
-
-- The multi-run path is daemon-owned end to end: a new parent run orchestrates independent child task runs over the same snapshot-plus-stream transport used by single runs.
-- `--dry-run` still previews prompts without executing.
-
-## 0.2.7 - 2026-05-27
-
-### 🎉 Features
-
-- Add multi-task run support (#162)
-
-## 0.2.6 - 2026-05-26
+- Decouple worker concurrency from coordinator uniqueness (#229)
 
 ### 🐛 Bug Fixes
 
-- Add Windows daemon support (#163)
+- Handle provider overlay subtables (#228)
 
-## 0.2.5 - 2026-05-25
-
-### 🎉 Features
-
-- Add zsh task completion plugin docs and script (#149)- Add kiro-cli as supported ACP execution runtime (#160)- Discover task files recursively in nested subdirectories (#153)
-### 🐛 Bug Fixes
-
-- Homebrew formula- Emit one task slug per compozy completion candidate (#159)- Run managed upgrade commands (#158)
 ### 📚 Documentation
 
-- Add star history on readme- Release notes
+- Add contributors
+
 ### 🔧 CI/CD
 
-- Release fix
-### 🧪 Testing
+- Web asset release
 
-- Internal test fix
-
-### Release Notes
-
-#### Features
-
-##### Kiro CLI as a supported ACP execution runtime
-Compozy now ships first-class support for the Kiro CLI as an ACP execution runtime, alongside Claude, Codex, Cursor, and Droid. Selecting `--ide kiro` (or persisting it in workspace config) is enough — Compozy locates `kiro-cli`, probes the ACP adapter, and wires the correct bootstrap arguments per session.
-
-### What's new
-
-- New IDE constant `kiro` and default model `anthropic/claude-opus-4-6` (`internal/core/model/constants.go`).
-- New registry entry under `internal/core/agent/registry_specs.go` registering the Kiro runtime with:
-  - Command: `kiro-cli`
-  - Fixed args: `acp`
-  - Probe: `kiro-cli acp --help`
-  - Setup agent name: `kiro-cli`
-  - Docs: <https://kiro.dev/docs/cli/acp>
-- Bootstrap forwards `--model <name>` when set and appends `-a` when the run uses `--access-mode full`.
-
-### Usage
-
-```bash
-# One-off run
-compozy tasks run my-task --ide kiro --model anthropic/claude-opus-4-6
-
-# Per-workspace default
-[tasks.run]
-ide = "kiro"
-model = "anthropic/claude-opus-4-6"
-```
-
-### Requirements
-
-Install the Kiro CLI and ensure `kiro-cli acp` is reachable on `PATH`. Compozy's preflight probes the adapter on first run and surfaces a clear `InstallHint` if the binary is missing.
-
-| IDE      | CLI flag     | Default model               | ACP command    |
-| -------- | ------------ | --------------------------- | -------------- |
-| Kiro CLI | `--ide kiro` | `anthropic/claude-opus-4-6` | `kiro-cli acp` |
-
-##### Recursive task discovery for nested workflow directories
-`compozy tasks run` can now discover `task_NNN.md` files in nested subdirectories under `.compozy/tasks/<slug>/`, so multi-feature workflows can be organized by area instead of flattened into a single root. The behavior is opt-in via a new `--recursive` / `-r` flag — existing flat workflows are byte-identical to before.
-
-### Enabling recursion
-
-```bash
-# One-off
-compozy tasks run my-workflow --recursive
-compozy tasks run my-workflow -r
-
-# Per-workspace default
-[tasks.run]
-recursive = true
-```
-
-The option is also exposed in the interactive task-runtime form and threaded through the daemon runtime overrides (`internal/cli/daemon_commands.go`).
-
-### Discovery rules
-
-When `--recursive` is set:
-
-- `task_NNN.md` files are walked across nested subdirectories.
-- The following directories are skipped during the walk:
-  - Any directory starting with `.` or `_`
-  - `reviews-*` review rounds
-  - `adrs/`
-  - `memory/`
-- Tasks are grouped by directory: root tasks first, then each subdirectory in alphabetical order, sorted numerically within each group.
-- Path traversal is hardened via `os.OpenRoot` and validated forward-slash relative paths in `internal/core/tasks/store.go`.
-
-Example layout:
-
-```
-.compozy/tasks/my-feature/
-├── task_001.md                      # root group (first)
-├── features/auth/
-│   ├── task_001.md
-│   └── task_002.md
-└── features/billing/
-    └── task_001.md
-```
-
-Run order: root → `features/auth/task_001` → `features/auth/task_002` → `features/billing/task_001`.
-
-### `_meta.md` and bulk completion are recursion-aware
-
-`_meta.md` totals and bulk completion now always traverse recursively, so a flat run that happens to have stray nested files no longer under-reports counts. Recursion-mode mismatches between metadata and execution are eliminated.
-
-### Per-subdir workflow memory
-
-Workflow memory is scoped per subdirectory to keep any single `MEMORY.md` well below its 12 KB / 150-line soft cap when recursing across many sub-features:
-
-- A task at `features/auth/task_001.md` writes workflow notes to `memory/features/auth/MEMORY.md`.
-- Reads walk up to the closest-ancestor `MEMORY.md`, so shared context still propagates.
-- Writes stay isolated to the task's immediate scope.
-
-Path sanitization (`sanitizeTaskMemoryRelpath` / `validateTaskMemoryRelpath` in `internal/core/memory/store.go`) rejects leading slashes, empty segments, and `..` to prevent escape.
-
-### Caveats
-
-- DB sync and the extension Host API still operate on the slug root only.
-- Skip-list directories cannot currently be customized per workspace.
-
-##### Zsh task-completion plugin for `compozy tasks run`
-Compozy now ships a self-contained zsh completion plugin that completes task slugs for `compozy tasks run` from the nearest `.compozy/tasks` directory relative to your shell's `$PWD`. It works across worktrees and repository copies — no global config needed.
-
-### What it completes
-
-- `tasks` after `compozy`
-- `run` after `compozy tasks`
-- Task slugs after `compozy tasks run` — one suggestion per task directory under the discovered `.compozy/tasks`
-
-If no `.compozy/tasks` is found in any ancestor of `$PWD`, completion falls back to the default zsh behavior at that position.
-
-### Installation
-
-```zsh
-# 1. Copy the plugin into your shell folder
-cp /path/to/compozy/zsh/compozy-completion/compozy-completion.plugin.zsh \
-  "$HOME/.zsh/compozy-completion/compozy-completion.plugin.zsh"
-
-# 2. Source it from ~/.zshrc
-if [[ -f "$HOME/.zsh/compozy-completion/compozy-completion.plugin.zsh" ]]; then
-  source "$HOME/.zsh/compozy-completion/compozy-completion.plugin.zsh"
-fi
-
-# 3. Reload
-source ~/.zshrc
-```
-
-```zsh
-cd /path/to/repo
-compozy tasks run <TAB>     # → suggests task directory names from .compozy/tasks
-```
-
-Full docs live at `zsh/compozy-completion/README.md` in the repo.
-
-### Discovery model
-
-`_compozy_tasks_workspace` walks upward from `$PWD` until it finds a directory containing `.compozy/tasks`, then enumerates that directory for slugs. This keeps completion fast and avoids spawning Compozy on every TAB.
-
-### Companion fix
-
-A bug in the initial plugin was also fixed in this release: when multiple subdirectories existed under `.compozy/tasks`, the same slug could be emitted more than once on TAB. Slug discovery now goes through a dedicated `_compozy_task_slugs` helper that:
-
-- Returns one slug per task directory, deduplicated.
-- Uses zsh `(N/)` glob qualifiers so it gracefully no-ops when the directory is empty.
-- Splits results with `(@f)` to keep slugs containing spaces or special characters intact.
-
-End result: `compozy tasks run <TAB>` shows each available task slug exactly once.
-
-#### Fixes
-
-##### Homebrew distribution switched from cask to formula
-Compozy's Homebrew distribution moves from a cask to a proper formula. This simplifies installation (no separate `brew tap` step), enables `brew test`-driven smoke checks, and aligns the upgrade flow with how CLI tools are normally distributed on Homebrew.
-
-### Install command
-
-```bash
-# Before (cask)
-brew tap compozy/compozy
-brew install --cask compozy
-
-# After (formula)
-brew install compozy/compozy/compozy
-```
-
-The shorthand auto-taps `compozy/compozy` and installs the `compozy` formula in a single command.
-
-### Upgrade command
-
-`compozy upgrade` (and the `compozy upgrade` flow inside `internal/update/install.go`) now targets the formula instead of the cask:
-
-```bash
-brew upgrade compozy/compozy/compozy
-```
-
-Existing users on the cask should reinstall via the formula path; both can't coexist on the same prefix.
-
-### Release pipeline
-
-- `.goreleaser.yml` replaces the `homebrew_casks:` block with a `brews:` block:
-  - `directory: Formula`
-  - `commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"`
-  - `license: "BSL-1.1"`
-  - `test: system "#{bin}/compozy", "--version"` — every published formula now smoke-tests `compozy --version`.
-- The release artifact for Homebrew is keyed via `ids: [compozy-archive]` so the formula picks the right archive.
-- The archive comment now reads: `Keep the binary at the archive root so Homebrew formulas can install it directly.`
-
-### README
-
-`README.md` is updated with the new one-liner install command.
-
-## 0.2.4 - 2026-05-14
+## 0.0.4 - 2026-05-27
 
 ### 🐛 Bug Fixes
 
-- Codex acp integration (#151)
+- Default workspace
 
-## 0.2.3 - 2026-05-09
+### 📚 Documentation
 
-### 🐛 Bug Fixes
+- Remove old changelog from website
 
-- Cwd path
+### 📦 Build System
 
-## 0.2.2 - 2026-05-08
+- Sync web assets module (#217)
+
+## 0.0.3 - 2026-05-27
+
+### ♻️ Refactoring
+
+- Memory optimization (#215)
+
+### 📦 Build System
+
+- Sync web assets module (#210)
+
+## 0.0.2 - 2026-05-27
+
+### Other Changes
+
+- Lessons learned
+
+### ♻️ Refactoring
+
+- Project structure (#7)
+- Kb improvements (#12)
+- Rename spaces to channels (#17)
+- Add extensions gaps (#21)
+- Improve tool calls ui (#22)
+- Remove web app header
+- Module improvements (#29)
+- Memory improvements (#35)
+- Storybook for web and ui (#38)
+- Enable AGH network by default for new installs (#57)
+- Hermes adjustments (#69)
+- Badges design (#84)
+- Storybook scenario and logos gallery
+- Migrate typescript tests (#114)
+- Internal go packages (#120)
+- Ui patterns (#127)
+- Improve e2e tests (#130)
+- Ui redesign
+- Workspace isolation across runtime surfaces (#145)
+- Prod ready applies (#162)
+- Tool card ui (#164)
+- Alpha on logo
+- Prod ready features (#167)
+- Thread sheet (#202)
 
 ### 🎉 Features
 
-- Add qa extension (#138)
+- Implement config foundation packages
+- Implement sqlite store package
+- Add ACP client package
+- Add session lifecycle manager
+- Implement observe package
+- Add daemon composition root
+- Add uds api server
+- Implement cli package
+- Add http api server
+- Add system design
+- Add foundation types, schemas, and layout shell for web client
+- Add daemon health polling and agent sidebar systems for web client
+- Add session system CRUD, streaming core, and session store for web client
+- Add chat view, messages, and composer tests for web client
+- Add tool cards and renderers for web client
+- Add file-backed memory store core
+- Scaffold memory session seams
+- Add memory dream consolidation service
+- Wire memory assembler into daemon
+- Add memory api and cli
+- New skills system (#1)
+- Add workspace entity (#5)
+- Add new skill capabilities (#8)
+- Web ui v2 (#9)
+- Improve hooks system (#10)
+- Session resilience (#11)
+- Add extensability (#13)
+- Add automation (#16)
+- Add channels (#14)
+- Add network implementation (#15)
+- Add network, bridges and automations web pages (#18)
+- Ext registry (#20)
+- Add core tasks (#19)
+- Bridge adapters (#23)
+- Add site (#26)
+- Add ext refac and sandbox (#25)
+- Settings ui (#37)
+- Tasks ui (#36)
+- Harness improvements (#44)
+- Agent capabilities (#49)
+- Redesign ui (#48)
+- Unify capability (#53)
+- Redesign network workspace (#59)
+- Add task deletion and split session delete from stop (#58)
+- Session provider selection (#60)
+- Production grade adjustments (#66)
+- Autonomous system (#75)
+- Add agent session route (#80)
+- Tools registry (#85)
+- Agents soul (#88)
+- Add network threads (#105)
+- Orchestration improvements (#106)
+- Memory v2 (#108)
+- Agent categories (#113)
+- Providers model (#118)
+- Add canonical AGH bundled skill (#143)
+- Onboarding and improvements (#198)
+- Onboarding and improvements (#201)
+
 ### 🐛 Bug Fixes
 
-- Workspace register (#140)- Workspace discover path- Prevent false task completion via prompt kickoff + worktree diff-check (#144) (#145)
+- Review round
+- Review rounds
+- Resolve memory extensibility review batch
+- Embed web into daemon
+- Defaults agents
+- Acp integration (#4)
+- Lint errors
+- Prd folder
+- Remove orphan web actions and dead surfaces (#55)
+- Qa testing and fixes (#73)
+- New review rounds (#82)
+- Security audit (#90)
+- Release qa round (#95)
+- Add missing tools (#141)
+- New qa round (#147)
+- Advanced qa round (#149)
+- Homebrew tap
+- Final review round (#151)
+- Daemon healthy
+- Reasoning models (#158)
+- Lint errors (#160)
+- Review round (#168)
+- Release adjustments (#171)
+- Stabilize release ci fixtures
+- Stabilize release integration gate
+- Stabilize release verify gates
+- Stabilize release integration flows
+- Stabilize release verify gates
+- Stabilize main verify shutdown
+- Ignore stale acpmock cancel
+- Marketplace search focus and filtering (#193)
+- Website video
+- Workspace command select
+
 ### 📚 Documentation
 
-- Update- Release notes
+- Update agents.md
+- Update prd
+- Update skills
+- Update compozy tasks
+- Update compozy
+- Update compozy
+- Add new skills
+- Archive prd
+- Update prds
+- Update rfc
+- Update prds
+- Update prds
+- Add automation prd
+- Channels prd
+- Update prd
+- Update prd
+- New prds
+- Archive prds
+- Bridges adapters prd
+- Sandbox prd
+- Update
+- Archive prd
+- Update
+- Add new prd
+- New design
+- Update prd
+- Archive prds
+- Update prds
+- Tasks-ui prd tasks
+- Update prd
+- Update design docs
+- Agent capabilities prd
+- Improve site docs
+- Remove old design references
+- Udpate
+- Autonomous prd
+- Update skills
+- Blog design
+- Agent sould prd
+- Final qa plan
+- Update
+- Remove codex ledgers from gitignore
+- Remove not needed files
+- Udpate ledger
+- Update cy-codex-loop skill
+- Orchestration improves prd
+- Update prds
+- Orch improvs prd
+- Memv2 prd
+- Providers model prd
+- Update refacs prd
+- New design proposal
+- Update rules
+- Update skills
+- New blog posts (#173)
+- Format docs
+- Remove old design files
+- Remove old
+- Skeeper update
+
 ### 📦 Build System
 
-- Release tool
+- Initial structure
+- Commitlint
+- Frontend base structure
+- Update vscode settings
+- Add subagents
+- Coderabbit
+- Prd and tooling
+- Bun lock
+- Lint tooling
+- Copy.md and tooling adjusts
+- Add repoclone rc
+- Upgrade skeeper to v0.2.0
+- Update go.mod
+- Adopt task artifacts into skeeper
+- Sync codex plans with skeeper
+- Skeeper lock
+- Skeeper lock
+- New skills
+- Skeeper lock
+- Skeeper lock
+- Skeeper lock
+- Update deps and go
+- Regenerate daytona sidecar assets for go 1.26.3
+- Fix cliff
+- Ignore docs on fmt
+- Build web assets before goreleaser
+- Extend release dry-run timeout
+- Fix release dry-run token contract
 
-### Release Notes
+### 🔧 CI/CD
 
-#### Features
-
-##### Force-confirmation when archiving non-terminal workflows
-Archiving a workflow that still has open work no longer silently succeeds. The daemon now returns a typed `workflow_force_required` error when the target workflow has non-terminal tasks or unresolved review issues, and the dashboard surfaces it as an inline confirmation dialog so you can either resolve the open items first or explicitly archive with `force = true`.
-
-### What changed
-
-- `internal/core/archive.go` introduces `ErrWorkflowForceRequired` and a structured `WorkflowArchiveForceRequiredError` that reports task and review counts:
-
-  ```go
-  type WorkflowArchiveForceRequiredError struct {
-      WorkspaceID      string
-      WorkflowID       string
-      Slug             string
-      Reason           string
-      TaskTotal        int
-      TaskNonTerminal  int
-      ReviewTotal      int
-      ReviewUnresolved int
-  }
-  ```
-
-- The daemon HTTP API maps that error to `code: "workflow_force_required"` with a 409 response, so frontends can detect it without parsing strings.
-- `model.ArchiveConfig.Force` and the kernel `WorkflowArchiveCommand.Force` field now flow end-to-end, so a retry with `force=true` bypasses the gate.
-- The web archive flow (`web/src/routes/_app/workflows.tsx` + `web/src/systems/workflows/adapters/workflows-api.ts`) catches the typed error, opens an alert dialog with task/review counts, and re-issues the archive call with `force: true` if you confirm.
-
-### Web UI
-
-A new `AlertDialog` primitive in `@compozy/ui` powers the confirmation. The flow is:
-
-1. Click _Archive_ on a workflow with open tasks or reviews.
-2. The daemon returns `workflow_force_required` with counts (e.g. `task_non_terminal: 2`, `review_unresolved: 1`).
-3. The UI opens a confirmation dialog explaining what will be archived anyway.
-4. Confirm → the same archive request is retried with `force: true`; the response includes `forced: true` and the counts that were overridden.
-
-### API shape
-
-```jsonc
-// Without force, when state is open:
-HTTP 409
-{
-  "code": "workflow_force_required",
-  "message": "workflow \"my-feature\" requires force archive confirmation: ...",
-  "details": {
-    "task_total": 5,
-    "task_non_terminal": 2,
-    "review_total": 4,
-    "review_unresolved": 1
-  }
-}
-
-// Retry with force = true:
-{
-  "archived": true,
-  "forced": true,
-  "completed_tasks": 5,
-  "resolved_review_issues": 4
-}
-```
-
-Workflows whose state is already clean continue to archive on the first call with no prompt — the gate only fires when there is genuinely open work.
-
-##### Built-in QA workflow extension
-Compozy now ships a built-in `cy-qa-workflow` extension that automatically attaches QA-planning and QA-execution tasks to any PRD-driven workflow, with curated runtimes per task. The extension lives at `extensions/cy-qa-workflow/` and follows the same on-disk contract as user extensions, so it can be customized or replaced project-by-project.
-
-When enabled, every `compozy tasks run <slug>` over a PRD-mode workflow ends up with two extra tasks at the tail of `_tasks.md`:
-
-| Task                                                   | Purpose                                                                                                                                | Type   | Complexity |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------- |
-| `<Workflow> QA plan and regression artifacts`          | Generates feature-level test plans, execution-ready test cases, and regression suites under `.compozy/tasks/<workflow>/qa/`            | `docs` | `high`     |
-| `<Workflow> QA execution and operator-flow validation` | Executes the generated plan, files bug reports for confirmed failures, fixes root causes, and finishes only after `make verify` passes | `test` | `critical` |
-
-The execution task depends on the report task; the report task depends on every other implementation task in the workflow, so QA always runs last.
-
-### Curated runtimes
-
-The extension also pins per-task runtimes via the new `plan.pre_resolve_task_runtime` hook so each QA task runs on the IDE/model best suited to it — no manual `--task-runtime` needed:
-
-| QA task      | IDE      | Model     | Reasoning effort |
-| ------------ | -------- | --------- | ---------------- |
-| QA report    | `claude` | `opus`    | `xhigh`          |
-| QA execution | `codex`  | `gpt-5.5` | `xhigh`          |
-
-Override on a per-run basis with `--task-runtime`, or per-project via `[[tasks.run.task_runtime_rules]]`.
-
-### Prompt augmentation
-
-`cy-qa-workflow` also patches the agent session at create time:
-
-- The QA execution prompt is prefixed with `/goal …` so the agent enters goal-driven mode and only finishes after `make verify` passes.
-- The QA report prompt sets `CLAUDE_CODE_EFFORT_LEVEL=xhigh` in the session env to lift Claude's effort ceiling for plan generation.
-
-### Manifest
-
-```toml
-# extensions/cy-qa-workflow/extension.toml
-[extension]
-name = "cy-qa-workflow"
-version = "0.1.0"
-description = "Adds Compozy QA report and QA execution tasks to workflow runs"
-min_compozy_version = "0.1.10"
-
-[subprocess]
-command = "go"
-args = ["run", "."]
-
-[security]
-capabilities = ["plan.mutate", "agent.mutate", "tasks.read", "tasks.create"]
-
-[[hooks]]
-event = "plan.pre_discover"
-required = true
-
-[[hooks]]
-event = "plan.pre_resolve_task_runtime"
-required = true
-
-[[hooks]]
-event = "agent.pre_session_create"
-required = true
-```
-
-### Idempotency
-
-- Tasks are detected by HTML markers (`<!-- compozy-qa-workflow:qa-report -->` / `<!-- compozy-qa-workflow:qa-execution -->`) plus title/type heuristics, so re-running the workflow does not duplicate them.
-- `update_index = true` is set on the new `host.tasks.create` request, so the entries appear in `_tasks.md` in the right order on first run.
-
-### SDK additions used by the extension
-
-- `TaskCreateRequest.UpdateIndex` (`update_index` in JSON / TS) — when `true`, the host appends the created task to `_tasks.md`. Documented in `docs/extensibility/host-api-reference.md`.
-- `TaskFrontmatter.Dependencies` — extensions can now seed task dependencies directly when creating a task.
-- `SessionRequest` / `ResumeSessionRequest` now use a stable readable JSON contract (prompts are plain strings, not base64), matching the runtime-side ACP contract used by hook payloads and patches.
-
-#### Fixes
-
-##### Workspace register/resolve path fixes
-Two long-standing workspace-discovery papercuts are fixed. `compozy workspaces register` and `resolve` now accept relative paths the same way every other Compozy command does, and workspace auto-discovery no longer treats the home-scoped `~/.compozy/` runtime directory as a project-local workspace marker.
-
-Closes #139.
-
-### Relative paths now work for `register` / `resolve`
-
-Before, the API client sent paths through unchanged after `strings.TrimSpace`. A relative path like `.` or `./my-project` was forwarded to the daemon as-is, where it resolved against the daemon's working directory instead of the caller's, producing confusing "workspace not found" errors or registering the wrong directory.
-
-The client now normalizes the argument before sending it:
-
-```go
-// internal/api/client/operator.go
-func normalizeWorkspacePathArg(path string) (string, error) {
-    trimmed := strings.TrimSpace(path)
-    if trimmed == "" {
-        return "", nil
-    }
-    if filepath.IsAbs(trimmed) {
-        return filepath.Clean(trimmed), nil
-    }
-    absolutePath, err := filepath.Abs(trimmed)
-    if err != nil {
-        return "", fmt.Errorf("resolve workspace path %q: %w", path, err)
-    }
-    return filepath.Clean(absolutePath), nil
-}
-```
-
-This normalization runs for both `RegisterWorkspace` and `ResolveWorkspace`, so:
-
-```bash
-cd ~/code/my-feature
-compozy workspaces register .            # now registers /Users/you/code/my-feature
-compozy workspaces resolve ./sub-project  # resolves against the caller's CWD
-```
-
-### `~/.compozy/` is no longer auto-detected as a workspace
-
-`discoverWorkspaceRootFromStart` walks up the filesystem looking for a `.compozy/` marker directory. When `compozy` was invoked from anywhere under `$HOME` that did not contain its own `.compozy/`, the walk would eventually find `~/.compozy/` — the home-scoped daemon runtime root — and register the user's home directory (or some ancestor) as a workspace.
-
-The discovery loop now resolves the global Compozy marker once and skips it during the walk, so only project-local `.compozy/` directories are treated as workspace roots:
-
-```go
-// internal/core/workspace/config.go
-globalMarkerDir, hasGlobalMarker := discoverGlobalWorkspaceMarkerDir()
-// ...
-if err == nil && info.IsDir() {
-    // The home-scoped Compozy directory stores global runtime/config state.
-    // It must not redefine arbitrary paths under HOME as local workspaces.
-    if !hasGlobalMarker || !sameWorkspaceMarkerDir(candidate, globalMarkerDir) {
-        return current, nil
-    }
-}
-```
-
-Comparison is symlink-aware (`filepath.EvalSymlinks` on both sides), so installs that symlink `~/.compozy/` are still correctly excluded.
-
-### Coverage
-
-New tests pin the behavior end-to-end:
-
-- `internal/api/client/client_transport_test.go` — relative paths are normalized before transport.
-- `internal/cli/operator_commands_integration_test.go` — `register` / `resolve` from a relative CWD produce absolute paths in the registry.
-- `internal/core/workspace/config_test.go` — discovery skips `~/.compozy/` even when started from `$HOME`.
-- `internal/store/globaldb/registry_test.go` — registry insert/lookup is consistent with the normalized paths.
-
-## 0.2.1 - 2026-05-01
-
-### 🐛 Bug Fixes
-
-- Binary release
-
-## 0.2.0 - 2026-05-01
-
-### Refactoring
-
-- Daemon improvements (#121)
-
-### Features
-
-- Add optional sound notifications on run lifecycle events (#96)
-- Global config defaults (#106)
-- Add per task prop selection (#109)
-- Migrate to daemon — **BREAKING:** (#112)
-- Daemon web UI (#122)
-- Web UI polish (#125)
-- Review watch (#133)
-
-### Bug fixes
-
-- Daemon adjustments (#116)
-- Harden runtime activity and version handling (#127)
-- Release adjustments (#131)
-- Infer task type during migrate (#129)
-- Watch adjustments
 - Lint errors
-
-### Documentation
-
-- Release notes
-- Daemon PRD
-- New PRDs
-- Updates
-- Add release notes
-
-### CI/CD
-
-- Fix auto-docs
-- Add release notes
-- Fix Windows
+- Fint release pr
+- Fix goreleaser
+- Fix release
+- Fix release process
+- Fix release sync
+- Decouple release dry-run npm auth
+- Persist web assets git auth
+- Require npm auth before release merge
 
 ### 🧪 Testing
 
-### Release Notes
-
-#### Breaking Changes
-
-##### Daemon-based architecture
-
-Compozy now runs every task, review, and exec workflow through a long-lived, home-scoped daemon at `~/.compozy/`. The daemon owns runtime state in SQLite (`~/.compozy/db/global.db` plus per-run `run.db`), exposes a UDS + HTTP API, and supports re-attach and observe across separate CLI invocations. Existing scripts that called `compozy start` or `compozy fix-reviews` need updates — most legacy top-level commands are gone or moved under the new `tasks`, `reviews`, `runs`, and `daemon` groups. The CLI auto-starts the daemon on first invocation, so most users do not need to start it explicitly.
-
-### What's new
-
-- `compozy daemon start | status | stop` lifecycle commands, plus `--foreground` for attached runs and `--web-dev-proxy <url>` for proxying a frontend dev origin through the daemon HTTP transport.
-- `compozy workspaces list | show | register | unregister | resolve` workspace registry — workspaces are registered lazily on first use, or explicitly via `register`.
-- `compozy tasks run <slug>` daemon-backed workflow runner with `--attach auto|ui|stream|detach`, `--ui`, `--stream`, `--detach`, and `--task-runtime` overrides.
-- `compozy reviews fetch | list | show | fix` review command family (replaces the old top-level `fix-reviews` / `fetch-reviews`).
-- `compozy runs attach <run-id> | watch <run-id> | purge` for re-attaching to live runs and pruning terminal artifacts.
-- `--format text|json` flag on operator/daemon commands for machine-readable output.
-- New durable stores: `~/.compozy/db/global.db` (workspaces, runs index) and per-run `~/.compozy/runs/<run-id>/run.db`.
-- `compozy migrate` is now **required** before daemon-backed commands run on legacy projects (it also infers task types — see the dedicated note).
-
-### Breaking changes
-
-| Area                    | Before                                   | After                                                                                           |
-| ----------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Workflow run            | `compozy start --name <slug>`            | `compozy tasks run <slug>` (top-level `start` is removed)                                       |
-| Review fix              | `compozy fix-reviews`                    | `compozy reviews fix` (top-level `fix-reviews` kept as alias)                                   |
-| Review fetch            | `compozy fetch-reviews`                  | `compozy reviews fetch` (top-level `fetch-reviews` kept as alias)                               |
-| Per-task runtime config | `[[start.task_runtime_rules]]`           | `[[tasks.run.task_runtime_rules]]` (TOML), or `--task-runtime` (CLI/TUI)                        |
-| Runtime artifacts       | `<workspace>/.compozy/runs/<run-id>/`    | `~/.compozy/runs/<run-id>/` (now includes durable `run.db`)                                     |
-| Sync semantics          | `compozy sync` regenerated `_meta.md`    | Reconciles workflow state into `global.db`; one-time cleanup of legacy `_meta.md` / `_tasks.md` |
-| Preflight               | `compozy start` skill check              | `tasks run` and `reviews fix` block on missing skill installs                                   |
-| Public Go API           | File-based readers in `pkg/compozy/runs` | Daemon-transport readers; signature changes in `Run`, `watch`, `tail`, `replay`                 |
-| Migrate                 | Recommended                              | **Required** before any daemon-backed workflow command on legacy projects                       |
-
-### New daemon workflow
-
-```bash
-# Lifecycle (most users do not need explicit start; tasks/reviews auto-start)
-compozy daemon start                                     # detached, returns status
-compozy daemon start --foreground                        # attached
-compozy daemon start --foreground \
-  --web-dev-proxy http://127.0.0.1:3000                  # for UI development
-compozy daemon status --format json
-compozy daemon stop --force                              # cancel runs, then stop
-
-# Workspaces
-compozy workspaces register .
-compozy workspaces list --format json
-compozy workspaces show <id-or-path>
-
-# Run a workflow
-compozy tasks run user-auth                              # auto-attach (TUI if interactive)
-compozy tasks run user-auth --stream                     # textual stream
-compozy tasks run user-auth --detach                     # fire-and-forget
-compozy tasks run user-auth \
-  --task-runtime type=frontend,ide=codex,model=gpt-5.5
-
-# Reattach / observe / purge
-compozy runs attach <run-id>
-compozy runs watch  <run-id>
-compozy runs purge
-
-# Reviews
-compozy reviews fetch user-auth --provider coderabbit --pr 42
-compozy reviews list  user-auth
-compozy reviews fix   user-auth --ide claude --concurrent 2 --batch-size 3
-```
-
-### Daemon lifecycle improvements
-
-- `daemon start --foreground` runs the daemon attached to the current shell with structured logs.
-- HTTP port defaults to OS-chosen (ephemeral) and is reported by `daemon status`. Pin it with `COMPOZY_DAEMON_HTTP_PORT=<n>`. Bind host is loopback-only (`127.0.0.1`) and non-loopback origins are rejected at the middleware layer.
-- Attaching to a run that has already settled now falls back to streaming the persisted event log instead of erroring.
-- `daemon stop` accepts `--force` to cancel owned runs before shutdown; otherwise it drains gracefully.
-
-### Migration steps
-
-1. Upgrade the binary. On first invocation the daemon creates `~/.compozy/{config.toml,agents,extensions,state,daemon,db,runs,logs,cache}`.
-2. For legacy projects with XML-tagged artifacts: run `compozy migrate` once before any daemon-backed command.
-3. Replace scripts:
-   - `compozy start --name X` → `compozy tasks run X`
-   - `compozy fix-reviews` → `compozy reviews fix` (alias still works)
-   - `compozy fetch-reviews` → `compozy reviews fetch` (alias still works)
-4. Update TOML: rename `[[start.task_runtime_rules]]` to `[[tasks.run.task_runtime_rules]]`. Move `id=` selectors to `--task-runtime` (TOML rejects `id=` rules).
-5. Stop reading `<workspace>/.compozy/runs/` directly — runtime artifacts now live in `~/.compozy/runs/<run-id>/` and include a durable `run.db`. Use `pkg/compozy/runs` (daemon transport) or the daemon HTTP/UDS API.
-6. Optional: set `COMPOZY_DAEMON_HTTP_PORT=<n>` to pin the HTTP port (`0` requests an ephemeral port). `COMPOZY_WEB_DEV_PROXY` mirrors `--web-dev-proxy`.
-
-#### Features
-
-##### Global config defaults
-
-Set personal defaults once in `~/.compozy/config.toml` and have them apply across every project. Project-level `.compozy/config.toml` always takes precedence, so teams keep control while individuals stop repeating themselves.
-
-### Example
-
-```toml
-# ~/.compozy/config.toml  (global — applies to all projects)
-[defaults]
-ide = "claude"
-model = "sonnet"
-access_mode = "default"
-auto_commit = true
-
-[sound]
-enabled = true
-on_completed = "glass"
-on_failed = "basso"
-
-[exec]
-model = "gpt-5.5"
-verbose = true
-```
-
-```toml
-# .compozy/config.toml  (project — overrides global)
-[defaults]
-model = "o4-mini"
-
-[start]
-include_completed = true
-```
-
-With both files above the effective config resolves to:
-
-| Field                     | Value       | Source       |
-| ------------------------- | ----------- | ------------ |
-| `defaults.ide`            | `"claude"`  | global       |
-| `defaults.model`          | `"o4-mini"` | project wins |
-| `defaults.auto_commit`    | `true`      | global       |
-| `sound.enabled`           | `true`      | global       |
-| `exec.model`              | `"gpt-5.5"` | global       |
-| `start.include_completed` | `true`      | project      |
-
-All sections supported in project config (`[defaults]`, `[start]`, `[exec]`, `[fix_reviews]`, `[fetch_reviews]`, `[tasks]`, `[sound]`) work in the global file with the same schema.
-
-##### Optional sound notifications on run lifecycle events
-
-Opt-in audio cues that play when a run completes or fails, so you can step away from long-running sessions without missing the result. Ships **disabled by default** — no sound unless you explicitly enable it.
-
-### Setup
-
-Add a `[sound]` section to `.compozy/config.toml` (project or global):
-
-```toml
-[sound]
-enabled = true
-on_completed = "glass"   # plays on successful completion
-on_failed = "basso"      # plays on failure or cancellation
-```
-
-### Built-in presets
-
-Seven presets work cross-platform out of the box:
-
-| Preset      | macOS                                   | Linux                                        | Windows                             |
-| ----------- | --------------------------------------- | -------------------------------------------- | ----------------------------------- |
-| `glass`     | `/System/Library/Sounds/Glass.aiff`     | `freedesktop/stereo/complete.oga`            | `Media\Windows Notify Calendar.wav` |
-| `basso`     | `/System/Library/Sounds/Basso.aiff`     | `freedesktop/stereo/dialog-error.oga`        | `Media\chord.wav`                   |
-| `ping`      | `/System/Library/Sounds/Ping.aiff`      | `freedesktop/stereo/message.oga`             | `Media\notify.wav`                  |
-| `hero`      | `/System/Library/Sounds/Hero.aiff`      | `freedesktop/stereo/bell.oga`                | `Media\tada.wav`                    |
-| `funk`      | `/System/Library/Sounds/Funk.aiff`      | `freedesktop/stereo/bell.oga`                | `Media\Ring06.wav`                  |
-| `tink`      | `/System/Library/Sounds/Tink.aiff`      | `freedesktop/stereo/message.oga`             | `Media\ding.wav`                    |
-| `submarine` | `/System/Library/Sounds/Submarine.aiff` | `freedesktop/stereo/phone-incoming-call.oga` | `Media\ringin.wav`                  |
-
-### Custom sounds
-
-Pass an absolute path to use your own audio file:
-
-```toml
-[sound]
-enabled = true
-on_completed = "/Users/you/sounds/success.wav"
-on_failed = "/Users/you/sounds/fail.wav"
-```
-
-### Lifecycle events
-
-| Event         | Config field   | When it fires                                  |
-| ------------- | -------------- | ---------------------------------------------- |
-| Run completed | `on_completed` | Task finishes successfully                     |
-| Run failed    | `on_failed`    | Task errors out                                |
-| Run cancelled | `on_failed`    | Task is interrupted (reuses the failure sound) |
-
-Playback is synchronous with a 3-second timeout — a missing or slow audio file never blocks shutdown. Errors are logged at debug level and never surface to the user.
-
-##### Per-task runtime overrides on tasks run
-
-Pick a different IDE, model, or reasoning effort per task type — or per individual task — for a single `compozy tasks run` invocation, instead of running the whole batch on one global runtime. Selection is exposed three ways: a repeatable `--task-runtime` CLI flag, an interactive form on `tasks run`, and a `[[tasks.run.task_runtime_rules]]` TOML section. A new `plan.pre_resolve_task_runtime` extension hook lets extension authors resolve per-task runtime programmatically.
-
-### CLI
-
-`--task-runtime` is repeatable. Each value is a comma-separated rule with a selector (`id=` **or** `type=`) and at least one override (`ide=`, `model=`, `reasoning-effort=`).
-
-```bash
-# All frontend tasks → Codex with high reasoning, plus one task forced to xhigh
-compozy tasks run multi-repo \
-  --ide claude --model opus \
-  --task-runtime "type=frontend,ide=codex,model=gpt-5.5,reasoning-effort=high" \
-  --task-runtime "id=task_07,reasoning-effort=xhigh"
-```
-
-### TOML
-
-Persistent type-scoped defaults live under `[[tasks.run.task_runtime_rules]]`. `id=` selectors are CLI/TUI-only by design — config rejects them.
-
-```toml
-[defaults]
-ide = "codex"
-model = "gpt-5.5"
-reasoning_effort = "medium"
-
-[[tasks.run.task_runtime_rules]]
-type = "frontend"
-model = "gpt-5.5"
-reasoning_effort = "high"
-
-[[tasks.run.task_runtime_rules]]
-type = "docs"
-ide = "claude"
-model = "opus"
-```
-
-### Rule keys
-
-| Key                                     | Where        | Description                                                                       |
-| --------------------------------------- | ------------ | --------------------------------------------------------------------------------- |
-| `id`                                    | CLI/TUI only | Match a single task by PRD task id                                                |
-| `type`                                  | CLI/TUI/TOML | Match all tasks of this type (e.g. `frontend`, `docs`)                            |
-| `ide`                                   | all          | `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `model`                                 | all          | Any model accepted by the chosen IDE                                              |
-| `reasoning-effort` / `reasoning_effort` | all          | `low`, `medium`, `high`, `xhigh`                                                  |
-
-Each rule must have a selector and at least one override. Mixing `id` and `type` in a single rule is an error.
-
-### Precedence (high → low at execution)
-
-1. CLI/TUI `id=` rules
-2. CLI/TUI `type=` rules
-3. Config `[[tasks.run.task_runtime_rules]]` (type-only)
-4. `[defaults]`
-
-### Extension hook
-
-Extension authors can resolve runtime programmatically via the new `plan.pre_resolve_task_runtime` hook (helper: `onPlanPreResolveTaskRuntime`). Later hooks (`plan.post_prepare_jobs`, `job.pre_execute`, `run.pre_start`) are now hard-guarded against runtime mutation for workflow runs — use the new hook instead.
-
-##### Watch mode for PR review remediation
-
-`compozy reviews watch` runs a long-lived loop that polls your review provider, fetches each new actionable round, runs `reviews fix`, optionally auto-pushes the resulting commits, and repeats until the PR is clean or a max-rounds cap is hit. The watch run shows up in the dashboard as a parent run with each round's `reviews fix` linked underneath, so you can step away from a noisy PR and come back to a finished branch.
-
-### CLI
-
-```bash
-# Auto-push each round until clean (or max 6 rounds)
-compozy reviews watch tools-registry --provider coderabbit --pr 85 \
-  --auto-push --until-clean --max-rounds 6
-
-# Follow events live instead of backgrounding
-compozy reviews watch tools-registry --provider coderabbit --pr 85 --stream
-
-# Tune timing
-compozy reviews watch my-feature --provider coderabbit --pr 85 \
-  --poll-interval 30s --review-timeout 30m --quiet-period 20s
-```
-
-`reviews watch` does not support cockpit UI attach — `--ui`, `--attach ui`, and `--tui` are rejected. Use `--stream` to follow events or `--detach` for fire-and-forget.
-
-### TOML
-
-```toml
-[defaults]
-auto_commit = true   # required when watch_reviews.auto_push = true
-
-[fetch_reviews]
-provider = "coderabbit"
-
-[watch_reviews]
-max_rounds     = 6
-poll_interval  = "30s"
-review_timeout = "30m"
-quiet_period   = "20s"
-auto_push      = true
-until_clean    = true
-push_remote    = "origin"
-push_branch    = "feature/reviews"   # must be set together with push_remote
-```
-
-### How it works
-
-1. Take a snapshot of git state and reconcile any already-committed unpushed commits (emitted as `round = 0` push events).
-2. Poll the provider every `poll_interval` until the PR head is **settled** — for CodeRabbit, that means the latest commit status is `success`, not just any submitted review.
-3. Wait `quiet_period` for in-flight review activity to drain, then re-check status.
-4. If the next round has actionable issues, spawn a child `reviews fix` run, await its terminal state, and (with `--auto-push`) `git push <remote> HEAD:<branch>`.
-5. Loop until `clean` (provider returns no actionable issues) or `max_rounds`.
-
-Defaults: 6 rounds, 30 s poll, 30 m review timeout, 20 s quiet period.
-
-### Auto-push safety rails
-
-- Forces `auto_commit=true` on child runs; rejects `--auto-commit=false`.
-- Only ever runs `git push <remote> HEAD:<branch>` — never `restore`, `reset`, `clean`, or branch switching.
-- Reconciles existing unpushed commits at startup so a watch run never re-pushes work it didn't produce.
-- Config-driven `auto_push=true` requires `defaults.auto_commit=true`.
-- `push_remote` and `push_branch` must be set together (or both omitted to resolve upstream).
-
-### Extension hooks
-
-Four new hooks let extensions observe and gate the loop. Hooks can veto a round / push (`continue=false`/`push=false` + `stop_reason`) but cannot fake a clean state:
-
-| Hook                      | Fires                                                  |
-| ------------------------- | ------------------------------------------------------ |
-| `review.watch_pre_round`  | Before each provider poll / fix round                  |
-| `review.watch_post_round` | After a child `reviews fix` run reaches terminal state |
-| `review.watch_pre_push`   | Before auto-push, with the resolved remote/branch      |
-| `review.watch_finished`   | When the watch loop ends (clean, max-rounds, or error) |
-
-### Caveats
-
-- Provider support: **CodeRabbit only** for the settle-gating logic in this release; other providers are wired via the registry but settle behavior is CodeRabbit-specific.
-- Provider auth still uses the existing fetch path (CodeRabbit token, GitHub PR access). Shorter `poll_interval` values increase pressure on those rate limits.
-- Each watch run shows up in the dashboard with a persisted `parent_run_id`; the parent and the active child collapse into a single active row, full history retained.
-
-#### Fixes
-
-##### Harden runtime activity tracking and version handling
-
-A bundle of reliability fixes across the update notifier, native Codex ACP runtime, ACP activity tracking, the extension SDK, and the build toolchain.
-
-### What's fixed
-
-- **Update notifier no longer prompts a "downgrade"** on git-describe builds. Pre-release suffixes like `-15-g834fec6` are stripped before semver comparison, so a binary built ahead of the latest tag stops nagging users to install the older release. Identifiers like `1.2.3-1-gamma` are preserved unless the suffix is a plausible short SHA.
-- **Native Codex ACP runtime accepts `codex/<model>` aliases.** The provider prefix is stripped before `SetSessionModel`, fixing rejections for ChatGPT-account Codex sessions.
-- **ACP activity stays "active" for the full lifecycle of a session update**, including nested or concurrent submissions. Previously the tracker could mark a session idle while in-flight work was still being submitted, dropping events on the floor.
-- **Extension SDK publishes `initialized` state before sending the initialize response**, fixing a host-side race where `runs.start` could be rejected as "extension not initialized" immediately after handshake.
-- **`BUN_VERSION` is now a minimum supported version, not an exact pin.** Error messaging updated to "or newer / at least", so contributors with a newer Bun release stop seeing spurious version errors.
-
-### Before / after
-
-```
-# Before: a binary built between releases prompted a "downgrade" install
-$ compozy --version
-v0.1.12-15-g834fec6
-$ compozy ...
-Update available: 0.1.12 (you have v0.1.12-15-g834fec6)
-
-# After: git-describe suffix is stripped; no spurious prompt
-$ compozy ...
-(no update notice)
-```
-
-##### Migrate now infers task type for legacy workflows
-
-`compozy migrate` no longer emits `type: ""` for legacy `feature` / `feature implementation` tasks, which previously broke `compozy sync` on the migrated workflow. A valid v2 task type is now inferred from the legacy type, with `domain` used as a constrained fallback only when the direct remap is genuinely ambiguous. The unmapped-type follow-up prompt is now emitted only when inference is unsafe.
-
-This release also tightens API error reporting: validation/parse failures from the daemon HTTP API now return `422 Unprocessable Entity` with cleaner messages instead of generic `500`, and the API core preserves original error identity so callers using `errors.Is` / `errors.As` get consistent results.
-
-### Before / after
-
-```bash
-# Before — produced workflow with empty `type`, then failed on sync.
-compozy migrate
-compozy sync   # error: missing/invalid task type
-
-# After — migrated workflow has a valid inferred type; sync succeeds.
-compozy migrate
-compozy sync   # ok
-```
-
-#### Highlights
-
-##### Daemon Web UI
-
-Compozy now ships a built-in web UI served straight from the daemon. Start the daemon and you get a single-binary, localhost-only dashboard for browsing workspaces, workflows, tasks, runs, reviews, and memory — with live SSE-backed run streaming, raw event diagnostics, a run transcript viewer, and skeletons / empty-states throughout. Frontend assets are embedded in the Go binary, so there is nothing extra to install. Contributors can point the daemon at a Vite dev server with `--web-dev-proxy`.
-
-### What's in the UI
-
-- **Dashboard** with workspace KPIs and a "Sync all workflows" action.
-- **Workflows** inventory, per-workflow task board, and task detail page.
-- **Workflow Spec** viewer (PRD / TechSpec / ADR markdown rendered inline).
-- **Memory** index plus per-workflow memory view.
-- **Reviews** index, per-round view, and issue detail pages.
-- **Runs** list with workflow filter, plus run detail with live event stream.
-- **Run Event Feed** — raw daemon events with in-memory event store, SSE snapshots, heartbeat, and overflow framing.
-- **Run Transcript Panel** — full transcript view of agent turns and tool calls for any run.
-- **Workspace picker** with onboarding shell and live workspace WebSocket sync.
-- New shared UI primitives: `Alert`, `EmptyState`, `Markdown`, `Metric`, `Skeleton`, `StatusBadge`, plus button loading state and token refresh.
-
-### Getting started
-
-```bash
-# Start the daemon (foreground for visibility); the UI is served at the daemon HTTP port
-compozy daemon start --foreground
-
-# Discover the URL
-compozy daemon status        # prints "http_port: <N>"
-open "http://127.0.0.1:<N>"
-
-# UI contributors: proxy the daemon to a Vite dev server
-compozy daemon start --foreground --web-dev-proxy http://127.0.0.1:3000
-```
-
-### Defaults & overrides
-
-| Setting            | Default                     | Override                                           |
-| ------------------ | --------------------------- | -------------------------------------------------- |
-| Bind host          | `127.0.0.1` (loopback only) | hard-coded; non-loopback binds are rejected        |
-| HTTP port          | OS-chosen (ephemeral)       | `COMPOZY_DAEMON_HTTP_PORT=<n>`                     |
-| Frontend dev proxy | off (embedded `web/dist`)   | `--web-dev-proxy <url>` or `COMPOZY_WEB_DEV_PROXY` |
-
-```bash
-# Pin the daemon UI to a known port
-export COMPOZY_DAEMON_HTTP_PORT=4444
-export COMPOZY_WEB_DEV_PROXY=http://127.0.0.1:3000   # only for UI dev
-compozy daemon start
-```
-
-### Security model
-
-There is no login — the UI is loopback-only and the API enforces:
-
-- Host header must match localhost; non-`127.0.0.1` binds are rejected.
-- Origin validation against the bound host.
-- Per-session CSRF cookie + header.
-- `X-Compozy-Active-Workspace` header propagated by the SPA.
-- Standard hardening headers via `securityHeadersMiddleware`, plus ETag/304 caching for the embedded static assets.
+- Add e2e tests (#27)
+- Qa rounds (#78)
+- Improve test suite (#138)
+- Harden daemon-served restart reloads
+- Harden daemon-served readiness waits
+- Stabilize dashboard focus assertion
+- Stabilize release integration gates
+- Stabilize release e2e markers
+- Stabilize release e2e flows
+- Improve suite speed
+
+## 0.0.1 - 2026-05-26
+
+### Other Changes
+
+- Lessons learned
+
+### ♻️ Refactoring
+
+- Project structure (#7)
+- Kb improvements (#12)
+- Rename spaces to channels (#17)
+- Add extensions gaps (#21)
+- Improve tool calls ui (#22)
+- Remove web app header
+- Module improvements (#29)
+- Memory improvements (#35)
+- Storybook for web and ui (#38)
+- Enable AGH network by default for new installs (#57)
+- Hermes adjustments (#69)
+- Badges design (#84)
+- Storybook scenario and logos gallery
+- Migrate typescript tests (#114)
+- Internal go packages (#120)
+- Ui patterns (#127)
+- Improve e2e tests (#130)
+- Ui redesign
+- Workspace isolation across runtime surfaces (#145)
+- Prod ready applies (#162)
+- Tool card ui (#164)
+- Alpha on logo
+- Prod ready features (#167)
+- Thread sheet (#202)
+
+### 🎉 Features
+
+- Implement config foundation packages
+- Implement sqlite store package
+- Add ACP client package
+- Add session lifecycle manager
+- Implement observe package
+- Add daemon composition root
+- Add uds api server
+- Implement cli package
+- Add http api server
+- Add system design
+- Add foundation types, schemas, and layout shell for web client
+- Add daemon health polling and agent sidebar systems for web client
+- Add session system CRUD, streaming core, and session store for web client
+- Add chat view, messages, and composer tests for web client
+- Add tool cards and renderers for web client
+- Add file-backed memory store core
+- Scaffold memory session seams
+- Add memory dream consolidation service
+- Wire memory assembler into daemon
+- Add memory api and cli
+- New skills system (#1)
+- Add workspace entity (#5)
+- Add new skill capabilities (#8)
+- Web ui v2 (#9)
+- Improve hooks system (#10)
+- Session resilience (#11)
+- Add extensability (#13)
+- Add automation (#16)
+- Add channels (#14)
+- Add network implementation (#15)
+- Add network, bridges and automations web pages (#18)
+- Ext registry (#20)
+- Add core tasks (#19)
+- Bridge adapters (#23)
+- Add site (#26)
+- Add ext refac and sandbox (#25)
+- Settings ui (#37)
+- Tasks ui (#36)
+- Harness improvements (#44)
+- Agent capabilities (#49)
+- Redesign ui (#48)
+- Unify capability (#53)
+- Redesign network workspace (#59)
+- Add task deletion and split session delete from stop (#58)
+- Session provider selection (#60)
+- Production grade adjustments (#66)
+- Autonomous system (#75)
+- Add agent session route (#80)
+- Tools registry (#85)
+- Agents soul (#88)
+- Add network threads (#105)
+- Orchestration improvements (#106)
+- Memory v2 (#108)
+- Agent categories (#113)
+- Providers model (#118)
+- Add canonical AGH bundled skill (#143)
+- Onboarding and improvements (#198)
+- Onboarding and improvements (#201)
+
+### 🐛 Bug Fixes
+
+- Review round
+- Review rounds
+- Resolve memory extensibility review batch
+- Embed web into daemon
+- Defaults agents
+- Acp integration (#4)
+- Lint errors
+- Prd folder
+- Remove orphan web actions and dead surfaces (#55)
+- Qa testing and fixes (#73)
+- New review rounds (#82)
+- Security audit (#90)
+- Release qa round (#95)
+- Add missing tools (#141)
+- New qa round (#147)
+- Advanced qa round (#149)
+- Homebrew tap
+- Final review round (#151)
+- Daemon healthy
+- Reasoning models (#158)
+- Lint errors (#160)
+- Review round (#168)
+- Release adjustments (#171)
+- Stabilize release ci fixtures
+- Stabilize release integration gate
+- Stabilize release verify gates
+- Stabilize release integration flows
+- Stabilize release verify gates
+- Stabilize main verify shutdown
+- Ignore stale acpmock cancel
+- Marketplace search focus and filtering (#193)
+- Website video
+- Workspace command select
+
+### 📚 Documentation
+
+- Update agents.md
+- Update prd
+- Update skills
+- Update compozy tasks
+- Update compozy
+- Update compozy
+- Add new skills
+- Archive prd
+- Update prds
+- Update rfc
+- Update prds
+- Update prds
+- Add automation prd
+- Channels prd
+- Update prd
+- Update prd
+- New prds
+- Archive prds
+- Bridges adapters prd
+- Sandbox prd
+- Update
+- Archive prd
+- Update
+- Add new prd
+- New design
+- Update prd
+- Archive prds
+- Update prds
+- Tasks-ui prd tasks
+- Update prd
+- Update design docs
+- Agent capabilities prd
+- Improve site docs
+- Remove old design references
+- Udpate
+- Autonomous prd
+- Update skills
+- Blog design
+- Agent sould prd
+- Final qa plan
+- Update
+- Remove codex ledgers from gitignore
+- Remove not needed files
+- Udpate ledger
+- Update cy-codex-loop skill
+- Orchestration improves prd
+- Update prds
+- Orch improvs prd
+- Memv2 prd
+- Providers model prd
+- Update refacs prd
+- New design proposal
+- Update rules
+- Update skills
+- New blog posts (#173)
+- Format docs
+- Remove old design files
+- Remove old
+- Skeeper update
+
+### 📦 Build System
+
+- Initial structure
+- Commitlint
+- Frontend base structure
+- Update vscode settings
+- Add subagents
+- Coderabbit
+- Prd and tooling
+- Bun lock
+- Lint tooling
+- Copy.md and tooling adjusts
+- Add repoclone rc
+- Upgrade skeeper to v0.2.0
+- Update go.mod
+- Adopt task artifacts into skeeper
+- Sync codex plans with skeeper
+- Skeeper lock
+- Skeeper lock
+- New skills
+- Skeeper lock
+- Skeeper lock
+- Skeeper lock
+- Update deps and go
+- Regenerate daytona sidecar assets for go 1.26.3
+- Fix cliff
+- Ignore docs on fmt
+- Build web assets before goreleaser
+- Extend release dry-run timeout
+
+### 🔧 CI/CD
+
+- Lint errors
+- Fint release pr
+- Fix goreleaser
+- Fix release
+
+### 🧪 Testing
+
+- Add e2e tests (#27)
+- Qa rounds (#78)
+- Improve test suite (#138)
+- Harden daemon-served restart reloads
+- Harden daemon-served readiness waits
+- Stabilize dashboard focus assertion
+- Stabilize release integration gates
+- Stabilize release e2e markers
+- Stabilize release e2e flows

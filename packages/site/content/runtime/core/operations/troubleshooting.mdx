@@ -1,0 +1,259 @@
+---
+title: Troubleshooting
+description: Diagnose and resolve common AGH daemon, socket, agent, session, and database issues.
+---
+
+Use this guide when an operational command fails or the daemon is not behaving as expected. Each
+entry has symptoms, diagnosis, and a resolution path.
+
+<OperatorNote>
+  Start with `agh status`, `agh doctor`, and `$AGH_HOME/logs/agh.log`. Those three surfaces usually
+  tell you whether the failure is process discovery, runtime health, or a deeper startup problem.
+</OperatorNote>
+
+## Daemon reports "already running"
+
+| Field      | What to check                                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | `cli: daemon already running (pid=12345)` or `daemon: already running with pid 12345`.                          |
+| Diagnosis  | The lock file is held by a live process, or `daemon.json` points at a process that is still alive.              |
+| Resolution | Use the existing daemon, or stop it with `agh daemon stop`. Do not remove `daemon.lock` while the PID is alive. |
+
+Inspect the current discovery files:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+agh status
+cat "$AGH_HOME/daemon.json"
+cat "$AGH_HOME/daemon.lock"
+```
+
+If the recorded PID is not alive, a new daemon start should acquire the lock, remove the stale socket
+path, and clean up orphan child processes from the old daemon.
+
+## Detached start times out or exits before readiness
+
+| Field      | What to check                                                                                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | `cli: daemon did not become ready before timeout` or `cli: detached daemon exited before readiness`.                                                                           |
+| Diagnosis  | The detached child failed before `/api/status` became available over UDS. Common causes are invalid config, a port conflict, a socket path conflict, or database open failure. |
+| Resolution | Read the recent log lines, then run foreground mode to see the startup error directly.                                                                                         |
+
+Commands:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+tail -n 120 "$AGH_HOME/logs/agh.log"
+agh daemon start --foreground
+```
+
+Fix the error reported by foreground mode, then start normally:
+
+```bash
+agh daemon start
+```
+
+## AGH refuses an incompatible database
+
+| Field      | What to check                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | A daemon-global refusal stops boot and names `$AGH_HOME/agh.db`. A per-session refusal can instead appear after AGH is ready when `agh session history <id> -o json` or the HTTP/UDS session-history route opens that session's `events.db`.                                                                                       |
+| Diagnosis  | `legacy_database` means the file predates AGH's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global and memory streams, not every lazily opened per-session stream.                       |
+| Resolution | For `schema_ahead`, run a newer compatible AGH binary against the stopped, intact database family—the preferred state-preserving path. For `legacy_database`, cold-move the complete `AGH_HOME` or workspace `.agh` family and select a separate fresh home. Never edit a version table or move one database/sidecar in isolation. |
+
+Stopped-daemon provider-auth, extension, and MCP-auth commands return the same refusal as one structured error
+document under `-o json`. Match `diagnostic.code` as `legacy_database` or `schema_ahead`; the diagnostic evidence
+includes the direct-open surface and canonical offending path.
+
+When a fresh home is the chosen hard-cut path, stop AGH and preserve the complete old home first:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+agh daemon stop
+legacy_home="${AGH_HOME}.pre-goose-$(date +%Y%m%d-%H%M%S)"
+mv "$AGH_HOME" "$legacy_home"
+mkdir -p "$AGH_HOME"
+agh daemon start
+agh status -o json | jq '.daemon.schema_streams'
+```
+
+The final command should report the `global` and `memory` streams with their applied versions and
+schema digests. It does not validate every per-session `events.db`; exercise the affected session-history
+reader separately. Do not copy legacy tables or session directories into the fresh home. Keep
+`$legacy_home` separate for inspection with its matching pre-Goose binary. For `schema_ahead`, keep the
+original home in place and use a newer compatible binary instead of this state-discarding path. See
+[Database Operations](/runtime/core/operations/database) for cold and live backup rules.
+
+## Unix socket cannot be created or opened
+
+| Field      | What to check                                                                                                                                      |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | The daemon fails with `udsapi: existing path ".../daemon.sock" is not a unix socket`, or the CLI cannot connect to the daemon socket.              |
+| Diagnosis  | The configured socket path is occupied by a regular file, or the CLI user cannot read and write the socket. The live socket is chmodded to `0600`. |
+| Resolution | Stop the daemon, move the non-socket file out of the way, and run the daemon and CLI as the same OS user.                                          |
+
+Inspect the socket path:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+socket="$AGH_HOME/daemon.sock"
+
+agh status
+ls -ld "$AGH_HOME" "$(dirname "$socket")"
+ls -l "$socket"
+file "$socket"
+```
+
+If `file "$socket"` shows a regular file and the daemon is stopped, move it aside:
+
+```bash
+mv "$socket" "$socket.stale"
+agh daemon start
+```
+
+If the socket lives outside `AGH_HOME`, confirm the configured `[daemon].socket` path and parent
+directory ownership in [config.toml](/runtime/core/configuration/config-toml).
+
+## HTTP UI or API is unavailable
+
+| Field      | What to check                                                                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | The browser cannot load `http://localhost:2123`, or `curl` cannot connect to the API.                                                                   |
+| Diagnosis  | The daemon is not running, the HTTP port is different, or another process prevented the daemon from binding the configured port.                        |
+| Resolution | Check runtime status for the active HTTP host and port. If startup fails from an HTTP bind error, change `[http].port` or stop the conflicting process. |
+
+Commands:
+
+```bash
+agh status
+curl -s http://localhost:2123/api/status | jq '.daemon'
+```
+
+The default HTTP bind is `localhost:2123`. For local production use, keep the host on `localhost`
+unless you intentionally place AGH behind a protected reverse proxy.
+
+## Agent fails to spawn
+
+| Field      | What to check                                                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | Session creation fails with an ACP subprocess or initialize error. Logs mention `acp: start subprocess`, `initialize session`, `command not found`, or `permission denied`.                      |
+| Diagnosis  | The provider command cannot be parsed or executed, the workspace path is invalid, a bound secret is missing, native provider login is absent, or the upstream ACP runtime failed initialization. |
+| Resolution | Validate the agent definition, provider command, auth mode/status, daemon environment, and workspace paths; then restart or recreate the session.                                                |
+
+Commands:
+
+```bash
+agh agent info <agent-name>
+agh daemon start --foreground
+tail -n 120 "$AGH_HOME/logs/agh.log"
+command -v npx
+command -v codex
+command -v gemini
+```
+
+Agent subprocesses inherit the daemon environment and receive provider credentials from bound
+`credential_slots` only when `auth_mode = "bound_secret"`. If a provider uses an `env:NAME` secret
+ref, set that variable in the shell or service manager that starts the daemon. If it uses a
+`vault:providers/<provider>/<slot>` ref, save the credential through the settings API or web
+provider editor and confirm the provider status reports the credential as present.
+
+Native ACP providers use their own CLI login/session state. Check them with:
+
+```bash
+agh provider auth status <provider>
+agh provider auth login <provider>
+```
+
+`agh provider auth login` requires the provider to define `auth_login_command`. Built-in `claude`,
+`codex`, `opencode`, and `pi` providers define one; for custom native providers, configure the
+command or run the provider's own login command outside AGH. `agh provider auth login` executes the
+configured login command locally by default and attaches the terminal when stdin, stdout, and stderr
+are TTYs, so provider prompts and OAuth URLs stay visible. For isolated provider homes, AGH supplies
+the required environment prefix so native credentials land in AGH's provider home. Use
+`agh provider auth login <provider> --print-command` for one raw copyable shell command without
+executing it, `--no-tty` for deterministic non-interactive runs, and `--timeout` when scripts need a
+bounded attempt. HTTP/UDS and daemon pre-start checks never run login commands; they use
+non-interactive `auth_status_command` probes only.
+
+See [Spawning](/runtime/core/agents/spawning) for the exact launch and ACP negotiation flow.
+
+## Session is stuck after a crash
+
+| Field      | What to check                                                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | A session appears to stay in `starting`, `active`, or `stopping` after a daemon or agent crash.                         |
+| Diagnosis  | The metadata on disk may describe an in-flight state from a previous daemon process.                                    |
+| Resolution | Restart the daemon, then list or inspect the session. AGH repairs stale session metadata during boot and session reads. |
+
+Commands:
+
+```bash
+agh daemon start
+agh session list --all
+agh session status <session-id>
+agh session repair <session-id> --dry-run
+```
+
+The repair rules are:
+
+| Stale state | Repaired state                             |
+| ----------- | ------------------------------------------ |
+| `active`    | `stopped` with stop reason `agent_crashed` |
+| `stopping`  | `stopped` with stop reason `agent_crashed` |
+| `starting`  | `stopped` with stop reason `error`         |
+
+For sessions already stopped with `agent_crashed` or `error`, boot also repairs interrupted
+transcripts by appending terminal repair events. If a transcript or chat replay still shows a
+dangling tool call or streaming assistant message after restart, run:
+
+```bash
+agh session repair <session-id> --dry-run
+agh session repair <session-id>
+```
+
+If resume still fails, check that the workspace directory, agent definition, and
+`$AGH_HOME/sessions/<session-id>/events.db` still exist.
+
+## Database is locked or corrupted
+
+| Field      | What to check                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | SQLite reports `database is locked`, `database disk image is malformed`, or the daemon cannot open `agh.db` or `events.db`.                            |
+| Diagnosis  | A live daemon may still hold the database, a filesystem copy may have missed WAL sidecars, or SQLite classified the database as corrupt.               |
+| Resolution | Stop the daemon. Preserve the complete database family byte-for-byte, diagnose a cold copy, and restore a complete known-good family if it is corrupt. |
+
+Commands:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+agh daemon stop
+sqlite3 -readonly "/path/to/cold-backup/agh.db" "pragma integrity_check;"
+```
+
+AGH does not rename or recreate a database after classifying corruption. For cold backup, family
+preservation, and restore details, see [Database Operations](/runtime/core/operations/database).
+
+## Permission errors in AGH_HOME
+
+| Field      | What to check                                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | Startup logs show errors creating the home layout, lock file, log file, socket parent, or database directory.                  |
+| Diagnosis  | The daemon user does not own `AGH_HOME`, or a service manager starts AGH with a different home path than the CLI.              |
+| Resolution | Use one stable `AGH_HOME`, ensure the daemon user owns it, and run the CLI with the same `AGH_HOME` when managing that daemon. |
+
+Commands:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+ls -ld "$AGH_HOME" "$AGH_HOME/logs" "$AGH_HOME/sessions"
+agh status
+```
+
+For systemd or launchd installs, define `AGH_HOME` in the service environment and keep provider API
+keys in the same environment.
+
+## Related pages
+
+- [Daemon Operations](/runtime/core/operations/daemon) covers lock, socket, logs, and service manager behavior.
+- [Database Operations](/runtime/core/operations/database) covers backup and inspection steps.
+- [Production Checklist](/runtime/core/operations/production) turns these checks into a readiness gate.

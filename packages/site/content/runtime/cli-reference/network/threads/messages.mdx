@@ -1,0 +1,48 @@
+---
+title: "agh network threads messages"
+description: "List messages in one public thread"
+---
+
+## agh network threads messages
+
+List messages in one public thread
+
+```
+agh network threads messages [flags]
+```
+
+### Options
+
+```
+      --after string     Cursor after which to list messages
+      --before string    Cursor before which to list messages
+      --channel string   Target channel
+  -h, --help             help for messages
+      --kind string      Envelope kind filter
+      --limit int        Maximum number of messages to return
+      --thread string    Public thread id
+      --work string      Work id filter
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh network threads messages -o json
+```

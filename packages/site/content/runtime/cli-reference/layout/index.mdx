@@ -1,0 +1,46 @@
+---
+title: "agh layout"
+description: "Inspect, preview, and change workspace layouts"
+---
+
+## agh layout
+
+Inspect, preview, and change workspace layouts
+
+### Options
+
+```
+  -h, --help   help for layout
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                       | Description                                                     |
+| ------------------------------------------------------------- | --------------------------------------------------------------- |
+| [agh layout apply](/runtime/cli-reference/layout/apply)       | Atomically replace topology from a validated layout document    |
+| [agh layout arrange](/runtime/cli-reference/layout/arrange)   | Arrange explicit windows or apply a declarative layout resource |
+| [agh layout balance](/runtime/cli-reference/layout/balance)   | Equalize one split or every split in a group                    |
+| [agh layout export](/runtime/cli-reference/layout/export)     | Export a history-free declarative layout document               |
+| [agh layout get](/runtime/cli-reference/layout/get)           | Get the authoritative topology and revision                     |
+| [agh layout preview](/runtime/cli-reference/layout/preview)   | Preview any semantic window-manager command without writing     |
+| [agh layout redo](/runtime/cli-reference/layout/redo)         | Redo the latest undone layout operation                         |
+| [agh layout resize](/runtime/cli-reference/layout/resize)     | Resize one shared split boundary                                |
+| [agh layout undo](/runtime/cli-reference/layout/undo)         | Undo the latest workspace layout operation                      |
+| [agh layout validate](/runtime/cli-reference/layout/validate) | Validate a declarative layout without writing it                |
+| [agh layout watch](/runtime/cli-reference/layout/watch)       | Watch topology events and optional client presentation frames   |

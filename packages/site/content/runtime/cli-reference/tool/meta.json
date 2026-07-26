@@ -1,0 +1,4 @@
+{
+    "title": "Tool",
+    "pages": ["index", "approve", "info", "invoke", "list", "search", "approvals", "artifact"]
+}

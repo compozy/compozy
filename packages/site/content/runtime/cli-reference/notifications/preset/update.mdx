@@ -1,0 +1,45 @@
+---
+title: "agh notifications preset update"
+description: "Update a notification preset"
+---
+
+## agh notifications preset update
+
+Update a notification preset
+
+```
+agh notifications preset update <name> [flags]
+```
+
+### Options
+
+```
+      --disabled             Mark the preset disabled
+      --enabled              Mark the preset enabled
+      --event stringArray    Replace event patterns; repeat for multiple patterns
+      --filter string        Replace the optional filter expression
+  -h, --help                 help for update
+      --target stringArray   Replace targets using bridge_id:canonical_route
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh notifications preset update <name> -o json
+```

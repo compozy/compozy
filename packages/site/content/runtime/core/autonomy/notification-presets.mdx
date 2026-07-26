@@ -1,0 +1,89 @@
+---
+title: Notification Presets
+description: SQLite-backed notification fanout presets, cursor replay, filters, and bridge suppression.
+---
+
+Notification presets are daemon-owned fanout policies stored in `notification_presets`. They are
+managed through HTTP, UDS, CLI, native tools, and the web settings surface; `config.toml` does not
+define mutable preset rows.
+
+Built-in presets are seeded disabled:
+
+| Preset              | Events                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `task_terminal`     | `task.run_*`                                                                                            |
+| `session_unhealthy` | `session.unhealthy`, `session.hung`, `session.recovered`                                                |
+| `provider_failure`  | `provider.auth_required`, `provider.rate_limited`, `provider.permission_denied`, `provider.unavailable` |
+
+Each built-in carries `default_version`, `default_hash`, `user_modified`, and
+`default_update_available`. Reconciliation updates untouched defaults and reports default drift
+without overwriting operator-modified rows.
+
+## Dispatch Contract
+
+Preset dispatch consumes the canonical event registry. A preset matches when:
+
+1. the event is notification-eligible,
+2. the event type matches one of the preset patterns, and
+3. the filter expression evaluates true.
+
+Filter fields are `severity`, `workspace`, `agent`, `event_type`, `provider`, `task`, and `run`.
+Operators are `=`, `!=`, `>=`, `>`, `<=`, and `<`; expressions support `AND`, `OR`, and
+parentheses.
+
+Suffix wildcards stay inside one public event family. The built-in `task_terminal` preset matches
+notification-eligible task run events such as `task.run_completed`, `task.run_failed`, and
+`task.run_operator_retry`; it does not match session or provider events.
+
+Each concrete target uses a notification cursor:
+
+```text
+preset:<name>:target:<stable_target_hash>
+```
+
+Preset dispatch processes targets sequentially and applies the configured bridge delivery timeout to
+each target. The cursor advances only after confirmed delivery, deterministic skip, or bridge
+suppression. A delivery error records cursor diagnostics and leaves the cursor unchanged so replay can
+retry the same event.
+
+The v1 dispatcher intentionally does not fan out one preset's targets in parallel. This keeps cursor
+ordering deterministic and makes each target's retry point explicit.
+
+Targets use `bridge_id:canonical_route`. The CLI splits on the first colon; everything after that
+first colon is the canonical route, so routes such as `channel:ops` are valid.
+
+## Bridge Suppression
+
+`bridge_instances.notification_suppress` is a live bridge flag. When enabled, preset dispatch treats
+that bridge target as a deterministic skip, advances the target cursor, and performs no outbound
+delivery. This keeps replay monotonic while letting operators suppress a noisy or degraded bridge
+without deleting presets.
+
+Bridge create/update exposes the flag as `--notification-suppress`, and API payloads project the
+same `notification_suppress` field.
+
+## Manage Presets
+
+The CLI group is agent-operable and supports `-o json|jsonl|toon`:
+
+```bash
+agh notifications presets list -o json
+agh notifications preset show task_terminal -o json
+agh notifications preset enable task_terminal --target brg_ops:channel:ops -o json
+agh notifications preset create provider_failures --event provider.* --filter "severity >= warning" -o json
+agh notifications preset disable task_terminal -o json
+agh notifications preset delete provider_failures -o json
+```
+
+HTTP and UDS expose the same CRUD contract:
+
+| Method   | Path                                |
+| -------- | ----------------------------------- |
+| `GET`    | `/api/notifications/presets`        |
+| `POST`   | `/api/notifications/presets`        |
+| `GET`    | `/api/notifications/presets/{name}` |
+| `PUT`    | `/api/notifications/presets/{name}` |
+| `DELETE` | `/api/notifications/presets/{name}` |
+
+See also [Notification Cursors](/runtime/core/autonomy/notification-cursors) for replay and cursor
+diagnostics.

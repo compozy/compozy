@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>r-7c4e19 · Run · AGH</title>
+<style>
+  :root{
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220; --deep:#100f0e;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f; --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.22);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08); --success-line:rgba(95,191,133,.2);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09); --danger-line:rgba(224,99,90,.22);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12); --info-line:rgba(142,142,181,.24);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --av-impl-bg:rgba(168,178,220,.16); --av-impl-fg:#c5cce7;
+    --av-rev-bg:rgba(214,168,192,.18); --av-rev-fg:#e0bcd0;
+    --row-hover:rgba(255,255,255,.022); --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05); --btn-fill:rgba(255,255,255,.04); --bar-fill:rgba(255,255,255,.18);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1); --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit}
+  ::selection{background:var(--accent-tint)}
+  /* content-only reference — the workspace rail + nav panel live in the app shell, not here */
+  .shell{height:100vh}
+
+  /* main */
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:10px;height:48px;padding:0 18px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas)}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb a:hover{color:var(--fg-strong)}
+  .crumb b{color:var(--fg-strong);font-weight:560}
+  .crumb .mono{font-family:var(--font-mono);font-size:12px;color:var(--fg-strong)}
+  .crumb svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .topbar__spacer{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:var(--radius);font-size:12.5px;font-weight:520;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:rgba(255,255,255,.07);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--danger{color:var(--danger)}
+  .btn--danger:hover{background:var(--danger-tint);border-color:var(--danger-line);color:var(--danger)}
+
+  .body{display:grid;grid-template-columns:minmax(0,1fr) 332px;min-height:0;flex:1}
+  .col-main{overflow-y:auto;min-width:0}
+  .col-side{border-left:1px solid var(--line);overflow-y:auto;background:var(--canvas-soft)}
+
+  /* contract header (sticky) */
+  .contract{position:sticky;top:0;z-index:20;background:var(--canvas-soft);border-bottom:1px solid var(--line);padding:18px 30px 16px}
+  .contract__row{display:flex;align-items:flex-start;gap:16px}
+  .contract__title{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:9px;font-size:12.5px;color:var(--subtle)}
+  .contract__title .mono{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+  .contract__title b{color:var(--fg-strong);font-weight:560}
+  .goal{font-size:16px;font-weight:520;letter-spacing:-.016em;color:var(--fg-strong);line-height:1.4;max-width:78ch}
+  .goal code{font-family:var(--font-mono);font-size:14px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 6px;color:var(--fg)}
+  .contract__actions{margin-left:auto;display:flex;gap:8px;flex:none}
+
+  /* run status pill (live) */
+  .runstatus{display:inline-flex;align-items:center;gap:7px;height:22px;padding:0 10px;border-radius:var(--radius-xs);font-size:11.5px;font-weight:560;background:var(--accent-tint);color:var(--accent-strong)}
+  .runstatus .dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 36%,transparent)}55%{box-shadow:0 0 0 4px transparent}}
+  @media (prefers-reduced-motion:reduce){.dot--pulse,.runstatus .dot,.live .d{animation:none}}
+
+  .meters{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:16px}
+  .meter{background:var(--canvas-tint);border:1px solid var(--line-soft);border-radius:var(--radius-md);padding:10px 12px 11px}
+  .meter__top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px;gap:6px}
+  .meter__l{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  .meter__v{font-size:13px;font-weight:600;color:var(--fg-strong);font-variant-numeric:tabular-nums;font-family:var(--font-mono)}
+  .meter__v .max{color:var(--faint);font-weight:500;font-size:11px}
+  .bar{height:3px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
+  .bar__fill{height:100%;border-radius:3px;background:var(--bar-fill);transition:width .8s var(--ease)}
+  .bar__fill--warn{background:var(--warning)}
+  .meter__foot{display:flex;align-items:center;gap:5px;margin-top:8px;flex-wrap:wrap}
+  .mtag{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
+  .mtag--pol{text-transform:none;letter-spacing:.01em}
+
+  /* timeline */
+  .timeline{padding:24px 30px 100px;max-width:960px}
+  .gen{margin-bottom:16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);overflow:hidden}
+  .gen--running{border-color:var(--accent-dim)}
+  .gen__head{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;user-select:none}
+  .gen__head:hover{background:var(--row-hover)}
+  .gen__no{font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--faint);letter-spacing:.04em;width:24px}
+  .gen__title{font-size:13.5px;font-weight:560;color:var(--fg-strong);letter-spacing:-.01em}
+  .gen__sub{font-size:11.5px;color:var(--subtle);margin-top:2px}
+  .gen__spacer{flex:1}
+  .gen__dur{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+  .chev{width:15px;height:15px;color:var(--muted);transition:transform var(--dur)}
+  .gen[data-open="false"] .chev{transform:rotate(-90deg)}
+  .gen[data-open="false"] .gen__body{display:none}
+  .gen__body{padding:6px 18px 18px;border-top:1px solid var(--line-soft)}
+
+  /* status pill (shared) */
+  .pill{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--radius-xs);font-size:11px;font-weight:520;width:max-content}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  /* run vocabulary (11 states) · live: queued | running | watching | needs-approval | paused · terminal: done | no_op | blocked | failed | exhausted | stalled · color carries STATE only; the label disambiguates same-family states */
+  /* live */
+  .pill--queued{background:var(--info-tint);color:var(--info)}
+  .pill--running{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill--watching{background:var(--info-tint);color:var(--info)}
+  .pill--needs-approval{background:var(--warning-tint);color:var(--warning)}
+  .pill--paused{background:var(--neutral-tint);color:var(--muted)}
+  /* terminal */
+  .pill--done,.pill--ok{background:var(--success-tint);color:var(--success)}
+  .pill--no_op{background:var(--neutral-tint);color:var(--muted)}
+  .pill--blocked{background:var(--warning-tint);color:var(--warning)}
+  .pill--failed{background:var(--danger-tint);color:var(--danger)}
+  .pill--exhausted{background:var(--warning-tint);color:var(--warning)}
+  .pill--stalled{background:var(--neutral-tint);color:var(--muted)}
+  .pill .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+
+  /* node spine (flat — no per-node card) */
+  .spine{position:relative;padding-left:28px;margin-top:8px}
+  .spine::before{content:"";position:absolute;left:10px;top:14px;bottom:14px;width:1.5px;background:var(--line-strong)}
+  .node{position:relative;padding:10px 0}
+  .node__dot{position:absolute;left:-23px;top:11px;width:22px;height:22px;border-radius:50%;background:var(--canvas);
+    border:1.5px solid var(--nl,var(--line-strong));display:grid;place-items:center;color:var(--nl,var(--muted));z-index:1}
+  .node__dot svg{width:11px;height:11px}
+  .node__hd{display:flex;align-items:center;gap:10px;min-width:0}
+  .ntype{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);flex:none;background:var(--badge-fill);color:var(--subtle)}
+  .node__label{font-size:13px;font-weight:520;color:var(--fg-strong);letter-spacing:-.01em}
+  .node__kind{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+  .node__spacer{flex:1}
+  .nstat{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:510;color:var(--muted)}
+  .nstat .d{width:6px;height:6px;border-radius:50%;background:var(--c,var(--neutral));flex:none}
+  .nstat .d--ring{background:transparent;border:1.5px solid var(--c)}
+  .nstat .d--pulse{animation:pulse 1.8s var(--ease) infinite;color:var(--c)}
+  .node__dur{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);margin-left:8px}
+  .node__out{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.5}
+  .node__out .mono{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .logbtn{margin-top:8px;font-size:11px;color:var(--subtle);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .logbtn:hover{color:var(--fg)}
+  .logbtn svg{width:11px;height:11px;transition:transform var(--dur)}
+  .node__card[data-open="true"] .logbtn svg{transform:rotate(90deg)}
+  .reveal{margin-top:9px;display:none}
+  .node__card[data-open="true"] .reveal{display:block}
+  pre.log{font-family:var(--font-mono);font-size:11px;line-height:1.6;color:var(--muted);background:var(--deep);border:1px solid var(--line-soft);border-radius:var(--radius);padding:10px 12px;white-space:pre-wrap;max-height:200px;overflow:auto}
+  pre.log .c{color:var(--faint)}
+
+  /* fan-out branches */
+  .fan{margin-top:10px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .branch{border:1px solid var(--line-soft);border-radius:var(--radius-sm);background:var(--canvas-tint);padding:9px 11px}
+  .branch--fail{border-color:var(--danger-line)}
+  .branch__hd{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg)}
+  .branch__hd .ix{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .branch__sub{margin-top:4px;font-size:11px;color:var(--subtle);line-height:1.45}
+  .branch__sub code{font-family:var(--font-mono);color:var(--muted)}
+
+  /* gate card — flat tint, full border, no side-stripe, no gradient */
+  .gate{margin-top:9px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-tint);padding:11px 13px}
+  .gate--pass{background:var(--success-tint);border-color:var(--success-line)}
+  .gate--fail{background:var(--danger-tint);border-color:var(--danger-line)}
+  .gate__verdict{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:560;color:var(--fg-strong)}
+  .gate--pass .gate__verdict{color:var(--success)}
+  .gate--fail .gate__verdict{color:var(--danger)}
+  .gate__verdict svg{width:14px;height:14px;flex:none}
+  .gate__reason{margin-top:6px;font-size:12px;color:var(--muted);line-height:1.5}
+  .gate__reason code{font-family:var(--font-mono);font-size:11px;color:var(--fg)}
+  .gate__sect{margin-top:10px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  .gate__rows{margin-top:4px}
+  .gate__row{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line-soft);font-size:11.5px;min-width:0}
+  .gate__row:first-child{border-top:0}
+  .gate__row .cid{font-family:var(--font-mono);font-size:11px;color:var(--fg);flex:none}
+  .gate__row .ctype{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .gate__row .inote{color:var(--muted);min-width:0;line-height:1.45}
+  .gate__row .inote code{font-family:var(--font-mono);font-size:10.5px;color:var(--fg)}
+  .gate__row .nstat{margin-left:auto;flex:none}
+  .gate__route{margin-top:9px;display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--subtle);background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-sm);padding:5px 9px}
+  .gate__route svg{width:12px;height:12px}
+  .gate__route b{color:var(--accent-strong);font-weight:560}
+
+  /* embedded channel */
+  .channel{margin-top:10px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--deep);overflow:hidden}
+  .channel__hd{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line-soft);font-size:11.5px;color:var(--subtle)}
+  .channel__hd svg{width:13px;height:13px}
+  .channel__hd .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .live{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--accent-strong);font-weight:560}
+  .live .d{width:5px;height:5px;border-radius:50%;background:currentColor;animation:pulse 1.8s var(--ease) infinite}
+  .msg{display:flex;gap:9px;padding:10px 12px}
+  .msg+.msg{border-top:1px solid var(--line-soft)}
+  .msg__av{width:22px;height:22px;border-radius:6px;flex:none;display:grid;place-items:center;font-size:9.5px;font-weight:700}
+  .msg__av--impl{background:var(--av-impl-bg);color:var(--av-impl-fg)}
+  .msg__av--rev{background:var(--av-rev-bg);color:var(--av-rev-fg)}
+  .msg__av--dec{background:var(--success-tint);color:var(--success)}
+  .msg__body{min-width:0}
+  .msg__who{font-size:11.5px;font-weight:600;color:var(--fg);margin-bottom:3px}
+  .msg__who .role{font-weight:500;color:var(--faint);font-size:10.5px;margin-left:6px}
+  .msg__txt{font-size:12px;color:var(--muted);line-height:1.5}
+  .msg__txt code{font-family:var(--font-mono);font-size:11px;color:var(--fg)}
+  .msg--decision .msg__txt{color:var(--fg);background:var(--success-tint);border:1px solid var(--success-line);border-radius:var(--radius);padding:8px 10px}
+  .msg--decision .msg__txt b{color:var(--success);font-weight:600}
+
+  /* approval gate — flat info tint */
+  .approve{border:1px solid var(--info-line);border-radius:var(--radius-lg);background:var(--info-tint);padding:15px 16px}
+  .approve__top{display:flex;align-items:center;gap:9px;margin-bottom:8px;flex-wrap:wrap}
+  .approve__tag{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:var(--radius-xs);background:var(--info-tint);color:var(--info);border:1px solid var(--info-line)}
+  .approve__title{font-size:14px;font-weight:560;color:var(--fg-strong)}
+  .approve__title code{font-family:var(--font-mono);font-size:13px;color:var(--fg)}
+  .approve__body{font-size:12.5px;color:var(--muted);line-height:1.55;max-width:68ch}
+  .approve__body b{color:var(--info);font-weight:560}
+  .approve__facts{display:flex;gap:24px;margin:13px 0 14px;flex-wrap:wrap}
+  .fact{display:flex;flex-direction:column;gap:3px}
+  .fact__l{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+  .fact__v{font-size:12.5px;color:var(--fg);font-weight:510}
+  .fact__v.mono{font-family:var(--font-mono);font-size:11.5px}
+  .approve__acts{display:flex;gap:8px;flex-wrap:wrap}
+  .abtn{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 14px;border-radius:var(--radius);font-size:12.5px;font-weight:540;cursor:pointer;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .abtn svg{width:14px;height:14px}
+  .abtn:hover{background:rgba(255,255,255,.07);border-color:var(--line-strong);color:var(--fg-strong)}
+  .abtn--approve{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .abtn--approve:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .abtn--reject{color:var(--danger)}
+  .abtn--reject:hover{background:var(--danger-tint);border-color:var(--danger-line);color:var(--danger)}
+
+  /* right rail */
+  .rail-sec{padding:18px 18px 16px;border-bottom:1px solid var(--line-soft)}
+  .rail-sec:last-child{border-bottom:0}
+  .rail-sec__t{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:12px;display:flex;align-items:center;gap:7px}
+  .ev{font-family:var(--font-mono);font-size:11px;line-height:1.5;display:grid;grid-template-columns:38px 92px 1fr;gap:8px;padding:3px 0}
+  .ev__t{color:var(--faint)}
+  .ev__k{color:var(--subtle)}
+  .ev__k.ok{color:var(--success)}.ev__k.err{color:var(--danger)}.ev__k.warn{color:var(--warning)}
+  .ev__m{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fctrow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;font-size:12px;border-top:1px solid var(--line-soft)}
+  .fctrow:first-child{border-top:0}
+  .fctrow .k{color:var(--subtle)}
+  .fctrow .v{color:var(--fg);font-weight:510;text-align:right}
+  .fctrow .v.mono{font-family:var(--font-mono);font-size:11px}
+  .legend{display:flex;flex-direction:column;gap:9px}
+  .legend__i{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--muted)}
+  .legend__i .d{width:7px;height:7px;border-radius:50%;flex:none}
+  .legend__i b{color:var(--fg);font-weight:510;font-size:12px}
+  .legend__i span{color:var(--faint);margin-left:auto;font-size:10.5px}
+  .legend__g{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-top:4px}
+  .legend__g:first-child{margin-top:0}
+  /* compact terminal outcome banners · flat tint, full border, no side-stripe (same pattern as .gate) */
+  .oband{display:flex;align-items:flex-start;gap:9px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-tint);padding:10px 12px}
+  .oband+.oband{margin-top:8px}
+  .oband__dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none;margin-top:5px}
+  .oband__txt{font-size:11.5px;line-height:1.5;color:var(--muted)}
+  .oband__txt b{display:block;font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.02em;margin-bottom:1px}
+  .oband--no_op{background:var(--neutral-tint);color:var(--muted)}
+  .oband--no_op .oband__txt b{color:var(--muted)}
+  .oband--blocked{background:var(--warning-tint);color:var(--warning)}
+  .oband--blocked .oband__txt b{color:var(--warning)}
+
+  @media(max-width:1180px){.body{grid-template-columns:1fr}.col-side{display:none}.meters{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:920px){.fan{grid-template-columns:1fr}.contract{padding:16px 18px}.timeline{padding:18px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <header class="topbar">
+      <nav class="crumb">
+        <a href="loops-catalog.html">Loops</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <a href="loop-detail.html">reviews-watch</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <b class="mono">r-7c4e19</b>
+      </nav>
+      <div class="topbar__spacer"></div>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M8 6.5l8 4.2M8 17.5l8-4.2"/></svg>Graph view</button>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>DSL</button>
+    </header>
+
+    <div class="body">
+      <div class="col-main">
+        <!-- CONTRACT HEADER -->
+        <div class="contract">
+          <div class="contract__row">
+            <div style="min-width:0">
+              <div class="contract__title">
+                <span class="runstatus"><span class="dot"></span>Running</span>
+                <span>Generation <b id="genNo">2</b> · failed-only re-attempt · until-clean <span class="mono">∞</span></span>
+                <span class="mono">watching PR #128 · started 22m ago · start trigger · on hook.pr.opened</span>
+              </div>
+              <div class="goal">Zero unresolved CodeRabbit threads on PR <code>#128</code> for a review of the current HEAD.</div>
+            </div>
+            <div class="contract__actions">
+              <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>Pause</button>
+              <button class="btn btn--danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>Stop run</button>
+            </div>
+          </div>
+
+          <div class="meters">
+            <div class="meter">
+              <div class="meter__top"><span class="meter__l">Generations</span><span class="meter__v">2<span class="max"> / ∞</span></span></div>
+              <div class="meter__foot"><span class="mtag">Unbounded</span><span class="mtag mtag--pol">until-clean · cap via loop_config</span></div>
+            </div>
+            <div class="meter">
+              <div class="meter__top"><span class="meter__l">Tokens</span><span class="meter__v" id="tokV">268K<span class="max"> / 1.5M</span></span></div>
+              <div class="bar"><div class="bar__fill" id="tokBar" style="width:18%"></div></div>
+              <div class="meter__foot"><span class="mtag">Enforced</span><span class="mtag mtag--pol">on_exceeded: escalate → needs-approval</span></div>
+            </div>
+            <div class="meter">
+              <div class="meter__top"><span class="meter__l">Wall clock</span><span class="meter__v" id="wallV">22m<span class="max"> / 45m</span></span></div>
+              <div class="bar"><div class="bar__fill" id="wallBar" style="width:49%"></div></div>
+              <div class="meter__foot"><span class="mtag">Enforced</span><span class="mtag mtag--pol">on_exceeded: escalate → needs-approval</span></div>
+            </div>
+            <div class="meter">
+              <div class="meter__top"><span class="meter__l">Cost</span><span class="meter__v" id="costV">$1.12</span></div>
+              <div class="meter__foot"><span class="mtag">Display-only</span><span class="mtag mtag--pol">estimate · tokens × price</span></div>
+            </div>
+            <div class="meter">
+              <div class="meter__top"><span class="meter__l">Breadth</span><span class="meter__v">3<span class="max"> / 64</span></span></div>
+              <div class="bar"><div class="bar__fill" style="width:5%"></div></div>
+              <div class="meter__foot"><span class="mtag">batches · this tick</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TIMELINE -->
+        <div class="timeline">
+
+          <!-- GENERATION 1 -->
+          <section class="gen" data-open="true">
+            <header class="gen__head" onclick="toggleGen(this)">
+              <span class="gen__no">G1</span>
+              <div>
+                <div class="gen__title">Generation 1</div>
+                <div class="gen__sub">watch tick · CodeRabbit review of HEAD · verify verdict revise → re-attempted in G2</div>
+              </div>
+              <span class="gen__spacer"></span>
+              <span class="pill pill--done"><span class="dot"></span>completed</span>
+              <span class="gen__dur">11m 47s</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </header>
+            <div class="gen__body">
+              <div class="spine">
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--success)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="node__card" data-open="false">
+                    <div class="node__hd"><span class="ntype">source</span><span class="node__label">new_review</span><span class="node__kind">watch-source</span><span class="node__spacer"></span><span class="nstat"><span class="d" style="--c:var(--success)"></span>succeeded</span><span class="node__dur">0.6s</span></div>
+                    <div class="node__out">A fresh <span class="mono">coderabbitai[bot]</span> review of the current HEAD woke this tick. Spec kind <span class="mono">coderabbit_pr_review</span> · pr <span class="mono">{{ .inputs.pr }}</span> · provider head SHA matched local HEAD before waking.</div>
+                    <span class="logbtn" onclick="toggleLog(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>View watch cycle</span>
+                    <div class="reveal"><pre class="log"><span class="c"># watch-source poll → ready → settle → confirm (ADR-016)</span>
+poll     every {{ .inputs.poll_interval }} (30s)   gh api PR head SHA + reviews
+ready    current_review_of_head                    latest review current_reviewed AND head==HEAD
+settle   {{ .inputs.quiet_period }} (20s)          quiet period from the provider signal
+confirm  re-check ready + head-match               woke generation · review 4f9c2a1</pre></div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--success)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="node__card">
+                    <div class="node__hd"><span class="ntype">action</span><span class="node__label">fetch_issues</span><span class="node__kind">ext__coderabbit__fetch_unresolved</span><span class="node__spacer"></span><span class="nstat"><span class="d" style="--c:var(--success)"></span>succeeded</span><span class="node__dur">2.1s</span></div>
+                    <div class="node__out">Fetched <b>24</b> unresolved <span class="mono">coderabbitai[bot]</span> threads (resolved threads vanish from the next fetch). params <span class="mono">{ pr: {{ .inputs.pr }} }</span> → produces <span class="mono">{{ .nodes.fetch_issues.output.issues }}</span>.</div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--warning)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3z"/></svg></span>
+                  <div class="node__card">
+                    <div class="node__hd"><span class="ntype">control · fan-out</span><span class="node__label">fix_batches</span><span class="node__kind">×3 batches · batch_size 10 · seq</span><span class="node__spacer"></span><span class="nstat"><span class="d" style="--c:var(--warning)"></span>2 ok · 1 failed</span><span class="node__dur">8m 52s</span></div>
+                    <div class="node__out">Fixed-size chunks in fetch order over <span class="mono">{{ .nodes.fetch_issues.output.issues }}</span> · <span class="mono">batch_size 10</span> (items per session) · <span class="mono">max_parallel 1</span> (sequential branches) · <span class="mono">max_fan_out 64</span> (branch ceiling). One <span class="mono">run-agent</span> session remediates one chunk.</div>
+                    <div class="fan">
+                      <div class="branch"><div class="branch__hd"><span class="ix">b1</span><span class="nstat"><span class="d" style="--c:var(--success)"></span></span>batch 1 · issues 001–010 · 10 issues</div><div class="branch__sub">all 10 handled · triage + fix, tests in the diff</div></div>
+                      <div class="branch"><div class="branch__hd"><span class="ix">b2</span><span class="nstat"><span class="d" style="--c:var(--success)"></span></span>batch 2 · issues 011–020 · 10 issues</div><div class="branch__sub">all 10 handled · 3 documented invalid, 7 fixed</div></div>
+                      <div class="branch branch--fail"><div class="branch__hd"><span class="ix">b3</span><span class="nstat"><span class="d" style="--c:var(--danger)"></span></span>batch 3 · issues 021–024 · 4 issues</div><div class="branch__sub">2 issues left unhandled → all-or-nothing, the whole batch fails</div></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--success)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="node__card">
+                    <div class="node__hd"><span class="ntype">control</span><span class="node__label">collect_fixes</span><span class="node__kind">join · 3 branches</span><span class="node__spacer"></span><span class="nstat"><span class="d" style="--c:var(--success)"></span>joined</span><span class="node__dur">0.2s</span></div>
+                    <div class="node__out">Flattened the per-batch harvests into <span class="mono">{{ .nodes.collect_fixes.output.results }}</span> (one entry per issue).</div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--danger)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+                  <div class="node__card">
+                    <div class="node__hd"><span class="ntype">control · gate</span><span class="node__label">verify</span><span class="node__kind">1 criterion · revise_until_clean</span><span class="node__spacer"></span><span class="nstat"><span class="d" style="--c:var(--danger)"></span>verdict: revise</span><span class="node__dur">28s</span></div>
+                    <div class="gate gate--fail">
+                      <div class="gate__verdict"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Verdict: revise · confidence 0.91</div>
+                      <div class="gate__sect">Criteria</div>
+                      <div class="gate__rows">
+                        <div class="gate__row"><span class="cid">all_issues_handled</span><span class="ctype">agent-judge</span><span class="inote">agent <code>reviewer</code> · every fetched issue needs a triage decision and every <code>valid</code> issue a tested fix</span><span class="nstat"><span class="d" style="--c:var(--danger)"></span>revise</span></div>
+                      </div>
+                      <div class="gate__sect">Blocking issues</div>
+                      <div class="gate__rows">
+                        <div class="gate__row"><span class="cid">issue_022</span><span class="inote">no triage decision in the batch 3 harvest · <code>internal/store/query.go:118</code></span></div>
+                        <div class="gate__row"><span class="cid">issue_024</span><span class="inote">triaged <code>valid</code> but no fix landed in the diff · <code>internal/store/query.go:203</code></span></div>
+                      </div>
+                      <div class="gate__reason">A batch with unhandled ids is a failed batch. Batches 1 and 2 (issues 001–020) are accepted and carried forward. The stall detector compares these <code>blocking_issue</code> ids across generations; no-progress window 1 of 2.</div>
+                      <div class="gate__route"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>Routed to <b>revise</b> → failed-only re-run of batch 3 in Generation 2. On pass the gate routes to <b>resolve_threads</b>.</div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </section>
+
+          <!-- GENERATION 2 — running -->
+          <section class="gen gen--running" data-open="true">
+            <header class="gen__head" onclick="toggleGen(this)">
+              <span class="gen__no">G2</span>
+              <div>
+                <div class="gen__title">Generation 2</div>
+                <div class="gen__sub">failed-only re-attempt · 2 batches carried forward · batch 3 active</div>
+              </div>
+              <span class="gen__spacer"></span>
+              <span class="pill pill--running"><span class="dot dot--pulse"></span>running</span>
+              <span class="gen__dur">4m 09s</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </header>
+            <div class="gen__body">
+              <div class="spine">
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--success)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg></span>
+                  <div class="node__card">
+                    <div class="node__hd"><span class="ntype">carry-forward</span><span class="node__label">2 batches reused</span><span class="node__kind">read-only</span><span class="node__spacer"></span><span class="nstat"><span class="d" style="--c:var(--success)"></span>reused</span><span class="node__dur">0.1s</span></div>
+                    <div class="node__out">batch 1 and batch 2 (issues 001–020, all handled) carried from G1, skipped and injected as read-only inputs. Only failed batches re-run.</div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg></span>
+                  <div class="node__card">
+                    <div class="node__hd"><span class="ntype">action</span><span class="node__label">fix_batch · batch 3</span><span class="node__kind">run-agent · review_fixer</span><span class="node__spacer"></span><span class="nstat"><span class="d d--pulse" style="--c:var(--accent)"></span>running</span><span class="node__dur">4m 05s</span></div>
+                    <div class="node__out">Re-remediating the 4 issues of <span class="mono">batch 3 · issues 021–024</span> in one <span class="mono">run-agent</span> session, agent <span class="mono">{{ .inputs.fixer }}</span>, iterating <span class="mono">{{ range .item }}</span> over the batch. Contract per issue: triage <span class="mono">valid</span>/<span class="mono">invalid</span>, then fix valid ones with tests. The loop owns provider-side resolution, so the fixer never calls <span class="mono">gh</span> mutations.</div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--neutral)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg></span>
+                  <div class="node__card" style="opacity:.65">
+                    <div class="node__hd"><span class="ntype">control</span><span class="node__label">collect_fixes</span><span class="node__kind">join · results[]</span><span class="node__spacer"></span><span class="nstat"><span class="d d--ring" style="--c:var(--neutral)"></span>pending</span></div>
+                    <div class="node__out">Join barrier. Flattens the per-batch harvests into <span class="mono">{{ .nodes.collect_fixes.output.results }}</span> once batch 3 terminalizes.</div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--neutral)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg></span>
+                  <div class="node__card" style="opacity:.65">
+                    <div class="node__hd"><span class="ntype">control · gate</span><span class="node__label">verify</span><span class="node__kind">1 criterion · revise_until_clean</span><span class="node__spacer"></span><span class="nstat"><span class="d d--ring" style="--c:var(--neutral)"></span>pending</span></div>
+                    <div class="node__out">Re-judges <span class="mono">all_issues_handled</span> across every batch (agent <span class="mono">reviewer</span>). A judge criterion is required for <span class="mono">revise_until_clean</span>; on pass it routes to <span class="mono">resolve_threads</span>, on fail to the next generation (failed-only).</div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--neutral)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg></span>
+                  <div class="node__card" style="opacity:.65">
+                    <div class="node__hd"><span class="ntype">action</span><span class="node__label">resolve_threads</span><span class="node__kind">ext__coderabbit__resolve_threads</span><span class="node__spacer"></span><span class="nstat"><span class="d d--ring" style="--c:var(--neutral)"></span>pending</span></div>
+                    <div class="node__out">Tool action, never the fixer. Resolves the CodeRabbit <span class="mono">provider_ref</span>s whose harvest says <span class="mono">fixed</span> or <span class="mono">documented</span> (GraphQL). params <span class="mono">{ pr: {{ .inputs.pr }}, results: {{ .nodes.collect_fixes.output.results }} }</span>.</div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--neutral)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg></span>
+                  <div class="node__card" style="opacity:.65">
+                    <div class="node__hd"><span class="ntype">control · branch</span><span class="node__label">should_push</span><span class="node__kind">condition · CEL</span><span class="node__spacer"></span><span class="nstat"><span class="d d--ring" style="--c:var(--neutral)"></span>pending</span></div>
+                    <div class="node__out">CEL condition <span class="mono">inputs.auto_push</span>. This run bound <span class="mono">auto_push: true</span>, so the true edge runs <span class="mono">push_changes</span>; a false edge would end the generation.</div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--neutral)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg></span>
+                  <div class="node__card" style="opacity:.65">
+                    <div class="node__hd"><span class="ntype">action</span><span class="node__label">push_changes</span><span class="node__kind">ext__git__push</span><span class="node__spacer"></span><span class="nstat"><span class="d d--ring" style="--c:var(--neutral)"></span>pending</span></div>
+                    <div class="node__out">True edge only. params <span class="mono">{ remote: {{ .inputs.push_remote }}, require_head_advanced: true }</span>. The HEAD-advance guard re-arms CodeRabbit to review the new HEAD, which wakes the next watch tick.</div>
+                  </div>
+                </div>
+
+                <div class="node">
+                  <span class="node__dot" style="--nl:var(--info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>
+                  <div class="node__card">
+                    <div class="node__hd"><span class="ntype">source</span><span class="node__label">new_review</span><span class="node__kind">watch-source · next tick</span><span class="node__spacer"></span><span class="nstat"><span class="d d--pulse" style="--c:var(--info)"></span>watching</span></div>
+                    <div class="node__out">After <span class="mono">push_changes</span> advances HEAD, the source re-arms: poll every 30s, settle 20s, confirm, then wake generation 3. Between ticks the run status is <span class="mono">watching</span>, a live state, not a terminal one. <span class="mono">stop_when</span> ends the run <span class="mono">done</span> when a fresh review reports zero unresolved threads.</div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </div>
+
+      <!-- COL SIDE -->
+      <aside class="col-side">
+        <div class="rail-sec">
+          <div class="rail-sec__t">Live events<span class="live"><span class="d"></span>streaming</span></div>
+          <div id="evlog">
+            <div class="ev"><span class="ev__t">14:38</span><span class="ev__k">node_running</span><span class="ev__m">fix_batch · batch 3 · gen 2</span></div>
+            <div class="ev"><span class="ev__t">14:36</span><span class="ev__k warn">generation_started</span><span class="ev__m">gen 2 · failed-only</span></div>
+            <div class="ev"><span class="ev__t">14:36</span><span class="ev__k err">gate_verdict</span><span class="ev__m">verify → revise · 2 blocking issues</span></div>
+            <div class="ev"><span class="ev__t">14:35</span><span class="ev__k err">node_failed</span><span class="ev__m">fix_batch · batch 3 [b3]</span></div>
+            <div class="ev"><span class="ev__t">14:31</span><span class="ev__k ok">node_succeeded</span><span class="ev__m">fix_batch · batch 2 [b2]</span></div>
+            <div class="ev"><span class="ev__t">14:28</span><span class="ev__k ok">node_succeeded</span><span class="ev__m">fix_batch · batch 1 [b1]</span></div>
+            <div class="ev"><span class="ev__t">14:27</span><span class="ev__k ok">node_succeeded</span><span class="ev__m">fetch_issues → 24 issues</span></div>
+            <div class="ev"><span class="ev__t">14:26</span><span class="ev__k ok">watch_wake</span><span class="ev__m">new_review · review of HEAD</span></div>
+          </div>
+        </div>
+
+        <div class="rail-sec">
+          <div class="rail-sec__t">Run facts</div>
+          <div class="fctrow"><span class="k">Loop</span><span class="v">reviews-watch</span></div>
+          <div class="fctrow"><span class="k">Revision</span><span class="v mono">v3 · pinned</span></div>
+          <div class="fctrow"><span class="k">Re-attempt</span><span class="v">failed-only</span></div>
+          <div class="fctrow"><span class="k">Start</span><span class="v">trigger · on hook.pr.opened</span></div>
+          <div class="fctrow"><span class="k">PR</span><span class="v mono">#128</span></div>
+          <div class="fctrow"><span class="k">Provider</span><span class="v mono">coderabbit</span></div>
+          <div class="fctrow"><span class="k">Concurrency</span><span class="v mono">forbid</span></div>
+          <div class="fctrow"><span class="k">Workspace</span><span class="v">home</span></div>
+          <div class="fctrow"><span class="k">Run ID</span><span class="v mono">r-7c4e19</span></div>
+        </div>
+
+        <div class="rail-sec">
+          <div class="rail-sec__t">Run statuses · 11</div>
+          <div class="legend">
+            <div class="legend__g">Live</div>
+            <div class="legend__i"><span class="d" style="background:var(--info)"></span><b>queued</b><span>deferred start</span></div>
+            <div class="legend__i"><span class="d" style="background:var(--accent)"></span><b>running</b><span>generation active</span></div>
+            <div class="legend__i"><span class="d" style="background:var(--info)"></span><b>watching</b><span>awaiting next tick</span></div>
+            <div class="legend__i"><span class="d" style="background:var(--warning)"></span><b>needs-approval</b><span>live pause</span></div>
+            <div class="legend__i"><span class="d" style="background:transparent;border:1.5px solid var(--neutral)"></span><b>paused</b><span>operator suspended</span></div>
+            <div class="legend__g">Terminal</div>
+            <div class="legend__i"><span class="d" style="background:var(--success)"></span><b>done</b><span>goal verified</span></div>
+            <div class="legend__i"><span class="d" style="background:var(--muted)"></span><b>no_op</b><span>ran, nothing to do</span></div>
+            <div class="legend__i"><span class="d" style="background:transparent;border:1.5px solid var(--warning)"></span><b>blocked</b><span>external dependency</span></div>
+            <div class="legend__i"><span class="d" style="background:var(--danger)"></span><b>failed</b><span>unrecoverable error</span></div>
+            <div class="legend__i"><span class="d" style="background:var(--warning)"></span><b>exhausted</b><span>limit reached</span></div>
+            <div class="legend__i"><span class="d" style="background:var(--muted)"></span><b>stalled</b><span>no progress</span></div>
+          </div>
+          <div style="margin-top:10px;font-size:10.5px;color:var(--faint);line-height:1.5"><span style="font-family:var(--font-mono)">queued</span> appears as a run status only for a deferred start under <span style="font-family:var(--font-mono)">concurrency: queue</span>; this loop declares <span style="font-family:var(--font-mono)">forbid</span>, so a second start returns 409.</div>
+        </div>
+
+        <div class="rail-sec">
+          <div class="rail-sec__t">Per-node await (illustrative)</div>
+          <div class="branch">
+            <div class="branch__hd" style="flex-wrap:wrap;gap:6px 8px;justify-content:space-between"><span style="display:inline-flex;align-items:center;gap:8px"><span class="ntype">action · run-loop</span><span class="node__label" style="font-size:12px">child_delivery</span></span><span class="nstat"><span class="d d--ring d--pulse" style="--c:var(--info)"></span>awaiting_child</span></div>
+            <div class="branch__sub">kind <code>run-loop</code>, parked while a child loop run finishes. Non-terminal; the parent resumes on the child's terminal outcome. reviews-watch itself has no run-loop node, this illustrates the per-node state.</div>
+            <a class="logbtn" href="run-detail.html" style="margin-top:8px">child run r-3d9f1a ↗</a>
+          </div>
+          <div style="margin-top:10px;font-size:10.5px;color:var(--faint);line-height:1.5"><span style="font-family:var(--font-mono)">ready</span> and <span style="font-family:var(--font-mono)">awaiting_child</span> are per-node states, never run statuses.</div>
+        </div>
+
+        <div class="rail-sec">
+          <div class="rail-sec__t">Terminal banner variants</div>
+          <div class="oband oband--no_op"><span class="oband__dot"></span><div class="oband__txt"><b>no_op</b>A watch tick with nothing new. The fetch returned zero unresolved threads on a capped tick; no fake work is reported.</div></div>
+          <div class="oband oband--blocked"><span class="oband__dot"></span><div class="oband__txt"><b>blocked</b>Blocked on an external dependency. Fix the environment and re-run; distinct from stalled.</div></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleGen(h){var g=h.closest('.gen');g.setAttribute('data-open',g.getAttribute('data-open')==='true'?'false':'true');}
+  function toggleLog(b){var c=b.closest('.node__card');c.setAttribute('data-open',c.getAttribute('data-open')==='true'?'false':'true');}
+
+  /* gentle live simulation — nudge meters + prepend an event line */
+  (function(){
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var tok=268, wall=22*60, cost=1.12, i=0;
+    var evlog=document.getElementById('evlog');
+    var samples=[
+      ['','node_running','fix_batch · batch 3 · gen 2'],
+      ['ok','token_tick','+8.2K tokens · gen 2'],
+      ['warn','progress','last_progress_at advanced'],
+      ['ok','watch_settle','quiet period 20s · confirm']
+    ];
+    function two(n){return (n<10?'0':'')+n;}
+    setInterval(function(){
+      tok += Math.round(6+Math.random()*8); wall += 5; cost += 0.03+Math.random()*0.02;
+      document.getElementById('tokV').innerHTML = tok+'K<span class="max"> / 1.5M</span>';
+      document.getElementById('tokBar').style.width = Math.min(99,(tok/1500*100)).toFixed(1)+'%';
+      var m=Math.floor(wall/60);
+      document.getElementById('wallV').innerHTML = m+'m<span class="max"> / 45m</span>';
+      var wb=document.getElementById('wallBar'); var wp=Math.min(99,(wall/2700*100));
+      wb.style.width = wp.toFixed(1)+'%'; wb.classList.toggle('bar__fill--warn', wp>75);
+      document.getElementById('costV').textContent = '$'+cost.toFixed(2);
+      var s=samples[i%samples.length]; i++;
+      var row=document.createElement('div'); row.className='ev';
+      row.innerHTML='<span class="ev__t">14:'+two(39+(i%9))+'</span><span class="ev__k '+s[0]+'">'+s[1]+'</span><span class="ev__m">'+s[2]+'</span>';
+      evlog.insertBefore(row, evlog.firstChild);
+      while(evlog.children.length>14) evlog.removeChild(evlog.lastChild);
+    }, 3200);
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+[extension]
+name = "__EXTENSION_NAME__"
+version = "0.1.0"
+description = "AGH hook extension scaffold"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["prompt.provider"]
+
+[[resources.hooks]]
+name = "__EXTENSION_NAME__"
+event = "prompt.post_assemble"
+mode = "sync"
+
+[resources.hooks.executor]
+kind = "subprocess"
+command = "node"
+args = ["dist/index.js"]
+
+[subprocess]
+command = "node"
+args = ["dist/index.js"]
+
+[security]
+capabilities = ["message.read", "message.write"]

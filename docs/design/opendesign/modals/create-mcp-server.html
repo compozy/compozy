@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGH · Add MCP server</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body>
+
+<div class="product" aria-hidden="true">
+  <aside class="product__rail"><div class="product__mark"></div><div class="product__mark"></div><div class="product__mark"></div></aside>
+  <div class="product__main">
+    <div class="product__title"></div><div class="product__sub"></div>
+    <div class="product__grid"><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i></div>
+  </div>
+</div>
+
+<div class="scrim">
+  <form class="dialog" role="dialog" aria-modal="true" aria-label="Create MCP server" data-od-component="dialog" data-success="MCP server is ready to add." data-od-id="mcp-create-dialog">
+
+    <!-- HEADER -->
+    <header class="dialog__head" data-od-id="mcp-create-header">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></div>
+      <div class="head-copy">
+        <div class="eyebrow">System · MCP server</div>
+        <h1 data-od-id="mcp-create-title">Add MCP server</h1>
+        <p>An MCP server gives agents extra <b>tools and resources</b> — a local process or a remote endpoint. Environment secrets stay write-only.</p>
+      </div>
+      <button class="icon-button" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- MODE TOOLBAR -->
+    <div class="modebar" data-od-id="mcp-create-modebar">
+      <div class="pillgroup" role="group" aria-label="Editor mode">
+        <button class="pill" type="button" data-mode="simple" aria-pressed="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M5 12l4-4M5 12l4 4"/></svg>
+          Simple
+        </button>
+        <button class="pill" type="button" data-mode="advanced" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          Advanced
+        </button>
+      </div>
+      <div class="modebar__spacer"></div>
+      <span class="modebar__label">Scope</span>
+      <div class="pillgroup" data-pillgroup="mcp-scope" aria-label="Scope" data-od-component="scope-selector">
+        <button class="pill" type="button" data-value="global">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+          Global
+        </button>
+        <button class="pill" type="button" data-value="workspace" aria-pressed="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>
+          Workspace
+        </button>
+      </div>
+      <div data-conditional="mcp-scope" data-match="workspace">
+        <button class="command-select" type="button" aria-label="Workspace: agh-core" aria-controls="mcp-workspace-popover" data-component-trigger="command-select" data-od-component="workspace-select" data-od-id="mcp-workspace-select"><span class="command-select__avatar" aria-hidden="true">A</span><span class="command-select__copy"><strong data-component-value>agh-core</strong></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+      </div>
+    </div>
+
+    <!-- BODY -->
+    <div class="dialog__body">
+
+      <!-- 01 · connection -->
+      <div class="sec" data-od-component="form-section" data-od-id="mcp-connection-section">
+        <div class="sec__head">
+          <span class="sec__title">How does it run?</span>
+          <span class="sec__sub">One supported transport per server.</span>
+        </div>
+        <div class="tpl-grid cols2" data-choice-group="transport" data-od-component="radio-card" data-od-id="mcp-transport-group">
+          <button class="tpl" type="button" data-choice data-reveal="stdio" aria-pressed="true">
+            <span class="tpl__top">
+              <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+              <span class="tpl__name">Local process</span>
+              <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            </span>
+            <span class="tpl__desc">The daemon spawns a command and talks over stdio.</span>
+            <span class="tpl__badge b-neutral">stdio</span>
+          </button>
+          <button class="tpl" type="button" data-choice data-reveal="http">
+            <span class="tpl__top">
+              <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>
+              <span class="tpl__name">Remote endpoint</span>
+              <span class="tpl__check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            </span>
+            <span class="tpl__desc">Connects to a hosted MCP server, optionally with OAuth.</span>
+            <span class="tpl__badge b-info">HTTP</span>
+          </button>
+        </div>
+
+        <div class="field mt-16">
+          <label class="label" for="name">Server name <span class="req">required</span></label>
+          <input id="name" class="input input--mono" required value="github" placeholder="github" autofocus data-od-id="mcp-name-input">
+          <span class="error">Enter a server name.</span>
+          <span class="hint">Used as the tool prefix agents see — <code>github__search_issues</code>.</span>
+        </div>
+
+        <div id="stdio" data-conditional="transport">
+          <div class="field">
+            <label class="label" for="command">Command <span class="req">required</span></label>
+            <input id="command" class="input input--mono" value="bunx @modelcontextprotocol/server-github" placeholder="bunx @modelcontextprotocol/server-github" data-required-when-visible data-od-id="mcp-command-input">
+            <span class="error">Enter the launch command.</span>
+          </div>
+        </div>
+        <div id="http" data-conditional="transport" hidden>
+          <div class="field">
+            <label class="label" for="url">Endpoint URL <span class="req">required</span></label>
+            <input id="url" class="input input--mono" type="url" placeholder="https://mcp.example.com" data-required-when-visible data-od-id="mcp-url-input">
+            <span class="error">Enter the endpoint URL.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ░░░ ADVANCED ░░░ -->
+      <div class="advanced" hidden>
+
+        <div class="sec" data-od-component="form-section" data-conditional="transport" data-match="stdio" data-od-id="mcp-process-section">
+          <div class="sec__head">
+            <span class="sec__title">Process environment</span>
+            <span class="sec__sub">Arguments and variables for the spawned command.</span>
+          </div>
+          <div class="field">
+            <label class="label" for="args">Arguments <span class="opt">— optional</span></label>
+            <input id="args" class="input input--mono" placeholder="--read-only" data-od-id="mcp-args-input">
+          </div>
+          <div class="field">
+            <label class="label" for="env">Environment <span class="opt">— non-secret, one per line</span></label>
+            <textarea id="env" class="textarea textarea--code" placeholder="LOG_LEVEL=info" data-od-id="mcp-env-input"></textarea>
+          </div>
+          <div class="field">
+            <label class="label">Secret environment <span class="opt">— write-only</span></label>
+            <div class="secret" data-editing="false" data-od-component="secret-field">
+              <span class="secret__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+              <div class="secret__state">
+                <strong>No secret variables set</strong>
+                <span>e.g. GITHUB_TOKEN — values are never returned</span>
+              </div>
+              <button class="btn btn--small" type="button" data-secret-action="Add secret">Add secret</button>
+            </div>
+            <div class="secret__editor">
+              <input class="input input--mono" type="password" placeholder="NAME=value" autocomplete="new-password">
+            </div>
+          </div>
+        </div>
+
+        <div class="sec" data-od-component="form-section" data-conditional="transport" data-match="http" hidden data-od-id="mcp-auth-section">
+          <div class="sec__head">
+            <span class="sec__title">Remote authentication</span>
+            <span class="sec__sub">How the daemon authenticates against the endpoint.</span>
+          </div>
+          <div class="field">
+            <label class="label" for="mcp-auth">Method</label>
+            <select id="mcp-auth" data-reveal-select="mcp-auth" data-od-component="native-select"><option value="none" selected>None</option><option value="oauth">OAuth 2.0</option></select>
+          </div>
+          <div data-conditional="mcp-auth" data-match="oauth" hidden>
+            <div class="grid-2 mt-16">
+              <div class="field">
+                <label class="label" for="issuer-url">Issuer URL</label>
+                <input id="issuer-url" class="input input--mono" type="url" placeholder="https://auth.example.com">
+              </div>
+              <div class="field">
+                <label class="label" for="client-id">Client ID</label>
+                <input id="client-id" class="input input--mono" placeholder="agh-mcp-client">
+              </div>
+              <div class="field">
+                <label class="label" for="token-url">Token URL</label>
+                <input id="token-url" class="input input--mono" type="url" placeholder="https://auth.example.com/oauth/token">
+              </div>
+              <div class="field">
+                <label class="label" for="scopes">Scopes</label>
+                <input id="scopes" class="input input--mono" placeholder="tools.read resources.read">
+              </div>
+            </div>
+            <div class="field mt-16">
+              <label class="label">OAuth client secret <span class="opt">— write-only</span></label>
+              <div class="secret" data-editing="false" data-od-component="secret-field">
+                <span class="secret__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+                <div class="secret__state">
+                  <strong>No client secret set</strong>
+                  <span>stored in the vault, never returned</span>
+                </div>
+                <button class="btn btn--small" type="button" data-secret-action="Set value">Set value</button>
+              </div>
+              <div class="secret__editor">
+                <input class="input input--mono" type="password" placeholder="Enter OAuth client secret" autocomplete="new-password">
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /advanced -->
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="dialog__foot" data-od-component="dialog-footer" data-od-id="mcp-create-footer">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <span>Secret values are <b>never returned</b> after save — only presence.</span>
+      </div>
+      <button class="btn btn--outline" type="button" data-close>Cancel</button>
+      <button class="btn btn--primary" type="submit" data-od-id="mcp-create-submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Add server
+      </button>
+    </footer>
+
+  </form>
+</div>
+
+<div class="closed-state">MCP server creation dismissed.</div>
+<div class="toast" data-toast></div>
+<div class="component-popover" id="mcp-workspace-popover" role="listbox" aria-label="Workspaces"><div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search workspaces" placeholder="Search workspaces…"></div><div class="component-popover__list"><button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="agh-core"><span class="opt-ic mono" aria-hidden="true">A</span><span class="opt-copy"><strong>agh-core</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="checkout-platform"><span class="opt-ic mono" aria-hidden="true">C</span><span class="opt-copy"><strong>checkout-platform</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button></div></div>
+<script src="modal-system.js"></script>
+</body>
+</html>

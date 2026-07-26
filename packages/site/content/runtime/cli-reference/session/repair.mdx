@@ -1,0 +1,52 @@
+---
+title: "agh session repair"
+description: "Inspect and repair an interrupted session transcript"
+---
+
+## agh session repair
+
+Inspect and repair an interrupted session transcript
+
+```
+agh session repair <id> [flags]
+```
+
+### Examples
+
+```
+  # Report the repair actions without writing new events
+  agh session repair sess_1234 --dry-run
+
+  # Force repair for a stopped session whose stop reason is not crash or error
+  agh session repair sess_1234 --force
+```
+
+### Options
+
+```
+      --dry-run   Report planned repairs without persisting events
+      --force     Allow repair for stopped non-crash sessions
+  -h, --help      help for repair
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh session repair <id> -o json
+```

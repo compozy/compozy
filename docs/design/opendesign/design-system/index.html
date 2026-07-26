@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGH Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<style>
+body{background:var(--canvas);overflow-y:auto}
+.doc{max-width:1080px;margin:0 auto;padding:0 32px 120px}
+.hero{padding:64px 0 12px}
+.hero .eyebrow{color:var(--accent-strong);letter-spacing:.1em}
+.hero h1{font-size:32px;font-weight:600;letter-spacing:-.03em;color:var(--fg-strong);margin:10px 0 12px}
+.hero p{font-size:14px;line-height:1.65;color:var(--muted);max-width:74ch}
+.hero code{font-family:var(--font-mono);font-size:12px;color:var(--fg);background:var(--badge-fill);border-radius:3px;padding:1px 5px}
+.chapters{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:36px}
+@media (max-width:760px){.chapters{grid-template-columns:1fr}}
+.chapter{
+  display:flex;flex-direction:column;gap:8px;
+  padding:18px 20px;border-radius:var(--radius-lg);
+  background:var(--canvas-soft);border:1px solid var(--line);
+  text-decoration:none;color:inherit;
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease);
+}
+.chapter:hover{background:var(--elevated);border-color:var(--line-strong)}
+.chapter .num{font-family:var(--font-mono);font-size:10px;color:var(--accent-strong)}
+.chapter b{font-size:15px;font-weight:600;letter-spacing:-.014em;color:var(--fg-strong)}
+.chapter p{font-size:12.5px;line-height:1.55;color:var(--muted)}
+.sec{margin-top:56px}
+.sec h2{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong);margin-bottom:12px}
+.rule-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+.rule{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+.rule:first-child{border-top:0}
+.rule i{font-family:var(--font-mono);font-size:10px;color:var(--accent-strong);padding-top:2px}
+.rule b{color:var(--fg-strong);font-weight:600}
+.spec{width:100%;border-collapse:collapse;font-size:12.5px}
+.spec th{text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+.spec td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--muted);vertical-align:top}
+.spec td:first-child{color:var(--fg);white-space:nowrap}
+.spec code{font-family:var(--font-mono);font-size:11px;color:var(--fg);background:var(--badge-fill);border-radius:3px;padding:1px 5px}
+</style>
+</head>
+<body>
+<div class="doc" data-od-id="ds-index">
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">AGH · Unified Design System · 2026-07</p>
+    <h1>An operating system for agents</h1>
+    <p>This folder is the <b>single source of truth</b> for every future AGH design and prototype in this
+    workspace. It unifies the former systems/, catalog, settings and modal design-system files under the
+    OS-shell direction: a 44px menu bar, a dock, floating windows with a unified head — and one warm-dark
+    token system whose production truth is <code>packages/ui/src/tokens.css</code>. Start any new prototype
+    by copying the <code>:root</code> from <code>ds-core.css</code> and reading <code>GUIDE.md</code>.</p>
+    <div class="chapters" data-od-id="chapters">
+      <a class="chapter" href="foundations.html" data-od-id="chapter-foundations">
+        <span class="num">01</span><b>Foundations</b>
+        <p>Tokens, surfaces &amp; hairline depth, signal palette &amp; accent budget, type scale, control-height ladder, radius, motion, icons, a11y, divergence ledger.</p>
+      </a>
+      <a class="chapter" href="os-shell.html" data-od-id="chapter-os-shell">
+        <span class="num">02</span><b>OS Shell</b>
+        <p>Menu bar, dock, window frame with the unified 44px head + 38px strip, drill-in breadcrumbs, ⌘K, Spaces, toasts, wallpapers, mobile mode, shell rules.</p>
+      </a>
+      <a class="chapter" href="components.html" data-od-id="chapter-components">
+        <span class="num">03</span><b>Components</b>
+        <p>Status vocabulary, buttons, fields, filters, pill-groups, tabs, rows, cards, KPIs, session lists, settings rows, meters, empty states — all live in ds-core.css.</p>
+      </a>
+      <a class="chapter" href="patterns.html" data-od-id="chapter-patterns">
+        <span class="num">04</span><b>Patterns</b>
+        <p>Listing surfaces, drill-in, detail pages, settings info-shapes, window-scoped modals + canonical selectors, sessions, dashboard, truthful-UI states.</p>
+      </a>
+    </div>
+  </header>
+
+  <section class="sec" data-od-id="non-negotiables">
+    <h2>The twelve non-negotiables</h2>
+    <div class="rule-list">
+      <div class="rule"><i>01</i><span><b>Copy tokens, never invent them.</b> New prototypes paste the <code>ds-core.css :root</code> verbatim. Warm-dark only — there is no light theme.</span></div>
+      <div class="rule"><i>02</i><span><b>Accent is state or the primary action</b> — one primary per screen, live dots, selection markers. Never borders, washes or decoration.</span></div>
+      <div class="rule"><i>03</i><span><b>Identity renders once</b> — the 44px window head owns it. No legacy topbar, breadcrumb bar or route PageHead stacks.</span></div>
+      <div class="rule"><i>04</i><span><b>Two bars maximum</b> per window: head + optional 38px tools strip. Route peer tabs sit after the title, in the head.</span></div>
+      <div class="rule"><i>05</i><span><b>Depth grows a breadcrumb, never a new window.</b> Documents self-title with a state dot and never breadcrumb.</span></div>
+      <div class="rule"><i>06</i><span><b>Flat depth:</b> surface ramp + hairlines. Shadows only on overlays, the inset highlight, and shell chrome.</span></div>
+      <div class="rule"><i>07</i><span><b>Radius waiver is shell-only</b> (12–22px chrome); content stays 3–14px; the palette is mandatory everywhere.</span></div>
+      <div class="rule"><i>08</i><span><b>Lists assume scale:</b> dense rows, hairline separators, sticky group headers, state-only color, Rows|Cards on every listing route.</span></div>
+      <div class="rule"><i>09</i><span><b>Reuse canonical components</b> — RuntimeSelector, command-selects, DirectoryBrowser, the 7-bar meter. Forking a parallel geometry is a defect.</span></div>
+      <div class="rule"><i>10</i><span><b>Settings holds policy, not catalog</b>; each section leads with its own information shape; plain language over mechanism keys.</span></div>
+      <div class="rule"><i>11</i><span><b>Truthful UI:</b> every control and metric maps to daemon truth; missing data gets an honest placeholder; design empty/loading/error/degraded states.</span></div>
+      <div class="rule"><i>12</i><span><b>Linear-bar friendliness:</b> approachable for non-operators — progressive disclosure (Advanced folds, Inspect drawers) instead of operator density on the surface.</span></div>
+    </div>
+  </section>
+
+  <section class="sec" data-od-id="supersedes">
+    <h2>Supersedes</h2>
+    <table class="spec">
+      <tr><th>Deleted file</th><th>Absorbed into</th></tr>
+      <tr><td><code>systems/design-system.html</code></td><td>Foundations · Components · Patterns (its topbar/breadcrumb/route-nav chrome is retired — the window head owns identity)</td></tr>
+      <tr><td><code>systems/catalog-design-system.html</code></td><td>Components §7–8 · Patterns §1 (listing toolbar, rows/cards, marketplace exception)</td></tr>
+      <tr><td><code>settings/settings-design-system.html</code></td><td>Components §12 · Patterns §4 (srow vocabulary, info-shapes, persistence models)</td></tr>
+      <tr><td><code>modals/modal-design-system.html</code></td><td>Patterns §5 (Modals) · contract <code>modals/MODAL-STANDARD.md</code> · runnable library <code>modals/modal-system.css/.js</code> + <code>verify.mjs</code> + 16 surfaces</td></tr>
+    </table>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:12px">Reference prototypes stay as living examples:
+    <code>os/agh-os-v2.html</code> (shell behavior), <code>os/pagehead-redesign.html</code> (head anatomy lab),
+    <code>dashboard/dashboard.html</code>, <code>tasks/task-detail.html</code>, <code>_done/agents/agent-detail.html</code>
+    (runtime selector), <code>_done/shell/sidebar-sessions-02.html</code> (session lists). On conflict, <b>this folder wins</b>.</p>
+  </section>
+</div>
+</body>
+</html>

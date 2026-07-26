@@ -1,0 +1,72 @@
+---
+title: Visual editor
+description: Fork a Loop and edit its body on a canvas — nodes, edges, a per-node inspector, an inline linter, and a Graph/DSL toggle over one canonical definition.
+---
+
+{/* Design reference: docs/design/opendesign/loop-editor.html — LOOPS-DESIGN-SPEC §4.6. Daemon truth wins on divergence (ADR-017 §9). */}
+
+The visual editor is a **fork-and-edit** surface — there is no blank-canvas builder. You fork an
+existing read-only or workspace Loop and edit its body: add nodes, wire edges, configure each node
+in an inspector, and publish. It is one of three surfaces over the **same** canonical
+[definition](/runtime/core/loops/dsl-reference); the file and the API edit the exact same document.
+
+## The three regions
+
+- **Node palette** (left), grouped by class:
+  - **Action** — the three reserved kinds `run-agent`, `run-loop`, `transform`, a curated shortlist
+    of common tools (including a **Channel post** shortcut that inserts a pre-filled
+    `agh__network_send` node), and a searchable "Call tool…" picker over the whole tool registry.
+  - **Control** — `fan-out`, `collect`, `branch`, `gate`, `sub-loop`.
+  - **Source** — `watch-source`, `file-import`, `input`.
+- **Canvas** (center) — positioned node cards and edges on a dot grid. A selected node gets an
+  accent ring; a node with an error gets a danger ring and a badge.
+- **Inspector** (right) — the fields for the selected node.
+
+## The inspector renders from the schema
+
+The inspector fields come from the **canonical DSL types and the tool registry's own schemas** —
+never an editor-local model. A `run-agent` node shows `agent`, `prompt`, `output_schema`, and the
+optional model/session envelope; a `gate` shows its criteria, including per-criterion judge model
+overrides, `verdict_policy`, and `max_revisions`; any tool-ID action renders a params form generated
+from that tool's input schema. Because the editor reads the same schema the runtime validates
+against, what you can author is exactly what the runtime accepts.
+
+## The linter is the daemon's
+
+A dock along the bottom of the canvas shows four structural invariants as pass/fail chips —
+**acyclicity**, **reachability**, **termination**, and **fan-out bounds** — plus the current issue
+list. The editor **surfaces the runtime's validation; it does not invent its own**. An issue such
+as `max_fan_out (80) exceeds the daemon ceiling of 64` (code `fan_out_ceiling_exceeded`) links to
+the offending node, and Publish stays disabled until it clears.
+
+## Validate and publish
+
+- **Validate** lints and compiles the draft **without saving** it (`POST /loops/:name/validate`),
+  returning deterministic per-node codes — `unknown_reference`, `node_id_invalid`,
+  `verdict_policy_requires_judge`, `fan_out_ceiling_exceeded`.
+- **Publish** persists the draft with `expected_version` (`PATCH /loops/:name`). It is
+  compare-and-swap: if the stored version moved since you opened the editor, the publish is rejected
+  `409` with the current version, and the editor surfaces the conflict. Publish compiles and stores
+  the **resolved** form the runtime consumes — never the author YAML.
+
+This is the same [authoring loop](/runtime/core/loops/authoring) the CLI and API follow; the editor
+is a faithful render of the linter → 422 → publish gate.
+
+## Graph and DSL views
+
+A **Graph / DSL** toggle switches between the canvas and the `agh.loop/v1` YAML on disk. The DSL
+view is the same definition, so an issue highlighted on a node is highlighted on the corresponding
+YAML line. In the graph view, start bindings show as a read-only chip strip pinned at the origin
+with the note that they are edited in the DSL view — there is no graph-side start editing in this
+version.
+
+Node layout positions persist separately in a UI-annotation store keyed
+`(workspace_id, loop_name, node_id)` (`GET`/`PUT /loops/:name/annotations`), so layout is never
+mixed into the canonical definition.
+
+<OperatorNote label="Not node kinds">
+  `channel-post` and `call-tool` are not node kinds. Posting to a channel is an `agh__network_send`
+  action with a [`channel_result`](/runtime/core/loops/converse-and-decide) harvest; calling a tool
+  is that tool's ID as the action kind. The palette's "Channel post" and "Call tool…" entries are
+  shortcuts that insert those real nodes.
+</OperatorNote>

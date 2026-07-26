@@ -40,11 +40,10 @@ One report per run at `<qa-docs-path>/reports/<YYYY-MM-DD>-<scope>.md` (`scope` 
 
 After each session (not batched at the end):
 
-1. Settled scenarios: `qa_status` per the mapping above; `evidence` paths; `last_report` set to this report.
+1. Settled scenarios: update each scenario file's `qa_status` per the mapping above, `evidence` paths, and `last_report` set to this report — verdict fields only, one field per line (the state-schema merge convention).
 2. Failures: `bug_ids` linked (registry updated first — dedup before mint).
 3. Fixes: `fix_status`, `fix_commits`, `retest_status` per the fix loop.
-4. Charter debrief appended to the charter file with this report's path.
-5. Rows sorted by id on save (merge convention).
+4. Session debrief written to this report's Session Debriefs section, one block per charter run — the charter file itself stays untouched.
 
 ## Round-close checklist
 
@@ -52,9 +51,9 @@ Run before writing Final Status; every unmet item is either fixed or disclosed i
 
 1. **Matrix terminal** — zero `Pending` rows; every `Skipped` has reasoning; every Blocked row carries its human instructions or escalation.
 2. **Coverage honest** — every in-scope journey was walked by its assigned persona, or its absence is disclosed. No coverage claims without a session behind them.
-3. **Bugs consistent** — every `Fail`/`Fixed` row links a registered `BUG-NNNN`; bug statuses match reality; no orphan bugs unlinked from the tracker.
+3. **Bugs consistent** — every `Fail`/`Fixed` row links a registered bug id; bug statuses match reality; no orphan bugs unlinked from the tracker.
 4. **Fixes proven** — every fix has commit SHA + regression test (or documented replay + backlog entry); impacted and adjacent journeys re-walked.
-5. **Tracker written** — `state.csv` verdicts current, sorted, enums valid; charter debriefs appended.
+5. **Tracker written** — every settled scenario's file carries the current verdict with valid enums; every session's debrief is in the report.
 6. **Evidence lean and linked** — checkpoints/failures captured, paths resolve, oversized evidence pruned per the layout policy.
 7. **Exit gate run** — full automated suite result recorded verbatim.
 8. **Parity disclosed** — any production-parity deviation (mocked service, missing extension set, wifi-only) stated, since it qualifies every verdict.

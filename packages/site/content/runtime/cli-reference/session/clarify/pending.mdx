@@ -1,0 +1,46 @@
+---
+title: "agh session clarify pending"
+description: "List live questions awaiting an operator answer"
+---
+
+## agh session clarify pending
+
+List live questions awaiting an operator answer
+
+```
+agh session clarify pending <session-id> [flags]
+```
+
+### Examples
+
+```
+  agh session clarify pending sess_123 -o json
+```
+
+### Options
+
+```
+  -h, --help   help for pending
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh session clarify pending <session-id> -o json
+```

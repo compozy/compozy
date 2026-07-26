@@ -1,0 +1,5 @@
+{
+    "title": "Sessions",
+    "icon": "Activity",
+    "pages": ["lifecycle", "health", "resume", "events", "permissions"]
+}

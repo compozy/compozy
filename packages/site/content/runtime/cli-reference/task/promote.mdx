@@ -1,0 +1,48 @@
+---
+title: "agh task promote"
+description: "Promote one network thread message into a task"
+---
+
+## agh task promote
+
+Promote one network thread message into a task
+
+```
+agh task promote [flags]
+```
+
+### Options
+
+```
+      --channel string          Source network channel
+      --description string      Optional task description
+  -h, --help                    help for promote
+      --metadata string         Optional JSON metadata for the promoted task
+      --origin-message string   Origin message id to promote
+      --priority string         Optional task priority
+      --thread string           Source public thread id
+      --title string            Optional task title
+      --workspace string        Workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task promote -o json
+```

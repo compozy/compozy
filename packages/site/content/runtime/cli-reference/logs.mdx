@@ -1,0 +1,54 @@
+---
+title: "agh logs"
+description: "Read cross-session runtime logs"
+---
+
+## agh logs
+
+Read cross-session runtime logs
+
+```
+agh logs [flags]
+```
+
+### Options
+
+```
+      --actor string       Filter by actor as kind:id
+      --after-seq int      Replay logs after the supplied event summary sequence
+      --agent string       Filter by agent name
+      --component string   Filter by registry component
+      --error-only         Show failure and warning outcomes only
+      --follow             Stream new logs over SSE
+  -h, --help               help for logs
+      --last int           Show only the most recent N logs
+      --outcome string     Filter by registry outcome
+      --provider string    Filter by provider id
+      --run string         Filter by task run id
+      --session string     Filter by session id
+      --since string       Show logs since an RFC3339 timestamp or relative duration
+      --type string        Filter by event type
+      --workspace string   Workspace root, name, or ID for scoped logs
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh logs -o json
+```

@@ -1,20 +1,19 @@
 name: "Setup Bun Environment"
-description: "Sets up Bun with caching and dependency installation for Compozy frontend"
-author: "Compozy Team"
+description: "Sets up Bun with caching, dependency installation, and optional Playwright browsers for AGH web/"
 
 inputs:
-  bun-version:
-    description: "Bun version to install (fallback if .bun-version missing)"
-    required: false
-    default: "1.3.11"
   cache-key-suffix:
     description: "Additional suffix for cache key"
     required: false
     default: ""
   install-dependencies:
-    description: "Install dependencies with bun install"
+    description: "Install workspace dependencies with bun install --frozen-lockfile from the repo root"
     required: false
     default: "true"
+  install-playwright:
+    description: "Install Playwright browsers (chromium) with system deps"
+    required: false
+    default: "false"
 
 outputs:
   bun-version:
@@ -31,36 +30,50 @@ runs:
       id: setup-bun
       uses: oven-sh/setup-bun@v2
       with:
-        # Prefer pinned version from project file for consistency across dev/CI
         bun-version-file: .bun-version
-        bun-version: ${{ inputs.bun-version }}
 
     - name: Cache Bun dependencies
       id: bun-cache
-      uses: actions/cache@v5
+      uses: actions/cache@v4
       with:
-        path: |
-          ~/.bun/install/cache
-          node_modules
-        # Use the actual resolved Bun version and the text lockfile to bust cache correctly
-        key:
-          ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-version }}-${{ hashFiles('**/bun.lock',
-          '**/package.json') }}${{ inputs.cache-key-suffix }}
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-version }}-${{
+          hashFiles('bun.lock', '**/package.json', '.bun-version') }}${{
+          inputs.cache-key-suffix }}
         restore-keys: |
           ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-version }}-
           ${{ runner.os }}-bun-
 
-    - name: Install dependencies
+    - name: Install workspace dependencies
       if: inputs.install-dependencies == 'true'
       shell: bash
       run: |
-        echo "Installing dependencies with Bun..."
-        bun ci
+        echo "Installing workspace dependencies with Bun..."
+        bun install --frozen-lockfile
+
+    - name: Cache Playwright browsers
+      if: inputs.install-playwright == 'true'
+      id: playwright-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock', '**/package.json', '.bun-version') }}
+        restore-keys: |
+          ${{ runner.os }}-playwright-
+
+    - name: Install Playwright browsers
+      if: inputs.install-playwright == 'true'
+      shell: bash
+      working-directory: web
+      run: |
+        echo "Installing Playwright (chromium) with system deps..."
+        bunx playwright install --with-deps chromium
 
     - name: Report setup status
       shell: bash
       run: |-
-        echo "Bun setup completed successfully!"
+        echo "Bun setup completed successfully."
         echo "Bun version: $(bun --version)"
         echo "Cache hit: ${{ steps.bun-cache.outputs.cache-hit }}"
         echo "Dependencies installed: ${{ inputs.install-dependencies }}"
+        echo "Playwright installed: ${{ inputs.install-playwright }}"

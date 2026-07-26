@@ -1,0 +1,71 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "role-agent",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "Exercise configurable AGH background roles.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "routed-dream-model",
+                    "values": [
+                        {
+                            "value": "routed-dream-model",
+                            "label": "Routed dream model"
+                        },
+                        {
+                            "value": "extractor-model-v1",
+                            "label": "Extractor model v1"
+                        },
+                        {
+                            "value": "extractor-model-v2",
+                            "label": "Extractor model v2"
+                        }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "role-prompt",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "role prompt acknowledged"
+                        }
+                    ]
+                },
+                {
+                    "name": "memory-extractor-live-apply-parent",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Record the extractor routing decision"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Recorded the extractor routing decision."
+                        }
+                    ]
+                },
+                {
+                    "name": "memory-extractor-live-apply-child",
+                    "match": {
+                        "turn_source": "synthetic"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"type\":\"project\",\"scope\":\"workspace\",\"content\":\"The memory extractor uses the live-applied role model.\",\"evidence\":\"The root turn recorded the extractor routing decision.\",\"entity\":\"memory extractor\",\"attribute\":\"model\"}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

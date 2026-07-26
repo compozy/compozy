@@ -1,0 +1,41 @@
+export {
+  settingsAppliedMutationFixture,
+  settingsAutomationSectionFixture,
+  settingsSandboxesCollectionFixture,
+  settingsSandboxFixtures,
+  settingsGeneralSectionFixture,
+  settingsHooksCollectionFixture,
+  settingsHooksExtensionsSectionFixture,
+  settingsHookFixtures,
+  mcpAuthBeginFixture,
+  mcpAuthStatusAuthenticatedFixture,
+  mcpManagementCollectionFixture,
+  mcpManagementServerFixtures,
+  settingsMCPServersCollectionFixture,
+  settingsMCPServerFixtures,
+  settingsMemorySectionFixture,
+  settingsNetworkSectionFixture,
+  settingsObservabilitySectionFixture,
+  settingsProvidersCollectionFixture,
+  settingsProviderFixtures,
+  settingsRestartRequiredMutationFixture,
+  settingsRestartResponseFixture,
+  settingsRestartStatusFixture,
+  settingsSkillsSectionFixture,
+} from "./fixtures";
+export {
+  rolesStatusFixture,
+  rolesStatusWithDiagnosticFixture,
+  settingsRolesConfigFixture,
+  settingsRolesConfigWithFallbackFixture,
+  settingsRolesSectionFixture,
+  settingsRolesSectionWithFallbackFixture,
+} from "./roles-fixtures";
+export { handlers } from "./handlers";
+export {
+  settingsWindowManagerDesktopIds,
+  settingsWindowManagerSectionFixture,
+  settingsWindowManagerSnapshotFixture,
+  windowManagerLayoutDocumentFixture,
+  windowManagerLayoutResourceFixture,
+} from "./window-manager-fixtures";

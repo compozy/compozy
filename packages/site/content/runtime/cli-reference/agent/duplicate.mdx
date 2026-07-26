@@ -1,0 +1,54 @@
+---
+title: "agh agent duplicate"
+description: "Duplicate an agent definition without exposing secrets"
+---
+
+## agh agent duplicate
+
+Duplicate an agent definition without exposing secrets
+
+```
+agh agent duplicate <source> <new-name> [flags]
+```
+
+### Options
+
+```
+      --category stringArray        Agent category path segment (repeatable)
+      --command string              Optional provider command override
+      --deny-tool stringArray       Denied tool pattern (repeatable)
+      --disable-skill stringArray   Disabled skill name (repeatable)
+  -h, --help                        help for duplicate
+      --model string                Optional provider model
+      --permissions string          Optional permission mode
+      --prompt string               Agent system prompt body
+      --prompt-file string          Read the agent system prompt body from a file
+      --provider string             Provider name for sessions using this agent
+      --reasoning-effort string     Optional default reasoning effort
+      --scope string                Target scope: global or workspace (default: source origin)
+      --tool stringArray            Allowed tool pattern (repeatable)
+      --toolset stringArray         Allowed toolset reference (repeatable)
+      --workspace string            Resolve the source or target workspace
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh agent duplicate <source> <new-name> -o json
+```

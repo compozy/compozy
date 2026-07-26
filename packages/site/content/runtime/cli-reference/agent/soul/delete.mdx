@@ -1,0 +1,48 @@
+---
+title: "agh agent soul delete"
+description: "Delete SOUL.md through managed authoring"
+---
+
+## agh agent soul delete
+
+Delete SOUL.md through managed authoring
+
+```
+agh agent soul delete <agent> [flags]
+```
+
+### Examples
+
+```
+  agh agent soul delete coder --expected-digest sha256:old --workspace checkout-api --json
+```
+
+### Options
+
+```
+      --expected-digest string   Expected current Soul digest for CAS
+  -h, --help                     help for delete
+      --workspace string         Resolve the agent from a workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh agent soul delete <agent> -o json
+```

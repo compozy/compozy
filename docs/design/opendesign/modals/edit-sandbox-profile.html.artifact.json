@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "modals/edit-sandbox-profile.html",
+  "entry": "modals/edit-sandbox-profile.html",
+  "renderer": "html",
+  "status": "implementation-complete-pending-visual-contract",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T16:59:45.916Z",
+  "updatedAt": "2026-07-14T16:59:45.916Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

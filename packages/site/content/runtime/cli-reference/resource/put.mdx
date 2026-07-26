@@ -1,0 +1,45 @@
+---
+title: "agh resource put"
+description: "Create or update one desired-state resource"
+---
+
+## agh resource put
+
+Create or update one desired-state resource
+
+```
+agh resource put <kind> <id> [flags]
+```
+
+### Options
+
+```
+      --expected-version int   Optimistic version for updates
+  -h, --help                   help for put
+      --scope string           Scope kind: global or workspace (default "global")
+      --scope-id string        Workspace id for workspace-scoped resources
+      --spec string            Inline JSON resource spec
+      --spec-file string       Path to JSON resource spec file, or '-' for stdin
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh resource put <kind> <id> -o json
+```

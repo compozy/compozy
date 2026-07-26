@@ -1,0 +1,48 @@
+---
+title: "agh bridge secret-bindings"
+description: "Manage bridge secret bindings"
+---
+
+## agh bridge secret-bindings
+
+Manage bridge secret bindings
+
+```
+agh bridge secret-bindings [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for secret-bindings
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh bridge secret-bindings -o json
+```
+
+## Subcommands
+
+| Command                                                                                   | Description                                  |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------- |
+| [agh bridge secret-bindings delete](/runtime/cli-reference/bridge/secret-bindings/delete) | Delete one bridge secret binding             |
+| [agh bridge secret-bindings list](/runtime/cli-reference/bridge/secret-bindings/list)     | List secret bindings for one bridge instance |
+| [agh bridge secret-bindings put](/runtime/cli-reference/bridge/secret-bindings/put)       | Create or update one bridge secret binding   |

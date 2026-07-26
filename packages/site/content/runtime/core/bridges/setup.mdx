@@ -1,0 +1,306 @@
+---
+title: Bridge Setup
+description: Build and install an in-tree provider, follow its operator guide, and prove the inbound and outbound path before production use.
+---
+
+Bridge setup has two boundaries: the external platform and the AGH runtime. A complete setup proves
+both. The platform must authenticate and deliver an event to the provider extension; AGH must route
+that event into the intended workspace and deliver the agent response back to the same platform
+target.
+
+This page is the common setup path. Use the provider guide for console-specific steps, credentials,
+configuration, limits, and troubleshooting.
+
+## What you will complete
+
+Every provider guide ends at the same observable result:
+
+1. The provider extension is installed and visible in the bridge catalog.
+2. A workspace-scoped bridge exists in `disabled` state.
+3. Every required credential crosses the write-only secret-binding boundary.
+4. The provider console sends events to the exact public callback configured on the bridge.
+5. Disabled verification proves local configuration and provider identity where the adapter supports it.
+6. For providers that accept direct messages, access is explicitly configured while the bridge remains disabled.
+7. Enabled verification proves public callback reachability.
+8. A real inbound event creates a route in the expected workspace.
+9. `agh bridge send-test` produces a real remote message at the intended target.
+
+If any checkpoint is missing, the setup is not complete. A green public reachability check does not
+prove provider authentication, and a successful identity check does not prove that the provider
+console is delivering events.
+
+## Choose a provider
+
+| Provider        | Setup surface                        | Inbound model                                       | Dedicated guide                                             |
+| --------------- | ------------------------------------ | --------------------------------------------------- | ----------------------------------------------------------- |
+| Slack           | Generated app manifest + generic CLI | Signed Events API, command, and interaction HTTP    | [Set up Slack](/runtime/core/bridges/setup-slack)           |
+| Telegram        | Guided CLI                           | Bot API webhook with secret-token authentication    | [Set up Telegram](/runtime/core/bridges/setup-telegram)     |
+| Discord         | Guided CLI                           | Ed25519-signed interactions and webhook events      | [Set up Discord](/runtime/core/bridges/setup-discord)       |
+| WhatsApp        | Guided CLI                           | Meta Cloud API verification challenge + signed POST | [Set up WhatsApp](/runtime/core/bridges/setup-whatsapp)     |
+| Microsoft Teams | Generic CLI                          | Bot Framework activities with bearer JWTs           | [Set up Microsoft Teams](/runtime/core/bridges/setup-teams) |
+| Google Chat     | Generic CLI                          | Direct HTTP, Pub/Sub push, or hybrid Google JWTs    | [Set up Google Chat](/runtime/core/bridges/setup-gchat)     |
+| GitHub          | Generic CLI                          | Signed repository or GitHub App webhooks            | [Set up GitHub](/runtime/core/bridges/setup-github)         |
+| Linear          | Generic CLI                          | Signed comment or Agent Session webhooks            | [Set up Linear](/runtime/core/bridges/setup-linear)         |
+
+Only WhatsApp, Telegram, and Discord have `agh bridge setup <provider>` commands. Slack needs a
+persisted disabled instance before AGH can generate its app manifest. Teams, Google Chat, GitHub,
+and Linear use `agh bridge create` followed by explicit secret bindings.
+
+<OperatorNote>
+  GitHub and Linear are issue-side bridges, not chat rooms. Their success criterion is a routed
+  issue/review comment or Agent Session activity, not a generic channel message.
+</OperatorNote>
+
+## Install an in-tree provider
+
+The AGH source repository contains these eight provider implementations, but released `agh`
+artifacts do not include their executables or install them automatically. Start from a trusted AGH
+source checkout with the Go toolchain available, then build and install the provider from the
+repository root:
+
+```bash
+PROVIDER=slack
+# Choose: slack, telegram, discord, whatsapp, teams, gchat, github, or linear.
+
+mkdir -p "./extensions/bridges/$PROVIDER/bin"
+go build \
+  -o "./extensions/bridges/$PROVIDER/bin/$PROVIDER" \
+  "./extensions/bridges/$PROVIDER"
+
+agh extension install \
+  "./extensions/bridges/$PROVIDER" \
+  --allow-unverified \
+  --yes \
+  -o json
+
+agh extension status "$PROVIDER" -o json
+```
+
+`--allow-unverified` is the explicit trust decision for a local source directory. `--yes` makes that
+decision non-interactive when structured output is requested. The install copies the provider into
+the AGH extension home and enables it; run `agh extension enable "$PROVIDER" -o json` only if it was
+disabled later.
+
+`GET /api/bridges/providers` returns installed extensions that declare `bridge.adapter`, including
+disabled providers. Check the response's `enabled`, `state`, and `health` fields before creating a
+bridge instance. Presence in the catalog does not mean the provider is enabled or healthy.
+
+<OperatorNote>
+  External bridge authoring is not yet a first-class public SDK workflow. The public extension SDKs
+  do not cover the complete bridge service and control handshakes, marketplace installs cannot
+  receive the required bridge grants, and there is no public bridge conformance harness. The current
+  provider author guide is for trusted in-tree contributions.
+</OperatorNote>
+
+## Prerequisites
+
+- The AGH daemon is running.
+- The destination workspace exists and has a default agent.
+- The selected in-tree provider passes the install and status checks above.
+- You can administer the external app, bot, webhook, or repository integration.
+- A stable public HTTPS URL can reach the provider's local listener.
+- You have a secret manager or shell environment ready for provider credentials.
+
+Inspect the workspace, extension registry, provider catalog, and existing bridge instances before
+creating anything:
+
+```bash
+agh workspace list -o json
+agh extension list -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | jq
+agh bridge list --scope workspace --workspace-id ws_8f33a913d23c4fd1 -o json
+```
+
+Confirm the workspace record has a non-empty `default_agent`. If it does not, assign one before
+creating the bridge:
+
+```bash
+agh workspace edit <workspace-name-or-id> --default-agent <agent-name>
+```
+
+The HTTP response and the equivalent UDS route expose the same provider catalog. Confirm the chosen
+row's `extension_name`, `enabled`, `state`, and `health`. Do not continue with a provider that is
+absent, disabled, or unhealthy; creating an instance cannot install or enable its owner.
+
+## Understand the network boundary
+
+The platform and provider use one public URL, while the extension listens on a local address and
+path:
+
+```text
+external platform
+  → https://bridge.example.com/<provider>/<instance>
+  → reverse proxy or tunnel
+  → http://127.0.0.1:<provider-port>/<provider>/<instance>
+```
+
+`provider_config.webhook.public_url` is the complete external callback. It is the value copied into
+the provider console and the destination probed by `agh bridge verify` after enablement.
+
+`provider_config.webhook.listen_addr` and `provider_config.webhook.path` are the local listener
+coordinates. AGH does not infer the public URL from proxy headers, the daemon HTTP address, or the
+listener address.
+
+One provider subprocess can own multiple bridge instances. Those instances share the provider's
+listener address and need distinct paths unless the provider explicitly documents safe shared-path
+selection.
+
+<OperatorNote>
+  Credential-bearing upstream destinations are not mutable bridge configuration. Official API,
+  token, OpenID, and service endpoints come from provider defaults. Trusted sovereign or test
+  overrides belong in the provider process environment.
+</OperatorNote>
+
+Public callback verification accepts public HTTPS destinations only. It rejects userinfo, fragments,
+loopback, private, link-local, metadata, multicast, translated, and other special-use addresses. The
+probe does not use an HTTP proxy or follow redirects.
+
+## Follow the safe lifecycle
+
+### 1. Create disabled
+
+Guided setup creates a disabled instance automatically. Generic providers use this shape:
+
+```bash
+agh bridge create \
+  --scope workspace \
+  --workspace-id ws_8f33a913d23c4fd1 \
+  --platform <provider> \
+  --extension <provider> \
+  --display-name "<operator-facing name>" \
+  --enabled=false \
+  --provider-config '<provider JSON>' \
+  -o json
+```
+
+Copy the returned bridge ID. Do not enable yet.
+
+```bash
+BRIDGE_ID=brg_123
+```
+
+### 2. Bind secrets
+
+Each guide names the exact slots and where their values originate. A binding write accepts plaintext
+once and returns only redacted metadata later:
+
+```bash
+printf '%s' "$PROVIDER_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" <slot> \
+  --secret-ref "vault:bridges/$BRIDGE_ID/<slot>" \
+  --kind <token-or-secret-kind> \
+  --secret-value-stdin
+
+agh bridge secret-bindings list "$BRIDGE_ID" -o json
+```
+
+The reference is scoped to the edited bridge. Never reuse another bridge's
+`vault:bridges/<bridge>/<slot>` reference.
+
+### 3. Configure the provider console
+
+Copy the exact `webhook.public_url`, event selection, scopes, and app identity from the provider
+guide. Preserve the path through the reverse proxy. Do not copy a local `127.0.0.1` URL into an
+external console.
+
+### 4. Verify while disabled
+
+```bash
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+Verification returns provider-owned records with `check`, `status`, and `remediation`. Status is
+`pass`, `warn`, `fail`, or `skipped`. The command still emits its JSON records and exits non-zero when
+any check fails.
+
+While disabled, webhook reachability is intentionally `skipped`. GitHub and Linear also report
+`provider.identity` as `skipped` in the short-lived control runtime; their enabled provider health is
+the live authentication source.
+
+### 5. Control direct-message access
+
+Do this before enabling any bridge that can accept direct messages. An omitted or empty `dm_policy`
+normalizes to `open`, which admits every direct-message sender whose request passes the provider's
+transport authentication. The policy applies only to direct messages. Provider membership,
+visibility, permissions, and the bridge routing policy still govern groups, channels, and spaces.
+
+`agh bridge create` and `agh bridge update` do not currently expose a `--dm-policy` flag. Use the Web
+editor or HTTP API procedure in [Control direct-message access](./access). `pairing` is not an
+interactive approval flow: the in-tree messaging providers read pre-populated `paired_user_ids` and
+`paired_usernames`, then fall back to `allow_user_ids` and `allow_usernames`.
+
+Keep the bridge disabled and inspect the stored result:
+
+```bash
+agh bridge get "$BRIDGE_ID" -o json | \
+  jq '{enabled, dm_policy, dm: (.provider_config.dm // {})}'
+```
+
+Continue only when `enabled` is `false`, `dm_policy` is the intended policy, and the corresponding ID
+or username list contains the intended senders. This proves the stored access configuration; it does
+not simulate a provider webhook.
+
+### 6. Enable and verify reachability
+
+```bash
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+The bridge should settle at `ready`. A `degraded`, `auth_required`, or `error` state is evidence to
+repair, not a reason to continue to the happy-path test.
+
+### 7. Prove inbound routing
+
+Trigger one real supported event from the provider. Then inspect the created route:
+
+```bash
+agh bridge routes "$BRIDGE_ID" -o json
+```
+
+Confirm the route belongs to the intended workspace and carries the expected peer, group, and thread
+dimensions. A route in the wrong workspace or at the wrong thread granularity is a setup failure even
+if the agent produced an answer.
+
+### 8. Prove outbound delivery
+
+Use identifiers from the real inbound route:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH bridge connection check" \
+  --group-id "<group-from-route>" \
+  --thread-id "<thread-from-route>" \
+  --mode reply \
+  --json
+```
+
+`send-test` calls the provider and returns a delivery ID, resolved target, and remote message ID when
+the platform supplies one. `agh bridge test-delivery` only validates target resolution and sends
+nothing.
+
+## Automation surfaces
+
+The CLI is the primary operator path because it validates inputs and renders the next action. HTTP
+and UDS expose the same control handlers for agents and automation:
+
+| Operation             | Route                                                     |
+| --------------------- | --------------------------------------------------------- |
+| Provider catalog      | `GET /api/bridges/providers`                              |
+| Bridge lifecycle      | `/api/bridges` and `/api/bridges/:id`                     |
+| Secret bindings       | `/api/bridges/:id/secret-bindings`                        |
+| Slack manifest        | `GET /api/bridges/providers/slack/manifest?instance=<id>` |
+| Verify                | `POST /api/bridges/:id/verify`                            |
+| Telegram registration | `POST /api/bridges/:id/webhook/register`                  |
+| Real test delivery    | `POST /api/bridges/:id/send-test`                         |
+
+The send-test request is `{ message, target }`; `target` accepts `peer_id`, `thread_id`, `group_id`,
+and `mode`. Use the generated [API reference](/runtime/api-reference/bridges) and
+[CLI reference](/runtime/cli-reference/bridge) for exact request and flag contracts.
+
+## After the first message
+
+Setup is only the first lifecycle. Use [Operate and repair bridges](/runtime/core/bridges/operations)
+for secret rotation, endpoint changes, safe restarts, health triage, routing checks, progress tuning,
+and rollback. Read [Message routing](/runtime/core/bridges/routing) before changing route dimensions,
+and [Tool progress](/runtime/core/bridges/progress) before enabling provider-visible progress.

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGH · Edit knowledge</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body>
+
+<div class="product" aria-hidden="true">
+  <aside class="product__rail"><div class="product__mark"></div><div class="product__mark"></div><div class="product__mark"></div></aside>
+  <div class="product__main">
+    <div class="product__title"></div><div class="product__sub"></div>
+    <div class="product__grid"><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i><i class="product__card"></i></div>
+  </div>
+</div>
+
+<div class="scrim">
+  <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Edit knowledge item" data-od-component="dialog" data-success="Knowledge changes saved." data-od-id="knowledge-edit-dialog">
+
+    <!-- HEADER -->
+    <header class="dialog__head" data-od-id="knowledge-edit-header">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+      <div class="head-copy">
+        <div class="eyebrow">Catalog · Knowledge</div>
+        <h1 data-od-id="knowledge-edit-title">Edit checkout-escalation</h1>
+        <p>Refine the description or content. <b>Name and type stay fixed</b> so retrieval references keep working.</p>
+      </div>
+      <button class="icon-button" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <!-- CONTEXT BAR -->
+    <div class="modebar" data-od-id="knowledge-edit-modebar">
+      <span class="modebar__label">Workspace</span>
+      <span class="modebar__value">checkout-platform</span>
+      <div class="modebar__spacer"></div>
+      <span class="modebar__status" data-od-id="knowledge-edit-status"><i class="status-dot"></i> indexed · v4</span>
+    </div>
+
+    <!-- BODY -->
+    <div class="dialog__body">
+
+      <div class="sec" data-od-component="form-section" data-od-id="knowledge-edit-details-section">
+        <div class="identity-row" data-od-component="immutable-identity" data-od-id="knowledge-edit-identity">
+          <span class="identity-row__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+          <div class="identity-row__copy">
+            <strong>checkout-escalation</strong>
+            <span>document — name and type are fixed for stable retrieval</span>
+          </div>
+          <span class="identity-row__badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            Locked
+          </span>
+        </div>
+
+        <div class="field">
+          <label class="label" for="description">Description <span class="opt">— what should retrieval match?</span></label>
+          <input id="description" class="input" value="When and how checkout incidents escalate" data-od-id="knowledge-edit-description-input">
+        </div>
+        <div class="field">
+          <label class="label" for="content">Content <span class="req">required</span></label>
+          <textarea id="content" class="textarea textarea--tall" required data-od-id="knowledge-edit-content-input">Escalate when the checkout error budget is exhausted, or when payment authorization failures persist for more than 10 minutes. Page the on-call human through the incident channel; never retry authorization loops automatically.</textarea>
+          <span class="error">Knowledge content cannot be empty.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="dialog__foot" data-od-component="dialog-footer" data-od-id="knowledge-edit-footer">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span>Only changed fields are saved — the runtime re-indexes on save.</span>
+      </div>
+      <button class="btn btn--outline" type="button" data-close>Cancel</button>
+      <button class="btn btn--primary" type="submit" data-od-id="knowledge-edit-submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Save changes
+      </button>
+    </footer>
+
+  </form>
+</div>
+
+<div class="closed-state">Knowledge editor dismissed.</div>
+<div class="toast" data-toast></div>
+<script src="modal-system.js"></script>
+</body>
+</html>

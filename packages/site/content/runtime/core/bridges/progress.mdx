@@ -1,0 +1,224 @@
+---
+title: Tool progress in bridges
+description: Configure daemon-rendered tool progress for bridge-delivered agent turns.
+---
+
+Tool-heavy turns can otherwise look idle until the final answer arrives. AGH can project ACP tool
+calls into typed bridge delivery events so an adapter can show what the agent is doing without
+putting presentation chrome into the session transcript.
+
+Progress is configured per bridge instance under `delivery_defaults.progress`. The daemon decides
+which tool lifecycle events to emit, renders the label and preview, redacts secret-shaped values,
+and sends a typed payload to the provider extension. The adapter decides how that payload appears on
+the platform.
+
+<OperatorNote>
+  Progress support is adapter-specific. An adapter without a progress handler acknowledges the event
+  without calling the platform API. Final answer delivery continues normally.
+</OperatorNote>
+
+## Configure progress
+
+Use a typed `progress` block inside the bridge instance's delivery defaults:
+
+```json
+{
+  "progress": {
+    "tool_progress": "all",
+    "grouping": "accumulate",
+    "typing": true,
+    "reactions": true
+  }
+}
+```
+
+The block is closed: unknown keys and values with the wrong JSON type are rejected when the bridge
+instance is created or updated.
+
+The create and update commands expose the same typed fields without requiring a raw JSON block:
+
+```bash
+agh bridge update <bridge-id> \
+  --delivery-progress all \
+  --delivery-progress-grouping accumulate \
+  --delivery-progress-typing \
+  --delivery-progress-reactions
+```
+
+Use `--delivery-progress-typing=false` or `--delivery-progress-reactions=false` to disable an
+existing affordance. The commands merge these flags with the instance's other delivery defaults,
+so changing progress does not clear its routing target.
+
+| Field           | Values                            | What it controls                                                      |
+| --------------- | --------------------------------- | --------------------------------------------------------------------- |
+| `tool_progress` | `off`, `new`, `all`, or `verbose` | Which tool lifecycle events leave the daemon as bridge progress.      |
+| `grouping`      | `accumulate` or `separate`        | Whether an adapter edits one progress bubble or posts each line.      |
+| `typing`        | boolean                           | Whether a supporting adapter drives the platform typing affordance.   |
+| `reactions`     | boolean                           | Whether a supporting adapter applies lifecycle reactions to progress. |
+
+Progress resolution follows this order:
+
+1. The instance's `delivery_defaults.progress` block.
+2. The platform default.
+3. The daemon default: `off` with `accumulate` grouping.
+
+| Platform                                     | Default mode | Default grouping | Typing and reactions |
+| -------------------------------------------- | ------------ | ---------------- | -------------------- |
+| Slack, Telegram, Discord                     | `new`        | `accumulate`     | Enabled              |
+| Microsoft Teams, WhatsApp, Google Chat       | `off`        | `accumulate`     | Disabled             |
+| GitHub, Linear, and other installed adapters | `off`        | `accumulate`     | Disabled             |
+
+An explicit instance block replaces the complete platform default, including `typing` and
+`reactions`. Set every field deliberately when overriding a default-on chat platform.
+
+## Choose an emission mode
+
+`new` is the low-noise mode. It emits a `started` event when the tool changes and suppresses
+consecutive starts for the same tool ID. It still emits each tool's terminal `completed` or
+`failed` phase, so typing, reactions, duration, and failure state can close correctly.
+
+`all` emits `started`, `completed`, and `failed`. A failed tool call is a first-class progress line;
+it does not disappear behind the final answer.
+
+`verbose` emits the same lifecycle phases as `all` without the normal preview-length cap. Redaction
+still applies. Use it only where the platform message limit and channel audience make uncapped
+previews appropriate.
+
+`off` prevents tool progress events from entering the bridge delivery queue. It does not change ACP
+tool execution or the final answer.
+
+## Understand the payload
+
+The daemon sends progress through `bridges/deliver` as `event_type: "progress"` with a typed
+`progress` object:
+
+```json
+{
+  "tool_call_id": "call_01",
+  "tool_id": "agh__skill_search",
+  "phase": "completed",
+  "label": "Searching for",
+  "preview": "deployment",
+  "emoji": "🧰",
+  "duration_ms": 31000,
+  "index": 2
+}
+```
+
+`index` increases monotonically within one delivered turn. `duration_ms` is optional and measures
+the elapsed time from the first observed start to the terminal phase. Failed events may also carry
+a short, one-line `error`; the daemon redacts and caps it before delivery. Bridge adapters receive
+rendered presentation data and never need raw tool arguments to build a line.
+
+Native AGH tools use the daemon's tool presentation registry. Extension and MCP descriptors may
+declare `friendly_verb` and a declarative `preview` strategy. Unknown tools use their raw tool ID
+with a safe scalar preview when one is available.
+
+## Publish tool presentation metadata
+
+Tool descriptors can customize the rendered verb and tell the daemon how to select a preview. They
+cannot supply a template, executable expression, or pre-rendered progress line. AGH still owns
+argument selection, one-line normalization, redaction, and the 160-rune preview cap used by `new`
+and `all` modes.
+
+For an extension tool, add the fields to its existing manifest entry:
+
+```toml
+[resources.tools.issue_lookup]
+friendly_verb = "Looking up"
+preview = "arg:issueKey"
+```
+
+For an MCP tool, publish the equivalent string fields in the tool's `_meta` object:
+
+```json
+{
+  "_meta": {
+    "agh/friendly_verb": "Looking up",
+    "agh/preview": "arg:issueKey"
+  }
+}
+```
+
+With input `{"issueKey":"BUG-456"}`, either descriptor renders the safe presentation
+`⚙️ Looking up BUG-456`. The extension manifest keys are exactly `friendly_verb` and `preview`;
+the MCP metadata keys are exactly `agh/friendly_verb` and `agh/preview`. MCP metadata values must be
+strings.
+
+`friendly_verb` is optional. When present, it must contain one line, no control characters, and at
+most 80 Unicode runes. `preview` is optional and accepts only these declarative strategies:
+
+| Strategy      | Preview selected by the daemon                                                               |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| `auto`        | First scalar `query`, `needle`, `pattern`, `name`, `id`, `path`, or `file_path` value found. |
+| `none`        | No preview.                                                                                  |
+| `command`     | Command heads from `command` or `cmd`, without pipeline tails.                               |
+| `path`        | Portable basename from `file_path` or `path`, plus a line or line range when supplied.       |
+| `delegate`    | Task count and safe labels selected from the `tasks` array.                                  |
+| `query`       | First scalar `query`, `needle`, or `pattern` value found.                                    |
+| `arg:<field>` | One string or number from the exact, case-sensitive input field.                             |
+
+An `arg:<field>` name starts with an ASCII letter and may contain up to 63 more letters, digits,
+underscores, dots, or hyphens. AGH rejects names classified as sensitive, including token, secret,
+password, private-key, and API-key fields. Objects, arrays, and booleans do not render as scalar
+previews. Prefer `command`, `path`, `delegate`, or `query` when the input matches one of those
+shapes; each specialized strategy exposes less data than selecting the raw field directly.
+
+Descriptor resolution is workspace-scoped. For each delivery, AGH looks up the descriptor in the
+tool registry projection for the route's `workspace_id`; a workspace-only descriptor never supplies
+presentation metadata to another workspace. Metadata already attached to the source tool event
+takes precedence over the registry lookup. The selected label and preview still pass through the
+canonical redactor before they leave the daemon, including in `verbose` mode.
+
+## Group and update lines
+
+With `accumulate`, a supporting adapter posts the first line and edits the same message as more
+progress arrives. The shared bridge SDK coalesces edits inside a 1.5-second window, collapses
+consecutive identical lines as `(×N)`, and starts a continuation before the provider's message limit.
+When answer content lands, the current progress bubble closes; a later tool starts a new bubble below
+the answer.
+
+With `separate`, the adapter posts one message per line and performs no progress edits. This mode is
+useful for providers where edits are unavailable or where each status must remain independently
+visible.
+
+Started lines use the tool's presentation emoji. Completed lines use `✅`; tools lasting at least
+30 seconds include their duration. Failed lines use `❌` and include the short redacted error when
+one is available.
+
+Typing and reactions are best-effort platform affordances. A supporting adapter maps `started` to an
+active typing state and `👀`, `completed` to typing off and `✅`, and `failed` to typing off and `❌`.
+Adapters without those affordances use no-op hooks.
+
+## Redaction and transcript boundaries
+
+Progress previews are bridge-delivered platform messages, so AGH applies the same secret boundary
+used for other display surfaces before the payload crosses from the daemon to an adapter. The
+canonical redactor covers claim tokens, MCP auth tokens, OAuth authorization codes, PKCE verifiers,
+secret bindings, provider token shapes, authorization headers, and generic secret key/value forms.
+Redaction still runs in `verbose` mode.
+
+The session event stream keeps the underlying ACP `tool_call` and `tool_result` events. It never
+stores the bridge-only `progress` delivery event. Replaying a session therefore reconstructs tool
+state from canonical ACP events and does not inject old platform presentation messages into agent
+history.
+
+## Backpressure behavior
+
+Progress shares the same ordered route queue as answer text. Under queue pressure:
+
+- cumulative text deltas coalesce;
+- progress coalesces only when `tool_call_id` and `phase` both match;
+- progress for distinct tool calls is never merged into another tool's status;
+- an intermediate `started` line may be evicted to make room, and the bridge delivery metrics count
+  the reason in `delivery_dropped_by_reason`;
+- `final`, `error`, and `delete` delivery events are preserved even when the soft queue bound is
+  full.
+
+This degradation affects status visibility, not tool execution or the terminal answer.
+
+## Related pages
+
+- [Bridges overview](/runtime/core/bridges) explains instance ownership and delivery flow.
+- [Message routing](/runtime/core/bridges/routing) explains route keys and delivery targets.
+- [Platform setup](/runtime/core/bridges/setup) covers installed adapter configuration and secrets.

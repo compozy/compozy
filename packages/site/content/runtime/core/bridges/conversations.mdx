@@ -1,0 +1,103 @@
+---
+title: Bridge Conversations and Sessions
+description: Understand how accepted platform events reuse AGH sessions, what happens when a session is busy, and when a new routed session is created.
+---
+
+An accepted bridge event does not create an isolated agent turn by default. AGH converts the
+platform identity into a route key, binds that route to one daemon-owned session, and reuses the
+session for later events with the same key.
+
+This gives one platform conversation durable agent context while keeping unrelated peers, groups,
+threads, workspaces, and bridge instances isolated according to the instance's routing policy.
+
+## Conversation lifecycle
+
+| Situation                                              | Runtime behavior                                                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| No route exists for the key                            | AGH creates a session with the bridge workspace's default agent and persists the route.                |
+| The route points to an active session                  | AGH submits the event to that session and preserves its prior transcript context.                      |
+| The route's session is missing or inactive             | AGH creates a replacement session and rebinds the route. The old session remains available as history. |
+| A selected route dimension changes                     | AGH resolves a different key and therefore a different session.                                        |
+| Another bridge instance receives the same platform IDs | The bridge instance ID keeps the route and session distinct.                                           |
+
+The exact key is explained in [Message routing](/runtime/core/bridges/routing). A routing policy is
+conjunctive: every selected dimension must be present on every event accepted by that bridge
+instance. Use separate instances for incompatible shapes such as peer-only DMs and
+group-plus-thread conversations.
+
+## Inspect the current session binding
+
+```bash
+BRIDGE_ID=brg_123
+
+agh bridge routes "$BRIDGE_ID" -o json
+```
+
+Each route reports its canonical routing key, `session_id`, agent name, and timestamps. Use the
+reported session ID with the normal session surfaces:
+
+```bash
+SESSION_ID=sess_123
+
+agh session status "$SESSION_ID" -o json
+agh session history "$SESSION_ID" --last 20
+agh session events "$SESSION_ID" --follow
+```
+
+Do not infer the active session from a platform message ID or from the most recently created AGH
+session. The route record is the ownership source of truth.
+
+## When the routed session is busy
+
+If the session already has a prompt in progress, the Host path retries local prompt admission up to
+three times within a bounded window of roughly five seconds. If the session is still busy, the Host
+returns an error to the adapter. What the external platform observes depends on that adapter's
+acknowledgement boundary:
+
+- a synchronous callback can return an error and let the platform apply its own retry policy;
+- Discord interactions send a deferred acknowledgement before asynchronous Host ingestion, so a
+  later admission failure is visible in bridge health but cannot be returned to Discord; and
+- adapters with positive inbound batching acknowledge after an in-memory enqueue, before Host ingestion.
+  A later flush failure cannot be reflected in the callback, and pending batches do not survive an
+  adapter-process restart.
+
+Bridge ingress does not automatically select the CLI's queue, interrupt, or steer modes. There is no
+shared durable “ack now, enqueue later” queue and no automatic readmission after an early
+acknowledgement.
+
+The daemon writes its durable 24-hour deduplication record only after successful prompt submission.
+Separately, bundled adapters use an in-process deduplication cache whose default TTL is five minutes.
+Some adapters mark that cache before calling the Host. An immediate platform retry can therefore be
+acknowledged and suppressed by the adapter even though the original event never reached a prompt.
+Inspect the route, session events, bridge health, and provider delivery before deciding whether the
+sender must resend; neither a failed callback nor a successful acknowledgement proves that the
+message was queued or admitted.
+
+## Chat text is not a common control language
+
+AGH does not define shared `help`, `status`, `reset`, `stop`, or `new` commands inside bridge
+conversations. Unless a provider guide documents a typed platform action, those words are ordinary
+prompt text.
+
+Slack's `/agh` command is a prompt entry point. Everything after `/agh` is sent to the routed agent;
+it is not an administrative subcommand language and cannot reset the route or inspect daemon state.
+Use `agh bridge` and `agh session` for operator control.
+
+## Edits, reactions, actions, and attachments
+
+Providers map supported platform events into typed message, command, action, reaction, or edit
+families. Unsupported platform events are ignored rather than converted into plausible prompt text.
+See [Supported bridge behavior](/runtime/core/bridges/behavior) for provider-specific boundaries.
+
+When supported, inbound attachments carry provider metadata such as an immutable ID, name, media
+type, or URL. This does not promise binary download, OCR, vision, or transcription. The shared
+outbound contract is text-oriented and does not provide a generic media upload API.
+
+## Start a conversation with clean context
+
+Stopping the routed session is the public way to make the next accepted event start a fresh bridge
+session. Follow the complete procedure in
+[Start a fresh routed session](/runtime/core/bridges/operations#start-a-fresh-routed-session).
+
+The previous session remains in AGH history. The next supported event creates and binds a new
+session; it does not erase the prior transcript or mutate the platform conversation.

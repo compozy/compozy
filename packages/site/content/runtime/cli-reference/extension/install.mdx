@@ -1,0 +1,45 @@
+---
+title: "agh extension install"
+description: "Install a local extension or download one from a registry"
+---
+
+## agh extension install
+
+Install a local extension or download one from a registry
+
+```
+agh extension install <path-or-slug> [flags]
+```
+
+### Options
+
+```
+      --allow-unverified   Allow install when the extension checksum is not registry-verified
+      --asset string       Select a specific registry asset when multiple archives exist
+      --from string        Only use one configured extension registry source
+  -h, --help               help for install
+      --version string     Install a specific registry version
+      --yes                Skip confirmation when using --allow-unverified
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh extension install <path-or-slug> -o json
+```

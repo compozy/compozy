@@ -1,0 +1,119 @@
+---
+title: Guardrails and outcomes
+description: The stop model — no-progress axes, the blocker-ID stall signature, budgets and ceilings, and the eleven run states a Loop can hold.
+---
+
+{/* Design reference: docs/design/opendesign/*.html status pills — LOOPS-DESIGN-SPEC §3.3, §5.4, §9. Daemon truth wins on divergence (ADR-017 §9). */}
+
+A Loop never runs forever and never lies about how it ended. Its contract carries the stop model:
+the axes that decide "no progress," the budgets that cap spend, the ceilings the daemon enforces
+regardless of what a definition asks for, and the fixed set of terminal outcomes. This page is the
+reference for all of them.
+
+## Run states
+
+A run holds exactly one of **eleven** states — five live, six terminal. Color carries state, never
+category; a node's _class_ is never colored.
+
+### Live states
+
+| State            | Meaning                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `queued`         | A same-Loop start deferred by `concurrency: queue`. Promoted FIFO when a sibling run terminates.             |
+| `running`        | The coordinator owns an active generation. The initial state at start.                                       |
+| `watching`       | A dormant [watch-source](/runtime/core/loops/extensions#watch-sources) run awaiting its next poll tick.      |
+| `needs-approval` | A dormant run parked on a human gate (or a `budget.on_exceeded: escalate`). Resumed by an approval decision. |
+| `paused`         | An operator paused the run at a generation boundary.                                                         |
+
+`needs-approval` and `paused` are **live pauses**, never terminal — the run is still alive and will
+resume. `paused` is operator-initiated; `needs-approval` is system-initiated by a human gate.
+
+### Terminal outcomes
+
+| Outcome     | Meaning                                                                                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `done`      | The goal was verified. The only success outcome.                                                                                                                                                       |
+| `no-op`     | The run executed but found nothing to do. A clean watch tick is `no-op`, never a fake `done`.                                                                                                          |
+| `blocked`   | An external dependency made progress impossible — a missing dependency, missing credential, or unreachable resource; a human gate `reject`; or a `loop.gate.pre` hook denial. Distinct from `stalled`. |
+| `failed`    | An unrecoverable node or gate error, a `loop.generation.pre` hook denial, or an operator `Stop`.                                                                                                       |
+| `exhausted` | A hard stop limit tripped before the goal — the iteration cap or the fan-out ceiling.                                                                                                                  |
+| `stalled`   | No progress is being made — the no-progress window elapsed, the failure circuit breaker tripped, the blocker-ID signature repeated, or a watched source went silent past its window.                   |
+
+<OperatorNote label="Never coerced">
+  `no-op` and `blocked` are never coerced to `done` or `failed`; exhaustion and stalling are always
+  reported as themselves. An operator `Stop` records the truthful cause `operator_stop` and ends the
+  run `failed` — stop is a cause, not a separate outcome.
+</OperatorNote>
+
+`ready` and `awaiting_child` are **node-level** states only (a node's per-run status inside a
+generation) — they are never run states. `awaiting_child` marks a `run-loop` node in `await` mode
+parked until its child Loop terminates.
+
+## The two no-progress axes
+
+"Making progress" is measured on two independent axes. Do not conflate them.
+
+<Workflow>
+  <WorkflowStep title="Generation progress">
+    Each generation computes a typed hash over `contract.no_progress.hash_fields`. When the hash
+    fails to advance for `contract.no_progress.window` consecutive generations, the run ends
+    `stalled`. Alongside it, the **blocker-ID stall signature** compares the sorted set of
+    `blocking_issues[].id` a gate emits across the window — the same unresolved blockers repeating
+    means the Loop is spinning, and the run ends `stalled`.
+  </WorkflowStep>
+  <WorkflowStep title="Inactivity clock">
+    `last_progress_at` advances only when a node reaches a terminal transition. If no node terminal
+    transition happens inside the window, the run ends `stalled`. A Loop with a node still running
+    is never declared stalled.
+  </WorkflowStep>
+</Workflow>
+
+A separate failure **circuit breaker** ends the run `stalled` after consecutive node failures
+reach the daemon limit, so a Loop that only ever fails cannot burn its whole iteration cap.
+
+## Limits, budgets, and ceilings
+
+Every stop limit has a **per-Loop default** (the definition, seeded by
+[`[loops.defaults.*]`](/runtime/core/loops/dsl-reference#config-defaults)) and a hard **daemon
+ceiling**. Overrides may tighten a value but never loosen it past the ceiling — every layer is
+clamped.
+
+| Limit              | Contract key                          | Delivery default | Watch default      | Daemon ceiling             |
+| ------------------ | ------------------------------------- | ---------------- | ------------------ | -------------------------- |
+| Iteration cap      | `contract.iteration_cap`              | 50               | 0 (unbounded, `∞`) | none — `0` means unbounded |
+| Token budget       | `contract.budget.tokens`              | 0 (off)          | 0 (off)            | none                       |
+| Wall-clock budget  | `contract.budget.wall_clock_sec`      | 0 (off)          | 0 (off)            | none                       |
+| No-progress window | `contract.no_progress.window`         | 3                | 2                  | 30                         |
+| Fan-out width      | node `max_parallel` / `fan_out_width` | 4                | 2                  | 64                         |
+| Gate max revisions | gate `max_revisions`                  | 10               | —                  | 64                         |
+
+Watch Loops default `iteration_cap: 0` and render the cap as `∞`; a `0` budget means unlimited
+(progress-first). Budgets are opt-in — set a nonzero value to cap spend.
+
+When a set budget is exceeded, `budget.on_exceeded` chooses the response:
+
+- `halt` (default) — end the run `exhausted`.
+- `escalate` — park the run in `needs-approval` for a human decision.
+
+<OperatorNote label="What the coordinator enforces">
+  The stop axes the coordinator checks every generation are the **iteration cap** and **fan-out
+  ceiling** (`exhausted`), and the **no-progress window**, **inactivity clock**, **blocker-ID stall
+  signature**, and **failure circuit breaker** (`stalled`). Token and wall-clock budgets are
+  declarable contract fields with defined `on_exceeded` routing — a set budget is opt-in, and
+  ceilings are expressed in tokens and time, never dollars. Cost is **display-only** everywhere —
+  there is no enforced USD cap (ADR-017).
+</OperatorNote>
+
+## Cost is a meter, not a cap
+
+The [run page](/runtime/core/loops/running) shows a live cost meter (tokens × price). It is a
+visibility signal only. No surface accepts a cost cap — the run form and configure sheet have no
+USD field, and no daemon ceiling is expressed in dollars. Spend is bounded by the token budget and
+the iteration cap, not by cost.
+
+## Where these show up
+
+- The [catalog](/runtime/core/loops/catalog) shows each Loop's last outcome and success rate.
+- The [run page](/runtime/core/loops/running) streams the live state, the five meters, and the
+  terminal-outcome banner.
+- The [DSL reference](/runtime/core/loops/dsl-reference) defines every contract field named here.

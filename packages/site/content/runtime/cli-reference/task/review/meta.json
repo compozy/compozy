@@ -1,0 +1,4 @@
+{
+    "title": "Review",
+    "pages": ["index", "list", "request", "show", "submit"]
+}

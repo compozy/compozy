@@ -1,0 +1,170 @@
+---
+title: "Example: converse and decide"
+description: A documented Loop that posts a question into a channel, lets agents converse, harvests the agreed decision, and branches on it.
+---
+
+{/* Design reference: docs/design/opendesign/run-detail.html (embedded channel) — LOOPS-DESIGN-SPEC §4.4, §9.9. Daemon truth wins on divergence (ADR-017 §9). */}
+
+<Callout type="info">
+  This is a **documented example**, not a packaged default Loop. The capability ships in the runtime
+  — it is an `agh__network_send` action with a `channel_result` harvest — but AGH does not install a
+  `converse-and-decide` Loop, because it needs a configured channel and participating agents to run.
+  Save the definition below to author it in your own workspace.
+</Callout>
+
+The **converse-and-decide** pattern drives a live discussion and acts on its result: a step posts a
+question into an [AGH Network](/runtime/core/network) channel thread, the participating agents
+converse, the step harvests the one designated **result**, and a branch routes on the decision. It
+is the canonical illustration of harvesting a channel outcome into a Loop.
+
+## Two levels of "kind"
+
+The example uses the word _kind_ at two levels — keep them separate:
+
+- the **node** `kind: agh__network_send` — the action's tool ID (there is no `channel-post` kind);
+- the network **message** `kind: say` inside that node's `params` — the wire message kind. The
+  question is a `say` with `intent: request`.
+
+## The definition
+
+```yaml
+apiVersion: agh.loop/v1
+kind: Loop
+meta:
+  name: converse-and-decide
+  description: >
+    Post a question into an AGH Network channel thread, let the participating
+    agents converse, harvest the designated result signal, and branch on the
+    decision. Documented example — not a packaged default Loop.
+  catalog:
+    use_when: "A team of agents in a channel should decide something, then act on the verdict."
+    keywords: [network, converse, decide, channel, harvest]
+    category: Coordination
+
+concurrency: forbid
+
+inputs:
+  workspace_id: { type: string, required: true }
+  channel: { type: string, required: true }
+  thread_id: { type: string, required: true }
+  question: { type: string, required: true }
+  reviewer: { type: agent, default: reviewer }
+
+contract:
+  goal: "Reach a harvested team decision in {{ .inputs.channel }} and act on it."
+  definition_of_done: "A designated result signal was harvested and the branch acted on it."
+  iteration_cap: 1
+  no_progress: { window: 1, hash_fields: [gate_verdict] }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    # expose the question to the graph
+    - { id: q, class: source, kind: input, input_ref: question }
+
+    # post the request AND harvest the designated result
+    - id: ask
+      class: action
+      kind: agh__network_send # the tool ID IS the action kind (not channel-post)
+      params: # exactly the agh__network_send input schema
+        workspace_id: "{{ .inputs.workspace_id }}"
+        channel: "{{ .inputs.channel }}"
+        surface: thread # required so the harvest can resolve the conversation
+        thread_id: "{{ .inputs.thread_id }}"
+        kind: say # the network message kind…
+        body:
+          text: "{{ .inputs.question }}"
+          intent: request # …a question is a say with intent request
+      harvest:
+        kind: channel_result # a harvest kind on this node — not a node kind
+        window: "15m" # required, positive; silence past it ends the run stalled
+        content_rule: json # any | json | non_empty | contains:<x> | json_path:<a.b.c>
+      produces: # declare the harvested shape so nodes.ask.output.* validates
+        type: object
+        required: [decision]
+        properties:
+          decision: { enum: [ship, hold] }
+          rationale: { type: string }
+
+    # an agent-judge gate ratifies the harvested decision
+    - id: decide
+      class: control
+      kind: gate
+      criteria:
+        - id: decision_sound
+          type: agent-judge
+          agent: "{{ .inputs.reviewer }}"
+          rubric: >
+            The channel harvested decision {{ .nodes.ask.output.decision }}
+            with rationale {{ .nodes.ask.output.rationale }}. Confirm it is
+            justified and safe to act on, and emit a blocking issue if it is not.
+      verdict_policy: revise_until_clean
+      max_revisions: 1
+
+    # route on the harvested decision (CEL over the namespace)
+    - id: route
+      class: control
+      kind: branch
+      condition: "nodes.ask.output.decision == 'ship'"
+
+    # true edge: act on the decision
+    - id: do_ship
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.reviewer }}"
+        prompt: "The team decided SHIP. Rationale: {{ .nodes.ask.output.rationale }}. Execute the ship steps."
+
+  edges:
+    - { from: q, to: ask }
+    - { from: ask, to: decide }
+    - { from: decide, to: route }
+    - { from: route, to: do_ship }
+
+start: [{ kind: manual }, { kind: cli }, { kind: http }, { kind: uds }, { kind: native_tool }]
+```
+
+## How the harvest works
+
+The `ask` node posts the `say` and then waits — for `window` — on the durable channel conversation
+for the designated **result** signal. A message counts as the result when it is:
+
+- a `say` with `intent: result` whose `result` payload carries the decision, or
+- a `trace` with `state: completed` whose `result` payload carries it.
+
+The harvested payload becomes `nodes.ask.output.*`, so the gate's rubric and the branch's condition
+read `nodes.ask.output.decision`. Only the designated result ends the wait; ordinary chat in the
+thread is ignored.
+
+Optional harvest filters narrow what counts:
+
+- `responder` — accept the result only from one peer.
+- `content_rule` — a predicate the payload must satisfy: `any` (default), `json`, `non_empty`,
+  `contains:<needle>`, or `json_path:<a.b.c>`.
+
+<OperatorNote label="Silence ends the run stalled">
+  If no designated result lands inside `window`, the `ask` node raises a stall and the run ends
+  [`stalled`](/runtime/core/loops/guardrails#terminal-outcomes) — the honest outcome for "the team
+  did not decide in time," never a false `done`.
+</OperatorNote>
+
+## Run it
+
+The Loop needs a real channel and participating agents. Once you have them:
+
+```bash
+# validate the definition (lint + compile, no save)
+agh loop validate --workspace <ws> --file converse-and-decide.yaml
+
+# publish it, then run it against your channel and thread
+agh loop create --workspace <ws> --file converse-and-decide.yaml
+agh loop run --workspace <ws> --name converse-and-decide \
+  --input workspace_id='"<ws-id>"' \
+  --input channel='"engineering"' \
+  --input thread_id='"<thread-id>"' \
+  --input question='"Ship the release?"'
+```
+
+The embedded channel exchange appears inline on the [run page](/runtime/core/loops/running#the-live-run-page)
+as the agents converse and the decision is harvested.

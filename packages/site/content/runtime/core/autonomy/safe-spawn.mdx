@@ -1,0 +1,85 @@
+---
+title: Safe Spawn
+description: How agent-initiated child sessions are bounded by lineage, TTL, caps, workspace inheritance, and permission narrowing.
+---
+
+`agh spawn` lets a managed session ask the daemon to create a child agent session. Spawn is the
+delegation surface for the autonomy MVP, but it is safe by default: the daemon owns lineage, TTL,
+caps, workspace inheritance, permission narrowing, and cleanup.
+
+## Required constraints
+
+| Constraint              | Behavior                                                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Valid parent identity   | The caller must be an AGH-managed session resolved from daemon-issued identity.                                               |
+| TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                                       |
+| Depth cap               | The MVP default max spawn depth is `1`.                                                                                       |
+| Child cap               | The MVP default max children per parent is `5`.                                                                               |
+| Workspace inheritance   | Children inherit the parent workspace. Cross-workspace spawn is rejected in the MVP.                                          |
+| Coordinator role denial | `--role coordinator` is rejected. Coordinators are daemon-managed root sessions, not child sessions.                          |
+| Permission subset       | Child tools, skills, MCP servers, workspace paths, network channels, and sandbox profiles must be a subset of the parent set. |
+| Unknown atoms           | Unknown child permission atoms count as widening and reject the spawn.                                                        |
+| Parent stop             | Children auto-stop when the parent stops unless configured otherwise within hard caps.                                        |
+
+The daemon rejects invalid spawn requests. It does not silently narrow a child request and continue.
+
+## Spawning a worker
+
+```bash
+agh spawn --agent reviewer --ttl-seconds 1800
+```
+
+Add narrowed permissions and a role when the parent has those atoms:
+
+```bash
+agh spawn \
+  --agent reviewer \
+  --role reviewer \
+  --ttl-seconds 1800 \
+  --prompt-overlay "Review only the implementation diff." \
+  --tool read \
+  --skill code-review \
+  --channel coord-run-123
+```
+
+Permission flags are repeatable:
+
+- `--tool`
+- `--skill`
+- `--mcp-server`
+- `--workspace-path`
+- `--channel`
+- `--sandbox-profile`
+
+`--channel` narrows the channel permission atoms a child may use. It does not select Live
+participation, create Network state, or make the child inherit its parent's participation. A spawned
+execution remains Local unless it submits a separate, authorized Network participation request.
+
+The response includes the child session, lineage, and safe permission projection. It does not create
+or claim task work by itself.
+
+## Cleanup and active leases
+
+The reaper wins over active leases. If TTL expiry or parent-stop cleanup terminates a spawned
+session, AGH first releases active task-run leases owned by that session with a structured reason,
+then stops the child. Stale child claim tokens cannot complete or heartbeat recovered work.
+
+## Hooks
+
+Spawn exposes these hook events:
+
+- `spawn.pre_create`
+- `spawn.created`
+- `spawn.parent_stopped`
+- `spawn.ttl_expired`
+- `spawn.reaped`
+
+`spawn.pre_create` may deny or narrow a request, but hook patches cannot widen child permissions.
+The daemon enforces the permission subset after hook patches.
+
+## Related pages
+
+- [Agent Spawning](/runtime/core/agents/spawning) explains normal session launch behavior.
+- [Session Lifecycle](/runtime/core/sessions/lifecycle) explains the `spawned` session type.
+- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) explains child lease release.
+- [Spawn CLI Reference](/runtime/cli-reference/spawn) lists exact flags.

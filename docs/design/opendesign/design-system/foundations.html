@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGH DS · 01 Foundations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<style>
+/* ---- chapter chrome (doc scaffolding, not product) ---- */
+body{background:var(--canvas);overflow-y:auto}
+.doc{max-width:1080px;margin:0 auto;padding:0 32px 120px}
+.docnav{
+  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:2px;
+  margin:0 -32px 40px;padding:10px 32px;
+  background:color-mix(in srgb,var(--canvas) 86%,transparent);
+  backdrop-filter:blur(14px);border-bottom:1px solid var(--line);
+}
+.docnav__brand{display:flex;align-items:center;gap:8px;margin-right:14px;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+.docnav__brand i{width:16px;height:16px;border-radius:5px;background:var(--accent);display:inline-block}
+.docnav a{font-size:12px;font-weight:500;color:var(--muted);padding:5px 9px;border-radius:var(--radius);text-decoration:none}
+.docnav a:hover{color:var(--fg);background:var(--row-hover)}
+.docnav a[aria-current="page"]{color:var(--fg-strong);background:var(--row-selected)}
+.hero{padding:48px 0 8px}
+.hero .eyebrow{color:var(--accent-strong);letter-spacing:.1em}
+.hero h1{font-size:26px;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);margin:8px 0 10px}
+.hero p{font-size:13.5px;line-height:1.6;color:var(--muted);max-width:70ch}
+.sec{margin-top:56px}
+.sec__head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.sec__num{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+.sec__head h2{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
+.sec>p{font-size:13px;line-height:1.6;color:var(--muted);max-width:76ch;margin-bottom:16px}
+.stage{padding:22px;background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+.spec{width:100%;border-collapse:collapse;font-size:12.5px}
+.spec th{text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+.spec td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--muted);vertical-align:top}
+.spec td:first-child{color:var(--fg);white-space:nowrap}
+.spec code{font-size:11px;color:var(--fg);background:var(--badge-fill);border-radius:3px;padding:1px 5px}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.sw{border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden}
+.sw i{display:block;height:44px}
+.sw div{padding:8px 10px;background:var(--canvas-soft)}
+.sw b{display:block;font-size:11.5px;font-weight:600;color:var(--fg)}
+.sw span{font-family:var(--font-mono);font-size:9.5px;color:var(--subtle)}
+.rule-list{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+.rule{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+.rule:first-child{border-top:0}
+.rule i{font-family:var(--font-mono);font-size:10px;color:var(--accent-strong);padding-top:2px}
+.rule b{color:var(--fg-strong);font-weight:600}
+.typerow{display:flex;align-items:baseline;gap:16px;padding:9px 0;border-bottom:1px solid var(--line-soft)}
+.typerow:last-child{border-bottom:0}
+.typerow .sample{flex:1;min-width:0;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.typerow .meta{font-family:var(--font-mono);font-size:10px;color:var(--subtle);flex:none}
+.hbar{display:flex;align-items:center;gap:12px;padding:6px 0}
+.hbar i{height:14px;border-radius:3px;background:var(--accent-tint-strong);border:1px solid var(--accent-dim);flex:none}
+.hbar span{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.radrow{display:flex;gap:14px;flex-wrap:wrap}
+.rad{display:flex;flex-direction:column;align-items:center;gap:7px}
+.rad i{width:52px;height:52px;background:var(--elevated);border:1px solid var(--line-strong)}
+.rad span{font-family:var(--font-mono);font-size:9.5px;color:var(--subtle)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:860px){.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="doc" data-od-id="ds-foundations">
+  <nav class="docnav" data-od-id="ds-nav">
+    <span class="docnav__brand"><i></i>AGH DS</span>
+    <a href="index.html">Overview</a>
+    <a href="foundations.html" aria-current="page">01 Foundations</a>
+    <a href="os-shell.html">02 OS Shell</a>
+    <a href="components.html">03 Components</a>
+    <a href="patterns.html">04 Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">AGH Design System · Chapter 01</p>
+    <h1>Foundations</h1>
+    <p>The token layer every AGH surface is built from. One warm-dark ramp, one accent, hairline depth,
+    Inter + JetBrains Mono. Production truth is <code class="mono">packages/ui/src/tokens.css</code>;
+    the prototype-canonical mirror is <code class="mono">design-system/ds-core.css</code> — copy its
+    <code class="mono">:root</code> verbatim into any new prototype. There is no light theme.</p>
+  </header>
+
+  <!-- ============ 01 SURFACES ============ -->
+  <section class="sec" id="surfaces" data-od-id="sec-surfaces">
+    <div class="sec__head"><span class="sec__num">01</span><h2>Surfaces &amp; depth</h2></div>
+    <p>Depth is a flat ramp plus hairlines — never drop shadows on content. Surfaces stack
+    rail → canvas → canvas-soft → canvas-tint → elevated; separation comes from translucent-white
+    hairlines. The only sanctioned shadows are <code class="mono">--shadow-overlay</code> (popovers,
+    menus, sheets, toasts, modals), <code class="mono">--highlight</code> (inset top edge on primary
+    buttons and active pill segments), and the shell-only window/dock shadows in ds-shell.css.</p>
+    <div class="swatches">
+      <div class="sw"><i style="background:var(--rail)"></i><div><b>rail</b><span>#0c0b0b · desktop base, code blocks</span></div></div>
+      <div class="sw"><i style="background:var(--canvas)"></i><div><b>canvas</b><span>#131211 · window body</span></div></div>
+      <div class="sw"><i style="background:var(--canvas-soft)"></i><div><b>canvas-soft</b><span>#1a1918 · panels, cards, sidebars</span></div></div>
+      <div class="sw"><i style="background:var(--canvas-tint)"></i><div><b>canvas-tint</b><span>#1c1b1a · runcards, pill tracks</span></div></div>
+      <div class="sw"><i style="background:var(--elevated)"></i><div><b>elevated</b><span>#232220 · wells, inputs, active pills</span></div></div>
+    </div>
+    <table class="spec" style="margin-top:18px">
+      <tr><th>Layer</th><th>Value</th><th>Use</th></tr>
+      <tr><td><code>--line-soft</code></td><td>white ·03</td><td>row separators (border-top, first-child zeroed)</td></tr>
+      <tr><td><code>--line</code></td><td>white ·055</td><td>panel/control borders, head hairlines</td></tr>
+      <tr><td><code>--line-strong</code></td><td>white ·09</td><td>hover borders, focused fields, dividers</td></tr>
+      <tr><td><code>--row-hover / --row-selected</code></td><td>white ·022 / ·03</td><td>state glazes — never opaque grays</td></tr>
+      <tr><td><code>--btn-fill / --btn-hover / --badge-fill / --input-fill / --surface-glaze</code></td><td>white ·04 / ·07 / ·05 / ·025 / ·04</td><td>the glaze ladder over the warm ramp</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 02 SIGNAL PALETTE ============ -->
+  <section class="sec" id="color" data-od-id="sec-color">
+    <div class="sec__head"><span class="sec__num">02</span><h2>Signal palette &amp; accent budget</h2></div>
+    <p>Accent is the only hue with presence — and it is a <b>state indicator, never decoration</b>.
+    It marks the primary action, live/running state, the current selection and active reasoning bars;
+    it never washes cards, borders or backgrounds. Semantic colors appear as 6–12% tints with the tone
+    color as ink. Data viz uses neutral <code class="mono">--viz-*</code> ink — charts never borrow signal colors.</p>
+    <div class="swatches">
+      <div class="sw"><i style="background:var(--accent)"></i><div><b>accent</b><span>#e8572a · action / running</span></div></div>
+      <div class="sw"><i style="background:var(--accent-strong)"></i><div><b>accent-strong</b><span>#f6874f · accent text on dark</span></div></div>
+      <div class="sw"><i style="background:var(--success)"></i><div><b>success</b><span>#5fbf85 · ok / idle / connected</span></div></div>
+      <div class="sw"><i style="background:var(--warning)"></i><div><b>warning</b><span>#d6a647 · needs you / waiting</span></div></div>
+      <div class="sw"><i style="background:var(--danger)"></i><div><b>danger</b><span>#e0635a · failed / destructive</span></div></div>
+      <div class="sw"><i style="background:var(--info)"></i><div><b>info</b><span>#8e8eb5 · tool calls / meta</span></div></div>
+      <div class="sw"><i style="background:var(--neutral)"></i><div><b>neutral</b><span>#7a7a80 · idle shapes, base pills</span></div></div>
+      <div class="sw"><i style="background:var(--teal,#225555)"></i><div><b>teal</b><span>#225555 · wallpaper depth ONLY</span></div></div>
+    </div>
+    <div class="rule-list" style="margin-top:18px">
+      <div class="rule"><i>R1</i><span><b>Accent budget:</b> per screen — one primary action, live dots, current-selection markers. A full-card accent border is decorative wash and is banned (running state = pulsing dot + pill, not a border).</span></div>
+      <div class="rule"><i>R2</i><span><b>Status is color + shape.</b> The session vocabulary pairs each state with a distinct dot shape (circle, diamond, rounded square, hollow ring) so state survives color-blindness. See Components §01.</span></div>
+      <div class="rule"><i>R3</i><span><b>Tints carry tone ink.</b> Pills and notices use <code>--*-tint</code> backgrounds with the tone color as text — never saturated fills.</span></div>
+      <div class="rule"><i>R4</i><span><b>#225555 (teal)</b> is a registered brand tone used exclusively for wallpaper radial depth in the OS shell. It never appears in content, borders or controls.</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 03 TYPOGRAPHY ============ -->
+  <section class="sec" id="type" data-od-id="sec-type">
+    <div class="sec__head"><span class="sec__num">03</span><h2>Typography</h2></div>
+    <p>Two families. <b>Inter</b> (display + body; features <code class="mono">cv01 ss03</code>) for UI chrome,
+    names and prose. <b>JetBrains Mono</b> for everything machine-shaped: ids, slugs, counts, timestamps,
+    durations, key-values, code — always with <code class="mono">tabular-nums</code>, subpixel-antialiased,
+    letter-spacing 0. Body baseline is 13.5px / 1.5 / −.006em. Production medium weight is <b>510</b>.</p>
+    <div class="stage">
+      <div class="typerow"><span class="sample" style="font-size:26px;font-weight:600;letter-spacing:-.028em">Detail page title</span><span class="meta">1.4rem–26px · 600 · -.028em · route H1</span></div>
+      <div class="typerow"><span class="sample mono" style="font-size:24px;font-weight:620;letter-spacing:-.02em">128 runs</span><span class="meta">24px · 620 · hero KPI value (mono, tabular)</span></div>
+      <div class="typerow"><span class="sample" style="font-size:17px;font-weight:600">Window KPI value · Spaces title</span><span class="meta">17px · 600</span></div>
+      <div class="typerow"><span class="sample" style="font-size:15px;font-weight:500;letter-spacing:-.014em">Modal / sheet title</span><span class="meta">15px · 500 · -.014em</span></div>
+      <div class="typerow"><span class="sample" style="font-size:13.5px">Body text — transcripts, descriptions, prose</span><span class="meta">13.5px · 400 · 1.5</span></div>
+      <div class="typerow"><span class="sample" style="font-size:13px;font-weight:600">Window title · row emphasis</span><span class="meta">13px · 600</span></div>
+      <div class="typerow"><span class="sample" style="font-size:12.5px;font-weight:500">Row titles, menu items, controls</span><span class="meta">12.5px · 500/510</span></div>
+      <div class="typerow"><span class="sample" style="font-size:12px;font-weight:500">Buttons, tabs, pill segments</span><span class="meta">12px · 500 · -.005em</span></div>
+      <div class="typerow"><span class="sample" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle)">Section eyebrow / KV label</span><span class="meta">10.5–11px · 600 · caps · +.04em</span></div>
+      <div class="typerow"><span class="sample mono" style="font-size:10.5px;color:var(--subtle)">meta · counts · 10.5px mono</span><span class="meta">10.5px mono · badges, meta</span></div>
+      <div class="typerow"><span class="sample mono" style="font-size:9px;color:var(--subtle)">09:41:22 timestamps</span><span class="meta">9px mono · tabular · time columns</span></div>
+    </div>
+    <table class="spec" style="margin-top:16px">
+      <tr><th>Rule</th><th>Contract</th></tr>
+      <tr><td>Mono trigger</td><td>ids, slugs, counts, badges, timestamps, elapsed clocks, metric values, code, key-values. Class <code>.mono</code> flips smoothing to subpixel + resets font features.</td></tr>
+      <tr><td>Eyebrows</td><td>10–11px · 600 · uppercase · tracking .04–.08em · <code>--subtle</code>. Section labels stay in content; chrome never carries a description line.</td></tr>
+      <tr><td>Weights</td><td>400 body · 500/510 medium (production canon 510) · 600 titles · 620/700 numeric display. Avoid the 520–560 scatter found in older prototypes.</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 04 SPACE & CONTROL LADDER ============ -->
+  <section class="sec" id="space" data-od-id="sec-space">
+    <div class="sec__head"><span class="sec__num">04</span><h2>Spacing &amp; the control-height ladder</h2></div>
+    <p>Layout runs on an 8px baseline with 2px optical sub-steps (paddings 12×16, gaps 8/10/14).
+    Heights are a fixed ladder — pick from it, never invent between-steps:</p>
+    <div class="stage">
+      <div class="hbar"><i style="width:19px"></i><span>17/19px — tags, pills</span></div>
+      <div class="hbar"><i style="width:22px"></i><span>22px — sm buttons, filter chips, status pills, chips, switch (18h)</span></div>
+      <div class="hbar"><i style="width:24px"></i><span>24px — pill-group segments, route tabs (w2-tab), back button</span></div>
+      <div class="hbar"><i style="width:26px"></i><span>26px — default button, icon button, property rows</span></div>
+      <div class="hbar"><i style="width:28px"></i><span>28px — search fields, dense session rows, menubar controls</span></div>
+      <div class="hbar"><i style="width:30px"></i><span>30px — compact tabs, popover items, settings nav</span></div>
+      <div class="hbar"><i style="width:32px"></i><span>32px — settings row control (.ctl), toolcall head, ws search</span></div>
+      <div class="hbar"><i style="width:34px"></i><span>34px — runtime trigger, composer input, listing icon well</span></div>
+      <div class="hbar"><i style="width:36px"></i><span>36px — form inputs (--height-input), workspace select, palette items</span></div>
+      <div class="hbar"><i style="width:38px"></i><span>38px — window context strip</span></div>
+      <div class="hbar"><i style="width:40px"></i><span>40px — detail lane-tabs</span></div>
+      <div class="hbar"><i style="width:44px"></i><span>44px — window head, menu bar, popover search, mobile targets</span></div>
+      <div class="hbar"><i style="width:54px"></i><span>54px — settings decision rows (.srow min-height)</span></div>
+    </div>
+    <p style="margin-top:14px">Content max-width: <b>1320px</b> (production <code class="mono">--container-content-max</code>).
+    Detail properties rail: <b>320px</b>. Prose measure: 62–76ch.</p>
+  </section>
+
+  <!-- ============ 05 RADIUS ============ -->
+  <section class="sec" id="radius" data-od-id="sec-radius">
+    <div class="sec__head"><span class="sec__num">05</span><h2>Radius</h2></div>
+    <p>Content scale is 3–14px. The OS shell holds a <b>waiver</b> — chrome only (windows 12px, popovers 12px,
+    widgets 14px, dock 22px). Never “correct” shell radii down to the content scale, and never let the
+    waiver leak into window content.</p>
+    <div class="stage">
+      <div class="radrow">
+        <div class="rad"><i style="border-radius:3px"></i><span>xxs 3 · code chips</span></div>
+        <div class="rad"><i style="border-radius:4px"></i><span>xs 4 · pills, segments</span></div>
+        <div class="rad"><i style="border-radius:5px"></i><span>sm 5 · avatars, chips</span></div>
+        <div class="rad"><i style="border-radius:6px"></i><span>base 6 · glyphs, rows</span></div>
+        <div class="rad"><i style="border-radius:8px"></i><span>md 8 · buttons, fields</span></div>
+        <div class="rad"><i style="border-radius:10px"></i><span>lg 10 · cards, panels</span></div>
+        <div class="rad"><i style="border-radius:14px"></i><span>xl 14 · large modals</span></div>
+        <div class="rad"><i style="border-radius:12px;border-color:var(--accent-dim)"></i><span>win 12 · shell waiver</span></div>
+        <div class="rad"><i style="border-radius:22px;border-color:var(--accent-dim)"></i><span>dock 22 · shell waiver</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 06 MOTION ============ -->
+  <section class="sec" id="motion" data-od-id="sec-motion">
+    <div class="sec__head"><span class="sec__num">06</span><h2>Motion</h2></div>
+    <table class="spec">
+      <tr><th>Token</th><th>Value</th><th>Use</th></tr>
+      <tr><td><code>--dur-fast</code></td><td>100ms</td><td>hovers on tiny targets</td></tr>
+      <tr><td><code>--dur</code></td><td>140ms</td><td>default hover/color transitions</td></tr>
+      <tr><td><code>--dur-slow</code></td><td>200ms</td><td>pane slides, collapses</td></tr>
+      <tr><td><code>--ease</code></td><td>cubic-bezier(.2,0,0,1)</td><td>the standard curve</td></tr>
+      <tr><td><code>--ease-in-out</code></td><td>cubic-bezier(.4,0,0,.2,1)</td><td>symmetric transitions</td></tr>
+      <tr><td><code>--ease-spring</code> <span style="color:var(--faint)">(shell)</span></td><td>cubic-bezier(.32,.72,.28,1)</td><td>window/popover/toast entrances, dock magnify, drill-in slide</td></tr>
+    </table>
+    <p style="margin-top:12px">Signature animations: <code class="mono">pulse 1.8s</code> (live dots) ·
+    <code class="mono">session-live 2.6s</code> (running row halo) · popover in .16s · window in .24s ·
+    toast in .28s · collapse via <code class="mono">grid-template-rows 1fr→0fr</code>.
+    <code class="mono">prefers-reduced-motion</code> and <code class="mono">body[data-motion="reduced"]</code>
+    both collapse every duration — always ship both guards.</p>
+  </section>
+
+  <!-- ============ 07 ICONOGRAPHY ============ -->
+  <section class="sec" id="icons" data-od-id="sec-icons">
+    <div class="sec__head"><span class="sec__num">07</span><h2>Iconography</h2></div>
+    <table class="spec">
+      <tr><th>Rule</th><th>Contract</th></tr>
+      <tr><td>Style</td><td>Lucide-grammar stroke SVGs — <code>fill=none stroke=currentColor</code>, stroke 1.7–2 (2.4 for checks), round caps/joins, <code>svg{display:block}</code>. Text glyphs (×, ⌄, ★, ▮) are banned for meaning — the only text glyphs allowed are identity monograms (agent/workspace initials in wells).</td></tr>
+      <tr><td>Glyph sizes</td><td>12px (pills, chevrons) · 13–14px (buttons, rows) · 15–16px (nav, palette, icon wells) · 17px (menubar logo) · 21px (dock)</td></tr>
+      <tr><td>Icon-well ladder</td><td>18px avatars · 20px provider glyph · 22px window glyph / workspace mark · 24px card icon · 28px option glyph · 34px listing row well · 36px modal head well · 38px empty-state well · 42px page hero</td></tr>
+      <tr><td>Never</td><td>an icon beside every heading; emoji as icons; accent-tinted wells for wayfinding (the window glyph well is neutral — accent wells belong to modal headers only)</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 08 FOCUS & A11Y ============ -->
+  <section class="sec" id="a11y" data-od-id="sec-a11y">
+    <div class="sec__head"><span class="sec__num">08</span><h2>Focus &amp; accessibility</h2></div>
+    <div class="rule-list">
+      <div class="rule"><i>A1</i><span><b>Focus ring is the production contract:</b> <code>0 0 0 2px rgba(255,255,255,.5)</code> on <code>:focus-visible</code> (≥3:1). The 1px line-strong ring in pre-2026-07 prototypes is deprecated.</span></div>
+      <div class="rule"><i>A2</i><span><b>Pointer focus is quiet:</b> fields on <code>:focus-within</code> only strengthen their border; the 2px ring is keyboard-only.</span></div>
+      <div class="rule"><i>A3</i><span>Real semantics: <code>aria-pressed</code> on pill segments, <code>aria-current="page"</code> on nav, <code>aria-expanded</code> on disclosures, <code>role="dialog" aria-modal</code> on modals, every <code>aria-controls</code> resolving to a real id, one focusable H1 per surface.</span></div>
+      <div class="rule"><i>A4</i><span>Touch targets ≥44px on mobile (window controls grow to 15px + 9px inset hit area; toolbar buttons to 44px).</span></div>
+      <div class="rule"><i>A5</i><span><code>data-od-id</code> on every region, heading, control and repeated card users may point at.</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 09 DIVERGENCE LEDGER ============ -->
+  <section class="sec" id="ledger" data-od-id="sec-ledger">
+    <div class="sec__head"><span class="sec__num">09</span><h2>Divergence ledger — prototype vs production</h2></div>
+    <p>Known deltas between the prototype lineage and <code class="mono">packages/ui/src/tokens.css</code>.
+    Production wins each one; this ledger exists so no future prototype re-imports the drift.</p>
+    <table class="spec">
+      <tr><th>Axis</th><th>Prototype drift</th><th>Canon (this DS)</th></tr>
+      <tr><td>Focus ring</td><td>1px <code>--line-strong</code></td><td>2px white ·5 (production <code>--shadow-focus-ring</code>)</td></tr>
+      <tr><td>Reasoning meter</td><td>agent-detail 5-bar <code>.meter</code></td><td><b>7-bar</b> <code>.im</code> (intensity-meter.tsx; Medium = 4/7)</td></tr>
+      <tr><td>Switch</td><td>os-v2 34×20</td><td><b>32×18</b>, knob 14, travel 14 (verify-locked)</td></tr>
+      <tr><td>KPI value</td><td>dashboard 24px</td><td>windows 17px · hero dashboards 24px (<code>.kpi--lg</code>); production names 28px — revisit at implementation</td></tr>
+      <tr><td>Content max</td><td>dashboard/task 1240px</td><td><b>1320px</b> (<code>--container-content-max</code>)</td></tr>
+      <tr><td>subtle/faint</td><td>hex #76767c / #545458</td><td>production uses oklch equivalents — same appearance, keep hex in prototypes</td></tr>
+      <tr><td>Mono family</td><td>"JetBrains Mono" first</td><td>"JetBrains Mono Variable" first</td></tr>
+      <tr><td>Input height</td><td>settings 32px vs modal 36px</td><td>36px forms (<code>--height-input</code>) · 32px only as <code>.ctl</code> inside settings rows</td></tr>
+      <tr><td>Pill-group segment</td><td>22–28px scatter</td><td>24px md · 22px <code>--sm</code> (dense chart toggles) · never 28px</td></tr>
+      <tr><td>Token naming</td><td>modal library uses <code>--color-*</code> prefixes</td><td>prototypes keep bare names; production/web uses prefixed — 1:1 mapping, never both in one file</td></tr>
+    </table>
+  </section>
+</div>
+</body>
+</html>

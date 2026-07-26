@@ -1,0 +1,40 @@
+---
+title: "agh memory extractor"
+description: "Operate Memory v2 extractor runtime"
+---
+
+## agh memory extractor
+
+Operate Memory v2 extractor runtime
+
+### Options
+
+```
+  -h, --help   help for extractor
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                                   | Description                                  |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------- |
+| [agh memory extractor disable](/runtime/cli-reference/memory/extractor/disable)           | Reserved Memory v2 command                   |
+| [agh memory extractor drain](/runtime/cli-reference/memory/extractor/drain)               | Drain Memory v2 extractor work               |
+| [agh memory extractor list-pending](/runtime/cli-reference/memory/extractor/list-pending) | List Memory v2 extractor pending/DLQ records |
+| [agh memory extractor replay](/runtime/cli-reference/memory/extractor/replay)             | Replay Memory v2 extractor work              |
+| [agh memory extractor status](/runtime/cli-reference/memory/extractor/status)             | Show Memory v2 extractor runtime status      |

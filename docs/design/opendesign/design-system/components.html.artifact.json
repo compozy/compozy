@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "design-system/components.html",
+  "entry": "design-system/components.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-22T14:45:31.043Z",
+  "updatedAt": "2026-07-22T14:45:31.043Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

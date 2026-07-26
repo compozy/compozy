@@ -1,0 +1,1104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Sandbox · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* tokens — verbatim from systems/design-system.html (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    --focus-ring-inset:inset 0 0 0 1px var(--line-strong);
+    --z-menu:30; --z-scrim:60; --z-sheet:61; --z-modal:62; --z-toast:70;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input,select,textarea{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  code,kbd,pre,.mono,.count-chip,.pill[data-mono="true"],.listing-row__name b:not(.sans),.listing-row__meta .k,
+  .listing-row__stat-v,.listing-card__title b:not(.sans),.kv__v code,.tile__v .mono,.sheet__ref{
+    font-family:var(--font-mono);-webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal;font-variant-numeric:tabular-nums}
+  :is(.btn,.pill-group__item,.filter-menu__item,.filter-chip__x,.copybtn,
+    .sheet__close,.head-close,.breadcrumb__link,.listing-row,.listing-card,.radio-card):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;
+    min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas);min-width:0;flex:none}
+  .topbar__context{min-width:0;overflow:hidden}
+  .topbar__trailing{display:flex;align-items:center;justify-content:flex-end;gap:8px;justify-self:end;min-width:0}
+  .breadcrumb{min-width:0;overflow:hidden}
+  .breadcrumb__list{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;list-style:none;white-space:nowrap;color:var(--muted)}
+  .breadcrumb__item{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:none}
+  .breadcrumb__item:last-child{min-width:0;flex:1 1 auto;overflow:hidden}
+  .breadcrumb__link,.breadcrumb__page{display:inline-flex;align-items:center;min-width:0;border-radius:var(--radius-sm);padding:2px 6px;
+    font-size:13px;line-height:18px;letter-spacing:-.006em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .breadcrumb__link{color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .breadcrumb__link:hover{background:var(--row-hover);color:var(--fg)}
+  .breadcrumb__page{color:var(--fg-strong)}
+  .breadcrumb__separator{display:inline-flex;color:var(--faint);flex:none}
+  .breadcrumb__separator svg{width:12px;height:12px}
+  .breadcrumb__home svg{width:14px;height:14px;flex:none}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--destructive{background:var(--danger-tint);border-color:transparent;color:var(--danger)}
+  .btn--destructive:hover{background:var(--danger-tint);border-color:transparent;color:var(--danger);opacity:.9}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn:disabled{cursor:not-allowed;opacity:.5}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+
+  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;min-width:0}
+  .head__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;
+    border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px}
+  .head__icon svg{width:12px;height:12px}
+  .head__main{min-width:0;flex:1}
+  .head__titlerow{display:flex;align-items:center;gap:10px;min-width:0}
+  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25}
+  .count-chip{display:inline-flex;align-items:center;min-height:19px;padding:1px 6px;border-radius:var(--radius-xs);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:11px;font-weight:500;color:var(--muted)}
+  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle);max-width:78ch}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+
+  /* listing toolbar (design-system.html §09) */
+  .listing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+  .listing-toolbar__leading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1;min-width:0}
+  .listing-toolbar__trailing{display:flex;align-items:center;gap:10px;margin-left:auto;flex:none}
+  .search{display:flex;align-items:center;gap:8px;height:26px;min-width:220px;width:220px;padding:0 8px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--canvas-soft);color:var(--fg);font-size:13px;flex:none}
+  .search svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-size:13px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .search .kbd{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;line-height:1;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 4px;flex:none;background:var(--canvas-soft)}
+  .search:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+
+  .filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;position:relative}
+  .filter-add{position:relative}
+  .filter-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:var(--z-menu);width:220px;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .filter-menu__item{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 8px;border:0;border-radius:var(--radius);background:transparent;color:var(--fg);font-size:12.5px;cursor:pointer;text-align:left}
+  .filter-menu__item:hover,.filter-menu__item:focus{background:var(--row-hover);outline:none}
+  .filter-submenu{position:absolute;top:0;left:calc(100% + 4px);z-index:calc(var(--z-menu) + 1);width:230px;max-height:260px;overflow:auto;padding:4px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .filter-chip{display:inline-flex;align-items:stretch;width:fit-content;border-radius:var(--radius);overflow:hidden}
+  .filter-chip > *{border:1px solid var(--line);background:var(--canvas);color:var(--fg);font-size:11px;line-height:1;display:inline-flex;align-items:center;height:22px;padding:0 8px;margin:0}
+  .filter-chip > * + *{border-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
+  .filter-chip > *:first-child{border-radius:var(--radius) 0 0 var(--radius);gap:6px}
+  .filter-chip > *:last-child{border-radius:0 var(--radius) var(--radius) 0}
+  .filter-chip__label{font-weight:500}
+  .filter-chip__op{color:var(--muted);background:transparent}
+  .filter-chip__val{background:transparent;max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-mono);font-size:10.5px}
+  .filter-chip__x{width:22px;padding:0;justify-content:center;cursor:pointer;color:var(--muted);background:transparent}
+  .filter-chip__x:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .filter-chip__x svg{width:12px;height:12px}
+
+  /* PillGroup — Rows | Cards (design-system.html §09) */
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;cursor:pointer;
+    transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item svg{width:12px;height:12px}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+
+  .sec-note{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;color:var(--subtle)}
+  .sec-note svg{width:13px;height:13px;color:var(--faint);flex:none}
+
+  /* rows (design-system.html §10) */
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .listing-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:12px 16px;width:100%;
+    border:0;border-bottom:1px solid var(--line-soft);background:transparent;text-align:left;cursor:pointer;
+    transition:background var(--dur) var(--ease);color:inherit;font-size:inherit;letter-spacing:inherit}
+  .listing-row:last-child{border-bottom:0}
+  .listing-row:hover{background:var(--row-hover)}
+  .listing-row__icon{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-row__icon svg{width:16px;height:16px}
+  .listing-row__main{min-width:0}
+  .listing-row__name{display:flex;align-items:center;gap:8px;min-width:0}
+  .listing-row__name b{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong);letter-spacing:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__desc{margin-top:3px;font-size:12.5px;line-height:1.45;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__meta{margin-top:4px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--faint);flex-wrap:wrap}
+  .listing-row__meta .k{font-size:10px;color:var(--subtle)}
+  .listing-row__trail{display:flex;align-items:center;gap:12px;flex:none}
+  .listing-row__stat{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+  .listing-row__stat-v{font-size:12px;font-weight:600;color:var(--fg)}
+  .listing-row__stat-l{font-size:10px;color:var(--faint)}
+  .row-actions{display:flex;align-items:center;gap:4px}
+  .row-actions .btn{height:26px;width:26px;padding:0;justify-content:center;color:var(--muted)}
+  .row-actions .btn:hover{color:var(--fg-strong);background:var(--btn-hover);border-color:transparent}
+  .row-actions .btn[data-danger]:hover{color:var(--danger);background:var(--danger-tint)}
+
+  /* cards (design-system.html §11) */
+  .listing-card-grid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media (min-width:720px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (min-width:1100px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .listing-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:var(--radius-lg);border:0;text-align:left;
+    background:var(--canvas-soft);min-width:0;cursor:pointer;transition:background var(--dur) var(--ease);color:inherit;font-size:inherit;letter-spacing:inherit}
+  .listing-card:hover{background:var(--elevated)}
+  .listing-card__head{display:flex;align-items:flex-start;gap:10px;min-width:0;width:100%}
+  .listing-card__icon{width:24px;height:24px;border-radius:var(--radius);background:var(--surface-glaze);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-card__icon svg{width:13px;height:13px}
+  .listing-card__title{min-width:0;flex:1}
+  .listing-card__title b{display:block;font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong);letter-spacing:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-card__eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle);margin-top:4px}
+  .listing-card__eyebrow .mono-slug{font-family:var(--font-mono);font-size:10.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--faint)}
+  .listing-card__desc{font-size:13px;line-height:1.5;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .listing-card__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--line);margin-top:auto;width:100%}
+  .listing-card__foot-meta{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
+
+  .pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:fit-content;flex:none;
+    height:19px;padding:0 8px;border-radius:var(--radius-xs);white-space:nowrap;line-height:1;
+    font-size:11px;font-weight:500;letter-spacing:-.005em;background:var(--neutral-tint);color:var(--muted)}
+  .pill[data-mono="true"]{font-size:10.5px;font-weight:600;letter-spacing:0}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .pill[data-tone="accent"]{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 24px;
+    border-radius:var(--radius-lg);text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle);box-sizing:content-box}
+  .empty b{font-size:18px;font-weight:500;color:var(--fg-strong);letter-spacing:-.022em}
+  .empty p{font-size:13px;max-width:30rem;line-height:1.6;color:var(--muted)}
+  .empty .btn{margin-top:4px}
+  .skeleton-rows{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .skeleton-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line-soft)}
+  .skeleton-row:last-child{border-bottom:0}
+  .sk{border-radius:var(--radius);background:linear-gradient(90deg,var(--elevated) 0%,var(--surface-glaze) 50%,var(--elevated) 100%);
+    background-size:200% 100%;animation:shimmer 1.4s var(--ease) infinite}
+  .sk-avatar{width:34px;height:34px;border-radius:var(--radius-md)}
+  .sk-line{height:12px}
+  .sk-trail{display:flex;align-items:center;gap:10px}
+  .sk-pill{width:58px;height:19px;border-radius:var(--radius-xs)}
+  @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+  .copybtn{display:inline-grid;place-items:center;width:18px;height:18px;border:0;background:transparent;color:var(--faint);border-radius:var(--radius-xxs);cursor:pointer;flex:none}
+  .copybtn:hover{color:var(--fg);background:var(--row-hover)}
+  .copybtn svg{width:11px;height:11px}
+
+  /* detail sheet */
+  .scrim{position:fixed;inset:0;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .2s var(--ease);z-index:var(--z-scrim)}
+  .scrim.is-open{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;top:0;right:0;bottom:0;width:min(520px,calc(100vw - 24px));display:flex;flex-direction:column;
+    background:var(--canvas);border-left:1px solid var(--line);box-shadow:var(--shadow-overlay);
+    transform:translateX(103%);transition:transform .2s var(--ease);z-index:var(--z-sheet)}
+  .sheet.is-open{transform:translateX(0)}
+  .sheet__head{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 16px;border-bottom:1px solid var(--line);flex:none}
+  .sheet__well{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-md);background:var(--accent-tint);color:var(--accent-strong)}
+  .sheet__well svg{width:16px;height:16px}
+  .sheet__eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+  .sheet__title{margin-top:2px;display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em}
+  .sheet__title .name{font-family:var(--font-mono);font-size:14px}
+  .sheet__ref{margin-top:5px;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sheet__close{margin-left:auto;display:inline-grid;place-items:center;width:26px;height:26px;flex:none;border:0;background:transparent;
+    color:var(--muted);border-radius:var(--radius-sm);cursor:pointer}
+  .sheet__close:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .sheet__close svg{width:14px;height:14px}
+  .sheet__body{flex:1;min-height:0;overflow-y:auto;padding:18px 20px}
+  .sheet__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-top:1px solid var(--line-soft);flex:none}
+  .sheet__foot .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+  .tile{padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--input-fill);min-width:0}
+  .tile__l{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:6px}
+  .tile__v{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:510;color:var(--fg);min-width:0}
+  .tile__v .mono{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sheet-sec{margin-bottom:18px}
+  .sheet-sec__t{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:10px}
+  .kvbox{border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--input-fill);overflow:hidden}
+  .kv__row{display:flex;align-items:flex-start;gap:12px;padding:10px 13px;border-top:1px solid var(--line-soft)}
+  .kv__row:first-child{border-top:0}
+  .kv__k{font-size:11px;color:var(--subtle);flex:none;width:104px;padding-top:1px}
+  .kv__v{font-size:12.5px;color:var(--fg);min-width:0;flex:1;word-break:break-all}
+  .kv__v code{font-size:11px;color:var(--fg)}
+  .kv__v .muted{color:var(--muted)}
+  .keychips{display:flex;flex-wrap:wrap;gap:6px}
+  .quiet-note{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .quiet-note svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .danger-zone{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:var(--radius-md);
+    border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);background:var(--danger-tint)}
+  .danger-zone b{font-size:12.5px;font-weight:560;color:var(--danger);display:block}
+  .danger-zone p{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.45}
+
+  /* modals */
+  .modal-scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(2px);display:grid;place-items:center;padding:28px;z-index:var(--z-modal)}
+  .modal{width:min(500px,100%);background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);
+    display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;max-height:92vh}
+  .modal__head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 16px;border-bottom:1px solid var(--line-soft)}
+  .head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+    background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+  .head-icon svg{width:17px;height:17px}
+  .head-txt{flex:1;min-width:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+  .modal__title{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em;margin-top:3px}
+  .modal__sub{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+  .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .head-close svg{width:16px;height:16px}
+  .modal__body{overflow-y:auto;padding:18px 20px;min-height:0}
+  .modal__foot{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .modal__foot .foot-note{flex:1;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--subtle);min-width:0}
+  .modal__foot .foot-note svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .field{margin-bottom:16px}
+  .field:last-child{margin-bottom:0}
+  .field__label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--fg);margin-bottom:6px}
+  .field__label .req{font-size:10.5px;color:var(--subtle);font-weight:400}
+  .field__hint{font-size:11.5px;color:var(--subtle);margin-top:6px;line-height:1.5}
+  .field__hint.is-error{color:var(--danger)}
+  .input,.select{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);font-size:12.5px;outline:none}
+  .input.mono{font-family:var(--font-mono);font-size:12px}
+  .input:focus,.select:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .input:disabled{color:var(--muted);cursor:not-allowed}
+  .select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2376767c' stroke-width='2'><path d='m6 9 6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 9px center;padding-right:30px}
+  .radio-card-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .radio-card{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--canvas-tint);cursor:pointer;text-align:left}
+  .radio-card:hover{background:var(--row-hover);border-color:var(--line-strong)}
+  .radio-card[aria-checked="true"]{background:var(--elevated);border-color:var(--line-strong);box-shadow:var(--highlight)}
+  .radio-card b{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--fg-strong)}
+  .radio-card small{font-size:11px;color:var(--muted);line-height:1.35}
+  .preserved{border:1px dashed var(--line-strong);border-radius:var(--radius-md);background:var(--canvas-tint);padding:11px 13px}
+  .preserved__eyebrow{font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);margin-bottom:5px}
+  .preserved p{font-size:11.5px;color:var(--muted);line-height:1.5}
+  .preserved code{font-family:var(--font-mono);font-size:10.5px;color:var(--fg)}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:var(--z-toast);display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);font-size:12.5px;color:var(--fg);max-width:min(90vw,640px)}
+  .toast svg{width:14px;height:14px;color:var(--success);flex:none}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+  @media(max-width:920px){
+    .page{padding:22px 18px 64px}
+    .search{min-width:140px;width:160px}
+    .listing-row{grid-template-columns:34px minmax(0,1fr);row-gap:8px}
+    .listing-row__trail{grid-column:2;justify-content:flex-start;gap:8px;flex-wrap:wrap}
+    .listing-row__stat{align-items:flex-start}
+    .radio-card-group{grid-template-columns:1fr}
+    .tiles{grid-template-columns:1fr}
+  }
+  @media(max-width:560px){
+    .head__title{font-size:1.25rem}
+    .listing-toolbar{gap:8px}
+    .search{width:100%;min-width:0;flex:1 1 100%}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+
+    <header class="topbar" data-od-id="sandbox-topbar">
+      <div class="topbar__context">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <ol class="breadcrumb__list">
+            <li class="breadcrumb__item"><a class="breadcrumb__link breadcrumb__home" href="#" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a></li>
+            <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+            <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Sandbox</span></li>
+          </ol>
+        </nav>
+      </div>
+      <div></div>
+      <div class="topbar__trailing" data-od-id="sandbox-topbar-actions">
+        <button type="button" class="btn btn--ghost btn--sm" id="btn-refresh">Refresh</button>
+        <button type="button" class="btn btn--primary btn--sm" id="btn-new" data-od-id="sandbox-new-profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          New sandbox profile
+        </button>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+
+        <header class="head" data-od-id="sandbox-head">
+          <span class="head__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="m7 16.5-4.74-2.85"/><path d="m7 16.5 5-3"/><path d="M7 16.5v5.17"/><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/><path d="m17 16.5-5-3"/><path d="m17 16.5 4.74-2.85"/><path d="M17 16.5v5.17"/><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/><path d="M12 8 7.26 5.15"/><path d="m12 8 4.74-2.85"/><path d="M12 13.5V8"/></svg>
+          </span>
+          <div class="head__main">
+            <div class="head__titlerow">
+              <h1 class="head__title" tabindex="-1">Sandbox</h1>
+              <span class="count-chip" id="head-count">4</span>
+            </div>
+            <div class="head__meta">
+              <span>Execution boundary profiles that workspaces and sessions select by name.</span>
+              <span class="dotsep"></span>
+              <span id="meta-profiles">4 profiles</span>
+              <span class="dotsep"></span>
+              <span id="meta-usage">7 workspace references</span>
+            </div>
+          </div>
+        </header>
+
+        <div class="listing-toolbar" data-od-id="sandbox-toolbar">
+          <div class="listing-toolbar__leading">
+            <label class="search" data-od-id="sandbox-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <input id="search-input" type="search" placeholder="Search profiles" autocomplete="off" spellcheck="false" />
+              <span class="kbd">/</span>
+            </label>
+            <div class="filters" id="filters-root" data-od-id="sandbox-filters"></div>
+          </div>
+          <div class="listing-toolbar__trailing">
+            <div class="pill-group" role="group" aria-label="View mode" data-od-id="sandbox-view-toggle" id="view-toggle">
+              <button type="button" class="pill-group__item" data-view="rows" aria-pressed="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Rows
+              </button>
+              <button type="button" class="pill-group__item" data-view="cards" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Cards
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p class="sec-note" data-od-id="sandbox-sec-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <span>Profiles are global. When <span class="mono" style="font-size:11px">defaults.sandbox</span> is unset, sessions fall back to a synthetic local profile.</span>
+        </p>
+
+        <div id="list-root" data-od-id="sandbox-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── profile detail sheet ── -->
+<div class="scrim" id="sheet-scrim"></div>
+<aside class="sheet" id="profile-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" data-od-id="sandbox-profile-sheet">
+  <header class="sheet__head">
+    <span class="sheet__well" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.29 7 8.71 5 8.71-5"/><path d="M12 22V12"/></svg>
+    </span>
+    <div style="min-width:0;flex:1">
+      <div class="sheet__eyebrow">Sandbox profile</div>
+      <div class="sheet__title"><span class="name" id="sheet-title">daytona-eu</span><span id="sheet-pills"></span></div>
+      <div class="sheet__ref" id="sheet-sub">cloud workspace · Daytona</div>
+    </div>
+    <button type="button" class="sheet__close" id="sheet-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+  </header>
+  <div class="sheet__body" id="sheet-body"><!-- rendered --></div>
+  <div class="sheet__foot">
+    <span class="mono" id="sheet-cli">agh config get sandboxes.daytona-eu</span>
+  </div>
+</aside>
+
+<!-- ── editor modal (create / replace) ── -->
+<div class="modal-scrim hide" id="editor-scrim" data-od-id="sandbox-editor-scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editor-title" data-od-id="sandbox-editor-modal">
+    <header class="modal__head">
+      <span class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.29 7 8.71 5 8.71-5"/><path d="M12 22V12"/></svg>
+      </span>
+      <div class="head-txt">
+        <div class="eyebrow">Sandbox</div>
+        <h2 class="modal__title" id="editor-title">New sandbox profile</h2>
+        <p class="modal__sub" id="editor-sub">Create a new sandbox overlay. Saving writes a new overlay entry.</p>
+      </div>
+      <button type="button" class="head-close" data-close-editor aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </header>
+    <div class="modal__body">
+      <div class="field">
+        <label class="field__label" for="editor-name">Name <span class="req" id="editor-name-req">required</span></label>
+        <input class="input mono" id="editor-name" placeholder="e.g. local" autocomplete="off" spellcheck="false" />
+        <p class="field__hint" id="editor-name-hint">Workspaces reference the profile by this name.</p>
+      </div>
+      <div class="field">
+        <span class="field__label">Backend <span class="req">required</span></span>
+        <div class="radio-card-group" role="radiogroup" aria-label="Backend" id="backend-cards">
+          <button type="button" class="radio-card" role="radio" aria-checked="true" data-backend="local"><b>local</b><small>host process · no sandbox</small></button>
+          <button type="button" class="radio-card" role="radio" aria-checked="false" data-backend="daytona"><b>daytona</b><small>cloud workspace · Daytona</small></button>
+        </div>
+        <p class="field__hint">Which execution backend the sandbox uses.</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="editor-sync">Sync mode <span class="req">optional</span></label>
+        <select class="select" id="editor-sync">
+          <option value="">none</option>
+          <option value="session-bidirectional">session-bidirectional</option>
+        </select>
+        <p class="field__hint">How files move between host and sandbox.</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="editor-persistence">Persistence <span class="req">optional</span></label>
+        <select class="select" id="editor-persistence">
+          <option value="">transient</option>
+          <option value="reuse">reuse</option>
+          <option value="archive">archive</option>
+        </select>
+        <p class="field__hint">Workspace lifecycle between sessions.</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="editor-root">Runtime root <span class="req">optional</span></label>
+        <input class="input mono" id="editor-root" placeholder="~ | /workspace | /home/user" autocomplete="off" spellcheck="false" />
+        <p class="field__hint">Directory mounted as the working root.</p>
+      </div>
+      <div class="preserved hide" id="editor-preserved">
+        <div class="preserved__eyebrow">preserved on save</div>
+        <p><code>daytona</code>, <code>network</code>, <code>env</code> — edited outside this dialog and included as-is in the PUT replace.</p>
+      </div>
+    </div>
+    <footer class="modal__foot">
+      <span class="foot-note" id="editor-foot-note">Full PUT replace — unset optional fields are cleared</span>
+      <button type="button" class="btn btn--ghost" data-close-editor>Cancel</button>
+      <button type="button" class="btn btn--primary" id="editor-save" disabled>Create sandbox profile</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ── delete confirm ── -->
+<div class="modal-scrim hide" id="delete-scrim" data-od-id="sandbox-delete-scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-title" data-od-id="sandbox-delete-modal">
+    <header class="modal__head">
+      <span class="head-icon" style="background:var(--danger-tint);color:var(--danger);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 24%,transparent)" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+      </span>
+      <div class="head-txt">
+        <div class="eyebrow" style="color:var(--danger)">Sandbox</div>
+        <h2 class="modal__title" id="delete-title">Delete sandbox profile "daytona-eu"?</h2>
+        <p class="modal__sub">Removing the overlay stops making this profile selectable for new workspaces.</p>
+      </div>
+      <button type="button" class="head-close" data-close-delete aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </header>
+    <div class="modal__body">
+      <div class="quiet-note" id="delete-usage-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span id="delete-usage-text">2 workspaces currently reference this profile. Existing sessions continue to run against their recorded profile. New sessions will fail to resolve this sandbox until another profile with the same name is added.</span>
+      </div>
+    </div>
+    <footer class="modal__foot">
+      <span class="foot-note" style="flex:1"></span>
+      <button type="button" class="btn btn--ghost" data-close-delete>Cancel</button>
+      <button type="button" class="btn btn--destructive" id="delete-confirm">Delete sandbox profile</button>
+    </footer>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var BOX_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.29 7 8.71 5 8.71-5"/><path d="M12 22V12"/></svg>';
+  var BOXES_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/></svg>';
+  var PENCIL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
+  var TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
+  var CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>';
+
+  /* defaults.sandbox — profile sessions use when a workspace sets no override */
+  var DEFAULT_PROFILE = "local";
+
+  /* Sample inventory — field shapes mirror SettingsSandboxEntry / [sandboxes.<name>] config. */
+  var PROFILES = [
+    { name: "local", backend: "local", sync_mode: "", persistence: "", runtime_root: "~",
+      usage: 4, source: "global config",
+      network: { allow_outbound: true, allow_public_ingress: false, allow_list: [], deny_list: [] },
+      env: [], secret_env: [] },
+    { name: "local-restricted", backend: "local", sync_mode: "", persistence: "", runtime_root: "~/agh-sandbox",
+      usage: 1, source: "global config",
+      network: { allow_outbound: false, allow_public_ingress: false, allow_list: ["github.com", "registry.npmjs.org"], deny_list: [] },
+      env: [], secret_env: [] },
+    { name: "daytona-eu", backend: "daytona", sync_mode: "session-bidirectional", persistence: "reuse", runtime_root: "/workspace",
+      usage: 2, source: "global config",
+      network: { allow_outbound: true, allow_public_ingress: false, allow_list: [], deny_list: [] },
+      daytona: { target: "eu", image: "ghcr.io/agh/runtime:1.4", auto_stop: 30, auto_archive: 1440 },
+      env: ["NODE_ENV"], secret_env: ["DAYTONA_API_KEY"], secretRef: "vault:sandbox/daytona-eu/api_key" },
+    { name: "daytona-archive", backend: "daytona", sync_mode: "session-bidirectional", persistence: "archive", runtime_root: "/workspace",
+      usage: 0, source: "global config",
+      network: { allow_outbound: true, allow_public_ingress: false, allow_list: [], deny_list: [] },
+      daytona: { target: "eu", image: "ghcr.io/agh/runtime:1.4", auto_stop: 15, auto_archive: 720 },
+      env: [], secret_env: [] }
+  ];
+
+  var FILTER_FIELDS = [
+    { key: "backend", label: "Backend" },
+    { key: "persistence", label: "Persistence" }
+  ];
+
+  var state = {
+    query: "",
+    filters: [],
+    menuOpen: false,
+    submenuField: null,
+    view: "rows",         /* rows | cards — design-system.html PillGroup */
+    pageState: "ready",   /* ready | loading | empty | error */
+    selected: null,
+    editing: null
+  };
+
+  function parseParams() {
+    var p = new URLSearchParams(window.location.search);
+    var s = p.get("state");
+    if (s === "loading" || s === "empty" || s === "error") state.pageState = s;
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c];
+    });
+  }
+  function uid() { return "f_" + Math.random().toString(36).slice(2, 9); }
+
+  function backendLabel(p) {
+    if (p.backend === "local") return "host process · no sandbox";
+    if (p.backend === "daytona") return "cloud workspace · Daytona";
+    return "custom backend · " + p.backend;
+  }
+  function backendTone(p) {
+    if (p.backend === "local") return "success";
+    if (p.backend === "daytona") return "info";
+    return "neutral";
+  }
+  function orDash(v) { return v && String(v).length ? v : "--"; }
+  function effSync(p) { return orDash(p.sync_mode || "none"); }
+  function effPersistence(p) { return orDash(p.persistence || "transient"); }
+  function usageLabel(p) { return p.usage + (p.usage === 1 ? " workspace" : " workspaces"); }
+
+  function inventory() {
+    if (state.pageState !== "ready") return [];
+    return PROFILES.slice();
+  }
+  function optionsFor(fieldKey) {
+    var set = {};
+    PROFILES.forEach(function (p) {
+      set[fieldKey === "backend" ? p.backend : (p.persistence || "transient")] = true;
+    });
+    return Object.keys(set).sort();
+  }
+  function filtered() {
+    var q = state.query.trim().toLowerCase();
+    return inventory().filter(function (p) {
+      if (q && p.name.toLowerCase().indexOf(q) === -1) return false;
+      return state.filters.every(function (chip) {
+        if (chip.field === "backend") return p.backend === chip.value;
+        if (chip.field === "persistence") return (p.persistence || "transient") === chip.value;
+        return true;
+      });
+    }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+
+  /* ── filters ── */
+  function renderFilters() {
+    var root = document.getElementById("filters-root");
+    if (state.pageState !== "ready") { root.innerHTML = ""; return; }
+    var used = state.filters.map(function (c) { return c.field; });
+    var html = '<div class="filter-add">';
+    html += '<button type="button" class="btn btn--ghost btn--sm" id="filter-add-btn" aria-haspopup="menu" aria-expanded="' + state.menuOpen + '">';
+    html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18"/><path d="M7 12h10"/><path d="M10 19h4"/></svg> Filter</button>';
+    if (state.menuOpen) {
+      html += '<div class="filter-menu" role="menu">';
+      var shown = 0;
+      FILTER_FIELDS.forEach(function (f) {
+        if (used.indexOf(f.key) !== -1) return;
+        shown++;
+        html += '<button type="button" class="filter-menu__item" data-add-field="' + f.key + '" role="menuitem">' + esc(f.label) + '</button>';
+      });
+      if (!shown) html += '<div class="filter-menu__item" style="color:var(--subtle);cursor:default">No more fields</div>';
+      html += '</div>';
+      if (state.submenuField) {
+        html += '<div class="filter-submenu">';
+        optionsFor(state.submenuField).forEach(function (opt) {
+          html += '<button type="button" class="filter-menu__item" data-pick-value="' + esc(opt) + '"><span class="mono" style="font-size:11px">' + esc(opt) + '</span></button>';
+        });
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+    state.filters.forEach(function (chip) {
+      var field = FILTER_FIELDS.find(function (f) { return f.key === chip.field; });
+      html += '<div class="filter-chip" role="group">';
+      html += '<span class="filter-chip__label">' + esc(field.label) + '</span>';
+      html += '<span class="filter-chip__op">is</span>';
+      html += '<span class="filter-chip__val">' + esc(chip.value) + '</span>';
+      html += '<button type="button" class="filter-chip__x" data-chip-remove="' + chip.id + '" aria-label="Remove ' + esc(field.label) + ' filter">';
+      html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
+      html += '</div>';
+    });
+    root.innerHTML = html;
+
+    var addBtn = document.getElementById("filter-add-btn");
+    if (addBtn) addBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      state.menuOpen = !state.menuOpen;
+      state.submenuField = null;
+      renderFilters();
+    });
+    root.querySelectorAll("[data-add-field]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.submenuField = btn.getAttribute("data-add-field");
+        renderFilters();
+      });
+    });
+    root.querySelectorAll("[data-pick-value]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.filters.push({ id: uid(), field: state.submenuField, value: btn.getAttribute("data-pick-value") });
+        state.menuOpen = false; state.submenuField = null;
+        renderAll();
+      });
+    });
+    root.querySelectorAll("[data-chip-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute("data-chip-remove");
+        state.filters = state.filters.filter(function (c) { return c.id !== id; });
+        renderAll();
+      });
+    });
+  }
+
+  /* ── rows ── */
+  function rowMarkup(p) {
+    var defaultPill = p.name === DEFAULT_PROFILE
+      ? '<span class="pill">default</span>' : "";
+    return '<button type="button" class="listing-row" data-open="' + esc(p.name) + '" data-od-id="sandbox-row-' + esc(p.name) + '">' +
+      '<span class="listing-row__icon" aria-hidden="true">' + BOX_ICON + '</span>' +
+      '<span class="listing-row__main">' +
+        '<span class="listing-row__name"><b>' + esc(p.name) + '</b>' +
+        '<span class="pill" data-mono="true" data-tone="' + backendTone(p) + '">' + esc(p.backend) + '</span>' + defaultPill + '</span>' +
+        '<span class="listing-row__desc">' + esc(backendLabel(p)) + '</span>' +
+        '<span class="listing-row__meta">' +
+          '<span class="k">sync ' + esc(effSync(p)) + '</span><span class="dotsep"></span>' +
+          '<span class="k">' + esc(effPersistence(p)) + '</span><span class="dotsep"></span>' +
+          '<span class="k">' + esc(orDash(p.runtime_root)) + '</span><span class="dotsep"></span>' +
+          '<span>' + esc(p.source) + '</span>' +
+        '</span>' +
+      '</span>' +
+      '<span class="listing-row__trail">' +
+        '<span class="listing-row__stat"><span class="listing-row__stat-v">' + p.usage + '</span><span class="listing-row__stat-l">' + (p.usage === 1 ? "workspace" : "workspaces") + '</span></span>' +
+        '<span class="row-actions">' +
+          '<span class="btn btn--icon" data-edit="' + esc(p.name) + '" role="button" tabindex="0" aria-label="Edit ' + esc(p.name) + '">' + PENCIL_ICON + '</span>' +
+          '<span class="btn btn--icon" data-delete="' + esc(p.name) + '" data-danger role="button" tabindex="0" aria-label="Delete ' + esc(p.name) + '">' + TRASH_ICON + '</span>' +
+        '</span>' +
+      '</span>' +
+    '</button>';
+  }
+
+  function cardMarkup(p) {
+    var defaultPill = p.name === DEFAULT_PROFILE
+      ? '<span class="pill">default</span>' : "";
+    return '<button type="button" class="listing-card" data-open="' + esc(p.name) + '" data-od-id="sandbox-card-' + esc(p.name) + '">' +
+      '<span class="listing-card__head">' +
+        '<span class="listing-card__icon" aria-hidden="true">' + BOX_ICON + '</span>' +
+        '<span class="listing-card__title"><b>' + esc(p.name) + '</b>' +
+        '<span class="listing-card__eyebrow">' + esc(p.backend) +
+          ' · <span class="mono-slug">' + esc(effPersistence(p)) + '</span>' +
+          ' · ' + esc(usageLabel(p)) + '</span></span>' +
+      '</span>' +
+      '<p class="listing-card__desc">' + esc(backendLabel(p)) + '</p>' +
+      '<span class="listing-card__foot">' +
+        '<span class="listing-card__foot-meta">' +
+          '<span class="pill" data-mono="true" data-tone="' + backendTone(p) + '">' + esc(p.backend) + '</span>' +
+          defaultPill +
+        '</span>' +
+        '<span class="btn btn--ghost btn--sm" data-edit="' + esc(p.name) + '" role="button" tabindex="0" aria-label="Edit ' + esc(p.name) + '">' + PENCIL_ICON + ' Edit</span>' +
+      '</span>' +
+    '</button>';
+  }
+
+  function skeletonMarkup() {
+    var rows = "";
+    for (var i = 0; i < 4; i++) {
+      rows += '<div class="skeleton-row"><div class="sk sk-avatar"></div>' +
+        '<div><div class="sk sk-line" style="width:32%;margin-bottom:8px"></div><div class="sk sk-line" style="width:52%;height:10px"></div></div>' +
+        '<div class="sk-trail"><div class="sk sk-pill"></div><div class="sk sk-pill"></div></div></div>';
+    }
+    return '<div class="skeleton-rows" aria-busy="true" aria-label="Loading sandbox profiles">' + rows + '</div>';
+  }
+
+  function emptyMarkup(kind) {
+    if (kind === "error") {
+      return '<div class="empty" data-od-id="sandbox-error">' + BOXES_ICON +
+        '<b>Failed to load sandboxes</b><p>The daemon stopped responding before it returned the profile list. Existing configuration was not changed.</p>' +
+        '<button type="button" class="btn" data-retry>Retry</button></div>';
+    }
+    if (kind === "nomatch") {
+      return '<div class="empty" data-od-id="sandbox-no-match">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>' +
+        '<b>No profiles match</b><p>Try a different search or clear filters.</p>' +
+        '<button type="button" class="btn" data-clear-filters>Clear filters</button></div>';
+    }
+    return '<div class="empty" data-od-id="sandbox-empty">' + BOXES_ICON +
+      '<b>No sandbox profiles defined</b><p>Use "New sandbox profile" to create an overlay profile referenceable by workspaces.</p>' +
+      '<button type="button" class="btn btn--primary" data-empty-new>New sandbox profile</button></div>';
+  }
+
+  function renderList() {
+    var root = document.getElementById("list-root");
+    if (state.pageState === "loading") { root.innerHTML = skeletonMarkup(); return; }
+    if (state.pageState === "error") { root.innerHTML = emptyMarkup("error"); bindListEvents(root); return; }
+    var totalUsage = PROFILES.reduce(function (n, p) { return n + p.usage; }, 0);
+    document.getElementById("head-count").textContent = String(PROFILES.length);
+    document.getElementById("meta-profiles").textContent = PROFILES.length + (PROFILES.length === 1 ? " profile" : " profiles");
+    document.getElementById("meta-usage").textContent = totalUsage + " workspace references";
+    if (state.pageState === "empty" || !PROFILES.length) { root.innerHTML = emptyMarkup("zero"); bindListEvents(root); return; }
+    var items = filtered();
+    if (!items.length) { root.innerHTML = emptyMarkup("nomatch"); bindListEvents(root); return; }
+    if (state.view === "cards") {
+      root.innerHTML = '<div class="listing-card-grid">' + items.map(cardMarkup).join("") + '</div>';
+    } else {
+      root.innerHTML = '<div class="list">' + items.map(rowMarkup).join("") + '</div>';
+    }
+    bindListEvents(root);
+  }
+
+  function syncViewToggle() {
+    document.querySelectorAll("#view-toggle .pill-group__item").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", btn.getAttribute("data-view") === state.view ? "true" : "false");
+    });
+  }
+
+  function bindAction(el, fn) {
+    el.addEventListener("click", function (e) { e.stopPropagation(); fn(); });
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); fn(); }
+    });
+  }
+
+  function bindListEvents(root) {
+    root.querySelectorAll("[data-open]").forEach(function (el) {
+      el.addEventListener("click", function () { openSheet(el.getAttribute("data-open")); });
+    });
+    root.querySelectorAll("[data-edit]").forEach(function (el) {
+      bindAction(el, function () { openEditor(el.getAttribute("data-edit")); });
+    });
+    root.querySelectorAll("[data-delete]").forEach(function (el) {
+      bindAction(el, function () { openDelete(el.getAttribute("data-delete")); });
+    });
+    root.querySelectorAll("[data-empty-new]").forEach(function (el) {
+      el.addEventListener("click", function (e) { e.stopPropagation(); openEditor(null); });
+    });
+    root.querySelectorAll("[data-clear-filters]").forEach(function (el) {
+      el.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.filters = []; state.query = "";
+        document.getElementById("search-input").value = "";
+        renderAll();
+      });
+    });
+    root.querySelectorAll("[data-retry]").forEach(function (el) {
+      el.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.pageState = "loading";
+        renderList();
+        setTimeout(function () { state.pageState = "ready"; renderAll(); }, 700);
+      });
+    });
+  }
+
+  function renderAll() { syncViewToggle(); renderFilters(); renderList(); }
+
+  /* ── sheet ── */
+  var sheetScrim = document.getElementById("sheet-scrim");
+  var sheet = document.getElementById("profile-sheet");
+
+  function findProfile(name) {
+    return PROFILES.find(function (p) { return p.name === name; });
+  }
+
+  function sheetBodyMarkup(p) {
+    var html = "";
+    html += '<div class="tiles">';
+    html += '<div class="tile"><div class="tile__l">Backend</div><div class="tile__v"><span class="pill" data-mono="true" data-tone="' + backendTone(p) + '">' + esc(p.backend) + '</span></div></div>';
+    html += '<div class="tile"><div class="tile__l">Sync mode</div><div class="tile__v"><span class="mono">' + esc(effSync(p)) + '</span></div></div>';
+    html += '<div class="tile"><div class="tile__l">Persistence</div><div class="tile__v"><span class="mono">' + esc(effPersistence(p)) + '</span></div></div>';
+    html += '<div class="tile"><div class="tile__l">Runtime root</div><div class="tile__v"><span class="mono">' + esc(orDash(p.runtime_root)) + '</span></div></div>';
+    html += '</div>';
+
+    html += '<div class="sheet-sec" data-od-id="sandbox-sheet-network"><div class="sheet-sec__t">Network</div><div class="kvbox">';
+    html += '<div class="kv__row"><span class="kv__k">Outbound</span><span class="kv__v">' +
+      (p.network.allow_outbound ? '<span class="pill" data-tone="success">allowed</span>' : '<span class="pill" data-tone="warning">blocked</span>') + '</span></div>';
+    html += '<div class="kv__row"><span class="kv__k">Public ingress</span><span class="kv__v">' +
+      (p.network.allow_public_ingress ? '<span class="pill" data-tone="warning">allowed</span>' : '<span class="pill">off</span>') + '</span></div>';
+    html += '<div class="kv__row"><span class="kv__k">Allow list</span><span class="kv__v">' +
+      (p.network.allow_list.length ? '<span class="keychips">' + p.network.allow_list.map(function (h) { return '<span class="pill" data-mono="true">' + esc(h) + '</span>'; }).join("") + '</span>' : '<span class="muted">--</span>') + '</span></div>';
+    html += '<div class="kv__row"><span class="kv__k">Deny list</span><span class="kv__v">' +
+      (p.network.deny_list.length ? '<span class="keychips">' + p.network.deny_list.map(function (h) { return '<span class="pill" data-mono="true">' + esc(h) + '</span>'; }).join("") + '</span>' : '<span class="muted">--</span>') + '</span></div>';
+    html += '</div></div>';
+
+    if (p.backend === "daytona" && p.daytona) {
+      html += '<div class="sheet-sec" data-od-id="sandbox-sheet-daytona"><div class="sheet-sec__t">Daytona</div><div class="kvbox">';
+      html += '<div class="kv__row"><span class="kv__k">Image</span><span class="kv__v"><code>' + esc(p.daytona.image) + '</code></span></div>';
+      html += '<div class="kv__row"><span class="kv__k">Target</span><span class="kv__v"><code>' + esc(p.daytona.target) + '</code></span></div>';
+      html += '<div class="kv__row"><span class="kv__k">Auto stop</span><span class="kv__v"><code>' + p.daytona.auto_stop + ' min</code></span></div>';
+      html += '<div class="kv__row"><span class="kv__k">Auto archive</span><span class="kv__v"><code>' + p.daytona.auto_archive + ' min</code></span></div>';
+      html += '</div></div>';
+    }
+
+    if ((p.env && p.env.length) || (p.secret_env && p.secret_env.length)) {
+      html += '<div class="sheet-sec" data-od-id="sandbox-sheet-env"><div class="sheet-sec__t">Environment</div><div class="kvbox">';
+      if (p.env.length) {
+        html += '<div class="kv__row"><span class="kv__k">Env</span><span class="kv__v"><span class="keychips">' +
+          p.env.map(function (k) { return '<span class="pill" data-mono="true">' + esc(k) + '</span>'; }).join("") + '</span></span></div>';
+      }
+      if (p.secret_env.length) {
+        html += '<div class="kv__row"><span class="kv__k">Secret env</span><span class="kv__v"><span class="keychips">' +
+          p.secret_env.map(function (k) { return '<span class="pill" data-mono="true" data-tone="info">' + esc(k) + '</span>'; }).join("") + '</span></span></div>';
+        if (p.secretRef) {
+          html += '<div class="kv__row"><span class="kv__k">Binding</span><span class="kv__v"><code>' + esc(p.secretRef) + '</code></span></div>';
+        }
+      }
+      html += '</div><p class="field__hint">Secret values render as vault references and never return in plaintext.</p></div>';
+    }
+
+    html += '<div class="sheet-sec" data-od-id="sandbox-sheet-usage"><div class="sheet-sec__t">Usage</div><div class="kvbox">';
+    html += '<div class="kv__row"><span class="kv__k">Workspaces</span><span class="kv__v">' + esc(usageLabel(p)) + ' reference this profile</span></div>';
+    html += '<div class="kv__row"><span class="kv__k">Source</span><span class="kv__v"><span class="muted">' + esc(p.source) + ' · [sandboxes.' + esc(p.name) + ']</span></span></div>';
+    if (p.name === DEFAULT_PROFILE) {
+      html += '<div class="kv__row"><span class="kv__k">Default</span><span class="kv__v">Sessions without a workspace override run here (<code>defaults.sandbox</code>)</span></div>';
+    }
+    html += '</div></div>';
+
+    html += '<div class="sheet-sec"><div class="quiet-note">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>' +
+      '<span><code style="font-family:var(--font-mono);font-size:11px">daytona</code>, <code style="font-family:var(--font-mono);font-size:11px">network</code>, and <code style="font-family:var(--font-mono);font-size:11px">env</code> sub-fields are edited via <code style="font-family:var(--font-mono);font-size:11px">agh config set</code> and preserved on dialog saves.</span>' +
+      '</div></div>';
+
+    html += '<div class="sheet-sec" data-od-id="sandbox-sheet-danger"><div class="danger-zone"><div>' +
+      '<b>Delete profile</b><p>Removing the overlay stops making this profile selectable for new workspaces.</p></div>' +
+      '<button type="button" class="btn btn--destructive btn--sm" data-sheet-delete>Delete</button></div></div>';
+
+    return html;
+  }
+
+  function openSheet(name) {
+    var p = findProfile(name);
+    if (!p) return;
+    state.selected = name;
+    document.getElementById("sheet-title").textContent = p.name;
+    document.getElementById("sheet-pills").innerHTML =
+      '<span class="pill" data-mono="true" data-tone="' + backendTone(p) + '">' + esc(p.backend) + '</span>' +
+      (p.name === DEFAULT_PROFILE ? ' <span class="pill">default</span>' : "");
+    document.getElementById("sheet-sub").textContent = backendLabel(p);
+    document.getElementById("sheet-cli").textContent = "agh config get sandboxes." + p.name;
+    var body = document.getElementById("sheet-body");
+    body.innerHTML = sheetBodyMarkup(p);
+    body.querySelectorAll("[data-sheet-delete]").forEach(function (btn) {
+      btn.addEventListener("click", function () { setSheet(false); openDelete(p.name); });
+    });
+    setSheet(true);
+  }
+  function setSheet(open) {
+    sheet.classList.toggle("is-open", open);
+    sheetScrim.classList.toggle("is-open", open);
+    if (open) document.getElementById("sheet-close").focus();
+  }
+  document.getElementById("sheet-close").addEventListener("click", function () { setSheet(false); });
+  sheetScrim.addEventListener("click", function () { setSheet(false); });
+
+  /* ── editor ── */
+  var editorScrim = document.getElementById("editor-scrim");
+  var editorBackend = "local";
+
+  function setBackend(b) {
+    editorBackend = b;
+    document.querySelectorAll("#backend-cards .radio-card").forEach(function (card) {
+      card.setAttribute("aria-checked", card.getAttribute("data-backend") === b ? "true" : "false");
+    });
+  }
+  document.querySelectorAll("#backend-cards .radio-card").forEach(function (card) {
+    card.addEventListener("click", function () { setBackend(card.getAttribute("data-backend")); validateEditor(); });
+  });
+
+  function openEditor(name) {
+    state.editing = name;
+    var p = name ? findProfile(name) : null;
+    document.getElementById("editor-title").textContent = p ? "Edit " + p.name : "New sandbox profile";
+    document.getElementById("editor-sub").textContent = p
+      ? "Saving replaces the overlay profile with the values below (full PUT). Unset optional fields are cleared."
+      : "Create a new sandbox overlay. Saving writes a new overlay entry.";
+    document.getElementById("editor-name").value = p ? p.name : "";
+    document.getElementById("editor-name").disabled = !!p;
+    document.getElementById("editor-name-req").textContent = p ? "locked" : "required";
+    document.getElementById("editor-name-hint").textContent = "Workspaces reference the profile by this name.";
+    document.getElementById("editor-name-hint").classList.remove("is-error");
+    document.getElementById("editor-sync").value = p ? (p.sync_mode || "") : "";
+    document.getElementById("editor-persistence").value = p ? (p.persistence || "") : "";
+    document.getElementById("editor-root").value = p ? (p.runtime_root || "") : "";
+    document.getElementById("editor-preserved").classList.toggle("hide", !p);
+    document.getElementById("editor-save").textContent = p ? "Replace profile" : "Create sandbox profile";
+    setBackend(p ? p.backend : "local");
+    validateEditor();
+    editorScrim.classList.remove("hide");
+    (p ? document.getElementById("editor-sync") : document.getElementById("editor-name")).focus();
+  }
+  function closeEditor() { editorScrim.classList.add("hide"); state.editing = null; }
+  function validateEditor() {
+    var name = document.getElementById("editor-name").value.trim();
+    var hint = document.getElementById("editor-name-hint");
+    var conflict = !state.editing && name && !!findProfile(name);
+    if (conflict) {
+      hint.textContent = 'A sandbox named "' + name + '" already exists.';
+      hint.classList.add("is-error");
+    } else {
+      hint.textContent = "Workspaces reference the profile by this name.";
+      hint.classList.remove("is-error");
+    }
+    document.getElementById("editor-save").disabled = !name || conflict;
+  }
+  document.getElementById("editor-name").addEventListener("input", validateEditor);
+  editorScrim.querySelectorAll("[data-close-editor]").forEach(function (btn) { btn.addEventListener("click", closeEditor); });
+  editorScrim.addEventListener("click", function (e) { if (e.target === editorScrim) closeEditor(); });
+
+  document.getElementById("editor-save").addEventListener("click", function () {
+    var name = document.getElementById("editor-name").value.trim();
+    var existing = state.editing ? findProfile(state.editing) : null;
+    var p = existing || {
+      name: name, usage: 0, source: "global config",
+      network: { allow_outbound: true, allow_public_ingress: false, allow_list: [], deny_list: [] },
+      env: [], secret_env: []
+    };
+    p.backend = editorBackend;
+    p.sync_mode = document.getElementById("editor-sync").value;
+    p.persistence = document.getElementById("editor-persistence").value;
+    p.runtime_root = document.getElementById("editor-root").value.trim();
+    if (p.backend === "daytona" && !p.daytona) {
+      p.daytona = { target: "eu", image: "ghcr.io/agh/runtime:1.4", auto_stop: 30, auto_archive: 1440 };
+    }
+    if (!existing) PROFILES.push(p);
+    closeEditor();
+    toast('Saved sandbox "' + name + '" · applied immediately.');
+    renderAll();
+  });
+
+  /* ── delete ── */
+  var deleteScrim = document.getElementById("delete-scrim");
+  var pendingDelete = null;
+
+  function openDelete(name) {
+    var p = findProfile(name);
+    if (!p) return;
+    pendingDelete = name;
+    document.getElementById("delete-title").textContent = 'Delete sandbox profile "' + p.name + '"?';
+    document.getElementById("delete-usage-text").textContent =
+      (p.usage
+        ? p.usage + (p.usage === 1 ? " workspace currently references" : " workspaces currently reference") + " this profile. "
+        : "No workspaces currently reference this profile. ") +
+      "Existing sessions continue to run against their recorded profile. New sessions will fail to resolve this sandbox until another profile with the same name is added.";
+    deleteScrim.classList.remove("hide");
+    document.getElementById("delete-confirm").focus();
+  }
+  function closeDelete() { deleteScrim.classList.add("hide"); pendingDelete = null; }
+  deleteScrim.querySelectorAll("[data-close-delete]").forEach(function (btn) { btn.addEventListener("click", closeDelete); });
+  deleteScrim.addEventListener("click", function (e) { if (e.target === deleteScrim) closeDelete(); });
+  document.getElementById("delete-confirm").addEventListener("click", function () {
+    if (!pendingDelete) return;
+    var i = PROFILES.findIndex(function (p) { return p.name === pendingDelete; });
+    if (i !== -1) {
+      var p = PROFILES[i];
+      PROFILES.splice(i, 1);
+      toast('Deleted "' + p.name + '"' + (p.usage ? " · " + p.usage + " workspaces affected" : "") + " · applied immediately.");
+    }
+    closeDelete();
+    renderAll();
+  });
+
+  /* ── shared ── */
+  var toastTimer = null;
+  function toast(msg) {
+    var prev = document.querySelector(".toast");
+    if (prev) prev.remove();
+    var el = document.createElement("div");
+    el.className = "toast";
+    el.setAttribute("role", "status");
+    el.innerHTML = CHECK_ICON + esc(msg);
+    document.body.appendChild(el);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.remove(); }, 3000);
+  }
+
+  document.getElementById("btn-new").addEventListener("click", function () { openEditor(null); });
+  document.getElementById("btn-refresh").addEventListener("click", function () {
+    var root = document.getElementById("list-root");
+    root.innerHTML = skeletonMarkup();
+    setTimeout(renderAll, 600);
+  });
+  document.getElementById("search-input").addEventListener("input", function (e) {
+    state.query = e.target.value;
+    renderList();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "SELECT" && document.activeElement.tagName !== "TEXTAREA") {
+      e.preventDefault();
+      document.getElementById("search-input").focus();
+    }
+    if (e.key === "Escape") {
+      if (!deleteScrim.classList.contains("hide")) { closeDelete(); return; }
+      if (!editorScrim.classList.contains("hide")) { closeEditor(); return; }
+      if (sheet.classList.contains("is-open")) { setSheet(false); return; }
+      if (state.menuOpen) { state.menuOpen = false; state.submenuField = null; renderFilters(); }
+    }
+  });
+  document.addEventListener("click", function () {
+    if (state.menuOpen) { state.menuOpen = false; state.submenuField = null; renderFilters(); }
+  });
+  document.querySelectorAll("#view-toggle .pill-group__item").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.view = btn.getAttribute("data-view");
+      renderAll();
+    });
+  });
+
+  parseParams();
+  renderAll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+---
+title: "agh network usage"
+description: "Show workspace-scoped network wake usage from the ledger"
+---
+
+## agh network usage
+
+Show workspace-scoped network wake usage from the ledger
+
+```
+agh network usage [flags]
+```
+
+### Options
+
+```
+      --channel string      Filter by channel
+      --cursor string       Continue from an opaque next_cursor
+  -h, --help                help for usage
+      --limit int           Maximum usage rows to return (default 50)
+      --owner-id string     Filter by owner id
+      --owner-kind string   Filter by owner kind
+      --run-id string       Filter by task or loop run id
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh network usage -o json
+```

@@ -4,2335 +4,1529 @@
  */
 
 export interface paths {
-    "/api/daemon/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read daemon readiness and degraded-state details. */
-        get: operations["getDaemonHealth"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  "/api/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/daemon/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read daemon metrics in Prometheus text format. */
-        get: operations["getDaemonMetrics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read daemon identity, runtime status, and listener information. */
+    get: operations["getStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/daemon/health": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/daemon/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read daemon identity and listener status. */
-        get: operations["getDaemonStatus"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read daemon readiness and degraded-state checks for the browser shell. */
+    get: operations["getDaemonHealth"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/daemon/metrics": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/reviews/{slug}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read the latest review summary for one workflow. */
-        get: operations["getLatestReview"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read daemon metrics exposition in Prometheus text format. */
+    get: operations["getDaemonMetrics"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/reviews/{slug}/watch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start one daemon-owned review-watch run. */
-        post: operations["startReviewWatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List registered workspaces available to the daemon web shell. */
+    get: operations["listWorkspaces"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/reviews/{slug}/rounds/{round}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read one review round summary. */
-        get: operations["getReviewRound"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Resolve or register a workspace by filesystem path. */
+    post: operations["resolveWorkspace"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/ui/dashboard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/reviews/{slug}/rounds/{round}/issues": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List review issues for one workflow round. */
-        get: operations["listReviewIssues"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read the active-workspace dashboard aggregate payload. */
+    get: operations["getDashboard"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/reviews/{slug}/rounds/{round}/issues/{issue_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read one review issue detail payload. */
-        get: operations["getReviewIssue"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List workflow inventory for the active workspace. */
+    get: operations["listWorkflows"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{slug}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/reviews/{slug}/rounds/{round}/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start one review-fix run. */
-        post: operations["startReviewRun"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read one workflow overview payload. */
+    get: operations["getWorkflow"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{slug}/spec": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List runs across workspaces or for one workspace. */
-        get: operations["listRuns"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read PRD, TechSpec, and ADR documents for one workflow. */
+    get: operations["getWorkflowSpec"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{slug}/memory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/runs/{run_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read one run summary. */
-        get: operations["getRun"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List memory files for one workflow. */
+    get: operations["listWorkflowMemoryFiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{slug}/memory/files/{file_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/runs/{run_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Request cancellation for one run. */
-        post: operations["cancelRun"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read one workflow memory document by opaque file id. */
+    get: operations["getWorkflowMemoryFile"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{slug}/board": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/runs/{run_id}/jobs/{job_id}/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Send a user message into a paused job and resume its session. */
-        post: operations["sendRunJobMessage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read the workflow task board payload. */
+    get: operations["getWorkflowBoard"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{slug}/items/{task_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/runs/{run_id}/jobs/{job_id}/pause": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Request pause for one active job in a run. */
-        post: operations["pauseRunJob"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read one workflow task detail payload. */
+    get: operations["getWorkflowTask"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{slug}/runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/runs/{run_id}/snapshot": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read one run snapshot payload for detail views. */
-        get: operations["getRunSnapshot"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Start a workflow run within the active workspace. */
+    post: operations["startWorkflowRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{slug}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/runs/{run_id}/transcript": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read the structured assistant transcript for one run. */
-        get: operations["getRunTranscript"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Archive a workflow in the active workspace. */
+    post: operations["archiveWorkflow"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sync": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/runs/{run_id}/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Stream live run events with resumable cursors. */
-        get: operations["streamRun"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Start a workflow sync in the active workspace. */
+    post: operations["syncWorkflow"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/reviews/{slug}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/sync": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Run explicit daemon reconciliation for a workspace or workflow. */
-        post: operations["syncWorkflow"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read the latest review summary for one workflow. */
+    get: operations["getWorkflowReview"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/reviews/{slug}/rounds/{round}/issues": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/task-runs/multiple": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start a daemon-owned multi-run parent for ordered task workflows. */
-        post: operations["startTaskRunMultiple"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List issues for one workflow review round. */
+    get: operations["listReviewIssues"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/reviews/{slug}/rounds/{round}/issues/{issue_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/task-runs/multiple/{run_id}/snapshot": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read one multi-run parent snapshot. */
-        get: operations["getTaskRunMultipleSnapshot"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read one review issue detail payload. */
+    get: operations["getReviewIssue"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/reviews/{slug}/rounds/{round}/runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/tasks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List workflow summaries for the active workspace. */
-        get: operations["listWorkflows"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Start a review-fix run for one workflow review round. */
+    post: operations["startReviewFixRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/tasks/{slug}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read one workflow overview payload. */
-        get: operations["getWorkflow"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List runs visible within the active workspace. */
+    get: operations["listRuns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/runs/{run_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/tasks/{slug}/archive": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Archive a workflow in the active workspace. */
-        post: operations["archiveWorkflow"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read one run summary. */
+    get: operations["getRun"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/runs/{run_id}/snapshot": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/tasks/{slug}/board": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read the workflow task board payload. */
-        get: operations["getWorkflowBoard"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Read one rich run snapshot for detail views. */
+    get: operations["getRunSnapshot"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/runs/{run_id}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/tasks/{slug}/items/{task_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read one workflow task detail payload. */
-        get: operations["getWorkflowTask"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Open the live run SSE stream. */
+    get: operations["streamRun"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/runs/{run_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/tasks/{slug}/memory": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List workflow memory files using daemon-issued file identifiers. */
-        get: operations["listWorkflowMemoryFiles"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/tasks/{slug}/memory/files/{file_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read one workflow memory document by opaque daemon-issued identifier. */
-        get: operations["getWorkflowMemoryFile"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/tasks/{slug}/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start one workflow run for the active workspace. */
-        post: operations["startWorkflowRun"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/tasks/{slug}/spec": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read PRD, TechSpec, and ADR documents for one workflow. */
-        get: operations["getWorkflowSpec"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ui/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read the active-workspace dashboard aggregate payload. */
-        get: operations["getDashboard"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/workspaces": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List registered workspaces for browser workspace selection. */
-        get: operations["listWorkspaces"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/workspaces/{id}/ws": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Open a workspace-scoped WebSocket for browser cache invalidation. */
-        get: operations["openWorkspaceSocket"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/workspaces/sync": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Refresh workspace filesystem state and sync present workspace artifacts. */
-        post: operations["syncWorkspaces"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/workspaces/resolve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Resolve or lazily register a workspace by path. */
-        post: operations["resolveWorkspace"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+    get?: never;
+    put?: never;
+    /** Cancel a run in progress. */
+    post: operations["cancelRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        AcceptedResponse: {
-            accepted: boolean;
-        };
-        ArchiveResult: {
-            archived: boolean;
-            /** Format: date-time */
-            archived_at?: string;
-            completed_tasks?: number;
-            forced?: boolean;
-            resolved_review_issues?: number;
-        };
-        ContentBlock: {
-            type: string;
-        };
-        DaemonHealth: {
-            degraded?: boolean;
-            contract_version?: string;
-            details?: components["schemas"]["HealthDetail"][];
-            ready: boolean;
-        };
-        DaemonHealthResponse: {
-            health: components["schemas"]["DaemonHealth"];
-        };
-        DaemonStatus: {
-            active_run_count: number;
-            contract_version?: string;
-            http_port?: number;
-            pid: number;
-            socket_path?: string;
-            /** Format: date-time */
-            started_at: string;
-            version?: string;
-            workspace_count: number;
-        };
-        DaemonStatusResponse: {
-            daemon: components["schemas"]["DaemonStatus"];
-        };
-        DashboardPayload: {
-            active_runs?: components["schemas"]["Run"][];
-            daemon: components["schemas"]["DaemonStatus"];
-            health: components["schemas"]["DaemonHealth"];
-            pending_reviews: number;
-            queue: components["schemas"]["DashboardQueueSummary"];
-            workflows?: components["schemas"]["WorkflowCard"][];
-            workspace: components["schemas"]["Workspace"];
-        };
-        DashboardQueueSummary: {
-            active: number;
-            canceled: number;
-            completed: number;
-            failed: number;
-            total: number;
-        };
-        DashboardResponse: {
-            dashboard: components["schemas"]["DashboardPayload"];
-        };
-        Entry: {
-            Blocks?: components["schemas"]["ContentBlock"][];
-            ID: string;
-            Kind: string;
-            Preview: string;
-            Title: string;
-            ToolCallID: string;
-            ToolCallState: string;
-        };
-        Event: {
-            kind: string;
-            payload?: {
-                [key: string]: unknown;
-            };
-            run_id: string;
-            schema_version: string;
-            seq: number;
-            /** Format: date-time */
-            ts: string;
-        };
-        HealthDetail: {
-            code: string;
-            message: string;
-            severity?: string;
-        };
-        MarkdownDocument: {
-            id: string;
-            kind: string;
-            markdown: string;
-            metadata?: {
-                [key: string]: unknown;
-            };
-            title: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        MarkdownDocumentResponse: {
-            document: components["schemas"]["MarkdownDocument"];
-        };
-        ReviewDetailPayload: {
-            document: components["schemas"]["MarkdownDocument"];
-            issue: components["schemas"]["ReviewIssueDetail"];
-            related_runs?: components["schemas"]["Run"][];
-            round: components["schemas"]["ReviewRound"];
-            workflow: components["schemas"]["WorkflowSummary"];
-            workspace: components["schemas"]["Workspace"];
-        };
-        ReviewDetailResponse: {
-            review: components["schemas"]["ReviewDetailPayload"];
-        };
-        ReviewIssue: {
-            id: string;
-            issue_number: number;
-            severity: string;
-            source_path: string;
-            status: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        ReviewIssueDetail: {
-            id: string;
-            issue_number: number;
-            severity: string;
-            status: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        ReviewIssuesResponse: {
-            issues: components["schemas"]["ReviewIssue"][];
-        };
-        ReviewRound: {
-            id: string;
-            pr_ref?: string;
-            provider?: string;
-            resolved_count: number;
-            round_number: number;
-            unresolved_count: number;
-            /** Format: date-time */
-            updated_at: string;
-            workflow_slug: string;
-        };
-        ReviewRoundResponse: {
-            round: components["schemas"]["ReviewRound"];
-        };
-        ReviewRunRequest: {
-            batching?: {
-                [key: string]: unknown;
-            };
-            presentation_mode?: string;
-            runtime_overrides?: {
-                [key: string]: unknown;
-            };
-            workspace?: string;
-        };
-        ReviewSummary: {
-            pr_ref?: string;
-            provider?: string;
-            resolved_count: number;
-            round_number: number;
-            unresolved_count: number;
-            /** Format: date-time */
-            updated_at: string;
-            workflow_slug: string;
-        };
-        ReviewSummaryResponse: {
-            review: components["schemas"]["ReviewSummary"];
-        };
-        Run: {
-            /** Format: date-time */
-            ended_at?: string;
-            error_text?: string;
-            mode: string;
-            parent_run_id?: string;
-            presentation_mode: string;
-            request_id?: string;
-            run_id: string;
-            /** Format: date-time */
-            started_at: string;
-            status: string;
-            workflow_id?: string;
-            workflow_slug?: string;
-            workspace_id: string;
-        };
-        RunArtifactSyncEntry: {
-            change_kind: string;
-            checksum?: string;
-            relative_path: string;
-            sequence: number;
-            /** Format: date-time */
-            synced_at: string;
-        };
-        RunDetailPayload: {
-            artifact_sync?: components["schemas"]["RunArtifactSyncEntry"][];
-            job_counts: components["schemas"]["RunJobCounts"];
-            run: components["schemas"]["Run"];
-            runtime: components["schemas"]["RunRuntimeSummary"];
-            snapshot: components["schemas"]["RunSnapshot"];
-            timeline?: components["schemas"]["Event"][];
-        };
-        RunJobCounts: {
-            canceled: number;
-            completed: number;
-            failed: number;
-            queued: number;
-            retrying: number;
-            running: number;
-        };
-        RunJobControlResponse: {
-            job_id: string;
-            index: number;
-            message_id?: string;
-            run_id: string;
-            session_id?: string;
-            /** @enum {string} */
-            status: "pausing" | "paused" | "resumed";
-        };
-        RunJobMessageRequest: {
-            message: string;
-        };
-        RunJobState: {
-            agent_name?: string;
-            index: number;
-            job_id: string;
-            status: string;
-            summary?: components["schemas"]["RunJobSummary"];
-            task_id?: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        RunJobSummary: {
-            access_mode?: string;
-            attempt?: number;
-            code_file?: string;
-            code_files?: string[];
-            err_log?: string;
-            error_text?: string;
-            exit_code?: number;
-            ide?: string;
-            index: number;
-            issues?: number;
-            max_attempts?: number;
-            model?: string;
-            out_log?: string;
-            reasoning_effort?: string;
-            retry_reason?: string;
-            safe_name?: string;
-            session?: {
-                [key: string]: unknown;
-            };
-            task_number?: number;
-            task_title?: string;
-            task_type?: string;
-            usage?: components["schemas"]["Usage"];
-        };
-        RunResponse: {
-            run: components["schemas"]["Run"];
-        };
-        RunRuntimeSummary: {
-            access_modes?: string[];
-            ides?: string[];
-            models?: string[];
-            presentation_modes?: string[];
-            reasoning_efforts?: string[];
-        };
-        RunShutdownState: {
-            /** Format: date-time */
-            deadline_at?: string;
-            phase?: string;
-            /** Format: date-time */
-            requested_at?: string;
-            source?: string;
-        };
-        RunSnapshot: {
-            jobs?: components["schemas"]["RunJobState"][];
-            run: components["schemas"]["Run"];
-            shutdown?: components["schemas"]["RunShutdownState"];
-            transcript?: components["schemas"]["RunTranscriptMessage"][];
-            usage?: components["schemas"]["Usage"];
-        };
-        RunSnapshotPayload: {
-            jobs?: components["schemas"]["RunJobState"][];
-            next_cursor?: string;
-            run: components["schemas"]["Run"];
-            shutdown?: components["schemas"]["RunShutdownState"];
-            transcript?: components["schemas"]["RunTranscriptMessage"][];
-            usage?: components["schemas"]["Usage"];
-        };
-        RunTranscriptMessage: {
-            content: string;
-            metadata?: {
-                [key: string]: unknown;
-            };
-            role: string;
-            sequence: number;
-            stream: string;
-            /** Format: date-time */
-            timestamp: string;
-        };
-        RunUIMessage: {
-            id: string;
-            metadata?: {
-                [key: string]: unknown;
-            };
-            parts: components["schemas"]["RunUIMessagePart"][];
-            /** @enum {string} */
-            role: "system" | "user" | "assistant";
-        };
-        RunUIMessagePart: {
-            data?: {
-                [key: string]: unknown;
-            };
-            errorText?: string;
-            id?: string;
-            input?: {
-                [key: string]: unknown;
-            };
-            output?: {
-                [key: string]: unknown;
-            };
-            preliminary?: boolean;
-            rawInput?: unknown;
-            state?: string;
-            text?: string;
-            title?: string;
-            toolCallId?: string;
-            toolName?: string;
-            type: string;
-        };
-        RunTranscriptPayload: {
-            incomplete?: boolean;
-            incomplete_reasons?: string[];
-            messages: components["schemas"]["RunUIMessage"][];
-            next_cursor?: string;
-            run_id: string;
-            session?: components["schemas"]["SessionViewSnapshot"];
-        };
-        RunsResponse: {
-            runs: components["schemas"]["Run"][];
-        };
-        SessionAvailableCommand: {
-            argumentHint?: string;
-            description?: string;
-            name: string;
-        };
-        SessionMetaState: {
-            AvailableCommands?: components["schemas"]["SessionAvailableCommand"][];
-            CurrentModeID: string;
-            Status: string;
-        };
-        SessionPlanEntry: {
-            content: string;
-            priority: string;
-            status: string;
-        };
-        SessionPlanState: {
-            DoneCount: number;
-            Entries?: components["schemas"]["SessionPlanEntry"][];
-            PendingCount: number;
-            RunningCount: number;
-        };
-        SessionViewSnapshot: {
-            Entries?: components["schemas"]["Entry"][];
-            Plan: components["schemas"]["SessionPlanState"];
-            Revision: number;
-            Session: components["schemas"]["SessionMetaState"];
-        };
-        SyncRequest: {
-            path?: string;
-            workflow_slug?: string;
-            workspace?: string;
-        };
-        SyncResult: {
-            checkpoints_updated?: number;
-            legacy_artifacts_removed?: number;
-            pruned_workflows?: string[];
-            review_issues_upserted?: number;
-            review_rounds_upserted?: number;
-            snapshots_upserted?: number;
-            /** Format: date-time */
-            synced_at?: string;
-            synced_paths?: string[];
-            target?: string;
-            task_items_upserted?: number;
-            warnings?: string[];
-            workflow_slug?: string;
-            workflows_scanned?: number;
-            workflows_pruned?: number;
-            workspace_id?: string;
-        };
-        TaskBoardPayload: {
-            lanes?: components["schemas"]["TaskLane"][];
-            task_counts: components["schemas"]["WorkflowTaskCounts"];
-            workflow: components["schemas"]["WorkflowSummary"];
-            workspace: components["schemas"]["Workspace"];
-        };
-        TaskBoardResponse: {
-            board: components["schemas"]["TaskBoardPayload"];
-        };
-        TaskCard: {
-            depends_on?: string[];
-            status: string;
-            task_id: string;
-            task_number: number;
-            title: string;
-            type: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        TaskDetailPayload: {
-            document: components["schemas"]["MarkdownDocument"];
-            live_tail_available: boolean;
-            memory_entries?: components["schemas"]["WorkflowMemoryEntry"][];
-            related_runs?: components["schemas"]["Run"][];
-            task: components["schemas"]["TaskCard"];
-            workflow: components["schemas"]["WorkflowSummary"];
-            workspace: components["schemas"]["Workspace"];
-        };
-        TaskDetailResponse: {
-            task: components["schemas"]["TaskDetailPayload"];
-        };
-        TaskItem: {
-            depends_on?: string[];
-            id: string;
-            source_path: string;
-            status: string;
-            task_id: string;
-            task_number: number;
-            title: string;
-            type: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        TaskLane: {
-            items?: components["schemas"]["TaskCard"][];
-            status: string;
-            title: string;
-        };
-        TaskExecutionDescriptor: {
-            /** @enum {string} */
-            kind: "task_standard" | "task_parallel" | "task_multi_enqueued" | "task_multi_parallel";
-            label: string;
-            source: string;
-            uses_worktrees: boolean;
-        };
-        TaskRunRequest: {
-            execution?: components["schemas"]["TaskExecutionDescriptor"];
-            presentation_mode?: string;
-            runtime_overrides?: {
-                [key: string]: unknown;
-            };
-            workspace?: string;
-        };
-        TaskRunMultipleItem: {
-            base_branch?: string;
-            base_commit?: string;
-            error_text?: string;
-            run_id?: string;
-            result_branch?: string;
-            slug: string;
-            /** @enum {string} */
-            status: "queued" | "running" | "completed" | "failed" | "canceled";
-            worktree_path?: string;
-            worktree_reason?: string;
-            /** @enum {string} */
-            worktree_status?: "active" | "removed" | "preserved";
-        };
-        TaskRunMultipleRequest: {
-            execution?: components["schemas"]["TaskExecutionDescriptor"];
-            /** @enum {string} */
-            mode?: "enqueued" | "parallel";
-            parallel_limit?: number;
-            presentation_mode?: string;
-            runtime_overrides?: {
-                [key: string]: unknown;
-            };
-            slugs: string[];
-            workspace?: string;
-        };
-        TaskRunMultipleSnapshotResponse: {
-            /** @enum {string} */
-            execution_kind?: "task_parallel" | "task_multi_enqueued" | "task_multi_parallel";
-            incomplete?: boolean;
-            incomplete_reasons?: string[];
-            items?: components["schemas"]["TaskRunMultipleItem"][];
-            lifecycle_events?: components["schemas"]["Event"][];
-            next_cursor?: string;
-            run: components["schemas"]["Run"];
-        };
-        TransportError: {
-            code: string;
-            details?: {
-                [key: string]: unknown;
-            };
-            message: string;
-            request_id: string;
-        };
-        Usage: {
-            cache_reads?: number;
-            cache_writes?: number;
-            input_tokens?: number;
-            output_tokens?: number;
-            total_tokens?: number;
-        };
-        ValidationSuccess: {
-            /** Format: date-time */
-            checked_at?: string;
-            valid: boolean;
-        };
-        WorkflowCard: {
-            active_runs: number;
-            latest_review?: components["schemas"]["ReviewSummary"];
-            review_round_count: number;
-            task_completed: number;
-            task_pending: number;
-            task_total: number;
-            workflow: components["schemas"]["WorkflowSummary"];
-        };
-        WorkflowMemoryEntry: {
-            display_path: string;
-            file_id: string;
-            kind: string;
-            size_bytes: number;
-            title: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        WorkflowMemoryIndex: {
-            entries?: components["schemas"]["WorkflowMemoryEntry"][];
-            workflow: components["schemas"]["WorkflowSummary"];
-            workspace: components["schemas"]["Workspace"];
-        };
-        WorkflowMemoryResponse: {
-            memory: components["schemas"]["WorkflowMemoryIndex"];
-        };
-        WorkflowOverviewPayload: {
-            archive_eligible: boolean;
-            archive_reason?: string;
-            latest_review?: components["schemas"]["ReviewSummary"];
-            recent_runs?: components["schemas"]["Run"][];
-            task_counts: components["schemas"]["WorkflowTaskCounts"];
-            workflow: components["schemas"]["WorkflowSummary"];
-            workspace: components["schemas"]["Workspace"];
-        };
-        WorkflowOverviewResponse: {
-            workflow: components["schemas"]["WorkflowOverviewPayload"];
-        };
-        WorkflowRefRequest: {
-            workspace?: string;
-        };
-        WorkflowArchiveRequest: {
-            force?: boolean;
-            workspace?: string;
-        };
-        WorkflowSpecDocument: {
-            adrs?: components["schemas"]["MarkdownDocument"][];
-            prd?: components["schemas"]["MarkdownDocument"];
-            techspec?: components["schemas"]["MarkdownDocument"];
-            workflow: components["schemas"]["WorkflowSummary"];
-            workspace: components["schemas"]["Workspace"];
-        };
-        WorkflowSpecResponse: {
-            spec: components["schemas"]["WorkflowSpecDocument"];
-        };
-        WorkflowSummary: {
-            archive_eligible?: boolean;
-            archive_reason?: string;
-            /** Format: date-time */
-            archived_at?: string;
-            can_start_run?: boolean;
-            id: string;
-            /** Format: date-time */
-            last_synced_at?: string;
-            slug: string;
-            start_block_reason?: string;
-            task_counts?: components["schemas"]["WorkflowTaskCounts"];
-            workspace_id: string;
-        };
-        WorkflowTaskCounts: {
-            completed: number;
-            pending: number;
-            total: number;
-        };
-        WorkflowsResponse: {
-            workflows: components["schemas"]["WorkflowSummary"][];
-        };
-        Workspace: {
-            /** Format: date-time */
-            created_at: string;
-            /** @enum {string} */
-            filesystem_state: "present" | "missing";
-            has_catalog_data: boolean;
-            id: string;
-            /** Format: date-time */
-            last_checked_at?: string;
-            /** Format: date-time */
-            last_sync_at?: string;
-            last_sync_error?: string;
-            name: string;
-            read_only: boolean;
-            root_dir: string;
-            run_count: number;
-            /** Format: date-time */
-            updated_at: string;
-            workflow_count: number;
-        };
-        WorkspaceResolveRequest: {
-            path: string;
-        };
-        WorkspaceSyncResult: {
-            checked: number;
-            missing: number;
-            removed: number;
-            review_issues_upserted: number;
-            review_rounds_upserted: number;
-            snapshots_upserted: number;
-            synced: number;
-            task_items_upserted: number;
-            warnings?: string[];
-            workflows_pruned?: number;
-        };
-        WorkspaceResponse: {
-            workspace: components["schemas"]["Workspace"];
-        };
-        WorkspacesResponse: {
-            workspaces: components["schemas"]["Workspace"][];
-        };
-        ReviewWatchRequest: {
-            auto_push?: boolean;
-            batching?: {
-                [key: string]: unknown;
-            };
-            presentation_mode?: string;
-            max_rounds?: number;
-            poll_interval?: string;
-            pr_ref: string;
-            provider?: string;
-            push_branch?: string;
-            push_remote?: string;
-            quiet_period?: string;
-            review_timeout?: string;
-            runtime_overrides?: {
-                [key: string]: unknown;
-            };
-            until_clean?: boolean;
-            workspace?: string;
-        };
+  schemas: {
+    Problem: {
+      type?: string;
+      title: string;
+      status: number;
+      detail?: string;
+      instance?: string;
+      code?: string;
     };
-    responses: {
-        /** @description Requested operation conflicts with current daemon state. */
-        Conflict: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["TransportError"];
-            };
-        };
-        /** @description Request was rejected by browser-facing transport security. */
-        Forbidden: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["TransportError"];
-            };
-        };
-        /** @description Unexpected daemon failure. */
-        InternalError: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["TransportError"];
-            };
-        };
-        /** @description Request body or parameters were malformed. */
-        InvalidRequest: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["TransportError"];
-            };
-        };
-        /** @description Request payload exceeded daemon limits. */
-        PayloadTooLarge: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["TransportError"];
-            };
-        };
-        /** @description Requested resource was not found. */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["TransportError"];
-            };
-        };
-        /** @description Active workspace context is missing or stale. */
-        StaleWorkspace: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["TransportError"];
-            };
-        };
-        /** @description Request validation failed. */
-        ValidationError: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["TransportError"];
-            };
-        };
+    ListenerInfo: {
+      host: string;
+      port: number;
+      origin: string;
     };
-    parameters: {
-        /** @description Opaque daemon-issued workflow memory file identifier. */
-        FileID: string;
-        /** @description Review issue identifier. */
-        IssueID: string;
-        /** @description Stable SSE cursor for resumable run streaming. */
-        LastEventID: string;
-        /** @description Maximum number of runs to return. */
-        Limit: number;
-        /** @description Review round number. */
-        Round: number;
-        /** @description Run identifier. */
-        RunID: string;
-        /** @description Run job identifier. */
-        JobID: string;
-        /** @description Optional run mode filter. */
-        RunMode: string;
-        /** @description Optional run status filter. */
-        RunStatus: string;
-        /** @description Workflow slug. */
-        Slug: string;
-        /** @description Workflow task identifier. */
-        TaskID: string;
-        /** @description Optional workspace filter for run inventory reads. */
-        WorkspaceFilterQuery: string;
-        /** @description Workspace identifier. */
-        WorkspaceID: string;
-        /** @description Active workspace identifier for browser-scoped daemon requests. */
-        ActiveWorkspaceHeader: string;
+    DaemonStatus: {
+      name: string;
+      /** @enum {string} */
+      status: "starting" | "ready" | "degraded" | "stopped";
+      version: string;
+      pid?: number;
+      /** Format: date-time */
+      started_at: string;
+      uptime_seconds: number;
+      http: components["schemas"]["ListenerInfo"];
+      workspace_count: number;
+      run_count: number;
     };
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    DaemonHealthCheck: {
+      name: string;
+      /** @enum {string} */
+      status: "ready" | "degraded" | "down";
+      detail?: string;
+      /** Format: date-time */
+      updated_at?: string;
+    };
+    DaemonHealth: {
+      /** @enum {string} */
+      status: "ready" | "degraded" | "down";
+      /** Format: date-time */
+      generated_at: string;
+      checks: components["schemas"]["DaemonHealthCheck"][];
+    };
+    Workspace: {
+      id: string;
+      name: string;
+      root_path: string;
+      branch?: string;
+      workflow_count?: number;
+      /** Format: date-time */
+      updated_at?: string;
+    };
+    WorkflowCounts: {
+      total: number;
+      todo: number;
+      in_progress: number;
+      blocked: number;
+      done: number;
+    };
+    ReviewSummary: {
+      workflow_slug: string;
+      latest_round: number;
+      issue_count: number;
+      open_issue_count?: number;
+      /** @enum {string} */
+      status: "open" | "in_progress" | "resolved";
+      /** Format: date-time */
+      updated_at: string;
+    };
+    RunSummary: {
+      id: string;
+      workflow_slug: string;
+      task_id?: string;
+      title: string;
+      /** @enum {string} */
+      status: "queued" | "starting" | "running" | "succeeded" | "failed" | "canceled";
+      trigger: string;
+      provider?: string;
+      model?: string;
+      /** Format: date-time */
+      started_at: string;
+      /** Format: date-time */
+      updated_at: string;
+      /** Format: date-time */
+      completed_at?: string | null;
+    };
+    WorkflowCard: {
+      slug: string;
+      title: string;
+      /** @enum {string} */
+      status: "planned" | "active" | "blocked" | "reviewing" | "done" | "archived";
+      phase: string;
+      provider: string;
+      branch: string;
+      task_counts: components["schemas"]["WorkflowCounts"];
+      review?: components["schemas"]["ReviewSummary"];
+      last_run?: components["schemas"]["RunSummary"];
+      /** Format: date-time */
+      updated_at: string;
+    };
+    WorkflowOverview: components["schemas"]["WorkflowCard"] & {
+      description?: string;
+      active_run_count?: number;
+      memory_file_count?: number;
+    };
+    MarkdownDocument: {
+      file_id: string;
+      title: string;
+      /** @enum {string} */
+      kind: "prd" | "techspec" | "adr" | "memory";
+      relative_path: string;
+      /** Format: date-time */
+      updated_at: string;
+      body: string;
+    };
+    WorkflowSpecPayload: {
+      workflow: components["schemas"]["WorkflowCard"];
+      prd?: components["schemas"]["MarkdownDocument"] | null;
+      techspec?: components["schemas"]["MarkdownDocument"] | null;
+      adrs: components["schemas"]["MarkdownDocument"][];
+    };
+    MemoryFile: {
+      file_id: string;
+      title: string;
+      /** @enum {string} */
+      kind: "shared" | "task" | "note";
+      relative_path: string;
+      size_bytes: number;
+      /** Format: date-time */
+      updated_at: string;
+    };
+    WorkflowMemoryPayload: {
+      workflow_slug: string;
+      files: components["schemas"]["MemoryFile"][];
+    };
+    TaskOwner: {
+      /** @enum {string} */
+      kind: "operator" | "agent" | "system";
+      id?: string;
+      name: string;
+    };
+    TaskCard: {
+      id: string;
+      title: string;
+      /** @enum {string} */
+      status: "todo" | "in_progress" | "blocked" | "done" | "archived";
+      summary: string;
+      /** @enum {string} */
+      priority?: "low" | "medium" | "high";
+      owner?: components["schemas"]["TaskOwner"];
+      run?: components["schemas"]["RunSummary"];
+      /** Format: date-time */
+      updated_at: string;
+    };
+    TaskLane: {
+      id: string;
+      title: string;
+      count?: number;
+      items: components["schemas"]["TaskCard"][];
+    };
+    TaskBoard: {
+      workflow: components["schemas"]["WorkflowCard"];
+      lanes: components["schemas"]["TaskLane"][];
+    };
+    TaskDetail: {
+      id: string;
+      workflow_slug: string;
+      title: string;
+      /** @enum {string} */
+      status: "todo" | "in_progress" | "blocked" | "done" | "archived";
+      summary: string;
+      description?: string;
+      /** @enum {string} */
+      priority?: "low" | "medium" | "high";
+      owner?: components["schemas"]["TaskOwner"];
+      memory_files?: components["schemas"]["MemoryFile"][];
+      related_runs?: components["schemas"]["RunSummary"][];
+      review?: components["schemas"]["ReviewSummary"];
+      /** Format: date-time */
+      updated_at: string;
+    };
+    ReviewIssueSummary: {
+      issue_id: string;
+      title: string;
+      /** @enum {string} */
+      severity: "low" | "medium" | "high" | "critical";
+      /** @enum {string} */
+      status: "open" | "in_progress" | "resolved";
+      file_path?: string;
+      line?: number | null;
+      /** Format: date-time */
+      updated_at: string;
+    };
+    ReviewIssueDetail: components["schemas"]["ReviewIssueSummary"] & {
+      body: string;
+      discussion_summary?: string;
+      proposed_patch?: string;
+    };
+    ReviewFixRequest: {
+      issue_ids?: string[];
+      comment?: string;
+    };
+    RunConfig: {
+      provider: string;
+      model: string;
+      workspace_id?: string;
+      started_by?: string;
+    };
+    TokenUsage: {
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+    };
+    RunEvent: {
+      cursor: string;
+      /** @enum {string} */
+      type: "snapshot" | "event" | "heartbeat" | "overflow";
+      summary: string;
+      /** Format: date-time */
+      timestamp: string;
+    };
+    RunSnapshot: {
+      run: components["schemas"]["RunSummary"];
+      config?: components["schemas"]["RunConfig"];
+      usage?: components["schemas"]["TokenUsage"];
+      timeline: components["schemas"]["RunEvent"][];
+      last_cursor?: string;
+    };
+    ActivityItem: {
+      id: string;
+      /** @enum {string} */
+      kind: "run" | "review" | "sync" | "memory" | "spec";
+      workflow_slug?: string;
+      message: string;
+      /** Format: date-time */
+      timestamp: string;
+    };
+    Dashboard: {
+      /** Format: date-time */
+      generated_at: string;
+      daemon: components["schemas"]["DaemonStatus"];
+      health: components["schemas"]["DaemonHealth"];
+      workflows: components["schemas"]["WorkflowCard"][];
+      active_runs: components["schemas"]["RunSummary"][];
+      pending_reviews: components["schemas"]["ReviewSummary"][];
+      activity: components["schemas"]["ActivityItem"][];
+    };
+    AcceptedAction: {
+      /** @enum {string} */
+      status: "accepted";
+      operation_id: string;
+      run_id?: string;
+      status_url?: string;
+      message: string;
+    };
+    ResolveWorkspaceRequest: {
+      path: string;
+    };
+    SyncRequest: {
+      slug: string;
+    };
+    StartWorkflowRunRequest: {
+      task_id?: string;
+      mode?: string;
+      provider?: string;
+      branch?: string;
+    };
+    CancelRunRequest: {
+      reason?: string;
+    };
+    StatusResponse: {
+      daemon: components["schemas"]["DaemonStatus"];
+    };
+    DaemonHealthResponse: {
+      health: components["schemas"]["DaemonHealth"];
+    };
+    WorkspacesResponse: {
+      workspaces: components["schemas"]["Workspace"][];
+    };
+    ResolveWorkspaceResponse: {
+      workspace: components["schemas"]["Workspace"];
+    };
+    DashboardResponse: {
+      dashboard: components["schemas"]["Dashboard"];
+    };
+    WorkflowListResponse: {
+      workflows: components["schemas"]["WorkflowCard"][];
+    };
+    WorkflowResponse: {
+      workflow: components["schemas"]["WorkflowOverview"];
+    };
+    WorkflowSpecResponse: {
+      spec: components["schemas"]["WorkflowSpecPayload"];
+    };
+    WorkflowMemoryResponse: {
+      memory: components["schemas"]["WorkflowMemoryPayload"];
+    };
+    MarkdownDocumentResponse: {
+      document: components["schemas"]["MarkdownDocument"];
+    };
+    TaskBoardResponse: {
+      board: components["schemas"]["TaskBoard"];
+    };
+    TaskDetailResponse: {
+      task: components["schemas"]["TaskDetail"];
+    };
+    ReviewSummaryResponse: {
+      review: components["schemas"]["ReviewSummary"];
+    };
+    ReviewIssuesResponse: {
+      workflow_slug: string;
+      round: number;
+      issues: components["schemas"]["ReviewIssueSummary"][];
+    };
+    ReviewIssueResponse: {
+      issue: components["schemas"]["ReviewIssueDetail"];
+    };
+    RunListResponse: {
+      runs: components["schemas"]["RunSummary"][];
+    };
+    RunResponse: {
+      run: components["schemas"]["RunSummary"];
+    };
+    RunSnapshotResponse: {
+      snapshot: components["schemas"]["RunSnapshot"];
+    };
+    AcceptedActionResponse: {
+      action: components["schemas"]["AcceptedAction"];
+    };
+  };
+  responses: {
+    /** @description Requested resource was not found. */
+    NotFound: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        "application/json": components["schemas"]["Problem"];
+      };
+    };
+    /** @description Requested operation conflicts with current daemon state. */
+    Conflict: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        "application/json": components["schemas"]["Problem"];
+      };
+    };
+    /** @description Active workspace context is missing or stale. */
+    StaleWorkspace: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        "application/json": components["schemas"]["Problem"];
+      };
+    };
+    /** @description Unexpected daemon failure. */
+    InternalError: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        "application/json": components["schemas"]["Problem"];
+      };
+    };
+  };
+  parameters: {
+    /** @description Active workspace identifier for browser-scoped daemon requests. */
+    WorkspaceHeader: string;
+    /** @description Workflow slug. */
+    Slug: string;
+    /** @description Workflow task identifier. */
+    TaskID: string;
+    /** @description Opaque memory file identifier. */
+    FileID: string;
+    /** @description Review round number. */
+    Round: number;
+    /** @description Review issue identifier. */
+    IssueID: string;
+    /** @description Run identifier. */
+    RunID: string;
+  };
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    getDaemonHealth: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Ready */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DaemonHealthResponse"];
-                };
-            };
-            500: components["responses"]["InternalError"];
-            /** @description Daemon not ready */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DaemonHealthResponse"];
-                };
-            };
-        };
+  getStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getDaemonMetrics: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Metrics payload. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["StatusResponse"];
         };
+      };
+      500: components["responses"]["InternalError"];
     };
-    getDaemonStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DaemonStatusResponse"];
-                };
-            };
-            500: components["responses"]["InternalError"];
-        };
+  };
+  getDaemonHealth: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getLatestReview: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReviewSummaryResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["DaemonHealthResponse"];
         };
+      };
+      500: components["responses"]["InternalError"];
     };
-    startReviewWatch: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReviewWatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunResponse"];
-                };
-            };
-            400: components["responses"]["InvalidRequest"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            412: components["responses"]["StaleWorkspace"];
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TransportError"];
-                };
-            };
-        };
+  };
+  getDaemonMetrics: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getReviewRound: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-                /** @description Review round number. */
-                round: components["parameters"]["Round"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Metrics exposition */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReviewRoundResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "text/plain": string;
         };
+      };
+      500: components["responses"]["InternalError"];
     };
-    listReviewIssues: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-                /** @description Review round number. */
-                round: components["parameters"]["Round"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReviewIssuesResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  listWorkspaces: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getReviewIssue: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-                /** @description Review round number. */
-                round: components["parameters"]["Round"];
-                /** @description Review issue identifier. */
-                issue_id: components["parameters"]["IssueID"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReviewDetailResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["WorkspacesResponse"];
         };
+      };
+      500: components["responses"]["InternalError"];
     };
-    startReviewRun: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-                /** @description Review round number. */
-                round: components["parameters"]["Round"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReviewRunRequest"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunResponse"];
-                };
-            };
-            400: components["responses"]["InvalidRequest"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            412: components["responses"]["StaleWorkspace"];
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  resolveWorkspace: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    listRuns: {
-        parameters: {
-            query?: {
-                /** @description Optional workspace filter for run inventory reads. */
-                workspace?: components["parameters"]["WorkspaceFilterQuery"];
-                /** @description Optional run status filter. */
-                status?: components["parameters"]["RunStatus"];
-                /** @description Optional run mode filter. */
-                mode?: components["parameters"]["RunMode"];
-                /** @description Maximum number of runs to return. */
-                limit?: components["parameters"]["Limit"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunsResponse"];
-                };
-            };
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
-        };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResolveWorkspaceRequest"];
+      };
     };
-    getRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Run identifier. */
-                run_id: components["parameters"]["RunID"];
-            };
-            cookie?: never;
+    responses: {
+      /** @description Workspace resolved */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["ResolveWorkspaceResponse"];
         };
+      };
+      409: components["responses"]["Conflict"];
+      500: components["responses"]["InternalError"];
     };
-    cancelRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Run identifier. */
-                run_id: components["parameters"]["RunID"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AcceptedResponse"];
-                };
-            };
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  getDashboard: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path?: never;
+      cookie?: never;
     };
-    sendRunJobMessage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Run identifier. */
-                run_id: components["parameters"]["RunID"];
-                /** @description Run job identifier. */
-                job_id: components["parameters"]["JobID"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RunJobMessageRequest"];
-            };
+        content: {
+          "application/json": components["schemas"]["DashboardResponse"];
         };
-        responses: {
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunJobControlResponse"];
-                };
-            };
-            400: components["responses"]["InvalidRequest"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            413: components["responses"]["PayloadTooLarge"];
-            500: components["responses"]["InternalError"];
-        };
+      };
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    pauseRunJob: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Run identifier. */
-                run_id: components["parameters"]["RunID"];
-                /** @description Run job identifier. */
-                job_id: components["parameters"]["JobID"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunJobControlResponse"];
-                };
-            };
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  listWorkflows: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path?: never;
+      cookie?: never;
     };
-    getRunSnapshot: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Run identifier. */
-                run_id: components["parameters"]["RunID"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunSnapshotPayload"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["WorkflowListResponse"];
         };
+      };
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    getRunTranscript: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Run identifier. */
-                run_id: components["parameters"]["RunID"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunTranscriptPayload"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  getWorkflow: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+      };
+      cookie?: never;
     };
-    streamRun: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Stable SSE cursor for resumable run streaming. */
-                "Last-Event-ID"?: components["parameters"]["LastEventID"];
-            };
-            path: {
-                /** @description Run identifier. */
-                run_id: components["parameters"]["RunID"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Run event stream. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["WorkflowResponse"];
         };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    syncWorkflow: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SyncRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SyncResult"];
-                };
-            };
-            400: components["responses"]["InvalidRequest"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  getWorkflowSpec: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+      };
+      cookie?: never;
     };
-    startTaskRunMultiple: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TaskRunMultipleRequest"];
-            };
+        content: {
+          "application/json": components["schemas"]["WorkflowSpecResponse"];
         };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunResponse"];
-                };
-            };
-            400: components["responses"]["InvalidRequest"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            412: components["responses"]["StaleWorkspace"];
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
-        };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    getTaskRunMultipleSnapshot: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Run identifier. */
-                run_id: components["parameters"]["RunID"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskRunMultipleSnapshotResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  listWorkflowMemoryFiles: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+      };
+      cookie?: never;
     };
-    listWorkflows: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowsResponse"];
-                };
-            };
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["WorkflowMemoryResponse"];
         };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    getWorkflow: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowOverviewResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  getWorkflowMemoryFile: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+        /** @description Opaque memory file identifier. */
+        file_id: components["parameters"]["FileID"];
+      };
+      cookie?: never;
     };
-    archiveWorkflow: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkflowArchiveRequest"];
-            };
+        content: {
+          "application/json": components["schemas"]["MarkdownDocumentResponse"];
         };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArchiveResult"];
-                };
-            };
-            400: components["responses"]["InvalidRequest"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
-        };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    getWorkflowBoard: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskBoardResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  getWorkflowBoard: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+      };
+      cookie?: never;
     };
-    getWorkflowTask: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-                /** @description Workflow task identifier. */
-                task_id: components["parameters"]["TaskID"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskDetailResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["TaskBoardResponse"];
         };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    listWorkflowMemoryFiles: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowMemoryResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  getWorkflowTask: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+        /** @description Workflow task identifier. */
+        task_id: components["parameters"]["TaskID"];
+      };
+      cookie?: never;
     };
-    getWorkflowMemoryFile: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-                /** @description Opaque daemon-issued workflow memory file identifier. */
-                file_id: components["parameters"]["FileID"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MarkdownDocumentResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["TaskDetailResponse"];
         };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    startWorkflowRun: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TaskRunRequest"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunResponse"];
-                };
-            };
-            400: components["responses"]["InvalidRequest"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  startWorkflowRun: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+      };
+      cookie?: never;
     };
-    getWorkflowSpec: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path: {
-                /** @description Workflow slug. */
-                slug: components["parameters"]["Slug"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowSpecResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
-        };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["StartWorkflowRunRequest"];
+      };
     };
-    getDashboard: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Active workspace identifier for browser-scoped daemon requests. */
-                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
-            };
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Run start accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardResponse"];
-                };
-            };
-            412: components["responses"]["StaleWorkspace"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["AcceptedActionResponse"];
         };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    listWorkspaces: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspacesResponse"];
-                };
-            };
-            500: components["responses"]["InternalError"];
-        };
+  };
+  archiveWorkflow: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+      };
+      cookie?: never;
     };
-    openWorkspaceSocket: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Workspace identifier. */
-                id: components["parameters"]["WorkspaceID"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Archive accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Switching Protocols. */
-            101: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
+        content: {
+          "application/json": components["schemas"]["AcceptedActionResponse"];
         };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
     };
-    syncWorkspaces: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceSyncResult"];
-                };
-            };
-            403: components["responses"]["Forbidden"];
-            500: components["responses"]["InternalError"];
-        };
+  };
+  syncWorkflow: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path?: never;
+      cookie?: never;
     };
-    resolveWorkspace: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkspaceResolveRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceResponse"];
-                };
-            };
-            400: components["responses"]["InvalidRequest"];
-            403: components["responses"]["Forbidden"];
-            422: components["responses"]["ValidationError"];
-            500: components["responses"]["InternalError"];
-        };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SyncRequest"];
+      };
     };
+    responses: {
+      /** @description Sync accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AcceptedActionResponse"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  getWorkflowReview: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReviewSummaryResponse"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  listReviewIssues: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+        /** @description Review round number. */
+        round: components["parameters"]["Round"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReviewIssuesResponse"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  getReviewIssue: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+        /** @description Review round number. */
+        round: components["parameters"]["Round"];
+        /** @description Review issue identifier. */
+        issue_id: components["parameters"]["IssueID"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReviewIssueResponse"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  startReviewFixRun: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Workflow slug. */
+        slug: components["parameters"]["Slug"];
+        /** @description Review round number. */
+        round: components["parameters"]["Round"];
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["ReviewFixRequest"];
+      };
+    };
+    responses: {
+      /** @description Run start accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AcceptedActionResponse"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  listRuns: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunListResponse"];
+        };
+      };
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  getRun: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Run identifier. */
+        run_id: components["parameters"]["RunID"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunResponse"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  getRunSnapshot: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Run identifier. */
+        run_id: components["parameters"]["RunID"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunSnapshotResponse"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  streamRun: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Run identifier. */
+        run_id: components["parameters"]["RunID"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Server-sent event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": string;
+        };
+      };
+      404: components["responses"]["NotFound"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  cancelRun: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Active workspace identifier for browser-scoped daemon requests. */
+        "X-Compozy-Workspace-ID": components["parameters"]["WorkspaceHeader"];
+      };
+      path: {
+        /** @description Run identifier. */
+        run_id: components["parameters"]["RunID"];
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["CancelRunRequest"];
+      };
+    };
+    responses: {
+      /** @description Cancel accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AcceptedActionResponse"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      412: components["responses"]["StaleWorkspace"];
+      500: components["responses"]["InternalError"];
+    };
+  };
 }

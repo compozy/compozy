@@ -1,0 +1,40 @@
+---
+title: "agh config reload"
+description: "Reconcile config.toml with the daemon active generation"
+---
+
+## agh config reload
+
+Reconcile config.toml with the daemon active generation
+
+```
+agh config reload [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for reload
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh config reload -o json
+```

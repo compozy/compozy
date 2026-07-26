@@ -1,0 +1,63 @@
+[extension]
+name = "github"
+version = "0.1.0"
+description = "Production GitHub bridge provider built on internal/bridgesdk"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "github"
+display_name = "GitHub"
+
+[[bridge.secret_slots]]
+name = "webhook_secret"
+description = "GitHub webhook secret for x-hub-signature-256 verification"
+required = true
+
+[[bridge.secret_slots]]
+name = "token"
+description = "GitHub personal access token for PAT mode"
+required = false
+
+[[bridge.secret_slots]]
+name = "app_id"
+description = "GitHub App ID for app mode"
+required = false
+
+[[bridge.secret_slots]]
+name = "private_key"
+description = "GitHub App private key PEM for app mode"
+required = false
+
+[bridge.config_schema]
+schema = "agh.bridge.github"
+version = "1"
+
+[actions]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
+
+[subprocess]
+command = "./bin/github"
+args = ["serve"]
+
+[subprocess.env]
+AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH = "{{env:AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH}}"
+AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH = "{{env:AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH}}"
+AGH_BRIDGE_ADAPTER_STATE_PATH = "{{env:AGH_BRIDGE_ADAPTER_STATE_PATH}}"
+AGH_BRIDGE_ADAPTER_DELIVERY_PATH = "{{env:AGH_BRIDGE_ADAPTER_DELIVERY_PATH}}"
+AGH_BRIDGE_ADAPTER_INGEST_PATH = "{{env:AGH_BRIDGE_ADAPTER_INGEST_PATH}}"
+AGH_BRIDGE_ADAPTER_STARTS_PATH = "{{env:AGH_BRIDGE_ADAPTER_STARTS_PATH}}"
+AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH}}"
+AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
+AGH_BRIDGE_GITHUB_LISTEN_ADDR = "{{env:AGH_BRIDGE_GITHUB_LISTEN_ADDR}}"
+AGH_BRIDGE_GITHUB_API_BASE_URL = "{{env:AGH_BRIDGE_GITHUB_API_BASE_URL}}"
+
+[security]
+capabilities = ["bridge.read", "bridge.write"]

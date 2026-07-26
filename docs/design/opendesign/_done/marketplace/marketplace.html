@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Marketplace · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-line:rgba(255,255,255,.5);
+    --focus-ring:0 0 0 2px var(--focus-line);
+    --focus-ring-inset:inset 0 0 0 2px var(--focus-line);
+    --size-catalog-logo:24px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input,textarea,select{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  code,kbd,pre,.mono,.count-chip,.catalog-card__meta .mono-slug,.pill[data-mono="true"],.pill-group__n,.toast{
+    -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
+  :is(.btn,.pill-group__item,.route-nav__link,.breadcrumb__link,.head-close,.switch,.menu button):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  a.catalog-card:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  /* topbar — three-zone route chrome (design-system.html §04 / vault.html) */
+  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;
+    min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas);min-width:0;flex:none}
+  .topbar__context{min-width:0;overflow:hidden}
+  .topbar__route-nav{justify-self:center;min-width:0}
+  .topbar__trailing{display:flex;align-items:center;justify-content:flex-end;gap:8px;justify-self:end;min-width:0}
+  .breadcrumb{min-width:0;overflow:hidden}
+  .breadcrumb__list{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;list-style:none;white-space:nowrap;color:var(--muted)}
+  .breadcrumb__item{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:none}
+  .breadcrumb__item:last-child{min-width:0;flex:1 1 auto;overflow:hidden}
+  .breadcrumb__link,.breadcrumb__page{display:inline-flex;align-items:center;min-width:0;border-radius:var(--radius-sm);padding:2px 6px;
+    font-size:13px;line-height:18px;letter-spacing:-.006em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .breadcrumb__link{color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .breadcrumb__link:hover{background:var(--row-hover);color:var(--fg)}
+  .breadcrumb__page{color:var(--fg-strong)}
+  .breadcrumb__separator{display:inline-flex;color:var(--faint);flex:none}
+  .breadcrumb__separator svg{width:12px;height:12px}
+  .breadcrumb__home svg{width:14px;height:14px;flex:none}
+  .route-nav{display:inline-flex;align-items:center;gap:1px;padding:2px;border-radius:var(--radius-md);background:var(--canvas-soft)}
+  .route-nav__link{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border:0;border-radius:var(--radius-xs);
+    font-size:12px;font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;cursor:pointer;
+    transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .route-nav__link:hover{color:var(--fg)}
+  .route-nav__link[aria-current="page"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;cursor:pointer;transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+  .pill-group__item svg{width:14px;height:14px;flex:none}
+  .pill-group__n{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums;background:var(--canvas);border-radius:var(--radius-xs);padding:1px 5px}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn--danger{background:var(--danger-tint);border-color:transparent;color:var(--danger)}
+  .btn:disabled,.btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .btn--icon.btn--sm{width:22px}
+  .btn--spin svg{animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+  /* page head — PH1 index (design-system.html §08) */
+  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;min-width:0}
+  .head__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;
+    border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px}
+  .head__icon svg{width:12px;height:12px}
+  .head__main{min-width:0;flex:1}
+  .head__titlerow{display:flex;align-items:center;gap:10px;min-width:0}
+  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25;outline:none}
+  .count-chip{display:inline-flex;align-items:center;min-height:19px;padding:1px 6px;border-radius:var(--radius-xs);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:11px;font-weight:500;
+    color:var(--muted);font-variant-numeric:tabular-nums}
+  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle);max-width:72ch}
+  .head__meta .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+  /* listing toolbar — search leading · Installed|Marketplace trailing (catalog rows/cards slot) */
+  .listing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+  .listing-toolbar__leading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1;min-width:0}
+  .listing-toolbar__trailing{display:flex;align-items:center;gap:10px;margin-left:auto;flex:none}
+  .search{display:flex;align-items:center;gap:8px;height:26px;min-width:220px;width:min(340px,100%);padding:0 8px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--canvas-soft);color:var(--fg);font-size:13px}
+  .search svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-size:13px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .search .kbd{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;line-height:1;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 4px;flex:none;background:var(--canvas-soft)}
+  .search:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+  .listing-card-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:12px}
+  @media(min-width:640px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(min-width:1280px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .catalog-card{display:flex;flex-direction:column;gap:12px;min-width:0;padding:16px;border-radius:var(--radius-lg);
+    background:var(--canvas-soft);color:inherit;cursor:pointer;transition:background var(--dur) var(--ease);height:100%}
+  .catalog-card:hover{background:var(--elevated)}
+  .catalog-card.is-dim{opacity:.55}
+  .catalog-card.card-flash{animation:cardflash 1.4s var(--ease)}
+  @keyframes cardflash{0%{background:var(--accent-tint)}100%{background:var(--canvas-soft)}}
+  .catalog-card__head{display:flex;align-items:flex-start;gap:12px;min-width:0}
+  .catalog-card__logo{width:var(--size-catalog-logo);height:var(--size-catalog-logo);border-radius:var(--radius);background:var(--surface-glaze);
+    color:var(--muted);display:grid;place-items:center;flex:none}
+  .catalog-card__logo svg{width:14px;height:14px}
+  .catalog-card__title-wrap{min-width:0;flex:1}
+  .catalog-card__title{font-size:13px;font-weight:500;color:var(--fg-strong);letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .catalog-card__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;font-size:11px;font-weight:500;
+    letter-spacing:-.005em;color:var(--muted)}
+  .catalog-card__meta .mono-slug{font-family:var(--font-mono);font-size:10.5px;font-weight:400;letter-spacing:0;color:var(--muted)}
+  .catalog-card__desc{font-size:13px;line-height:1.5;color:var(--muted);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .catalog-card__actions{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+  .catalog-card__trail{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;width:max-content;background:var(--neutral-tint);color:var(--muted)}
+  .pill[data-mono="true"]{font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:0}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .switch{position:relative;width:32px;height:18px;border-radius:999px;background:var(--elevated);border:1px solid var(--line);cursor:pointer;flex:none}
+  .switch[aria-checked="true"]{background:var(--success-tint);border-color:color-mix(in srgb,var(--success) 35%,transparent)}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--muted);transition:transform var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--success)}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 24px;
+    border-radius:var(--radius-lg);text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle)}
+  .empty b{font-size:18px;font-weight:500;color:var(--fg-strong);letter-spacing:-.022em}
+  .empty p{font-size:13px;max-width:28rem;line-height:1.6;color:var(--muted)}
+  .empty .btn{margin-top:4px}
+  .empty code{font-family:var(--font-mono);font-size:12px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 6px;color:var(--fg)}
+  .menu{position:fixed;z-index:50;min-width:190px;background:var(--elevated);border-radius:var(--radius-md);box-shadow:var(--shadow-overlay);padding:4px}
+  .menu button{display:flex;align-items:center;gap:9px;width:100%;padding:7px 9px;border:0;background:transparent;color:var(--fg);
+    font-size:12.5px;font-weight:500;letter-spacing:-.005em;border-radius:var(--radius-sm);cursor:pointer;text-align:left}
+  .menu button:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .menu button svg{width:14px;height:14px;color:var(--muted);flex:none}
+  .menu button.is-danger{color:var(--danger)}
+  .menu button.is-danger svg{color:var(--danger)}
+  .menu__sep{height:1px;background:var(--line-soft);margin:4px 6px}
+  .menu__note{padding:7px 9px 5px;font-size:11px;color:var(--subtle);line-height:1.45;max-width:220px}
+  .scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:grid;place-items:center;padding:28px;z-index:40}
+  .modal{width:min(560px,100%);max-height:min(720px,92vh);background:var(--canvas-soft);border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-overlay);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+  .modal--md{width:min(680px,100%)}
+  .modal__head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 16px;border-bottom:1px solid var(--line-soft)}
+  .head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;background:var(--surface-glaze);color:var(--muted)}
+  .head-icon svg{width:17px;height:17px}
+  .head-txt{flex:1;min-width:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .modal__title{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em;margin-top:3px}
+  .modal__sub{font-size:13px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+  .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .head-close svg{width:16px;height:16px}
+  .modal__body{overflow-y:auto;padding:18px 20px 20px;min-height:0}
+  .modal__foot{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .foot-pad{flex:1}
+  .callout{font-size:12.5px;line-height:1.55;color:var(--subtle);padding:11px 12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-tint)}
+  .field{margin-bottom:16px}
+  .field:last-child{margin-bottom:0}
+  .field__label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--fg);margin-bottom:6px}
+  .field__hint{margin-left:auto;font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 6px;text-transform:uppercase}
+  .field__desc{font-size:11.5px;color:var(--subtle);margin:-2px 0 8px}
+  .field__err{font-size:11.5px;color:var(--danger);margin-top:6px}
+  .input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);font-size:12.5px;outline:none}
+  .input.mono{font-family:var(--font-mono);font-size:12px}
+  .input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .input::placeholder{color:var(--faint)}
+  .ro-row{display:grid;grid-template-columns:110px 1fr;gap:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--canvas-tint);margin-bottom:8px;font-size:12.5px}
+  .ro-row .k{color:var(--subtle);font-weight:500}
+  .ro-row .v{font-family:var(--font-mono);font-size:12px;color:var(--fg);word-break:break-all}
+  .scope{display:flex;gap:8px}
+  .scope label{flex:1;display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas);cursor:pointer}
+  .scope label:has(input:checked){border-color:var(--line-strong);background:var(--elevated)}
+  .scope input{margin-top:2px}
+  .scope b{display:block;font-size:12.5px;font-weight:500;color:var(--fg-strong)}
+  .scope span{display:block;font-size:11.5px;color:var(--subtle);margin-top:3px;line-height:1.4}
+  .scope--col{flex-direction:column}
+  .switch-field{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas)}
+  .switch-field__txt{flex:1;min-width:0}
+  .switch-field__txt b{display:block;font-size:12.5px;font-weight:500;color:var(--fg-strong)}
+  .switch-field__txt span{display:block;font-size:11.5px;color:var(--subtle);margin-top:3px;line-height:1.4}
+  .preview-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .preview-table th{text-align:left;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle);padding:0 0 10px;border-bottom:1px solid var(--line)}
+  .preview-table td{padding:10px 0;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  .preview-table tr:last-child td{border-bottom:0}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);font-size:12.5px;color:var(--fg)}
+  .toast a{color:var(--accent-strong);font-weight:500;cursor:pointer}
+  .live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .skel{background:var(--surface-glaze);border-radius:var(--radius);animation:pulse 1.6s var(--ease) infinite}
+  @keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+  .skel-card{height:148px;border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
+  .skel-line{height:10px;margin-bottom:10px}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+  @media(max-width:920px){
+    .page{padding:22px 18px 64px}
+    .topbar{grid-template-columns:minmax(0,1fr) auto;padding:8px 12px}
+    .topbar__route-nav{grid-column:1/-1;grid-row:2;justify-self:stretch;overflow-x:auto}
+    .route-nav{width:max-content}
+    .topbar__trailing{grid-column:2;grid-row:1}
+    .search{min-width:0;width:100%;max-width:none}
+  }
+  @media(max-width:560px){
+    .head__title{font-size:1.25rem}
+    .listing-toolbar{gap:8px}
+    .listing-toolbar__trailing{margin-left:0;width:100%}
+    .pill-group{width:100%}
+    .pill-group__item{flex:1;justify-content:center}
+  }
+
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="main">
+    <header class="topbar" data-od-id="mkt-topbar">
+      <div class="topbar__context">
+        <nav class="breadcrumb" aria-label="Breadcrumb" data-od-id="mkt-breadcrumb">
+          <ol class="breadcrumb__list">
+            <li class="breadcrumb__item"><a class="breadcrumb__link breadcrumb__home" href="../dashboard/dashboard.html" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a></li>
+            <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+            <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Marketplace</span></li>
+          </ol>
+        </nav>
+      </div>
+      <div class="topbar__route-nav" data-od-id="mkt-kind-nav">
+        <nav class="route-nav" aria-label="Marketplace kinds" id="kind-nav">
+          <button type="button" class="route-nav__link" data-kind="skills" aria-current="page">Skills</button>
+          <button type="button" class="route-nav__link" data-kind="mcps">MCPs</button>
+          <button type="button" class="route-nav__link" data-kind="extensions">Extensions</button>
+          <button type="button" class="route-nav__link" data-kind="bundles">Bundles</button>
+        </nav>
+      </div>
+      <div class="topbar__trailing">
+        <button type="button" class="btn btn--ghost btn--sm" id="btn-refresh" data-od-id="mkt-refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Refresh</button>
+      </div>
+    </header>
+    <div class="scroll">
+      <div class="page">
+        <header class="head" data-od-id="mkt-head">
+          <span class="head__icon" id="kind-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+          <div class="head__main">
+            <div class="head__titlerow"><h1 class="head__title" id="kind-title" tabindex="-1">Skills</h1><span class="count-chip" id="kind-count">0</span></div>
+            <div class="head__meta" id="head-meta"></div>
+          </div>
+        </header>
+        <div class="listing-toolbar" data-od-id="mkt-toolbar">
+          <div class="listing-toolbar__leading">
+            <label class="search" data-od-id="mkt-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <input id="search-input" type="search" placeholder="Search skills" autocomplete="off" spellcheck="false" />
+              <span class="kbd">/</span>
+            </label>
+          </div>
+          <div class="listing-toolbar__trailing">
+            <div class="pill-group" role="group" aria-label="Catalog scope" id="scope-toggle" data-od-id="mkt-scope-toggle">
+              <button type="button" class="pill-group__item" id="tab-installed" data-tab="installed" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>
+                Installed <span class="pill-group__n" id="installed-n">0</span>
+              </button>
+              <button type="button" class="pill-group__item" id="tab-market" data-tab="market" aria-pressed="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9h18l-1.5 11.5a2 2 0 0 1-2 1.5H6.5a2 2 0 0 1-2-1.5L3 9Z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg>
+                Marketplace
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="route-error" class="hide" data-od-id="mkt-route-error"></div>
+        <div id="grid-empty" class="hide" data-od-id="mkt-empty"></div>
+        <div class="listing-card-grid" id="grid" data-od-id="mkt-grid"></div>
+        <div class="live" id="live" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim hide" id="mcp-scrim" role="dialog" aria-modal="true" aria-labelledby="mcp-title">
+  <div class="modal">
+    <div class="modal__head">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8Z"/></svg></div>
+      <div class="head-txt">
+        <div class="eyebrow" id="mcp-eyebrow">MCP · curated</div>
+        <h2 class="modal__title" id="mcp-title">Install</h2>
+        <p class="modal__sub" id="mcp-sub">Required fields come from the curated feed. The server is written via settings MCP config.</p>
+      </div>
+      <button type="button" class="head-close" id="mcp-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal__body" id="mcp-body"></div>
+    <div class="modal__foot">
+      <button type="button" class="btn btn--ghost" id="mcp-cancel">Cancel</button>
+      <span class="foot-pad"></span>
+      <button type="button" class="btn btn--primary" id="mcp-submit" disabled>Install</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim hide" id="bundle-scrim" role="dialog" aria-modal="true" aria-labelledby="bundle-title">
+  <div class="modal modal--md">
+    <div class="modal__head">
+      <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5"/><path d="M12 22V12"/></svg></div>
+      <div class="head-txt">
+        <div class="eyebrow">Bundle preview</div>
+        <h2 class="modal__title" id="bundle-title">Activate</h2>
+        <p class="modal__sub">Choose a profile and scope. The preview shows what this activation adds before anything changes.</p>
+      </div>
+      <button type="button" class="head-close" id="bundle-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal__body" id="bundle-body" aria-live="polite"></div>
+    <div class="modal__foot">
+      <button type="button" class="btn btn--ghost" id="bundle-cancel">Cancel</button>
+      <span class="foot-pad"></span>
+      <button type="button" class="btn btn--primary" id="bundle-submit" disabled>Activate</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim hide" id="remove-scrim" role="dialog" aria-modal="true" aria-labelledby="remove-title">
+  <div class="modal">
+    <div class="modal__head">
+      <div class="head-icon" style="background:var(--danger-tint);color:var(--danger)" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></div>
+      <div class="head-txt">
+        <div class="eyebrow" style="color:var(--danger)">Destructive</div>
+        <h2 class="modal__title" id="remove-title">Remove</h2>
+        <p class="modal__sub" id="remove-sub"></p>
+      </div>
+      <button type="button" class="head-close" id="remove-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal__body">
+      <div class="callout" id="remove-callout"></div>
+      <div class="field hide" style="margin-top:16px" id="remove-field">
+        <label class="field__label" for="remove-confirm">Confirmation</label>
+        <input class="input mono" id="remove-confirm" autocomplete="off" />
+      </div>
+    </div>
+    <div class="modal__foot">
+      <button type="button" class="btn btn--ghost" id="remove-cancel">Cancel</button>
+      <span class="foot-pad"></span>
+      <button type="button" class="btn btn--danger" id="remove-submit" disabled>Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hide" id="toast" role="status"></div>
+
+<script>
+(function(){
+
+  // ---- kind config -------------------------------------------------------
+  var KINDS = {
+    skills:     { label:"Skills",     singular:"skill",     detail:"skills",     verb:"Install",  ph:"Search skills" },
+    mcps:       { label:"MCPs",       singular:"MCP server",detail:"mcp",        verb:"Install",  ph:"Search MCP servers" },
+    extensions: { label:"Extensions", singular:"extension", detail:"extensions", verb:"Install",  ph:"Search extensions" },
+    bundles:    { label:"Bundles",    singular:"bundle",    detail:"bundles",    verb:"Activate", ph:"Search bundles" }
+  };
+  var ICONS = {
+    skills:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+    mcps:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8Z"/></svg>',
+    extensions:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>',
+    bundles:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5"/><path d="M12 22V12"/></svg>'
+  };
+
+  // ---- one catalog per kind; state is "available" or "installed" ---------
+  var DATA = {
+    skills: [
+      { id:"git-flow", name:"git-flow", author:"@agh", version:"1.4.2", downloads:"3.4k", state:"installed", scope:"global", installedAgo:"2w ago",
+        desc:"Branch, review, and land PRs with the project's own checks as the gate." },
+      { id:"qa-bootstrap", name:"qa-bootstrap", author:"@agh", version:"2.1.0", updateTo:"2.2.0", downloads:"2.0k", state:"installed", scope:"workspace", installedAgo:"5d ago",
+        desc:"Spin an isolated AGH_HOME lab with ports, provider homes, and a bootstrap manifest." },
+      { id:"incident-triage", name:"incident-triage", author:"@agh", version:"0.6.0", downloads:"1.5k", state:"installed", scope:"workspace", installedAgo:"5d ago",
+        via:{ bundle:"ops-starter", href:"bundle-activation-detail.html?id=ops-starter" },
+        desc:"Classify incoming incidents, open a session, and page the on-call agent." },
+      { id:"docs-sync", name:"docs-sync", author:"@agh", version:"0.9.1", downloads:"1.1k", state:"available",
+        desc:"Keep packages/site docs aligned with OpenAPI and CLI help after contract changes." },
+      { id:"spec-preflight", name:"spec-preflight", author:"@compozy", version:"1.0.3", downloads:"780", state:"available",
+        desc:"Validate PRD and TechSpec inputs against the authoring playbook before drafting." },
+      { id:"dep-audit", name:"dep-audit", author:"@agh", version:"1.0.0", downloads:"940", state:"available",
+        desc:"Review dependency bumps against changelogs and known advisories." },
+      { id:"lockfile-hygiene", name:"lockfile-hygiene", author:"@agh", version:"0.4.1", downloads:"510", state:"available",
+        desc:"Detect drift between manifests and lockfiles before it lands." },
+      { id:"agh-ui-screenshot", name:"agh-ui-screenshot", author:"@agh", version:"1.3.0", downloads:"2.3k", state:"available",
+        desc:"Deterministic PNG capture of Storybook stories and local UI URLs." },
+      { id:"security-review", name:"security-review", author:"@community", version:"1.2.4", downloads:"1.2k", state:"available",
+        desc:"Audit a diff for injection, authz, and secret-handling risks." }
+    ],
+    mcps: [
+      { id:"filesystem", name:"filesystem", transport:"stdio", state:"installed", status:"running", scope:"workspace", installedAgo:"1w ago",
+        command:"npx -y @modelcontextprotocol/server-filesystem", required:[{key:"MCP_FS_ROOT", hint:"Absolute path the server may access", secret:false}],
+        desc:"Read and write workspace files through a scoped MCP filesystem server." },
+      { id:"linear", name:"linear", transport:"sse", state:"installed", status:"needs_auth", scope:"workspace", installedAgo:"2d ago",
+        url:"https://mcp.linear.app/sse", auth:{issuer:"https://linear.app", scopes:"read, issues:create"},
+        desc:"Issues, projects, and cycles via Linear's hosted MCP server over authenticated SSE." },
+      { id:"github", name:"github", transport:"stdio", state:"available",
+        command:"npx -y @modelcontextprotocol/server-github", required:[{key:"GITHUB_PERSONAL_ACCESS_TOKEN", hint:"Fine-grained PAT with repo scope", secret:true}],
+        desc:"Issues, PRs, and repository search via the official GitHub MCP server." },
+      { id:"postgres", name:"postgres", transport:"stdio", state:"available",
+        command:"npx -y @modelcontextprotocol/server-postgres", required:[{key:"POSTGRES_CONNECTION_STRING", hint:"postgres://user:pass@host/db", secret:true}],
+        desc:"Run read-only SQL against a Postgres connection string." },
+      { id:"sentry", name:"sentry", transport:"http", state:"available",
+        url:"https://mcp.sentry.dev/mcp", auth:{issuer:"https://sentry.io", scopes:"project:read, event:read"},
+        desc:"Read access to projects and events via Sentry's hosted MCP server over HTTP." }
+    ],
+    extensions: [
+      { id:"cost-guard", name:"cost-guard", author:"@agh", version:"0.3.2", downloads:"410", type:"hook", trust:"verified", state:"installed", enabled:true, source:"registry", installedAgo:"2d ago",
+        desc:"Cap token spend per workspace and pause agents that breach the budget." },
+      { id:"session-trace", name:"session-trace", author:"@community", version:"1.0.1", updateTo:"1.1.0", downloads:"120", type:"tool", trust:"unverified", state:"installed", enabled:false, source:"local", installedAgo:"1w ago",
+        desc:"Attach trace IDs to session events for downstream collectors." },
+      { id:"otel-bridge", name:"otel-bridge", author:"@agh", version:"0.6.0", downloads:"1.2k", type:"bridge", trust:"verified", state:"available",
+        desc:"Export session and tool spans to an OpenTelemetry collector." },
+      { id:"slack-notify", name:"slack-notify", author:"@community", version:"1.1.4", downloads:"840", type:"hook", trust:"unverified", warnings:2, state:"available",
+        desc:"Post run summaries to a Slack channel when a loop finishes." },
+      { id:"audit-log", name:"audit-log", author:"@agh", version:"2.0.0", downloads:"2.1k", type:"hook", trust:"verified", state:"available",
+        desc:"Append-only audit trail for installs, policy changes, and destructive removes." }
+    ],
+    bundles: [
+      { id:"ops-starter", name:"ops-starter", version:"0.8.0", contents:"2 skills · 1 extension · 1 mcp", state:"installed", profile:"triage", scope:"workspace", activatedAgo:"5d ago",
+        desc:"MCP servers and skills for incident triage and status page updates.",
+        profiles:[
+          { name:"triage", description:"Triage-only: the incident skill plus GitHub and Postgres MCP.", summary:"1 agent · 1 trigger · Slack bridge",
+            inventory:[{kind:"skill",name:"incident-triage",version:"0.6.0",action:"add"},{kind:"mcp",name:"github",version:"—",action:"already"},{kind:"mcp",name:"postgres",version:"—",action:"add"}] },
+          { name:"oncall", description:"Triage plus scheduled status-page updates and a weekly review job.", summary:"1 agent · 1 job · 1 trigger · Slack bridge",
+            inventory:[{kind:"skill",name:"incident-triage",version:"0.6.0",action:"add"},{kind:"skill",name:"status-page",version:"0.3.1",action:"add"},{kind:"mcp",name:"github",version:"—",action:"already"},{kind:"mcp",name:"postgres",version:"—",action:"add"}] }
+        ] },
+      { id:"qa-pack", name:"qa-pack", version:"0.2.0", updateTo:"0.3.0", contents:"2 skills", state:"installed", profile:"default", scope:"global", activatedAgo:"3w ago",
+        desc:"QA skills for regression triage and flake classification.",
+        profiles:[ { name:"default", description:"Default QA profile with two skills.", summary:"no agents, jobs, or triggers",
+            inventory:[{kind:"skill",name:"flake-triage",version:"0.1.2",action:"add"},{kind:"skill",name:"regression-bisect",version:"0.2.0",action:"add"}] } ] },
+      { id:"dep-kit", name:"dep-kit", version:"1.2.0", contents:"3 items", state:"available",
+        desc:"Skills and extensions for dependency review, lockfile hygiene, and release notes.",
+        profiles:[ { name:"default", description:"Dependency review with a weekly audit job and a lockfile-change trigger.", summary:"1 agent · 1 job · 1 trigger · GitHub bridge",
+            inventory:[{kind:"skill",name:"dep-audit",version:"1.0.0",action:"add"},{kind:"skill",name:"lockfile-hygiene",version:"0.4.1",action:"add"},{kind:"extension",name:"release-notes",version:"1.2.0",action:"already"}] } ] },
+      { id:"design-handoff", name:"design-handoff", version:"1.0.1", contents:"2 items", state:"available",
+        desc:"Activate the Open Design handoff skill plus screenshot capture helpers.",
+        profiles:[
+          { name:"minimal", description:"Screenshot capture only. No agents, jobs, or triggers.", summary:"no agents, jobs, or triggers",
+            inventory:[{kind:"skill",name:"agh-ui-screenshot",version:"1.3.0",action:"add"}] },
+          { name:"full", description:"Screenshot capture plus the handoff skill and a designer agent.", summary:"1 agent",
+            inventory:[{kind:"skill",name:"agh-ui-screenshot",version:"1.3.0",action:"add"},{kind:"skill",name:"design-handoff",version:"1.0.1",action:"add"}] }
+        ] }
+    ]
+  };
+
+  // ---- state -------------------------------------------------------------
+  var params = new URLSearchParams(location.search);
+  var kind = KINDS[params.get("kind")] ? params.get("kind") : "skills";
+  var tab = params.get("tab")==="installed" ? "installed" : "market";
+  var q = params.get("q") || "";
+  var loading = params.get("state")==="loading";
+  var routeError = params.get("state")==="error";
+
+  var grid = document.getElementById("grid");
+  var gridEmpty = document.getElementById("grid-empty");
+  var routeErr = document.getElementById("route-error");
+  var live = document.getElementById("live");
+  var input = document.getElementById("search-input");
+  var menuEl = null;
+
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function spinnerSvg(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>'; }
+  function items(){ return DATA[kind]; }
+  function installed(){ return items().filter(function(x){ return x.state==="installed"; }); }
+  function updates(){ return installed().filter(function(x){ return !!x.updateTo; }); }
+  function find(id){ return items().find(function(x){ return x.id===id; }); }
+  function detailHref(it){
+    if(kind==="bundles" && it.state==="installed") return "bundle-activation-detail.html?id="+encodeURIComponent(it.id);
+    return "marketplace-detail.html?kind="+KINDS[kind].detail+"&name="+encodeURIComponent(it.id);
+  }
+  function matches(it){
+    if(!q) return true;
+    var hay=[it.name,it.desc,it.author,it.transport,it.type,it.contents,it.via&&it.via.bundle].filter(Boolean).join(" ").toLowerCase();
+    return hay.indexOf(q.toLowerCase())>=0;
+  }
+  function showToast(msg, action, label){
+    var t=document.getElementById("toast");
+    t.innerHTML = esc(msg)+(action?' <a id="toast-act">'+esc(label)+'</a>':'');
+    t.classList.remove("hide");
+    if(action){ document.getElementById("toast-act").onclick=function(){ t.classList.add("hide"); action(); }; }
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer=setTimeout(function(){ t.classList.add("hide"); }, 4600);
+  }
+  function syncUrl(){
+    var u=new URL(location.href);
+    if(kind==="skills") u.searchParams.delete("kind"); else u.searchParams.set("kind",kind);
+    if(tab==="market") u.searchParams.delete("tab"); else u.searchParams.set("tab","installed");
+    if(q) u.searchParams.set("q",q); else u.searchParams.delete("q");
+    history.replaceState(null,"",u.toString());
+  }
+
+  // ---- card builders -----------------------------------------------------
+  function cardMeta(it){
+    if(kind==="skills")     return '<span>'+esc(it.author)+'</span><span class="mono-slug">v'+esc(it.version)+'</span><span class="mono-slug">'+esc(it.downloads)+'</span>';
+    if(kind==="mcps")       return '<span class="mono-slug">'+esc(it.transport)+'</span><span>curated</span>';
+    if(kind==="extensions") return '<span>'+esc(it.author)+'</span><span class="mono-slug">v'+esc(it.version)+'</span><span class="mono-slug">'+esc(it.downloads)+'</span>';
+    return '<span class="mono-slug">v'+esc(it.version)+'</span><span>'+esc(it.contents)+'</span>';
+  }
+  function installedMeta(it){
+    if(kind==="skills")     return '<span class="mono-slug">v'+esc(it.version)+'</span><span>'+esc(it.scope)+'</span><span>installed '+esc(it.installedAgo)+'</span>';
+    if(kind==="mcps")       return '<span class="mono-slug">'+esc(it.transport)+'</span><span>'+esc(it.scope)+'</span><span>installed '+esc(it.installedAgo)+'</span>';
+    if(kind==="extensions") return '<span class="mono-slug">v'+esc(it.version)+'</span><span>'+esc(it.type)+'</span><span>installed '+esc(it.installedAgo)+'</span>';
+    return '<span class="mono-slug">v'+esc(it.version)+'</span><span>profile '+esc(it.profile)+'</span><span>'+esc(it.scope)+'</span><span>activated '+esc(it.activatedAgo)+'</span>';
+  }
+  function pillHtml(txt,tone){ return '<span class="pill" data-mono="true"'+(tone?' data-tone="'+tone+'"':'')+'>'+esc(txt)+'</span>'; }
+  function marketPills(it){
+    var h="";
+    if(kind==="extensions") h += it.trust==="verified" ? pillHtml("verified","success") : pillHtml(it.warnings?("unverified · "+it.warnings):"unverified","warning");
+    if(kind==="mcps") h += pillHtml("curated","info");
+    if(it.state==="installed" && !it.updateTo) h += pillHtml(kind==="bundles"?"active":"installed","success");
+    if(it.updateTo) h += pillHtml("v"+it.updateTo+" available","warning");
+    return h;
+  }
+  function installedPills(it){
+    var h="";
+    if(it.via) h += pillHtml("via "+it.via.bundle);
+    if(kind==="mcps") h += it.status==="running" ? pillHtml("running","success") : pillHtml("authorize","warning");
+    if(kind==="extensions") h += it.trust==="verified" ? pillHtml("verified","success") : pillHtml("unverified","warning");
+    if(it.updateTo) h += pillHtml("v"+it.updateTo+" available","warning");
+    return h;
+  }
+  function marketTrail(it){
+    if(it._busy) return '<button type="button" class="btn btn--sm btn--spin" disabled>'+spinnerSvg()+(kind==="bundles"?"Activating…":"Installing…")+'</button>';
+    if(it.updateTo) return '<button type="button" class="btn btn--sm" data-act="update" data-id="'+it.id+'">Update</button>';
+    if(it.state==="installed") return '<button type="button" class="btn btn--ghost btn--sm" data-act="manage" data-id="'+it.id+'">Manage</button>';
+    return '<button type="button" class="btn btn--sm" data-act="install" data-id="'+it.id+'" aria-label="'+KINDS[kind].verb+' '+esc(it.name)+'">'+KINDS[kind].verb+'</button>';
+  }
+  function installedTrail(it){
+    if(it._busy) return '<button type="button" class="btn btn--sm btn--spin" disabled>'+spinnerSvg()+'Working…</button>';
+    var h="";
+    if(kind==="extensions") h += '<button type="button" class="switch" role="switch" aria-checked="'+(it.enabled?"true":"false")+'" data-act="toggle" data-id="'+it.id+'" aria-label="Enable '+esc(it.name)+'"></button>';
+    if(kind==="mcps" && it.status==="needs_auth") h += '<button type="button" class="btn btn--primary btn--sm" data-act="authorize" data-id="'+it.id+'">Authorize</button>';
+    if(it.updateTo) h += '<button type="button" class="btn btn--sm" data-act="update" data-id="'+it.id+'">Update</button>';
+    h += '<button type="button" class="btn btn--ghost btn--icon btn--sm" data-act="more" data-id="'+it.id+'" aria-haspopup="menu" aria-label="More for '+esc(it.name)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>';
+    return h;
+  }
+  function cardHtml(it){
+    var isInstalledTab = tab==="installed";
+    var pills = isInstalledTab ? installedPills(it) : marketPills(it);
+    var trail = isInstalledTab ? installedTrail(it) : marketTrail(it);
+    var meta = isInstalledTab ? installedMeta(it) : cardMeta(it);
+    return '<a class="catalog-card'+(it._busy?' is-dim':'')+(it._flash?' card-flash':'')+'" href="'+detailHref(it)+'" data-nav="1" data-id="'+it.id+'" data-od-id="card-'+kind+'-'+it.id+'">'
+      +'<div class="catalog-card__head"><div class="catalog-card__logo" aria-hidden="true">'+ICONS[kind]+'</div>'
+      +'<div class="catalog-card__title-wrap"><div class="catalog-card__title" title="'+esc(it.name)+'">'+esc(it.name)+'</div>'
+      +'<div class="catalog-card__meta">'+meta+'</div></div></div>'
+      +'<div class="catalog-card__desc">'+esc(it.desc)+'</div>'
+      +'<div class="catalog-card__actions">'+pills+'<span class="catalog-card__trail">'+trail+'</span></div></a>';
+  }
+
+  // ---- render ------------------------------------------------------------
+  function render(){
+    closeMenu();
+    syncUrl();
+    var K=KINDS[kind];
+    document.querySelectorAll("#kind-nav [data-kind]").forEach(function(b){
+      if(b.getAttribute("data-kind")===kind) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
+    });
+    document.getElementById("kind-icon").innerHTML=ICONS[kind];
+    document.getElementById("kind-title").textContent=K.label;
+    document.getElementById("kind-count").textContent=String(items().length);
+    document.getElementById("installed-n").textContent=String(installed().length);
+    document.getElementById("tab-market").setAttribute("aria-pressed", tab==="market"?"true":"false");
+    document.getElementById("tab-installed").setAttribute("aria-pressed", tab==="installed"?"true":"false");
+    input.placeholder=K.ph;
+    var upd=updates().length;
+    var meta='<span><span class="mono">'+items().length+'</span> in the marketplace</span><span class="dotsep"></span><span><span class="mono">'+installed().length+'</span> '+(kind==="bundles"?"active":"installed")+'</span>';
+    if(upd) meta+='<span class="dotsep"></span><span><span class="mono">'+upd+'</span> update'+(upd>1?"s":"")+' available</span>';
+    document.getElementById("head-meta").innerHTML=meta;
+
+    if(routeError){
+      grid.innerHTML=""; gridEmpty.classList.add("hide");
+      routeErr.classList.remove("hide");
+      routeErr.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg><b>The marketplace is unreachable</b><p>No sources responded. Retry, or come back in a moment.</p><button type="button" class="btn btn--sm" id="route-retry">Retry</button></div>';
+      document.getElementById("route-retry").onclick=function(){
+        routeError=false; routeErr.classList.add("hide");
+        var u=new URL(location.href); u.searchParams.delete("state"); history.replaceState(null,"",u.toString());
+        render();
+      };
+      return;
+    }
+    routeErr.classList.add("hide");
+
+    if(loading){
+      gridEmpty.classList.add("hide");
+      var cs='<div class="skel-card"><div class="skel skel-line" style="width:60%"></div><div class="skel skel-line" style="width:85%;margin-top:6px"></div><div class="skel skel-line" style="width:40%;margin-top:auto"></div></div>';
+      grid.innerHTML=cs+cs+cs+cs+cs+cs;
+      return;
+    }
+
+    var list=(tab==="installed"?installed():items()).filter(matches);
+    if(!list.length){
+      grid.innerHTML="";
+      gridEmpty.classList.remove("hide");
+      if(q){
+        gridEmpty.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg><b>No '+esc(K.label.toLowerCase())+' match this query</b><p>Nothing matches "'+esc(q)+'" in '+(tab==="installed"?"your installed "+esc(K.label.toLowerCase()):"the marketplace")+'.</p><button type="button" class="btn btn--sm" id="clear-search">Clear search</button></div>';
+        document.getElementById("clear-search").onclick=function(){ q=""; input.value=""; render(); };
+      } else {
+        gridEmpty.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">'+ICONS[kind].replace(/^<svg[^>]*>/,"").replace(/<\/svg>$/,"")+'</svg><b>No '+esc(K.label.toLowerCase())+' '+(kind==="bundles"?"active":"installed")+' yet</b><p>'+(kind==="bundles"?"A bundle activates a curated set of capabilities in one step.":"Everything you "+(kind==="bundles"?"activate":"install")+" from the marketplace shows up here.")+' You can also use <code>agh '+(kind==="mcps"?"mcp":kind)+' '+(kind==="bundles"?"activate":"install")+' &lt;name&gt;</code>.</p><button type="button" class="btn btn--sm" id="go-market">Browse the marketplace</button></div>';
+        document.getElementById("go-market").onclick=function(){ tab="market"; render(); };
+      }
+      live.textContent=q?("Search updated · 0 results"):"";
+      return;
+    }
+    gridEmpty.classList.add("hide");
+    grid.innerHTML=list.map(cardHtml).join("");
+    live.textContent=q?("Search updated · "+list.length+" results"):"";
+    items().forEach(function(it){ if(it._flash) delete it._flash; });
+  }
+
+  // ---- actions -----------------------------------------------------------
+  function busyThen(it, ms, fn){
+    it._busy=true; render();
+    setTimeout(function(){ it._busy=false; fn(); render(); }, ms);
+  }
+  function doInstall(it){
+    if(kind==="mcps"){ openMcp(it); return; }
+    if(kind==="bundles"){ openBundle(it); return; }
+    if(kind==="extensions" && it.trust!=="verified" && !confirm("Install unverified extension "+it.name+"? Review trust warnings on the detail page first.")) return;
+    busyThen(it, 700, function(){
+      it.state="installed"; it._flash=true;
+      it.installedAgo="just now";
+      if(kind==="skills") it.scope="workspace";
+      if(kind==="extensions"){ it.enabled=true; it.source="registry"; }
+      showToast(it.name+" installed", function(){ tab="installed"; render(); }, "View installed →");
+    });
+  }
+  function doUpdate(it){
+    busyThen(it, 700, function(){
+      it.version=it.updateTo; delete it.updateTo;
+      showToast(it.name+" updated to v"+it.version);
+    });
+  }
+  function doAuthorize(it){
+    busyThen(it, 900, function(){
+      it.status="running";
+      showToast(it.name+" authorized · server running");
+    });
+  }
+  function doToggle(it){
+    busyThen(it, 500, function(){
+      it.enabled=!it.enabled;
+      showToast(it.name+(it.enabled?" enabled":" disabled"));
+    });
+  }
+
+  // ---- overflow menu -----------------------------------------------------
+  function closeMenu(){ if(menuEl){ menuEl.remove(); menuEl=null; } }
+  function openMenu(anchor, it){
+    closeMenu();
+    menuEl=document.createElement("div");
+    menuEl.className="menu"; menuEl.setAttribute("role","menu");
+    var h='<button type="button" role="menuitem" data-mi="view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>View details</button>';
+    if(it.via){
+      h+='<div class="menu__sep"></div><div class="menu__note">Managed by the <b style="color:var(--fg)">'+esc(it.via.bundle)+'</b> bundle activation.</div>'
+        +'<button type="button" role="menuitem" data-mi="bundle">'+ICONS.bundles+'Open bundle activation</button>';
+    } else {
+      var lbl = kind==="bundles" ? "Deactivate…" : "Remove…";
+      h+='<div class="menu__sep"></div><button type="button" role="menuitem" class="is-danger" data-mi="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>'+lbl+'</button>';
+    }
+    menuEl.innerHTML=h;
+    document.body.appendChild(menuEl);
+    var r=anchor.getBoundingClientRect();
+    menuEl.style.top=(r.bottom+4)+"px";
+    menuEl.style.left=Math.max(8, r.right-menuEl.offsetWidth)+"px";
+    menuEl.querySelector('[data-mi="view"]').onclick=function(){ closeMenu(); location.href=detailHref(it); };
+    var bb=menuEl.querySelector('[data-mi="bundle"]');
+    if(bb) bb.onclick=function(){ closeMenu(); location.href=it.via.href; };
+    var rm=menuEl.querySelector('[data-mi="remove"]');
+    if(rm) rm.onclick=function(){ closeMenu(); openRemove(it); };
+    var first=menuEl.querySelector("button"); if(first) first.focus();
+  }
+
+  // ---- remove / deactivate modal ----------------------------------------
+  var removeTarget=null;
+  function openRemove(it){
+    removeTarget=it;
+    var deact = kind==="bundles";
+    document.getElementById("remove-title").textContent=(deact?"Deactivate ":"Remove ")+it.name;
+    document.getElementById("remove-sub").textContent = deact
+      ? "Stops this activation. Installed items stay on disk; only the activation binding is removed."
+      : (kind==="mcps" ? "Removes the server from MCP config. Sessions can no longer reach its tools."
+                       : "Removes the installed files from this daemon. It stays available in the marketplace.");
+    document.getElementById("remove-callout").textContent = deact
+      ? "Agents, jobs, and triggers from the "+it.profile+" profile stop receiving new work from this activation."
+      : "Type the "+KINDS[kind].singular+" name to confirm.";
+    document.getElementById("remove-field").classList.toggle("hide", deact);
+    document.getElementById("remove-submit").textContent = deact?"Deactivate":"Remove";
+    document.getElementById("remove-submit").disabled = !deact;
+    document.getElementById("remove-confirm").value="";
+    document.getElementById("remove-scrim").classList.remove("hide");
+    setTimeout(function(){ (deact?document.getElementById("remove-submit"):document.getElementById("remove-confirm")).focus(); }, 30);
+  }
+  function closeRemove(){ document.getElementById("remove-scrim").classList.add("hide"); removeTarget=null; }
+  document.getElementById("remove-confirm").addEventListener("input", function(){
+    document.getElementById("remove-submit").disabled = !removeTarget || this.value.trim()!==removeTarget.name;
+  });
+  document.getElementById("remove-close").onclick=closeRemove;
+  document.getElementById("remove-cancel").onclick=closeRemove;
+  document.getElementById("remove-scrim").addEventListener("click", function(e){ if(e.target.id==="remove-scrim") closeRemove(); });
+  document.getElementById("remove-submit").onclick=function(){
+    var it=removeTarget; closeRemove();
+    it.state="available";
+    delete it.scope; delete it.installedAgo; delete it.activatedAgo; delete it.updateTo; delete it.enabled; delete it.status; delete it.profile;
+    render();
+    showToast(it.name+(kind==="bundles"?" deactivated":" removed"));
+  };
+
+  // ---- MCP guided install ------------------------------------------------
+  var mcpItem=null;
+  function openMcp(it){
+    mcpItem=it;
+    var remote = it.transport==="http"||it.transport==="sse";
+    document.getElementById("mcp-title").textContent="Install "+it.name;
+    document.getElementById("mcp-eyebrow").textContent="MCP · "+it.transport+" · curated";
+    document.getElementById("mcp-sub").textContent=remote
+      ? "Remote server. AGH writes the config, then runs the OAuth authorize step after install."
+      : "Required fields come from the curated feed. The server is written via settings MCP config.";
+    var body=document.getElementById("mcp-body");
+    var scopeField='<div class="field" style="margin-top:4px"><div class="field__label">Scope</div>'
+      +'<div class="scope"><label><input type="radio" name="scope" value="workspace" checked /><div><b>Workspace</b><span>Available to agents in this workspace only.</span></div></label>'
+      +'<label><input type="radio" name="scope" value="global" /><div><b>Global</b><span>Available across workspaces on this daemon.</span></div></label></div></div>';
+    if(remote){
+      body.innerHTML='<div class="ro-row"><div class="k">URL</div><div class="v">'+esc(it.url)+'</div></div>'
+        +'<div class="ro-row"><div class="k">Transport</div><div class="v">'+esc(it.transport)+'</div></div>'
+        +'<div class="ro-row"><div class="k">Issuer</div><div class="v">'+esc(it.auth.issuer)+'</div></div>'
+        +'<div class="ro-row"><div class="k">Scopes</div><div class="v">'+esc(it.auth.scopes)+'</div></div>'
+        +'<p class="field__desc" style="margin:8px 0 14px">No secret is stored for remote servers. You authorize in the browser after install.</p>'
+        +scopeField;
+      document.getElementById("mcp-submit").disabled=false;
+    } else {
+      var fields=(it.required||[]).map(function(f,i){
+        return '<div class="field"><label class="field__label" for="mcp-f-'+i+'"><span style="font-family:var(--font-mono);font-size:11.5px">'+esc(f.key)+'</span>'
+          +(f.secret?'<span class="field__hint">secret</span>':'')+'</label>'
+          +'<p class="field__desc">'+esc(f.hint)+'</p>'
+          +'<input class="input mono" id="mcp-f-'+i+'" data-req="1" type="'+(f.secret?"password":"text")+'" autocomplete="off" /></div>';
+      }).join("");
+      body.innerHTML='<div class="ro-row"><div class="k">Command</div><div class="v">'+esc(it.command)+'</div></div>'
+        +'<div class="ro-row"><div class="k">Transport</div><div class="v">'+esc(it.transport)+'</div></div>'
+        +scopeField
+        +'<div class="field__label" style="margin:14px 0 10px">Required configuration</div>'+fields;
+      document.getElementById("mcp-submit").disabled=true;
+      body.querySelectorAll("[data-req]").forEach(function(el){
+        el.addEventListener("input", function(){
+          var ok=true;
+          body.querySelectorAll("[data-req]").forEach(function(x){ if(!x.value.trim()) ok=false; });
+          document.getElementById("mcp-submit").disabled=!ok;
+        });
+      });
+    }
+    document.getElementById("mcp-scrim").classList.remove("hide");
+    setTimeout(function(){ var f=body.querySelector("[data-req]")||document.getElementById("mcp-submit"); f.focus(); }, 30);
+  }
+  function closeMcp(){ document.getElementById("mcp-scrim").classList.add("hide"); mcpItem=null; }
+  document.getElementById("mcp-close").onclick=closeMcp;
+  document.getElementById("mcp-cancel").onclick=closeMcp;
+  document.getElementById("mcp-scrim").addEventListener("click", function(e){ if(e.target.id==="mcp-scrim") closeMcp(); });
+  document.getElementById("mcp-submit").onclick=function(){
+    var it=mcpItem, remote=it.transport==="http"||it.transport==="sse", btn=this;
+    var scope=document.querySelector('#mcp-body [name="scope"]:checked');
+    btn.disabled=true; btn.classList.add("btn--spin"); btn.innerHTML=spinnerSvg()+"Installing…";
+    setTimeout(function(){
+      btn.classList.remove("btn--spin"); btn.textContent="Install";
+      it.state="installed"; it._flash=true;
+      it.scope=scope?scope.value:"workspace";
+      it.installedAgo="just now";
+      it.status=remote?"needs_auth":"running";
+      closeMcp(); render();
+      if(remote) showToast(it.name+" installed · authorization pending", function(){ tab="installed"; render(); }, "Authorize →");
+      else showToast(it.name+" installed", function(){ tab="installed"; render(); }, "View installed →");
+    }, 700);
+  };
+
+  // ---- bundle activation -------------------------------------------------
+  var bundleItem=null, bundleProfileIdx=0, bundleBind=false;
+  function openBundle(it){
+    bundleItem=it; bundleProfileIdx=0; bundleBind=false;
+    document.getElementById("bundle-title").textContent="Activate "+it.name;
+    document.getElementById("bundle-scrim").classList.remove("hide");
+    renderBundleBody();
+  }
+  function renderBundleBody(){
+    var it=bundleItem, body=document.getElementById("bundle-body"), submit=document.getElementById("bundle-submit");
+    var profs=it.profiles||[];
+    var profField= profs.length>1
+      ? '<div class="field"><div class="field__label">Profile</div><div class="scope scope--col">'
+        +profs.map(function(pf,i){ return '<label><input type="radio" name="bprof" value="'+i+'"'+(i===bundleProfileIdx?" checked":"")+' /><div><b>'+esc(pf.name)+'</b><span>'+esc(pf.description)+'</span></div></label>'; }).join("")
+        +'</div></div>'
+      : '<p class="field__desc" style="margin-bottom:14px">Profile <span style="font-family:var(--font-mono);color:var(--fg)">'+esc(profs[0].name)+'</span> · '+esc(profs[0].description)+'</p>';
+    var scopeField='<div class="field"><div class="field__label">Scope</div>'
+      +'<div class="scope"><label><input type="radio" name="bscope" value="workspace" checked /><div><b>Workspace</b><span>Activate in this workspace only.</span></div></label>'
+      +'<label><input type="radio" name="bscope" value="global" /><div><b>Global</b><span>Activate across workspaces on this daemon.</span></div></label></div></div>';
+    var pf=profs[bundleProfileIdx];
+    var rows=pf.inventory.map(function(r){
+      return '<tr><td>'+pillHtml(r.kind)+'</td><td><b style="font-weight:500">'+esc(r.name)+'</b></td><td style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">'+(r.version==="—"?"—":"v"+r.version)+'</td><td>'+pillHtml(r.action==="add"?"add":"already present")+'</td></tr>';
+    }).join("");
+    var bindField='<div class="field"><div class="switch-field"><div class="switch-field__txt"><b>Bind primary channel as default</b><span>Route new sessions from this bundle through its primary channel.</span></div>'
+      +'<button type="button" class="switch" role="switch" id="bundle-bind" aria-checked="'+(bundleBind?"true":"false")+'" aria-label="Bind primary channel as default"></button></div></div>';
+    body.innerHTML=profField+scopeField+bindField
+      +'<div class="field__label" style="margin:4px 0 10px">What changes</div>'
+      +'<table class="preview-table"><thead><tr><th>Kind</th><th>Name</th><th>Version</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<p class="field__desc" style="margin-top:10px">Also configures: '+esc(pf.summary)+'.</p>';
+    submit.disabled=false;
+    body.querySelectorAll('[name="bprof"]').forEach(function(r){ r.addEventListener("change", function(){ bundleProfileIdx=parseInt(this.value,10); renderBundleBody(); }); });
+    var bind=document.getElementById("bundle-bind");
+    if(bind) bind.addEventListener("click", function(){ bundleBind=!bundleBind; this.setAttribute("aria-checked", bundleBind?"true":"false"); });
+  }
+  function closeBundle(){ document.getElementById("bundle-scrim").classList.add("hide"); bundleItem=null; }
+  document.getElementById("bundle-close").onclick=closeBundle;
+  document.getElementById("bundle-cancel").onclick=closeBundle;
+  document.getElementById("bundle-scrim").addEventListener("click", function(e){ if(e.target.id==="bundle-scrim") closeBundle(); });
+  document.getElementById("bundle-submit").onclick=function(){
+    var it=bundleItem, btn=this;
+    var scope=document.querySelector('#bundle-body [name="bscope"]:checked');
+    btn.disabled=true; btn.classList.add("btn--spin"); btn.innerHTML=spinnerSvg()+"Activating…";
+    setTimeout(function(){
+      btn.classList.remove("btn--spin"); btn.textContent="Activate";
+      it.state="installed"; it._flash=true;
+      it.profile=it.profiles[bundleProfileIdx].name;
+      it.scope=scope?scope.value:"workspace";
+      it.activatedAgo="just now";
+      closeBundle(); render();
+      showToast(it.name+" activated", function(){ tab="installed"; render(); }, "View installed →");
+    }, 700);
+  };
+
+  // ---- events ------------------------------------------------------------
+  grid.addEventListener("click", function(e){
+    var act=e.target.closest("[data-act]");
+    if(act){
+      e.preventDefault(); e.stopPropagation();
+      var it=find(act.getAttribute("data-id"));
+      if(!it || it._busy) return;
+      var a=act.getAttribute("data-act");
+      if(a==="install") doInstall(it);
+      else if(a==="update") doUpdate(it);
+      else if(a==="manage"){ tab="installed"; render(); }
+      else if(a==="authorize") doAuthorize(it);
+      else if(a==="toggle") doToggle(it);
+      else if(a==="more") openMenu(act, it);
+      return;
+    }
+  });
+  document.getElementById("kind-nav").addEventListener("click", function(e){
+    var b=e.target.closest("[data-kind]");
+    if(!b) return;
+    kind=b.getAttribute("data-kind");
+    q=""; input.value="";
+    render();
+  });
+  document.getElementById("scope-toggle").addEventListener("click", function(e){
+    var b=e.target.closest("[data-tab]");
+    if(!b) return;
+    tab=b.getAttribute("data-tab");
+    render();
+  });
+  document.addEventListener("click", function(e){
+    if(menuEl && !menuEl.contains(e.target) && !e.target.closest('[data-act="more"]')) closeMenu();
+  });
+  window.addEventListener("resize", closeMenu);
+  document.querySelector(".scroll").addEventListener("scroll", closeMenu);
+
+  if(q) input.value=q;
+  var t;
+  input.addEventListener("input", function(){
+    clearTimeout(t);
+    t=setTimeout(function(){ q=input.value.trim(); render(); }, 180);
+  });
+  document.addEventListener("keydown", function(e){
+    if(e.key==="Escape"){
+      closeMenu();
+      if(!document.getElementById("mcp-scrim").classList.contains("hide")) closeMcp();
+      if(!document.getElementById("bundle-scrim").classList.contains("hide")) closeBundle();
+      if(!document.getElementById("remove-scrim").classList.contains("hide")) closeRemove();
+    }
+    if(e.key==="/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)){ e.preventDefault(); input.focus(); }
+  });
+  document.getElementById("btn-refresh").addEventListener("click", function(){
+    var b=this; b.disabled=true; b.classList.add("btn--spin");
+    setTimeout(function(){
+      b.disabled=false; b.classList.remove("btn--spin");
+      render();
+      var upd=updates().length;
+      showToast("Catalog refreshed"+(upd?" · "+upd+" update"+(upd>1?"s":"")+" available":""));
+    }, 700);
+  });
+
+  render();
+
+})();
+</script>
+</body>
+</html>

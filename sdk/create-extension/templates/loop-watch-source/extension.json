@@ -1,0 +1,14 @@
+{
+    "extension": {
+        "name": "__EXTENSION_NAME__",
+        "version": "0.1.0",
+        "description": "AGH loop watch-source scaffold",
+        "min_agh_version": "0.5.0"
+    },
+    "capabilities": {
+        "provides": ["loop.watch_source"]
+    },
+    "subprocess": {
+        "command": "./__EXTENSION_NAME__"
+    }
+}

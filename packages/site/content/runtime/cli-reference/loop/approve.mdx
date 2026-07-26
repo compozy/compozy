@@ -1,0 +1,44 @@
+---
+title: "agh loop approve"
+description: "Apply one Loop human-gate decision"
+---
+
+## agh loop approve
+
+Apply one Loop human-gate decision
+
+```
+agh loop approve [flags]
+```
+
+### Options
+
+```
+      --decision string    Decision: approve, request_changes, or reject
+      --gate-id string     Gate node ID
+  -h, --help               help for approve
+      --run-id string      Loop run ID
+      --workspace string   Workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh loop approve -o json
+```

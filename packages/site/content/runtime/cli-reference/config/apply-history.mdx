@@ -1,0 +1,43 @@
+---
+title: "agh config apply-history"
+description: "List persisted config apply records"
+---
+
+## agh config apply-history
+
+List persisted config apply records
+
+```
+agh config apply-history [flags]
+```
+
+### Options
+
+```
+      --actor string    Filter by apply actor
+  -h, --help            help for apply-history
+      --limit int       Maximum records to return (default 50)
+      --status string   Filter by apply status
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh config apply-history -o json
+```

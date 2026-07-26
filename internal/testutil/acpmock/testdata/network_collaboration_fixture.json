@@ -1,0 +1,285 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "ops-coordinator",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You coordinate direct network collaboration tests.",
+            "turns": [
+                {
+                    "name": "accept-direct-request",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_direct_01",
+                            "kind": "say",
+                            "channel": "builders",
+                            "surface": "direct",
+                            "work_id": "work_patch_42",
+                            "reply_to": "msg_say_01",
+                            "trace_id": "trace_ops_patch_42",
+                            "causation_id": "msg_say_01",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "usage": {
+                        "input_tokens": 17,
+                        "output_tokens": 5
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Direct request received."
+                        }
+                    ]
+                },
+                {
+                    "name": "trace-follow-up",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_trace_02",
+                            "kind": "trace",
+                            "channel": "builders",
+                            "surface": "direct",
+                            "work_id": "work_patch_42",
+                            "reply_to": "msg_receipt_01",
+                            "trace_id": "trace_ops_patch_42",
+                            "causation_id": "msg_receipt_01",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Trace update recorded."
+                        }
+                    ]
+                },
+                {
+                    "name": "public-summary-back",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_summary_01",
+                            "kind": "say",
+                            "channel": "builders",
+                            "surface": "thread",
+                            "thread_id": "thread_builders_main",
+                            "reply_to": "msg_trace_02",
+                            "trace_id": "trace_ops_patch_42",
+                            "causation_id": "msg_trace_02",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Public summary noted."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "patch-worker",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You respond to directed network requests in tests.",
+            "turns": [
+                {
+                    "name": "reply-to-builders-say",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_say_01",
+                            "kind": "say",
+                            "channel": "builders",
+                            "surface": "thread",
+                            "thread_id": "thread_builders_main",
+                            "trace_id": "trace_ops_patch_42",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "usage": {
+                        "input_tokens": 15,
+                        "output_tokens": 5
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Saw the builders request."
+                        }
+                    ]
+                },
+                {
+                    "name": "send-trace-after-acceptance",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_receipt_01",
+                            "kind": "receipt",
+                            "channel": "builders",
+                            "surface": "direct",
+                            "work_id": "work_patch_42",
+                            "reply_to": "msg_direct_01",
+                            "trace_id": "trace_ops_patch_42",
+                            "causation_id": "msg_direct_01",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Receipt accepted."
+                        }
+                    ]
+                },
+                {
+                    "name": "observe-duplicate-receipt",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "kind": "receipt"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Duplicate receipt noted."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "release-bot",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You run capability discovery and follow-up tests.",
+            "turns": [
+                {
+                    "name": "observe-whois-response",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "kind": "whois",
+                            "reply_to": "msg_whois_01"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Peer discovery response captured."
+                        }
+                    ]
+                },
+                {
+                    "name": "request-capability-help",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_capability_01",
+                            "kind": "capability",
+                            "channel": "capabilities",
+                            "surface": "thread",
+                            "thread_id": "thread_capabilities_main",
+                            "work_id": "work_capability_catalog_7",
+                            "trace_id": "trace_capability_apply_7",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Capability artifact observed."
+                        }
+                    ]
+                },
+                {
+                    "name": "observe-capability-trace",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_trace_21",
+                            "kind": "trace",
+                            "channel": "capabilities",
+                            "surface": "direct",
+                            "work_id": "work_capability_apply_7",
+                            "reply_to": "msg_direct_20",
+                            "trace_id": "trace_capability_apply_7",
+                            "causation_id": "msg_direct_20",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Capability trace update received."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "capability-curator",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You advertise repair capabilities and answer targeted follow-up requests.",
+            "turns": [
+                {
+                    "name": "observe-capability-request",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_capability_say_01",
+                            "kind": "say",
+                            "channel": "capabilities",
+                            "surface": "thread",
+                            "thread_id": "thread_capabilities_main",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "usage": {
+                        "input_tokens": 13,
+                        "output_tokens": 4
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Capability request observed."
+                        }
+                    ]
+                },
+                {
+                    "name": "reply-with-trace-guidance",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "msg_direct_20",
+                            "kind": "say",
+                            "channel": "capabilities",
+                            "surface": "direct",
+                            "work_id": "work_capability_apply_7",
+                            "reply_to": "msg_capability_01",
+                            "trace_id": "trace_capability_apply_7",
+                            "causation_id": "msg_capability_01",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "usage": {
+                        "input_tokens": 12,
+                        "output_tokens": 4
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Direct capability request received."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

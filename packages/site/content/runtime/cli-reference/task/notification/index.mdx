@@ -1,0 +1,49 @@
+---
+title: "agh task notification"
+description: "Manage task terminal notifications"
+---
+
+## agh task notification
+
+Manage task terminal notifications
+
+```
+agh task notification [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for notification
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task notification -o json
+```
+
+## Subcommands
+
+| Command                                                                               | Description                                                  |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [agh task notification delete](/runtime/cli-reference/task/notification/delete)       | Delete one bridge terminal notification subscription         |
+| [agh task notification list](/runtime/cli-reference/task/notification/list)           | List bridge terminal notification subscriptions for one task |
+| [agh task notification show](/runtime/cli-reference/task/notification/show)           | Show one bridge terminal notification subscription           |
+| [agh task notification subscribe](/runtime/cli-reference/task/notification/subscribe) | Subscribe a bridge target to task terminal notifications     |

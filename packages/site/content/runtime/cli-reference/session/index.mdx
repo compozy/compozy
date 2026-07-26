@@ -1,0 +1,53 @@
+---
+title: "agh session"
+description: "Manage AGH sessions"
+---
+
+## agh session
+
+Manage AGH sessions
+
+### Options
+
+```
+  -h, --help   help for session
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                       | Description                                                |
+| ------------------------------------------------------------- | ---------------------------------------------------------- |
+| [agh session approve](/runtime/cli-reference/session/approve) | Approve or reject a pending session permission request     |
+| [agh session clarify](/runtime/cli-reference/session/clarify) | Manage live session questions                              |
+| [agh session events](/runtime/cli-reference/session/events)   | Read session events                                        |
+| [agh session health](/runtime/cli-reference/session/health)   | Read session health and wake eligibility                   |
+| [agh session history](/runtime/cli-reference/session/history) | Show session history grouped by turn                       |
+| [agh session inspect](/runtime/cli-reference/session/inspect) | Inspect session health, wake audit, and policy correlation |
+| [agh session list](/runtime/cli-reference/session/list)       | List sessions                                              |
+| [agh session new](/runtime/cli-reference/session/new)         | Create a new session                                       |
+| [agh session prompt](/runtime/cli-reference/session/prompt)   | Send a prompt to a session                                 |
+| [agh session recap](/runtime/cli-reference/session/recap)     | Show deterministic session recap                           |
+| [agh session remove](/runtime/cli-reference/session/remove)   | Remove a session and its persisted history                 |
+| [agh session repair](/runtime/cli-reference/session/repair)   | Inspect and repair an interrupted session transcript       |
+| [agh session resume](/runtime/cli-reference/session/resume)   | Attach to a resumable session                              |
+| [agh session soul](/runtime/cli-reference/session/soul)       | Manage session Soul snapshots                              |
+| [agh session status](/runtime/cli-reference/session/status)   | Show session status                                        |
+| [agh session stop](/runtime/cli-reference/session/stop)       | Stop a session                                             |
+| [agh session usage](/runtime/cli-reference/session/usage)     | Show aggregated session token usage and cost provenance    |
+| [agh session wait](/runtime/cli-reference/session/wait)       | Block until a session stops                                |

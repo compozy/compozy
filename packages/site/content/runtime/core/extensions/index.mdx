@@ -1,0 +1,64 @@
+---
+title: Extensions
+description: Install or build packaged AGH capabilities that bundle skills, agents, hooks, bridge providers, MCP servers, and subprocess services.
+---
+
+An extension is one installable unit that ships runtime capabilities behind a single manifest. The
+operator installs, enables, and removes the bundle as a whole; AGH wires the contained resources
+into the runtime registry only while the extension is enabled.
+
+Use extensions when a capability should travel between machines or teams with one install command.
+If the work is only a local instruction set, a skill may be enough. If it includes multiple resources,
+provider-specific bridge code, or a daemon-facing Host API service, an extension gives that package a
+manifest, trust tier, enablement state, and operational lifecycle.
+
+<OperatorNote>
+  Resource-only extensions ship files AGH already loads (skills, agents, hooks, MCP servers).
+  Subprocess extensions also run code over JSON-RPC and call the daemon through the Host API after
+  capability checks. The trust tier of the source determines which extensions are even eligible.
+</OperatorNote>
+
+The install page is for operators who need to add, enable, disable, inspect, update, or remove an
+extension. The develop page is for authors who need the manifest shape, resource layout, subprocess
+lifecycle, and permission model before packaging an extension for a registry.
+
+Extensions can also publish a **`MemoryProvider`** for Memory v2. AGH ships the bundled local
+provider as the reference implementation; only one external `MemoryProvider` may be active per
+workspace. The provider implements the 10-method ABC (`Initialize`, `SystemPromptBlock`, `Recall`,
+`Prefetch`, `SyncTurn`, `OnPreCompress`, `OnSessionEnd`, `OnSessionSwitch`, `OnMemoryWrite`,
+`Shutdown`), respects `_system/` injection rules, and routes every write through the AGH
+controller. AGH memory is **separate from** any provider-native memory or context: provider-side
+state is owned by the provider, and the AGH controller still records `memory_events`,
+`memory_decisions`, and updates the catalog projection. Provider-supplied tools that collide with
+reserved names (`agh__memory_*`) are rejected at registration with `memory.provider.collision`. The
+circuit breaker (`[memory.provider]` keys: `timeout`, `failure_threshold`, `cooldown`) falls back
+to the bundled local provider when the active provider is unhealthy.
+
+<figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--line) bg-(--canvas-soft) p-2">
+  <img
+    src="/images/runtime/extensions-overview-storyboard-v1.png"
+    alt="Hand-drawn Extensions poster showing installable AGH bundles expanding into skills, hooks, bridges, MCP, and services with the octopus mascot."
+    loading="eager"
+    decoding="async"
+    className="h-auto w-full rounded-md"
+  />
+</figure>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/extensions/install"
+    label="Install"
+    title="Install and operate extensions"
+    description="Use this page for `agh extension` install, enable, disable, update, and inspect flows, plus marketplace trust tiers."
+    meta="Operate"
+  />
+  <RouteRow
+    href="/runtime/core/extensions/develop"
+    label="Develop"
+    title="Build extensions"
+    description="Use this page for `extension.toml` manifests, bundled resources, subprocess lifecycle, and Host API permissions."
+    meta="Build"
+  />
+</RouteList>

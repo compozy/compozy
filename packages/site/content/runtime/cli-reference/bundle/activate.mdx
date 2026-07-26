@@ -1,0 +1,46 @@
+---
+title: "agh bundle activate"
+description: "Activate a bundle preset"
+---
+
+## agh bundle activate
+
+Activate a bundle preset
+
+```
+agh bundle activate [flags]
+```
+
+### Options
+
+```
+      --bundle string                 Bundle name
+      --confirm-network-requirement   Confirm the extension Live network participation requirement digest
+      --extension string              Extension name
+  -h, --help                          help for activate
+      --profile string                Bundle profile name
+      --scope string                  Activation scope: global or workspace (default "global")
+      --workspace string              Workspace id, name, or path for workspace scope
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh bundle activate -o json
+```

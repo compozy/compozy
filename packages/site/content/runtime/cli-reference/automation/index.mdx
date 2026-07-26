@@ -1,0 +1,49 @@
+---
+title: "agh automation"
+description: "Manage automation jobs, triggers, suggestions, and runs"
+---
+
+## agh automation
+
+Manage automation jobs, triggers, suggestions, and runs
+
+```
+agh automation [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for automation
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh automation -o json
+```
+
+## Subcommands
+
+| Command                                                                     | Description                                 |
+| --------------------------------------------------------------------------- | ------------------------------------------- |
+| [agh automation jobs](/runtime/cli-reference/automation/jobs)               | Manage automation jobs                      |
+| [agh automation runs](/runtime/cli-reference/automation/runs)               | Inspect automation run history              |
+| [agh automation suggestions](/runtime/cli-reference/automation/suggestions) | Review consent-first automation suggestions |
+| [agh automation triggers](/runtime/cli-reference/automation/triggers)       | Manage automation triggers                  |

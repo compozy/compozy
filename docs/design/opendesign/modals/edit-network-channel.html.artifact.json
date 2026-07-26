@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "modals/edit-network-channel.html",
+  "entry": "modals/edit-network-channel.html",
+  "renderer": "html",
+  "status": "implementation-complete-pending-visual-contract",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T16:46:02.357Z",
+  "updatedAt": "2026-07-14T16:46:02.357Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,42 @@
+---
+title: "agh task dependency add"
+description: "Add a dependency edge to a task"
+---
+
+## agh task dependency add
+
+Add a dependency edge to a task
+
+```
+agh task dependency add <task-id> [flags]
+```
+
+### Options
+
+```
+      --depends-on string   Dependency task ID
+  -h, --help                help for add
+      --kind string         Dependency kind
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task dependency add <task-id> -o json
+```

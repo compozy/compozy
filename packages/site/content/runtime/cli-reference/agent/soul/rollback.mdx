@@ -1,0 +1,50 @@
+---
+title: "agh agent soul rollback"
+description: "Rollback SOUL.md to a managed revision"
+---
+
+## agh agent soul rollback
+
+Rollback SOUL.md to a managed revision
+
+```
+agh agent soul rollback <agent> [flags]
+```
+
+### Examples
+
+```
+  agh agent soul rollback coder --revision-id rev_123 --expected-digest sha256:old --json
+```
+
+### Options
+
+```
+      --expected-digest string   Expected current Soul digest for CAS
+  -h, --help                     help for rollback
+      --idempotency-key string   Optional idempotency key
+      --revision-id string       Managed Soul revision id to restore
+      --workspace string         Resolve the agent from a workspace id, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh agent soul rollback <agent> -o json
+```

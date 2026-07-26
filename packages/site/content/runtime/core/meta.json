@@ -1,0 +1,26 @@
+{
+    "title": "Core Concepts",
+    "icon": "Layers",
+    "root": true,
+    "pages": [
+        "getting-started",
+        "sessions",
+        "agents",
+        "network",
+        "autonomy",
+        "memory",
+        "marketplace",
+        "resources",
+        "tools",
+        "skills",
+        "sandbox",
+        "workspaces",
+        "automation",
+        "loops",
+        "bridges",
+        "hooks",
+        "extensions",
+        "operations",
+        "configuration"
+    ]
+}

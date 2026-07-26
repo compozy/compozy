@@ -1,0 +1,101 @@
+{
+  "type": "object",
+  "required": ["defects", "advisories", "suppressions", "coverage"],
+  "properties": {
+    "defects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "in_diff", "hunk", "category", "severity", "quick_win", "title", "body", "rule_ids", "evidence"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "end_line": { "type": ["integer", "null"] },
+          "in_diff": { "type": "boolean" },
+          "hunk": { "type": ["string", "null"] },
+          "rule_ids": { "type": "array", "items": { "type": "string" } },
+          "category": { "enum": ["potential-issue"] },
+          "severity": { "enum": ["critical", "major", "minor"] },
+          "quick_win": { "type": "boolean" },
+          "title": { "type": "string", "maxLength": 100 },
+          "body": { "type": "string" },
+          "also_applies": { "type": "array", "items": { "type": "string" } },
+          "guideline": { "type": ["string", "null"] },
+          "suggestion": { "type": ["string", "null"] },
+          "evidence": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        }
+      }
+    },
+    "advisories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "in_diff", "hunk", "category", "severity", "quick_win", "title", "body", "rule_ids", "evidence"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "end_line": { "type": ["integer", "null"] },
+          "in_diff": { "type": "boolean" },
+          "hunk": { "type": ["string", "null"] },
+          "rule_ids": { "type": "array", "items": { "type": "string" } },
+          "category": { "enum": ["refactor", "nitpick"] },
+          "severity": { "enum": ["minor", "trivial"] },
+          "quick_win": { "type": "boolean" },
+          "title": { "type": "string", "maxLength": 100 },
+          "body": { "type": "string" },
+          "also_applies": { "type": "array", "items": { "type": "string" } },
+          "guideline": { "type": ["string", "null"] },
+          "suggestion": { "type": ["string", "null"] },
+          "evidence": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        }
+      }
+    },
+    "suppressions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "hunk", "candidate", "reason", "rule_ids", "note"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": ["integer", "null"] },
+          "hunk": { "type": ["string", "null"] },
+          "candidate": { "type": "string", "maxLength": 140 },
+          "reason": { "enum": ["linter-overlap", "intentional", "generated-vendored", "formatting", "speculative", "pre-existing", "phantom-knowledge", "duplicate-within-job"] },
+          "rule_ids": { "type": "array", "items": { "type": "string" } },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["hunks", "rules"],
+      "properties": {
+        "hunks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file", "hunk", "checks", "outcome"],
+            "properties": {
+              "file": { "type": "string" },
+              "hunk": { "type": "string" },
+              "checks": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+              "outcome": { "enum": ["clear", "reported"] }
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["rule_id", "status", "note"],
+            "properties": {
+              "rule_id": { "type": "string" },
+              "status": { "enum": ["compliant", "violated", "not-applicable"] },
+              "note": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

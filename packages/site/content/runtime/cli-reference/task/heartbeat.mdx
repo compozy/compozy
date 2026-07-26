@@ -1,0 +1,51 @@
+---
+title: "agh task heartbeat"
+description: "Extend a claimed task run lease for the current agent session"
+---
+
+## agh task heartbeat
+
+Extend a claimed task run lease for the current agent session
+
+```
+agh task heartbeat <run-id> [flags]
+```
+
+### Examples
+
+```
+  # Extend the active session-bound lease
+  agh task heartbeat run-123
+
+	  # Request a specific lease duration
+  agh task heartbeat run-123 --lease-seconds 300
+```
+
+### Options
+
+```
+  -h, --help                help for heartbeat
+      --lease-seconds int   Lease duration in seconds
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task heartbeat <run-id> -o json
+```

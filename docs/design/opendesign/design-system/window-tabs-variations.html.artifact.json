@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "design-system/window-tabs-variations.html",
+  "entry": "design-system/window-tabs-variations.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-24T16:10:42.688Z",
+  "updatedAt": "2026-07-24T16:10:42.688Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

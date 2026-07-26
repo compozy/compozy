@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "AGH · First-run onboarding",
+  "entry": "agh-onboarding.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-05-25T18:14:31.898Z",
+  "updatedAt": "2026-05-25T18:14:31.919Z",
+  "designSystemId": "linear-app",
+  "metadata": {
+    "identifier": "agh-onboarding",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

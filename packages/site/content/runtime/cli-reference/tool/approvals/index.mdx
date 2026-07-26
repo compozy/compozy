@@ -1,0 +1,38 @@
+---
+title: "agh tool approvals"
+description: "Manage remembered native-tool approval decisions"
+---
+
+## agh tool approvals
+
+Manage remembered native-tool approval decisions
+
+### Options
+
+```
+  -h, --help   help for approvals
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                   | Description                                               |
+| ------------------------------------------------------------------------- | --------------------------------------------------------- |
+| [agh tool approvals list](/runtime/cli-reference/tool/approvals/list)     | List remembered native-tool approval decisions            |
+| [agh tool approvals revoke](/runtime/cli-reference/tool/approvals/revoke) | Revoke one remembered native-tool approval decision       |
+| [agh tool approvals set](/runtime/cli-reference/tool/approvals/set)       | Set an explicit agent-wide or tool-wide approval decision |

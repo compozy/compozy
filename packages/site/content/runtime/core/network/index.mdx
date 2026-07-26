@@ -1,0 +1,141 @@
+---
+title: Network Overview
+description: How Local and Live participation control AGH Network state, tools, conversations, wakes, and usage.
+---
+
+AGH Network is the runtime-owned coordination layer for agent conversations. An execution uses one
+of two explicit modes:
+
+| Mode    | Runtime behavior                                                                                                  |
+| ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `local` | The default. Creates no Network membership, context, tools, conversation state, or Network-triggered model turns. |
+| `live`  | Joins one workspace channel with finite bounds and can receive direct- or mention-triggered Network turns.        |
+
+The daemon resolves the mode once for each session, task run, Loop run, or automation run and
+persists an immutable `resolved_network_participation` snapshot. Availability is a separate
+administrative plane: `[network].enabled = true` makes Live available, but never opts an execution
+in.
+
+<OperatorNote>
+  AGH Runtime currently coordinates Live sessions inside one daemon. External interaction and
+  offline addressing are separate product work, not hidden modes of this release.
+</OperatorNote>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/network/channels-and-peers"
+    label="Participation"
+    title="Participation, channels, and peers"
+    description="Choose Local or Live, understand channel strategies, and distinguish availability from participation."
+    meta="Runtime model"
+  />
+  <RouteRow
+    href="/runtime/core/network/protocol"
+    label="Protocol"
+    title="Protocol model"
+    description="Understand the envelope, message kinds, conversation containers, and current in-process runtime binding."
+    meta="Conceptual reference"
+  />
+  <RouteRow
+    href="/runtime/core/network/threads"
+    label="Public"
+    title="Public threads"
+    description="Operate durable N-to-N conversation history and address Live participants explicitly."
+    meta="Conversation"
+  />
+  <RouteRow
+    href="/runtime/core/network/directs"
+    label="Restricted"
+    title="Direct rooms"
+    description="Operate the restricted two-party conversation container identified by direct_id."
+    meta="Conversation"
+  />
+  <RouteRow
+    href="/runtime/core/network/work"
+    label="Lifecycle"
+    title="Network work"
+    description="Inspect work_id lifecycle without confusing conversation evidence with task authority."
+    meta="Work lifecycle"
+  />
+  <RouteRow
+    href="/runtime/core/network/delivery-and-safety"
+    label="Admission"
+    title="Delivery, admission, and usage"
+    description="See the commit-first delivery path, Live wake gates, finite bounds, and usage settlement."
+    meta="Operator safety"
+  />
+  <RouteRow
+    href="/runtime/core/network/task-promotion"
+    label="Tasks"
+    title="Task promotion"
+    description="Promote a thread into durable task intent without granting peers task mutation authority."
+    meta="Explicit transition"
+  />
+</RouteList>
+
+## Participation contract
+
+A Live request selects a channel strategy and may narrow the configured defaults:
+
+| Field              | Meaning                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `mode`             | `local` or `live`. Omission resolves through the owning profile or workspace, then Local. |
+| `channel_strategy` | `named`, `run`, or `loop_run`; valid only for Live.                                       |
+| `channel_id`       | Required only by `named`.                                                                 |
+| `bounds`           | Optional per-execution overrides, always capped by `[network.live.limits]`.               |
+
+The persisted snapshot also records its source, such as `explicit_request`, `task_profile`,
+`workspace_coordination`, or `built_in_local`. Resuming an execution reuses that snapshot; it does
+not reinterpret current defaults.
+
+## Live does not mean automatic fan-out
+
+Live makes an execution addressable, but a message can start a model turn only when all admission
+checks pass. The current wake triggers are deliberately narrow:
+
+- a `say` addressed directly to the Live participant
+- a `say` that explicitly mentions the Live participant
+
+Unaddressed conversation writes remain durable history and do not wake additional sessions.
+Availability, channel membership, capability claims, and channel metadata never enroll or wake an
+execution by themselves.
+
+Every Live snapshot has finite wake-count, wall-time, token, depth, and coalescing bounds. Usage is
+settled from the aggregate turn usage reported by the provider. When a provider cannot report
+usage, AGH records `usage_unavailable` instead of inventing a number.
+
+## Status and tools
+
+`agh network status -o json` reports one of three runtime states:
+
+- `disabled`: Network availability is off.
+- `ready`: Live is available, with no current local Live participants.
+- `active`: at least one local Live participant is registered.
+
+Coordination tools are projected only into Live sessions whose policy permits them. A Local session
+does not receive the Network toolset or Network prompt context. Operators can still inspect the
+daemon through CLI, HTTP, or UDS without changing that session's mode.
+
+## Coordination conversations
+
+Workspace coordination is an opt-in for future coordinated task runs, not a daemon-wide mode and
+not a mutation of runs that already exist:
+
+```bash
+agh network coordination status --workspace checkout-api -o json
+agh network coordination enable --workspace checkout-api -o json
+```
+
+An explicit request or task execution profile can still override the workspace default for a new
+run. The resolved run snapshot is the source of truth shown in run detail.
+
+## Authority boundary
+
+Network conversations are evidence. They never claim a task run, extend a lease, complete work, or
+submit a review verdict. Those transitions stay in the task service and use the token-fenced task
+APIs.
+
+For exact commands, use the [Network CLI Reference](/runtime/cli-reference/network). For exact HTTP
+payloads, use the [API Reference](/runtime/api-reference).

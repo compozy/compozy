@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Marketplace · Detail · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    /* R-004: focus ring now 2px on a >=3:1 line value (design-spec §13 floor) */
+    --focus-line:rgba(255,255,255,.5);
+    --focus-ring:0 0 0 2px var(--focus-line);
+    --focus-ring-inset:inset 0 0 0 2px var(--focus-line);
+    --size-catalog-logo:24px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input,textarea,select{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  code,kbd,pre,.mono,.topbar__count,.count-chip,.catalog-card__meta .mono-slug,.listing-row__slug,.listing-row__meta .k,.pill[data-mono="true"],.kv__v code,.cfg-block,.toast{
+    -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
+  :is(.btn,.pill-group__item,.head-close,.switch):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  a.catalog-card:focus-visible,a.listing-row:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas);min-width:0;overflow:hidden}
+  .topbar__title{display:flex;align-items:center;gap:8px;min-width:0}
+  .topbar__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent)}
+  .topbar__icon svg{width:12px;height:12px}
+  .topbar__h1{font-size:14px;font-weight:500;letter-spacing:-.014em;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar__count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 6px;border-radius:var(--radius-xs);background:var(--canvas-soft);font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+  .topbar__trailing{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb a:hover{color:var(--fg-strong)}
+  .crumb b{color:var(--fg-strong);font-weight:560}
+  .crumb svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .search{display:flex;align-items:center;gap:8px;height:26px;min-width:220px;width:min(420px,100%);padding:0 8px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--canvas-soft);color:var(--fg);font-size:13px;flex:none}
+  .search svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-size:13px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .search .kbd{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;line-height:1;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 4px;flex:none;background:var(--canvas-soft)}
+  .search:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn--danger{background:var(--danger-tint);border-color:transparent;color:var(--danger)}
+  .btn--warning{background:var(--warning-tint);border-color:transparent;color:var(--warning)}
+  .btn:disabled,.btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .btn--spin svg{animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+  .head{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px}
+  .head__main{min-width:0}
+  .head__titlerow{display:flex;align-items:center;gap:10px}
+  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong)}
+  /* R-005: count chip carries a number (information) -> muted, not decorative faint */
+  .count-chip{display:inline-flex;align-items:center;min-height:19px;padding:1px 6px;border-radius:var(--radius-xs);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:11px;font-weight:500;
+    color:var(--muted);font-variant-numeric:tabular-nums}
+  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+  .listing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+  .listing-toolbar__leading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1;min-width:0}
+  .listing-toolbar__trailing{display:flex;align-items:center;gap:10px;margin-left:auto;flex:none}
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;cursor:pointer;transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+  .section-block{margin-top:28px}
+  .section-block:first-of-type{margin-top:8px}
+  .section-head{display:flex;align-items:center;gap:8px;padding:0 2px 10px}
+  .section-head__label{font-size:11px;font-weight:600;letter-spacing:-.005em;color:var(--subtle);text-transform:uppercase}
+  .section-head__count{font-family:var(--font-mono);font-size:11px;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}
+  .section-head__pad{flex:1}
+  .section-head__link{font-size:12px;font-weight:500;color:var(--muted);display:inline-flex;align-items:center;gap:4px}
+  .section-head__link:hover{color:var(--fg-strong)}
+  .section-head__link svg{width:12px;height:12px}
+  .section-error{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--danger-tint);color:var(--danger);font-size:12.5px;margin-bottom:10px}
+  .section-error .pad{flex:1}
+  .section-collapsed{padding:2px 2px 0;font-size:12px;color:var(--subtle)}
+  .listing-card-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:12px}
+  @media(min-width:640px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(min-width:1280px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .catalog-card{display:flex;flex-direction:column;gap:12px;min-width:0;padding:16px;border-radius:var(--radius-lg);
+    background:var(--canvas-soft);color:inherit;cursor:pointer;transition:background var(--dur) var(--ease);height:100%}
+  .catalog-card:hover{background:var(--elevated)}
+  .catalog-card.is-dim{opacity:.55}
+  .catalog-card__head{display:flex;align-items:flex-start;gap:12px;min-width:0}
+  .catalog-card__logo{width:var(--size-catalog-logo);height:var(--size-catalog-logo);border-radius:var(--radius);background:var(--surface-glaze);
+    color:var(--muted);display:grid;place-items:center;flex:none}
+  .catalog-card__logo svg{width:14px;height:14px}
+  .catalog-card__title-wrap{min-width:0;flex:1}
+  .catalog-card__title{font-size:13px;font-weight:500;color:var(--fg-strong);letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Meta uses muted (AA) — subtle fails 3.89:1 on canvas-soft; design-spec §2.3 / §14.13 */
+  .catalog-card__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;font-size:11px;font-weight:500;
+    letter-spacing:-.005em;color:var(--muted)}
+  .catalog-card__meta .mono-slug{font-family:var(--font-mono);font-size:10.5px;font-weight:400;letter-spacing:0;color:var(--muted)}
+  .catalog-card__desc{font-size:13px;line-height:1.5;color:var(--muted);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .catalog-card__err{font-size:12px;color:var(--danger);margin-top:-4px}
+  .catalog-card__actions{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+  .catalog-card__actions .btn{margin-left:auto}
+  .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;width:max-content;background:var(--neutral-tint);color:var(--muted)}
+  .pill[data-mono="true"]{font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:0}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 24px;
+    border-radius:var(--radius-lg);text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle)}
+  .empty b{font-size:18px;font-weight:500;color:var(--fg-strong);letter-spacing:-.022em}
+  .empty p{font-size:13px;max-width:28rem;line-height:1.6;color:var(--muted)}
+  .empty .btn{margin-top:4px}
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .listing-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:14px 16px;
+    border-bottom:1px solid var(--line-soft);transition:background var(--dur) var(--ease);color:inherit}
+  .listing-row:last-child{border-bottom:0}
+  .listing-row:hover{background:var(--row-hover)}
+  .listing-row__icon{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-row__icon svg{width:17px;height:17px}
+  .listing-row__main{min-width:0}
+  .listing-row__name{display:flex;align-items:center;gap:8px;min-width:0}
+  .listing-row__name b{font-size:14px;font-weight:500;color:var(--fg-strong);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* R-005: slug is an identifier (information) -> muted */
+  .listing-row__slug{font-family:var(--font-mono);font-size:11px;color:var(--muted);white-space:nowrap;flex:none}
+  .listing-row__desc{margin-top:3px;font-size:12.5px;line-height:1.45;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* R-005: meta line (version, source, installed time) carries information -> muted */
+  .listing-row__meta{margin-top:5px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+  .listing-row__meta .k{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+  .listing-row__trail{display:flex;align-items:center;gap:10px;flex:none}
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:16px;height:40px}
+  .tabs__item{position:relative;height:40px;padding:0 14px;border:0;background:transparent;color:var(--subtle);font-size:13px;font-weight:500;cursor:pointer}
+  .tabs__item:hover{color:var(--muted)}
+  .tabs__item[aria-selected="true"]{color:var(--fg-strong)}
+  .tabs__item[aria-selected="true"]::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:1.5px;background:var(--fg-strong);border-radius:1px}
+  .switch{position:relative;width:32px;height:18px;border-radius:999px;background:var(--elevated);border:1px solid var(--line);cursor:pointer;flex:none}
+  .switch[aria-checked="true"]{background:var(--success-tint);border-color:color-mix(in srgb,var(--success) 35%,transparent)}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--muted);transition:transform var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--success)}
+  .scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:grid;place-items:center;padding:28px;z-index:40}
+  .modal{width:min(560px,100%);max-height:min(720px,92vh);background:var(--canvas-soft);border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-overlay);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+  .modal--md{width:min(720px,100%)}
+  .modal__head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 16px;border-bottom:1px solid var(--line-soft)}
+  .head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;background:var(--surface-glaze);color:var(--muted)}
+  .head-icon svg{width:17px;height:17px}
+  .head-txt{flex:1;min-width:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .modal__title{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em;margin-top:3px}
+  .modal__sub{font-size:13px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+  .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .head-close svg{width:16px;height:16px}
+  .modal__body{overflow-y:auto;padding:18px 20px 20px;min-height:0}
+  .modal__foot{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .foot-pad{flex:1}
+  .field{margin-bottom:16px}
+  .field:last-child{margin-bottom:0}
+  .field__label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--fg);margin-bottom:6px}
+  .field__hint{margin-left:auto;font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 6px;text-transform:uppercase}
+  .field__desc{font-size:11.5px;color:var(--subtle);margin:-2px 0 8px}
+  .field__err{font-size:11.5px;color:var(--danger);margin-top:6px}
+  .input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);font-size:12.5px;outline:none}
+  .input.mono{font-family:var(--font-mono);font-size:12px}
+  .input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .input::placeholder{color:var(--faint)}
+  .ro-row{display:grid;grid-template-columns:110px 1fr;gap:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--canvas-tint);margin-bottom:8px;font-size:12.5px}
+  .ro-row .k{color:var(--subtle);font-weight:500}
+  .ro-row .v{font-family:var(--font-mono);font-size:12px;color:var(--fg);word-break:break-all}
+  .scope{display:flex;gap:8px}
+  .scope label{flex:1;display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas);cursor:pointer}
+  .scope label:has(input:checked){border-color:var(--line-strong);background:var(--elevated)}
+  .scope input{margin-top:2px}
+  .scope b{display:block;font-size:12.5px;font-weight:500;color:var(--fg-strong)}
+  .scope span{display:block;font-size:11.5px;color:var(--subtle);margin-top:3px;line-height:1.4}
+  .preview-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .preview-table th{text-align:left;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle);padding:0 0 10px;border-bottom:1px solid var(--line)}
+  .preview-table td{padding:10px 0;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  .preview-table tr:last-child td{border-bottom:0}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);font-size:12.5px;color:var(--fg)}
+  .toast a{color:var(--accent-strong);font-weight:500}
+  .live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .dh{display:flex;align-items:flex-start;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--line);margin-bottom:24px}
+  .dh__icon{width:42px;height:42px;border-radius:var(--radius-lg);display:grid;place-items:center;flex:none;background:var(--elevated);color:var(--muted)}
+  .dh__icon svg{width:21px;height:21px}
+  .dh__main{min-width:0;flex:1}
+  .dh__namerow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .dh__name{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong)}
+  .dh__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--muted)}
+  .dh__meta .mono{font-family:var(--font-mono);font-size:11px}
+  .dh__meta a.link{color:var(--muted);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--line-strong)}
+  .dh__meta a.link:hover{color:var(--fg-strong)}
+  .dh__actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+  .dh__actionsrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .section{margin-bottom:28px}
+  .section__label{display:flex;align-items:center;gap:8px;padding-bottom:10px;font-size:11px;font-weight:600;letter-spacing:-.005em;color:var(--subtle);text-transform:uppercase}
+  .readme{padding:18px 20px;font-size:13.5px;line-height:1.65;color:var(--fg)}
+  .readme h3{font-size:14px;font-weight:600;margin:18px 0 8px;color:var(--fg-strong)}
+  .readme h3:first-child{margin-top:0}
+  .readme p{margin:0 0 12px;color:var(--muted)}
+  .readme ul{margin:0 0 12px 18px;color:var(--muted)}
+  .readme code{font-family:var(--font-mono);font-size:12px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 6px;color:var(--fg)}
+  .readme strong{color:var(--fg);font-weight:600}
+  .kv{display:flex;flex-direction:column}
+  .kv__row{padding:14px 16px;border-top:1px solid var(--line-soft)}
+  .kv__row:first-child{border-top:0}
+  /* R-005: rail field labels name real fields -> muted, not faint */
+  .kv__k{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .kv__v{font-size:13px;line-height:1.55;color:var(--fg)}
+  .kv__v code{font-family:var(--font-mono);font-size:12px}
+  .kv__v a.link{color:var(--fg);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--line-strong);font-family:var(--font-mono);font-size:12px;word-break:break-all}
+  .kv__v a.link:hover{color:var(--accent-strong)}
+  .cfg-block{font-family:var(--font-mono);font-size:12px;line-height:1.55;padding:14px 16px;background:var(--canvas-tint);border:1px solid var(--line);border-radius:var(--radius-md);color:var(--fg);white-space:pre-wrap}
+  .warn-list{display:flex;flex-direction:column;gap:10px}
+  .warn-item{padding:12px;border-radius:var(--radius-md);background:var(--warning-tint);border:1px solid color-mix(in srgb,var(--warning) 22%,transparent)}
+  .warn-item[data-sev="info"]{background:var(--info-tint);border-color:color-mix(in srgb,var(--info) 26%,transparent)}
+  .warn-item__head{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+  .warn-item b{font-size:12.5px;color:var(--warning)}
+  .warn-item[data-sev="info"] b{color:var(--info)}
+  .warn-item p{font-size:12px;color:var(--muted);line-height:1.5}
+  .warn-item__cmd{display:inline-block;margin-top:8px;font-family:var(--font-mono);font-size:11.5px;color:var(--fg);background:var(--canvas-tint);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:3px 8px}
+  .warn-item__doc{display:inline-block;margin-top:8px;margin-left:8px;font-size:11.5px;color:var(--accent-strong);font-weight:500}
+  .footer-note{margin-top:18px;font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+  .skel{background:var(--surface-glaze);border-radius:var(--radius);animation:pulse 1.6s var(--ease) infinite}
+  @keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+  .skel-card{height:148px;border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
+  .skel-line{height:10px;margin-bottom:10px}
+  .nav-strip{display:flex;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft);margin-bottom:28px}
+  .nav-strip a{flex:1;padding:12px 14px;font-size:12.5px;color:var(--muted);border-right:1px solid var(--line-soft);text-align:center}
+  .nav-strip a:last-child{border-right:0}
+  .nav-strip a:hover{background:var(--row-hover);color:var(--fg)}
+  .nav-strip a.is-active{color:var(--fg-strong);background:var(--elevated)}
+  /* --- review-002 additions --- */
+  .taglist{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px}
+  .versions{padding:4px 16px 8px}
+  .versions__row{display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line-soft)}
+  .versions__row:first-child{border-top:0}
+  .versions__v{font-family:var(--font-mono);font-size:12px;color:var(--fg)}
+  .versions__tag{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+  .md-pre{font-family:var(--font-mono);font-size:12px;line-height:1.55;padding:12px 14px;margin:0 0 14px;background:var(--canvas-tint);border:1px solid var(--line);border-radius:var(--radius-md);color:var(--fg);white-space:pre-wrap;overflow-x:auto}
+  .action-err{font-size:12.5px;color:var(--danger);display:flex;align-items:center;gap:8px;justify-content:flex-end;max-width:320px}
+  .action-err svg{width:14px;height:14px;flex:none}
+  .policy-note{font-size:12px;color:var(--subtle);line-height:1.5;max-width:280px;text-align:right}
+  .policy-note a{color:var(--accent-strong);font-weight:500}
+  .error-strip{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:var(--radius-md);background:var(--danger-tint);color:var(--danger);font-size:12.5px;margin-bottom:14px}
+  .error-strip .pad{flex:1}
+  .error-strip svg{width:15px;height:15px;flex:none}
+  .group-list__row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 16px;border-top:1px solid var(--line-soft);font-size:12.5px}
+  .group-list__row:first-child{border-top:0}
+  .group-list__row .nm{color:var(--fg);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .group-list__row .sub{font-family:var(--font-mono);font-size:11px;color:var(--muted);white-space:nowrap}
+  .profilepick{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+  @media(max-width:920px){
+    .page{padding:22px 18px 64px}
+    .search{min-width:140px;width:100%;max-width:none}
+    .layout{grid-template-columns:1fr}
+    .dh{flex-direction:column}
+    .dh__actions{width:100%;align-items:stretch}
+    .dh__actionsrow{justify-content:flex-start}
+    .action-err,.policy-note{max-width:none;justify-content:flex-start;text-align:left}
+    .listing-row__trail{gap:8px}
+  }
+
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="main">
+    <header class="topbar" data-od-id="detail-topbar">
+      <div class="crumb">
+        <a href="marketplace.html">Marketplace</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        <a href="#" id="crumb-kind">Kind</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        <b id="crumb-name">item</b>
+      </div>
+      <div class="topbar__trailing"></div>
+    </header>
+    <div class="scroll">
+      <div class="page" id="detail-root" data-od-id="detail-page"></div>
+    </div>
+  </div>
+</div>
+<div class="toast hide" id="toast" role="status"></div>
+
+<script>
+(function(){
+
+  // Shared enriched catalog (review-001 §4 daemon-truth annex). Every field below maps to a
+  // real payload field; render only what exists per kind. Duplicated verbatim across
+  // marketplace.html / marketplace-detail.html.
+  var CATALOG = {
+    skills: [
+      { id:"git-flow", name:"git-flow", author:"@agh", version:"1.4.2", downloads:"3.4k", source:"registry", icon:"skill", state:"installed", href:"marketplace-detail.html?kind=skills&name=git-flow",
+        tags:["git","review","ci"], license:"MIT", repository:"github.com/agh/skill-git-flow",
+        mcp_servers:["github"],
+        versions:[{v:"1.4.2",tag:"current"},{v:"1.4.1"},{v:"1.3.0"},{v:"1.2.0"}],
+        readme:"## What it does\ngit-flow drives the full branch lifecycle from inside a session: it cuts a working branch, runs the project's own lint and test gates before every push, and opens the pull request with a generated summary once the gates are green.\n\nThe skill never invents its own checks. It reads the repository's configured verify command and treats a non-zero exit as a hard stop, so a session cannot land a change the project would reject.\n\n## Usage\n```\nagh skill run git-flow --branch feat/session-cache\n```\nPass `--no-pr` to stop after the push, or `--draft` to open the pull request in draft state." },
+      { id:"docs-sync", name:"docs-sync", author:"@agh", version:"0.9.1", downloads:"1.1k", source:"registry", icon:"skill", state:"default", href:"marketplace-detail.html?kind=skills&name=docs-sync",
+        tags:["docs","openapi","cli"], license:"MIT", repository:"github.com/agh/skill-docs-sync",
+        mcp_servers:[],
+        versions:[{v:"0.9.1",tag:"current"},{v:"0.9.0"},{v:"0.8.2"}],
+        readme:"## What it does\ndocs-sync keeps the documentation site aligned with the runtime contract. After an OpenAPI or CLI change it regenerates the affected reference pages, diffs them against what is committed, and reports every drifted file.\n\nIt is read-only by default. Nothing is written until you pass `--apply`, so it fits a review gate as easily as a fix step.\n\n## Usage\n```\nagh skill run docs-sync --check\n```" },
+      { id:"qa-bootstrap", name:"qa-bootstrap", author:"@agh", version:"2.1.0", downloads:"2.0k", source:"registry", icon:"skill", state:"update", updateTo:"2.2.0", href:"marketplace-detail.html?kind=skills&name=qa-bootstrap",
+        tags:["qa","lab","isolation"], license:"Apache-2.0", repository:"github.com/agh/skill-qa-bootstrap",
+        mcp_servers:["filesystem"],
+        versions:[{v:"2.2.0",tag:"available"},{v:"2.1.0",tag:"installed"},{v:"2.0.1"}],
+        readme:"## What it does\nqa-bootstrap provisions an isolated lab for a QA pass: a fresh AGH_HOME, allocated daemon ports, per-provider home directories, and a bootstrap manifest that later steps read to resume the same environment deterministically.\n\nEvery run is disposable. The manifest records the lab root, base URL, and provider homes so a timed continuation can reattach without guessing paths.\n\n## Requires\nDrives the filesystem MCP server to stage lab files outside the workspace root." },
+      { id:"spec-preflight", name:"spec-preflight", author:"@compozy", version:"1.0.3", downloads:"780", source:"registry", icon:"skill", state:"default", href:"marketplace-detail.html?kind=skills&name=spec-preflight",
+        tags:["prd","techspec","review"], license:"MIT", repository:"github.com/compozy/skill-spec-preflight",
+        mcp_servers:[],
+        versions:[{v:"1.0.3",tag:"current"},{v:"1.0.2"},{v:"1.0.0"}],
+        readme:"## What it does\nspec-preflight validates PRD and TechSpec inputs against the authoring playbook before any drafting begins. It checks that the brief, ADRs, and glossary terms a spec references actually exist and resolve, and blocks the draft when a required input is missing." }
+    ],
+    extensions: [
+      { id:"otel-bridge", name:"otel-bridge", author:"@agh", version:"0.6.0", downloads:"1.2k", source:"registry", trust:"verified", type:"bridge", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=otel-bridge",
+        readme:"## What it does\notel-bridge exports session and tool spans to any OpenTelemetry collector. It hooks the session lifecycle, wraps each tool call in a span, and ships batches over OTLP/gRPC without holding up the agent.\n\nPoint it at a collector endpoint and every session becomes a trace you can open in Jaeger, Tempo, or Honeycomb.",
+        desc:"Export session and tool spans to an OpenTelemetry collector." },
+      { id:"slack-notify", name:"slack-notify", author:"@community", version:"1.1.4", downloads:"840", source:"registry", trust:"unverified", type:"hook", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=slack-notify",
+        warnings:2,
+        warningsList:[
+          {severity:"warning", title:"Unsigned package", message:"The checksum verifies against registry metadata, but the publisher is not on the trusted tier. Verify the source before enabling in production.", suggested_command:"agh extensions verify slack-notify", doc_url:"https://agh.network/docs/extensions/trust"},
+          {severity:"info", title:"Network egress", message:"This extension opens outbound connections to Slack. Review the provenance sheet after install to confirm the endpoints.", doc_url:"https://agh.network/docs/extensions/egress"}
+        ],
+        readme:"## What it does\nslack-notify posts a run summary to a Slack channel when a loop finishes: final status, duration, and a deep link back to the session. It fires on the loop-complete hook and stays silent for in-progress work.",
+        desc:"Post run summaries to a Slack channel when a loop finishes." },
+      { id:"cost-guard", name:"cost-guard", author:"@agh", version:"0.3.2", downloads:"410", source:"registry", trust:"verified", type:"hook", icon:"puzzle", state:"installed", href:"marketplace-detail.html?kind=extensions&name=cost-guard",
+        readme:"## What it does\ncost-guard caps token spend per workspace. It watches usage as sessions run and pauses any agent that would cross the configured budget, so a runaway loop cannot drain an account overnight.",
+        desc:"Cap token spend per workspace and pause agents that breach the budget." },
+      { id:"audit-log", name:"audit-log", author:"@agh", version:"2.0.0", downloads:"2.1k", source:"registry", trust:"verified", type:"hook", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=audit-log",
+        readme:"## What it does\naudit-log keeps an append-only record of installs, policy changes, and destructive removes. Each entry carries the actor, the target, and a checksum, so the trail can be verified after the fact and never silently edited.",
+        desc:"Append-only audit trail for installs, policy changes, and destructive removes." }
+    ],
+    bundles: [
+      { id:"dep-kit", name:"dep-kit", extension_name:"dep-kit", version:"1.2.0", contents:"3 items", icon:"box", state:"default", source:"catalog", href:"marketplace-detail.html?kind=bundles&name=dep-kit",
+        desc:"Skills and extensions for dependency review, lockfile hygiene, and release notes.",
+        readme:"## What it does\ndep-kit activates a working set for dependency review: an audit skill, a lockfile-hygiene skill, and the release-notes extension. Activating a profile wires up the agent, its job, and the trigger that runs the audit on every lockfile change.",
+        profiles:[
+          { name:"default", description:"Dependency review with a weekly audit job and a lockfile-change trigger.",
+            primary_channel:"github", channels:[{name:"github",primary:true}],
+            agent_count:1, job_count:1, trigger_count:1, bridge_count:1,
+            inventory:[
+              {resource_kind:"skill", resource_name:"dep-audit", version:"1.0.0", action:"add"},
+              {resource_kind:"skill", resource_name:"lockfile-hygiene", version:"0.4.1", action:"add"},
+              {resource_kind:"extension", resource_name:"release-notes", version:"1.2.0", action:"already"}
+            ],
+            agents:[{name:"dep-reviewer", provider:"anthropic", model:"claude-opus-4-8"}],
+            jobs:[{name:"weekly-audit", agent_name:"dep-reviewer", enabled:true}],
+            triggers:[{name:"on-lockfile-change", agent_name:"dep-reviewer", event:"push", enabled:true}],
+            bridges:[{name:"github", platform:"github", display_name:"GitHub PRs"}]
+          }
+        ] },
+      { id:"ops-starter", name:"ops-starter", extension_name:"ops-starter", version:"0.8.0", contents:"4 items", icon:"box", state:"installed", source:"catalog", href:"marketplace-detail.html?kind=bundles&name=ops-starter",
+        desc:"MCP servers and skills for incident triage and status page updates.",
+        readme:"## What it does\nops-starter wires the on-call surface: incident triage skills, a status-page updater, and the MCP servers they lean on. Pick the profile that matches how your team runs on-call.",
+        profiles:[
+          { name:"triage", description:"Triage-only: the incident skill plus the GitHub and Postgres MCP servers.",
+            primary_channel:"slack", channels:[{name:"slack",primary:true}],
+            agent_count:1, job_count:0, trigger_count:1, bridge_count:1,
+            inventory:[
+              {resource_kind:"skill", resource_name:"incident-triage", version:"0.6.0", action:"add"},
+              {resource_kind:"mcp", resource_name:"github", version:"—", action:"already"},
+              {resource_kind:"mcp", resource_name:"postgres", version:"—", action:"add"}
+            ],
+            agents:[{name:"oncall", provider:"anthropic", model:"claude-sonnet-5"}],
+            jobs:[],
+            triggers:[{name:"on-incident", agent_name:"oncall", event:"webhook", enabled:true}],
+            bridges:[{name:"slack", platform:"slack", display_name:"Slack #incidents"}]
+          },
+          { name:"oncall", description:"Triage plus scheduled status-page updates and a weekly review job.",
+            primary_channel:"slack", channels:[{name:"slack",primary:true}],
+            agent_count:1, job_count:1, trigger_count:1, bridge_count:1,
+            inventory:[
+              {resource_kind:"skill", resource_name:"incident-triage", version:"0.6.0", action:"add"},
+              {resource_kind:"skill", resource_name:"status-page", version:"0.3.1", action:"add"},
+              {resource_kind:"mcp", resource_name:"github", version:"—", action:"already"},
+              {resource_kind:"mcp", resource_name:"postgres", version:"—", action:"add"}
+            ],
+            agents:[{name:"oncall", provider:"anthropic", model:"claude-sonnet-5"}],
+            jobs:[{name:"status-refresh", agent_name:"oncall", enabled:true}],
+            triggers:[{name:"on-incident", agent_name:"oncall", event:"webhook", enabled:true}],
+            bridges:[{name:"slack", platform:"slack", display_name:"Slack #incidents"}]
+          }
+        ] },
+      { id:"design-handoff", name:"design-handoff", extension_name:"design-handoff", version:"1.0.1", contents:"2 items", icon:"box", state:"default", source:"catalog", href:"marketplace-detail.html?kind=bundles&name=design-handoff",
+        desc:"Activate the Open Design handoff skill plus screenshot capture helpers.",
+        readme:"## What it does\ndesign-handoff activates the Open Design handoff surface. The minimal profile installs the screenshot capture skill only; the full profile adds the handoff skill and a designer agent.",
+        profiles:[
+          { name:"minimal", description:"Screenshot capture only. No agents, jobs, or triggers.",
+            primary_channel:"local", channels:[{name:"local",primary:true}],
+            agent_count:0, job_count:0, trigger_count:0, bridge_count:0,
+            inventory:[{resource_kind:"skill", resource_name:"agh-ui-screenshot", version:"1.3.0", action:"add"}],
+            agents:[], jobs:[], triggers:[], bridges:[] },
+          { name:"full", description:"Screenshot capture plus the Open Design handoff skill and a designer agent.",
+            primary_channel:"local", channels:[{name:"local",primary:true}],
+            agent_count:1, job_count:0, trigger_count:0, bridge_count:0,
+            inventory:[
+              {resource_kind:"skill", resource_name:"agh-ui-screenshot", version:"1.3.0", action:"add"},
+              {resource_kind:"skill", resource_name:"design-handoff", version:"1.0.1", action:"add"}
+            ],
+            agents:[{name:"designer", provider:"anthropic", model:"claude-opus-4-8"}], jobs:[], triggers:[], bridges:[] }
+        ] }
+    ],
+    mcp: [
+      { id:"github", name:"github", transport:"stdio", provenance:"curated", state:"default", icon:"plug", href:"marketplace-detail.html?kind=mcp&name=github",
+        desc:"Issues, PRs, and repository search via the official GitHub MCP server.",
+        command:"npx -y @modelcontextprotocol/server-github",
+        required:[{key:"GITHUB_PERSONAL_ACCESS_TOKEN", hint:"Fine-grained PAT with repo scope", secret:true}],
+        readme:"## What it does\nThe GitHub MCP server exposes issues, pull requests, and repository search to agents over stdio. It runs as a local subprocess and authenticates with a fine-grained personal access token scoped to the repositories you name." },
+      { id:"filesystem", name:"filesystem", transport:"stdio", provenance:"curated", state:"installed", icon:"plug", href:"marketplace-detail.html?kind=mcp&name=filesystem",
+        desc:"Read and write workspace files through a scoped MCP filesystem server.",
+        command:"npx -y @modelcontextprotocol/server-filesystem",
+        required:[{key:"MCP_FS_ROOT", hint:"Absolute path the server may access", secret:false}],
+        readme:"## What it does\nScoped filesystem access for agents: read and write files under a single root you declare at install time. The server refuses any path outside that root." },
+      { id:"postgres", name:"postgres", transport:"stdio", provenance:"curated", state:"default", icon:"plug", href:"marketplace-detail.html?kind=mcp&name=postgres",
+        desc:"Run read-only SQL against a Postgres connection string.",
+        command:"npx -y @modelcontextprotocol/server-postgres",
+        required:[{key:"POSTGRES_CONNECTION_STRING", hint:"postgres://user:pass@host/db", secret:true}],
+        readme:"## What it does\nRead-only SQL access over a connection string. The server rejects writes, so an agent can inspect a database without the risk of mutating it." },
+      { id:"linear", name:"linear", transport:"sse", provenance:"curated", state:"default", icon:"plug", href:"marketplace-detail.html?kind=mcp&name=linear",
+        desc:"Issues, projects, and cycles via Linear's hosted MCP server over authenticated SSE.",
+        url:"https://mcp.linear.app/sse",
+        auth:{type:"oauth2_pkce", issuer_url:"https://linear.app", authorization_url:"https://linear.app/oauth/authorize", token_url:"https://api.linear.app/oauth/token", client_id:"agh-mcp", scopes:["read","issues:create"]},
+        auth_status:{status:"not_authorized", authorization_url:"https://linear.app/oauth/authorize?client_id=agh-mcp"},
+        readme:"## What it does\nLinear's hosted MCP server exposes issues, projects, and cycles over an authenticated SSE connection. There is no local process and no token to paste: the server authorizes through your Linear account with OAuth.\n\nAfter install, AGH writes the server config and then walks you through the authorize step in the browser. Until you authorize, the server shows as not authorized and its tools stay unavailable." },
+      { id:"sentry", name:"sentry", transport:"http", provenance:"curated", state:"default", icon:"plug", href:"marketplace-detail.html?kind=mcp&name=sentry",
+        desc:"Read access to projects and events via Sentry's hosted MCP server over HTTP.",
+        url:"https://mcp.sentry.dev/mcp",
+        auth:{type:"oauth2_pkce", issuer_url:"https://sentry.io", authorization_url:"https://sentry.io/oauth/authorize", token_url:"https://sentry.io/oauth/token/", client_id:"agh-mcp", scopes:["project:read","event:read"]},
+        auth_status:{status:"not_authorized", authorization_url:"https://sentry.io/oauth/authorize?client_id=agh-mcp"},
+        readme:"## What it does\nSentry's hosted MCP server gives agents read access to projects and events over HTTP. Like other remote servers it authorizes with OAuth after install rather than a stored secret." }
+    ]
+  };
+  var KIND_META = {
+    skills:{ label:"Skills", eyebrow:"SKILLS", verb:"Install", manage:"marketplace.html?kind=skills&tab=installed" },
+    extensions:{ label:"Extensions", eyebrow:"EXTENSIONS", verb:"Install", manage:"marketplace.html?kind=extensions&tab=installed" },
+    bundles:{ label:"Bundles", eyebrow:"BUNDLES", verb:"Activate", manage:"marketplace.html?kind=bundles&tab=installed", manageItem:function(item){ return "bundle-activation-detail.html?id="+encodeURIComponent(item.id); } },
+    mcp:{ label:"MCP Servers", eyebrow:"MCP SERVERS", verb:"Install", manage:"marketplace.html?kind=mcps&tab=installed" }
+  };
+
+  function iconSvg(kind){
+    if(kind==="skill") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>';
+    if(kind==="puzzle") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>';
+    if(kind==="box") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5"/><path d="M12 22V12"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8Z"/></svg>';
+  }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function inlineMd(s){ return esc(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>'); }
+  function mdToHtml(md){
+    if(!md) return '';
+    var lines=String(md).split("\n"), out="", inCode=false, listBuf=[];
+    function flush(){ if(listBuf.length){ out+='<ul>'+listBuf.join("")+'</ul>'; listBuf=[]; } }
+    lines.forEach(function(ln){
+      if(ln.trim().indexOf("```")===0){
+        if(inCode){ out+='</code></pre>'; inCode=false; } else { flush(); out+='<pre class="md-pre"><code>'; inCode=true; }
+        return;
+      }
+      if(inCode){ out+=esc(ln)+"\n"; return; }
+      if(/^#{1,6}\s/.test(ln)){ flush(); out+='<h3>'+esc(ln.replace(/^#{1,6}\s/,""))+'</h3>'; return; }
+      if(/^-\s/.test(ln)){ listBuf.push('<li>'+inlineMd(ln.replace(/^-\s/,""))+'</li>'); return; }
+      if(ln.trim()===""){ flush(); return; }
+      flush(); out+='<p>'+inlineMd(ln)+'</p>';
+    });
+    flush(); if(inCode) out+='</code></pre>';
+    return out;
+  }
+  function showToast(msg, linkHref, linkLabel, linkTitle){
+    var t=document.getElementById("toast"); if(!t) return;
+    var linkHtml="";
+    if(linkHref==="skills"||linkHref==="mcp"){
+      linkHtml=' <a href="#" title="'+esc(linkTitle||("Opens /"+linkHref+" in the app"))+'" data-app-route="'+linkHref+'">'+esc(linkLabel||"Manage →")+'</a>';
+    } else if(linkHref){
+      linkHtml=' <a href="'+linkHref+'"'+(linkTitle?' title="'+esc(linkTitle)+'"':'')+'>'+esc(linkLabel||"Manage →")+'</a>';
+    }
+    t.innerHTML=esc(msg)+linkHtml;
+    t.classList.remove("hide");
+    var appLink=t.querySelector("[data-app-route]");
+    if(appLink){
+      appLink.addEventListener("click", function(e){
+        e.preventDefault();
+        showToast("Opens /"+appLink.getAttribute("data-app-route")+" in the app");
+      });
+    }
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer=setTimeout(function(){ t.classList.add("hide"); }, 4600);
+  }
+  function manageHref(kind, it){
+    var m=KIND_META[kind];
+    if(m.manageItem && it) return m.manageItem(it);
+    return m.manage;
+  }
+  function openManage(kind, it){
+    var href=manageHref(kind, it);
+    if(href==="skills"||href==="mcp"){
+      showToast(KIND_META[kind].manageTitle||("Opens /"+href+" in the app"));
+      return;
+    }
+    location.href=href;
+  }
+  function params(){
+    var p=new URLSearchParams(location.search);
+    return { kind:p.get("kind")||"mcp", name:p.get("name"), state:p.get("state"), policy:p.get("policy"), fail:p.get("fail"), conflict:p.get("conflict") };
+  }
+  function row(k,v){ return '<div class="kv__row"><div class="kv__k">'+esc(k)+'</div><div class="kv__v">'+v+'</div></div>'; }
+  function section(label, inner){ return '<div class="section"><div class="section__label">'+esc(label)+'</div>'+inner+'</div>'; }
+
+  var p=params();
+  var kind=["skills","extensions","bundles","mcp"].indexOf(p.kind)>=0 ? p.kind : "mcp";
+  var name=p.name || (CATALOG[kind][0] && CATALOG[kind][0].id) || "github";
+  var item=(CATALOG[kind]||[]).find(function(x){ return x.id===name; });
+  var root=document.getElementById("detail-root");
+  document.getElementById("crumb-kind").textContent=KIND_META[kind].label;
+  document.getElementById("crumb-kind").href="marketplace.html?kind="+(kind==="mcp"?"mcps":kind);
+  document.getElementById("crumb-name").textContent=name;
+
+  // R-006: demonstrable loading skeleton via ?state=loading
+  if(p.state==="loading"){
+    root.innerHTML=skeleton();
+    return;
+  }
+
+  if(!item){
+    root.innerHTML='<div class="empty"><b>This item is no longer in the marketplace</b><p>It may have been removed from the source catalog.</p><a class="btn btn--sm" href="marketplace.html">Back to marketplace</a></div>';
+    return;
+  }
+
+  var isRemote=(kind==="mcp" && (item.transport==="http"||item.transport==="sse"));
+  // R-017: declare profile state BEFORE first render() — var initializers are not
+  // hoisted as values, so bundles previously threw on item.profiles[undefined].
+  var activeProfileIdx=0;
+
+  render();
+
+  function skeleton(){
+    var lines=""; for(var i=0;i<6;i++){ lines+='<div class="skel skel-line" style="width:'+(60+((i*13)%38))+'%"></div>'; }
+    var rrows=""; for(var j=0;j<4;j++){ rrows+='<div class="kv__row"><div class="skel skel-line" style="width:38%;margin-bottom:8px"></div><div class="skel skel-line" style="width:70%;margin-bottom:0"></div></div>'; }
+    return '<div class="dh"><div class="skel" style="width:42px;height:42px;border-radius:var(--radius-lg);flex:none"></div>'
+      +'<div class="dh__main"><div class="skel skel-line" style="width:220px;height:22px;margin-bottom:12px"></div>'
+      +'<div class="skel skel-line" style="width:300px;height:12px;margin-bottom:0"></div></div>'
+      +'<div class="skel" style="width:100px;height:32px;border-radius:var(--radius-md);flex:none"></div></div>'
+      +'<div class="layout"><div><div class="panelbox readme">'+lines+'</div></div>'
+      +'<aside><div class="section"><div class="section__label">Details</div><div class="panelbox"><div class="kv">'+rrows+'</div></div></div></aside></div>';
+  }
+
+  function pills(){
+    var html='<span class="pill" data-mono="true">'+kind.replace(/s$/,"")+'</span>';
+    if(kind==="extensions"){
+      html += item.trust==="verified"
+        ? '<span class="pill" data-mono="true" data-tone="success">verified</span>'
+        : '<span class="pill" data-mono="true" data-tone="warning">unverified'+(item.warnings?' · '+item.warnings:'')+'</span>';
+    }
+    if(kind==="mcp"){
+      html += '<span class="pill" data-mono="true" data-tone="info">curated</span>';
+      html += '<span class="pill" data-mono="true">'+item.transport+'</span>';
+      if(isRemote && item.auth_status && item.auth_status.status!=="authorized")
+        html += '<span class="pill" data-mono="true" data-tone="warning">auth: not authorized</span>';
+    }
+    if(item.version) html += '<span class="pill" data-mono="true">v'+item.version+'</span>';
+    return html;
+  }
+  function metaLine(){
+    if(kind==="skills") return item.author+' <span class="dotsep"></span> '+item.source+' <span class="dotsep"></span> <span class="mono">'+item.downloads+' downloads</span>';
+    if(kind==="extensions") return item.author+' <span class="dotsep"></span> '+item.source+' <span class="dotsep"></span> <span class="mono">'+item.downloads+' downloads</span>';
+    if(kind==="bundles") return '<span class="mono">v'+item.version+'</span> <span class="dotsep"></span> '+item.contents;
+    return '<span class="mono">'+item.transport+'</span> <span class="dotsep"></span> curated feed'+(isRemote?' <span class="dotsep"></span> <span class="mono">remote</span>':' <span class="dotsep"></span> <span class="mono">local</span>');
+  }
+
+  // R-016: policy-blocked path (unverified extension, policy forbids) — demo via ?policy=block
+  function policyBlocked(){ return kind==="extensions" && item.trust==="unverified" && p.policy==="block"; }
+
+  function actions(){
+    if(policyBlocked()){
+      return '<div class="dh__actionsrow"><button class="btn" aria-disabled="true" title="Blocked by extensions policy">Install</button></div>'
+        +'<div class="policy-note">Blocked by extensions policy. <a href="marketplace.html">Settings › Extensions →</a></div>';
+    }
+    if(item.state==="update") return '<div class="dh__actionsrow"><button class="btn btn--primary" id="cta" data-action="update">Update</button></div>';
+    if(item.state==="installed"){
+      var href=manageHref(kind, item);
+      var mng;
+      if(href==="skills"||href==="mcp"){
+        mng='<div class="dh__actionsrow"><a class="btn btn--ghost" href="#" title="'+esc(KIND_META[kind].manageTitle)+'" id="manage-app">Manage →</a></div>';
+      } else {
+        mng='<div class="dh__actionsrow"><a class="btn btn--ghost" href="'+href+'">Manage →</a></div>';
+      }
+      if(isRemote && item.auth_status && item.auth_status.status!=="authorized")
+        mng+='<div class="policy-note"><a href="'+item.auth_status.authorization_url+'">Authorize server →</a></div>';
+      return mng;
+    }
+    var verb=kind==="bundles"?"Activate":"Install";
+    var act=kind==="bundles"?"activate":"install";
+    return '<div class="dh__actionsrow"><button class="btn btn--primary" id="cta" data-action="'+act+'">'+verb+'</button></div><div id="action-err"></div>';
+  }
+
+  function railDetails(){
+    if(kind==="skills") return row("Version", "v"+item.version)+row("Author", item.author)+row("Source", item.source)
+      +row("License", item.license||"—")+row("Repository", item.repository?'<a class="link" href="https://'+item.repository+'">'+item.repository+'</a>':"—")
+      +row("Downloads", '<span class="mono">'+item.downloads+'</span>');
+    if(kind==="extensions") return row("Version","v"+item.version)+row("Author",item.author)+row("Source",item.source)+row("Type",item.type||"extension")+row("Downloads",item.downloads);
+    if(kind==="bundles") return row("Version","v"+item.version)+row("Contents",item.contents)+row("Source",item.source)+row("Profiles",String(item.profiles.length));
+    // mcp
+    var r=row("Transport",item.transport)+row("Provenance","curated")+row("Scope default","Workspace");
+    if(isRemote) r+=row("URL",'<a class="link" href="'+item.url+'">'+item.url+'</a>');
+    return r;
+  }
+
+  // R-021: Installed rail section (info-only) when item is installed
+  function installedRail(){
+    if(item.state!=="installed" && item.state!=="update") return "";
+    var rows="";
+    if(kind==="skills"){
+      rows+=row("Enabled", '<span class="pill" data-mono="true" data-tone="success">enabled</span>');
+      rows+=row("Precedence tier", '<span class="mono">'+(item.precedence_tier||"workspace")+'</span>');
+      rows+=row("Installed at", '<span class="mono">'+(item.installed_at||"2026-07-06")+'</span>');
+    } else if(kind==="extensions"){
+      rows+=row("Enabled", '<span class="pill" data-mono="true" data-tone="success">enabled</span>');
+      rows+=row("State", '<span class="mono">'+(item.runtime_state||"running")+'</span>');
+    } else if(kind==="bundles"){
+      var pf=(item.profiles||[])[activeProfileIdx]||{};
+      rows+=row("Profile", '<a class="link" href="bundle-activation-detail.html?id='+encodeURIComponent(item.id)+'">'+esc(pf.name||"default")+'</a>');
+      rows+=row("Scope", '<a class="link" href="bundle-activation-detail.html?id='+encodeURIComponent(item.id)+'">workspace</a>');
+    } else if(kind==="mcp"){
+      var auth=(item.auth_status&&item.auth_status.status)||"authorized";
+      rows+=row("Auth status", '<span class="pill" data-mono="true" data-tone="'+(auth==="authorized"?"success":"warning")+'">'+esc(auth.replace(/_/g," "))+'</span>');
+    }
+    return section("Installed", '<div class="panelbox"><div class="kv">'+rows+'</div></div>');
+  }
+
+  function mainBlock(){
+    var readme=section("Description",'<div class="panelbox readme">'+mdToHtml(item.readme)+'</div>');
+
+    if(kind==="skills"){
+      return readme;
+    }
+    if(kind==="extensions"){
+      if(item.trust==="unverified" && item.warningsList && item.warningsList.length){
+        return readme + section("Trust warnings", warnBlock(item.warningsList));
+      }
+      return readme;
+    }
+    if(kind==="bundles"){
+      return readme + bundleBlock();
+    }
+    // mcp — transport-aware config template + required config (R-002)
+    var tpl;
+    if(isRemote){
+      tpl='<div class="cfg-block">url: '+item.url+'\ntransport: '+item.transport+'\nauth: '+item.auth.type+'</div>';
+      var authRows=row("Type",item.auth.type)+row("Issuer",'<a class="link" href="'+item.auth.issuer_url+'">'+item.auth.issuer_url+'</a>')
+        +row("Scopes",'<span class="mono">'+item.auth.scopes.join(", ")+'</span>');
+      return readme
+        + section("Config template", tpl)
+        + section("Authorization", '<div class="panelbox"><div class="kv">'+authRows+'</div></div><p class="field__desc" style="margin-top:8px">Writing this server does not make it usable. AGH runs the OAuth authorize step after install; tools stay unavailable until you authorize.</p>');
+    }
+    tpl='<div class="cfg-block">'+item.command+'\ntransport: '+item.transport+'\n'+(item.required||[]).map(function(f){ return f.key+'=<'+(f.secret?'secret':'value')+'>'; }).join("\n")+'</div>';
+    var reqRows=(item.required||[]).map(function(f){ return row(f.key, esc(f.hint)+(f.secret?' <span class="pill" data-mono="true" style="margin-left:6px">secret</span>':'')); }).join("");
+    return readme + section("Config template", tpl) + section("Required configuration", '<div class="panelbox"><div class="kv">'+reqRows+'</div></div>');
+  }
+
+  function warnBlock(list){
+    return '<div class="warn-list">'+list.map(function(w){
+      return '<div class="warn-item" data-sev="'+(w.severity||"warning")+'"><div class="warn-item__head"><span class="pill" data-mono="true" data-tone="'+(w.severity==="info"?"info":"warning")+'">'+esc(w.severity||"warning")+'</span><b>'+esc(w.title)+'</b></div>'
+        +'<p>'+esc(w.message)+'</p>'
+        +(w.suggested_command?'<span class="warn-item__cmd">'+esc(w.suggested_command)+'</span>':'')
+        +(w.doc_url?'<a class="warn-item__doc" href="'+w.doc_url+'">Docs →</a>':'')+'</div>';
+    }).join("")+'</div>';
+  }
+
+  function bundleBlock(){
+    var profs=item.profiles||[];
+    var pickerHtml="";
+    if(profs.length>1){
+      pickerHtml=section("Profile", '<div class="profilepick" id="prof-pick">'+profs.map(function(pf,i){
+        return '<label style="flex:1"><input type="radio" name="prof" value="'+i+'"'+(i===activeProfileIdx?' checked':'')+' style="margin-top:2px" /><div style="margin-left:0"><b style="display:block;font-size:12.5px;color:var(--fg-strong)">'+esc(pf.name)+'</b><span style="display:block;font-size:11.5px;color:var(--subtle);margin-top:3px;line-height:1.4">'+esc(pf.description)+'</span></div></label>';
+      }).join("")+'</div>');
+      // wrap radios in scope styling
+      pickerHtml=pickerHtml.replace('class="profilepick"','class="profilepick scope" style="flex-direction:column"');
+    }
+    return pickerHtml + section("What changes", '<div id="prof-preview">'+bundlePreview(profs[activeProfileIdx])+'</div>');
+  }
+  function bundlePreview(pf){
+    if(!pf) return '';
+    // R-001 bundles: conflict arrives as 409/422 -> error strip naming the resource (demo via ?conflict=1)
+    if(p.conflict){
+      return '<div class="error-strip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>'
+        +'<span>Conflict: <b>'+esc((pf.inventory[0]||{}).resource_name)+'</b> is already managed by another activation (HTTP 409).</span><span class="pad"></span>'
+        +'<button class="btn btn--ghost btn--sm" id="preview-retry">Retry</button></div>';
+    }
+    var rows=(pf.inventory||[]).map(function(r){
+      var pill=r.action==="add"?'<span class="pill" data-mono="true">add</span>':'<span class="pill" data-mono="true">already present</span>';
+      return '<tr><td><span class="pill" data-mono="true">'+r.resource_kind+'</span></td><td>'+esc(r.resource_name)+'</td><td class="mono" style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">'+(r.version==="—"?"—":"v"+r.version)+'</td><td>'+pill+'</td></tr>';
+    }).join("");
+    var groups="";
+    function grp(label, arr, sub){ if(!arr||!arr.length) return; groups+='<div class="section__label" style="margin-top:16px">'+label+'</div><div class="panelbox"><div class="group-list">'+arr.map(function(x){ return '<div class="group-list__row"><span class="pill" data-mono="true">'+label.replace(/s$/,'').toLowerCase()+'</span><span class="nm">'+esc(x.name)+'</span><span class="sub">'+sub(x)+'</span></div>'; }).join("")+'</div></div>'; }
+    grp("Agents", pf.agents, function(a){ return (a.provider||'')+(a.model?' · '+a.model:''); });
+    grp("Jobs", pf.jobs, function(j){ return j.agent_name+(j.enabled?' · enabled':' · off'); });
+    grp("Triggers", pf.triggers, function(t){ return t.event+' · '+t.agent_name; });
+    grp("Bridges", pf.bridges, function(b){ return b.platform+' · '+b.display_name; });
+    var counts='<div class="dh__meta" style="margin:0 0 12px"><span class="mono">'+pf.agent_count+' agents</span><span class="dotsep"></span><span class="mono">'+pf.job_count+' jobs</span><span class="dotsep"></span><span class="mono">'+pf.trigger_count+' triggers</span><span class="dotsep"></span><span class="mono">'+pf.bridge_count+' bridges</span></div>';
+    return counts + '<div class="panelbox" style="padding:16px"><table class="preview-table"><thead><tr><th>Kind</th><th>Name</th><th>Version</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+groups;
+  }
+
+  function railBlock(){
+    // R-021: Installed section sits above Manage-facing rail content
+    var out=installedRail();
+    out+=section("Details", '<div class="panelbox"><div class="kv">'+railDetails()+'</div></div>');
+    if(kind==="skills"){
+      if(item.mcp_servers && item.mcp_servers.length){
+        out+=section("Requires MCP servers", '<div class="panelbox"><div class="rail-pills" style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:6px">'
+          +item.mcp_servers.map(function(m){ return '<a class="pill" data-mono="true" data-tone="info" href="marketplace-detail.html?kind=mcp&name='+m+'">'+esc(m)+'</a>'; }).join("")+'</div></div>');
+      }
+      if(item.versions && item.versions.length){
+        out+=section("Version history", '<div class="panelbox"><div class="versions">'+item.versions.map(function(v){ return '<div class="versions__row"><span class="versions__v">v'+v.v+'</span>'+(v.tag?'<span class="versions__tag">'+v.tag+'</span>':'')+'</div>'; }).join("")+'</div></div>');
+      }
+      if(item.tags && item.tags.length){
+        out+=section("Tags", '<div class="panelbox"><div class="taglist">'+item.tags.map(function(t){ return '<span class="pill">'+esc(t)+'</span>'; }).join("")+'</div></div>');
+      }
+    }
+    if(kind==="extensions"){
+      out+=section("Trust", '<div class="panelbox"><div class="kv">'
+        +row("Decision", item.trust==="verified"?"trusted":"unverified")
+        +row("Registry tier", item.trust)
+        +row("Checksum", "verified")
+        +(item.warnings?row("Warnings", String(item.warnings)):"")
+        +'</div></div>');
+    }
+    if(kind==="bundles"){
+      var pf=item.profiles[activeProfileIdx];
+      out+=section("Profile summary", '<div class="panelbox"><div class="kv">'
+        +row("Profile", pf.name)
+        +row("Primary channel", pf.primary_channel||"—")
+        +row("Channels", (pf.channels||[]).map(function(c){ return c.name; }).join(", ")||"—")
+        +'</div></div>');
+    }
+    if(kind==="mcp"){
+      out+=section("Trust", '<div class="panelbox"><div class="kv">'+row("Provenance","curated")+row("Feed","AGH curated")+row("Community registry","out of v1")+'</div></div>');
+      if(isRemote){
+        out+=section("Authorization", '<div class="panelbox"><div class="kv">'
+          +row("Status", item.auth_status.status.replace("_"," "))
+          +row("Scopes", '<span class="mono">'+item.auth.scopes.join(", ")+'</span>')
+          +'</div></div>');
+      }
+    }
+    return out;
+  }
+
+  function render(){
+    root.innerHTML=
+      '<div class="dh" data-od-id="detail-header">'
+      +'<div class="dh__icon">'+iconSvg(item.icon)+'</div>'
+      +'<div class="dh__main"><div class="dh__namerow"><h1 class="dh__name">'+esc(item.name)+'</h1>'+pills()+'</div>'
+      +'<div class="dh__meta">'+metaLine()+'</div></div>'
+      +'<div class="dh__actions" data-od-id="detail-actions">'+actions()+'</div></div>'
+      +'<div class="layout" data-od-id="detail-body"><div>'+mainBlock()+'</div><aside>'+railBlock()+'</aside></div>';
+    wire();
+  }
+
+  function wire(){
+    // Bundle profile switching re-runs preview (§7.2 / R-003 parity on detail)
+    var pick=document.getElementById("prof-pick");
+    if(pick){
+      pick.addEventListener("change", function(e){
+        var r=e.target.closest('input[name="prof"]'); if(!r) return;
+        activeProfileIdx=parseInt(r.value,10);
+        render();
+      });
+    }
+    var pr=document.getElementById("preview-retry");
+    if(pr){ pr.addEventListener("click", function(){
+      var u=new URL(location.href); u.searchParams.delete("conflict"); history.replaceState(null,"",u.toString());
+      p.conflict=null; render();
+    }); }
+    var mapp=document.getElementById("manage-app");
+    if(mapp){ mapp.addEventListener("click", function(e){ e.preventDefault(); openManage(kind, item); }); }
+
+    var cta=document.getElementById("cta");
+    if(cta){
+      cta.addEventListener("click", function(){
+        if(kind==="mcp"){ location.href="marketplace.html?kind=mcps"; return; }
+        if(kind==="bundles"){ location.href="marketplace.html?kind=bundles"; return; }
+        if(kind==="extensions" && item.trust==="unverified"){
+          if(!confirm("Install unverified extension "+item.name+"?\n\nReview the trust warnings above before confirming.")) return;
+        }
+        var action=cta.dataset.action;
+        cta.disabled=true; cta.classList.add("btn--spin");
+        cta.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>'+(action==="update"?"Updating…":"Installing…");
+        setTimeout(function(){
+          // R-016: real success updates state in place (no location.reload); failure -> inline error + toast
+          if(p.fail){
+            var err=document.getElementById("action-err");
+            if(err) err.innerHTML='<div class="action-err"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>Install failed: daemon rejected the write.</div>';
+            cta.disabled=false; cta.classList.remove("btn--spin"); cta.textContent=action==="update"?"Update":"Install";
+            showToast(item.name+" install failed");
+            return;
+          }
+          item.state="installed";
+          render();
+          showToast(item.name+(action==="update"?" updated":" installed"), manageHref(kind, item), "Manage →", KIND_META[kind].manageTitle);
+        }, 700);
+      });
+    }
+  }
+
+})();
+</script>
+</body>
+</html>

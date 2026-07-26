@@ -1,0 +1,7 @@
+# Repo-local tool pins matching the magefile constants (single source of truth:
+# magefiles/defaults.go golangciLintVersion / gotestsumVersion). Keeping the PATH
+# binaries on the exact pinned versions lets mage's hasPinnedTool fast path hit
+# instead of falling back to `go run <tool>@<version>` from-source builds.
+[tools]
+golangci-lint = "2.12.2"
+gotestsum = "1.13.0"

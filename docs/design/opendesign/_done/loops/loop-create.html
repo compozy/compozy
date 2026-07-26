@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AGH · New loop · redesign</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ───────────────────────────────────────────────────────────
+   AGH tokens · canonical set shared with task/trigger/job-create redesigns
+   warm-dark surface ramp · single operator-orange accent · flat depth
+   ─────────────────────────────────────────────────────────── */
+:root{
+  color-scheme: dark;
+  --rail:#0c0b0b; --canvas:#131211; --surface:#1a1918; --surface-2:#1c1b1a;
+  --elevated:#232220; --hover:rgba(255,255,255,0.022); --selected:rgba(255,255,255,0.03);
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,0.055); --line-soft:rgba(255,255,255,0.03); --line-strong:rgba(255,255,255,0.09);
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,0.10); --accent-tint-strong:rgba(232,87,42,0.16); --accent-dim:rgba(232,87,42,0.24);
+  --success:#5fbf85; --success-tint:rgba(95,191,133,0.08);
+  --warning:#d6a647; --warning-tint:rgba(214,166,71,0.08);
+  --danger:#e0635a;  --danger-tint:rgba(224,99,90,0.09); --danger-dim:rgba(224,99,90,0.22);
+  --info:#8e8eb5;    --info-tint:rgba(142,142,181,0.12);
+  --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,0.06);
+  --input-fill:rgba(255,255,255,0.025); --badge-fill:rgba(255,255,255,0.05);
+  --btn-fill:rgba(255,255,255,0.04); --btn-fill-hover:rgba(255,255,255,0.07);
+  --scrim:rgba(0,0,0,0.62);
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+  --dur-fast:100ms; --dur:140ms; --dur-slow:200ms; --ease:cubic-bezier(.2,0,0,1);
+  --shadow-overlay:0 24px 48px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.045);
+  --highlight:inset 0 1px 0 rgba(255,255,255,0.035);
+  --focus-ring:0 0 0 1px var(--line-strong);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--fg);
+  font-family:var(--font-sans); font-size:13.5px; line-height:1.5; letter-spacing:-0.006em;
+  font-feature-settings:"cv01","ss03","cv11";
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit}
+::selection{background:var(--accent-dim);color:var(--fg-strong)}
+svg{display:block}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.hide{display:none!important}
+
+/* ── faint product backdrop (the loops catalog, dimmed behind the modal) ── */
+.backdrop{position:fixed;inset:0;display:flex;filter:saturate(.9);opacity:.4;pointer-events:none}
+.bd-rail{width:52px;background:var(--rail);border-right:1px solid var(--line-soft);flex:none}
+.bd-rail span{display:block;width:24px;height:24px;margin:16px auto;border-radius:7px;background:var(--surface)}
+.bd-main{flex:1;padding:26px 40px}
+.bd-h{height:28px;width:150px;border-radius:6px;background:var(--surface);margin-bottom:6px}
+.bd-sub{height:13px;width:320px;border-radius:5px;background:var(--surface-2);margin-bottom:24px}
+.bd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.bd-card{height:104px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface)}
+
+/* ── scrim + modal shell ── */
+.scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:grid;place-items:center;padding:28px}
+.modal{
+  width:min(1120px,100%); height:min(848px,93vh);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-overlay); display:grid; grid-template-rows:auto 1fr auto; overflow:hidden;
+}
+.modal__head{display:flex;align-items:flex-start;gap:15px;padding:20px 24px 17px;border-bottom:1px solid var(--line-soft)}
+.head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;
+  background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.head-icon svg{width:18px;height:18px}
+.head-txt{flex:1;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-strong)}
+.modal__title{font-size:16px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em;margin-top:3px}
+.modal__sub{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:70ch;line-height:1.5}
+.head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);
+  background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:all var(--dur) var(--ease)}
+.head-close:hover{background:var(--hover);color:var(--fg)}
+.head-close svg{width:16px;height:16px}
+
+/* ── body: two columns (form · live preview) ── */
+.modal__body{display:grid;grid-template-columns:1fr 404px;min-height:0}
+.form{overflow-y:auto;padding:22px 24px 26px;min-width:0}
+.form::-webkit-scrollbar,.side::-webkit-scrollbar{width:10px}
+.form::-webkit-scrollbar-thumb,.side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06);border-radius:99px;border:3px solid transparent;background-clip:padding-box}
+.side{overflow-y:auto;border-left:1px solid var(--line-soft);background:var(--surface-2);padding:20px 20px 24px;display:flex;flex-direction:column;gap:16px}
+
+/* ── section primitives ── */
+.sec{margin-top:26px}
+.sec:first-child{margin-top:0}
+.sec__head{display:flex;align-items:baseline;gap:9px;margin-bottom:13px}
+.sec__title{font-size:13px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em}
+.sec__sub{font-size:11.5px;color:var(--subtle);margin-left:auto}
+
+/* ── mode selector ── */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mode{display:flex;gap:12px;align-items:flex-start;padding:13px 14px;border:1px solid var(--line-soft);border-radius:var(--radius-md);
+  background:var(--surface-2);cursor:pointer;text-align:left;position:relative;transition:all var(--dur) var(--ease)}
+.mode:hover{background:var(--elevated);border-color:var(--line)}
+.mode[aria-checked="true"]{background:var(--accent-tint);border-color:transparent;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.mode__ic{width:30px;height:30px;border-radius:var(--radius);background:var(--badge-fill);color:var(--muted);display:grid;place-items:center;flex:none;transition:all var(--dur) var(--ease)}
+.mode__ic svg{width:16px;height:16px}
+.mode[aria-checked="true"] .mode__ic{background:rgba(232,87,42,.16);color:var(--accent-strong)}
+.mode__tx{flex:1;min-width:0}
+.mode__t{font-size:12.5px;font-weight:600;color:var(--fg-strong);letter-spacing:-0.01em}
+.mode[aria-checked="true"] .mode__t{color:var(--accent-strong)}
+.mode__d{font-size:11.5px;color:var(--subtle);margin-top:3px;line-height:1.45}
+.mode__d .mono{font-size:11px}
+.mode__check{position:absolute;top:11px;right:11px;width:15px;height:15px;color:var(--accent-strong);opacity:0;transition:opacity var(--dur)}
+.mode[aria-checked="true"] .mode__check{opacity:1}
+
+/* ── template filter segment ── */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.segment{display:inline-flex;gap:2px;padding:2px;background:var(--input-fill);border:1px solid var(--line);border-radius:var(--radius-md)}
+.seg{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 11px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;color:var(--muted);background:transparent;border:0;cursor:pointer;transition:all var(--dur) var(--ease)}
+.seg:hover{color:var(--fg-strong)}
+.seg[aria-selected="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+.seg__count{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.seg[aria-selected="true"] .seg__count{color:var(--muted)}
+
+/* ── template gallery ── */
+.glabel{display:flex;align-items:center;gap:8px;padding:14px 2px 8px;font-size:11px;font-weight:600;letter-spacing:.03em;color:var(--subtle);text-transform:uppercase}
+.glabel:first-child{padding-top:0}
+.count-chip{display:inline-flex;align-items:center;min-height:18px;padding:1px 6px;border-radius:var(--radius-xs);background:var(--surface-2);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--faint);font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
+.list{display:flex;flex-direction:column;gap:6px}
+.tpl{display:grid;grid-template-columns:32px minmax(0,1fr) 16px;align-items:center;gap:12px;width:100%;padding:11px 12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);
+  background:var(--surface-2);cursor:pointer;text-align:left;transition:all var(--dur) var(--ease)}
+.tpl:hover{background:var(--elevated);border-color:var(--line)}
+.tpl[aria-pressed="true"]{background:var(--accent-tint);border-color:transparent;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.tpl__ic{width:32px;height:32px;border-radius:var(--radius);background:var(--badge-fill);color:var(--muted);display:grid;place-items:center;flex:none}
+.tpl__ic svg{width:16px;height:16px}
+.tpl[aria-pressed="true"] .tpl__ic{background:rgba(232,87,42,.16);color:var(--accent-strong)}
+.tpl__main{min-width:0}
+.tpl__name{display:flex;align-items:center;gap:8px;min-width:0}
+.tpl__name b{font-size:12.5px;font-weight:600;color:var(--fg-strong);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tpl[aria-pressed="true"] .tpl__name b{color:var(--accent-strong)}
+.tag{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+.tpl__slug{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);white-space:nowrap;flex:none;margin-left:auto}
+.tpl__goal{margin-top:3px;font-size:11.5px;line-height:1.45;color:var(--subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tpl__meta{margin-top:5px;display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--faint)}
+.tpl__meta .k{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+.tpl__meta .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint)}
+.tpl__check{width:16px;height:16px;color:var(--accent-strong);opacity:0;transition:opacity var(--dur)}
+.tpl[aria-pressed="true"] .tpl__check{opacity:1}
+
+/* ── scratch sub-options ── */
+.subs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.sub{display:flex;gap:11px;align-items:flex-start;padding:12px 13px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--surface-2);cursor:pointer;text-align:left;position:relative;transition:all var(--dur) var(--ease)}
+.sub:hover{background:var(--elevated);border-color:var(--line)}
+.sub[aria-checked="true"]{background:var(--accent-tint);border-color:transparent;box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.sub__t{font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+.sub[aria-checked="true"] .sub__t{color:var(--accent-strong)}
+.sub__d{font-size:11px;color:var(--subtle);margin-top:3px;line-height:1.4}
+.sub__d .mono{font-size:10.5px}
+.sub__check{position:absolute;top:10px;right:10px;width:14px;height:14px;color:var(--accent-strong);opacity:0;transition:opacity var(--dur)}
+.sub[aria-checked="true"] .sub__check{opacity:1}
+
+/* ── minimal starter preview ── */
+.starter{border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--surface-2);padding:15px}
+.starter__h{font-size:12.5px;font-weight:600;color:var(--fg-strong);margin-bottom:2px}
+.starter__s{font-size:11.5px;color:var(--subtle);margin-bottom:14px;line-height:1.5}
+.spine{display:flex;flex-direction:column}
+.snode{display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:11px;padding:11px 12px;border:1px solid var(--line-soft);border-radius:var(--radius);background:var(--elevated)}
+.snode__d{width:26px;height:26px;border-radius:var(--radius-sm);display:grid;place-items:center;background:var(--badge-fill);color:var(--muted)}
+.snode__d svg{width:13px;height:13px}
+.snode__t b{font-size:12.5px;color:var(--fg-strong);font-weight:520}
+.snode__t span{display:block;font-size:11px;color:var(--subtle);margin-top:1px}
+.snode__cls{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);background:var(--badge-fill);padding:3px 6px;border-radius:var(--radius-xs)}
+.sconn{width:1px;height:14px;background:var(--line-strong);margin:0 0 0 25px}
+
+/* ── import dropzone ── */
+.drop{border:1.5px dashed var(--line-strong);border-radius:var(--radius-md);padding:24px 20px;text-align:center;color:var(--subtle);background:var(--surface-2);cursor:pointer;transition:all var(--dur) var(--ease)}
+.drop:hover{border-color:var(--accent-dim);color:var(--fg)}
+.drop svg{width:22px;height:22px;margin:0 auto 9px;color:var(--faint)}
+.drop b{color:var(--fg-strong);font-weight:540}
+.drop .u{color:var(--accent-strong)}
+.drop .drop__meta{font-size:11px;color:var(--faint);margin-top:6px}
+.paste-h{font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);margin:16px 0 8px}
+
+/* ── field primitives ── */
+.field{margin-bottom:15px}
+.field:last-child{margin-bottom:0}
+.label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--fg-strong);margin-bottom:7px}
+.label .req{color:var(--accent-strong);font-weight:600;font-size:11px}
+.label .typ{margin-left:auto;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 6px}
+.input,.textarea,select.input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);border-radius:var(--radius-md);font-family:inherit;font-size:13px;outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+.input:focus,.textarea:focus,select.input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+.input::placeholder,.textarea::placeholder{color:var(--faint)}
+.input--mono,.textarea--mono{font-family:var(--font-mono);font-size:12px;letter-spacing:0}
+.input--err{border-color:var(--danger-dim);box-shadow:0 0 0 1px var(--danger-dim)}
+.textarea{height:auto;padding:10px 11px;resize:vertical;min-height:76px;line-height:1.55}
+select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 10px center}
+.hint{font-size:11.5px;color:var(--subtle);margin-top:7px;line-height:1.45}
+.hint code{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.ferr{font-size:11.5px;color:var(--danger);margin-top:7px;display:none;align-items:center;gap:6px}
+.ferr svg{width:12px;height:12px;flex:none}
+.ferr.on{display:flex}
+
+/* ── right rail cards ── */
+.pv-eyebrow{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+.pv-eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px var(--success-tint)}
+.card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius-lg);padding:15px 16px}
+.card__l{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-bottom:12px}
+.summary{font-size:12.5px;line-height:1.65;color:var(--muted)}
+.summary b{color:var(--fg-strong);font-weight:560}
+.summary .acc{color:var(--accent-strong);font-weight:560}
+.summary .mono{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-strong);background:var(--badge-fill);padding:1px 6px;border-radius:4px}
+.kv{display:flex;flex-direction:column;margin-top:12px}
+.kv__row{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line-soft)}
+.kv__row .k{font-size:11px;color:var(--subtle);width:74px;flex:none}
+.kv__row .v{font-size:12px;color:var(--fg);min-width:0}
+.kv__row .v .mono{font-family:var(--font-mono);font-size:11.5px}
+.note{display:flex;align-items:flex-start;gap:9px;font-size:11.5px;color:var(--subtle);line-height:1.55;padding:12px 13px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--surface)}
+.note svg{flex:none;width:14px;height:14px;color:var(--accent-strong);margin-top:1px}
+.note b{color:var(--fg);font-weight:540}
+.note code{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+
+/* ── footer ── */
+.modal__foot{display:flex;align-items:center;gap:12px;padding:14px 24px;border-top:1px solid var(--line-soft);background:var(--surface)}
+.foot-note{flex:1;font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:8px;min-width:0;line-height:1.4}
+.foot-note svg{flex:none;width:13px;height:13px;color:var(--faint)}
+.foot-note span{overflow:hidden;text-overflow:ellipsis}
+.btn{height:30px;padding:0 14px;border-radius:var(--radius);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;white-space:nowrap;transition:all var(--dur) var(--ease)}
+.btn:active{transform:translateY(1px)}
+.btn svg{width:14px;height:14px}
+.btn--outline{background:transparent;border-color:var(--line);color:var(--fg)}
+.btn--outline:hover{background:var(--hover);border-color:var(--line-strong)}
+.btn--primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn[disabled]:hover{background:var(--accent)}
+
+@media (max-width:980px){
+  .modal{height:95vh}
+  .modal__body{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  .side{border-left:0;border-top:1px solid var(--line-soft)}
+  .modes,.subs{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition-duration:1ms!important}}
+</style>
+</head>
+<body>
+
+<!-- faint loops catalog behind the modal -->
+<div class="backdrop" aria-hidden="true">
+  <div class="bd-rail"><span></span><span></span><span></span></div>
+  <div class="bd-main">
+    <div class="bd-h"></div><div class="bd-sub"></div>
+    <div class="bd-grid">
+      <div class="bd-card"></div><div class="bd-card"></div><div class="bd-card"></div>
+      <div class="bd-card"></div><div class="bd-card"></div><div class="bd-card"></div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="New loop">
+
+    <!-- HEADER -->
+    <header class="modal__head">
+      <div class="head-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><path d="M6 9v6a3 3 0 0 0 3 3h6"/><circle cx="18" cy="18" r="3"/></svg>
+      </div>
+      <div class="head-txt">
+        <div class="eyebrow">Loops · New loop</div>
+        <div class="modal__title">New loop</div>
+        <p class="modal__sub">Start from a built-in or author a new definition. Either path copies a full <span class="mono" style="font-size:11px;color:var(--muted)">agh.loop/v1</span> definition into your workspace and opens the visual editor to review and publish.</p>
+      </div>
+      <a class="head-close" href="loops-catalog.html" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </a>
+    </header>
+
+    <!-- BODY -->
+    <div class="modal__body">
+
+      <!-- LEFT: choices -->
+      <section class="form">
+
+        <!-- MODE -->
+        <div class="sec">
+          <div class="sec__head">
+            <span class="sec__title">How do you want to start?</span>
+            <span class="sec__sub">Both paths open the editor</span>
+          </div>
+          <div class="modes" role="radiogroup" aria-label="Creation mode">
+            <button class="mode" data-mode="template" role="radio" aria-checked="true">
+              <span class="mode__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><path d="M6 9v6a3 3 0 0 0 3 3h6"/><circle cx="18" cy="18" r="3"/></svg></span>
+              <span class="mode__tx">
+                <span class="mode__t">From a built-in</span>
+                <span class="mode__d">Fork one of the two built-in loops. Copies its full definition, then you edit the body.</span>
+              </span>
+              <svg class="mode__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="mode" data-mode="scratch" role="radio" aria-checked="false">
+              <span class="mode__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
+              <span class="mode__tx">
+                <span class="mode__t">From scratch</span>
+                <span class="mode__d">A minimal starter loop, or import an existing <span class="mono">agh.loop/v1</span> file.</span>
+              </span>
+              <svg class="mode__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- TEMPLATE MODE -->
+        <div class="sec" id="paneTemplate">
+          <div class="sec__head">
+            <span class="sec__title">Pick a built-in</span>
+            <span class="sec__sub">Two built-ins ship with AGH</span>
+          </div>
+
+          <div class="glabel" data-group="builtin">Built-in loops <span class="count-chip">2</span></div>
+          <div class="list" data-group="builtin">
+            <button class="tpl" data-id="software-delivery" data-kind="builtin" aria-pressed="true">
+              <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+              <span class="tpl__main">
+                <span class="tpl__name"><b>software-delivery</b><span class="tag">Built-in</span><span class="tpl__slug">agh.loop/v1</span></span>
+                <span class="tpl__goal">Ship every authored task for a slug in dependency order, implemented, reviewed to acceptance, and verified by the project's own checks.</span>
+                <span class="tpl__meta"><span class="k">8 nodes</span><span class="dotsep"></span><span class="k">5 inputs</span><span class="dotsep"></span><span>iteration cap 50</span></span>
+              </span>
+              <svg class="tpl__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="tpl" data-id="reviews-watch" data-kind="builtin" aria-pressed="false">
+              <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
+              <span class="tpl__main">
+                <span class="tpl__name"><b>reviews-watch</b><span class="tag">Built-in</span><span class="tpl__slug">watch-source</span></span>
+                <span class="tpl__goal">Watch a PR; on each fresh CodeRabbit review of the current HEAD, remediate the unresolved threads, resolve them, and optionally push until it's clean.</span>
+                <span class="tpl__meta"><span class="k">9 nodes</span><span class="dotsep"></span><span class="k">6 inputs</span><span class="dotsep"></span><span>iteration cap &#8734;</span></span>
+              </span>
+              <svg class="tpl__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- SCRATCH MODE -->
+        <div class="sec hide" id="paneScratch">
+          <div class="sec__head">
+            <span class="sec__title">Starting point</span>
+          </div>
+          <div class="subs" role="radiogroup" aria-label="Scratch starting point">
+            <button class="sub" data-start="minimal" role="radio" aria-checked="true">
+              <span>
+                <span class="sub__t">Minimal starter</span>
+                <span class="sub__d">The smallest valid loop: one input, one action, one definition-of-done gate.</span>
+              </span>
+              <svg class="sub__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="sub" data-start="import" role="radio" aria-checked="false">
+              <span>
+                <span class="sub__t">Import a definition</span>
+                <span class="sub__d">Upload or paste an existing <span class="mono">agh.loop/v1</span> YAML.</span>
+              </span>
+              <svg class="sub__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+
+          <!-- minimal skeleton -->
+          <div class="starter" id="starterMinimal">
+            <div class="starter__h">Minimal starter body</div>
+            <div class="starter__s">You land in the editor with these three nodes wired and valid. Add fan-out, gates, sources and more from the palette.</div>
+            <div class="spine">
+              <div class="snode">
+                <span class="snode__d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v4H4z"/><path d="M4 12h10"/><path d="M4 17h7"/></svg></span>
+                <span class="snode__t"><b>task</b><span>declared input &middot; string, required</span></span>
+                <span class="snode__cls">source &middot; input</span>
+              </div>
+              <span class="sconn"></span>
+              <div class="snode">
+                <span class="snode__d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>
+                <span class="snode__t"><b>work</b><span>run-agent &middot; produces a result to verify</span></span>
+                <span class="snode__cls">action &middot; run-agent</span>
+              </div>
+              <span class="sconn"></span>
+              <div class="snode">
+                <span class="snode__d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+                <span class="snode__t"><b>verify</b><span>definition-of-done gate &middot; done / next_generation</span></span>
+                <span class="snode__cls">control &middot; gate</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- import -->
+          <div class="hide" id="starterImport">
+            <div class="drop" id="dropzone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <div><b>Drop a <span class="mono" style="font-size:12px">.loop.yaml</span></b> file here, or <span class="u">browse</span></div>
+              <div class="drop__meta">Validated and linted on save &middot; agh loop create --file</div>
+            </div>
+            <div class="paste-h">or paste the definition</div>
+            <textarea class="textarea textarea--mono" id="yamlPaste" style="min-height:120px" placeholder="apiVersion: agh.loop/v1&#10;kind: Loop&#10;meta:&#10;  name: my-loop&#10;  catalog: { category: Engineering }&#10;concurrency: forbid&#10;contract:&#10;  goal: ...&#10;  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]&#10;  iteration_cap: 50&#10;  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }&#10;graph:&#10;  nodes: [ ... ]&#10;  edges: [ ... ]"></textarea>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT: identity + live preview -->
+      <aside class="side">
+        <div class="card">
+          <div class="card__l">Identity</div>
+          <div class="field">
+            <label class="label" for="name">Name<span class="req">*</span><span class="typ">meta.name</span></label>
+            <input class="input input--mono" id="name" placeholder="my-loop" autocomplete="off" spellcheck="false" />
+            <p class="hint">Its identifier, used in the URL and its folder on disk. Lowercase and filesystem-safe (e.g. <code>software-delivery</code>).</p>
+            <p class="ferr" id="nameErr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Give the loop a name to continue.</p>
+          </div>
+          <div class="field">
+            <label class="label" for="category">Category<span class="typ">catalog</span></label>
+            <select class="input" id="category">
+              <option>Engineering</option>
+              <option>Operations</option>
+              <option>Evaluation</option>
+              <option>Content</option>
+              <option>Design</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="desc">Description<span class="typ">optional</span></label>
+            <textarea class="textarea" id="desc" style="min-height:60px" placeholder="One line on what this loop is for."></textarea>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__l">What you'll get</div>
+          <p class="summary" id="summary"></p>
+          <div class="kv" id="previewKv"></div>
+        </div>
+
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <span>Every loop is a definition (<code>agh.loop/v1</code>) copied into your workspace, edited in the visual editor, and published once the linter passes. New loops start from a built-in or an imported definition, never a blank canvas <b>(ADR-008)</b>.</span>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="modal__foot">
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span id="anText">Pick a built-in and name your loop. It opens in the editor to review and publish.</span>
+      </div>
+      <a class="btn btn--outline" href="loops-catalog.html">Cancel</a>
+      <button class="btn btn--primary" id="createBtn" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><path d="M6 9v6a3 3 0 0 0 3 3h6"/><circle cx="18" cy="18" r="3"/></svg>
+        <span id="createLabel">Fork &amp; edit</span>
+      </button>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var TPL = {
+    "software-delivery":{name:"software-delivery",kind:"builtin",cat:"Engineering",goal:"Ship every authored task for a slug in dependency order, implemented, reviewed to acceptance, and verified by the project's own checks.",nodes:8,inputs:5,limits:"iteration cap 50 &middot; budget on-exceeded halt"},
+    "reviews-watch":{name:"reviews-watch",kind:"builtin",cat:"Engineering",goal:"Watch a PR; on each fresh CodeRabbit review of the current HEAD, remediate the unresolved threads, resolve them, and optionally push until it's clean.",nodes:9,inputs:6,limits:"unbounded (&#8734;) &middot; budget on-exceeded escalate"}
+  };
+
+  var state = { mode:"template", tpl:"software-delivery", start:"minimal" };
+
+  var $ = function(id){ return document.getElementById(id); };
+  var modes    = [].slice.call(document.querySelectorAll(".mode"));
+  var tpls     = [].slice.call(document.querySelectorAll(".tpl"));
+  var subs     = [].slice.call(document.querySelectorAll(".sub"));
+  var segs     = [].slice.call(document.querySelectorAll(".seg"));
+  var paneTpl  = $("paneTemplate");
+  var paneScr  = $("paneScratch");
+  var startMin = $("starterMinimal");
+  var startImp = $("starterImport");
+  var yaml     = $("yamlPaste");
+  var nameEl   = $("name");
+  var nameErr  = $("nameErr");
+  var catEl    = $("category");
+  var summary  = $("summary");
+  var kv       = $("previewKv");
+  var anText   = $("anText");
+  var createBtn= $("createBtn");
+  var createLabel = $("createLabel");
+  var esc = function(s){ return (s||"").replace(/[<>&]/g,""); };
+  var nameTouched = false;
+
+  function slugify(s){ return s.toLowerCase().trim().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,""); }
+  function kvRow(k,v){ return '<div class="kv__row"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
+
+  function paint(){
+    var nm = nameEl.value.trim();
+    var slug = slugify(nm);
+
+    if(state.mode==="template"){
+      var t = TPL[state.tpl];
+      createLabel.textContent = "Fork & edit";
+      summary.innerHTML =
+        'Fork <b>'+t.name+'</b> into your workspace'+(nm?' as <span class="mono">'+esc(slug)+'</span>':'')+'. '+
+        'Copies its full definition (contract, body and inputs), then opens in the editor to '+
+        '<span class="acc">edit and publish</span>.';
+      kv.innerHTML =
+        kvRow("Source", '<b style="color:var(--fg-strong);font-weight:520">'+t.name+'</b> '+(t.kind==="builtin"?'<span class="tag" style="margin-left:2px">Built-in</span>':'<span class="tag" style="margin-left:2px">Fork</span>')) +
+        kvRow("Category", catEl.value) +
+        kvRow("Body", '<span class="mono">'+t.nodes+'</span> nodes &middot; <span class="mono">'+t.inputs+'</span> inputs') +
+        kvRow("Limits", t.limits) +
+        kvRow("Lands in", "Visual editor");
+      anText.textContent = nm ? "Forks "+t.name+" as "+slug+", then opens in the editor." : "Pick a built-in and name your loop. It opens in the editor to review and publish.";
+    } else {
+      createLabel.textContent = "Create & edit";
+      if(state.start==="minimal"){
+        summary.innerHTML =
+          'Create '+(nm?'<span class="mono">'+esc(slug)+'</span>':'a new loop')+' from a <b>minimal starter</b>: one input, one run-agent action and one definition-of-done gate. '+
+          'The smallest valid loop, ready to <span class="acc">build out in the editor</span>.';
+        kv.innerHTML =
+          kvRow("Source", "Minimal starter") +
+          kvRow("Category", catEl.value) +
+          kvRow("Body", '<span class="mono">3</span> nodes &middot; <span class="mono">1</span> input') +
+          kvRow("Limits", "iteration cap 50 &middot; no budget") +
+          kvRow("Lands in", "Visual editor");
+      } else {
+        var has = yaml.value.trim().length>0;
+        summary.innerHTML =
+          'Create '+(nm?'<span class="mono">'+esc(slug)+'</span>':'a new loop')+' from your <b>imported definition</b>. '+
+          'Validated and linted on save, then opens in the editor. '+(has?'':'<span class="acc">Add the YAML to continue.</span>');
+        kv.innerHTML =
+          kvRow("Source", "Imported agh.loop/v1") +
+          kvRow("Category", catEl.value) +
+          kvRow("Body", has ? "from the file" : "not set yet") +
+          kvRow("Lands in", "Visual editor");
+      }
+      anText.textContent = nm ? "Creates "+slug+", then opens in the editor to publish." : "Choose a starting point and name your loop.";
+    }
+
+    var ready = nm.length>0 && (
+      state.mode==="template" ? !!state.tpl :
+      state.start==="minimal" ? true : yaml.value.trim().length>0
+    );
+    createBtn.disabled = !ready;
+    if(nm.length>0){ nameErr.classList.remove("on"); nameEl.classList.remove("input--err"); }
+  }
+
+  // mode switch
+  modes.forEach(function(m){
+    m.addEventListener("click", function(){
+      modes.forEach(function(x){ x.setAttribute("aria-checked","false"); });
+      m.setAttribute("aria-checked","true");
+      state.mode = m.getAttribute("data-mode");
+      paneTpl.classList.toggle("hide", state.mode!=="template");
+      paneScr.classList.toggle("hide", state.mode!=="scratch");
+      paint();
+    });
+  });
+
+  // template select
+  tpls.forEach(function(t){
+    t.addEventListener("click", function(){
+      tpls.forEach(function(x){ x.setAttribute("aria-pressed","false"); });
+      t.setAttribute("aria-pressed","true");
+      state.tpl = t.getAttribute("data-id");
+      var tp = TPL[state.tpl];
+      if(!nameTouched){ nameEl.value = tp.name + "-fork"; }
+      catEl.value = tp.cat;
+      paint();
+    });
+  });
+
+  // template kind filter
+  segs.forEach(function(s){
+    s.addEventListener("click", function(){
+      segs.forEach(function(x){ x.setAttribute("aria-selected","false"); });
+      s.setAttribute("aria-selected","true");
+      var k = s.getAttribute("data-kind");
+      tpls.forEach(function(t){ t.classList.toggle("hide", !(k==="all" || t.getAttribute("data-kind")===k)); });
+      document.querySelectorAll('.list[data-group],.glabel[data-group]').forEach(function(g){
+        g.classList.toggle("hide", !(k==="all" || g.getAttribute("data-group")===k));
+      });
+    });
+  });
+
+  // scratch sub-option
+  subs.forEach(function(su){
+    su.addEventListener("click", function(){
+      subs.forEach(function(x){ x.setAttribute("aria-checked","false"); });
+      su.setAttribute("aria-checked","true");
+      state.start = su.getAttribute("data-start");
+      startMin.classList.toggle("hide", state.start!=="minimal");
+      startImp.classList.toggle("hide", state.start!=="import");
+      paint();
+    });
+  });
+
+  nameEl.addEventListener("input", function(){ nameTouched = nameEl.value.length>0; paint(); });
+  catEl.addEventListener("change", paint);
+  yaml.addEventListener("input", paint);
+  $("dropzone").addEventListener("click", function(){
+    yaml.value = "apiVersion: agh.loop/v1\nkind: Loop\nmeta:\n  name: imported-loop\n  catalog: { category: Engineering }\nconcurrency: forbid\ncontract:\n  goal: ...\n  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]\n  iteration_cap: 50\n  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }\ngraph:\n  nodes: [ ... ]\n  edges: [ ... ]";
+    paint();
+  });
+
+  createBtn.addEventListener("click", function(){
+    if(!nameEl.value.trim()){ nameEl.classList.add("input--err"); nameErr.classList.add("on"); nameEl.focus(); return; }
+    window.location.href = "loop-editor.html";
+  });
+
+  paint();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+[extension]
+name = "telegram-reference"
+version = "0.1.0"
+description = "Provider-scoped Telegram bridge conformance runtime built on internal/bridgesdk"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "telegram"
+display_name = "Telegram"
+
+[[bridge.secret_slots]]
+name = "bot_token"
+description = "Telegram bot token bound through the AGH bridge vault."
+required = true
+
+[actions]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
+
+[subprocess]
+command = "./bin/telegram-reference"
+args = ["serve"]
+
+[subprocess.env]
+AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH = "{{env:AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH}}"
+AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH = "{{env:AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH}}"
+AGH_BRIDGE_ADAPTER_STATE_PATH = "{{env:AGH_BRIDGE_ADAPTER_STATE_PATH}}"
+AGH_BRIDGE_ADAPTER_DELIVERY_PATH = "{{env:AGH_BRIDGE_ADAPTER_DELIVERY_PATH}}"
+AGH_BRIDGE_ADAPTER_INGEST_PATH = "{{env:AGH_BRIDGE_ADAPTER_INGEST_PATH}}"
+AGH_BRIDGE_ADAPTER_UPDATES_PATH = "{{env:AGH_BRIDGE_ADAPTER_UPDATES_PATH}}"
+AGH_BRIDGE_ADAPTER_STARTS_PATH = "{{env:AGH_BRIDGE_ADAPTER_STARTS_PATH}}"
+AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH}}"
+AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
+
+[security]
+capabilities = ["bridge.read", "bridge.write"]

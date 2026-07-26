@@ -1,0 +1,43 @@
+---
+title: "agh loop validate"
+description: "Validate one Loop definition without saving"
+---
+
+## agh loop validate
+
+Validate one Loop definition without saving
+
+```
+agh loop validate [flags]
+```
+
+### Options
+
+```
+      --file string        Loop definition YAML or JSON file
+  -h, --help               help for validate
+      --name string        Override the route Loop name
+      --workspace string   Workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh loop validate -o json
+```

@@ -1,0 +1,50 @@
+---
+title: "agh status"
+description: "Show consolidated runtime status"
+---
+
+## agh status
+
+Show consolidated runtime status
+
+```
+agh status [flags]
+```
+
+### Examples
+
+```
+  # Show runtime status
+  agh status
+
+  # Return machine-readable status for agents
+  agh status -o json
+```
+
+### Options
+
+```
+  -h, --help   help for status
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh status -o json
+```

@@ -1,0 +1,16 @@
+{
+    "title": "Config",
+    "pages": [
+        "index",
+        "apply-history",
+        "check",
+        "edit",
+        "get",
+        "list",
+        "path",
+        "reload",
+        "set",
+        "show",
+        "validate"
+    ]
+}
