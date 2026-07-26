@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -65,6 +66,7 @@ type SessionSetupRequest struct {
 	CWD               string
 	UseUI             bool
 	StreamHumanOutput bool
+	HumanStatus       io.Writer
 	Index             int
 	RunJournal        runtimeEventSubmitter
 	AggregateUsage    *model.Usage
@@ -125,6 +127,9 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 	if req.Context == nil {
 		req.Context = context.Background()
 	}
+	if req.Job != nil {
+		req.Job.SpeedResolution = kinds.SpeedResolution{}
+	}
 	logger := resolveSessionLogger(req.Logger)
 	setupCtx, cancelSetup := withACPInitDeadline(req.Context, req.InitTimeout)
 	defer cancelSetup()
@@ -155,6 +160,7 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 	}
 
 	session, err := createACPSession(req.Context, setupCtx, client, req.Config, req.Job, req.CWD)
+	statusErr := reportSessionSpeedResolution(req, logger)
 	if err != nil {
 		err = withSetupContextCause(setupCtx, err)
 		setupErr := setupFailureForUser(req.Config, req.Job, fmt.Errorf("create ACP session: %w", err))
@@ -162,7 +168,14 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 		closeSetupLogFiles(outFile, errFile)
 		_ = client.Close()
 		releaseClient()
-		return nil, joinSetupFailure(setupErr, writeErr)
+		return nil, errors.Join(joinSetupFailure(setupErr, writeErr), statusErr)
+	}
+	if statusErr != nil {
+		writeErr := writeSetupFailureToErrLog(errFile, statusErr)
+		closeSetupLogFiles(outFile, errFile)
+		_ = client.Close()
+		releaseClient()
+		return nil, errors.Join(statusErr, writeErr)
 	}
 
 	execution := buildSessionExecution(
@@ -191,6 +204,56 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 	}
 
 	return execution, nil
+}
+
+func reportSessionSpeedResolution(req SessionSetupRequest, logger *slog.Logger) error {
+	logSpeedResolution(logger, req.Job, req.Job.SpeedResolution)
+	return WriteSpeedResolutionStatus(req.HumanStatus, req.Job.SpeedResolution)
+}
+
+func logSpeedResolution(logger *slog.Logger, job *job, resolution kinds.SpeedResolution) {
+	if logger == nil || resolution.Requested == "" || resolution.Status == "" {
+		return
+	}
+	logger.Info(
+		"ACP session speed resolved",
+		"speed_requested", resolution.Requested,
+		"speed_status", resolution.Status,
+		"speed_reason", resolution.Reason,
+		"option_shape", "",
+		"resumed", job != nil && strings.TrimSpace(job.ResumeSession) != "",
+	)
+}
+
+// HumanStatusWriter returns the shared human-status stream for non-UI text execution.
+func HumanStatusWriter(cfg *config, useUI bool) io.Writer {
+	if cfg == nil || useUI || cfg.DryRun || !cfg.HumanOutputEnabled() {
+		return nil
+	}
+	return os.Stderr
+}
+
+// WriteSpeedResolutionStatus writes one concise canonical speed outcome.
+func WriteSpeedResolutionStatus(dst io.Writer, resolution kinds.SpeedResolution) error {
+	if dst == nil || resolution.Requested == "" || resolution.Status == "" {
+		return nil
+	}
+	if resolution.Reason == "" {
+		if _, err := fmt.Fprintf(dst, "Speed %s: %s\n", resolution.Requested, resolution.Status); err != nil {
+			return fmt.Errorf("write speed resolution status: %w", err)
+		}
+		return nil
+	}
+	if _, err := fmt.Fprintf(
+		dst,
+		"Speed %s: %s (%s)\n",
+		resolution.Requested,
+		resolution.Status,
+		resolution.Reason,
+	); err != nil {
+		return fmt.Errorf("write speed resolution status: %w", err)
+	}
+	return nil
 }
 
 func withACPInitDeadline(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

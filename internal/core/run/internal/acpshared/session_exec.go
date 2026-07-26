@@ -52,6 +52,7 @@ func ExecuteJobWithTimeout(
 		CWD:               cwd,
 		UseUI:             useUI,
 		StreamHumanOutput: cfg.HumanOutputEnabled(),
+		HumanStatus:       HumanStatusWriter(cfg, useUI),
 		Index:             index,
 		RunJournal:        runJournal,
 		AggregateUsage:    aggregateUsage,

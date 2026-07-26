@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/core/run/transcript"
 	uipkg "github.com/compozy/compozy/internal/core/run/ui"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 type config = runshared.Config
@@ -31,7 +33,11 @@ const (
 )
 
 func newConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *config {
-	return runshared.NewConfig(src, runArtifacts)
+	cfg := runshared.NewConfig(src, runArtifacts)
+	if cfg != nil && cfg.Speed == "" {
+		cfg.Speed = kinds.SpeedNormal
+	}
+	return cfg
 }
 
 func atLeastOne(value int) int {
@@ -78,6 +84,13 @@ func startACPActivityWatchdog(
 
 func setupSessionExecution(req sessionSetupRequest) (*sessionExecution, error) {
 	return acpshared.SetupSessionExecution(req)
+}
+
+func humanStatusWriter(cfg *config, useUI bool, enabled bool) io.Writer {
+	if !enabled {
+		return nil
+	}
+	return acpshared.HumanStatusWriter(cfg, useUI)
 }
 
 func isActivityTimeout(err error) bool {

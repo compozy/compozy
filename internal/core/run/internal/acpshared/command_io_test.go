@@ -115,6 +115,158 @@ func TestBuildSessionExecutionUsesSessionSetupRequest(t *testing.T) {
 	}
 }
 
+func TestWriteSpeedResolutionStatusUsesCanonicalHumanLabels(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		resolution kinds.SpeedResolution
+		want       string
+	}{
+		{
+			name: "applied",
+			resolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			want: "Speed fast: applied\n",
+		},
+		{
+			name: "unsupported",
+			resolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedNormal,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+			want: "Speed normal: unsupported (capability_absent)\n",
+		},
+		{
+			name: "rejected",
+			resolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusRejected,
+				Reason:    kinds.SpeedResolutionReasonProviderRejected,
+			},
+			want: "Speed fast: rejected (provider_rejected)\n",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var output bytes.Buffer
+			if err := WriteSpeedResolutionStatus(&output, tc.resolution); err != nil {
+				t.Fatalf("write speed status: %v", err)
+			}
+			if got := output.String(); got != tc.want {
+				t.Fatalf("speed status = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWriteSpeedResolutionStatusHandlesAbsentAndFailedStreams(t *testing.T) {
+	t.Parallel()
+
+	if err := WriteSpeedResolutionStatus(nil, kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusApplied,
+	}); err != nil {
+		t.Fatalf("nil status stream: %v", err)
+	}
+
+	var output bytes.Buffer
+	if err := WriteSpeedResolutionStatus(&output, kinds.SpeedResolution{}); err != nil {
+		t.Fatalf("empty resolution: %v", err)
+	}
+	if output.Len() != 0 {
+		t.Fatalf("empty resolution output = %q, want empty", output.String())
+	}
+
+	err := WriteSpeedResolutionStatus(failingWriter{}, kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusRejected,
+		Reason:    kinds.SpeedResolutionReasonProviderRejected,
+	})
+	if err == nil || !strings.Contains(err.Error(), "write speed resolution status") {
+		t.Fatalf("failed status stream error = %v", err)
+	}
+}
+
+func TestHumanStatusWriterSuppressesNonHumanModes(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		cfg   *config
+		useUI bool
+		want  bool
+	}{
+		{name: "text", cfg: &config{OutputFormat: model.OutputFormatText}, want: true},
+		{name: "json", cfg: &config{OutputFormat: model.OutputFormatJSON}},
+		{name: "raw json", cfg: &config{OutputFormat: model.OutputFormatRawJSON}},
+		{name: "daemon", cfg: &config{OutputFormat: model.OutputFormatText, DaemonOwned: true}},
+		{name: "dry run", cfg: &config{OutputFormat: model.OutputFormatText, DryRun: true}},
+		{name: "ui", cfg: &config{OutputFormat: model.OutputFormatText}, useUI: true},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := HumanStatusWriter(tc.cfg, tc.useUI)
+			if (got != nil) != tc.want {
+				t.Fatalf("HumanStatusWriter() = %#v, want present=%v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSetupSessionExecutionFailsCleanlyWhenHumanStatusCannotBeWritten(t *testing.T) {
+	resolution := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusApplied,
+	}
+	restore := SwapNewAgentClientForTest(
+		func(context.Context, agent.ClientConfig) (agent.Client, error) {
+			return &capturingCommandIOClient{createResolution: resolution}, nil
+		},
+	)
+	defer restore()
+
+	tmpDir := t.TempDir()
+	outLog := filepath.Join(tmpDir, "exec.out.log")
+	errLog := filepath.Join(tmpDir, "exec.err.log")
+	_, err := SetupSessionExecution(SessionSetupRequest{
+		Context: context.Background(),
+		Config: &config{
+			IDE:          model.IDECodex,
+			Speed:        kinds.SpeedFast,
+			RunArtifacts: model.RunArtifacts{RunID: "run-status-failure"},
+		},
+		Job: &job{
+			SafeName: "exec",
+			Prompt:   []byte("finish the task"),
+			OutLog:   outLog,
+			ErrLog:   errLog,
+		},
+		CWD:         tmpDir,
+		HumanStatus: failingWriter{},
+		Logger:      silentLogger(),
+	})
+	if err == nil || !strings.Contains(err.Error(), "write speed resolution status") {
+		t.Fatalf("status stream setup error = %v", err)
+	}
+	for _, path := range []string{outLog, errLog} {
+		if removeErr := os.Remove(path); removeErr != nil {
+			t.Fatalf("remove closed setup log %s: %v", path, removeErr)
+		}
+	}
+}
+
 func TestHasRuntimeEventSubmitterRejectsTypedNilJournal(t *testing.T) {
 	t.Parallel()
 

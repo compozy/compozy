@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -49,8 +50,8 @@ func TestExecuteExecTextModePrintsOnlyFinalAssistantResponse(t *testing.T) {
 	if strings.TrimSpace(stdout) != "final answer" {
 		t.Fatalf("expected final assistant response only, got %q", stdout)
 	}
-	if stderr != "" {
-		t.Fatalf("expected no stderr, got %q", stderr)
+	if stderr != "Speed normal: unsupported (capability_absent)\n" {
+		t.Fatalf("unexpected human speed status: %q", stderr)
 	}
 	if _, err := os.Stat(filepath.Join(tmpDir, ".compozy", "runs")); !os.IsNotExist(err) {
 		t.Fatalf("expected no persisted run artifacts, got stat err=%v", err)
@@ -87,8 +88,8 @@ func TestExecuteExecHeadlessDefaultDoesNotEmitOperationalLogs(t *testing.T) {
 	if strings.TrimSpace(stdout) != "final answer" {
 		t.Fatalf("unexpected exec stdout: %q", stdout)
 	}
-	if stderr != "" {
-		t.Fatalf("expected no operational stderr by default, got %q", stderr)
+	if stderr != "Speed normal: unsupported (capability_absent)\n" {
+		t.Fatalf("expected only the human speed status on stderr, got %q", stderr)
 	}
 }
 
@@ -125,6 +126,338 @@ func TestExecuteExecVerboseEmitsOperationalLogsToStderr(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "acp session created") {
 		t.Fatalf("expected verbose stderr to include ACP lifecycle logs, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "Speed normal: unsupported (capability_absent)") {
+		t.Fatalf("expected verbose stderr to include speed status, got %q", stderr)
+	}
+}
+
+func TestExecuteExecPersistsIndependentSpeedOutcomesAcrossResume(t *testing.T) {
+	workspaceRoot := workspaceRootForExecTest(t)
+	applied := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusApplied,
+	}
+	unsupported := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+
+	var clientCount int
+	restore := acpshared.SwapNewAgentClientForTest(
+		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
+			clientCount++
+			if clientCount == 1 {
+				return &capturingExecACPClient{
+					supportsLoadSession: true,
+					createSessionFn: func(
+						_ context.Context,
+						req agent.SessionRequest,
+					) (agent.SessionStart, error) {
+						if req.Speed != kinds.SpeedFast {
+							t.Fatalf("new-session speed = %q, want fast", req.Speed)
+						}
+						session := newCapturingExecSession("sess-speed")
+						session.updates <- model.SessionUpdate{
+							Kind:   model.UpdateKindAgentMessageChunk,
+							Status: model.StatusRunning,
+							Blocks: []model.ContentBlock{preparedPromptTextContentBlock(t, "first")},
+						}
+						go session.finish(nil)
+						return agent.SessionStart{Session: session, Speed: applied}, nil
+					},
+				}, nil
+			}
+			return &capturingExecACPClient{
+				supportsLoadSession: true,
+				resumeSessionFn: func(
+					_ context.Context,
+					req agent.ResumeSessionRequest,
+				) (agent.SessionStart, error) {
+					if req.SessionID != "sess-speed" || req.Speed != kinds.SpeedFast {
+						t.Fatalf("unexpected resume request: %#v", req)
+					}
+					session := newCapturingExecSession("sess-speed")
+					session.identity.Resumed = true
+					session.updates <- model.SessionUpdate{
+						Kind:   model.UpdateKindAgentMessageChunk,
+						Status: model.StatusRunning,
+						Blocks: []model.ContentBlock{preparedPromptTextContentBlock(t, "second")},
+					}
+					go session.finish(nil)
+					return agent.SessionStart{Session: session, Speed: unsupported}, nil
+				},
+			}, nil
+		},
+	)
+	t.Cleanup(restore)
+
+	firstCfg := &model.RuntimeConfig{
+		WorkspaceRoot:          workspaceRoot,
+		IDE:                    model.IDECodex,
+		Model:                  "gpt-5.5",
+		Speed:                  kinds.SpeedFast,
+		AccessMode:             model.AccessModeDefault,
+		Mode:                   model.ExecutionModeExec,
+		OutputFormat:           model.OutputFormatJSON,
+		PromptText:             "first turn",
+		RetryBackoffMultiplier: 1.5,
+		Persist:                true,
+	}
+	firstStdout, firstStderr, firstErr := captureExecuteStreams(t, func() error {
+		return ExecuteExec(context.Background(), firstCfg, nil)
+	})
+	if firstErr != nil {
+		t.Fatalf("execute first turn: %v", firstErr)
+	}
+	if firstStderr != "" {
+		t.Fatalf("first machine stderr = %q, want empty", firstStderr)
+	}
+	assertExecSpeedEvents(t, decodeExecJSONLEventsForRunTest(t, firstStdout), applied)
+
+	runRecord, err := LoadPersistedExecRun(workspaceRoot, firstCfg.RunID)
+	if err != nil {
+		t.Fatalf("load first run record: %v", err)
+	}
+	firstTurnPath := filepath.Join(runRecord.TurnsDir, "0001", "result.json")
+	firstTurnBeforeResume, err := os.ReadFile(firstTurnPath)
+	if err != nil {
+		t.Fatalf("read first turn before resume: %v", err)
+	}
+
+	secondCfg := &model.RuntimeConfig{
+		WorkspaceRoot:          workspaceRoot,
+		RunID:                  firstCfg.RunID,
+		IDE:                    model.IDECodex,
+		Model:                  "gpt-5.5",
+		Speed:                  kinds.SpeedFast,
+		AccessMode:             model.AccessModeDefault,
+		Mode:                   model.ExecutionModeExec,
+		OutputFormat:           model.OutputFormatJSON,
+		PromptText:             "second turn",
+		RetryBackoffMultiplier: 1.5,
+		Persist:                true,
+	}
+	secondStdout, secondStderr, secondErr := captureExecuteStreams(t, func() error {
+		return ExecuteExec(context.Background(), secondCfg, nil)
+	})
+	if secondErr != nil {
+		t.Fatalf("execute resumed turn: %v", secondErr)
+	}
+	if secondStderr != "" {
+		t.Fatalf("resumed machine stderr = %q, want empty", secondStderr)
+	}
+	assertExecSpeedEvents(t, decodeExecJSONLEventsForRunTest(t, secondStdout), unsupported)
+
+	runRecord, err = LoadPersistedExecRun(workspaceRoot, firstCfg.RunID)
+	if err != nil {
+		t.Fatalf("load resumed run record: %v", err)
+	}
+	if runRecord.SpeedResolution == nil || *runRecord.SpeedResolution != unsupported {
+		t.Fatalf("latest run resolution = %#v, want %#v", runRecord.SpeedResolution, unsupported)
+	}
+	runtimeEvents := readRuntimeEventFile(t, runRecord.EventsPath)
+	gotRuntimeResolutions := make([]kinds.SpeedResolution, 0, 2)
+	for _, event := range runtimeEvents {
+		if event.Kind != eventspkg.EventKindSessionStarted {
+			continue
+		}
+		var payload kinds.SessionStartedPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("decode session.started payload: %v", err)
+		}
+		if payload.SpeedResolution != nil {
+			gotRuntimeResolutions = append(gotRuntimeResolutions, *payload.SpeedResolution)
+		}
+	}
+	if !slices.Equal(gotRuntimeResolutions, []kinds.SpeedResolution{applied, unsupported}) {
+		t.Fatalf(
+			"runtime session resolutions = %#v, want %#v",
+			gotRuntimeResolutions,
+			[]kinds.SpeedResolution{applied, unsupported},
+		)
+	}
+
+	var firstTurn persistedExecTurn
+	if err := json.Unmarshal(firstTurnBeforeResume, &firstTurn); err != nil {
+		t.Fatalf("decode first turn: %v", err)
+	}
+	if firstTurn.SpeedResolution == nil || *firstTurn.SpeedResolution != applied {
+		t.Fatalf("first turn resolution = %#v, want %#v", firstTurn.SpeedResolution, applied)
+	}
+	secondTurnPayload, err := os.ReadFile(filepath.Join(runRecord.TurnsDir, "0002", "result.json"))
+	if err != nil {
+		t.Fatalf("read second turn: %v", err)
+	}
+	var secondTurn persistedExecTurn
+	if err := json.Unmarshal(secondTurnPayload, &secondTurn); err != nil {
+		t.Fatalf("decode second turn: %v", err)
+	}
+	if secondTurn.SpeedResolution == nil || *secondTurn.SpeedResolution != unsupported {
+		t.Fatalf("second turn resolution = %#v, want %#v", secondTurn.SpeedResolution, unsupported)
+	}
+	firstTurnAfterResume, err := os.ReadFile(firstTurnPath)
+	if err != nil {
+		t.Fatalf("read first turn after resume: %v", err)
+	}
+	if !bytes.Equal(firstTurnAfterResume, firstTurnBeforeResume) {
+		t.Fatal("resumed execution rewrote the prior turn artifact")
+	}
+}
+
+func TestExecuteExecRejectedSetupPersistsOutcomeWithoutPromptOutput(t *testing.T) {
+	workspaceRoot := workspaceRootForExecTest(t)
+	rejected := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusRejected,
+		Reason:    kinds.SpeedResolutionReasonProviderRejected,
+	}
+	restore := acpshared.SwapNewAgentClientForTest(
+		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
+			return &capturingExecACPClient{
+				createSessionFn: func(
+					context.Context,
+					agent.SessionRequest,
+				) (agent.SessionStart, error) {
+					return agent.SessionStart{Speed: rejected}, &agent.SessionSetupError{
+						Stage: agent.SessionSetupStageSetSpeed,
+						Err:   errors.New("provider rejected fast"),
+					}
+				},
+			}, nil
+		},
+	)
+	t.Cleanup(restore)
+
+	cfg := &model.RuntimeConfig{
+		WorkspaceRoot:          workspaceRoot,
+		IDE:                    model.IDECodex,
+		Model:                  "gpt-5.5",
+		Speed:                  kinds.SpeedFast,
+		AccessMode:             model.AccessModeDefault,
+		Mode:                   model.ExecutionModeExec,
+		OutputFormat:           model.OutputFormatText,
+		PromptText:             "must not execute",
+		RetryBackoffMultiplier: 1.5,
+		Persist:                true,
+	}
+	stdout, stderr, execErr := captureExecuteStreams(t, func() error {
+		return ExecuteExec(context.Background(), cfg, nil)
+	})
+	if execErr == nil || !strings.Contains(execErr.Error(), "provider rejected fast") {
+		t.Fatalf("rejected setup error = %v", execErr)
+	}
+	if stdout != "" {
+		t.Fatalf("rejected setup stdout = %q, want no prompt output", stdout)
+	}
+	if stderr != "Speed fast: rejected (provider_rejected)\n" {
+		t.Fatalf("rejected setup status = %q", stderr)
+	}
+
+	runRecord, err := LoadPersistedExecRun(workspaceRoot, cfg.RunID)
+	if err != nil {
+		t.Fatalf("load rejected run record: %v", err)
+	}
+	if runRecord.SpeedResolution == nil || *runRecord.SpeedResolution != rejected {
+		t.Fatalf("rejected run resolution = %#v, want %#v", runRecord.SpeedResolution, rejected)
+	}
+	resultPayload, err := os.ReadFile(filepath.Join(runRecord.TurnsDir, "0001", "result.json"))
+	if err != nil {
+		t.Fatalf("read rejected turn result: %v", err)
+	}
+	var turn persistedExecTurn
+	if err := json.Unmarshal(resultPayload, &turn); err != nil {
+		t.Fatalf("decode rejected turn result: %v", err)
+	}
+	if turn.SpeedResolution == nil || *turn.SpeedResolution != rejected {
+		t.Fatalf("rejected turn resolution = %#v, want %#v", turn.SpeedResolution, rejected)
+	}
+}
+
+func TestExecuteExecMachineAndDaemonModesSuppressRejectedHumanStatus(t *testing.T) {
+	testCases := []struct {
+		name         string
+		outputFormat model.OutputFormat
+		daemonOwned  bool
+		wantEvents   bool
+	}{
+		{name: "json", outputFormat: model.OutputFormatJSON, wantEvents: true},
+		{name: "raw json", outputFormat: model.OutputFormatRawJSON, wantEvents: true},
+		{name: "daemon", outputFormat: model.OutputFormatText, daemonOwned: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			workspaceRoot := workspaceRootForExecTest(t)
+			rejected := kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusRejected,
+				Reason:    kinds.SpeedResolutionReasonProviderRejected,
+			}
+			restore := acpshared.SwapNewAgentClientForTest(
+				func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
+					return &capturingExecACPClient{
+						createSessionFn: func(
+							context.Context,
+							agent.SessionRequest,
+						) (agent.SessionStart, error) {
+							return agent.SessionStart{Speed: rejected}, &agent.SessionSetupError{
+								Stage: agent.SessionSetupStageSetSpeed,
+								Err:   errors.New("provider rejected fast"),
+							}
+						},
+					}, nil
+				},
+			)
+			defer restore()
+
+			stdout, stderr, execErr := captureExecuteStreams(t, func() error {
+				return ExecuteExec(context.Background(), &model.RuntimeConfig{
+					WorkspaceRoot:          workspaceRoot,
+					IDE:                    model.IDECodex,
+					Model:                  "gpt-5.5",
+					Speed:                  kinds.SpeedFast,
+					AccessMode:             model.AccessModeDefault,
+					Mode:                   model.ExecutionModeExec,
+					OutputFormat:           tc.outputFormat,
+					DaemonOwned:            tc.daemonOwned,
+					PromptText:             "must not execute",
+					RetryBackoffMultiplier: 1.5,
+				}, nil)
+			})
+			if execErr == nil || !strings.Contains(execErr.Error(), "provider rejected fast") {
+				t.Fatalf("rejected setup error = %v", execErr)
+			}
+			if stderr != "" {
+				t.Fatalf("machine/daemon stderr = %q, want empty", stderr)
+			}
+			if !tc.wantEvents {
+				if stdout != "" {
+					t.Fatalf("daemon stdout = %q, want empty", stdout)
+				}
+				return
+			}
+
+			events := decodeExecJSONLEventsForRunTest(t, stdout)
+			foundFailed := false
+			for _, event := range events {
+				if event["type"] != "run.failed" {
+					continue
+				}
+				foundFailed = true
+				if event["speed"] != string(kinds.SpeedFast) {
+					t.Fatalf("run.failed speed = %#v, want fast", event["speed"])
+				}
+				assertExecJSONResolution(t, event["speed_resolution"], rejected)
+				if _, exists := event["output"]; exists {
+					t.Fatalf("rejected run.failed event contains prompt output: %#v", event["output"])
+				}
+			}
+			if !foundFailed {
+				t.Fatal("missing run.failed machine event")
+			}
+		})
 	}
 }
 
@@ -620,6 +953,60 @@ func decodeExecJSONLEventsForRunTest(t *testing.T, data string) []map[string]any
 	return events
 }
 
+func assertExecSpeedEvents(
+	t *testing.T,
+	events []map[string]any,
+	want kinds.SpeedResolution,
+) {
+	t.Helper()
+
+	var foundStarted, foundAttached, foundTerminal bool
+	for _, event := range events {
+		eventType, _ := event["type"].(string)
+		switch eventType {
+		case "run.started":
+			foundStarted = true
+			if event["speed"] != string(want.Requested) {
+				t.Fatalf("run.started speed = %#v, want %q", event["speed"], want.Requested)
+			}
+		case "session.attached":
+			foundAttached = true
+			session, _ := event["session"].(map[string]any)
+			assertExecJSONResolution(t, session["speed_resolution"], want)
+		case "run.succeeded":
+			foundTerminal = true
+			if event["speed"] != string(want.Requested) {
+				t.Fatalf("run.succeeded speed = %#v, want %q", event["speed"], want.Requested)
+			}
+			assertExecJSONResolution(t, event["speed_resolution"], want)
+		}
+	}
+	if !foundStarted || !foundAttached || !foundTerminal {
+		t.Fatalf(
+			"missing speed lifecycle events: started=%v attached=%v terminal=%v",
+			foundStarted,
+			foundAttached,
+			foundTerminal,
+		)
+	}
+}
+
+func assertExecJSONResolution(t *testing.T, raw any, want kinds.SpeedResolution) {
+	t.Helper()
+
+	payload, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatalf("marshal JSON resolution: %v", err)
+	}
+	var got kinds.SpeedResolution
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("decode JSON resolution: %v", err)
+	}
+	if got != want {
+		t.Fatalf("JSON resolution = %#v, want %#v", got, want)
+	}
+}
+
 func assertSessionUpdateKindsPresent(t *testing.T, events []map[string]any, want ...string) {
 	t.Helper()
 
@@ -685,7 +1072,9 @@ func collectedRuntimeSessionUpdateKinds(t *testing.T, events []eventspkg.Event) 
 }
 
 type capturingExecACPClient struct {
-	createSessionFn func(context.Context, agent.SessionRequest) (agent.SessionStart, error)
+	createSessionFn     func(context.Context, agent.SessionRequest) (agent.SessionStart, error)
+	resumeSessionFn     func(context.Context, agent.ResumeSessionRequest) (agent.SessionStart, error)
+	supportsLoadSession bool
 }
 
 func (c *capturingExecACPClient) CreateSession(
@@ -695,10 +1084,13 @@ func (c *capturingExecACPClient) CreateSession(
 	return c.createSessionFn(ctx, req)
 }
 
-func (*capturingExecACPClient) ResumeSession(
-	context.Context,
-	agent.ResumeSessionRequest,
+func (c *capturingExecACPClient) ResumeSession(
+	ctx context.Context,
+	req agent.ResumeSessionRequest,
 ) (agent.SessionStart, error) {
+	if c.resumeSessionFn != nil {
+		return c.resumeSessionFn(ctx, req)
+	}
 	return agent.SessionStart{}, errors.New("resume not supported in capturing exec fake")
 }
 
@@ -710,8 +1102,8 @@ func (*capturingExecACPClient) PromptSession(context.Context, agent.PromptSessio
 	return nil, nil
 }
 
-func (*capturingExecACPClient) SupportsLoadSession() bool {
-	return false
+func (c *capturingExecACPClient) SupportsLoadSession() bool {
+	return c.supportsLoadSession
 }
 
 func (*capturingExecACPClient) Close() error {
@@ -739,9 +1131,10 @@ func unsupportedExecSessionStart(
 var _ agent.Client = (*capturingExecACPClient)(nil)
 
 type capturingExecSession struct {
-	id      string
-	updates chan model.SessionUpdate
-	done    chan struct{}
+	id       string
+	identity agent.SessionIdentity
+	updates  chan model.SessionUpdate
+	done     chan struct{}
 
 	mu       sync.RWMutex
 	err      error
@@ -750,9 +1143,10 @@ type capturingExecSession struct {
 
 func newCapturingExecSession(id string) *capturingExecSession {
 	return &capturingExecSession{
-		id:      id,
-		updates: make(chan model.SessionUpdate, 1),
-		done:    make(chan struct{}),
+		id:       id,
+		identity: agent.SessionIdentity{ACPSessionID: id},
+		updates:  make(chan model.SessionUpdate, 1),
+		done:     make(chan struct{}),
 	}
 }
 
@@ -761,7 +1155,7 @@ func (s *capturingExecSession) ID() string {
 }
 
 func (s *capturingExecSession) Identity() agent.SessionIdentity {
-	return agent.SessionIdentity{ACPSessionID: s.id}
+	return s.identity
 }
 
 func (s *capturingExecSession) Updates() <-chan model.SessionUpdate {

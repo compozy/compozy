@@ -26,6 +26,7 @@ import (
 
 const execRunSchemaVersion = 1
 const execEventBufferSize = 16 << 10
+const execEventTypeRunFailed = "run.failed"
 
 type execJSONStreamMode uint8
 
@@ -37,66 +38,72 @@ const (
 
 // PersistedExecRun is the persisted run contract for resumable exec sessions.
 type PersistedExecRun struct {
-	Version              int         `json:"version"`
-	Mode                 string      `json:"mode"`
-	RunID                string      `json:"run_id"`
-	Status               string      `json:"status"`
-	WorkspaceRoot        string      `json:"workspace_root"`
-	IDE                  string      `json:"ide"`
-	Model                string      `json:"model"`
-	ReasoningEffort      string      `json:"reasoning_effort"`
-	Speed                kinds.Speed `json:"speed,omitempty"`
-	AccessMode           string      `json:"access_mode"`
-	AddDirs              []string    `json:"add_dirs,omitempty"`
-	CreatedAt            time.Time   `json:"created_at"`
-	UpdatedAt            time.Time   `json:"updated_at"`
-	TurnCount            int         `json:"turn_count"`
-	ACPSessionID         string      `json:"acp_session_id,omitempty"`
-	AgentSessionID       string      `json:"agent_session_id,omitempty"`
-	LoadSessionSupported bool        `json:"load_session_supported,omitempty"`
-	Usage                model.Usage `json:"usage,omitempty"`
-	LastError            string      `json:"last_error,omitempty"`
-	EventsPath           string      `json:"events_path,omitempty"`
-	TurnsDir             string      `json:"turns_dir,omitempty"`
+	Version              int                    `json:"version"`
+	Mode                 string                 `json:"mode"`
+	RunID                string                 `json:"run_id"`
+	Status               string                 `json:"status"`
+	WorkspaceRoot        string                 `json:"workspace_root"`
+	IDE                  string                 `json:"ide"`
+	Model                string                 `json:"model"`
+	ReasoningEffort      string                 `json:"reasoning_effort"`
+	Speed                kinds.Speed            `json:"speed,omitempty"`
+	SpeedResolution      *kinds.SpeedResolution `json:"speed_resolution,omitempty"`
+	AccessMode           string                 `json:"access_mode"`
+	AddDirs              []string               `json:"add_dirs,omitempty"`
+	CreatedAt            time.Time              `json:"created_at"`
+	UpdatedAt            time.Time              `json:"updated_at"`
+	TurnCount            int                    `json:"turn_count"`
+	ACPSessionID         string                 `json:"acp_session_id,omitempty"`
+	AgentSessionID       string                 `json:"agent_session_id,omitempty"`
+	LoadSessionSupported bool                   `json:"load_session_supported,omitempty"`
+	Usage                model.Usage            `json:"usage,omitempty"`
+	LastError            string                 `json:"last_error,omitempty"`
+	EventsPath           string                 `json:"events_path,omitempty"`
+	TurnsDir             string                 `json:"turns_dir,omitempty"`
 }
 
 type persistedExecTurn struct {
-	Turn           int                 `json:"turn"`
-	Status         string              `json:"status"`
-	PromptPath     string              `json:"prompt_path,omitempty"`
-	ResponsePath   string              `json:"response_path,omitempty"`
-	ResultPath     string              `json:"result_path,omitempty"`
-	StdoutLogPath  string              `json:"stdout_log_path,omitempty"`
-	StderrLogPath  string              `json:"stderr_log_path,omitempty"`
-	Usage          model.Usage         `json:"usage,omitempty"`
-	Resumed        bool                `json:"resumed,omitempty"`
-	ACPSessionID   string              `json:"acp_session_id,omitempty"`
-	AgentSessionID string              `json:"agent_session_id,omitempty"`
-	Error          string              `json:"error,omitempty"`
-	DryRun         bool                `json:"dry_run,omitempty"`
-	StartedAt      time.Time           `json:"started_at"`
-	CompletedAt    time.Time           `json:"completed_at"`
-	FinalSnapshot  SessionViewSnapshot `json:"final_snapshot,omitempty"`
+	Turn            int                    `json:"turn"`
+	Status          string                 `json:"status"`
+	PromptPath      string                 `json:"prompt_path,omitempty"`
+	ResponsePath    string                 `json:"response_path,omitempty"`
+	ResultPath      string                 `json:"result_path,omitempty"`
+	StdoutLogPath   string                 `json:"stdout_log_path,omitempty"`
+	StderrLogPath   string                 `json:"stderr_log_path,omitempty"`
+	Usage           model.Usage            `json:"usage,omitempty"`
+	Speed           kinds.Speed            `json:"speed,omitempty"`
+	SpeedResolution *kinds.SpeedResolution `json:"speed_resolution,omitempty"`
+	Resumed         bool                   `json:"resumed,omitempty"`
+	ACPSessionID    string                 `json:"acp_session_id,omitempty"`
+	AgentSessionID  string                 `json:"agent_session_id,omitempty"`
+	Error           string                 `json:"error,omitempty"`
+	DryRun          bool                   `json:"dry_run,omitempty"`
+	StartedAt       time.Time              `json:"started_at"`
+	CompletedAt     time.Time              `json:"completed_at"`
+	FinalSnapshot   SessionViewSnapshot    `json:"final_snapshot,omitempty"`
 }
 
 type execEvent struct {
-	Type    string               `json:"type"`
-	RunID   string               `json:"run_id,omitempty"`
-	Turn    int                  `json:"turn,omitempty"`
-	Time    time.Time            `json:"time"`
-	Status  string               `json:"status,omitempty"`
-	DryRun  bool                 `json:"dry_run,omitempty"`
-	Session *execEventSession    `json:"session,omitempty"`
-	Update  *model.SessionUpdate `json:"update,omitempty"`
-	Usage   model.Usage          `json:"usage,omitempty"`
-	Output  string               `json:"output,omitempty"`
-	Error   string               `json:"error,omitempty"`
+	Type            string                 `json:"type"`
+	RunID           string                 `json:"run_id,omitempty"`
+	Turn            int                    `json:"turn,omitempty"`
+	Time            time.Time              `json:"time"`
+	Status          string                 `json:"status,omitempty"`
+	DryRun          bool                   `json:"dry_run,omitempty"`
+	Speed           kinds.Speed            `json:"speed,omitempty"`
+	SpeedResolution *kinds.SpeedResolution `json:"speed_resolution,omitempty"`
+	Session         *execEventSession      `json:"session,omitempty"`
+	Update          *model.SessionUpdate   `json:"update,omitempty"`
+	Usage           model.Usage            `json:"usage,omitempty"`
+	Output          string                 `json:"output,omitempty"`
+	Error           string                 `json:"error,omitempty"`
 }
 
 type execEventSession struct {
-	ACPSessionID   string `json:"acp_session_id"`
-	AgentSessionID string `json:"agent_session_id,omitempty"`
-	Resumed        bool   `json:"resumed,omitempty"`
+	ACPSessionID    string                 `json:"acp_session_id"`
+	AgentSessionID  string                 `json:"agent_session_id,omitempty"`
+	Resumed         bool                   `json:"resumed,omitempty"`
+	SpeedResolution *kinds.SpeedResolution `json:"speed_resolution,omitempty"`
 }
 
 type execTurnPaths struct {
@@ -126,26 +133,25 @@ type execRunState struct {
 
 type execEventWriter struct {
 	mu     sync.Mutex
-	file   *os.File
 	output io.Writer
 	buffer *bufio.Writer
 	closed bool
 }
 
 type execEventEmitter struct {
-	rawWriter    *execEventWriter
 	stdoutWriter *execEventWriter
 	stdoutMode   execJSONStreamMode
 }
 
 type execExecutionResult struct {
-	status   string
-	usage    model.Usage
-	output   string
-	dryRun   bool
-	snapshot SessionViewSnapshot
-	identity agent.SessionIdentity
-	err      error
+	status          string
+	usage           model.Usage
+	output          string
+	dryRun          bool
+	snapshot        SessionViewSnapshot
+	identity        agent.SessionIdentity
+	speedResolution kinds.SpeedResolution
+	err             error
 }
 
 type execSetupErrorPayload struct {
@@ -211,7 +217,7 @@ func WriteExecJSONFailure(dst io.Writer, runID string, err error) error {
 		return nil
 	}
 	payload := execSetupErrorPayload{
-		Type:  "run.failed",
+		Type:  execEventTypeRunFailed,
 		Time:  time.Now().UTC(),
 		RunID: strings.TrimSpace(runID),
 		Error: err.Error(),
@@ -388,6 +394,9 @@ func shouldRetryExecAttempt(err error, attempt int, maxRetries int, j *job) bool
 	if j != nil && strings.TrimSpace(j.ResumeSession) != "" {
 		return false
 	}
+	if j != nil && j.SpeedResolution.Status == kinds.SpeedResolutionStatusRejected {
+		return false
+	}
 	return isExecRetryableError(err) && attempt <= maxRetries
 }
 
@@ -420,6 +429,7 @@ func runSingleExecAttempt(
 		CWD:               cwd,
 		UseUI:             useUI,
 		StreamHumanOutput: false,
+		HumanStatus:       humanStatusWriter(cfg, useUI, state != nil && state.emitText),
 		Index:             0,
 		RunJournal:        stateJournal(state),
 		AggregateUsage:    nil,
@@ -430,7 +440,11 @@ func runSingleExecAttempt(
 		TrackClient:       nil,
 	})
 	if err != nil {
-		return execExecutionResult{status: runStatusFailed, err: err}
+		return execExecutionResult{
+			status:          runStatusFailed,
+			speedResolution: j.SpeedResolution,
+			err:             err,
+		}
 	}
 	if timeout > 0 {
 		activity.RecordActivity()
@@ -443,8 +457,12 @@ func runSingleExecAttempt(
 
 	identity := execution.Session.Identity()
 	if state != nil {
-		if emitErr := state.emitSessionAttached(identity); emitErr != nil {
-			return execExecutionResult{status: runStatusFailed, err: emitErr}
+		if emitErr := state.emitSessionAttached(identity, execution.SpeedResolution); emitErr != nil {
+			return execExecutionResult{
+				status:          runStatusFailed,
+				speedResolution: execution.SpeedResolution,
+				err:             emitErr,
+			}
 		}
 	}
 	streamErrCh := streamExecSession(execution, state)
@@ -499,11 +517,12 @@ func completeFinishedExecAttempt(
 		return failExecAttempt(execution, completionErr)
 	}
 	return execExecutionResult{
-		status:   runStatusSucceeded,
-		usage:    j.Usage,
-		output:   renderAssistantOutput(snapshot),
-		snapshot: snapshot,
-		identity: execution.Session.Identity(),
+		status:          runStatusSucceeded,
+		usage:           j.Usage,
+		output:          renderAssistantOutput(snapshot),
+		snapshot:        snapshot,
+		identity:        execution.Session.Identity(),
+		speedResolution: execution.SpeedResolution,
 	}
 }
 
@@ -518,10 +537,11 @@ func failExecAttempt(execution *sessionExecution, err error) execExecutionResult
 		err = errors.Join(err, completionErr)
 	}
 	return execExecutionResult{
-		status:   runStatusFailed,
-		snapshot: execution.Handler.Snapshot(),
-		identity: execution.Session.Identity(),
-		err:      err,
+		status:          runStatusFailed,
+		snapshot:        execution.Handler.Snapshot(),
+		identity:        execution.Session.Identity(),
+		speedResolution: execution.SpeedResolution,
+		err:             err,
 	}
 }
 
@@ -621,7 +641,7 @@ func prepareEphemeralExecRunState(
 	}
 	state.cleanupDir = tempDir
 	state.runArtifacts = model.NewRunArtifacts(tempDir, runID)
-	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg), execStdoutWriter(cfg))
+	state.events = newExecEventEmitter(execJSONStdoutMode(cfg), execStdoutWriter(cfg))
 	return state, nil
 }
 
@@ -645,7 +665,7 @@ func preparePersistentExecRunState(
 	}
 	state.journal = runJournal
 	state.ownsJournal = true
-	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg), execStdoutWriter(cfg))
+	state.events = newExecEventEmitter(execJSONStdoutMode(cfg), execStdoutWriter(cfg))
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, runID, resolvedModel)
 	}
@@ -668,7 +688,7 @@ func prepareScopedExecRunState(
 	state.runArtifacts = scope.RunArtifacts()
 	state.journal = scope.RunJournal()
 	state.runtimeManager = scope.RunManager()
-	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg), execStdoutWriter(cfg))
+	state.events = newExecEventEmitter(execJSONStdoutMode(cfg), execStdoutWriter(cfg))
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, state.runArtifacts.RunID, resolvedModel)
 	}
@@ -760,7 +780,7 @@ func (s *execRunState) writeStarted(cfg *model.RuntimeConfig) error {
 			Model:           s.record.Model,
 			ReasoningEffort: cfg.ReasoningEffort,
 			AccessMode:      cfg.AccessMode,
-			Speed:           cfg.Speed,
+			Speed:           s.record.Speed,
 			ArtifactsDir:    s.runArtifacts.RunDir,
 			JobsTotal:       1,
 		},
@@ -775,6 +795,7 @@ func (s *execRunState) writeStarted(cfg *model.RuntimeConfig) error {
 		Time:   time.Now().UTC(),
 		Status: "running",
 		DryRun: cfg.DryRun,
+		Speed:  s.record.Speed,
 	})
 }
 
@@ -821,22 +842,24 @@ func (s *execRunState) completeTurn(result execExecutionResult) error {
 
 func (s *execRunState) buildTurnRecord(result execExecutionResult, completedAt time.Time) persistedExecTurn {
 	record := persistedExecTurn{
-		Turn:           s.turn,
-		Status:         result.status,
-		PromptPath:     s.turnPaths.promptPath,
-		ResponsePath:   s.turnPaths.responsePath,
-		ResultPath:     s.turnPaths.resultPath,
-		StdoutLogPath:  s.turnPaths.stdoutLog,
-		StderrLogPath:  s.turnPaths.stderrLog,
-		Usage:          result.usage,
-		Resumed:        result.identity.Resumed,
-		ACPSessionID:   result.identity.ACPSessionID,
-		AgentSessionID: result.identity.AgentSessionID,
-		Error:          errorString(result.err),
-		DryRun:         result.dryRun,
-		StartedAt:      s.record.UpdatedAt,
-		CompletedAt:    completedAt,
-		FinalSnapshot:  result.snapshot,
+		Turn:            s.turn,
+		Status:          result.status,
+		PromptPath:      s.turnPaths.promptPath,
+		ResponsePath:    s.turnPaths.responsePath,
+		ResultPath:      s.turnPaths.resultPath,
+		StdoutLogPath:   s.turnPaths.stdoutLog,
+		StderrLogPath:   s.turnPaths.stderrLog,
+		Usage:           result.usage,
+		Speed:           s.record.Speed,
+		SpeedResolution: optionalExecSpeedResolution(result.speedResolution),
+		Resumed:         result.identity.Resumed,
+		ACPSessionID:    result.identity.ACPSessionID,
+		AgentSessionID:  result.identity.AgentSessionID,
+		Error:           errorString(result.err),
+		DryRun:          result.dryRun,
+		StartedAt:       s.record.UpdatedAt,
+		CompletedAt:     completedAt,
+		FinalSnapshot:   result.snapshot,
 	}
 	return record
 }
@@ -870,6 +893,7 @@ func (s *execRunState) applyTurnResult(result execExecutionResult, completedAt t
 	}
 	s.record.Usage.Add(result.usage)
 	s.record.LastError = errorString(result.err)
+	s.record.SpeedResolution = optionalExecSpeedResolution(result.speedResolution)
 }
 
 func (s *execRunState) refreshRuntimeConfig(cfg *model.RuntimeConfig) {
@@ -936,14 +960,16 @@ func (s *execRunState) emitTurnResult(result execExecutionResult, startedAt time
 		}
 	}
 	return s.emit(execEvent{
-		Type:   "run." + result.status,
-		RunID:  s.runArtifacts.RunID,
-		Turn:   s.turn,
-		Time:   completedAt,
-		Status: result.status,
-		Usage:  result.usage,
-		Output: result.output,
-		Error:  errorString(result.err),
+		Type:            "run." + result.status,
+		RunID:           s.runArtifacts.RunID,
+		Turn:            s.turn,
+		Time:            completedAt,
+		Status:          result.status,
+		Usage:           result.usage,
+		Speed:           s.record.Speed,
+		SpeedResolution: optionalExecSpeedResolution(result.speedResolution),
+		Output:          result.output,
+		Error:           errorString(result.err),
 	})
 }
 
@@ -957,7 +983,10 @@ func (s *execRunState) writeTextOutput(result execExecutionResult) error {
 	return nil
 }
 
-func (s *execRunState) emitSessionAttached(identity agent.SessionIdentity) error {
+func (s *execRunState) emitSessionAttached(
+	identity agent.SessionIdentity,
+	speedResolution kinds.SpeedResolution,
+) error {
 	if s == nil {
 		return nil
 	}
@@ -965,6 +994,7 @@ func (s *execRunState) emitSessionAttached(identity agent.SessionIdentity) error
 	if strings.TrimSpace(identity.AgentSessionID) != "" {
 		s.record.AgentSessionID = identity.AgentSessionID
 	}
+	s.record.SpeedResolution = optionalExecSpeedResolution(speedResolution)
 	if s.turnPaths.promptPath != "" {
 		if err := s.writeRecord(); err != nil {
 			return err
@@ -976,11 +1006,20 @@ func (s *execRunState) emitSessionAttached(identity agent.SessionIdentity) error
 		Turn:  s.turn,
 		Time:  time.Now().UTC(),
 		Session: &execEventSession{
-			ACPSessionID:   identity.ACPSessionID,
-			AgentSessionID: identity.AgentSessionID,
-			Resumed:        identity.Resumed,
+			ACPSessionID:    identity.ACPSessionID,
+			AgentSessionID:  identity.AgentSessionID,
+			Resumed:         identity.Resumed,
+			SpeedResolution: optionalExecSpeedResolution(speedResolution),
 		},
 	})
+}
+
+func optionalExecSpeedResolution(resolution kinds.SpeedResolution) *kinds.SpeedResolution {
+	if resolution == (kinds.SpeedResolution{}) {
+		return nil
+	}
+	copied := resolution
+	return &copied
 }
 
 func (s *execRunState) emitSessionUpdate(update model.SessionUpdate) error {
@@ -1071,11 +1110,6 @@ func (w *execEventWriter) Write(event execEvent) error {
 		return fmt.Errorf("marshal exec event: %w", err)
 	}
 	payload = append(payload, '\n')
-	if w.file != nil {
-		if _, err := w.file.Write(payload); err != nil {
-			return fmt.Errorf("write exec events file: %w", err)
-		}
-	}
 	if w.output != nil {
 		output := w.output
 		if w.buffer != nil {
@@ -1100,28 +1134,21 @@ func (w *execEventWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.closed = true
-	var err error
 	if w.buffer != nil {
-		err = w.buffer.Flush()
+		return w.buffer.Flush()
 	}
-	if w.file != nil {
-		return errors.Join(err, w.file.Close())
-	}
-	return err
+	return nil
 }
 
-func newExecEventEmitter(eventFile *os.File, stdoutMode execJSONStreamMode, stdout io.Writer) *execEventEmitter {
+func newExecEventEmitter(stdoutMode execJSONStreamMode, stdout io.Writer) *execEventEmitter {
 	emitter := &execEventEmitter{stdoutMode: stdoutMode}
-	if eventFile != nil {
-		emitter.rawWriter = &execEventWriter{file: eventFile}
-	}
 	if stdoutMode != execJSONStreamDisabled && stdout != nil {
 		emitter.stdoutWriter = &execEventWriter{
 			output: stdout,
 			buffer: bufio.NewWriterSize(stdout, execEventBufferSize),
 		}
 	}
-	if emitter.rawWriter == nil && emitter.stdoutWriter == nil {
+	if emitter.stdoutWriter == nil {
 		return nil
 	}
 	return emitter
@@ -1130,11 +1157,6 @@ func newExecEventEmitter(eventFile *os.File, stdoutMode execJSONStreamMode, stdo
 func (e *execEventEmitter) Write(event execEvent) error {
 	if e == nil {
 		return nil
-	}
-	if e.rawWriter != nil {
-		if err := e.rawWriter.Write(event); err != nil {
-			return err
-		}
 	}
 	if e.stdoutWriter == nil || !shouldEmitExecStdoutEvent(e.stdoutMode, event) {
 		return nil
@@ -1146,14 +1168,10 @@ func (e *execEventEmitter) Close() error {
 	if e == nil {
 		return nil
 	}
-	var err error
-	if e.rawWriter != nil {
-		err = errors.Join(err, e.rawWriter.Close())
-	}
 	if e.stdoutWriter != nil {
-		err = errors.Join(err, e.stdoutWriter.Close())
+		return e.stdoutWriter.Close()
 	}
-	return err
+	return nil
 }
 
 func execJSONStdoutMode(cfg *model.RuntimeConfig) execJSONStreamMode {
@@ -1195,7 +1213,7 @@ func shouldEmitExecStdoutEvent(mode execJSONStreamMode, event execEvent) bool {
 
 func shouldEmitLeanExecEvent(event execEvent) bool {
 	switch event.Type {
-	case "run.started", "session.attached", "run.succeeded", "run.failed":
+	case "run.started", "session.attached", "run.succeeded", execEventTypeRunFailed:
 		return true
 	case "session.update":
 		return shouldEmitLeanSessionUpdate(event.Update)

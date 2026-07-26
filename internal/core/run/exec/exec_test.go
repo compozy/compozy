@@ -90,6 +90,162 @@ func TestPersistedExecRunOmitsRuntimeOnlyRecoveryAttempt(t *testing.T) {
 	})
 }
 
+func TestExecRunStatePersistsCanonicalSpeedOutcomes(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		resolution kinds.SpeedResolution
+		status     string
+		resultErr  error
+	}{
+		{
+			name: "applied",
+			resolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			status: runStatusSucceeded,
+		},
+		{
+			name: "unsupported",
+			resolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+			status: runStatusSucceeded,
+		},
+		{
+			name: "rejected",
+			resolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusRejected,
+				Reason:    kinds.SpeedResolutionReasonProviderRejected,
+			},
+			status:    runStatusFailed,
+			resultErr: errors.New("speed rejected"),
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			runArtifacts := model.NewRunArtifacts(root, "exec-speed-"+tc.name)
+			if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
+				t.Fatalf("mkdir run dir: %v", err)
+			}
+			turnDir := filepath.Join(runArtifacts.TurnsDir, "0001")
+			if err := os.MkdirAll(turnDir, 0o755); err != nil {
+				t.Fatalf("mkdir turn dir: %v", err)
+			}
+
+			state := &execRunState{
+				record: PersistedExecRun{
+					Version:   execRunSchemaVersion,
+					Mode:      model.ModeExec,
+					RunID:     runArtifacts.RunID,
+					Speed:     kinds.SpeedFast,
+					UpdatedAt: time.Now().UTC(),
+				},
+				runArtifacts: runArtifacts,
+				turn:         1,
+				turnPaths: execTurnPaths{
+					promptPath: filepath.Join(turnDir, "prompt.md"),
+					resultPath: filepath.Join(turnDir, "result.json"),
+				},
+			}
+			result := execExecutionResult{
+				status:          tc.status,
+				speedResolution: tc.resolution,
+				err:             tc.resultErr,
+			}
+			err := state.completeTurn(result)
+			if tc.resultErr == nil && err != nil {
+				t.Fatalf("complete turn: %v", err)
+			}
+			if tc.resultErr != nil && !errors.Is(err, tc.resultErr) {
+				t.Fatalf("complete turn error = %v, want %v", err, tc.resultErr)
+			}
+
+			var turn persistedExecTurn
+			payload, readErr := os.ReadFile(state.turnPaths.resultPath)
+			if readErr != nil {
+				t.Fatalf("read turn result: %v", readErr)
+			}
+			if unmarshalErr := json.Unmarshal(payload, &turn); unmarshalErr != nil {
+				t.Fatalf("decode turn result: %v", unmarshalErr)
+			}
+			if turn.Speed != kinds.SpeedFast {
+				t.Fatalf("turn speed = %q, want %q", turn.Speed, kinds.SpeedFast)
+			}
+			if turn.SpeedResolution == nil || *turn.SpeedResolution != tc.resolution {
+				t.Fatalf("turn resolution = %#v, want %#v", turn.SpeedResolution, tc.resolution)
+			}
+
+			runPayload, readErr := os.ReadFile(runArtifacts.RunMetaPath)
+			if readErr != nil {
+				t.Fatalf("read run record: %v", readErr)
+			}
+			var runRecord PersistedExecRun
+			if unmarshalErr := json.Unmarshal(runPayload, &runRecord); unmarshalErr != nil {
+				t.Fatalf("decode run record: %v", unmarshalErr)
+			}
+			if runRecord.Speed != kinds.SpeedFast {
+				t.Fatalf("run speed = %q, want %q", runRecord.Speed, kinds.SpeedFast)
+			}
+			if runRecord.SpeedResolution == nil || *runRecord.SpeedResolution != tc.resolution {
+				t.Fatalf("run resolution = %#v, want %#v", runRecord.SpeedResolution, tc.resolution)
+			}
+		})
+	}
+}
+
+func TestExecRunStateEmitsCanceledSpeedOutcome(t *testing.T) {
+	t.Parallel()
+
+	var output bytes.Buffer
+	resolution := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+	state := &execRunState{
+		record: PersistedExecRun{Speed: kinds.SpeedFast},
+		runArtifacts: model.RunArtifacts{
+			RunID: "exec-canceled",
+		},
+		turn:   1,
+		events: newExecEventEmitter(execJSONStreamRaw, &output),
+	}
+	startedAt := time.Now().UTC().Add(-time.Second)
+	completedAt := time.Now().UTC()
+	if err := state.emitTurnResult(execExecutionResult{
+		status:          runStatusCanceled,
+		speedResolution: resolution,
+		err:             context.Canceled,
+	}, startedAt, completedAt); err != nil {
+		t.Fatalf("emit canceled turn: %v", err)
+	}
+	if err := state.events.Close(); err != nil {
+		t.Fatalf("close event emitter: %v", err)
+	}
+
+	var event execEvent
+	if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &event); err != nil {
+		t.Fatalf("decode canceled event: %v", err)
+	}
+	if event.Type != "run.canceled" || event.Speed != kinds.SpeedFast {
+		t.Fatalf("unexpected canceled event: %#v", event)
+	}
+	if event.SpeedResolution == nil || *event.SpeedResolution != resolution {
+		t.Fatalf("canceled event resolution = %#v, want %#v", event.SpeedResolution, resolution)
+	}
+}
+
 func TestExecutePreparedPromptReturnsEnsureAvailableError(t *testing.T) {
 	t.Parallel()
 
@@ -463,7 +619,14 @@ func TestExecRunStateCompleteDryRunWritesArtifacts(t *testing.T) {
 	}
 
 	state := &execRunState{
-		record:       PersistedExecRun{UpdatedAt: time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC)},
+		record: PersistedExecRun{
+			Speed: kinds.SpeedFast,
+			SpeedResolution: &kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			UpdatedAt: time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC),
+		},
 		runArtifacts: runArtifacts,
 		turn:         1,
 		turnPaths: execTurnPaths{
@@ -503,6 +666,18 @@ func TestExecRunStateCompleteDryRunWritesArtifacts(t *testing.T) {
 	}
 	if !turn.DryRun || turn.Status != runStatusSucceeded {
 		t.Fatalf("unexpected dry-run turn result: %#v", turn)
+	}
+	if turn.Speed != kinds.SpeedFast {
+		t.Fatalf("dry-run requested speed = %q, want fast", turn.Speed)
+	}
+	if turn.SpeedResolution != nil {
+		t.Fatalf("dry-run turn resolution = %#v, want omitted", turn.SpeedResolution)
+	}
+	if state.record.SpeedResolution != nil {
+		t.Fatalf("dry-run latest run resolution = %#v, want omitted", state.record.SpeedResolution)
+	}
+	if strings.Contains(string(resultBytes), "speed_resolution") {
+		t.Fatalf("dry-run result should omit speed resolution: %s", string(resultBytes))
 	}
 }
 
@@ -579,6 +754,15 @@ func TestShouldRetryExecAttemptSkipsResumedSessions(t *testing.T) {
 	if shouldRetryExecAttempt(retryableErr, 1, 2, &job{ResumeSession: "sess-existing"}) {
 		t.Fatal("expected resumed exec attempt to skip retries")
 	}
+	if shouldRetryExecAttempt(retryableErr, 1, 2, &job{
+		SpeedResolution: kinds.SpeedResolution{
+			Requested: kinds.SpeedFast,
+			Status:    kinds.SpeedResolutionStatusRejected,
+			Reason:    kinds.SpeedResolutionReasonProviderRejected,
+		},
+	}) {
+		t.Fatal("expected rejected speed setup to skip retries")
+	}
 }
 
 func TestLoadPersistedExecRunDefaultsPathsAndResumeValidation(t *testing.T) {
@@ -624,6 +808,17 @@ func TestLoadPersistedExecRunDefaultsPathsAndResumeValidation(t *testing.T) {
 	}
 	if loaded.Speed != kinds.SpeedNormal {
 		t.Fatalf("legacy persisted speed = %q, want %q", loaded.Speed, kinds.SpeedNormal)
+	}
+	if loaded.SpeedResolution != nil {
+		t.Fatalf("legacy persisted resolution = %#v, want omitted", loaded.SpeedResolution)
+	}
+
+	var legacyTurn persistedExecTurn
+	if err := json.Unmarshal([]byte(`{"turn":1,"status":"succeeded"}`), &legacyTurn); err != nil {
+		t.Fatalf("decode legacy turn result: %v", err)
+	}
+	if legacyTurn.Speed != "" || legacyTurn.SpeedResolution != nil {
+		t.Fatalf("legacy turn speed fields = %q / %#v, want omitted", legacyTurn.Speed, legacyTurn.SpeedResolution)
 	}
 
 	err = validateExecResumeCompatibility(&model.RuntimeConfig{
