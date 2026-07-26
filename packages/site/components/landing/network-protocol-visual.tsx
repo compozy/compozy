@@ -25,7 +25,7 @@ const STEPS: Step[] = [
     to: "NET",
     kind: "greet",
     direction: "->",
-    payload: `{ peer_card: { peer_id: "coder.session-a", profiles_supported: ["agh-network/v0"], capabilities: ["code","review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } }`,
+    payload: `{ peer_card: { peer_id: "coder.session-a", profiles_supported: ["compozy-network/v0"], capabilities: ["code","review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } }`,
     hint: "A Live coder announces itself inside the current daemon.",
   },
   {
@@ -33,7 +33,7 @@ const STEPS: Step[] = [
     to: "A",
     kind: "greet",
     direction: "<-",
-    payload: `{ peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["agh-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } }`,
+    payload: `{ peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["compozy-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } }`,
     hint: "A Live reviewer advertises its peer card; the daemon routes the committed greet to local members.",
   },
   {
@@ -49,7 +49,7 @@ const STEPS: Step[] = [
     to: "A",
     kind: "whois",
     direction: "<-",
-    payload: `{ reply_to: "msg_whois_001", body: { type: "response", peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["agh-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } } }`,
+    payload: `{ reply_to: "msg_whois_001", body: { type: "response", peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["compozy-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } } }`,
     hint: "The matched Live reviewer owns the response; the daemon commits and routes it in process.",
   },
   {
@@ -122,7 +122,7 @@ function directionGlyph(d: Direction, from: Lane, to: Lane) {
 
 export function NetworkProtocolVisual({ className }: { className?: string }) {
   return (
-    <AnimatedDiagram className={className} ariaLabel="agh-network/v0 protocol walkthrough">
+    <AnimatedDiagram className={className} ariaLabel="compozy-network/v0 protocol walkthrough">
       {({ active, reducedMotion }) => <Inner active={active} reducedMotion={reducedMotion} />}
     </AnimatedDiagram>
   );
@@ -174,13 +174,13 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       tabIndex={0}
       role="group"
       aria-roledescription="protocol walkthrough"
-      aria-label="agh-network/v0 seven-step in-process collaboration sequence"
+      aria-label="compozy-network/v0 seven-step in-process collaboration sequence"
       className="min-w-0 max-w-full overflow-hidden rounded-diagram border border-line bg-rail outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {/* Header , lane labels */}
       <div className="grid grid-cols-3 gap-2 border-b border-line bg-canvas-soft p-3 sm:gap-4 sm:px-4 md:px-6">
         <LaneHeader title="Session A" subtitle="coder · Live" />
-        <LaneHeader title="AGH daemon" subtitle="agh-network/v0 · in-process" accent />
+        <LaneHeader title="AGH daemon" subtitle="compozy-network/v0 · in-process" accent />
         <LaneHeader title="Session B" subtitle="reviewer · Live" />
       </div>
 

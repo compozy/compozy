@@ -3968,7 +3968,7 @@ func testWatchLoopSpec(t *testing.T, name string) looppkg.ResourceSpec {
 }
 
 func testWatchLoopYAML(name string) string {
-	return `apiVersion: agh.loop/v1
+	return `apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: ` + name + `

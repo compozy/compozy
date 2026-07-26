@@ -846,7 +846,7 @@ steps:
 expected:
   - Every key found at least once across the unified evidence corpus.
   - Schema marker present in every event content.
-  - Raw `agh_claim_*` token never appears anywhere (per the security invariant).
+  - Raw `compozy_claim_*` token never appears anywhere (per the security invariant).
 evidence:
   - `api-17-coverage.json` (per-key locations), `api-17-keys-missing.txt` (must be empty)
 failure_signatures:
@@ -962,7 +962,7 @@ cleanup: `agh session stop $S`; kill any leftover background CLI processes.
   `PROVIDER_CODEX_HOME`.
 - **Golden snapshots** (API-13): seeded under `internal/cli/testdata/golden/` on first run; updated only via explicit opt-in flag `AGH_GOLDEN_UPDATE=1` (similar to vitest snapshot policy).
 - **Boundaries violation fixture** (API-15): planted file `internal/session/boundaries_qa_violation.go` with `//go:build qa_boundary_violation` tag; removed at scenario cleanup.
-- **Forbidden-needle list** (covered by ACP-18 in `03-acp-sessions.md`): `["agh_claim_FAKE_QA_", "agh_claim_TESTONLY_"]` swept across SSE, events.db dumps, daemon log, web SSE, transcripts.
+- **Forbidden-needle list** (covered by ACP-18 in `03-acp-sessions.md`): `["compozy_claim_FAKE_QA_", "compozy_claim_TESTONLY_"]` swept across SSE, events.db dumps, daemon log, web SSE, transcripts.
 - **goleak build tag** for the in-process integration runner: `//go:build goleak_check`.
 
 ## Citations

@@ -37,7 +37,7 @@ const openWorkId = "browser_work_needs_input_17";
 const openWorkRequestMessageId = "browser_msg_needs_input_request_01";
 const openWorkMessageId = "browser_msg_needs_input_01";
 const sensitivePattern =
-  /agh_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|proof["':\s]|signature["':\s]/i;
+  /compozy_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|proof["':\s]|signature["':\s]/i;
 
 test.use({
   runtimeOptions: {

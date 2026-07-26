@@ -1,10 +1,10 @@
 ---
 title: Implementation Status
-description: What AGH Runtime implements today for agh-network/v0 and which pages describe optional future trust behavior.
+description: What AGH Runtime implements today for compozy-network/v0 and which pages describe optional future trust behavior.
 icon: Activity
 ---
 
-The current AGH Runtime implements `agh-network/v0` conversations for explicitly Live executions in
+The current AGH Runtime implements `compozy-network/v0` conversations for explicitly Live executions in
 one daemon. It stores accepted messages in SQLite and notifies admitted recipients in process.
 
 <OperatorNote label="Trust boundary">
@@ -16,7 +16,7 @@ one daemon. It stores accepted messages in SQLite and notifies admitted recipien
 
 | Area               | Current AGH Runtime                                                                            |
 | ------------------ | ---------------------------------------------------------------------------------------------- |
-| Protocol           | `agh-network/v0` envelope and six message kinds.                                               |
+| Protocol           | `compozy-network/v0` envelope and six message kinds.                                           |
 | Participation      | Local default; explicit bounded Live snapshot per execution.                                   |
 | Conversation       | Public threads, restricted direct rooms, `work_id`, receipts, traces, and capability transfer. |
 | Runtime delivery   | Atomic durable acceptance, admitted `network_wake` task runs, post-commit in-process notify.   |

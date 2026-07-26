@@ -45,7 +45,7 @@ func decodeCapabilityBriefSummaries(ext network.ExtensionMap) map[string]string 
 		return nil
 	}
 
-	raw, ok := ext[apiCapabilityBriefExtKey]
+	raw, ok := ext[network.ExtensionKeyCapabilitiesBrief]
 	if !ok || len(raw) == 0 {
 		return nil
 	}
@@ -99,8 +99,8 @@ func clonePeerCardExtWithoutCapabilityDiscovery(
 		return nil
 	}
 
-	delete(cloned, apiCapabilityBriefExtKey)
-	delete(cloned, apiCapabilityCatalogExtKey)
+	delete(cloned, network.ExtensionKeyCapabilitiesBrief)
+	delete(cloned, network.ExtensionKeyCapabilityCatalog)
 	if len(cloned) == 0 {
 		return nil
 	}

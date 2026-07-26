@@ -15,10 +15,10 @@ contract _changed_, but no public user existed on the previous shape.
 
 In the follow-up commit `6fb41e8d docs: add workspace-qualified network v2 RFC`, the agent
 interpreted the wire change as a major protocol version bump and authored
-`docs/rfcs/006_agh-network-v2.md` plus rebranded code, docs, copy, blog post, landing page, slides,
-and tests to `agh-network/v2`. The mistake was caught immediately. Commit `de247cc4 fix: keep
+`docs/rfcs/006_compozy-network-v2.md` plus rebranded code, docs, copy, blog post, landing page, slides,
+and tests to `compozy-network/v2`. The mistake was caught immediately. Commit `de247cc4 fix: keep
 network protocol at v0` reverted the version identifier across 92 files, deleted RFC 006, and
-restored `agh-network/v0` as the current contract — while keeping the workspace-isolation hard cut
+restored `compozy-network/v0` as the current contract — while keeping the workspace-isolation hard cut
 intact. RFC 004 remained the future `v1` auth/proofs/trust profile.
 
 A four-surface audit (RFCs, Go implementation, docs site, institutional memory) on
@@ -68,7 +68,7 @@ _invent a new one_.
   introduces a real interop boundary (auth, proofs, trust profiles, new required fields, removed
   kinds). They are RFCs, not runtime claims.
 - Truth tests should encode the rule: the hard-cut test suite asserts both
-  "current runtime contract uses `agh-network/v0`" and a regex blacklist for forbidden alternative
+  "current runtime contract uses `compozy-network/v0`" and a regex blacklist for forbidden alternative
   version strings, so a future agent cannot silently rebrand.
 
 ## Anti-pattern
@@ -87,16 +87,16 @@ _invent a new one_.
 - Commit `6fb41e8d docs: add workspace-qualified network v2 RFC` — the erroneous v2 bump (later
   reverted).
 - Commit `de247cc4 fix: keep network protocol at v0` — the 92-file walk-back that restored v0 and
-  deleted `docs/rfcs/006_agh-network-v2.md`.
+  deleted `docs/rfcs/006_compozy-network-v2.md`.
 - `.codex/ledger/2026-05-12-MEMORY-workspace-isolation-hard-cut.md` lines 27, 30–31, 143–151 —
   the canonical forensic record of the version-bump mistake and correction.
-- `docs/rfcs/003_agh-network-v0.md` — the current contract carrying the workspace-qualified hard
+- `docs/rfcs/003_compozy-network-v0.md` — the current contract carrying the workspace-qualified hard
   cut.
-- `docs/rfcs/004_agh-network-v1.md` — future auth/proofs/trust profile, depends on v0; the slot
+- `docs/rfcs/004_compozy-network-v1.md` — future auth/proofs/trust profile, depends on v0; the slot
   the erroneous v2 was poaching.
 - `internal/network/envelope.go` (`ProtocolV0`) — the single-source-of-truth protocol constant; delivery
   is commit-first and in-process under ADR-010.
 - `packages/site/lib/__tests__/protocol-rfc-hard-cut.test.ts` — the truth test that now asserts
-  `agh-network/v0` is current and forbids `agh-network/v2` / `ProtocolV2` / `006_agh-network-v2`.
+  `compozy-network/v0` is current and forbids `compozy-network/v2` / `ProtocolV2` / `006_compozy-network-v2`.
 - [L-006](L-006-greenfield-delete-not-adapt.md) — the broader posture this lesson specializes to
   protocol versioning.

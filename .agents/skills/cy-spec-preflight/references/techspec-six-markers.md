@@ -30,7 +30,7 @@ type TaskClaimer interface {
 Any new SQLite columns, frontmatter fields, or config keys are listed with purpose and shape.
 
 ```
-task_runs.claim_token      TEXT NOT NULL DEFAULT ''  -- opaque ownership token (agh_claim_*)
+task_runs.claim_token      TEXT NOT NULL DEFAULT ''  -- opaque ownership token (compozy_claim_*)
 task_runs.lease_until       TIMESTAMP NOT NULL DEFAULT 0  -- lease deadline; 0 = unleased
 task_runs.coordination_channel_id TEXT  -- workspace-scoped run only; null otherwise
 ```

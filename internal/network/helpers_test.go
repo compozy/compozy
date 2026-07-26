@@ -117,7 +117,7 @@ func TestResolveGreetSummaryUsesDeterministicFallbacks(t *testing.T) {
 			name: "use display name and rich capability brief",
 			card: PeerCard{
 				PeerID: "reviewer.sess-a", DisplayName: &displayName,
-				Ext: ExtensionMap{capabilityBriefExtKey: mustRawJSON(t, []capabilityBrief{
+				Ext: ExtensionMap{ExtensionKeyCapabilitiesBrief: mustRawJSON(t, []capabilityBrief{
 					{ID: "review-pr", Summary: "Review pull requests"},
 					{ID: "draft-spec", Summary: "Draft specifications"},
 				})},
@@ -128,7 +128,7 @@ func TestResolveGreetSummaryUsesDeterministicFallbacks(t *testing.T) {
 			name: "fall back from an empty brief summary to its id",
 			card: PeerCard{
 				PeerID: "reviewer.sess-a",
-				Ext: ExtensionMap{capabilityBriefExtKey: mustRawJSON(t, []capabilityBrief{{
+				Ext: ExtensionMap{ExtensionKeyCapabilitiesBrief: mustRawJSON(t, []capabilityBrief{{
 					ID: "review-pr",
 				}})},
 			},
@@ -138,7 +138,7 @@ func TestResolveGreetSummaryUsesDeterministicFallbacks(t *testing.T) {
 			name: "ignore malformed briefs and use declared capabilities",
 			card: PeerCard{
 				PeerID: "reviewer.sess-a", Capabilities: []string{"", "review-pr", "draft-spec"},
-				Ext: ExtensionMap{capabilityBriefExtKey: json.RawMessage(`{`)},
+				Ext: ExtensionMap{ExtensionKeyCapabilitiesBrief: json.RawMessage(`{`)},
 			},
 			want: "reviewer.sess-a ready for review-pr +1 more",
 		},
@@ -338,7 +338,7 @@ func TestAdditionalBodyValidationBranches(t *testing.T) {
 		"type": "request",
 		"peer_card": map[string]any{
 			"peer_id":               "reviewer.sess-xyz",
-			"profiles_supported":    []string{"agh-network/v0"},
+			"profiles_supported":    []string{"compozy-network/v0"},
 			"capabilities":          []string{"chat.review"},
 			"artifacts_supported":   []string{"capability"},
 			"trust_modes_supported": []string{"unverified"},
@@ -502,7 +502,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Body: mustRawJSON(t, map[string]any{
 			"peer_card": map[string]any{
 				"peer_id":               "reviewer.sess-xyz",
-				"profiles_supported":    []string{"agh-network/v0"},
+				"profiles_supported":    []string{"compozy-network/v0"},
 				"capabilities":          []string{"workspace.patch.apply"},
 				"artifacts_supported":   []string{"capability"},
 				"trust_modes_supported": []string{"unverified"},

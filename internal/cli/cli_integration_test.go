@@ -835,7 +835,7 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 			return ""
 		}
 	}
-	const channelRawToken = "agh_claim_CLI_CHANNEL_INTEGRATION_123"
+	const channelRawToken = "compozy_claim_CLI_CHANNEL_INTEGRATION_123"
 	stdout, stderr, err := executeRootCommand(
 		t,
 		agentDeps,
@@ -873,7 +873,7 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		"--surface", "thread",
 		"--thread", "thread_claim_rejected",
 		"--kind", "say",
-		"--body", `{"claim_token":"agh_claim_cli"}`,
+		"--body", `{"claim_token":"compozy_claim_cli"}`,
 		"-o", "json",
 	); err == nil || !strings.Contains(err.Error(), "network_raw_token_rejected") {
 		t.Fatalf("network send raw claim-token error = %v, want network_raw_token_rejected", err)
@@ -890,7 +890,7 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		"--thread", "thread_cli_queued",
 		"--kind", "say",
 		"--body", `{"text":"queued hello"}`,
-		"--ext", `{"agh.workflow_id":"wf-1","agh.handoff_version":3}`,
+		"--ext", `{"compozy.workflow_id":"wf-1","compozy.handoff_version":3}`,
 		"--mention", receiverPeerID,
 		"-o", "json",
 	)
@@ -901,7 +901,7 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(sendOut), &sent); err != nil {
 		t.Fatalf("json.Unmarshal(network send) error = %v", err)
 	}
-	if sent.ID == "" || string(sent.Ext["agh.workflow_id"]) != `"wf-1"` {
+	if sent.ID == "" || string(sent.Ext["compozy.workflow_id"]) != `"wf-1"` {
 		t.Fatalf("sent = %#v, want message id and ext metadata", sent)
 	}
 	if sent.Surface != "thread" || sent.ThreadID != "thread_cli_queued" {
@@ -1005,7 +1005,7 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	if len(inbox) == 0 {
 		t.Fatal("network inbox = empty, want queued message while prompt is blocked")
 	}
-	if string(inbox[0].Ext["agh.workflow_id"]) != `"wf-1"` || string(inbox[0].Ext["agh.handoff_version"]) != `3` {
+	if string(inbox[0].Ext["compozy.workflow_id"]) != `"wf-1"` || string(inbox[0].Ext["compozy.handoff_version"]) != `3` {
 		t.Fatalf("network inbox = %#v, want workflow metadata", inbox)
 	}
 
@@ -2535,7 +2535,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			next.Claim.CoordinationChannel != nil {
 			t.Fatalf("next = %#v, want claimed local run with lease hash and no channel", next)
 		}
-		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
+		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "compozy_claim_") {
 			t.Fatal("task next output exposed raw claim token")
 		}
 	})
@@ -2552,7 +2552,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"-o",
 			"json",
 		)
-		if strings.Contains(heartbeatOut, `"claim_token"`) || strings.Contains(heartbeatOut, "agh_claim_") {
+		if strings.Contains(heartbeatOut, `"claim_token"`) || strings.Contains(heartbeatOut, "compozy_claim_") {
 			t.Fatal("heartbeat output exposed raw claim token")
 		}
 		var heartbeat AgentTaskLeaseRecord
@@ -2577,7 +2577,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"-o",
 			"json",
 		)
-		if strings.Contains(completeOut, `"claim_token"`) || strings.Contains(completeOut, "agh_claim_") {
+		if strings.Contains(completeOut, `"claim_token"`) || strings.Contains(completeOut, "compozy_claim_") {
 			t.Fatal("complete output exposed raw claim token")
 		}
 		var completed AgentTaskLeaseRecord
@@ -2605,7 +2605,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		if !strings.Contains(stderr, "not an active lease") {
 			t.Fatal("second complete stderr did not include inactive lease rejection")
 		}
-		if strings.Contains(stderr, `"claim_token"`) || strings.Contains(stderr, "agh_claim_") {
+		if strings.Contains(stderr, `"claim_token"`) || strings.Contains(stderr, "compozy_claim_") {
 			t.Fatal("second complete stderr leaked raw claim token")
 		}
 	})
@@ -2675,7 +2675,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		if !staleNext.Claimed || staleNext.Claim == nil || staleNext.Claim.Run.ID != staleRun.ID {
 			t.Fatalf("staleNext = %#v, want claimed stale-test run", staleNext)
 		}
-		if strings.Contains(staleNextOut, `"claim_token"`) || strings.Contains(staleNextOut, "agh_claim_") {
+		if strings.Contains(staleNextOut, `"claim_token"`) || strings.Contains(staleNextOut, "compozy_claim_") {
 			t.Fatal("stale task next output exposed raw claim token")
 		}
 		if staleNext.Claim.Lease.LeaseUntil == nil {
@@ -2718,7 +2718,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 				if !strings.Contains(stderr, "lease expired") {
 					t.Fatalf("task %s after expiry stderr = %q, want lease expired rejection", tt.name, stderr)
 				}
-				if strings.Contains(stderr, `"claim_token"`) || strings.Contains(stderr, "agh_claim_") {
+				if strings.Contains(stderr, `"claim_token"`) || strings.Contains(stderr, "compozy_claim_") {
 					t.Fatalf("task %s after expiry leaked raw claim token", tt.name)
 				}
 			})
@@ -2927,7 +2927,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if next.Claim.Lease.ClaimTokenHash == "" {
 			t.Fatal("next.Claim.Lease.ClaimTokenHash = empty, want observability hash")
 		}
-		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
+		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "compozy_claim_") {
 			t.Fatal("task next output exposed raw claim token")
 		}
 
@@ -2942,7 +2942,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			"-o",
 			"json",
 		)
-		if strings.Contains(completeOut, `"claim_token"`) || strings.Contains(completeOut, "agh_claim_") {
+		if strings.Contains(completeOut, `"claim_token"`) || strings.Contains(completeOut, "compozy_claim_") {
 			t.Fatal("task complete output exposed raw claim token")
 		}
 		var completed AgentTaskLeaseRecord

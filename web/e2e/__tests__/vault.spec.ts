@@ -14,7 +14,7 @@ import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures
 const execFileAsync = promisify(execFile);
 
 const sensitivePattern =
-  /agh_claim_[a-z0-9._-]+|["']claim_token["']\s*:\s*["']?[a-z0-9._-]{8,}|(?:authorization\s*:\s*bearer|bearer)\s+["']?[a-z0-9._-]{8,}|(?:api[_-]?key|bearer[_-]?token|mcp[_-]?auth|oauth[_-]?(?:access(?:[_-]?token)?|client(?:[_-]?secret)?|refresh(?:[_-]?token)?|secret|token)|pkce[_-]?(?:challenge|secret|verifier)|provider[_-]?credential|browser-settings-secret)\s*[:=]\s*["']?[a-z0-9._:-]{8,}/i;
+  /compozy_claim_[a-z0-9._-]+|["']claim_token["']\s*:\s*["']?[a-z0-9._-]{8,}|(?:authorization\s*:\s*bearer|bearer)\s+["']?[a-z0-9._-]{8,}|(?:api[_-]?key|bearer[_-]?token|mcp[_-]?auth|oauth[_-]?(?:access(?:[_-]?token)?|client(?:[_-]?secret)?|refresh(?:[_-]?token)?|secret|token)|pkce[_-]?(?:challenge|secret|verifier)|provider[_-]?credential|browser-settings-secret)\s*[:=]\s*["']?[a-z0-9._:-]{8,}/i;
 
 test("operator can inspect and delete a session-scoped vault secret from the vault route", async ({
   appPage,

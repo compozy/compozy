@@ -7,7 +7,7 @@ export type BlogCover = { src: string; alt: string; width: number; height: numbe
 const FEATURED_COVER_BY_SLUG: Record<string, BlogCover> = {
   "posts/introducing-agh-the-first-agent-network-protocol": {
     src: "/static/blog/introducing-agh-cover.png",
-    alt: "agh-network/v0, three peers exchanging direct, receipt, and trace envelopes",
+    alt: "compozy-network/v0, three peers exchanging direct, receipt, and trace envelopes",
     width: 1600,
     height: 1000,
   },

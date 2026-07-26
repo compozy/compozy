@@ -67,7 +67,7 @@ import (
 	"strings"
 )
 
-const profileID = "agh-network.trust.ed25519-jcs/v1"
+const profileID = "compozy-network.trust.ed25519-jcs/v1"
 
 var nicknamePattern = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
 
@@ -80,7 +80,7 @@ func main() {
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 
 	envelope := map[string]any{
-		"protocol":     "agh-network/v0",
+		"protocol":     "compozy-network/v0",
 		"id":           "msg_trust_01",
 		"kind":         "say",
 		"channel":      "builders",
@@ -279,7 +279,7 @@ fingerprint = lower_hex(digest)[0:32]
 
 envelope.from = nickname + "@" + fingerprint
 envelope.proof = {
-  profile: "agh-network.trust.ed25519-jcs/v1",
+  profile: "compozy-network.trust.ed25519-jcs/v1",
   alg: "Ed25519",
   key_id: "sha256:" + lower_hex(digest),
   pubkey: base64url_no_padding(public_key)

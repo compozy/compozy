@@ -439,10 +439,10 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 			ClaimedAt:          claimedAt,
 			StartedAt:          claimedAt.Add(time.Minute),
 			DesignationGroupID: "designation-group",
-			Error:              "provider rejected agh_claim_error-secret",
+			Error:              "provider rejected compozy_claim_error-secret",
 			Metadata: json.RawMessage(
 				`{"keep":"metadata","claim_token":"raw-secret-token","nested":{"claim_token":"nested-secret"},` +
-					`"designation":{"index":1,"brief":"Review with agh_claim_designation-secret"}}`,
+					`"designation":{"index":1,"brief":"Review with compozy_claim_designation-secret"}}`,
 			),
 			Result: json.RawMessage(`[{"ok":true},{"claim_token":"result-secret"}]`),
 		}
@@ -481,16 +481,16 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 			"raw-secret-token",
 			"nested-secret",
 			"result-secret",
-			"agh_claim_error-secret",
-			"agh_claim_designation-secret",
+			"compozy_claim_error-secret",
+			"compozy_claim_designation-secret",
 		} {
 			if strings.Contains(encoded, rawValue) {
 				t.Fatalf("TaskRunPayload JSON exposed raw token value %q: %s", rawValue, encoded)
 			}
 		}
 		if payload.Designation == nil || payload.Designation.Index != 1 ||
-			strings.Contains(payload.Designation.Brief, "agh_claim_designation-secret") ||
-			!strings.Contains(payload.Designation.Brief, "agh_claim_[REDACTED]") {
+			strings.Contains(payload.Designation.Brief, "compozy_claim_designation-secret") ||
+			!strings.Contains(payload.Designation.Brief, "compozy_claim_[REDACTED]") {
 			t.Fatalf("TaskRunPayload designation = %#v, want redacted index-1 projection", payload.Designation)
 		}
 		if !strings.Contains(encoded, `"claim_token_hash"`) || !strings.Contains(encoded, run.ClaimTokenHash) {

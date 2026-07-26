@@ -8,8 +8,6 @@ import (
 	sessionpkg "github.com/compozy/compozy/internal/session"
 )
 
-const capabilityBriefExtKey = "agh.capabilities_brief"
-
 type capabilityBrief struct {
 	ID      string `json:"id"`
 	Summary string `json:"summary"`
@@ -46,7 +44,7 @@ func projectCapabilityBriefView(
 	}
 
 	return ids, ExtensionMap{
-		capabilityBriefExtKey: raw,
+		ExtensionKeyCapabilitiesBrief: raw,
 	}, nil
 }
 
@@ -64,12 +62,12 @@ func applyCapabilityBriefProjection(
 	}
 
 	clonedExt := cloneExtensionMap(card.Ext)
-	delete(clonedExt, capabilityBriefExtKey)
-	if raw := briefExt[capabilityBriefExtKey]; len(raw) != 0 {
+	delete(clonedExt, ExtensionKeyCapabilitiesBrief)
+	if raw := briefExt[ExtensionKeyCapabilitiesBrief]; len(raw) != 0 {
 		if clonedExt == nil {
 			clonedExt = make(ExtensionMap, 1)
 		}
-		clonedExt[capabilityBriefExtKey] = cloneRawMessage(raw)
+		clonedExt[ExtensionKeyCapabilitiesBrief] = cloneRawMessage(raw)
 	}
 	if len(clonedExt) == 0 {
 		clonedExt = nil

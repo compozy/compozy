@@ -22,7 +22,7 @@ func TestBuilderBuild(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newSupportTestHome(t)
-		writeSupportTestFile(t, homePaths.LogFile, "before agh_claim_logsecret_1234567890 after\n")
+		writeSupportTestFile(t, homePaths.LogFile, "before compozy_claim_logsecret_1234567890 after\n")
 		cfg := aghconfig.DefaultWithHome(homePaths)
 		now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
 		builder := Builder{
@@ -35,7 +35,7 @@ func TestBuilderBuild(t *testing.T) {
 			BundleMaxBytes:       25 << 20,
 			Sources: Sources{
 				Status: func(context.Context) (any, error) {
-					return map[string]string{"claim_token": "agh_claim_status_secret_1234567890"}, nil
+					return map[string]string{"claim_token": "compozy_claim_status_secret_1234567890"}, nil
 				},
 				Doctor: func(context.Context) (any, error) {
 					return map[string]string{"status": "ok"}, nil
@@ -83,8 +83,8 @@ func TestBuilderBuild(t *testing.T) {
 		}
 		joined := string(files["status.json"]) + string(files["logs-tail.txt"]) + string(files["event-summaries.json"])
 		for _, rawSecret := range []string{
-			"agh_claim_status_secret_1234567890",
-			"agh_claim_logsecret_1234567890",
+			"compozy_claim_status_secret_1234567890",
+			"compozy_claim_logsecret_1234567890",
 		} {
 			if strings.Contains(joined, rawSecret) {
 				t.Fatalf("bundle artifact leaked raw secret %q in %s", rawSecret, joined)

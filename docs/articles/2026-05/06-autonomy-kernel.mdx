@@ -73,7 +73,7 @@ Five terminal verbs are defined: `heartbeat`, `complete`, `fail`, `release`, plu
 
 The claim token is a bearer credential. Whoever holds it can extend, complete, fail, or release the run. That gives it the blast radius of a session secret — and the same disclosure problem. Logs are read by humans; SSE frames are read by browsers; channel messages are read by other agents. None of those surfaces should ever see the raw token.
 
-AGH solves this with a dual representation that is structural, not optional. The handle in the previous section has two fields side by side: `ClaimToken` (the raw `agh_claim_*` bearer) and `ClaimTokenHash` (a `sha256:` digest). Internal writers that mutate lease state take the raw form. Everything else takes the hash.
+AGH solves this with a dual representation that is structural, not optional. The handle in the previous section has two fields side by side: `ClaimToken` (the raw `compozy_claim_*` bearer) and `ClaimTokenHash` (a `sha256:` digest). Internal writers that mutate lease state take the raw form. Everything else takes the hash.
 
 The hash function is exact:
 
@@ -90,7 +90,7 @@ func ClaimTokenHash(rawToken string) (string, error) {
 
 `internal/task/lease.go:174-181`. Verification uses `subtle.ConstantTimeCompare` against the persisted hash to defeat timing oracles. A raw token never returns from a public handler; only the hash does. A coordination channel message that names a claim attaches `claim_token_hash: sha256:af3c…` and nothing else.
 
-The format itself is a tell. The raw bearer begins with the literal prefix `agh_claim_`. AGH ships a regular expression — `rawClaimTokenPattern` in the same file — that matches the prefix and replaces it with `agh_claim_[REDACTED]` before any free-form string crosses a boundary. The pattern is the safety net for a log line whose individual fields were not all routed through the typed redactor.
+The format itself is a tell. The raw bearer begins with the literal prefix `compozy_claim_`. AGH ships a regular expression — `rawClaimTokenPattern` in the same file — that matches the prefix and replaces it with `compozy_claim_[REDACTED]` before any free-form string crosses a boundary. The pattern is the safety net for a log line whose individual fields were not all routed through the typed redactor.
 
 ## The redaction invariant: one chokepoint, every surface
 
@@ -116,7 +116,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 
 The invariant that makes this work is not the function itself; it is that the function is the _only_ path. Transcript assembly, SSE broadcast, the CLI replay command, and the web UI all consume the redacted event, never the persisted one. A transport added tomorrow does not get a chance to forget to redact, because the only event type it can receive is already redacted. The threat being modeled is not a malicious operator; it is the boring case of a future contributor who adds a new event field, forgets to update one of three transports, and ships a regression. The single chokepoint absorbs that mistake before it leaves the daemon.
 
-A live trace makes the discipline visible. A coordination channel message that references a claim shows `claim_token_hash: sha256:af3c…`. The corresponding event in `runtime.db` shows the same hash. The CLI stream, the SSE frame, and the operator log all show the same hash. Nothing on any of those surfaces shows the raw `agh_claim_…` bearer.
+A live trace makes the discipline visible. A coordination channel message that references a claim shows `claim_token_hash: sha256:af3c…`. The corresponding event in `runtime.db` shows the same hash. The CLI stream, the SSE frame, and the operator log all show the same hash. Nothing on any of those surfaces shows the raw `compozy_claim_…` bearer.
 
 ## Safe spawn: TTL, caps, and a permission subset
 

@@ -16,6 +16,18 @@ import (
 func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should generate the Compozy raw claim token prefix", func(t *testing.T) {
+		t.Parallel()
+
+		rawToken, err := NewClaimToken()
+		if err != nil {
+			t.Fatalf("NewClaimToken() error = %v", err)
+		}
+		if !strings.HasPrefix(rawToken, "compozy_claim_") {
+			t.Fatalf("NewClaimToken() = %q, want compozy_claim_ prefix", rawToken)
+		}
+	})
+
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	base := ClaimCriteria{
 		Scope:                ScopeGlobal,
@@ -93,7 +105,7 @@ func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
 		})
 	}
 
-	rawToken := "agh_claim_unit_token"
+	rawToken := "compozy_claim_unit_token"
 	hash, err := ClaimTokenHash(rawToken)
 	if err != nil {
 		t.Fatalf("ClaimTokenHash() error = %v", err)
@@ -117,10 +129,10 @@ func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
 		t.Fatalf("ClaimTokenHash(empty) error = %v, want %v", err, ErrValidation)
 	}
 
-	redacted := RedactClaimTokens("bad token agh_claim_secret-123 and agh_claim_other_456")
-	if strings.Contains(redacted, "agh_claim_secret-123") ||
-		strings.Contains(redacted, "agh_claim_other_456") ||
-		strings.Count(redacted, "agh_claim_[REDACTED]") != 2 {
+	redacted := RedactClaimTokens("bad token compozy_claim_secret-123 and compozy_claim_other_456")
+	if strings.Contains(redacted, "compozy_claim_secret-123") ||
+		strings.Contains(redacted, "compozy_claim_other_456") ||
+		strings.Count(redacted, "compozy_claim_[REDACTED]") != 2 {
 		t.Fatalf("RedactClaimTokens() = %q, want both raw claim tokens redacted", redacted)
 	}
 }
@@ -132,14 +144,14 @@ func TestRedactClaimTokenJSON(t *testing.T) {
 		t.Parallel()
 
 		raw := json.RawMessage(
-			`{"keep":"safe","claim_token":"agh_claim_top-secret","nested":{"note":"uses agh_claim_nested-secret"},` +
-				`"items":[{"proof":"agh_claim_array-secret"}]}`,
+			`{"keep":"safe","claim_token":"compozy_claim_top-secret","nested":{"note":"uses compozy_claim_nested-secret"},` +
+				`"items":[{"proof":"compozy_claim_array-secret"}]}`,
 		)
 		redacted := RedactClaimTokenJSON(raw)
 		for _, secret := range []string{
-			"agh_claim_top-secret",
-			"agh_claim_nested-secret",
-			"agh_claim_array-secret",
+			"compozy_claim_top-secret",
+			"compozy_claim_nested-secret",
+			"compozy_claim_array-secret",
 		} {
 			if strings.Contains(string(redacted), secret) {
 				t.Fatalf("RedactClaimTokenJSON() = %s, want raw token %q removed", redacted, secret)
@@ -160,8 +172,8 @@ func TestRedactClaimTokenJSON(t *testing.T) {
 	t.Run("Should redact tokens even when persisted JSON is malformed", func(t *testing.T) {
 		t.Parallel()
 
-		redacted := RedactClaimTokenJSON(json.RawMessage(`{"note":"agh_claim_malformed-secret"`))
-		if strings.Contains(string(redacted), "agh_claim_malformed-secret") {
+		redacted := RedactClaimTokenJSON(json.RawMessage(`{"note":"compozy_claim_malformed-secret"`))
+		if strings.Contains(string(redacted), "compozy_claim_malformed-secret") {
 			t.Fatalf("RedactClaimTokenJSON(malformed) = %s, want raw token removed", redacted)
 		}
 	})
@@ -273,10 +285,10 @@ func TestManagerLookupActiveRunForSessionRejectsUnsafeLeases(t *testing.T) {
 			name:      "Should reject foreign run while session holds another lease",
 			sessionID: "sess-a",
 			runID:     "run-2",
-			rawToken:  "agh_claim_FOREIGN123",
+			rawToken:  "compozy_claim_FOREIGN123",
 			seed: func(t *testing.T, store *inMemoryManagerStore) {
 				t.Helper()
-				seedAutonomyLeaseRun(t, store, "run-1", "sess-a", "agh_claim_FOREIGN123", now.Add(time.Minute))
+				seedAutonomyLeaseRun(t, store, "run-1", "sess-a", "compozy_claim_FOREIGN123", now.Add(time.Minute))
 			},
 			want:  AutonomyForeignRun,
 			cause: ErrPermissionDenied,
@@ -285,10 +297,10 @@ func TestManagerLookupActiveRunForSessionRejectsUnsafeLeases(t *testing.T) {
 			name:      "Should reject stale lease",
 			sessionID: "sess-a",
 			runID:     "run-1",
-			rawToken:  "agh_claim_EXPIRED123",
+			rawToken:  "compozy_claim_EXPIRED123",
 			seed: func(t *testing.T, store *inMemoryManagerStore) {
 				t.Helper()
-				seedAutonomyLeaseRun(t, store, "run-1", "sess-a", "agh_claim_EXPIRED123", now.Add(-time.Minute))
+				seedAutonomyLeaseRun(t, store, "run-1", "sess-a", "compozy_claim_EXPIRED123", now.Add(-time.Minute))
 			},
 			want:  AutonomyLeaseExpired,
 			cause: ErrLeaseExpired,
@@ -297,11 +309,11 @@ func TestManagerLookupActiveRunForSessionRejectsUnsafeLeases(t *testing.T) {
 			name:      "Should reject double active lease",
 			sessionID: "sess-a",
 			runID:     "run-1",
-			rawToken:  "agh_claim_DOUBLE_A123",
+			rawToken:  "compozy_claim_DOUBLE_A123",
 			seed: func(t *testing.T, store *inMemoryManagerStore) {
 				t.Helper()
-				seedAutonomyLeaseRun(t, store, "run-1", "sess-a", "agh_claim_DOUBLE_A123", now.Add(time.Minute))
-				seedAutonomyLeaseRun(t, store, "run-2", "sess-a", "agh_claim_DOUBLE_B123", now.Add(time.Minute))
+				seedAutonomyLeaseRun(t, store, "run-1", "sess-a", "compozy_claim_DOUBLE_A123", now.Add(time.Minute))
+				seedAutonomyLeaseRun(t, store, "run-2", "sess-a", "compozy_claim_DOUBLE_B123", now.Add(time.Minute))
 			},
 			want:  AutonomyLeaseAlreadyHeld,
 			cause: ErrActiveRunLease,
@@ -337,7 +349,7 @@ func TestManagerLookupActiveRunForSessionReturnsInternalHandle(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	rawToken := "agh_claim_ACTIVE123"
+	rawToken := "compozy_claim_ACTIVE123"
 	store := newInMemoryManagerStore()
 	seedAutonomyLeaseRun(t, store, "run-1", "sess-a", rawToken, now.Add(time.Minute))
 	manager := newTaskManagerForTestWithOptions(t, store, WithManagerNow(func() time.Time {

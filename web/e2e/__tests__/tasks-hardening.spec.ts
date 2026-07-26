@@ -36,7 +36,7 @@ const tasksSessionAgentName = "browser-lifecycle-agent";
 const aghSessionHeader = "X-AGH-Session-ID";
 const aghAgentHeader = "X-AGH-Agent";
 const sensitivePattern =
-  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
+  /compozy_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
 
 test.use({
   runtimeOptions: {

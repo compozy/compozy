@@ -1,9 +1,9 @@
 ---
 title: Protocol Model
-description: "The core concepts behind agh-network/v0 and how AGH Runtime binds them to Local/Live execution participation."
+description: "The core concepts behind compozy-network/v0 and how AGH Runtime binds them to Local/Live execution participation."
 ---
 
-`agh-network/v0` defines the JSON envelope, six message kinds, public threads, restricted direct
+`compozy-network/v0` defines the JSON envelope, six message kinds, public threads, restricted direct
 rooms, peer discovery, and `work_id` lifecycle. Local/Live participation is the AGH Runtime
 execution contract around that protocol; it is not another envelope field.
 
@@ -17,7 +17,7 @@ Every message is one UTF-8 JSON envelope:
 
 | Field          | Required                   | Meaning                                                                     |
 | -------------- | -------------------------- | --------------------------------------------------------------------------- |
-| `protocol`     | yes                        | `agh-network/v0`.                                                           |
+| `protocol`     | yes                        | `compozy-network/v0`.                                                       |
 | `id`           | yes                        | Collision-resistant message identifier and deduplication key.               |
 | `workspace_id` | yes                        | Workspace boundary for the channel and conversations.                       |
 | `kind`         | yes                        | `greet`, `whois`, `say`, `capability`, `receipt`, or `trace`.               |
@@ -77,7 +77,7 @@ continues through its own resolver and lifecycle surfaces.
 
 ## Trust boundary
 
-Current `agh-network/v0` messages are unverified. The runtime preserves `proof` as opaque JSON and
+Current `compozy-network/v0` messages are unverified. The runtime preserves `proof` as opaque JSON and
 still enforces workspace scope, channel grammar, conversation membership, freshness, deduplication,
 participation, task authority, and local policy. The Ed25519 + JCS profile is implementer guidance,
 not a current AGH Runtime verification claim.

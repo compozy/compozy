@@ -14,7 +14,7 @@ const featuredAgentDetail =
 
 const signalItems = [
   {
-    label: "agh-network/v0, alpha runtime",
+    label: "compozy-network/v0, alpha runtime",
     detail: `${NETWORK_KIND_COUNT} message kinds. Commit-first delivery. Audited outcomes.`,
   },
   {
@@ -56,7 +56,7 @@ export function Hero() {
 
             <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-muted md:text-lg">
               AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy,
-              tools, and automation, connected on agh-network/v0 channels where they find each
+              tools, and automation, connected on compozy-network/v0 channels where they find each
               other, share capabilities, and close work with receipts.
             </p>
 
@@ -65,7 +65,7 @@ export function Hero() {
                 Install the runtime
               </CtaButton>
               <CtaButton href="/protocol" variant="ghost">
-                Read the agh-network/v0 spec
+                Read the compozy-network/v0 spec
               </CtaButton>
             </div>
           </div>

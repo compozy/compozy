@@ -34,13 +34,13 @@ func exactRedactString(value string) string {
 
 // ClaimTokens removes raw task-claim bearer tokens without applying other redaction rules.
 func ClaimTokens(value string) string {
-	return claimTokenPattern.ReplaceAllString(value, "agh_claim_"+Marker)
+	return claimTokenPattern.ReplaceAllString(value, "compozy_claim_"+Marker)
 }
 
 // ContainsRawClaimToken reports whether value contains a concrete task-claim bearer token.
 func ContainsRawClaimToken(value string) bool {
 	for _, token := range claimTokenPattern.FindAllString(strings.TrimSpace(value), -1) {
-		if !strings.EqualFold(token, "agh_claim_token") {
+		if !strings.EqualFold(token, "compozy_claim_token") {
 			return true
 		}
 	}

@@ -1186,7 +1186,7 @@ func TestTranscriptRedactsSecretsAcrossDisplaySurfaces(t *testing.T) {
 			runtimeSecret,
 			unregisteredProviderSecret,
 			"text-secret",
-			"agh_claim_live_123",
+			"compozy_claim_live_123",
 			"bearer-secret",
 			"failure-secret",
 			"runtime-secret",
@@ -1201,7 +1201,7 @@ func TestTranscriptRedactsSecretsAcrossDisplaySurfaces(t *testing.T) {
 			SessionID: "sess-redact",
 			TurnID:    "turn-redact",
 			Timestamp: time.Date(2026, 5, 19, 10, 0, 0, 0, time.UTC),
-			Text:      "assistant stdout " + runtimeSecret + " token=text-secret agh_claim_live_123",
+			Text:      "assistant stdout " + runtimeSecret + " token=text-secret compozy_claim_live_123",
 			Error:     "Bearer bearer-secret",
 			Failure: &store.SessionFailure{
 				Kind:    store.FailurePrompt,
@@ -1236,7 +1236,7 @@ func TestTranscriptRedactsSecretsAcrossDisplaySurfaces(t *testing.T) {
 			"raw-binding",
 			"raw-secret",
 			"input-secret",
-			"agh_claim_tool_123",
+			"compozy_claim_tool_123",
 		}
 		payload, err := MarshalAgentEvent(acp.AgentEvent{
 			Type:      acp.EventTypeToolResult,
@@ -1248,7 +1248,7 @@ func TestTranscriptRedactsSecretsAcrossDisplaySurfaces(t *testing.T) {
 				"sessionUpdate":"tool_call_update",
 				"status":"completed",
 				"rawOutput":{
-					"stdout":"runtime ` + runtimeSecret + ` token=stdout-secret agh_claim_tool_123",
+					"stdout":"runtime ` + runtimeSecret + ` token=stdout-secret compozy_claim_tool_123",
 					"stderr":"Bearer stderr-secret",
 					"content":"secret_binding=raw-binding",
 					"api_key":"raw-secret"

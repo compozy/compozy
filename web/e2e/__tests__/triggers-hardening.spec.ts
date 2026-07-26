@@ -43,7 +43,7 @@ const faultAgentName = "browser-triggers-fault";
 const webhookSecret = "browser-trigger-secret";
 const payloadSecret = "browser-trigger-payload-secret";
 const sensitivePattern =
-  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|provider[_-]?credentials?["'\s]*[:=]|browser-trigger-secret|browser-trigger-payload-secret/i;
+  /compozy_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|provider[_-]?credentials?["'\s]*[:=]|browser-trigger-secret|browser-trigger-payload-secret/i;
 
 async function addWebhookBranchFilter(
   ui: ReturnType<typeof automationOperatorSelectors>

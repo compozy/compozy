@@ -6593,7 +6593,7 @@ func TestManagerBlockedReasonsProjection(t *testing.T) {
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
 	actor := validActorContext()
-	rawClaimToken := "agh_claim_reason_SECRET123"
+	rawClaimToken := "compozy_claim_reason_SECRET123"
 	dependency, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-reasons",
@@ -6669,7 +6669,7 @@ func TestManagerBlockedReasonsProjection(t *testing.T) {
 	if got, want := reasons[2].Source, BlockedSourcePaused; got != want {
 		t.Fatalf("paused source = %q, want %q", got, want)
 	}
-	if got, want := reasons[2].Reason, "manual hold agh_claim_[REDACTED]"; got != want {
+	if got, want := reasons[2].Reason, "manual hold compozy_claim_[REDACTED]"; got != want {
 		t.Fatalf("paused reason = %q, want %q", got, want)
 	}
 	if got, want := reasons[3].Source, BlockedSourceBlock; got != want {
@@ -6681,7 +6681,7 @@ func TestManagerBlockedReasonsProjection(t *testing.T) {
 	if got, want := reasons[3].Kind, BlockKindCapability; got != want {
 		t.Fatalf("block kind = %q, want %q", got, want)
 	}
-	if got, want := reasons[3].Reason, "missing database access agh_claim_[REDACTED]"; got != want {
+	if got, want := reasons[3].Reason, "missing database access compozy_claim_[REDACTED]"; got != want {
 		t.Fatalf("block reason = %q, want %q", got, want)
 	}
 	for _, reason := range reasons {
@@ -8336,6 +8336,53 @@ func TestManagerForceRunOperations(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should reject uppercase claim tokens in needs_attention diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Sensitive diagnostic",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{TaskID: taskRecord.ID},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		_, err = manager.MarkRunNeedsAttention(
+			context.Background(),
+			run.ID,
+			"worker exposed COMPOZY_CLAIM_NEEDS_ATTENTION_SECRET",
+			actor,
+		)
+		if err == nil || !strings.Contains(err.Error(), "claim token") {
+			t.Fatalf("MarkRunNeedsAttention() error = %v, want claim token rejection", err)
+		}
+		if got, want := store.runs[run.ID].Status.Normalize(), TaskRunStatusQueued; got != want {
+			t.Fatalf("stored run status = %q, want %q", got, want)
+		}
+		events, listErr := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunNeedsAttention,
+		})
+		if listErr != nil {
+			t.Fatalf("ListTaskEvents(needs_attention) error = %v", listErr)
+		}
+		if len(events) != 0 {
+			t.Fatalf("needs_attention event count = %d, want 0", len(events))
+		}
+	})
 
 	t.Run("Should reject disabled agent force and rate limit noisy agents", func(t *testing.T) {
 		t.Parallel()
@@ -10990,7 +11037,7 @@ func TestManagerWakeCreatorRedactsSecretsFromSummaryAndPayload(t *testing.T) {
 	t.Run("Should redact claim tokens and project-wide secret shapes", func(t *testing.T) {
 		t.Parallel()
 
-		rawClaimToken := "agh_claim_secret123"
+		rawClaimToken := "compozy_claim_secret123"
 		rawAccessToken := "oauth-secret-123456"
 		rawBearerToken := "ya29.wake-secret-token"
 		rawPKCEVerifier := "pkce-secret-123456"

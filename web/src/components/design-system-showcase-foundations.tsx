@@ -121,7 +121,9 @@ export function TypographySection() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <Eyebrow className="text-muted">Eyebrow · JetBrains Mono 11/600 0.06em</Eyebrow>
-            <p className="font-mono text-sm leading-7 text-fg">agh-network/v0 · run_id_01hq8…</p>
+            <p className="font-mono text-sm leading-7 text-fg">
+              compozy-network/v0 · run_id_01hq8…
+            </p>
             <div className="flex items-center gap-3">
               <span className="font-wordmark text-display-2xl leading-none tracking-tight text-fg">
                 agh

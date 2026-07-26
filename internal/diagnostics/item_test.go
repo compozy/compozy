@@ -22,7 +22,7 @@ func TestNewItemRedactsDiagnosticFields(t *testing.T) {
 			contract.CodeProviderNotAuthenticated,
 			contract.CategoryProvider,
 			"Provider token=title-secret",
-			"Provider failed with Authorization: Bearer message-secret and claim agh_claim_live_secret_123",
+			"Provider failed with Authorization: Bearer message-secret and claim compozy_claim_live_secret_123",
 			contract.SeverityWarn,
 			contract.FreshnessLive,
 			WithSuggestedCommand("compozy provider auth login claude"),
@@ -45,7 +45,7 @@ func TestNewItemRedactsDiagnosticFields(t *testing.T) {
 		for _, leaked := range []string{
 			"title-secret",
 			"message-secret",
-			"agh_claim_live_secret_123",
+			"compozy_claim_live_secret_123",
 			"sk-live-secret",
 			"stderr-secret",
 			"nested-secret",

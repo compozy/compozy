@@ -107,18 +107,18 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 		}{
 			{
 				name:  "Should redact claim token assignment",
-				input: "claim_token=agh_claim_secret_123",
-				leak:  "agh_claim_secret_123",
+				input: "claim_token=compozy_claim_secret_123",
+				leak:  "compozy_claim_secret_123",
 			},
 			{
 				name:  "Should redact claim token colon assignment",
-				input: "claim_token: agh_claim_secret_456",
-				leak:  "agh_claim_secret_456",
+				input: "claim_token: compozy_claim_secret_456",
+				leak:  "compozy_claim_secret_456",
 			},
 			{
 				name:  "Should redact quoted claim token",
-				input: `{"claim_token":"agh_claim_secret_789","safe":"ok"}`,
-				leak:  "agh_claim_secret_789",
+				input: `{"claim_token":"compozy_claim_secret_789","safe":"ok"}`,
+				leak:  "compozy_claim_secret_789",
 			},
 			{
 				name:  "Should redact lease token assignment",
@@ -183,7 +183,7 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 	t.Run("Should preserve already redacted claim token markers", func(t *testing.T) {
 		t.Parallel()
 
-		const input = "task: invalid claim token: agh_claim_[REDACTED]"
+		const input = "task: invalid claim token: compozy_claim_[REDACTED]"
 		if got := Redact(input); got != input {
 			t.Fatalf("Redact(redacted claim token marker) = %q, want %q", got, input)
 		}
@@ -192,12 +192,12 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 	t.Run("Should redact bare AGH claim tokens in display text", func(t *testing.T) {
 		t.Parallel()
 
-		const leaked = "agh_claim_display_secret_123"
+		const leaked = "compozy_claim_display_secret_123"
 		redacted := Redact("stdout returned " + leaked)
 		if strings.Contains(redacted, leaked) {
 			t.Fatalf("Redact(bare claim token) = %q leaked %q", redacted, leaked)
 		}
-		if !strings.Contains(redacted, "agh_claim_[REDACTED]") {
+		if !strings.Contains(redacted, "compozy_claim_[REDACTED]") {
 			t.Fatalf("Redact(bare claim token) = %q, want claim-token placeholder", redacted)
 		}
 	})

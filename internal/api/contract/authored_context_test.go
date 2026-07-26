@@ -90,7 +90,7 @@ func TestAuthoredContextPayloadJSONShapeAndRedaction(t *testing.T) {
 
 		rawClaimPayload := map[string]any{
 			"diagnostics": []map[string]string{
-				{"message": "contains agh_claim_raw"},
+				{"message": "contains compozy_claim_raw"},
 			},
 		}
 		if err := ValidateAuthoredContextRedacted(rawClaimPayload); !errors.Is(err, ErrUnsafeAuthoredContextPayload) {

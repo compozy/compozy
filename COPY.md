@@ -41,7 +41,7 @@ AGH is a local-first agent operating system: one daemon for durable agent sessio
 
 ### Short Pitch
 
-AGH runs the agent CLIs teams already use as durable, inspectable sessions. It keeps work attached to a workspace, exposes the same state through CLI, HTTP/SSE, UDS, and web UI, and ships `agh-network/v0` so agents can discover peers, delegate work, exchange capabilities, and close the loop with receipts.
+AGH runs the agent CLIs teams already use as durable, inspectable sessions. It keeps work attached to a workspace, exposes the same state through CLI, HTTP/SSE, UDS, and web UI, and ships `compozy-network/v0` so agents can discover peers, delegate work, exchange capabilities, and close the loop with receipts.
 
 ### Product Category
 
@@ -80,7 +80,7 @@ Use the glossary as the authority. In public copy, keep these boundaries clear:
 
 An open workplace for AI agents.
 
-This is the strongest first-contact story. AGH is not just another local agent runner. It gives durable agent sessions a place to find peers, share capabilities, and close work with receipts on agh-network/v0.
+This is the strongest first-contact story. AGH is not just another local agent runner. It gives durable agent sessions a place to find peers, share capabilities, and close work with receipts on compozy-network/v0.
 
 ### Secondary Narrative
 
@@ -125,7 +125,7 @@ Every major copy surface should draw from one or more proof pillars.
 | ------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | People running agent work | Start, watch, guide, resume, and finish agent work — technical or not.                      | A clear install path, visible session state, plain-language docs; commands and event history one step deeper. | `Install the runtime`, `Start the daemon`, `Open the runtime docs`.  |
 | Agent/runtime developers  | Understand extension points and daemon contracts.                                           | APIs, SDKs, tool registry, hooks, capabilities, generated references.                                         | `Build an extension`, `Read the Host API`, `View the tool registry`. |
-| Protocol implementers     | Implement or inspect `agh-network/v0` outside AGH.                                          | Envelope shape, message kinds, trust model, conformance guidance.                                             | `Read the agh-network/v0 spec`, `Send a minimal message`.            |
+| Protocol implementers     | Implement or inspect `compozy-network/v0` outside AGH.                                      | Envelope shape, message kinds, trust model, conformance guidance.                                             | `Read the compozy-network/v0 spec`, `Send a minimal message`.        |
 | Contributors              | Work safely in the repo and preserve product semantics.                                     | Glossary, AGENTS/CLAUDE instructions, tests, task specs.                                                      | `Read the contributor path`, `Run the verification gate`.            |
 | Evaluators                | Decide whether AGH is different from local CLIs, harnesses, MCP, A2A, and workflow engines. | Sharp positioning, named constraints, honest maturity, sourced comparison.                                    | `Compare the runtime`, `See what ships today`.                       |
 
@@ -182,7 +182,7 @@ The glossary is authoritative. This section lists the terms most likely to appea
 | `AGH`                  | The complete product: runtime, daemon, site, docs, CLI, UI, extensibility, and network implementation.                                    |
 | `AGH Runtime`          | The local daemon and runtime surface: sessions, memory, skills, workspaces, automation, bridges, tools, hooks, extensions, observability. |
 | `AGH Network`          | The agent-to-agent coordination layer and public network concept.                                                                         |
-| `agh-network/v0`       | The protocol/version name. Use lowercase, mono in UI/docs when possible.                                                                  |
+| `compozy-network/v0`   | The protocol/version name. Use lowercase, mono in UI/docs when possible.                                                                  |
 | `AGH Network Protocol` | Spec/reference contexts only. Prefer `AGH Network` in marketing and narrative copy.                                                       |
 
 ### Canonical Example Trio
@@ -309,7 +309,7 @@ Examples:
 
 - Supported agent count must match provider/runtime truth.
 - Tool count must match the current registry or release snapshot.
-- Message-kind count must match `agh-network/v0`.
+- Message-kind count must match `compozy-network/v0`.
 - Platform support must distinguish live, alpha, next, and planned.
 
 ### Words That Need Care
@@ -330,7 +330,7 @@ Goal: make the core difference obvious quickly.
 
 Use:
 
-- hero locked to "An open workplace for AI agents." with subhead locked to "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts."
+- hero locked to "An open workplace for AI agents." with subhead locked to "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts."
 - AGH Network as the differentiator.
 - runtime proof immediately after the network claim.
 - install path as primary conversion.
@@ -360,12 +360,12 @@ Avoid:
 
 ### Protocol Docs
 
-Goal: help implementers understand `agh-network/v0` without adopting AGH internals.
+Goal: help implementers understand `compozy-network/v0` without adopting AGH internals.
 
 Use:
 
 - `AGH Network` for the concept.
-- `agh-network/v0` for protocol/version.
+- `compozy-network/v0` for protocol/version.
 - message kinds, envelope behavior, trust profile, conformance, and examples.
 
 Avoid:
@@ -490,7 +490,7 @@ An open workplace for AI agents.
 Approved subhead:
 
 ```text
-AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts.
+AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts.
 ```
 
 ### Feature Card
@@ -509,7 +509,7 @@ Good:
 ```text
 Eyebrow: Network
 Title: Delegate across peers
-Description: Sessions discover peers, send typed envelopes, and close work with receipts through agh-network/v0.
+Description: Sessions discover peers, send typed envelopes, and close work with receipts through compozy-network/v0.
 ```
 
 Weak:
@@ -566,7 +566,7 @@ Prefer:
 
 - `Install the runtime`
 - `Start the daemon`
-- `Read the agh-network/v0 spec`
+- `Read the compozy-network/v0 spec`
 - `Open the runtime docs`
 - `Create a session`
 - `View peers`
@@ -643,7 +643,7 @@ Use these as task-local prompts after reading the target files.
 ### Rewrite a Homepage Hero
 
 ```text
-Use COPY.md and DESIGN.md. Keep the hero open-workplace-first. Headline must preserve "An open workplace for AI agents." and subhead must preserve "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts." Use only claims backed by current code/docs. Primary CTA installs or starts the runtime. Secondary CTA points to agh-network/v0 docs.
+Use COPY.md and DESIGN.md. Keep the hero open-workplace-first. Headline must preserve "An open workplace for AI agents." and subhead must preserve "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts." Use only claims backed by current code/docs. Primary CTA installs or starts the runtime. Secondary CTA points to compozy-network/v0 docs.
 ```
 
 ### Write a Docs Intro
@@ -681,7 +681,7 @@ Check runtime truth, glossary vocabulary, claim maturity, CTA specificity, forbi
 Before shipping copy or product-facing text, verify:
 
 - Runtime truth is checked against current code, generated references, docs, tests, or release artifacts.
-- The copy uses `AGH`, `AGH Runtime`, `AGH Network`, and `agh-network/v0` correctly.
+- The copy uses `AGH`, `AGH Runtime`, `AGH Network`, and `compozy-network/v0` correctly.
 - Glossary terms are applied, especially `capability`, `skill`, `bridge`, `channel`, `AGENT.md`, and `AGENTS.md`.
 - Inline example lists of agent CLIs use the canonical trio (Claude Code, OpenClaw, and Hermes) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.

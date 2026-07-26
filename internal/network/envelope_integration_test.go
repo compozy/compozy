@@ -20,7 +20,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "greet",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "compozy-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_greet_01",
 			  "kind": "greet",
@@ -31,7 +31,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			  "body": {
 			    "peer_card": {
 			      "peer_id": "coder.sess-abc",
-			      "profiles_supported": ["agh-network/v0"],
+			      "profiles_supported": ["compozy-network/v0"],
 			      "capabilities": ["workspace.patch.apply"],
 			      "artifacts_supported": ["capability"],
 			      "trust_modes_supported": ["unverified"]
@@ -42,7 +42,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "whois response",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "compozy-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_whois_01",
 			  "kind": "whois",
@@ -55,7 +55,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			    "type": "response",
 			    "peer_card": {
 			      "peer_id": "reviewer.sess-xyz",
-			      "profiles_supported": ["agh-network/v0"],
+			      "profiles_supported": ["compozy-network/v0"],
 			      "capabilities": ["chat.review"],
 			      "artifacts_supported": ["capability"],
 			      "trust_modes_supported": ["unverified"]
@@ -66,7 +66,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "say",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "compozy-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_say_01",
 			  "kind": "say",
@@ -85,7 +85,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "direct room say",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "compozy-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_direct_01",
 			  "kind": "say",
@@ -113,7 +113,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "capability",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "compozy-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_capability_01",
 			  "kind": "capability",
@@ -141,7 +141,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "receipt",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "compozy-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_receipt_01",
 			  "kind": "receipt",
@@ -163,7 +163,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "trace",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "compozy-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_trace_01",
 			  "kind": "trace",

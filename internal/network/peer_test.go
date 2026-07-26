@@ -123,7 +123,7 @@ func TestProjectCapabilityBriefViewMatchesProjectedIDsAndBriefEntries(t *testing
 		if got, want := ids, []string{"review-pr", "draft-spec"}; !slices.Equal(got, want) {
 			t.Fatalf("projected capability ids = %#v, want %#v", got, want)
 		}
-		if got := decodeCapabilityBriefPayload(t, ext[capabilityBriefExtKey]); !slices.Equal(got, wantBrief) {
+		if got := decodeCapabilityBriefPayload(t, ext[ExtensionKeyCapabilitiesBrief]); !slices.Equal(got, wantBrief) {
 			t.Fatalf("capability brief entries = %#v, want %#v", got, wantBrief)
 		}
 	})
@@ -138,7 +138,7 @@ func TestProjectCapabilityBriefViewMatchesProjectedIDsAndBriefEntries(t *testing
 		if ids == nil || len(ids) != 0 {
 			t.Fatalf("projected ids = %#v, want empty-but-valid slice", ids)
 		}
-		if ext != nil && ext[capabilityBriefExtKey] != nil {
+		if ext != nil && ext[ExtensionKeyCapabilitiesBrief] != nil {
 			t.Fatalf("projected ext = %#v, want omitted capability brief key", ext)
 		}
 	})
@@ -163,9 +163,9 @@ func TestCloneAndNormalizePeerCardPreserveCapabilityBriefExt(t *testing.T) {
 		t.Fatalf("normalizePeerCard() error = %v", err)
 	}
 	wantCapabilities := append([]string(nil), card.Capabilities...)
-	wantBriefRaw := append(json.RawMessage(nil), card.Ext[capabilityBriefExtKey]...)
+	wantBriefRaw := append(json.RawMessage(nil), card.Ext[ExtensionKeyCapabilitiesBrief]...)
 	card.Capabilities[0] = "mutated"
-	card.Ext[capabilityBriefExtKey][0] = '{'
+	card.Ext[ExtensionKeyCapabilitiesBrief][0] = '{'
 
 	if !slices.Equal(cloned.Capabilities, wantCapabilities) ||
 		!slices.Equal(normalized.Capabilities, wantCapabilities) {
@@ -175,8 +175,8 @@ func TestCloneAndNormalizePeerCardPreserveCapabilityBriefExt(t *testing.T) {
 			normalized.Capabilities,
 		)
 	}
-	if string(cloned.Ext[capabilityBriefExtKey]) != string(wantBriefRaw) ||
-		string(normalized.Ext[capabilityBriefExtKey]) != string(wantBriefRaw) {
+	if string(cloned.Ext[ExtensionKeyCapabilitiesBrief]) != string(wantBriefRaw) ||
+		string(normalized.Ext[ExtensionKeyCapabilitiesBrief]) != string(wantBriefRaw) {
 		t.Fatal("cloned capability brief bytes changed after source mutation")
 	}
 }

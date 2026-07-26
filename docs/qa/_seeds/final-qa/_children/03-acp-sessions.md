@@ -94,7 +94,7 @@ The module already has thick unit and integration coverage. Real-LLM scenarios m
 5. **`AGH_SESSION_ID` / `AGH_AGENT` reach the subprocess and are read back via UDS headers.** The agent-side CLI uses these env vars to call back into the daemon (`internal/agentidentity/identity.go:20-29`, set in `internal/session/manager_start.go:558-559`); spoofed values must be rejected by `Resolve` against the daemon's authoritative session lookup.
 6. **`/agent/context` reflects daemon truth.** Workspace, capabilities (skills + agent-defined), limits, peers, inbox — all bounded to `DefaultSectionLimit = 8` (`situation/service.go:24`) — must match what `situation.Service.ContextForSession` computes from the session manager state at the moment the agent calls `/agent/context`.
 7. **Goroutine ownership at shutdown.** `Manager.WaitForFinalizations` (`manager.go:704-734`) must drain; no goroutine leaks across daemon shutdown.
-8. **`claim_token` redaction in this surface.** Although `claim_token` is owned by the autonomy kernel, it appears in synthetic prompt metadata (`acp.PromptSyntheticMeta`, `internal/acp/types.go:175-184`) and in any tool result that echoes a task handle. Persisted transcripts, SSE frames, and `/agent/context` MUST never carry a raw `agh_claim_*` token.
+8. **`claim_token` redaction in this surface.** Although `claim_token` is owned by the autonomy kernel, it appears in synthetic prompt metadata (`acp.PromptSyntheticMeta`, `internal/acp/types.go:175-184`) and in any tool result that echoes a task handle. Persisted transcripts, SSE frames, and `/agent/context` MUST never carry a raw `compozy_claim_*` token.
 9. **Subprocess-crash classification.** A subprocess SIGKILL while a prompt is in flight must be classified `store.FailureProcess` (`store.types.go:117 StopAgentCrashed`, `internal/session/failure.go:15-91`) and surfaced as a typed `error` SSE event before the channel closes — never as a stalled stream.
 10. **Replay equivalence.** A persisted events log replayed via `internal/transcript.Assemble` must produce the same `[]Message` ordering and content the live SSE stream produced for the original turn — no drift from the canonical schema (`agh.session.event.v1`).
 
@@ -139,7 +139,7 @@ evidence:
   - `events.json` from `agh session events $S -o jsonl`
   - `transcript.json` from `agh session transcript $S -o json`
   - `sse.log` raw SSE capture
-  - `forbidden_needles_check.json`: assert raw `agh_claim_` substring count == 0 across {events.json, transcript.json, sse.log, daemon.log}
+  - `forbidden_needles_check.json`: assert raw `compozy_claim_` substring count == 0 across {events.json, transcript.json, sse.log, daemon.log}
 failure_signatures:
   - tool_input persisted but missing file_path → broken `internal/transcript/transcript.go:387-393`
   - tool_call without paired tool_result → broken merge in `applyToolResult` (`transcript.go:269-318`)
@@ -619,7 +619,7 @@ cleanup: nothing (start failed cleanly)
 
 ```yaml
 id: ACP-18
-title: claim_token redaction — raw `agh_claim_*` never appears in transcripts, SSE, web, or logs
+title: claim_token redaction — raw `compozy_claim_*` never appears in transcripts, SSE, web, or logs
 theme: security.redaction
 coverage:
   primary: [security.claim_token_redaction]
@@ -629,16 +629,16 @@ provider: claude-code
 preconditions:
   - ACP-01 preconditions
   - Test fixture: a synthetic prompt overlay or task wake event whose `PromptSyntheticMeta` carries a fake claim_token (`acp/types.go:175-184`)
-  - The fake token has prefix `agh_claim_FAKE_QA_` so it's distinguishable from real ones
+  - The fake token has prefix `compozy_claim_FAKE_QA_` so it's distinguishable from real ones
 steps:
   1. Create session S; trigger a synthetic prompt that has a `PromptSyntheticMeta` with a `claim_token_hash` field set (raw token never sent over the wire — fixture asserts this at the call site)
   2. The synthetic prompt is dispatched by the daemon (e.g. via the autonomy/synthetic prompt path that already calls `manager.dispatchSyntheticPrompt`)
   3. Capture the full SSE stream and persisted events; capture daemon logs for the duration of the run; capture the web SPA SSE if a web client is attached
-  4. Run a forbidden-needle scan: `grep -c 'agh_claim_FAKE_QA_' <file>` across {events.db dump, sse.log, daemon.log, web_sse.log, transcript.json, agent_context.json}
+  4. Run a forbidden-needle scan: `grep -c 'compozy_claim_FAKE_QA_' <file>` across {events.db dump, sse.log, daemon.log, web_sse.log, transcript.json, agent_context.json}
 expected_behavior:
   - All grep counts == 0 (token never appears raw)
   - `claim_token_hash` field is present in the canonical event payload only as a hash (no raw bytes)
-  - CLAUDE.md invariant "Raw `claim_token` (`agh_claim_*`) MUST NEVER appear in logs, status APIs, settings views, error payloads, channel messages, SSE, web UI, or memory" is upheld
+  - CLAUDE.md invariant "Raw `claim_token` (`compozy_claim_*`) MUST NEVER appear in logs, status APIs, settings views, error payloads, channel messages, SSE, web UI, or memory" is upheld
 evidence:
   - `forbidden_needles.json`: counts per file; all zero
   - `events_dump.sql.txt` (raw rows), `daemon.log`, `transcript.json`
@@ -726,7 +726,7 @@ cleanup: `agh session stop $S`
 | Duplicate replay | SSE reconnect | ACP-04; sequence comparator |
 | Detached cancel ignored | prompt path | ACP-05; SSE continues after explicit cancel = blocker |
 | Lineage drop on restart | persistence | ACP-19; lineage assertions post-restart |
-| Raw `agh_claim_*` leak | any | ACP-18; needle scan |
+| Raw `compozy_claim_*` leak | any | ACP-18; needle scan |
 | Identity spoof accepted | `/agent/*` | ACP-10/C |
 
 ## 9. Fixtures
@@ -735,7 +735,7 @@ cleanup: `agh session stop $S`
 - **Workspace seed**: `$LAB/workspace/` with a `README.md` (≥3 paragraphs), `src/file_a.go`, `src/file_b.go`, and a `generated_long_file.txt` (~2MB) for ACP-16.
 - **Skill seed**: 12 enabled skills under `$AGH_HOME/skills/` for ACP-11 (truncation proof).
 - **Provider auth**: direct `claude` uses native Claude CLI auth from the effective Claude home for the lane (operator `HOME` by default; isolated `PROVIDER_HOME` only for explicit isolated-home scenarios). OpenClaw, Hermes, wrapped providers, and brokered credentials follow their own contract and may stage auth into `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` when the lane is bound-secret or explicitly isolated.
-- **Forbidden needles**: `["agh_claim_FAKE_QA_", "agh_claim_TESTONLY_"]` for ACP-18; runner sweeps SSE/events/log files for these and asserts count == 0.
+- **Forbidden needles**: `["compozy_claim_FAKE_QA_", "compozy_claim_TESTONLY_"]` for ACP-18; runner sweeps SSE/events/log files for these and asserts count == 0.
 - **goleak build tag**: `//go:build goleak_check` for ACP-12 to avoid hot-path overhead in production builds.
 
 ## 10. Citations

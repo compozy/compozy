@@ -211,8 +211,8 @@ directory:
 
 - the agent still loads normally
 - `peer_card.capabilities` is emitted as an empty array, never `null`
-- `peer_card.ext["agh.capabilities_brief"]` is omitted entirely
-- `whois` with `agh.include=["capability_catalog"]` returns `"capabilities": []`
+- `peer_card.ext["compozy.capabilities_brief"]` is omitted entirely
+- `whois` with `compozy.include=["capability_catalog"]` returns `"capabilities": []`
 - the local peer card still advertises `artifacts_supported = ["capability"]` because transfer
   support is protocol-level, not dependent on catalog size
 
@@ -227,20 +227,20 @@ directory:
 The local catalog is the runtime source of truth. AGH projects it into three distinct wire roles
 using the same structured capability document — detail levels differ, but the concept does not.
 
-| Role                | Where it appears                                                       | What it carries                                        |
-| ------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
-| Brief discovery     | `peer_card.capabilities` and `peer_card.ext["agh.capabilities_brief"]` | IDs plus one-line summaries.                           |
-| Rich discovery      | `whois` response envelope `ext["agh.capability_catalog"]`              | Full records with outcomes, optionals, and `digest`.   |
-| Capability transfer | `kind:"capability"` envelope `body.capability`                         | One full structured capability with required `digest`. |
+| Role                | Where it appears                                                           | What it carries                                        |
+| ------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Brief discovery     | `peer_card.capabilities` and `peer_card.ext["compozy.capabilities_brief"]` | IDs plus one-line summaries.                           |
+| Rich discovery      | `whois` response envelope `ext["compozy.capability_catalog"]`              | Full records with outcomes, optionals, and `digest`.   |
+| Capability transfer | `kind:"capability"` envelope `body.capability`                             | One full structured capability with required `digest`. |
 
 Brief discovery is always on when a catalog exists. Rich discovery is returned only when the caller
-explicitly asks for it by including `capability_catalog` in the `whois` request's `agh.include`
+explicitly asks for it by including `capability_catalog` in the `whois` request's `compozy.include`
 extension. Capability transfer is a separate explicit act: a peer emits a `kind:"capability"`
 envelope when it wants to hand the authoritative, digest-bound record to another peer.
 
 Daemon HTTP, UDS, and CLI payloads expose the same brief and rich views as typed fields
 (`peer_card.capabilities`, `capability_catalog`). Consumers should read those typed surfaces
-instead of raw `agh.capabilities_brief` or `agh.capability_catalog` blobs in API-visible `ext`.
+instead of raw `compozy.capabilities_brief` or `compozy.capability_catalog` blobs in API-visible `ext`.
 
 See [Capability Discovery](/protocol/capability-discovery) for the full wire-level contract,
 envelope keys, filtering rules, and worked examples across all three roles.
@@ -306,19 +306,19 @@ a runtime `digest` for `fix-go-migration-tests`.
 
 ### Ask another peer for its full catalog
 
-A caller requests rich discovery by adding `agh.include` to a `whois` request envelope. The peer
+A caller requests rich discovery by adding `compozy.include` to a `whois` request envelope. The peer
 returns the full catalog, including each capability's runtime `digest`, in
-`agh.capability_catalog`.
+`compozy.capability_catalog`.
 
 ```json title="whois request ext"
 {
-  "agh.include": ["capability_catalog"]
+  "compozy.include": ["capability_catalog"]
 }
 ```
 
 ```json title="whois response ext"
 {
-  "agh.capability_catalog": {
+  "compozy.capability_catalog": {
     "capabilities": [
       {
         "id": "build-site",
@@ -331,7 +331,7 @@ returns the full catalog, including each capability's runtime `digest`, in
 }
 ```
 
-Add `agh.capability_ids` to narrow the response to specific IDs. The full request/response shape
+Add `compozy.capability_ids` to narrow the response to specific IDs. The full request/response shape
 lives in [Capability Discovery](/protocol/capability-discovery).
 
 ### Transfer a capability explicitly

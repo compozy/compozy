@@ -2,7 +2,7 @@
  * The inspector field-descriptor contract (types only). The per-kind builders in
  * `loop-node-fields.ts` produce these, and `loop-node-schema.ts` dispatches over them —
  * one responsibility per file. This is the "schema generates the inspector" model,
- * derived from the canonical `agh.loop/v1` DSL types + the ADR-021 reserved kinds;
+ * derived from the canonical `compozy.loop/v1` DSL types + the ADR-021 reserved kinds;
  * the inspector renders FROM these descriptors, it is not a second schema authority.
  */
 

@@ -120,7 +120,7 @@ func TestNetworkConversationRefValidation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
 		}
-		if got, want := directID, "direct_5101ac7ba31424a87228708e21b268bb"; got != want {
+		if got, want := directID, "direct_eb1075313847bad2526e26b741e36751"; got != want {
 			t.Fatalf("direct id = %q, want known vector %q", got, want)
 		}
 		if sessionA != "sess-a" || sessionB != "sess-b" {

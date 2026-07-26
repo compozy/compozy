@@ -110,7 +110,7 @@ The pattern is not a one-off in the prompt path. It recurs across every surface 
 
 - **Prompts.** The HTTP and UDS prompt handlers in `internal/api/httpapi/prompt.go` and `internal/api/udsapi/prompt.go` both derive their execution context with `context.WithoutCancel`. When the operator closes the web tab or the CLI process exits, the daemon keeps streaming events into the session's event store. A reconnecting client picks up from `after_seq` and replays.
 
-- **AGH Network channel sends.** Outbound sends on `agh-network/v0` channels detach the same way. A peer-to-peer envelope can take longer than any single request that triggered it; tying the send to the request would corrupt the receipt path. The daemon owns the send; the request owns the acknowledgement that the send was queued.
+- **AGH Network channel sends.** Outbound sends on `compozy-network/v0` channels detach the same way. A peer-to-peer envelope can take longer than any single request that triggered it; tying the send to the request would corrupt the receipt path. The daemon owns the send; the request owns the acknowledgement that the send was queued.
 
 - **Automation jobs.** `internal/automation/manager.go` runs scheduled triggers, webhooks, and cron dispatches under a runtime context derived from `context.WithoutCancel(ctx)`. The automation runtime has its own cancel signal — the configuration changes, the trigger is deleted, the daemon stops. None of those reasons should be tangled with whatever request set up the trigger.
 

@@ -21,7 +21,7 @@ export function minutesAgo(minutes: number): string {
 }
 
 export const reviewsWatchDefinition: LoopDefinition = {
-  apiVersion: "agh.loop/v1",
+  apiVersion: "compozy.loop/v1",
   kind: "Loop",
   meta: {
     name: "reviews-watch",

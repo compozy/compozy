@@ -35,7 +35,7 @@ portable sender SHOULD include them explicitly as `null` when no target or proof
 
 | Field          | Type           | Required    | Rule                                                                                                                                                                                                                                                                                       |
 | -------------- | -------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `protocol`     | string         | Yes         | MUST be `agh-network/v0`.                                                                                                                                                                                                                                                                  |
+| `protocol`     | string         | Yes         | MUST be `compozy-network/v0`.                                                                                                                                                                                                                                                              |
 | `id`           | string         | Yes         | MUST identify this envelope uniquely within the sender's replay window. UUIDs are RECOMMENDED.                                                                                                                                                                                             |
 | `workspace_id` | string         | Yes         | MUST be the stable workspace ID that scopes the channel, peers, conversation containers, and work.                                                                                                                                                                                         |
 | `kind`         | string         | Yes         | MUST be one of `greet`, `whois`, `say`, `capability`, `receipt`, or `trace`. `direct` is not a kind.                                                                                                                                                                                       |
@@ -69,7 +69,7 @@ validation failure.
 
 `direct_id` is deterministic: the runtime resolves the selected peers to stable session IDs, sorts
 the pair, and hashes
-`agh-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>` with SHA-256.
+`compozy-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>` with SHA-256.
 One session pair maps to exactly one direct room per workspace channel. Two sessions opening the
 same direct room observe the same `direct_id`.
 
@@ -116,7 +116,7 @@ kind pages.
   "required": ["protocol", "id", "workspace_id", "kind", "channel", "from", "ts", "body"],
   "properties": {
     "protocol": {
-      "const": "agh-network/v0"
+      "const": "compozy-network/v0"
     },
     "id": {
       "type": "string",
@@ -199,7 +199,7 @@ and targets one reviewer.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_01jz8f6m6x4f4s8e9b2c3d4e5f",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -257,7 +257,7 @@ This informative example sends the same kind of reply, but inside a restricted d
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_01jz8f7p2nq2c5b1n8m3kqdv7w",
   "workspace_id": "ws_alpha",
   "kind": "say",

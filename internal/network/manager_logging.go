@@ -142,10 +142,10 @@ func networkLogFields(envelope Envelope, extra ...any) []any {
 		fields = append(fields, "causation_id", strings.TrimSpace(*envelope.CausationID))
 	}
 	for _, key := range []string{
-		"agh.workflow_id",
-		"agh.handoff_version",
-		"agh.handoff_digest",
-		"agh.handoff_source",
+		ExtensionKeyWorkflowID,
+		ExtensionKeyHandoffVersion,
+		ExtensionKeyHandoffDigest,
+		ExtensionKeyHandoffSource,
 	} {
 		if value, ok := extensionLogValue(envelope.Ext, key); ok {
 			fields = append(fields, key, value)
@@ -174,12 +174,12 @@ func extensionLogValue(ext ExtensionMap, key string) (string, bool) {
 }
 
 func hasWorkflowID(ext ExtensionMap) bool {
-	_, ok := extensionLogValue(ext, "agh.workflow_id")
+	_, ok := extensionLogValue(ext, ExtensionKeyWorkflowID)
 	return ok
 }
 
 func hasHandoffVersion(ext ExtensionMap) bool {
-	_, ok := extensionLogValue(ext, "agh.handoff_version")
+	_, ok := extensionLogValue(ext, ExtensionKeyHandoffVersion)
 	return ok
 }
 

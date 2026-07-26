@@ -15,11 +15,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	apiCapabilityBriefExtKey   = "agh.capabilities_brief"
-	apiCapabilityCatalogExtKey = "agh.capability_catalog"
-)
-
 func (h *BaseHandlers) networkServiceRequired() (NetworkService, error) {
 	if !h.Config.Network.Enabled {
 		return nil, errors.New("api: network is disabled")

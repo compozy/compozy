@@ -16,8 +16,8 @@ import (
 
 const (
 	// RuntimePeerID is the reserved first-party AGH runtime network peer.
-	RuntimePeerID        = "agh.runtime"
-	runtimePeerSessionID = "runtime:agh.runtime"
+	RuntimePeerID        = "compozy.runtime"
+	runtimePeerSessionID = "runtime:compozy.runtime"
 )
 
 const (

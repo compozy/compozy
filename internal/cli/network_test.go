@@ -140,7 +140,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				traceID := "trace-1"
 				causationID := "cause-1"
 				return []NetworkEnvelopeRecord{{
-					Protocol:    "agh-network/v0",
+					Protocol:    "compozy-network/v0",
 					ID:          "msg-inbox",
 					Kind:        "say",
 					Channel:     "builders",
@@ -154,8 +154,8 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 					TS:          fixedTestNow.Unix(),
 					Body:        mustJSON(t, map[string]any{"text": "review this", "intent": "review"}),
 					Ext: map[string]json.RawMessage{
-						"agh.workflow_id":     mustJSON(t, "wf-1"),
-						"agh.handoff_version": mustJSON(t, 3),
+						"compozy.workflow_id":     mustJSON(t, "wf-1"),
+						"compozy.handoff_version": mustJSON(t, 3),
 					},
 				}}, nil
 			},
@@ -299,7 +299,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			"--trace-id", "trace-1",
 			"--causation-id", "cause-1",
 			"--expires-at", "2026-04-11T18:00:00Z",
-			"--ext", `{"agh.workflow_id":"wf-1","agh.handoff_version":3}`,
+			"--ext", `{"compozy.workflow_id":"wf-1","compozy.handoff_version":3}`,
 			"-o", "json",
 		)
 		if err != nil {
@@ -311,8 +311,8 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		if seenSendRequest.ExpiresAt == nil || *seenSendRequest.ExpiresAt != expiresAt {
 			t.Fatalf("seenSendRequest.ExpiresAt = %#v, want %d", seenSendRequest.ExpiresAt, expiresAt)
 		}
-		if string(seenSendRequest.Ext["agh.workflow_id"]) != `"wf-1"` ||
-			string(seenSendRequest.Ext["agh.handoff_version"]) != `3` {
+		if string(seenSendRequest.Ext["compozy.workflow_id"]) != `"wf-1"` ||
+			string(seenSendRequest.Ext["compozy.handoff_version"]) != `3` {
 			t.Fatalf("seenSendRequest.Ext = %#v, want workflow metadata", seenSendRequest.Ext)
 		}
 		if seenSendRequest.WorkspaceID != "ws-alpha" || seenSendRequest.Surface != "thread" ||
@@ -953,7 +953,7 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 				"--session", "sess-a",
 				"--channel", "builders",
 				"--kind", "say",
-				"--body", `{"nested":{"claim_token":"agh_claim_cli"}}`,
+				"--body", `{"nested":{"claim_token":"compozy_claim_cli"}}`,
 			},
 			wantErr: "network_raw_token_rejected",
 		},
@@ -965,7 +965,7 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 				"--channel", "builders",
 				"--kind", "say",
 				"--body", `{"text":"ok"}`,
-				"--ext", `{"agh":{"claim_token":"agh_claim_cli"}}`,
+				"--ext", `{"agh":{"claim_token":"compozy_claim_cli"}}`,
 			},
 			wantErr: "network_raw_token_rejected",
 		},

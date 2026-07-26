@@ -57,7 +57,7 @@ describe("blog metadata", () => {
 
     expect(openGraphImage?.url).toBe("/static/blog/introducing-agh-cover.png");
     expect(openGraphImage?.alt).toBe(
-      "agh-network/v0, three peers exchanging direct, receipt, and trace envelopes"
+      "compozy-network/v0, three peers exchanging direct, receipt, and trace envelopes"
     );
     expect(twitterImage).toBe("/static/blog/introducing-agh-cover.png");
     expect(existsSync(resolve(siteRoot, "public/static/blog/introducing-agh-cover.png"))).toBe(

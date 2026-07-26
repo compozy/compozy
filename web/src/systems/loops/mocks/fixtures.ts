@@ -363,7 +363,7 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
 
 function buildDefinition(entry: LoopCatalogEntry): LoopDefinition {
   return {
-    apiVersion: "agh.loop/v1",
+    apiVersion: "compozy.loop/v1",
     kind: "Loop",
     meta: {
       name: entry.name,

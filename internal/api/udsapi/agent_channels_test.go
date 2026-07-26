@@ -175,13 +175,13 @@ func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T)
 	}{
 		{
 			name:       "payload body",
-			body:       []byte(`{"body":{"claim_token":"agh_claim_UDS_CHANNEL_123"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`),
-			mustRedact: "agh_claim_UDS_CHANNEL_123",
+			body:       []byte(`{"body":{"claim_token":"compozy_claim_UDS_CHANNEL_123"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`),
+			mustRedact: "compozy_claim_UDS_CHANNEL_123",
 		},
 		{
 			name:       "metadata ext",
-			body:       []byte(`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1","ext":{"claim_token":"agh_claim_UDS_CHANNEL_123"}}}`),
-			mustRedact: "agh_claim_UDS_CHANNEL_123",
+			body:       []byte(`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1","ext":{"claim_token":"compozy_claim_UDS_CHANNEL_123"}}}`),
+			mustRedact: "compozy_claim_UDS_CHANNEL_123",
 		},
 		{
 			name: "caller supplied verified-format identity",

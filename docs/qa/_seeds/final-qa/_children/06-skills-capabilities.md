@@ -1303,8 +1303,8 @@ Per the openclaw `forbiddenNeedles` pattern. None of the following may
 appear in any outbound message, transcript, SSE event, or audit log
 across any SKL scenario:
 
-- Any literal raw `agh_claim_<>=12 random char>` (regex
-  `agh_claim_[A-Za-z0-9_-]{12,}`) — claim-token redaction is
+- Any literal raw `compozy_claim_<>=12 random char>` (regex
+  `compozy_claim_[A-Za-z0-9_-]{12,}`) — claim-token redaction is
   non-negotiable per `internal/CLAUDE.md` Security Invariants.
 - Any provider API key shape: `sk-`, `xoxb-`, `AKIA`, `ya29.`.
 - Any reference to the deleted legacy `recipe`/`workflow`/`procedure`

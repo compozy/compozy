@@ -1,4 +1,4 @@
-// Package dsl defines the agh.loop/v1 authoring document.
+// Package dsl defines the compozy.loop/v1 authoring document.
 package dsl
 
 import (
@@ -9,7 +9,7 @@ import (
 
 const (
 	// APIVersion is the only loop DSL version accepted by this package.
-	APIVersion = "agh.loop/v1"
+	APIVersion = "compozy.loop/v1"
 	// KindLoop is the document kind for loop definitions.
 	KindLoop = "Loop"
 	// GateMaxRevisionsCeiling is the hard structural gate revision ceiling.
@@ -19,7 +19,7 @@ const (
 // NodeID is the stable graph node identity.
 type NodeID string
 
-// Definition is the canonical agh.loop/v1 document.
+// Definition is the canonical compozy.loop/v1 document.
 type Definition struct {
 	APIVersion                string            `json:"apiVersion"            yaml:"apiVersion"`
 	Kind                      string            `json:"kind"                  yaml:"kind"`

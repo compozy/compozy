@@ -107,7 +107,7 @@ func canonicalizeUnsafePublicContractKey(key string) string {
 func isUnsafePublicContractString(value string) bool {
 	trimmed := strings.TrimSpace(value)
 	lower := strings.ToLower(trimmed)
-	return strings.Contains(lower, "agh_claim_") ||
+	return strings.Contains(lower, "compozy_claim_") ||
 		strings.Contains(lower, "env:") ||
 		strings.Contains(lower, "vault:") ||
 		strings.HasPrefix(trimmed, "sk-") ||

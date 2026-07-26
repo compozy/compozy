@@ -29,10 +29,10 @@ const (
 	FileName = "HEARTBEAT.md"
 
 	schemaVersion       = 1
-	digestPrefix        = "agh.heartbeat.v1\n"
-	contentDigestPrefix = "agh.heartbeat.content.v1\n"
-	absentDigestPrefix  = "agh.heartbeat.absent.v1\n"
-	configDigestPrefix  = "agh.heartbeat.config.v1\n"
+	digestPrefix        = "compozy.heartbeat.v1\n"
+	contentDigestPrefix = "compozy.heartbeat.content.v1\n"
+	absentDigestPrefix  = "compozy.heartbeat.absent.v1\n"
+	configDigestPrefix  = "compozy.heartbeat.config.v1\n"
 	diagnosticError     = "error"
 	diagnosticWarning   = "warning"
 )

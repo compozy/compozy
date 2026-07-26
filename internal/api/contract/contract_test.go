@@ -187,7 +187,7 @@ func TestLoopDefinitionDocumentPreservesWatchEvents(t *testing.T) {
 
 		const raw = `{
 			"definition": {
-				"apiVersion": "agh.loop/v1",
+				"apiVersion": "compozy.loop/v1",
 				"kind": "Loop",
 				"meta": {"name": "watch-events-contract", "catalog": {}},
 				"contract": {
@@ -494,7 +494,7 @@ func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {
 				"surface":"thread",
 				"thread_id":"thread_launch_db",
 				"kind":"say",
-				"proof":{"profile":"agh-network.trust.ed25519-jcs/v1"},
+				"proof":{"profile":"compozy-network.trust.ed25519-jcs/v1"},
 				"body":{"text":"hello"}
 			}`,
 			want: "sender identity and proof are daemon-derived",
@@ -1436,11 +1436,11 @@ func TestNetworkPeerPayloadJSONShape(t *testing.T) {
 					ID:      "review-pr",
 					Summary: "Review pull requests",
 				}},
-				ProfilesSupported:   []string{"agh-network/v0"},
+				ProfilesSupported:   []string{"compozy-network/v0"},
 				ArtifactsSupported:  []string{"capability"},
 				TrustModesSupported: []string{"untrusted"},
 				Ext: map[string]json.RawMessage{
-					"agh.workflow_id": json.RawMessage(`"wf-1"`),
+					"compozy.workflow_id": json.RawMessage(`"wf-1"`),
 				},
 			},
 		}
@@ -1490,7 +1490,7 @@ func TestNetworkPeerDetailPayloadJSONShape(t *testing.T) {
 					ID:      "review-pr",
 					Summary: "Review pull requests",
 				}},
-				ProfilesSupported:   []string{"agh-network/v0"},
+				ProfilesSupported:   []string{"compozy-network/v0"},
 				ArtifactsSupported:  []string{"capability"},
 				TrustModesSupported: []string{"untrusted"},
 			},

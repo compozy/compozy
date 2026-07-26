@@ -7,8 +7,8 @@ const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const repoRoot = resolve(siteRoot, "../..");
 
 const activeProtocolDocs = [
-  "docs/rfcs/003_agh-network-v0.md",
-  "docs/rfcs/004_agh-network-v1.md",
+  "docs/rfcs/003_compozy-network-v0.md",
+  "docs/rfcs/004_compozy-network-v1.md",
   "docs/_memory/glossary.md",
 ] as const;
 
@@ -24,7 +24,7 @@ function listMDXDocs(dir: string): string[] {
 }
 
 const workspaceQualifiedProtocolDocs = [
-  "docs/rfcs/003_agh-network-v0.md",
+  "docs/rfcs/003_compozy-network-v0.md",
   ...listMDXDocs(resolve(siteRoot, "content/protocol")),
   ...listMDXDocs(resolve(siteRoot, "content/runtime/core/network")),
   "packages/site/content/runtime/guides/coordinate-agents-over-network.mdx",
@@ -132,10 +132,10 @@ describe("protocol RFC hard cut", () => {
 
   it("keeps active public protocol docs on workspace-qualified v0 network identity", () => {
     const legacyPatterns = [
-      /agh-network\/v2/,
+      /compozy-network\/v2/,
       /agh\.network\.v2/,
       /ProtocolV2/,
-      /006_agh-network-v2/,
+      /006_compozy-network-v2/,
       /agh\.network\.v0\.<channel>/,
       /agh\.network\.v1\.<channel>/,
       /agh\.network\.v0\.builders\.(?:broadcast|peer)/,
@@ -161,17 +161,17 @@ describe("protocol RFC hard cut", () => {
   });
 
   it("keeps RFC 003 as current in-process v0 and RFC 004 as future v1 trust work", () => {
-    const rfc003 = readRepoFile("docs/rfcs/003_agh-network-v0.md");
+    const rfc003 = readRepoFile("docs/rfcs/003_compozy-network-v0.md");
     expect(rfc003).toContain("**Status:** Current runtime contract");
-    expect(rfc003).toContain("agh-network/v0");
+    expect(rfc003).toContain("compozy-network/v0");
     expect(rfc003).toContain("AGH Runtime in-process delivery");
     expect(rfc003).toContain("The durable commit is acceptance");
     expect(rfc003).not.toContain("RFC 006");
 
-    const rfc004 = readRepoFile("docs/rfcs/004_agh-network-v1.md");
+    const rfc004 = readRepoFile("docs/rfcs/004_compozy-network-v1.md");
     expect(rfc004).toContain("**Status:** Future draft profile");
     expect(rfc004).toContain("future auth/proofs/trust-profile work");
-    expect(rfc004).toContain("[RFC 003: AGH Network v0](003_agh-network-v0.md)");
+    expect(rfc004).toContain("[RFC 003: AGH Network v0](003_compozy-network-v0.md)");
     expect(rfc004).not.toContain("RFC 006");
   });
 
@@ -202,8 +202,8 @@ describe("protocol RFC hard cut", () => {
 
   it("requires active RFC envelope examples to carry workspace_id", () => {
     const envelopes = activeEnvelopeExamples([
-      "docs/rfcs/003_agh-network-v0.md",
-      "docs/rfcs/004_agh-network-v1.md",
+      "docs/rfcs/003_compozy-network-v0.md",
+      "docs/rfcs/004_compozy-network-v1.md",
     ]);
 
     const violations = envelopes.flatMap(example => {
@@ -216,8 +216,8 @@ describe("protocol RFC hard cut", () => {
 
   it("requires conversation-bearing examples to use one explicit surface container", () => {
     const envelopes = activeEnvelopeExamples([
-      "docs/rfcs/003_agh-network-v0.md",
-      "docs/rfcs/004_agh-network-v1.md",
+      "docs/rfcs/003_compozy-network-v0.md",
+      "docs/rfcs/004_compozy-network-v1.md",
     ]);
 
     const violations = envelopes.flatMap(example => {
@@ -256,8 +256,8 @@ describe("protocol RFC hard cut", () => {
 
   it("uses work_id only on lifecycle-bearing examples", () => {
     const envelopes = activeEnvelopeExamples([
-      "docs/rfcs/003_agh-network-v0.md",
-      "docs/rfcs/004_agh-network-v1.md",
+      "docs/rfcs/003_compozy-network-v0.md",
+      "docs/rfcs/004_compozy-network-v1.md",
     ]);
 
     const violations = envelopes.flatMap(example => {
@@ -295,7 +295,7 @@ describe("protocol RFC hard cut", () => {
   });
 
   it("documents RFC 004 signed fields and proves examples carry them when present", () => {
-    const rfc004 = readRepoFile("docs/rfcs/004_agh-network-v1.md");
+    const rfc004 = readRepoFile("docs/rfcs/004_compozy-network-v1.md");
     for (const signedField of [
       "`surface` when present",
       "`thread_id` when present",
@@ -305,7 +305,7 @@ describe("protocol RFC hard cut", () => {
       expect(rfc004).toContain(signedField);
     }
 
-    const verifiedExamples = activeEnvelopeExamples(["docs/rfcs/004_agh-network-v1.md"]).filter(
+    const verifiedExamples = activeEnvelopeExamples(["docs/rfcs/004_compozy-network-v1.md"]).filter(
       example => isRecord(example.value.proof)
     );
     expect(verifiedExamples.length).toBeGreaterThanOrEqual(2);

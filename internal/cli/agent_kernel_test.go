@@ -437,7 +437,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 				name: "Should reject raw claim token in body",
 				args: []string{
 					"ch", "send", "builders",
-					"--body", `{"claim_token":"agh_claim_CLI_CHANNEL_123"}`,
+					"--body", `{"claim_token":"compozy_claim_CLI_CHANNEL_123"}`,
 					"--task-id", "task-1",
 					"--run-id", "run-1",
 				},
@@ -449,7 +449,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 					"--body", `{"text":"ok"}`,
 					"--task-id", "task-1",
 					"--run-id", "run-1",
-					"--metadata-ext", `{"claim_token":"agh_claim_CLI_CHANNEL_123"}`,
+					"--metadata-ext", `{"claim_token":"compozy_claim_CLI_CHANNEL_123"}`,
 				},
 			},
 		} {
@@ -471,7 +471,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 				if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
 					t.Fatalf("compozy ch send error = %v, want ErrRawClaimTokenMetadata", err)
 				}
-				if strings.Contains(err.Error(), "agh_claim_CLI_CHANNEL_123") {
+				if strings.Contains(err.Error(), "compozy_claim_CLI_CHANNEL_123") {
 					t.Fatalf("compozy ch send error leaked raw claim token: %v", err)
 				}
 			})

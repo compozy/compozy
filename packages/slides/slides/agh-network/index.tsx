@@ -191,7 +191,7 @@ const Definition: Page = () => (
             letterSpacing: "-0.02em",
           }}
         >
-          agh-network/v0
+          compozy-network/v0
         </span>
         <br />
         Open agent coordination protocol.
@@ -442,7 +442,7 @@ const Closing: Page = () => (
           margin: "40px 0 0",
         }}
       >
-        Every other agent tool stops at the single-runtime boundary. agh-network/v0 is the open
+        Every other agent tool stops at the single-runtime boundary. compozy-network/v0 is the open
         agent network protocol — implementable outside AGH.
       </p>
 
@@ -451,5 +451,5 @@ const Closing: Page = () => (
   </>
 );
 
-export const meta: SlideMeta = { title: "AGH Network · agh-network/v0" };
+export const meta: SlideMeta = { title: "AGH Network · compozy-network/v0" };
 export default [Cover, Definition, Kinds, Closing] satisfies Page[];

@@ -269,7 +269,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
       <div class="head-txt">
         <div class="eyebrow">Loops · New loop</div>
         <div class="modal__title">New loop</div>
-        <p class="modal__sub">Start from a built-in or author a new definition. Either path copies a full <span class="mono" style="font-size:11px;color:var(--muted)">agh.loop/v1</span> definition into your workspace and opens the visual editor to review and publish.</p>
+        <p class="modal__sub">Start from a built-in or author a new definition. Either path copies a full <span class="mono" style="font-size:11px;color:var(--muted)">compozy.loop/v1</span> definition into your workspace and opens the visual editor to review and publish.</p>
       </div>
       <a class="head-close" href="loops-catalog.html" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -301,7 +301,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
               <span class="mode__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
               <span class="mode__tx">
                 <span class="mode__t">From scratch</span>
-                <span class="mode__d">A minimal starter loop, or import an existing <span class="mono">agh.loop/v1</span> file.</span>
+                <span class="mode__d">A minimal starter loop, or import an existing <span class="mono">compozy.loop/v1</span> file.</span>
               </span>
               <svg class="mode__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </button>
@@ -320,7 +320,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
             <button class="tpl" data-id="software-delivery" data-kind="builtin" aria-pressed="true">
               <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
               <span class="tpl__main">
-                <span class="tpl__name"><b>software-delivery</b><span class="tag">Built-in</span><span class="tpl__slug">agh.loop/v1</span></span>
+                <span class="tpl__name"><b>software-delivery</b><span class="tag">Built-in</span><span class="tpl__slug">compozy.loop/v1</span></span>
                 <span class="tpl__goal">Ship every authored task for a slug in dependency order, implemented, reviewed to acceptance, and verified by the project's own checks.</span>
                 <span class="tpl__meta"><span class="k">8 nodes</span><span class="dotsep"></span><span class="k">5 inputs</span><span class="dotsep"></span><span>iteration cap 50</span></span>
               </span>
@@ -354,7 +354,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
             <button class="sub" data-start="import" role="radio" aria-checked="false">
               <span>
                 <span class="sub__t">Import a definition</span>
-                <span class="sub__d">Upload or paste an existing <span class="mono">agh.loop/v1</span> YAML.</span>
+                <span class="sub__d">Upload or paste an existing <span class="mono">compozy.loop/v1</span> YAML.</span>
               </span>
               <svg class="sub__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </button>
@@ -393,7 +393,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
               <div class="drop__meta">Validated and linted on save &middot; agh loop create --file</div>
             </div>
             <div class="paste-h">or paste the definition</div>
-            <textarea class="textarea textarea--mono" id="yamlPaste" style="min-height:120px" placeholder="apiVersion: agh.loop/v1&#10;kind: Loop&#10;meta:&#10;  name: my-loop&#10;  catalog: { category: Engineering }&#10;concurrency: forbid&#10;contract:&#10;  goal: ...&#10;  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]&#10;  iteration_cap: 50&#10;  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }&#10;graph:&#10;  nodes: [ ... ]&#10;  edges: [ ... ]"></textarea>
+            <textarea class="textarea textarea--mono" id="yamlPaste" style="min-height:120px" placeholder="apiVersion: compozy.loop/v1&#10;kind: Loop&#10;meta:&#10;  name: my-loop&#10;  catalog: { category: Engineering }&#10;concurrency: forbid&#10;contract:&#10;  goal: ...&#10;  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]&#10;  iteration_cap: 50&#10;  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }&#10;graph:&#10;  nodes: [ ... ]&#10;  edges: [ ... ]"></textarea>
           </div>
         </div>
 
@@ -433,7 +433,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
 
         <div class="note">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          <span>Every loop is a definition (<code>agh.loop/v1</code>) copied into your workspace, edited in the visual editor, and published once the linter passes. New loops start from a built-in or an imported definition, never a blank canvas <b>(ADR-008)</b>.</span>
+          <span>Every loop is a definition (<code>compozy.loop/v1</code>) copied into your workspace, edited in the visual editor, and published once the linter passes. New loops start from a built-in or an imported definition, never a blank canvas <b>(ADR-008)</b>.</span>
         </div>
       </aside>
 
@@ -525,7 +525,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
           'Create '+(nm?'<span class="mono">'+esc(slug)+'</span>':'a new loop')+' from your <b>imported definition</b>. '+
           'Validated and linted on save, then opens in the editor. '+(has?'':'<span class="acc">Add the YAML to continue.</span>');
         kv.innerHTML =
-          kvRow("Source", "Imported agh.loop/v1") +
+          kvRow("Source", "Imported compozy.loop/v1") +
           kvRow("Category", catEl.value) +
           kvRow("Body", has ? "from the file" : "not set yet") +
           kvRow("Lands in", "Visual editor");
@@ -595,7 +595,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
   catEl.addEventListener("change", paint);
   yaml.addEventListener("input", paint);
   $("dropzone").addEventListener("click", function(){
-    yaml.value = "apiVersion: agh.loop/v1\nkind: Loop\nmeta:\n  name: imported-loop\n  catalog: { category: Engineering }\nconcurrency: forbid\ncontract:\n  goal: ...\n  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]\n  iteration_cap: 50\n  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }\ngraph:\n  nodes: [ ... ]\n  edges: [ ... ]";
+    yaml.value = "apiVersion: compozy.loop/v1\nkind: Loop\nmeta:\n  name: imported-loop\n  catalog: { category: Engineering }\nconcurrency: forbid\ncontract:\n  goal: ...\n  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]\n  iteration_cap: 50\n  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }\ngraph:\n  nodes: [ ... ]\n  edges: [ ... ]";
     paint();
   });
 

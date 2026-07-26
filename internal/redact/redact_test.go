@@ -49,7 +49,7 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 		{
 			name: "Should redact AGH MCP OAuth PKCE and binding secrets",
 			input: strings.Join([]string{
-				"agh_claim_raw-claim-value",
+				"compozy_claim_raw-claim-value",
 				"mcp_auth_token=mcp-token-value",
 				"authorization_code=oauth-code-value",
 				"code_verifier=pkce-verifier-value",
@@ -59,7 +59,7 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 				"workspace_secret=workspace-secret-value",
 			}, " "),
 			leaks: []string{
-				"agh_claim_raw-claim-value",
+				"compozy_claim_raw-claim-value",
 				"mcp-token-value",
 				"oauth-code-value",
 				"pkce-verifier-value",
@@ -185,14 +185,14 @@ func TestStringUsesDynamicSecretsAndRemainsIdempotent(t *testing.T) {
 	t.Run("Should own task claim detection and claim-only redaction", func(t *testing.T) {
 		t.Parallel()
 
-		if !ContainsRawClaimToken("prefix AGH_CLAIM_secret-value suffix") {
+		if !ContainsRawClaimToken("prefix COMPOZY_CLAIM_secret-value suffix") {
 			t.Fatal("ContainsRawClaimToken() = false, want true")
 		}
-		if ContainsRawClaimToken("field name agh_claim_token") {
+		if ContainsRawClaimToken("field name compozy_claim_token") {
 			t.Fatal("ContainsRawClaimToken(placeholder) = true, want false")
 		}
-		if got, want := ClaimTokens("AGH_CLAIM_secret-value api_key=visible"),
-			"agh_claim_[REDACTED] api_key=visible"; got != want {
+		if got, want := ClaimTokens("COMPOZY_CLAIM_secret-value api_key=visible"),
+			"compozy_claim_[REDACTED] api_key=visible"; got != want {
 			t.Fatalf("ClaimTokens() = %q, want %q", got, want)
 		}
 	})
@@ -229,8 +229,8 @@ func TestEngineComposesExactAndHeuristicRedaction(t *testing.T) {
 	t.Run("Should preserve exact claim token protection", func(t *testing.T) {
 		t.Parallel()
 
-		got := New(Options{}).RedactString("claim=agh_claim_super-secret-lease")
-		assertRedactionRemovedValue(t, got, "agh_claim_super-secret-lease")
+		got := New(Options{}).RedactString("claim=compozy_claim_super-secret-lease")
+		assertRedactionRemovedValue(t, got, "compozy_claim_super-secret-lease")
 	})
 
 	t.Run("Should redact a generic high entropy token", func(t *testing.T) {
@@ -304,7 +304,7 @@ func TestEngineRedactJSONPreservesStructuredEnvelope(t *testing.T) {
 func TestEngineRedactionRecursesIntoProtectedCompositeEnvelopes(t *testing.T) {
 	t.Parallel()
 
-	secret := "agh_claim_nested-envelope-secret"
+	secret := "compozy_claim_nested-envelope-secret"
 	engine := New(Options{})
 
 	t.Run("Should redact sensitive JSON children under a protected envelope key", func(t *testing.T) {
@@ -356,7 +356,7 @@ func TestProcessEnabledSnapshot(t *testing.T) {
 		if got := String(providerSecret); got != providerSecret {
 			t.Fatalf("String(provider secret) = %q, want heuristic disabled", got)
 		}
-		claimSecret := "agh_claim_runtime-snapshot-secret"
+		claimSecret := "compozy_claim_runtime-snapshot-secret"
 		assertRedactionRemovedValue(t, String(claimSecret), claimSecret)
 		return
 	}

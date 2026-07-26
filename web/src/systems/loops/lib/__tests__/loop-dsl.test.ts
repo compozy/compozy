@@ -10,10 +10,10 @@ const def = loopDetailByName.get("software-delivery")!.definition as unknown as 
 >;
 
 describe("loop dsl view", () => {
-  it("Should render the agh.loop/v1 document with top-level blocks and the graph nodes", () => {
+  it("Should render the compozy.loop/v1 document with top-level blocks and the graph nodes", () => {
     const lines = buildDslView(def, new Map());
     const text = lines.map(line => line.text).join("\n");
-    expect(text).toContain("apiVersion: agh.loop/v1");
+    expect(text).toContain("apiVersion: compozy.loop/v1");
     expect(text).toContain("graph:");
     expect(text).toContain("nodes:");
     expect(text).toContain("id: implement");
@@ -47,7 +47,7 @@ describe("loop dsl view", () => {
   it("Should render empty object/array fields as flow leaves, never [object Object]", () => {
     // Palette seeds (Channel post / Call tool / Gate / Transform) emit empty objects.
     const seeded = {
-      apiVersion: "agh.loop/v1",
+      apiVersion: "compozy.loop/v1",
       graph: {
         nodes: [
           { id: "post", class: "action", kind: "compozy__network_send", params: {} },
@@ -69,7 +69,7 @@ describe("loop dsl view", () => {
 
   it("Should render multiline strings as block scalars without embedding physical newlines", () => {
     const seeded = {
-      apiVersion: "agh.loop/v1",
+      apiVersion: "compozy.loop/v1",
       graph: {
         nodes: [
           {

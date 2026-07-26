@@ -181,7 +181,7 @@ func NewClaimToken() (string, error) {
 	if _, err := rand.Read(random); err != nil {
 		return "", fmt.Errorf("task: generate claim token: %w", err)
 	}
-	return "agh_claim_" + base64.RawURLEncoding.EncodeToString(random), nil
+	return "compozy_claim_" + base64.RawURLEncoding.EncodeToString(random), nil
 }
 
 // RedactClaimTokens replaces raw claim bearer tokens in free-form strings.

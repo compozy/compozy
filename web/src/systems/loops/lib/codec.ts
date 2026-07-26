@@ -4,7 +4,7 @@ import type { LoopDefinition, LoopDefinitionGraph } from "../types";
 import { toLoopNodeClass, type LoopNodeClass } from "./loop-graph";
 
 /**
- * The bijective `agh.loop/v1` ↔ `@xyflow/react` codec (ADR-015).
+ * The bijective `compozy.loop/v1` ↔ `@xyflow/react` codec (ADR-015).
  *
  * `definitionToGraph` opens the one canonical definition into a React Flow graph;
  * `graphToDefinition` publishes it back. The codec is lossless: every node/edge
@@ -93,7 +93,7 @@ export function definitionToGraph(definition: Pick<LoopDefinition, "graph">): Ed
   for (const candidate of nodes) {
     if (!isRawLoopNode(candidate)) continue;
     // A node without a non-empty string id (or an edge missing from/to) cannot be placed
-    // on the canvas or referenced, and is unreachable for a valid agh.loop/v1 document —
+    // on the canvas or referenced, and is unreachable for a valid compozy.loop/v1 document —
     // ADR-020 enforces snake_case string ids, and the linter rejects anything else. Such
     // an element is intentionally dropped here; the definition it came from is malformed
     // and would fail publish, so the round-trip contract holds for every valid input.

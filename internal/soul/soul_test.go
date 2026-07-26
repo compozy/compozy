@@ -153,7 +153,7 @@ func TestParseRejectsAuthorityClaims(t *testing.T) {
 				"role: Reviewer",
 				"---",
 				"## Task Runs",
-				"claim_token = agh_claim_secret_value",
+				"claim_token = compozy_claim_secret_value",
 			}, "\n"),
 			code:    "reserved_section",
 			section: "task_runs",
@@ -214,7 +214,7 @@ func TestParseRejectsAuthorityClaims(t *testing.T) {
 			if strings.Contains(diag.SourcePath, "/home/user") {
 				t.Fatalf("Diagnostic SourcePath leaked absolute path: %q", diag.SourcePath)
 			}
-			if strings.Contains(diag.Message, "agh_claim_secret_value") {
+			if strings.Contains(diag.Message, "compozy_claim_secret_value") {
 				t.Fatalf("Diagnostic message leaked forbidden body content: %q", diag.Message)
 			}
 		})

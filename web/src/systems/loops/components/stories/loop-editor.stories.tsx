@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
 import type { ComponentProps } from "react";
+import { userEvent, within } from "storybook/test";
 
 import { aghApiMock } from "@/storybook/openapi-msw";
 import { StorySurface, StoryTopbarHost } from "@/storybook/story-layout";
@@ -118,6 +119,15 @@ type Story = StoryObj<typeof meta>;
  *  inspector, linter dock (all invariants pass), and the read-only Start summary. */
 export const Editor: Story = {
   args: { workspaceId: WS, name: "software-delivery" },
+};
+
+/** The same canonical Loop definition rendered through the read-only DSL view. */
+export const DslView: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("loop-editor-view-dsl"));
+  },
 };
 
 /** Goal authoring block selected in the inspector, including the closed judge,

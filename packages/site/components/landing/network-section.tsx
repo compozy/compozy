@@ -26,7 +26,7 @@ agh network inbox --session <session-id>`;
 
 export function NetworkSection() {
   return (
-    <SectionFrame background="deep" padY="xl" ariaLabel="agh-network/v0 protocol">
+    <SectionFrame background="deep" padY="xl" ariaLabel="compozy-network/v0 protocol">
       <SectionHeader
         align="center"
         eyebrow="AGH Network , the differentiator"
@@ -34,7 +34,7 @@ export function NetworkSection() {
         title={
           <>
             <span className="font-mono text-accent-glyph tracking-tight text-accent">
-              agh-network/v0
+              compozy-network/v0
             </span>{" "}
             , implemented in the alpha runtime.
           </>
@@ -100,7 +100,7 @@ export function NetworkSection() {
             href="/protocol"
             className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-accent-hover"
           >
-            Read the full agh-network/v0 spec
+            Read the full compozy-network/v0 spec
             <ArrowUpRight aria-hidden className="size-4" />
           </Link>
         </div>

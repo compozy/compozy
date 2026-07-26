@@ -702,11 +702,11 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			descriptor:   descriptor,
 			availability: availableDispatchHandle(),
 			result: ToolResult{
-				Preview: "preview token=preview-secret agh_claim_preview_123",
+				Preview: "preview token=preview-secret compozy_claim_preview_123",
 				Content: []ToolContent{
 					{
 						Type: "json",
-						Text: "stdout token=stdout-secret agh_claim_content_456",
+						Text: "stdout token=stdout-secret compozy_claim_content_456",
 						Data: json.RawMessage(`{"access_token":"secret","visible":"ok"}`),
 						Metadata: map[string]json.RawMessage{
 							"refresh_token": json.RawMessage(`"secret"`),
@@ -779,8 +779,8 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		for _, leaked := range []string{
 			"preview-secret",
 			"stdout-secret",
-			"agh_claim_preview_123",
-			"agh_claim_content_456",
+			"compozy_claim_preview_123",
+			"compozy_claim_content_456",
 		} {
 			if strings.Contains(string(data), leaked) {
 				t.Fatalf("result leaked display secret %q: %s", leaked, data)

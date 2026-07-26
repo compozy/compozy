@@ -7,8 +7,8 @@ module: network-identity
 provider_lanes: [claude-code]
 authoritative_runtime_truth: internal/CLAUDE.md
 references:
-  - ../../../../rfcs/003_agh-network-v0.md
-  - ../../../../rfcs/004_agh-network-v1.md
+  - ../../../../rfcs/003_compozy-network-v0.md
+  - ../../../../rfcs/004_compozy-network-v1.md
   - ../../../scenarios/NB-execution-participation-defaults.md
   - ../../../scenarios/NB-run-bounded-live-collaboration.md
   - ../../../scenarios/NB-network-live-config-lifecycle.md

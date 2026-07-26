@@ -1,12 +1,12 @@
 ---
-title: "agh-network/v0: a bounded protocol for agent coordination"
-description: "MCP connects agents to tools. agh-network/v0 gives explicitly participating agents a durable conversation contract with commit-first local delivery."
+title: "compozy-network/v0: a bounded protocol for agent coordination"
+description: "MCP connects agents to tools. compozy-network/v0 gives explicitly participating agents a durable conversation contract with commit-first local delivery."
 date: 2026-05-20
 updated: 2026-07-14
 category: protocol
 tags:
   - protocol
-  - agh-network
+  - compozy-network
   - agent-coordination
   - launch
 author: pedronauck
@@ -24,7 +24,7 @@ status: publishable
 
 MCP gave agents a wire to their tools. It did not define when two agent executions should share
 context, how a message becomes durable, or what limits stop conversation from turning into unbounded
-model work. `agh-network/v0` defines that coordination contract.
+model work. `compozy-network/v0` defines that coordination contract.
 
 The protocol is deliberately small: six message kinds, one workspace-qualified envelope, explicit
 thread and direct-room containers, and a work lifecycle. AGH Runtime adds one rule that matters as
@@ -57,7 +57,7 @@ one container identifier. Lifecycle-bearing messages add `work_id`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_demo_1776366000",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -156,7 +156,7 @@ and CLI surfaces. The UI projects the same records; it does not own hidden coord
 ## Trust remains a separate profile
 
 The v0 core preserves `proof` as opaque data and does not claim cryptographic sender verification.
-The future `agh-network.trust.ed25519-jcs/v1` profile defines Ed25519 signatures over RFC 8785 JCS
+The future `compozy-network.trust.ed25519-jcs/v1` profile defines Ed25519 signatures over RFC 8785 JCS
 bytes, self-certified `nickname@fingerprint` identities, and proof-stripping defense.
 
 Keeping trust separate lets the current runtime tell the truth: local delivery is durable and

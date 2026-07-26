@@ -248,7 +248,7 @@ expected_behavior:
     - at least one for `fs/write_text_file`.
     - at least one for `terminal/create` (the wc command).
   - For each completed event: `result_bytes > 0`; `decision in {allowed, allowed_with_approval}`; `reason_codes` is an array (may be empty).
-  - No raw `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `agh_claim_*` literal in transcript.json or ledger.json.
+  - No raw `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `compozy_claim_*` literal in transcript.json or ledger.json.
 evidence_to_capture:
   - sess.json, prompt.json, transcript.json, ledger.json, summary.json.
   - `ps -o pid,ppid,pgid,command -ax` snapshot showing the agent subprocess + any terminal subprocesses.
@@ -926,7 +926,7 @@ steps:
   - run: agh sessions events $SID -o json > events.json
   - run: cat ./fixtures/tol17/calc.py
   - run: (cd ./fixtures/tol17 && pytest -q) | tee pytest.txt
-  - run: grep -E '\bsk-|\bagh_claim_|\bANTHROPIC_API_KEY' ledger.json events.json transcript.json $LAB_HOME/logs/agh.log; echo "exit=$?"
+  - run: grep -E '\bsk-|\bcompozy_claim_|\bANTHROPIC_API_KEY' ledger.json events.json transcript.json $LAB_HOME/logs/agh.log; echo "exit=$?"
 expected_behavior:
   - p.json: state=completed, assistant text references PASSED.
   - mix.json: at least one fs/read_text_file, one fs/write_text_file, one terminal/create entry.
@@ -1030,7 +1030,7 @@ Matrix of dependencies and obligations.
 
 If any of these slip, we ship a broken tool runtime.
 
-1. **Raw secret literal in any tool ledger / SSE / agh.log entry.** `grep -E '\bsk-[A-Za-z0-9]{20,}\b'` and `grep -E '\bagh_claim_[A-Za-z0-9]+\b'` over all evidence in TOL-08, TOL-10, TOL-17 returns exit 1.
+1. **Raw secret literal in any tool ledger / SSE / agh.log entry.** `grep -E '\bsk-[A-Za-z0-9]{20,}\b'` and `grep -E '\bcompozy_claim_[A-Za-z0-9]+\b'` over all evidence in TOL-08, TOL-10, TOL-17 returns exit 1.
 2. **Orphan tool subprocess after sessions stop.** TOL-16 ps grep returns "no orphans".
 3. **Interrupt does not kill grandchild on Unix.** TOL-02 cleanup verifies the entire tree.
 4. **Path containment bypass via null-byte / URL-encoded / Unicode / symlink.** TOL-04 / TOL-05 / TOL-06 / TOL-07 all reject and leave no artifacts.
@@ -1065,7 +1065,7 @@ The QA harness for this child must:
   - `qa-summary.json` — machine-readable.
   - `qa-output.log` — combined stdout/stderr.
   - `qa-observed-events.json` — SSE events captured (redacted by default).
-- Provide a **secret-leak grep gate** (`scripts/qa/secret-grep.sh`) that runs after each scenario over every captured artifact, checking for `\bsk-[A-Za-z0-9]{20,}\b`, `\bANTHROPIC_API_KEY=`, `\bagh_claim_[A-Za-z0-9]+\b`, `OPENAI_API_KEY=sk-`. Zero matches mandatory.
+- Provide a **secret-leak grep gate** (`scripts/qa/secret-grep.sh`) that runs after each scenario over every captured artifact, checking for `\bsk-[A-Za-z0-9]{20,}\b`, `\bANTHROPIC_API_KEY=`, `\bcompozy_claim_[A-Za-z0-9]+\b`, `OPENAI_API_KEY=sk-`. Zero matches mandatory.
 - Provide a **tool-event coverage matrix gate**: for each scenario, assert that every tool call emits exactly the canonical event sequence per `dispatch.go:40-93` (`tool_call_started` then either `tool_call_completed`/`tool_call_failed`/`tool_call_denied`, plus optional `tool_result_truncated`).
 - Provide a **windows cross-build gate** specifically for `internal/toolruntime`, `internal/acp/process_tree_unix.go` vs `process_tree_windows.go`, `internal/sandbox/local`: `GOOS=windows GOARCH=amd64 go build ./internal/toolruntime/... ./internal/acp/... ./internal/sandbox/local/...`.
 - Provide a **bakeoff order** for live runs: GPT (when supported) → Claude Code → Gemini (when supported); tool dispatch is provider-symmetric so most scenarios can run on Claude Code alone, but TOL-01, TOL-02, TOL-08, TOL-17 should be replayed against any second supported live agent.

@@ -12,7 +12,7 @@ import { setNodeField } from "../loop-editor-draft";
  */
 function richDefinition(): LoopDefinition {
   return {
-    apiVersion: "agh.loop/v1",
+    apiVersion: "compozy.loop/v1",
     kind: "Loop",
     concurrency: "forbid",
     meta: { name: "rich", version: 4, catalog: { category: "delivery" } },
@@ -111,7 +111,7 @@ describe("loop codec", () => {
 
   it("Should round-trip a watch-events node's events (kind + CEL filter) verbatim", () => {
     const def: LoopDefinition = {
-      apiVersion: "agh.loop/v1",
+      apiVersion: "compozy.loop/v1",
       kind: "Loop",
       meta: { name: "watch", version: 1, catalog: {} },
       contract: {

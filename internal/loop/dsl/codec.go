@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Parse decodes one agh.loop/v1 YAML document.
+// Parse decodes one compozy.loop/v1 YAML document.
 func Parse(data []byte) (Definition, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
 		return Definition{}, fmt.Errorf("parse loop definition: document is empty")
@@ -23,7 +23,7 @@ func Parse(data []byte) (Definition, error) {
 	return def, nil
 }
 
-// Serialize encodes one agh.loop/v1 YAML document.
+// Serialize encodes one compozy.loop/v1 YAML document.
 func Serialize(def Definition) ([]byte, error) {
 	def.Normalize()
 	if err := def.ValidateHeader(); err != nil {

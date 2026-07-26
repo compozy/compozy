@@ -135,7 +135,7 @@ func TestNetworkSubscriptionHardCutMigration(t *testing.T) {
 		}
 		statements := []string{
 			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
-		 VALUES ('ws-v8', '/tmp/agh-network-v8', 'network-v8',
+		 VALUES ('ws-v8', '/tmp/compozy-network-v8', 'network-v8',
 		 '2026-07-17T10:00:00Z', '2026-07-17T10:00:00Z')`,
 			`INSERT INTO sessions (
 		 id, agent_name, provider, workspace_id, state, created_at, updated_at
@@ -247,7 +247,7 @@ func seedNetworkParticipationV9Fixture(t *testing.T, path string, unresolved boo
 
 	statements := []string{
 		`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
-		 VALUES ('ws-v5', '/tmp/agh-network-v5', 'network-v5',
+		 VALUES ('ws-v5', '/tmp/compozy-network-v5', 'network-v5',
 		 '2026-07-16T10:00:00Z', '2026-07-16T10:00:00Z')`,
 		`INSERT INTO sessions (
 		 id, agent_name, provider, workspace_id, state, created_at, updated_at

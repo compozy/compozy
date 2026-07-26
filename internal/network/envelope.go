@@ -9,7 +9,7 @@ import (
 )
 
 // ProtocolV0 is the workspace-qualified wire protocol identifier.
-const ProtocolV0 = "agh-network/v0"
+const ProtocolV0 = "compozy-network/v0"
 
 // Kind identifies one normative AGH Network message kind.
 type Kind string

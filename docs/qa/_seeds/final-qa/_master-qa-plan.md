@@ -197,7 +197,7 @@ Every captured artifact (logs, SSE streams, transcripts, db rows queried, web HA
 
 ### 7.1 Always forbidden (regex)
 
-- `agh_claim_[A-Za-z0-9_-]+` — raw claim_token (the canonical non-negotiable)
+- `compozy_claim_[A-Za-z0-9_-]+` — raw claim_token (the canonical non-negotiable)
 - `OPENAI_API_KEY=sk-[A-Za-z0-9]+` — provider API key
 - `ANTHROPIC_API_KEY=sk-ant-[A-Za-z0-9]+` — Anthropic API key
 - `xoxb-[0-9]+-[0-9]+-[0-9]+-[a-f0-9]+` — Slack bot token
@@ -214,7 +214,7 @@ For describing CURRENT AGH artifacts (capabilities), the words `recipe`, `workfl
 
 ### 7.3 Test-only fixture string (must match the seeded fixture, not absent)
 
-- `agh_claim_FAKE_QA_*` — the deliberately-seeded redaction test needle. ACP-18, AUT-16, OBS-04 each plant this needle and assert its absence in every output channel.
+- `compozy_claim_FAKE_QA_*` — the deliberately-seeded redaction test needle. ACP-18, AUT-16, OBS-04 each plant this needle and assert its absence in every output channel.
 - `AGHQA-FAKE-SECRET-9c4e1a` — the deliberately-seeded vault redaction test needle (CFG-10).
 
 The needle's *absence* is the proof; its *presence in any output* is a ship-blocker.

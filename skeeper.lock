@@ -1,15 +1,15 @@
 {
   "version": 1,
   "sidecar": "git@github.com:compozy/specs.git",
-  "source_branch": "marketplace",
+  "source_branch": "v0.3",
   "namespaces": [
     {
       "name": "agh",
-      "sidecar_branch": "agh/__branches__/marketplace",
-      "commit": "518b88483c833d3af96b15943ff9c466328a5734",
-      "digest": "sha256:9c8a51d1a9c54c3c3068411c005303e0c23d054d5818676de72cab35d9e6dffb",
-      "files": 7349,
-      "bytes": 234596437
+      "sidecar_branch": "agh/__branches__/v0.3",
+      "commit": "3e4f6bb37ff1f233466e2c589b6f188107b8207b",
+      "digest": "sha256:186ba4d19bd6d3b966bfeabd5db3fca5c849d9e901c8299beec8fc72267378ee",
+      "files": 7383,
+      "bytes": 235606174
     }
   ]
 }

@@ -27,7 +27,7 @@ export function FinalCta() {
             Install AGH
           </CtaButton>
           <CtaButton href="/protocol" variant="ghost" className="w-full justify-center sm:w-auto">
-            Read agh-network/v0 spec
+            Read compozy-network/v0 spec
           </CtaButton>
           <a
             href={baseOptions.githubUrl}

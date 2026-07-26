@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Run repeated and distinct tools faster than the 1.5s edit window, include one long completion and one failure, and use parallel users/threads; hunt message-per-tool spam, 429 loops, missing terminal states, and cross-thread/cross-user edits."
-      - "Embed fake sk-, Bearer, xoxb-, agh_claim_, PKCE-verifier, and *_secret values in tool arguments and descriptor previews; every channel rendering must use [REDACTED] while remaining useful."
+      - "Embed fake sk-, Bearer, xoxb-, compozy_claim_, PKCE-verifier, and *_secret values in tool arguments and descriptor previews; every channel rendering must use [REDACTED] while remaining useful."
       - "Compare default-on Slack/Telegram/Discord, opted-in Teams/GChat, append-only WhatsApp separate grouping, and issue-provider no-side-effect acknowledgements."
       - "Switch progress to off during pending work, finish the turn, and inspect a fresh session transcript: zero progress provider calls after opt-out and zero progress chrome in ACP/session history."
     must_avoid:

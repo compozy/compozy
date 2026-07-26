@@ -100,8 +100,8 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			ExpiresAt:   &deadline,
 			ID:          " msg-1 ",
 			Ext: map[string]json.RawMessage{
-				"agh.workflow_id":     json.RawMessage(`"wf-1"`),
-				"agh.handoff_version": json.RawMessage(`3`),
+				"compozy.workflow_id":     json.RawMessage(`"wf-1"`),
+				"compozy.handoff_version": json.RawMessage(`3`),
 			},
 		}
 
@@ -131,8 +131,8 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		if string(converted.Body) != `{"text":"hello"}` {
 			t.Fatalf("converted.Body = %s, want preserved JSON", string(converted.Body))
 		}
-		if string(converted.Ext["agh.workflow_id"]) != `"wf-1"` ||
-			string(converted.Ext["agh.handoff_version"]) != `3` {
+		if string(converted.Ext["compozy.workflow_id"]) != `"wf-1"` ||
+			string(converted.Ext["compozy.handoff_version"]) != `3` {
 			t.Fatalf("converted.Ext = %#v, want preserved ext metadata", converted.Ext)
 		}
 	})
@@ -151,7 +151,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 					SessionID:   "sess-a",
 					Channel:     "builders",
 					Kind:        "say",
-					Body:        json.RawMessage(`{"nested":{"CLAIM_TOKEN":"agh_claim_secret"}}`),
+					Body:        json.RawMessage(`{"nested":{"CLAIM_TOKEN":"compozy_claim_secret"}}`),
 				},
 			},
 			{
@@ -163,7 +163,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 					Kind:        "say",
 					Body:        json.RawMessage(`{"text":"ok"}`),
 					Ext: map[string]json.RawMessage{
-						"agh.metadata": json.RawMessage(`{"claim_token":"agh_claim_secret"}`),
+						"agh.metadata": json.RawMessage(`{"claim_token":"compozy_claim_secret"}`),
 					},
 				},
 			},
@@ -202,7 +202,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 				ThreadID:    "thread_claim_docs",
 				Kind:        "say",
 				Body: json.RawMessage(
-					`{"claim_token_hash":"sha256:abc","description":"see agh_claim_token docs"}`,
+					`{"claim_token_hash":"sha256:abc","description":"see compozy_claim_token docs"}`,
 				),
 			})
 			if err != nil {
@@ -417,8 +417,8 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			Body:        json.RawMessage(`{"text":"hello","intent":"review"}`),
 			Proof:       &proof,
 			Ext: network.ExtensionMap{
-				"agh.workflow_id":     json.RawMessage(`"wf-1"`),
-				"agh.handoff_version": json.RawMessage(`3`),
+				"compozy.workflow_id":     json.RawMessage(`"wf-1"`),
+				"compozy.handoff_version": json.RawMessage(`3`),
 			},
 		}
 
@@ -432,7 +432,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		if string(envelopePayload.Proof["sig"]) != `"abc123"` {
 			t.Fatalf("Proof = %#v, want cloned proof payload", envelopePayload.Proof)
 		}
-		if string(envelopePayload.Ext["agh.handoff_version"]) != `3` {
+		if string(envelopePayload.Ext["compozy.handoff_version"]) != `3` {
 			t.Fatalf("Ext = %#v, want cloned ext payload", envelopePayload.Ext)
 		}
 	})
@@ -528,7 +528,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 				ArtifactsSupported:  []string{},
 				TrustModesSupported: []string{},
 				Ext: network.ExtensionMap{
-					"agh.capabilities_brief": brief,
+					"compozy.capabilities_brief": brief,
 				},
 			},
 		})
@@ -540,7 +540,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		}}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("payload capability brief = %#v, want %#v", got, want)
 		}
-		if _, ok := payload.PeerCard.Ext["agh.capabilities_brief"]; ok {
+		if _, ok := payload.PeerCard.Ext["compozy.capabilities_brief"]; ok {
 			t.Fatalf("payload capability brief ext should be stripped: %#v", payload.PeerCard.Ext)
 		}
 	})
@@ -558,7 +558,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 					PeerID:       "reviewer.sess-c",
 					Capabilities: []string{"review-pr", "ship-release"},
 					Ext: network.ExtensionMap{
-						"agh.capabilities_brief": json.RawMessage(`[
+						"compozy.capabilities_brief": json.RawMessage(`[
 						{"id":"review-pr","summary":"Review pull requests"},
 						{"id":"ship-release","summary":"Ship releases"}
 					]`),
@@ -598,7 +598,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 					PeerID:       "reviewer.sess-d",
 					Capabilities: []string{"review-pr", "ship-release"},
 					Ext: network.ExtensionMap{
-						"agh.capabilities_brief": json.RawMessage(`[
+						"compozy.capabilities_brief": json.RawMessage(`[
 						{"id":"review-pr","summary":"Review pull requests"},
 						{"id":"ship-release","summary":"Ship releases"}
 					]`),
@@ -1279,8 +1279,8 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 					ArtifactsSupported:  []string{"text"},
 					TrustModesSupported: []string{"untrusted"},
 					Ext: network.ExtensionMap{
-						"agh.workflow_id": json.RawMessage(`"wf-1"`),
-						"agh.capabilities_brief": json.RawMessage(
+						"compozy.workflow_id": json.RawMessage(`"wf-1"`),
+						"compozy.capabilities_brief": json.RawMessage(
 							`[{"id":"send","summary":"Send channel updates"}]`,
 						),
 					},
@@ -1325,8 +1325,8 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				req.Kind != network.KindSay {
 				t.Fatalf("Send() req = %#v", req)
 			}
-			if string(req.Ext["agh.workflow_id"]) != `"wf-1"` ||
-				string(req.Ext["agh.handoff_version"]) != `3` {
+			if string(req.Ext["compozy.workflow_id"]) != `"wf-1"` ||
+				string(req.Ext["compozy.handoff_version"]) != `3` {
 				t.Fatalf("Send() ext = %#v, want workflow/handoff metadata", req.Ext)
 			}
 			return "msg-1", nil
@@ -1352,8 +1352,8 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				Body:     json.RawMessage(`{"text":"follow up","intent":"review"}`),
 				Proof:    &proof,
 				Ext: network.ExtensionMap{
-					"agh.workflow_id":     json.RawMessage(`"wf-1"`),
-					"agh.handoff_version": json.RawMessage(`3`),
+					"compozy.workflow_id":     json.RawMessage(`"wf-1"`),
+					"compozy.handoff_version": json.RawMessage(`3`),
 				},
 			}}, nil
 		},
@@ -1512,7 +1512,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		) {
 			t.Fatalf("peer list capability brief = %#v, want %#v", got, want)
 		}
-		if _, ok := peersPayload.Peers[0].PeerCard.Ext["agh.capabilities_brief"]; ok {
+		if _, ok := peersPayload.Peers[0].PeerCard.Ext["compozy.capabilities_brief"]; ok {
 			t.Fatalf(
 				"peer list capability brief ext should be stripped: %#v",
 				peersPayload.Peers[0].PeerCard.Ext,
@@ -1690,7 +1690,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			http.MethodPost,
 			"/workspaces/ws-workspace/network/send",
 			[]byte(
-				`{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_launch_db","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`,
+				`{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_launch_db","kind":"say","body":{"text":"hello"},"ext":{"compozy.workflow_id":"wf-1","compozy.handoff_version":3}}`,
 			),
 		)
 		if sendResp.Code != http.StatusOK {
@@ -1705,7 +1705,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		var sendPayload contract.NetworkSendResponse
 		testutil.DecodeJSONResponse(t, sendResp, &sendPayload)
 		if sendPayload.Message.ID != "msg-1" ||
-			string(sendPayload.Message.Ext["agh.workflow_id"]) != `"wf-1"` {
+			string(sendPayload.Message.Ext["compozy.workflow_id"]) != `"wf-1"` {
 			t.Fatalf("send payload = %#v", sendPayload.Message)
 		}
 		if got := sendPayload.Message.ExpiresAt; got != nil {
@@ -1759,7 +1759,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			t.Fatalf("inbox payload len = %d, want 1", len(inboxPayload.Messages))
 		}
 		if string(inboxPayload.Messages[0].Proof["sig"]) != `"abc123"` ||
-			string(inboxPayload.Messages[0].Ext["agh.handoff_version"]) != `3` {
+			string(inboxPayload.Messages[0].Ext["compozy.handoff_version"]) != `3` {
 			t.Fatalf("inbox payload = %#v", inboxPayload.Messages[0])
 		}
 		if got := inboxPayload.Messages[0].ExpiresAt; got != nil {
@@ -4600,7 +4600,7 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 			},
 		}
 
-		const rawToken = "agh_claim_HTTP_SECURITY_123"
+		const rawToken = "compozy_claim_HTTP_SECURITY_123"
 		tests := []struct {
 			name       string
 			body       string
@@ -6048,7 +6048,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						ArtifactsSupported:  []string{},
 						TrustModesSupported: []string{},
 						Ext: network.ExtensionMap{
-							"agh.capabilities_brief": json.RawMessage(
+							"compozy.capabilities_brief": json.RawMessage(
 								`[{"id":"review-pr","summary":"Review pull requests"}]`,
 							),
 						},
@@ -6193,7 +6193,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 		) {
 			t.Fatalf("peer detail capability brief = %#v, want %#v", got, want)
 		}
-		if _, ok := payload.Peer.PeerCard.Ext["agh.capabilities_brief"]; ok {
+		if _, ok := payload.Peer.PeerCard.Ext["compozy.capabilities_brief"]; ok {
 			t.Fatalf(
 				"peer detail capability brief ext should be stripped: %#v",
 				payload.Peer.PeerCard.Ext,
@@ -6252,7 +6252,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						ArtifactsSupported:  []string{},
 						TrustModesSupported: []string{},
 						Ext: network.ExtensionMap{
-							"agh.capabilities_brief": json.RawMessage(
+							"compozy.capabilities_brief": json.RawMessage(
 								`[{"id":"review-pr","summary":"Review pull requests"}]`,
 							),
 						},
@@ -6350,7 +6350,7 @@ func greetBodyJSON(
 		peerID +
 		`","display_name":"` +
 		displayName +
-		`","profiles_supported":["agh-network/v0"],"capabilities":["review-pr"],"artifacts_supported":["capability"],"trust_modes_supported":[],"ext":{"agh.capabilities_brief":[{"id":"review-pr","summary":"` +
+		`","profiles_supported":["compozy-network/v0"],"capabilities":["review-pr"],"artifacts_supported":["capability"],"trust_modes_supported":[],"ext":{"compozy.capabilities_brief":[{"id":"review-pr","summary":"` +
 		capabilitySummary +
 		`"}]}},"summary":"` +
 		summary +

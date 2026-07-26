@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "AGH",
   url: "https://agh.network",
   description:
-    "An open workplace for AI agents. AGH runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts.",
+    "An open workplace for AI agents. AGH runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts.",
   githubUrl: "https://github.com/compozy",
   repoUrl: "https://github.com/compozy/agh",
   repoBranch: "main",

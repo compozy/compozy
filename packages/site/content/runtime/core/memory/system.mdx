@@ -266,7 +266,7 @@ The bundled local provider updates the previous checkpoint instead of regenerati
 The file keeps the 32 most recent unique source-session IDs in provenance.
 
 Checkpoint writes use the same controller and `memory_decisions` WAL as operator and agent writes.
-Ordinary memory proposals and generated checkpoint summaries reject raw `agh_claim_*` tokens before
+Ordinary memory proposals and generated checkpoint summaries reject raw `compozy_claim_*` tokens before
 persistence. Malformed, oversized, raw-token-bearing, or failed generations leave the previous
 checkpoint unchanged. Inspect or revert its decisions through the existing surfaces:
 

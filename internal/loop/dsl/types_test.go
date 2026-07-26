@@ -37,7 +37,7 @@ func TestDefinitionShouldNormalizeAndValidateHeader(t *testing.T) {
 
 		def := dsl.Definition{APIVersion: "agh.loop/v2", Kind: dsl.KindLoop}
 		err := def.ValidateHeader()
-		requireErrorContains(t, err, `apiVersion must be "agh.loop/v1"`)
+		requireErrorContains(t, err, `apiVersion must be "compozy.loop/v1"`)
 	})
 
 	t.Run("Should reject wrong kind", func(t *testing.T) {
@@ -247,12 +247,12 @@ func TestParseSerializeShouldRejectInvalidDocuments(t *testing.T) {
 				_, err := dsl.Parse([]byte("apiVersion: agh.loop/v2\nkind: Loop\n"))
 				return err
 			},
-			contains: `apiVersion must be "agh.loop/v1"`,
+			contains: `apiVersion must be "compozy.loop/v1"`,
 		},
 		{
 			name: "Should reject invalid YAML during parse",
 			run: func() error {
-				_, err := dsl.Parse([]byte("apiVersion: agh.loop/v1\nkind: ["))
+				_, err := dsl.Parse([]byte("apiVersion: compozy.loop/v1\nkind: ["))
 				return err
 			},
 			contains: "parse loop definition",

@@ -105,7 +105,7 @@ func isSensitiveTaskContextKey(key string) bool {
 	case "claim_token", "mcp_auth_token", "oauth_code", "pkce_verifier", "secret_binding", "secret_bindings":
 		return true
 	}
-	return strings.HasPrefix(normalized, "agh_claim_") || strings.HasSuffix(normalized, "_secret")
+	return strings.HasPrefix(normalized, "compozy_claim_") || strings.HasSuffix(normalized, "_secret")
 }
 
 func safeTaskContextText(value string, limit int) string {

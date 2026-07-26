@@ -1,7 +1,7 @@
 import type { LoopValidationIssue } from "../types";
 
 /**
- * Renders a loop definition as the `agh.loop/v1` document the DSL view shows (ADR-015:
+ * Renders a loop definition as the `compozy.loop/v1` document the DSL view shows (ADR-015:
  * FS-as-truth). It is a READ render in v1 — the graph is the editing surface; structural
  * edits (including `start[]`) come from file/agent authoring (an editable DSL is a v1
  * deferral). Lines belonging to a node the linter flagged are marked `highlight`, and the

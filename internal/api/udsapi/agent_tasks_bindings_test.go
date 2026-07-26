@@ -28,7 +28,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 	t.Run("Should project immutable participation snapshots in claim-next responses", func(t *testing.T) {
 		t.Parallel()
 
-		rawToken := "agh_claim_UDSHISTORY123"
+		rawToken := "compozy_claim_UDSHISTORY123"
 		leaseUntil := time.Date(2026, 4, 28, 8, 16, 0, 0, time.UTC)
 		claimHash, err := taskpkg.ClaimTokenHash(rawToken)
 		if err != nil {
@@ -160,7 +160,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 								t,
 								sessionID,
 								runID,
-								"agh_claim_UDSHB123",
+								"compozy_claim_UDSHB123",
 								now.Add(time.Minute),
 							), nil
 						},
@@ -181,7 +181,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 				assertCapture: func(t *testing.T, capture *agentTaskLeaseBindingCapture) {
 					t.Helper()
 					if capture.heartbeat.RunID != "run-1" ||
-						capture.heartbeat.ClaimToken != "agh_claim_UDSHB123" ||
+						capture.heartbeat.ClaimToken != "compozy_claim_UDSHB123" ||
 						capture.heartbeat.LeaseDuration != time.Minute {
 						t.Fatalf("heartbeat = %#v, want run-1 + claim token + 60s", capture.heartbeat)
 					}
@@ -212,7 +212,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 								t,
 								sessionID,
 								runID,
-								"agh_claim_UDSREL123",
+								"compozy_claim_UDSREL123",
 								time.Date(2026, 4, 28, 8, 18, 0, 0, time.UTC),
 							), nil
 						},
@@ -232,7 +232,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 				assertCapture: func(t *testing.T, capture *agentTaskLeaseBindingCapture) {
 					t.Helper()
 					if capture.release.RunID != "run-1" ||
-						capture.release.ClaimToken != "agh_claim_UDSREL123" ||
+						capture.release.ClaimToken != "compozy_claim_UDSREL123" ||
 						capture.release.Reason != "handoff" {
 						t.Fatalf("release = %#v, want run-1 + claim token + handoff", capture.release)
 					}
@@ -263,7 +263,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 								t,
 								sessionID,
 								runID,
-								"agh_claim_UDSCOMP123",
+								"compozy_claim_UDSCOMP123",
 								time.Date(2026, 4, 28, 8, 18, 0, 0, time.UTC),
 							), nil
 						},
@@ -284,7 +284,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 				assertCapture: func(t *testing.T, capture *agentTaskLeaseBindingCapture) {
 					t.Helper()
 					if capture.completion.RunID != "run-1" ||
-						capture.completion.ClaimToken != "agh_claim_UDSCOMP123" ||
+						capture.completion.ClaimToken != "compozy_claim_UDSCOMP123" ||
 						string(capture.completion.Result.Value) != `{"status":"done","mode":"uds-history"}` {
 						t.Fatalf("completion = %#v, want preserved completion payload", capture.completion)
 					}
@@ -315,7 +315,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 								t,
 								sessionID,
 								runID,
-								"agh_claim_UDSFAIL123",
+								"compozy_claim_UDSFAIL123",
 								time.Date(2026, 4, 28, 8, 18, 0, 0, time.UTC),
 							), nil
 						},
@@ -337,7 +337,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 				assertCapture: func(t *testing.T, capture *agentTaskLeaseBindingCapture) {
 					t.Helper()
 					if capture.failure.RunID != "run-1" ||
-						capture.failure.ClaimToken != "agh_claim_UDSFAIL123" ||
+						capture.failure.ClaimToken != "compozy_claim_UDSFAIL123" ||
 						capture.failure.Failure.Error != "boom" ||
 						string(capture.failure.Failure.Metadata) != `{"step":"reclaim"}` {
 						t.Fatalf("failure = %#v, want preserved failure payload", capture.failure)

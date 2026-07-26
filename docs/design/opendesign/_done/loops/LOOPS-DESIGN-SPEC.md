@@ -390,7 +390,7 @@ approval gate.
       max_parallel (concurrent branches, 1 = sequential), max_fan_out (number, ceiling
       64), paired collect, hint (ADR-006).
     - control/collect: id, joins, hint.
-  - **Graph|DSL toggle.** DSL view shows the `agh.loop/v1` YAML on disk (the bijective
+  - **Graph|DSL toggle.** DSL view shows the `compozy.loop/v1` YAML on disk (the bijective
     codec / FS-as-truth from ADR-015), with the offending `max_fan_out: 80` highlighted.
   - **Start summary (graph view).** A read-only chip strip pinned at the canvas origin
     (`start: manual · cli · http · uds · native_tool · schedule`) with the muted note
@@ -641,7 +641,7 @@ Reusable, build-once components implied by the eight screens:
   `NodeInspector` (per-class field sets) + `LinterDock` + `Palette` (editor),
   `GenerationTimeline` + `NodeSpine` + `NodeRow`, `GateCard` (pass/fail/route),
   `EmbeddedChannel` + `ChannelMessage`, `ApprovalGate`, `ContractPreview`, `DSLView`
-  (YAML render of `agh.loop/v1`), `StartBindingsPanel` (declared-kind chips + automation
+  (YAML render of `compozy.loop/v1`), `StartBindingsPanel` (declared-kind chips + automation
   rows + add CTAs), `BindingBadge` (catalog rows), `StartChipStrip` (editor graph view).
 
 These map cleanly to `web/src/systems/loops/*` + `packages/ui` primitives. The

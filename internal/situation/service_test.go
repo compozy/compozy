@@ -343,16 +343,19 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 			CurrentRunID: "run-cont",
 		}
 		review := taskpkg.RunReview{
-			ReviewID:          "review-1",
-			TaskID:            taskRecord.ID,
-			RunID:             "run-reviewed",
-			ReviewRound:       1,
-			Attempt:           1,
-			Status:            taskpkg.RunReviewStatusRecorded,
-			Outcome:           taskpkg.RunReviewOutcomeRejected,
-			Reason:            "Reviewer found agh_claim_REVIEW_SECRET in the output",
-			MissingWork:       jsonRaw(t, `["remove agh_claim_MISSING_SECRET from docs","add regression coverage"]`),
-			NextRoundGuidance: "Continue without agh_claim_GUIDANCE_SECRET",
+			ReviewID:    "review-1",
+			TaskID:      taskRecord.ID,
+			RunID:       "run-reviewed",
+			ReviewRound: 1,
+			Attempt:     1,
+			Status:      taskpkg.RunReviewStatusRecorded,
+			Outcome:     taskpkg.RunReviewOutcomeRejected,
+			Reason:      "Reviewer found compozy_claim_REVIEW_SECRET in the output",
+			MissingWork: jsonRaw(
+				t,
+				`["remove compozy_claim_MISSING_SECRET from docs","add regression coverage"]`,
+			),
+			NextRoundGuidance: "Continue without compozy_claim_GUIDANCE_SECRET",
 			ReviewerAgentName: "reviewer",
 			ReviewerSessionID: "sess-reviewer",
 			ReviewedAt:        fixedTime().Add(10 * time.Minute),
@@ -373,7 +376,7 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 			},
 			QueuedAt:  fixedTime().Add(20 * time.Minute),
 			StartedAt: fixedTime().Add(21 * time.Minute),
-			Error:     "do not leak agh_claim_RUN_SECRET",
+			Error:     "do not leak compozy_claim_RUN_SECRET",
 		}
 		priorRun := taskpkg.Run{
 			ID:        review.RunID,
@@ -384,7 +387,7 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 			QueuedAt:  fixedTime(),
 			StartedAt: fixedTime().Add(time.Minute),
 			EndedAt:   fixedTime().Add(5 * time.Minute),
-			Error:     "prior error had agh_claim_PRIOR_SECRET",
+			Error:     "prior error had compozy_claim_PRIOR_SECRET",
 		}
 		service := NewService(Deps{
 			Now: fixedNow,
@@ -407,7 +410,7 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 						EventType: "task.run.continued",
 						Payload: jsonRaw(
 							t,
-							`{"message":"saw agh_claim_EVENT_SECRET","claim_token":"raw","mcp_auth_token":"mcp-secret","oauth_code":"oauth-secret","pkce_verifier":"pkce-secret","nested":{"token":"agh_claim_NESTED_SECRET","secret_binding":"vault-ref","session_secret":"super-secret"}}`,
+							`{"message":"saw compozy_claim_EVENT_SECRET","claim_token":"raw","mcp_auth_token":"mcp-secret","oauth_code":"oauth-secret","pkce_verifier":"pkce-secret","nested":{"token":"compozy_claim_NESTED_SECRET","secret_binding":"vault-ref","session_secret":"super-secret"}}`,
 						),
 						Timestamp: fixedTime().Add(22 * time.Minute),
 					},
@@ -434,7 +437,7 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 			t.Fatalf("RecentEvents = %#v, want one sequenced event", bundle.RecentEvents)
 		}
 		if got := bundle.ReviewContinuation.Reason; strings.Contains(got, "REVIEW_SECRET") ||
-			!strings.Contains(got, "agh_claim_[REDACTED]") {
+			!strings.Contains(got, "compozy_claim_[REDACTED]") {
 			t.Fatalf("ReviewContinuation.Reason = %q, want redacted reviewer reason", got)
 		}
 		encoded, err := json.Marshal(bundle)
@@ -466,7 +469,7 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 				t.Fatalf("ContextBundle leaked %q: %s", leaked, encodedText)
 			}
 		}
-		if !strings.Contains(encodedText, "agh_claim_[REDACTED]") {
+		if !strings.Contains(encodedText, "compozy_claim_[REDACTED]") {
 			t.Fatalf("ContextBundle = %s, want redaction marker", encodedText)
 		}
 	})

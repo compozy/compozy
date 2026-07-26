@@ -242,7 +242,7 @@ const skillDetail: MarketplaceEntryResponse = {
     license: "MIT",
     readme:
       "## What it does\n\ngit-flow drives the full branch lifecycle from inside a session. It reads the repository's own checks and treats a non-zero exit as a hard stop.\n\n## Usage\n\n```sh\nagh skill run git-flow --branch feat/session-cache\n```",
-    repository: "https://github.com/agh-network/skill-git-flow",
+    repository: "https://github.com/compozy/skill-git-flow",
     tags: ["git", "review"],
     versions: ["1.4.2", "1.4.1", "1.3.0"],
   },

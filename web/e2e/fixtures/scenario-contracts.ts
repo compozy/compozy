@@ -139,7 +139,7 @@ export const standardViewportMatrix = [
 export const sensitiveArtifactPatterns = [
   {
     name: "raw claim token",
-    pattern: /agh_claim_[a-z0-9._-]+/i,
+    pattern: /compozy_claim_[a-z0-9._-]+/i,
   },
   {
     name: "claim_token field",

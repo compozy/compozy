@@ -225,7 +225,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if claim.Claim.Lease.ClaimTokenHash == "" {
 			t.Fatal("claim.Claim.Lease.ClaimTokenHash = empty, want observability hash")
 		}
-		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
+		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "compozy_claim_") {
 			t.Fatalf("task next output exposed raw claim token: %s", nextOut)
 		}
 	})
@@ -256,7 +256,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 				if !strings.Contains(stderr, "invalid claim token") || !strings.Contains(stderr, tt.wantMessage) {
 					t.Fatalf("stderr = %q, want invalid token + %q", stderr, tt.wantMessage)
 				}
-				if strings.Contains(stderr, "agh_claim_") {
+				if strings.Contains(stderr, "compozy_claim_") {
 					t.Fatalf("stderr leaked raw claim token: %s", stderr)
 				}
 			})
@@ -312,7 +312,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if !strings.Contains(stderr, "not an active lease") {
 			t.Fatalf("stderr = %q, want inactive lease rejection", stderr)
 		}
-		if strings.Contains(stderr, "agh_claim_") {
+		if strings.Contains(stderr, "compozy_claim_") {
 			t.Fatalf("stderr leaked raw claim token: %s", stderr)
 		}
 	})

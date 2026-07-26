@@ -12,6 +12,66 @@ import (
 	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
+func TestProtocolIdentityConstants(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{name: "Should expose the Compozy network protocol", got: ProtocolV0, want: "compozy-network/v0"},
+		{name: "Should expose the Compozy runtime peer", got: RuntimePeerID, want: "compozy.runtime"},
+		{
+			name: "Should derive the Compozy runtime peer session",
+			got:  runtimePeerSessionID,
+			want: "runtime:compozy.runtime",
+		},
+		{
+			name: "Should expose the capability brief extension",
+			got:  ExtensionKeyCapabilitiesBrief,
+			want: "compozy.capabilities_brief",
+		},
+		{name: "Should expose the include extension", got: ExtensionKeyInclude, want: "compozy.include"},
+		{
+			name: "Should expose the capability ids extension",
+			got:  ExtensionKeyCapabilityIDs,
+			want: "compozy.capability_ids",
+		},
+		{
+			name: "Should expose the capability catalog extension",
+			got:  ExtensionKeyCapabilityCatalog,
+			want: "compozy.capability_catalog",
+		},
+		{name: "Should expose the workflow extension", got: ExtensionKeyWorkflowID, want: "compozy.workflow_id"},
+		{
+			name: "Should expose the handoff version extension",
+			got:  ExtensionKeyHandoffVersion,
+			want: "compozy.handoff_version",
+		},
+		{
+			name: "Should expose the handoff digest extension",
+			got:  ExtensionKeyHandoffDigest,
+			want: "compozy.handoff_digest",
+		},
+		{
+			name: "Should expose the handoff source extension",
+			got:  ExtensionKeyHandoffSource,
+			want: "compozy.handoff_source",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.got != tc.want {
+				t.Fatalf("protocol identity = %q, want %q", tc.got, tc.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 	t.Parallel()
 
@@ -32,7 +92,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize greet envelopes",
 			envelope: Envelope{
-				Protocol:    " agh-network/v0 ",
+				Protocol:    " compozy-network/v0 ",
 				WorkspaceID: " wks_test ",
 				ID:          " msg_greet_01 ",
 				Kind:        " greet ",
@@ -43,7 +103,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				Body: mustRawJSON(t, map[string]any{
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v0"},
+						"profiles_supported":    []string{"compozy-network/v0"},
 						"capabilities":          []string{"workspace.patch.apply"},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -57,7 +117,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize whois response envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v0",
+				Protocol:    "compozy-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_whois_01",
 				Kind:        KindWhois,
@@ -70,7 +130,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 					"type": "response",
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v0"},
+						"profiles_supported":    []string{"compozy-network/v0"},
 						"capabilities":          []string{"chat.translate"},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -83,7 +143,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize say envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v0",
+				Protocol:    "compozy-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_say_01",
 				Kind:        KindSay,
@@ -104,7 +164,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize direct envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v0",
+				Protocol:    "compozy-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_direct_01",
 				Kind:        KindSay,
@@ -127,7 +187,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize capability envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v0",
+				Protocol:    "compozy-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_capability_01",
 				Kind:        KindCapability,
@@ -152,7 +212,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize receipt envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v0",
+				Protocol:    "compozy-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_receipt_01",
 				Kind:        KindReceipt,
@@ -175,7 +235,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize trace envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v0",
+				Protocol:    "compozy-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_trace_01",
 				Kind:        KindTrace,
@@ -258,7 +318,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		{
 			name: "Should reject protocol v1 envelopes",
 			mutate: func(env Envelope) Envelope {
-				env.Protocol = "agh-network/v1"
+				env.Protocol = "compozy-network/v1"
 				return env
 			},
 			wantErr:   ErrInvalidField,
@@ -343,7 +403,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 					"type": "response",
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v0"},
+						"profiles_supported":    []string{"compozy-network/v0"},
 						"capabilities":          []string{"chat.translate"},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -399,8 +459,8 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			name: "Should reject raw secrets in body keys",
 			mutate: func(env Envelope) Envelope {
 				env.Body = mustRawJSON(t, map[string]any{
-					"agh_claim_secret-token": "",
-					"text":                   "please review auth.go",
+					"compozy_claim_secret-token": "",
+					"text":                       "please review auth.go",
 				})
 				return env
 			},
@@ -425,7 +485,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			mutate: func(env Envelope) Envelope {
 				env.Ext = ExtensionMap{
 					"agh.metadata": mustRawJSON(t, map[string]any{
-						"claim_token": "agh_claim_NET05TOKEN123",
+						"claim_token": "compozy_claim_NET05TOKEN123",
 					}),
 				}
 				return env
@@ -809,7 +869,7 @@ func TestParseEnvelopeRejectsLegacyConversationFields(t *testing.T) {
 		{
 			name: "Should reject legacy interaction_id",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "compozy-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_legacy_interaction",
 			  "kind": "say",
@@ -827,7 +887,7 @@ func TestParseEnvelopeRejectsLegacyConversationFields(t *testing.T) {
 		{
 			name: "Should reject legacy direct kind",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "compozy-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_legacy_direct_kind",
 			  "kind": "direct",
@@ -1021,7 +1081,7 @@ func TestNormalizeEnvelopeAllowsWhitespaceOnlyStrings(t *testing.T) {
 		opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 
 		envelope := Envelope{
-			Protocol:    "agh-network/v0",
+			Protocol:    "compozy-network/v0",
 			WorkspaceID: testWorkspaceID,
 			ID:          "msg_say_whitespace_01",
 			Kind:        KindSay,
@@ -1050,7 +1110,7 @@ func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 
 		now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 		raw := []byte(`{
-	  "protocol": "agh-network/v0",
+	  "protocol": "compozy-network/v0",
 	  "workspace_id": "wks_test",
 	  "id": "msg_direct_ext_01",
 		  "kind": "say",
@@ -1062,12 +1122,12 @@ func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 		  "work_id": "work_patch_42",
 	  "ts": 1775822400,
 	  "body": {"text": "review this"},
-	  "proof": {"profile": "agh-network.trust.ed25519-jcs/v1"},
+	  "proof": {"profile": "compozy-network.trust.ed25519-jcs/v1"},
 	  "ext": {
 	    "unknown.vendor": {"nested": [1, true, "x"]},
 	    "agh.workflow": {"ticket": "NET-42"},
 	    "agh.handoff": {"turn": 3},
-	    "agh.capability_catalog": {
+	    "compozy.capability_catalog": {
 	      "capabilities": [
 	        {"id": "review-pr", "summary": "Review pull requests", "outcome": "Actionable review findings"}
 	      ]

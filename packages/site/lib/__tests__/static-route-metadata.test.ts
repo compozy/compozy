@@ -32,7 +32,7 @@ describe("static public route metadata", () => {
 
     expect(metadata.title).toBe("Changelog");
     expect(metadata.description).toBe(
-      "Every alpha receipt and release note for the AGH runtime and agh-network/v0."
+      "Every alpha receipt and release note for the AGH runtime and compozy-network/v0."
     );
     expect(metadata.alternates?.canonical).toBe("/changelog/");
     expect(metadata.openGraph?.title).toBe("Changelog");
@@ -53,7 +53,7 @@ describe("static public route metadata", () => {
       const { metadata, viewport } = await import("@/app/layout");
 
       expect(siteConfig.description).toBe(
-        "An open workplace for AI agents. AGH runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts."
+        "An open workplace for AI agents. AGH runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts."
       );
       expect(metadata.metadataBase?.toString()).toBe("https://agh.network/");
       expect(metadata.applicationName).toBe(siteConfig.name);

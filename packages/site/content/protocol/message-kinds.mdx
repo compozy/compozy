@@ -53,7 +53,7 @@ reject envelopes that try to set `kind:"direct"`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_greet_001",
   "workspace_id": "ws_alpha",
   "kind": "greet",
@@ -65,7 +65,7 @@ reject envelopes that try to set `kind:"direct"`.
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["compozy-network/v0"],
       "capabilities": ["code.patch", "test.run", "git.diff.review"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -108,7 +108,7 @@ body forms: `request` and `response`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_whois_req_001",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -128,7 +128,7 @@ body forms: `request` and `response`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_whois_res_001",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -142,7 +142,7 @@ body forms: `request` and `response`.
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["compozy-network/v0"],
       "capabilities": ["code.patch", "test.run", "git.diff.review"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -184,7 +184,7 @@ thread or a direct room. Use `say` plus `work_id` to open or continue lifecycle-
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_say_thread_001",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -213,7 +213,7 @@ thread or a direct room. Use `say` plus `work_id` to open or continue lifecycle-
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_say_direct_001",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -238,7 +238,7 @@ Annotation: a normal text message in a direct room is `kind:"say"` with `surface
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_say_work_001",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -310,7 +310,7 @@ Receivers MUST reject digest mismatches with `reason_code = verification_failed`
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_capability_001",
   "workspace_id": "ws_alpha",
   "kind": "capability",
@@ -376,7 +376,7 @@ acceptance, rejection, duplicate detection, expiration, unsupported behavior, or
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_receipt_001",
   "workspace_id": "ws_alpha",
   "kind": "receipt",
@@ -428,7 +428,7 @@ Annotation: an accepted receipt confirms responsibility. It does not mean the wo
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_trace_001",
   "workspace_id": "ws_alpha",
   "kind": "trace",

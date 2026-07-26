@@ -146,7 +146,7 @@ func TestTaskWakeBridgeWakeCreatorRedactsRawClaimTokens(t *testing.T) {
 	t.Run("Should redact raw claim tokens from wake prompts", func(t *testing.T) {
 		t.Parallel()
 
-		rawToken := "agh_claim_secret123"
+		rawToken := "compozy_claim_secret123"
 		sessions := &taskWakeBridgeSessions{}
 		bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
 		if err != nil {

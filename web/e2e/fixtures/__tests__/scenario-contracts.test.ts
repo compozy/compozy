@@ -48,7 +48,7 @@ describe("scenario contracts", () => {
 
   it("rejects sensitive token-shaped browser artifact payloads", () => {
     const sensitivePayloads = [
-      { value: "agh_claim_abc123def456" },
+      { value: "compozy_claim_abc123def456" },
       { value: "Authorization: Bearer browsersecretvalue" },
       { value: "123456:abcdefghijklmnopqrstuvwxyz" },
       { value: "oauth_access_token = browser-oauth-secret" },

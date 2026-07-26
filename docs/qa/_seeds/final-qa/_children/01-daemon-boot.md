@@ -201,7 +201,7 @@ For each gap, the claim AGH makes (with citation) and the missing test that woul
 | **Schema does not silently downgrade**                                                      | `store.Apply` probes the recorded Goose version before `Up` and returns `ErrSchemaAhead`.                                                                    | Boot an older post-Goose binary against a database recorded above its embedded head; assert refusal and byte identity, then prove a newer compatible binary is the state-preserving recovery.                                                                                                                                |
 | **`PRAGMA journal_mode = WAL` is non-negotiable**                                           | `configureSQLite` returns an error if mode is not WAL (`store/sqlite.go:106-117`).                                                                            | Test exists in `store_extra_test.go` for happy path; missing: simulate a tampered DB where journal_mode resists WAL setup, assert open fails with the explicit `"journal_mode = …, want wal"` error.                                                                                                                          |
 | **Detached lifetime: `prompt/cancel` only cancels via explicit endpoint**                   | "Detached execution lifetime. Any work that outlives an HTTP/UDS request — prompts, network channel sends, automation jobs — MUST detach via `context.WithoutCancel(ctx)`." `internal/CLAUDE.md:33-35`. | E2E: start a real prompt, drop the HTTP request mid-stream, assert the prompt continues to completion. Currently the daemon harness never validates this against a real LLM.                                                                                                                                              |
-| **Raw `claim_token` does not appear in any output**                                         | `internal/CLAUDE.md:55`; redaction enforced via `internal/diagnostics/redact.go:11-14` patterns; rejection in API (`internal/api/contract/agents.go:479-498`, `internal/api/core/network.go:283-294`). | E2E: trigger a real claim flow against a real agent, capture **all** of: `agh.log`, SSE stream output, `agh status -o json`, `agh sessions logs <id>`, plus the network audit log. Greedy-grep for the literal regex `\bagh_claim_[A-Za-z0-9]+\b`. Zero matches required. No such full-output sweep exists today. |
+| **Raw `claim_token` does not appear in any output**                                         | `internal/CLAUDE.md:55`; redaction enforced via `internal/diagnostics/redact.go:11-14` patterns; rejection in API (`internal/api/contract/agents.go:479-498`, `internal/api/core/network.go:283-294`). | E2E: trigger a real claim flow against a real agent, capture **all** of: `agh.log`, SSE stream output, `agh status -o json`, `agh sessions logs <id>`, plus the network audit log. Greedy-grep for the literal regex `\bcompozy_claim_[A-Za-z0-9]+\b`. Zero matches required. No such full-output sweep exists today. |
 | **Subprocess `goleak` clean shutdown**                                                      | `internal/CLAUDE.md:32-34` — Manager-WaitGroup discipline. `subprocess.Process.Wait` and `Shutdown` exist (`subprocess/process.go:320-449`).                  | Runtime-wide `goleak.VerifyNone(t, ignoreOptions...)` after a full `Daemon.Shutdown` cycle including ACP subprocess cleanup. No top-level test today exercises a full Daemon Run + Shutdown cycle under goleak.                                                                                                              |
 | **HEARTBEAT.md absence does not break boot**                                                | `heartbeat.Resolve` returns an empty `ResolvedPolicy` on `os.ErrNotExist` (`heartbeat.go:237-245`).                                                          | Boot test exists indirectly through resource projector; missing: assert `agh agent context <agent-id>` returns `present:false` on a fresh AGH_HOME, no diagnostic emitted.                                                                                                                                                  |
 | **Boundary check passes against a freshly booted runtime**                                  | `daemon.Boundaries(ctx)` (`internal/daemon/boundary.go:19-45`) is opt-in via `AGH_DEV_VERIFY_BOUNDARIES`.                                                     | A QA gate that exports `AGH_DEV_VERIFY_BOUNDARIES=1` and verifies no warning is logged on boot. Currently a unit test (`TestBoundariesUsesConfiguredRoot` etc.) covers the helper, but no end-to-end gate hooks it into the binary.                                                                                          |
@@ -269,7 +269,7 @@ failure_signatures:
   - `daemon.json` missing or `port == 0` after status returns running.
   - Either `global` or `memory` is absent, reports version/applied count `0`, or has an empty digest.
   - `agh status` reports `starting` indefinitely (poll loop in `cli/daemon.go:202-242`).
-  - Raw `agh_claim_*` token visible anywhere in `agh.log`.
+  - Raw `compozy_claim_*` token visible anywhere in `agh.log`.
 cleanup:
   - agh daemon stop && rm -rf "$LAB_HOME"
 ```
@@ -399,7 +399,7 @@ steps:
   - run: agh sessions list -o json | jq ".[] | select(.id==\"$SID\")" | tee post.json
   - run: agh sessions resume $SID -o json | tee resume.json
   - run: agh sessions transcript $SID -o json | jq 'length'
-  - run: grep -E '\bagh_claim_[A-Za-z0-9]+\b' "$LAB_HOME/logs/agh.log"; echo $?
+  - run: grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' "$LAB_HOME/logs/agh.log"; echo $?
   - run: agh task list --session-id $SID -o json | tee tasks.json
   - run: jq '.[] | {id, state, claim_token_hash, claim_token}' tasks.json
 expected_behavior:
@@ -408,14 +408,14 @@ expected_behavior:
   - `agh sessions resume $SID` re-establishes the session.
   - `transcript $SID` returns the pre-crash messages plus the post-resume continuation; replay assembled by `internal/transcript/...`.
   - `tasks.json`: every row exposes `claim_token_hash` (sha256 hex) and NEVER `claim_token` (per `task/types.go:276,380`, `lease.go:546-548`, `core/tasks.go:1741-1745`).
-  - `grep -E '\bagh_claim_[A-Za-z0-9]+\b' agh.log` returns exit code 1 (no match).
+  - `grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' agh.log` returns exit code 1 (no match).
 evidence_to_capture:
   - sess.json, post.json, resume.json, tasks.json.
   - Full `$LAB_HOME/logs/agh.log` between the two daemon runs.
   - Pre-/post-crash `daemon.json`.
   - SSE stream snapshot from `/api/observe/events?after_seq=<crash-marker>`.
 failure_signatures:
-  - `agh_claim_…` literal in log.
+  - `compozy_claim_…` literal in log.
   - tasks.json contains a `claim_token` field (raw token).
   - Resume returns `ErrSessionNotFound`.
   - Transcript missing the pre-crash prompt, OR replay produces duplicate user messages.
@@ -1003,7 +1003,7 @@ Concrete, with symptom + minimal repro + fix surface.
 
 If any of these slip, we ship a broken daemon.
 
-1. **Raw `claim_token` ever reaching disk or wire.** `grep -E '\bagh_claim_[A-Za-z0-9]+\b' agh.log` returns no matches across DB-04 / DB-11 / DB-14 / DB-10 evidence. Same grep across all `*.json` evidence files. (Cited claim: `internal/CLAUDE.md:55`.)
+1. **Raw `claim_token` ever reaching disk or wire.** `grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' agh.log` returns no matches across DB-04 / DB-11 / DB-14 / DB-10 evidence. Same grep across all `*.json` evidence files. (Cited claim: `internal/CLAUDE.md:55`.)
 2. **Orphan ACP subprocess after `agh daemon stop`.** Verified by DB-05 step `kill -0 $CHILD_PID`. (Cited claim: `internal/CLAUDE.md:36-37`.)
 3. **Migration applied twice.** Each `schema_streams.applied_count` remains equal to the embedded gap-free SQL count after any boot/restart cycle.
 4. **`daemon.lock` remaining with non-zero PID after clean stop.** Always `0\n` after `Lock.Release` (`lock.go:124-149`).

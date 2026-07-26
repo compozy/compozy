@@ -622,7 +622,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 7, 3, 14, 0, 0, 0, time.UTC)
-	const rawClaimToken = "agh_claim_secret"
+	const rawClaimToken = "compozy_claim_secret"
 
 	newEngine := func(t *testing.T, manager *apitestutil.StubTaskManager) *gin.Engine {
 		t.Helper()
@@ -766,7 +766,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 		if strings.Contains(recorder.Body.String(), rawClaimToken) {
 			t.Fatalf("get response leaked raw claim token: %s", recorder.Body.String())
 		}
-		if !strings.Contains(recorder.Body.String(), "agh_claim_[REDACTED]") {
+		if !strings.Contains(recorder.Body.String(), "compozy_claim_[REDACTED]") {
 			t.Fatalf("get response = %s, want redacted claim token marker", recorder.Body.String())
 		}
 		var response contract.TaskDetailResponse
@@ -2400,7 +2400,7 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 					Title:      "read_file",
 					ToolCallID: "call-1",
 					Raw: json.RawMessage(
-						`{"access_token":"provider-token","note":"agh_claim_RAWTOKEN123",` +
+						`{"access_token":"provider-token","note":"compozy_claim_RAWTOKEN123",` +
 							`"authorization":"Bearer provider-token","tool_input":` +
 							`{"path":"README.md","client_secret":"secret-value"}}`,
 					),
@@ -2476,7 +2476,7 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 		for _, leaked := range []string{
 			"provider-token",
 			"secret-value",
-			"agh_claim_RAWTOKEN123",
+			"compozy_claim_RAWTOKEN123",
 			"Bearer provider-token",
 		} {
 			if strings.Contains(recorder.Body.String(), leaked) {

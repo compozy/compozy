@@ -11,7 +11,7 @@ import (
 func applyLoopRunPinningForTest(t *testing.T, run *looppkg.Run, at time.Time) {
 	t.Helper()
 	definition, err := loopdsl.Parse([]byte(
-		`{"apiVersion":"agh.loop/v1","kind":"Loop","meta":{"name":"` + run.LoopName + `","version":1},"contract":{"goal":"test","definition_of_done":"done","iteration_cap":1,"no_progress":{"window":1},"budget":{"tokens":1,"wall_clock_sec":1}},"graph":{"nodes":[{"id":"finish","class":"action","kind":"transform","params":{"map":{"ok":{"value":true}}}}],"edges":[]}}`,
+		`{"apiVersion":"compozy.loop/v1","kind":"Loop","meta":{"name":"` + run.LoopName + `","version":1},"contract":{"goal":"test","definition_of_done":"done","iteration_cap":1,"no_progress":{"window":1},"budget":{"tokens":1,"wall_clock_sec":1}},"graph":{"nodes":[{"id":"finish","class":"action","kind":"transform","params":{"map":{"ok":{"value":true}}}}],"edges":[]}}`,
 	))
 	if err != nil {
 		t.Fatalf("Parse(test Loop pin) error = %v", err)

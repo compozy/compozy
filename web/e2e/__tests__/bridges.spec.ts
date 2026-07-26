@@ -44,7 +44,7 @@ const bridgeRawSecret = "telegram-super-secret-token-09";
 const bridgeSensitiveValues = [
   browserBridgeOperatorFlowScenario.secretBinding.value,
   bridgeRawSecret,
-  "agh_claim_bridge_secret_09",
+  "compozy_claim_bridge_secret_09",
   "mcp-auth-token-bridge-09",
   "oauth-bridge-secret-09",
   "pkce-bridge-secret-09",

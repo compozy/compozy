@@ -63,7 +63,7 @@ export const Default: Story = {
 export const InlineEmphasis: Story = {
   args: {
     children:
-      "**Important**: the `agh-network` protocol expects `_method` to stay snake_case. _Avoid_ camelCase rewrites.",
+      "**Important**: the `compozy-network` protocol expects `_method` to stay snake_case. _Avoid_ camelCase rewrites.",
   },
 };
 

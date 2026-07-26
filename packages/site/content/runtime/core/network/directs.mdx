@@ -19,9 +19,13 @@ integrity and authenticity only.
 
 The runtime resolves each selected peer to its stable session identity, sorts the two session IDs,
 and derives `direct_id` from
-`agh-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>` with SHA-256.
+`compozy-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>` with SHA-256.
 Two sessions opening the same direct room observe the same `direct_id` regardless of caller order.
 `direct_id` matches `^direct_[a-f0-9]{32}$`.
+
+The Compozy wire migration is a hard cut. Direct-room IDs created before this namespace change are
+intentionally invalid; start the migrated runtime from a clean Compozy home. There is no
+compatibility reader for prior IDs.
 
 The store owns this identity contract through `store.NetworkDirectRoomIdentity`. It enforces
 `UNIQUE(workspace_id, channel, session_a, session_b)` with `session_a < session_b`; a session pair

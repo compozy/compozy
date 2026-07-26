@@ -35,7 +35,7 @@ modes, and optional display metadata.
 | ----------------------- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `peer_id`               | string           | Yes      | MUST match the envelope `from` value in `greet` and `whois` responses.                                                                                                                         |
 | `display_name`          | string           | Optional | MAY provide a human-readable label.                                                                                                                                                            |
-| `profiles_supported`    | array of strings | Yes      | MUST be present. SHOULD include `agh-network/v0` for v0 peers.                                                                                                                                 |
+| `profiles_supported`    | array of strings | Yes      | MUST be present. SHOULD include `compozy-network/v0` for v0 peers.                                                                                                                             |
 | `capabilities`          | array of strings | Yes      | MUST be present. Values are opaque advisory claims.                                                                                                                                            |
 | `artifacts_supported`   | array of strings | Yes      | MUST be present. Values SHOULD be profile-defined artifact identifiers. AGH v0 peers that support unified capability transfer SHOULD include `"capability"` even when `capabilities` is empty. |
 | `trust_modes_supported` | array of strings | Yes      | MUST be present. Values are advisory in v0.                                                                                                                                                    |
@@ -66,7 +66,7 @@ caption="A greet message advertises a daemon-local peer without creating an expi
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_greet_discovery_001",
   "workspace_id": "ws_alpha",
   "kind": "greet",
@@ -78,7 +78,7 @@ caption="A greet message advertises a daemon-local peer without creating an expi
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["compozy-network/v0"],
       "capabilities": ["code.patch", "test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -89,7 +89,7 @@ caption="A greet message advertises a daemon-local peer without creating an expi
 }
 ```
 
-AGH Runtime's default Peer Card emits `profiles_supported: ["agh-network/v0"]` and empty arrays for
+AGH Runtime's default Peer Card emits `profiles_supported: ["compozy-network/v0"]` and empty arrays for
 capabilities, artifacts, and trust modes unless a peer is configured with richer metadata.
 
 ## Querying with `whois`
@@ -114,7 +114,7 @@ caption="Broadcast whois discovers matching peers; responses are directed back t
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_whois_discovery_001",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -134,7 +134,7 @@ caption="Broadcast whois discovers matching peers; responses are directed back t
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_whois_discovery_002",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -148,7 +148,7 @@ caption="Broadcast whois discovers matching peers; responses are directed back t
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["compozy-network/v0"],
       "capabilities": ["code.patch", "test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -189,14 +189,14 @@ future trust profiles, not v0 discovery alone.
 ### Brief projection
 
 When a peer has a local capability catalog, the Peer Card MAY also carry a brief projection under
-`ext["agh.capabilities_brief"]`. Each entry is an object with `id` and `summary`, and its order
+`ext["compozy.capabilities_brief"]`. Each entry is an object with `id` and `summary`, and its order
 matches `capabilities` entry-by-entry.
 
 ```json
 {
   "capabilities": ["build-site", "review-copy"],
   "ext": {
-    "agh.capabilities_brief": [
+    "compozy.capabilities_brief": [
       { "id": "build-site", "summary": "Build the landing page." },
       { "id": "review-copy", "summary": "Review conversion copy." }
     ]
@@ -204,12 +204,12 @@ matches `capabilities` entry-by-entry.
 }
 ```
 
-When a peer has no catalog, `capabilities` MUST still be `[]` and `agh.capabilities_brief` MUST be
+When a peer has no catalog, `capabilities` MUST still be `[]` and `compozy.capabilities_brief` MUST be
 omitted entirely.
 
 ### Rich discovery
 
 The full catalog never appears in `peer_card.ext`. Callers that want outcomes, constraints, or
-context hints MUST send a `whois` request with `ext["agh.include"] = ["capability_catalog"]` and
-read the response from the envelope-level `ext["agh.capability_catalog"]`. See
+context hints MUST send a `whois` request with `ext["compozy.include"] = ["capability_catalog"]` and
+read the response from the envelope-level `ext["compozy.capability_catalog"]`. See
 [Capability Discovery](/protocol/capability-discovery) for the full wire contract.

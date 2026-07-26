@@ -73,7 +73,7 @@ export const Danger: Story = {
       tone="danger"
       icon={OctagonXIcon}
       title="Bridge handshake failed"
-      description="The remote peer rejected the agh-network/v0 greet."
+      description="The remote peer rejected the compozy-network/v0 greet."
       actions={
         <Button size="xs" variant="outline">
           Retry

@@ -43,7 +43,7 @@ const faultFixture = path.resolve(
 const automationAgentName = "browser-jobs-runner";
 const faultAgentName = "browser-jobs-fault";
 const sensitivePattern =
-  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|browser-job-secret|shared-secret/i;
+  /compozy_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|browser-job-secret|shared-secret/i;
 
 async function enableCronExpressionEditing(
   ui: ReturnType<typeof automationOperatorSelectors>

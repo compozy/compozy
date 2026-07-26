@@ -20,39 +20,39 @@ func TestParseWhoisCapabilityDiscoveryRequestCapabilityFilterPresence(t *testing
 		{
 			name: "ShouldLeaveCapabilityIDsNilWhenFilterIsAbsent",
 			ext: ExtensionMap{
-				whoisIncludeExtKey: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+				ExtensionKeyInclude: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 			},
 			wantNil: true,
 		},
 		{
 			name: "ShouldReturnExplicitEmptyCapabilityIDsWhenFilterJSONIsMalformed",
 			ext: ExtensionMap{
-				whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
-				whoisCapabilityIDsExtKey: json.RawMessage(`{"id":"review-pr"}`),
+				ExtensionKeyInclude:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+				ExtensionKeyCapabilityIDs: json.RawMessage(`{"id":"review-pr"}`),
 			},
 			wantCapabilityIDs: []string{},
 		},
 		{
 			name: "ShouldReturnExplicitEmptyCapabilityIDsWhenFilterIsAnEmptyList",
 			ext: ExtensionMap{
-				whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
-				whoisCapabilityIDsExtKey: mustRawJSON(t, []string{}),
+				ExtensionKeyInclude:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+				ExtensionKeyCapabilityIDs: mustRawJSON(t, []string{}),
 			},
 			wantCapabilityIDs: []string{},
 		},
 		{
 			name: "ShouldDropBlankCapabilityIDsFromTheFilter",
 			ext: ExtensionMap{
-				whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
-				whoisCapabilityIDsExtKey: mustRawJSON(t, []string{" ", "\n"}),
+				ExtensionKeyInclude:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+				ExtensionKeyCapabilityIDs: mustRawJSON(t, []string{" ", "\n"}),
 			},
 			wantCapabilityIDs: []string{},
 		},
 		{
 			name: "ShouldNormalizeCapabilityIDsFromTheFilter",
 			ext: ExtensionMap{
-				whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
-				whoisCapabilityIDsExtKey: mustRawJSON(t, []string{" review-pr ", "draft-spec"}),
+				ExtensionKeyInclude:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+				ExtensionKeyCapabilityIDs: mustRawJSON(t, []string{" review-pr ", "draft-spec"}),
 			},
 			wantCapabilityIDs: []string{"review-pr", "draft-spec"},
 		},

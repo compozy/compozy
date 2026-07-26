@@ -1287,7 +1287,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		rawToken := "agh_claim_block_release_success"
+		rawToken := "compozy_claim_block_release_success"
 		leased := storeLeasedTaskRunForBlockTest(
 			ctx,
 			t,
@@ -1371,7 +1371,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		rawToken := "agh_claim_global_block_release"
+		rawToken := "compozy_claim_global_block_release"
 		leased := storeLeasedTaskRunForBlockTest(
 			ctx,
 			t,
@@ -1465,7 +1465,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 			runID := fmt.Sprintf("run-block-release-recovery-race-%02d", attempt)
 			blockID := fmt.Sprintf("block-release-recovery-race-%02d", attempt)
 			sessionID := fmt.Sprintf("sess-block-release-recovery-race-%02d", attempt)
-			rawToken := fmt.Sprintf("agh_claim_block_release_recovery_race_%02d", attempt)
+			rawToken := fmt.Sprintf("compozy_claim_block_release_recovery_race_%02d", attempt)
 
 			taskRecord := workspaceTaskRecordForTest(taskID, workspaceID)
 			taskRecord.Status = taskpkg.TaskStatusReady
@@ -1594,7 +1594,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 			taskRecord.ID,
 			"run-block-release-token-mismatch",
 			"sess-block-release-token-mismatch",
-			"agh_claim_block_release_token_mismatch",
+			"compozy_claim_block_release_token_mismatch",
 			now.Add(10*time.Minute),
 		)
 
@@ -1612,7 +1612,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 				CreatedAt: now,
 			},
 			RunID:      leased.ID,
-			ClaimToken: "agh_claim_wrong_token",
+			ClaimToken: "compozy_claim_wrong_token",
 			Now:        now,
 		})
 		if !errors.Is(err, taskpkg.ErrInvalidClaimToken) {

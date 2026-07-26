@@ -386,7 +386,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 				ID:     "run-1",
 				TaskID: "task-1",
 				Status: taskpkg.TaskRunStatusFailed,
-				Error:  "bridge error agh_claim_secret-123 leaked",
+				Error:  "bridge error compozy_claim_secret-123 leaked",
 			}},
 			records: []taskpkg.EventRecord{terminalTaskEventRecordForTest(
 				7,
@@ -413,13 +413,13 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		if err := json.Unmarshal(calls[0].request.Event.ProviderMetadata, &envelope); err != nil {
 			t.Fatalf("Unmarshal(provider metadata) error = %v", err)
 		}
-		if strings.Contains(envelope.Error, "agh_claim_secret-123") {
+		if strings.Contains(envelope.Error, "compozy_claim_secret-123") {
 			t.Fatalf("envelope error = %q, want redacted claim token", envelope.Error)
 		}
-		if !strings.Contains(envelope.Error, "agh_claim_[REDACTED]") {
+		if !strings.Contains(envelope.Error, "compozy_claim_[REDACTED]") {
 			t.Fatalf("envelope error = %q, want redacted token marker", envelope.Error)
 		}
-		if strings.Contains(calls[0].request.Event.Content.Text, "agh_claim_secret-123") {
+		if strings.Contains(calls[0].request.Event.Content.Text, "compozy_claim_secret-123") {
 			t.Fatalf("delivery text = %q, want redacted claim token", calls[0].request.Event.Content.Text)
 		}
 	})
@@ -458,7 +458,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 						Ref:  "task-manager",
 					},
 					Payload: json.RawMessage(
-						`{"message":"saw agh_claim_EVENT_SECRET","cursor":9007199254740993,"claim_token":"agh_claim_EVENT_SECRET","mcp_auth_token":"mcp-secret","oauth_code":"oauth-secret","pkce_verifier":"pkce-secret","nested":{"checkpoint":9007199254740995,"token":"agh_claim_NESTED_SECRET","secret_binding":"vault-ref","session_secret":"super-secret"}}`,
+						`{"message":"saw compozy_claim_EVENT_SECRET","cursor":9007199254740993,"claim_token":"compozy_claim_EVENT_SECRET","mcp_auth_token":"mcp-secret","oauth_code":"oauth-secret","pkce_verifier":"pkce-secret","nested":{"checkpoint":9007199254740995,"token":"compozy_claim_NESTED_SECRET","secret_binding":"vault-ref","session_secret":"super-secret"}}`,
 					),
 					Timestamp: terminalTaskNotifierTestTime(),
 				},
@@ -487,8 +487,8 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		}
 		encodedText := string(encodedPayload)
 		for _, leaked := range []string{
-			"agh_claim_EVENT_SECRET",
-			"agh_claim_NESTED_SECRET",
+			"compozy_claim_EVENT_SECRET",
+			"compozy_claim_NESTED_SECRET",
 			"mcp-secret",
 			"oauth-secret",
 			"pkce-secret",
@@ -499,7 +499,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 				t.Fatalf("provider payload leaked %q: %s", leaked, encodedText)
 			}
 		}
-		if !strings.Contains(encodedText, "agh_claim_[REDACTED]") {
+		if !strings.Contains(encodedText, "compozy_claim_[REDACTED]") {
 			t.Fatalf("provider payload = %s, want redacted claim token marker", encodedText)
 		}
 		if !strings.Contains(string(calls[0].request.Event.ProviderMetadata), "[REDACTED]") {
@@ -672,7 +672,7 @@ func TestTruncateTerminalTaskCursorError(t *testing.T) {
 		transport := &fakeDeliveryTransport{
 			handler: func(context.Context, string, DeliveryRequest) (DeliveryAck, error) {
 				return DeliveryAck{}, errors.New(
-					`bridge failed: Bearer oauth-secret claim_token=agh_claim_secret-123 ` +
+					`bridge failed: Bearer oauth-secret claim_token=compozy_claim_secret-123 ` +
 						`mcp_auth_token=mcp-secret secret_binding=vault-ref`,
 				)
 			},
@@ -705,12 +705,12 @@ func TestTruncateTerminalTaskCursorError(t *testing.T) {
 		if cursorErr != nil {
 			t.Fatalf("GetCursor() error = %v", cursorErr)
 		}
-		for _, leaked := range []string{"agh_claim_secret-123", "oauth-secret", "mcp-secret", "vault-ref"} {
+		for _, leaked := range []string{"compozy_claim_secret-123", "oauth-secret", "mcp-secret", "vault-ref"} {
 			if strings.Contains(cursor.LastError, leaked) {
 				t.Fatalf("cursor.LastError leaked %q: %q", leaked, cursor.LastError)
 			}
 		}
-		if !strings.Contains(cursor.LastError, "agh_claim_[REDACTED]") {
+		if !strings.Contains(cursor.LastError, "compozy_claim_[REDACTED]") {
 			t.Fatalf("cursor.LastError = %q, want redacted claim token marker", cursor.LastError)
 		}
 		if !strings.Contains(cursor.LastError, "[REDACTED]") {

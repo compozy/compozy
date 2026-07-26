@@ -9,9 +9,6 @@ import (
 )
 
 const (
-	whoisIncludeExtKey                = "agh.include"
-	whoisCapabilityIDsExtKey          = "agh.capability_ids"
-	whoisCapabilityCatalogExtKey      = "agh.capability_catalog"
 	whoisCapabilityCatalogIncludeItem = "capability_catalog"
 )
 
@@ -39,7 +36,7 @@ type whoisCapabilityCatalogEntry struct {
 }
 
 func parseWhoisCapabilityDiscoveryRequest(ext ExtensionMap) whoisCapabilityDiscoveryRequest {
-	includeValues := decodeExtensionStringList(ext, whoisIncludeExtKey)
+	includeValues := decodeExtensionStringList(ext, ExtensionKeyInclude)
 	request := whoisCapabilityDiscoveryRequest{
 		includeCapabilityCatalog: containsString(includeValues, whoisCapabilityCatalogIncludeItem),
 	}
@@ -47,11 +44,11 @@ func parseWhoisCapabilityDiscoveryRequest(ext ExtensionMap) whoisCapabilityDisco
 		return request
 	}
 
-	if _, ok := ext[whoisCapabilityIDsExtKey]; !ok {
+	if _, ok := ext[ExtensionKeyCapabilityIDs]; !ok {
 		return request
 	}
 
-	request.capabilityIDs = decodeExtensionStringList(ext, whoisCapabilityIDsExtKey)
+	request.capabilityIDs = decodeExtensionStringList(ext, ExtensionKeyCapabilityIDs)
 	if request.capabilityIDs == nil {
 		request.capabilityIDs = []string{}
 	}
@@ -73,7 +70,7 @@ func buildWhoisCapabilityCatalogResponseExt(
 	if err != nil {
 		return nil, fmt.Errorf("network: marshal whois capability catalog: %w", err)
 	}
-	return ExtensionMap{whoisCapabilityCatalogExtKey: raw}, nil
+	return ExtensionMap{ExtensionKeyCapabilityCatalog: raw}, nil
 }
 
 func projectWhoisCapabilityCatalog(

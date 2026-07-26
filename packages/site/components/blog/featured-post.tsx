@@ -120,7 +120,7 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
   return (
     <div className="relative min-h-85 rounded-xl border border-line bg-rail p-6">
       <div className="flex items-center justify-between">
-        <Eyebrow className="text-muted tracking-badge!">agh-network/v0</Eyebrow>
+        <Eyebrow className="text-muted tracking-badge!">compozy-network/v0</Eyebrow>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block size-1.5 rounded-full bg-accent" />
           <Eyebrow className="text-accent tracking-badge!">ALPHA</Eyebrow>

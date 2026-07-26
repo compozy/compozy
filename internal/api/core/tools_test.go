@@ -326,7 +326,7 @@ func TestToolErrorResponses(t *testing.T) {
 		err := toolspkg.NewToolError(
 			toolspkg.ErrorCodeResultPersistenceFailed,
 			toolspkg.ToolIDSkillView,
-			"internal persistence detail agh_claim_secret",
+			"internal persistence detail compozy_claim_secret",
 			toolspkg.ErrToolResultPersistence,
 		).WithPartialResult(partial)
 		status := core.StatusForToolError(err)
@@ -347,7 +347,7 @@ func TestToolErrorResponses(t *testing.T) {
 		if encodeErr != nil {
 			t.Fatalf("json.Marshal() error = %v", encodeErr)
 		}
-		if strings.Contains(string(encoded), "agh_claim_secret") {
+		if strings.Contains(string(encoded), "compozy_claim_secret") {
 			t.Fatalf("tool partial error leaked internal detail: %s", encoded)
 		}
 	})
@@ -567,7 +567,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/tools/ext__ask_tool/invoke",
-			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"token":"agh_claim_secret"}}`),
+			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"token":"compozy_claim_secret"}}`),
 		)
 		if resp.Code != http.StatusAccepted {
 			t.Fatalf("invoke status = %d, want %d; body=%s", resp.Code, http.StatusAccepted, resp.Body.String())
@@ -577,7 +577,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 		if payload.Error.Message != "tool approval required" {
 			t.Fatalf("tool error message = %q, want safe approval message", payload.Error.Message)
 		}
-		if strings.Contains(resp.Body.String(), "agh_claim_secret") ||
+		if strings.Contains(resp.Body.String(), "compozy_claim_secret") ||
 			strings.Contains(resp.Body.String(), "tool approval token is required") {
 			t.Fatalf("tool error leaked raw backend detail: %s", resp.Body.String())
 		}
@@ -611,7 +611,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 					toolspkg.NewToolError(
 						tc.code,
 						toolspkg.ToolIDSkillView,
-						"internal provider model detail agh_claim_secret",
+						"internal provider model detail compozy_claim_secret",
 						toolspkg.ErrToolInvalidInput,
 					),
 				)
@@ -649,7 +649,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 				if payload.Error.Code != tc.code || payload.Error.Message != tc.message {
 					t.Fatalf("tool error payload = %#v, want %s/%q", payload, tc.code, tc.message)
 				}
-				if strings.Contains(resp.Body.String(), "agh_claim_secret") {
+				if strings.Contains(resp.Body.String(), "compozy_claim_secret") {
 					t.Fatalf("tool error leaked raw provider model detail: %s", resp.Body.String())
 				}
 			})

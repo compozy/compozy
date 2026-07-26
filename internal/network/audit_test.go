@@ -574,7 +574,7 @@ func testGreetAuditEnvelope(t *testing.T, recordedAt time.Time, messageID string
 				ArtifactsSupported:  []string{string(KindCapability)},
 				TrustModesSupported: []string{},
 				Ext: ExtensionMap{
-					capabilityBriefExtKey: mustRawJSON(t, []capabilityBrief{
+					ExtensionKeyCapabilitiesBrief: mustRawJSON(t, []capabilityBrief{
 						{ID: "review-pr", Summary: "Review pull requests"},
 						{ID: "draft-spec", Summary: "Draft technical specs"},
 					}),

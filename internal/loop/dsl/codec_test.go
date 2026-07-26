@@ -204,7 +204,7 @@ func TestCodecShouldStructurallyMergeGraphUnknownFields(t *testing.T) {
 	t.Run("Should structurally merge graph unknown fields", func(t *testing.T) {
 		t.Parallel()
 
-		def, err := dsl.Parse([]byte(`apiVersion: agh.loop/v1
+		def, err := dsl.Parse([]byte(`apiVersion: compozy.loop/v1
 kind: Loop
 meta: { name: test-loop }
 concurrency: forbid
@@ -274,7 +274,7 @@ func TestCodecShouldRoundTripWatchEventsBlock(t *testing.T) {
 	t.Run("Should preserve multi subscription watch-events nodes", func(t *testing.T) {
 		t.Parallel()
 
-		def, err := dsl.Parse([]byte(`apiVersion: agh.loop/v1
+		def, err := dsl.Parse([]byte(`apiVersion: compozy.loop/v1
 kind: Loop
 meta: { name: watch-events-codec }
 concurrency: forbid
@@ -344,7 +344,7 @@ func TestCodecShouldRoundTripGoalEnvelope(t *testing.T) {
 	t.Run("Should preserve goal session retry params and unknown fields", func(t *testing.T) {
 		t.Parallel()
 
-		def, err := dsl.Parse([]byte(`apiVersion: agh.loop/v1
+		def, err := dsl.Parse([]byte(`apiVersion: compozy.loop/v1
 kind: Loop
 meta: { name: goal-codec }
 concurrency: forbid
@@ -417,7 +417,7 @@ start: [{ kind: manual }]
 }
 
 func minimalDefinition(contract string) string {
-	return `apiVersion: agh.loop/v1
+	return `apiVersion: compozy.loop/v1
 kind: Loop
 meta: { name: test-loop }
 concurrency: forbid

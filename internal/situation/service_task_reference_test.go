@@ -18,10 +18,10 @@ func TestContextForSessionTopLevelTaskReferenceContract(t *testing.T) {
 
 		taskRecord := taskpkg.Task{
 			ID:           "task-top-level",
-			Identifier:   "ORCH-agh_claim_IDENTIFIER_SECRET",
+			Identifier:   "ORCH-compozy_claim_IDENTIFIER_SECRET",
 			Scope:        taskpkg.ScopeWorkspace,
 			WorkspaceID:  "ws-1",
-			Title:        "do not leak agh_claim_TITLE_SECRET",
+			Title:        "do not leak compozy_claim_TITLE_SECRET",
 			Status:       taskpkg.TaskStatusInProgress,
 			Priority:     taskpkg.PriorityHigh,
 			MaxAttempts:  2,
@@ -89,7 +89,7 @@ func TestContextForSessionTopLevelTaskReferenceContract(t *testing.T) {
 				t.Fatalf("RenderPrompt() leaked %q: %s", leaked, rendered)
 			}
 		}
-		if !strings.Contains(rendered, "agh_claim_[REDACTED]") {
+		if !strings.Contains(rendered, "compozy_claim_[REDACTED]") {
 			t.Fatalf("RenderPrompt() = %s, want claim token redaction marker", rendered)
 		}
 	})

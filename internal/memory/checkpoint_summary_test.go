@@ -241,7 +241,7 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 			},
 			{
 				name:    "raw claim token",
-				output:  checkpointSummaryFixture("Leaked agh_claim_checkpoint-secret."),
+				output:  checkpointSummaryFixture("Leaked compozy_claim_checkpoint-secret."),
 				wantErr: "raw claim token",
 			},
 		} {

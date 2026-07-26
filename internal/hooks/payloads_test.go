@@ -802,7 +802,7 @@ func TestNetworkPayloadExcludesRawMessageMaterial(t *testing.T) {
 		t.Fatalf("json.Marshal(NetworkMessagePersistedPayload) error = %v", err)
 	}
 	text := string(encoded)
-	for _, forbidden := range []string{"body", "text", "preview_text", "agh_claim_"} {
+	for _, forbidden := range []string{"body", "text", "preview_text", "compozy_claim_"} {
 		if strings.Contains(text, forbidden) {
 			t.Fatalf("encoded network payload contains %q: %s", forbidden, text)
 		}

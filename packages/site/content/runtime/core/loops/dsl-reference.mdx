@@ -1,11 +1,11 @@
 ---
-title: agh.loop/v1 DSL
+title: compozy.loop/v1 DSL
 description: The Loop definition schema — declared inputs, the contract, node classes and kinds, the gate contract, and start bindings.
 ---
 
 {/* Design reference: docs/design/opendesign/loop-detail.html — LOOPS-DESIGN-SPEC §4.2 (the detail screen renders this definition). Daemon truth wins on divergence (ADR-017 §9). */}
 
-A Loop definition is a **data-first, serializable** document — `agh.loop/v1` YAML on disk, never a
+A Loop definition is a **data-first, serializable** document — `compozy.loop/v1` YAML on disk, never a
 program of inline functions. The daemon compiles it to a resolved form that the coordinator and
 executors consume; authors and agents read and write the YAML. This page is the schema reference.
 For the `{{ }}` and CEL grammar used inside fields, see the
@@ -14,7 +14,7 @@ For the `{{ }}` and CEL grammar used inside fields, see the
 ## Top-level shape
 
 ```yaml
-apiVersion: agh.loop/v1 # required — the only accepted value
+apiVersion: compozy.loop/v1 # required — the only accepted value
 kind: Loop # required
 meta: { name, description, version, catalog }
 concurrency: forbid # forbid (default) | allow | queue
@@ -26,7 +26,7 @@ start: [] # how a run may be started
 
 | Field         | Required | Notes                                                                                                                 |
 | ------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
-| `apiVersion`  | yes      | Must be `agh.loop/v1`.                                                                                                |
+| `apiVersion`  | yes      | Must be `compozy.loop/v1`.                                                                                            |
 | `kind`        | yes      | Must be `Loop`.                                                                                                       |
 | `meta`        | yes      | `name`, `description`, `catalog`; `version` is daemon-owned and monotonic.                                            |
 | `concurrency` | no       | `forbid` (default) rejects a second same-Loop start; `allow` runs in parallel; `queue` defers to a FIFO `queued` run. |

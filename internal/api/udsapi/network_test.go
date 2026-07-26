@@ -49,7 +49,7 @@ func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 	}
 
 	t.Run("Should reject raw claim tokens before sending network messages", func(t *testing.T) {
-		const rawToken = "agh_claim_UDS_SECURITY_123"
+		const rawToken = "compozy_claim_UDS_SECURITY_123"
 		rawTokenResp := performRequest(
 			t,
 			engine,
@@ -126,8 +126,8 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 					TS:       1775823000,
 					Body:     json.RawMessage(`{"text":"review this","intent":"review"}`),
 					Ext: network.ExtensionMap{
-						"agh.workflow_id":     json.RawMessage(`"wf-1"`),
-						"agh.handoff_version": json.RawMessage(`3`),
+						"compozy.workflow_id":     json.RawMessage(`"wf-1"`),
+						"compozy.handoff_version": json.RawMessage(`3`),
 					},
 				}}, nil
 			},
@@ -140,14 +140,14 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/network/send",
 			[]byte(
-				`{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_launch_db","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`,
+				`{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_launch_db","kind":"say","body":{"text":"hello"},"ext":{"compozy.workflow_id":"wf-1","compozy.handoff_version":3}}`,
 			),
 		)
 		if sendResp.Code != http.StatusOK {
 			t.Fatalf("send status = %d, want %d; body=%s", sendResp.Code, http.StatusOK, sendResp.Body.String())
 		}
-		if string(seenRequest.Ext["agh.workflow_id"]) != `"wf-1"` ||
-			string(seenRequest.Ext["agh.handoff_version"]) != `3` {
+		if string(seenRequest.Ext["compozy.workflow_id"]) != `"wf-1"` ||
+			string(seenRequest.Ext["compozy.handoff_version"]) != `3` {
 			t.Fatalf("seenRequest.Ext = %#v, want preserved workflow metadata", seenRequest.Ext)
 		}
 		if seenRequest.Channel != "builders" {
@@ -171,8 +171,8 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 			t.Fatalf("inbox status = %d, want %d", inboxResp.Code, http.StatusOK)
 		}
 		if !strings.Contains(inboxResp.Body.String(), `"channel":"builders"`) ||
-			!strings.Contains(inboxResp.Body.String(), `"agh.workflow_id":"wf-1"`) ||
-			!strings.Contains(inboxResp.Body.String(), `"agh.handoff_version":3`) {
+			!strings.Contains(inboxResp.Body.String(), `"compozy.workflow_id":"wf-1"`) ||
+			!strings.Contains(inboxResp.Body.String(), `"compozy.handoff_version":3`) {
 			t.Fatalf("inbox body = %s, want workflow metadata", inboxResp.Body.String())
 		}
 	})
@@ -291,10 +291,10 @@ func TestNetworkHandlersExposeTypedCapabilityPayloads(t *testing.T) {
 						ArtifactsSupported:  []string{"capability"},
 						TrustModesSupported: []string{"untrusted"},
 						Ext: network.ExtensionMap{
-							"agh.capabilities_brief": json.RawMessage(
+							"compozy.capabilities_brief": json.RawMessage(
 								`[{"id":"review-pr","summary":"Review pull requests"}]`,
 							),
-							"agh.workflow_id": json.RawMessage(`"wf-1"`),
+							"compozy.workflow_id": json.RawMessage(`"wf-1"`),
 						},
 					},
 				}}, nil
@@ -317,10 +317,10 @@ func TestNetworkHandlersExposeTypedCapabilityPayloads(t *testing.T) {
 		}}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("peer capabilities = %#v, want %#v", got, want)
 		}
-		if _, ok := payload.Peers[0].PeerCard.Ext["agh.capabilities_brief"]; ok {
+		if _, ok := payload.Peers[0].PeerCard.Ext["compozy.capabilities_brief"]; ok {
 			t.Fatalf("capability brief ext should be stripped: %#v", payload.Peers[0].PeerCard.Ext)
 		}
-		if got, want := string(payload.Peers[0].PeerCard.Ext["agh.workflow_id"]), `"wf-1"`; got != want {
+		if got, want := string(payload.Peers[0].PeerCard.Ext["compozy.workflow_id"]), `"wf-1"`; got != want {
 			t.Fatalf("workflow ext = %q, want %q", got, want)
 		}
 	})

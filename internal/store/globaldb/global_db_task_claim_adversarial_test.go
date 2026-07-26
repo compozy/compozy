@@ -559,7 +559,7 @@ func assertLeaseRejectsWrongTokens(
 			run: func() error {
 				_, err := globalDB.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
 					RunID:         claim.Run.ID,
-					ClaimToken:    "agh_claim_wrong",
+					ClaimToken:    "compozy_claim_wrong",
 					LeaseDuration: time.Minute,
 					Now:           now,
 				})
@@ -571,7 +571,7 @@ func assertLeaseRejectsWrongTokens(
 			run: func() error {
 				_, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
 					RunID:      claim.Run.ID,
-					ClaimToken: "agh_claim_wrong",
+					ClaimToken: "compozy_claim_wrong",
 					Reason:     "wrong-token",
 					Now:        now,
 				})
@@ -584,7 +584,7 @@ func assertLeaseRejectsWrongTokens(
 				_, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
-					ClaimToken: "agh_claim_wrong",
+					ClaimToken: "compozy_claim_wrong",
 					Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":false}`)},
 					Now:        now,
 				})
@@ -597,7 +597,7 @@ func assertLeaseRejectsWrongTokens(
 				_, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
 					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
-					ClaimToken: "agh_claim_wrong",
+					ClaimToken: "compozy_claim_wrong",
 					Failure:    taskpkg.RunFailure{Error: "wrong token should not fail run"},
 					Now:        now,
 				})

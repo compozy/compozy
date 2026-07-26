@@ -38,7 +38,7 @@ In-scope packages (file:line citations are repo-absolute):
 | Append-only event store  | `/Users/pedronauck/Dev/compozy/agh/internal/store/`, `internal/store/sessiondb/`    | `SessionDB` per-session ledger; writes remain INSERT-only and sequence-monotonic; the embedded session Goose stream owns schema history and `atlas.sum`. Global ledger lives in `internal/store/globaldb/global_db_observe.go`. |
 | Session SSE replay       | `/Users/pedronauck/Dev/compozy/agh/internal/api/core/`                              | `parseLastEventID` (`internal/api/core/session_stream.go:16-27`); `pollAndStreamSessionEvents` (`:69-101`); `pollSessionStreamTick` (`:104-151`); SSE write helpers (`internal/api/core/sse.go`); observe replay cursor (`internal/api/core/parsers.go:149-163`).                                                                                                                                                                                                                                                                              |
 | Notifier fan-out         | `/Users/pedronauck/Dev/compozy/agh/internal/session/`                               | `Notifier` interface with `OnSessionCreated/Stopped` + `OnAgentEvent` (`internal/session/interfaces.go:306-311`); `AgentEventNotifier` extension (`:313-317`); `Manager.notifyAgentEvent` is invoked **after** durable append (`internal/session/notifier.go:5-16`).                                                                                                                                                                                                                                                                          |
-| Claim-token redaction    | `/Users/pedronauck/Dev/compozy/agh/internal/task/`                                  | `rawClaimTokenPattern = agh_claim_[A-Za-z0-9_-]+` (`internal/task/lease.go:36`); `RedactClaimTokens` (`internal/task/lease.go:160-166`); raw-token-forbidden-on-the-wire policy is enforced by every event payload using `claim_token_hash` only (`internal/task/manager.go:3702-3791`).                                                                                                                                                                                                                                                       |
+| Claim-token redaction    | `/Users/pedronauck/Dev/compozy/agh/internal/task/`                                  | `rawClaimTokenPattern = compozy_claim_[A-Za-z0-9_-]+` (`internal/task/lease.go:36`); `RedactClaimTokens` (`internal/task/lease.go:160-166`); raw-token-forbidden-on-the-wire policy is enforced by every event payload using `claim_token_hash` only (`internal/task/manager.go:3702-3791`).                                                                                                                                                                                                                                                       |
 | Forensic classification  | `/Users/pedronauck/Dev/compozy/agh/internal/acp/`, `internal/session/`              | `IsLoadSessionResourceMissing` classifies stale ACP session id (`internal/acp/client.go:553-567`); `manager_lifecycle.go:77-101` calls fresh-start fallback and emits `session.resume.load_session_missing_fallback` (`internal/session/manager_lifecycle.go:86-90`).                                                                                                                                                                                                                                                                          |
 
 Out of scope (covered by other children): full ACP/session lifecycle (03),
@@ -60,7 +60,7 @@ scenario in §7 maps back to one or more of these IDs.
 | `obs.replay.cross-restart`          | Events appended before a daemon restart are still replayable after restart. SQLite `-wal`/`-shm` companion files survive recovery.                                                                                                                              | `internal/store/sessiondb/session_db.go:138-179`; `internal/CLAUDE.md` "agh-schema-migration" wal/shm note                                                              |
 | `obs.transcript.replay-equivalence` | Persisted events replayed via `transcript.Assemble` produce the same `[]Message` ordering and content the SSE client originally saw — schema `agh.session.event.v1`.                                                                                            | `internal/transcript/transcript.go:17, 113-130, 174-318, 737-822`                                                                                                      |
 | `obs.correlation-keys`              | Every SSE/event payload across the prompt → tool → hook → memory write → end lifecycle carries the documented keys: `session_id`, `parent_session_id`, `root_session_id`, `agent_name`, `task_id`, `run_id`, `claim_token_hash`, `lease_until`, `workflow_id`, `coordinator_session_id`, `scheduler_reason`, `hook_event`, `hook_name`, `spawn_depth`, `actor_kind`, `actor_id`, `release_reason`. | `internal/CLAUDE.md:48-50`                                                                                                                                             |
-| `obs.claim-token-redaction`         | Raw `agh_claim_*` tokens never appear in logs, SSE, web responses, db rows, error payloads, settings views, or channel messages. Only `claim_token_hash` over the wire.                                                                                          | `internal/CLAUDE.md` Security Invariants (`internal/CLAUDE.md:55-56`); `internal/task/lease.go:36, 160-166`; `internal/task/manager.go:3702-3791`                       |
+| `obs.claim-token-redaction`         | Raw `compozy_claim_*` tokens never appear in logs, SSE, web responses, db rows, error payloads, settings views, or channel messages. Only `claim_token_hash` over the wire.                                                                                          | `internal/CLAUDE.md` Security Invariants (`internal/CLAUDE.md:55-56`); `internal/task/lease.go:36, 160-166`; `internal/task/manager.go:3702-3791`                       |
 | `obs.secret-redaction-logs`         | Diagnostic / log text scrubs Bearer tokens, JSON-shaped secret keys, env-style assignments (`API_KEY=…`, `OPENAI_API_KEY=sk-…`), and runtime-registered secrets.                                                                                                  | `internal/diagnostics/redact.go:18-70`                                                                                                                                  |
 | `obs.diagnostics.health`            | `Observer.Health` returns a typed snapshot with derived `status` ∈ {`ok`, `degraded`}; aggregates persistence, retention, failures, agent probes, bridges, tasks, activities; CLI `agh observe health -o json` and `/api/observe/health` agree byte-for-byte.    | `internal/observe/health.go:30-200`; `internal/cli/observe.go:74-121`; `internal/api/httpapi/routes.go:118`                                                            |
 | `obs.logging.structured-only`       | Production code uses `slog` exclusively; no `fmt.Println`, no `log.Print*`, no `println` outside test files and ignorable `cmd/agh-daytona-sidecar` boundary code.                                                                                               | `internal/logger/logger.go:85-89`; `agh-code-guidelines` skill                                                                                                          |
@@ -140,7 +140,7 @@ AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:<unique-port>
 - `agh daemon stop` (or kill PID from manifest).
 - Archive `events.db` (per session) and `agh.db` snapshots before tearing
   down the AGH_HOME — observability scenarios depend on post-mortem replay.
-- If any scenario uncovered a forbidden-needle hit (raw `agh_claim_*`,
+- If any scenario uncovered a forbidden-needle hit (raw `compozy_claim_*`,
   provider keys, secret leakage), DO NOT clean — the artifacts are
   shippability evidence.
 - Tear down the worktree only after evidence artifacts are written.
@@ -253,14 +253,14 @@ expected:
     `hook.dispatch.*`); `actor_kind` / `actor_id` (for events caused by
     a peer, e.g. `task.run.claimed`); `spawn_depth` (for spawn events
     and child-session events).
-  - No event has `agh_claim_<raw>` text in any field.
+  - No event has `compozy_claim_<raw>` text in any field.
 evidence:
   - `obs-02-sse.jsonl`
   - `correlation_audit.json` summarizing per-event-type completeness
 failure_signatures:
   - Any required correlation key missing from any event of a covered
     type → observability gap; release blocker.
-  - Any raw `agh_claim_<>=12-char>` substring → critical security leak.
+  - Any raw `compozy_claim_<>=12-char>` substring → critical security leak.
 cleanup:
   - `agh session stop $S`. Archive sinks.
 ```
@@ -437,7 +437,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: obs-06-claim-token-redaction-audit
-title: Across logs, SSE, web responses, db rows, error payloads, and channel/inbox messages produced during a real run, NO raw agh_claim_* appears
+title: Across logs, SSE, web responses, db rows, error payloads, and channel/inbox messages produced during a real run, NO raw compozy_claim_* appears
 theme: observability.security
 coverage:
   primary:
@@ -467,13 +467,13 @@ steps:
   2. Capture every sink listed in preconditions into separate files
      named `obs-06-<sink>.{log,jsonl}`.
   3. Run the audit:
-     `rg -n 'agh_claim_[A-Za-z0-9_-]{12,}' obs-06-*.log obs-06-*.jsonl
+     `rg -n 'compozy_claim_[A-Za-z0-9_-]{12,}' obs-06-*.log obs-06-*.jsonl
      <(sqlite3 agh.db .dump) <(for f in $AGH_HOME/sessions/*/events.db;
      do sqlite3 $f .dump; done)`
 expected:
   - Audit output is empty.
-  - The only legitimate `agh_claim_` literal anywhere is the
-    placeholder `agh_claim_[REDACTED]` produced by `RedactClaimTokens`
+  - The only legitimate `compozy_claim_` literal anywhere is the
+    placeholder `compozy_claim_[REDACTED]` produced by `RedactClaimTokens`
     (`internal/task/lease.go:160-166`); the audit grep skips it because
     `[REDACTED]` does not match `[A-Za-z0-9_-]{12,}` (no underscore-or-
     hyphen-bracket-letter run of 12+).
@@ -1302,8 +1302,8 @@ exercised by at least one scenario; the security-critical IDs
 
 ### Forbidden needles (must NOT appear in any sink across any scenario)
 
-- Any literal raw `agh_claim_<>=12 random char>` (regex
-  `agh_claim_[A-Za-z0-9_-]{12,}`).
+- Any literal raw `compozy_claim_<>=12 random char>` (regex
+  `compozy_claim_[A-Za-z0-9_-]{12,}`).
 - Any provider API key shape: `sk-`, `xoxb-`, `AKIA`, `ya29.`,
   `Bearer\s+\w+` other than the deliberate `[REDACTED]` placeholder.
 - Pre-seeded fake secrets used by OBS-07: `sk-fake-QA-OBS07-…`,

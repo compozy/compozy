@@ -130,7 +130,7 @@ This slice overlaps adjacent slices at well-defined seams: task runs attach **se
 - **Spreadsheet status column → CLI/API/web entry-point trio.** Every story above resolves to (web route?, HTTP path, UDS path, CLI verb). The parent can fill a single canonical `Entry points` column from the route+CLI evidence and immediately know which surface to test first.
 - **HTTP↔UDS parity is the cheapest correctness gate.** Because handlers are shared `BaseHandlers` methods, the parent's QA loop can assert that any task/automation story behaves identically over `:2123` HTTP and the CLI's UDS socket; a divergence is a real bug, not a feature gap.
 - **Agent-manageable surface checklist.** Each capability exposes `-o json`-capable CLI verbs and HTTP/UDS parity, satisfying the "agent-manageable by default" invariant — the parent can route every story's QA through both a human (web) and an agent (CLI/API) actor.
-- **Lease + token redaction as a security assertion.** TA-049…TA-051 give the parent a concrete redaction test: claim responses must expose only `claim_token_hash`, never `agh_claim_*`. This maps to the repo-wide security invariant and is a high-value bug-hunt target.
+- **Lease + token redaction as a security assertion.** TA-049…TA-051 give the parent a concrete redaction test: claim responses must expose only `claim_token_hash`, never `compozy_claim_*`. This maps to the repo-wide security invariant and is a high-value bug-hunt target.
 - **Config-source immutability (TA-061) as a negative-test template.** A clean, deterministic 400-path that the parent can reuse as a model for other "restricted mutation" stories.
 
 ## Risks / Mismatches

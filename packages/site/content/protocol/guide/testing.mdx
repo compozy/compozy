@@ -24,7 +24,7 @@ before opening runtime work or applying extension behavior.
 ```go
 func TestCoreSenderFixture(t *testing.T) {
 	raw := []byte(`{
-		"protocol":"agh-network/v0",
+		"protocol":"compozy-network/v0",
 		"id":"msg_fixture_01",
 		"workspace_id":"ws_alpha",
 		"kind":"say",
@@ -42,7 +42,7 @@ func TestCoreSenderFixture(t *testing.T) {
 	if err := json.Unmarshal(raw, &env); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
-	if env.Protocol != "agh-network/v0" {
+	if env.Protocol != "compozy-network/v0" {
 		t.Fatalf("protocol = %q", env.Protocol)
 	}
 	if env.Surface != "thread" || env.ThreadID == "" {

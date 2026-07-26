@@ -266,7 +266,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 				t.Parallel()
 
 				globalDB := openNetworkConversationRepositoryTestDB(t)
-				token := "agh_claim_ACCEPT_SECRET_" + strconv.Itoa(index)
+				token := "compozy_claim_ACCEPT_SECRET_" + strconv.Itoa(index)
 				req := networkWakeAcceptanceRequest(
 					t,
 					"msg-unsafe-accept-"+strconv.Itoa(index),
@@ -3086,18 +3086,35 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 			"msg_raw_claim_token",
 			"thread_store_redaction",
 			"coder.sess-abc",
-			"agh_claim_NET05TOKEN123",
+			"compozy_claim_NET05TOKEN123",
 			time.Date(2026, 5, 5, 17, 0, 0, 0, time.UTC),
 		)
 
 		_, err := globalDB.WriteConversationMessage(testutil.Context(t), message)
-		assertRawClaimTokenRejected(t, err, "agh_claim_NET05TOKEN123")
+		assertRawClaimTokenRejected(t, err, "compozy_claim_NET05TOKEN123")
 		if got := networkRowCount(t, globalDB, "network_timeline_log", "message_id", message.MessageID); got != 0 {
 			t.Fatalf("raw-token message count = %d, want 0", got)
 		}
 		if got := networkRowCount(t, globalDB, "network_audit_log", "message_id", message.MessageID); got != 0 {
 			t.Fatalf("raw-token audit count = %d, want 0", got)
 		}
+	})
+
+	t.Run("Should reject uppercase raw claim tokens before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		message := threadMessage(
+			"msg_uppercase_raw_claim_token",
+			"thread_store_redaction",
+			"coder.sess-abc",
+			"COMPOZY_CLAIM_NET05TOKEN456",
+			time.Date(2026, 5, 5, 17, 15, 0, 0, time.UTC),
+		)
+
+		_, err := globalDB.WriteConversationMessage(testutil.Context(t), message)
+		assertRawClaimTokenRejected(t, err, "COMPOZY_CLAIM_NET05TOKEN456")
+		assertNoTimelineOrAuditRows(t, globalDB, message.MessageID)
 	})
 
 	t.Run("Should reject raw claim tokens in timeline text fields even when body is redacted", func(t *testing.T) {
@@ -3108,13 +3125,13 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 			"msg_raw_claim_token_text",
 			"thread_store_redaction",
 			"coder.sess-abc",
-			"agh_claim_NET05TEXT123",
+			"compozy_claim_NET05TEXT123",
 			time.Date(2026, 5, 5, 17, 30, 0, 0, time.UTC),
 		)
 		message.Body = []byte(`{"text":"[redacted]"}`)
 
 		_, err := globalDB.WriteConversationMessage(testutil.Context(t), message)
-		assertRawClaimTokenRejected(t, err, "agh_claim_NET05TEXT123")
+		assertRawClaimTokenRejected(t, err, "compozy_claim_NET05TEXT123")
 		assertNoTimelineOrAuditRows(t, globalDB, message.MessageID)
 	})
 
@@ -3130,10 +3147,10 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 			Channel:     "builders",
 			PeerFrom:    "coder.sess-abc",
 			MessageID:   "msg_audit_token",
-			Reason:      "agh_claim_NET05TOKEN123",
+			Reason:      "compozy_claim_NET05TOKEN123",
 			Size:        1,
 		})
-		assertRawClaimTokenRejected(t, err, "agh_claim_NET05TOKEN123")
+		assertRawClaimTokenRejected(t, err, "compozy_claim_NET05TOKEN123")
 		if got := networkRowCount(t, globalDB, "network_audit_log", "message_id", "msg_audit_token"); got != 0 {
 			t.Fatalf("raw-token audit count = %d, want 0", got)
 		}

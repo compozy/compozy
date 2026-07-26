@@ -14,7 +14,7 @@ A capability is **interpretive**, not deterministic — it tells an agent what i
 
 **Forbidden synonyms:** `recipe` (used in pre-rename RFC 003-old), `procedure`, `playbook`. If you find these in code, docs, or task artifacts targeting current behavior, rename them. `workflow` is no longer a forbidden synonym: the runtime now owns a first-class **Loop** domain (see below, ADR-001). A capability is still never a workflow/loop — but the word `workflow` no longer implies a naming collision.
 
-**Source:** RFC 003-v0 (`.../agh-rfcs-local/003-agh-network-v0.md`) renamed `recipe` → `capability`. RFC 004 enforces.
+**Source:** RFC 003-v0 (`.../agh-rfcs-local/003-compozy-network-v0.md`) renamed `recipe` → `capability`. RFC 004 enforces.
 
 **Operational identity:** `(peer_id, capability_id)`.
 
@@ -26,7 +26,7 @@ A capability is **interpretive**, not deterministic — it tells an agent what i
 
 The **deterministic runtime program the daemon owns and executes**, defined by the contract **goal → act → verify → stop** plus a fixed set of named terminal outcomes (ADR-001). A Loop's body is a static DAG of typed nodes; iteration is simply what happens when verification says "not done." A single-pass linear pipeline is still a Loop — one that finished on its first pass — and it still carries the contract (definition-of-done, verification gate, terminal states, budget), which is the value no plain DAG engine delivers.
 
-Loops ride AGH's existing durable foundations (work queue, sessions, automation, network, memory) — they are **not** a second execution engine. The serialized definition is `agh.loop/v1` YAML; the resolved form is what the coordinator runs.
+Loops ride AGH's existing durable foundations (work queue, sessions, automation, network, memory) — they are **not** a second execution engine. The serialized definition is `compozy.loop/v1` YAML; the resolved form is what the coordinator runs.
 
 **Loop vs Capability:** a Loop is deterministic and runtime-owned; a [capability](#capability) is interpretive and network-shipped. Loops do not replace capabilities, and loop execution never travels over the network wire.
 
@@ -74,7 +74,7 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 ### Peer Card
 
 The AGH Network discovery artifact: a peer's identity and `peer_card.capabilities` index, optionally
-with `peer_card.ext["agh.capabilities_brief"]` for AGH-specific projection.
+with `peer_card.ext["compozy.capabilities_brief"]` for AGH-specific projection.
 
 **vs A2A Agent Card:** A2A Agent Cards are an external industry standard. Peer Cards are AGH-Network specific but could be generated FROM an AGENT.md definition (RFC 001 §3.3 is open on the mapping). Today they are not unified.
 
@@ -173,7 +173,7 @@ Bounded replay window via `id`. Recommended 300-second clock-skew rejection when
 
 ### Trust Profile
 
-**Baseline Trust Profile** (RFC 004): Ed25519 + RFC 8785 JCS + SHA-256 fingerprints. Profile id `agh-network.trust.ed25519-jcs/v1`. Self-certified handles only — no DIDs, no revocation, no organization-level authorization, no federation policy in this profile.
+**Baseline Trust Profile** (RFC 004): Ed25519 + RFC 8785 JCS + SHA-256 fingerprints. Profile id `compozy-network.trust.ed25519-jcs/v1`. Self-certified handles only — no DIDs, no revocation, no organization-level authorization, no federation policy in this profile.
 
 ---
 
@@ -224,7 +224,7 @@ The single durable work-queue row. Carries `claim_token`, `lease_until`, `heartb
 
 ### `claim_token` / `claim_token_hash`
 
-Opaque, fenced ownership token. Raw `claim_token` (`agh_claim_*`) NEVER appears over the wire, in logs, in SSE, in web UI, in channel messages, or in memory. Public form is `claim_token_hash`.
+Opaque, fenced ownership token. Raw `claim_token` (`compozy_claim_*`) NEVER appears over the wire, in logs, in SSE, in web UI, in channel messages, or in memory. Public form is `claim_token_hash`.
 
 ### `ClaimNextRun(criteria)`
 

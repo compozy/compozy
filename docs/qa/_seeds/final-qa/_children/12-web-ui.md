@@ -31,7 +31,7 @@ The CLAUDE.md / web/CLAUDE.md / DESIGN.md / COPY.md invariants this child encode
 - **AGH_WEB_API_PROXY_TARGET when the daemon is not on `:2123`.** (`web/CLAUDE.md` Critical Rules). Every isolated-lab scenario reads the bootstrap manifest and exports the proxy target before launching Vite or Playwright. Hardcoding `http://localhost:2123` is a release blocker.
 - **Flat depth model, warm-dark palette, signal palette = information.** (`DESIGN.md` + `web/CLAUDE.md`). Visual regressions assert no `box-shadow`, no content gradients, and that signal colors map to documented meaning (`#E8572A` = action, `#30D158` = success, `#FF453A` = danger, `#FFD60A` = warning, `#BF5AF2` = info).
 - **Backend nouns exactly. `capability`, never `recipe` / `workflow` / `procedure` / `playbook`** (`COPY.md` + `docs/_memory/glossary.md`). Static text scrape gates UI-18.
-- **`claim_token` redaction is non-negotiable.** (`internal/CLAUDE.md` Security Invariants; reused in `03-acp-sessions.md` ACP-18). Raw `agh_claim_*` MUST NEVER appear in any DOM node, `aria-live` region, network-tab body, or console log.
+- **`claim_token` redaction is non-negotiable.** (`internal/CLAUDE.md` Security Invariants; reused in `03-acp-sessions.md` ACP-18). Raw `compozy_claim_*` MUST NEVER appear in any DOM node, `aria-live` region, network-tab body, or console log.
 - **Detached prompt vs request lifetime.** `internal/api/httpapi/prompt.go:104` uses `context.WithoutCancel(c.Request.Context())` — closing an SSE socket does NOT stop the LLM. The UI MUST surface explicit cancel; reload must reconnect to the same in-flight prompt.
 - **Components MUST NOT import from `stores/` or `adapters/` directly** (`web/CLAUDE.md` Frontend Architecture Rules). UI-09 spot-checks this with a static import audit.
 - **Cross-system imports only through public barrels** (`web/CLAUDE.md`). UI-09 spot-checks this too.
@@ -95,7 +95,7 @@ The gap real-LLM web scenarios MUST close: every existing Playwright spec drives
 1. **Real SSE token rendering**: tokens appear in the DOM incrementally, in the same order as `events.db` rows, with a visible streaming indicator that flips off only after `finish` (UI-02, UI-03).
 2. **Reload mid-stream**: closing the tab does NOT cancel the prompt (detached lifetime); reopening the route reconnects the SSE and tokens continue from `after_seq` without duplicates (UI-03, UI-15).
 3. **Explicit cancel mid-token**: clicking the Stop control inside the chat triggers `POST /api/sessions/:id/prompt/cancel`; UI flips to a "cancelled" state within ≤2s; daemon transcript ends in `prompt_cancelled` / `stop_reason: "canceled"` (UI-04).
-4. **Tool calls**: `tool-input-start` → `tool-input-available` → `tool-output-available` SSE frames render as a collapsible card; sensitive bytes (`agh_claim_*`, vault values) are NEVER inlined (UI-05, UI-17).
+4. **Tool calls**: `tool-input-start` → `tool-input-available` → `tool-output-available` SSE frames render as a collapsible card; sensitive bytes (`compozy_claim_*`, vault values) are NEVER inlined (UI-05, UI-17).
 5. **Memories list**: list/grid views, type/scope filters, recall preview, delete, and consolidation status indicator each read from real daemon state (UI-06).
 6. **Hot-apply settings vs restart-required**: a known hot-apply key reflects without reload; a known restart-required key surfaces the banner with a one-click "Restart now" affordance and the daemon does in fact restart (UI-07).
 7. **Bridges**: list / detail / test-delivery roundtrip via `POST /api/bridges/:id/test-delivery` (UI-08).
@@ -107,7 +107,7 @@ The gap real-LLM web scenarios MUST close: every existing Playwright spec drives
 13. **Theme adherence**: every page passes the DESIGN.md gate — flat depth (no `box-shadow`), warm-dark canvas (`--color-canvas`/`--color-canvas-deep`), signal palette only where signal is intended (UI-14).
 14. **Tab-visibility SSE reconnect**: tab hidden 60s, foregrounded — UI catches up via `after_seq`; no duplicates (UI-15).
 15. **Error toasts**: every typed error path from `BaseHandlers` maps to a user-facing toast with action affordance; raw `error.message` from openapi-fetch is never rendered untyped (UI-16).
-16. **`claim_token` redaction**: deep DOM scan never matches `/agh_claim_[A-Za-z0-9_-]+/` across any rendered route (UI-17).
+16. **`claim_token` redaction**: deep DOM scan never matches `/compozy_claim_[A-Za-z0-9_-]+/` across any rendered route (UI-17).
 17. **COPY.md vocabulary**: every visible string passes the canonical-term gate (no `recipe` / `workflow` / `playbook` / `procedure` for current AGH artifacts) (UI-18).
 18. **DX-cliff catch**: a fake auth method or any orphan control left in any settings panel that the daemon doesn't actually implement — must NOT exist; static audit fails the run (UI-11 + UI-18 cross-check).
 19. **Worktree-isolated proxy**: when the daemon is on a non-default port, the SPA reads `AGH_WEB_API_PROXY_TARGET` from `bootstrap.env` and reaches `/api/...` correctly (UI-01 sub-assertion).
@@ -461,19 +461,19 @@ steps:
   - Create a session, send: "Read README.md, then read src/file_a.go, then write a one-paragraph summary to summary.md."
   - Wait for at least three tool-call cards to render (`getByTestId("tool-call-card")`).
   - For each card: verify the trigger (`tool-card-trigger`) carries a label test id (e.g. `read`, `write`, `bash`); click to expand → assert `tool-card-expanded` becomes visible; collapse and re-expand; assert state is preserved across collapse/expand.
-  - Snapshot the full DOM textContent. Run `match(/agh_claim_[A-Za-z0-9_-]+/g)` and assert null match. Run `match(/sk-(ant|prod)-[A-Za-z0-9_-]+/g)` and assert null match (scopes any provider key that might leak through prompt metadata).
+  - Snapshot the full DOM textContent. Run `match(/compozy_claim_[A-Za-z0-9_-]+/g)` and assert null match. Run `match(/sk-(ant|prod)-[A-Za-z0-9_-]+/g)` and assert null match (scopes any provider key that might leak through prompt metadata).
   - Multi-turn proof: after the first turn, the operator sends a follow-up "Now show me the summary you wrote." The agent reads summary.md; the new tool card appears; the older cards remain in their original positions (no re-order).
 expected:
   - Each tool card emits the SSE sequence `tool-input-start` → `tool-input-available` → `tool-output-available` (cross-check with `agh session events $S --type tool_call,tool_result -o json`).
   - Cards are keyboard-toggleable: `aria-expanded` flips between true/false.
-  - DOM scan for `agh_claim_*` returns 0 matches across the entire session lifecycle (rendered or hidden subtrees).
+  - DOM scan for `compozy_claim_*` returns 0 matches across the entire session lifecycle (rendered or hidden subtrees).
   - Cards preserve order across follow-up turns (turn change does not reorder past tool cards).
 evidence:
   - ui-05-screenshots/{collapsed,expanded,after-followup}.png
   - ui-05-dom-needle-scan.json (counts per regex; all 0)
   - tool_calls.json from `agh session events`
 failure_signatures:
-  - DOM contains a raw `agh_claim_` token — release blocker (CLAUDE.md "claim_token redaction is non-negotiable"). Cross-link to ACP-18.
+  - DOM contains a raw `compozy_claim_` token — release blocker (CLAUDE.md "claim_token redaction is non-negotiable"). Cross-link to ACP-18.
   - Tool card always expanded with no collapse affordance — regression of `tool-card-trigger` toggle.
   - Tool input rendered as JSON.stringify with ad-hoc whitespace — regression of `tool-input-available` decoder (`web/src/systems/session/lib/message-parts.ts`).
 cleanup:
@@ -714,12 +714,12 @@ steps:
   - Assert one row per run; each row carries the seeded `data-testid={`tasks-detail-runs-item-${run.id}`}` and shows status (`pending`, `leased`, `completed`, `failed`).
   - For the leased run: assert a TTL chip (countdown to `lease_until`) updates over 5s — capture two values and assert the second is smaller.
   - Admin-cancel the leased run via the row action (or via the page-level cancel control if exposed). Confirm the run transitions to `cancelled` (or `failed` with `release_reason="admin_cancel"` per `internal/CLAUDE.md` autonomy spec) within ≤3s.
-  - DOM scan: `match(/agh_claim_[A-Za-z0-9_-]+/g)` over the entire panel HTML returns null. The panel may show `claim_token_hash` (`sha256:...`) but never the raw token.
+  - DOM scan: `match(/compozy_claim_[A-Za-z0-9_-]+/g)` over the entire panel HTML returns null. The panel may show `claim_token_hash` (`sha256:...`) but never the raw token.
 expected:
   - Panel reflects daemon truth via `useTasks` + `useTask` (`web/src/systems/tasks/hooks/`); pending/leased/completed/failed transitions are observed live.
   - Cancel action calls the documented API (`POST /api/task-runs/:id/cancel` or equivalent — pick whichever the implementation actually exposes; see `internal/api/spec/spec.go` `task-runs` group at `httpapi/routes.go:217-225`).
   - Lease TTL countdown does not freeze; updates at ≥1Hz (driven by a timer or a query refetch interval).
-  - DOM has no raw `agh_claim_*` tokens (release blocker if it does).
+  - DOM has no raw `compozy_claim_*` tokens (release blocker if it does).
 evidence:
   - ui-10-screenshots/{queue-mixed,ttl-tick,after-cancel}.png
   - ui-10-network.har
@@ -727,7 +727,7 @@ evidence:
 failure_signatures:
   - TTL chip frozen — refetchInterval missing or component memoization too aggressive.
   - Admin-cancel returns success but the run stays `leased` — handler regression in `internal/autonomy`.
-  - DOM contains a raw `agh_claim_` token — security release blocker.
+  - DOM contains a raw `compozy_claim_` token — security release blocker.
 cleanup:
   - revert seeded data; runtime.dispose().
 ```
@@ -1014,7 +1014,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: ui-17-claim-token-redaction
-title: Across every primary route, deep DOM text scrape and HAR body inspection finds zero `agh_claim_*` raw tokens; `claim_token_hash` (`sha256:...`) is the only acceptable surface
+title: Across every primary route, deep DOM text scrape and HAR body inspection finds zero `compozy_claim_*` raw tokens; `claim_token_hash` (`sha256:...`) is the only acceptable surface
 theme: web.security
 coverage:
   primary:
@@ -1035,7 +1035,7 @@ steps:
   - Visit each primary route after triggering the seeded synthetic prompt:
       - /, /agents/claude/sessions/$ID (during streaming, after finish), /knowledge, /tasks, /tasks/$ID, /settings/{general, hooks-extensions, vault}, /network.
   - For each route: capture full document.body.innerHTML AND innerText AND every Network HAR response body.
-  - Run regex `/agh_claim_[A-Za-z0-9_-]+/g` over each artifact; assert null match.
+  - Run regex `/compozy_claim_[A-Za-z0-9_-]+/g` over each artifact; assert null match.
   - Allow `sha256:...` patterns where the hash field is the only legitimate exposure; assert these never appear in user-facing labels (only in a hidden inspector pane gated behind a click).
 expected:
   - 0 raw tokens across all artifacts.
@@ -1224,7 +1224,7 @@ cleanup:
 | `box-shadow` or content gradient | Design | UI-14 |
 | Reconnect after visibility loses tokens | Chat | UI-15 |
 | Toast text contains JSON | Errors | UI-16 |
-| Raw `agh_claim_*` in DOM/HAR | Security | UI-17 |
+| Raw `compozy_claim_*` in DOM/HAR | Security | UI-17 |
 | `recipe` / `workflow` / `playbook` in chrome | Copy | UI-18 |
 | Orphan control / TODO / unimplemented form field | DX | UI-19 |
 | Real-LLM spec flakes on text content | Regression | UI-20 |
@@ -1237,12 +1237,12 @@ cleanup:
 - **Bridges seed (UI-08)**: 1 bridge with a known adapter and a malformed payload sample.
 - **Tasks/runs seed (UI-10)**: tasks across all four states (`pending`, `leased`, `completed`, `failed`) with documented `claim_token_hash` (NEVER raw token) and varying `lease_until` distances.
 - **Capability disabled config (UI-11)**: rendered config with `[network] enabled = false`.
-- **claim_token fake (UI-17)**: synthetic prompt fixture with `agh_claim_FAKE_QA_*` token; per ACP-18.
+- **claim_token fake (UI-17)**: synthetic prompt fixture with `compozy_claim_FAKE_QA_*` token; per ACP-18.
 - **Provider auth**: direct `claude` uses native Claude CLI auth from the
   effective Claude home for the lane (operator `HOME` by default; isolated
   `PROVIDER_HOME` only for explicit isolated-home scenarios). Bound-secret
   lanes stage their credentials into `PROVIDER_HOME`.
-- **Forbidden needles**: `["agh_claim_FAKE_QA_", "agh_claim_TESTONLY_"]` for UI-17; runner sweeps DOM and HAR.
+- **Forbidden needles**: `["compozy_claim_FAKE_QA_", "compozy_claim_TESTONLY_"]` for UI-17; runner sweeps DOM and HAR.
 - **axe-core (UI-12)**: `@axe-core/playwright`; rules pinned to WCAG 2.1 AA; serious/critical filter only.
 - **Mock fixtures (UI-01, UI-06, UI-07, UI-08, UI-10, UI-11, UI-13, UI-14, UI-16, UI-18, UI-19)**: `internal/testutil/acpmock/testdata/*.json` plugged via `runtimeOptions.seed.mockAgents[]` (`web/e2e/fixtures/runtime.ts:21-32`).
 - **Reduced-motion profile (UI-12)**: Playwright `emulateMedia({ reducedMotion: "reduce" })`.

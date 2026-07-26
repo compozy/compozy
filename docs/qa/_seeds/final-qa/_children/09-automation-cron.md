@@ -1109,7 +1109,7 @@ expected:
   - Lineage rows exist for the parent→child relationship; depth is 1.
   - The transcript contains the literal string output the prompt
     requested ("Reply with QA-CRN18-marker-<minute>").
-  - No raw `claim_token` (`agh_claim_*`) in any transcript or log line.
+  - No raw `claim_token` (`compozy_claim_*`) in any transcript or log line.
 evidence:
   - 2 parent transcripts, 2 child transcripts, lineage dump.
 failure_signatures:
@@ -1327,8 +1327,8 @@ Per the openclaw `forbiddenNeedles` pattern. None of the following may
 appear in any outbound message, transcript, SSE event, automation run
 error, or audit log across any CRN scenario:
 
-- Any literal raw `agh_claim_<>=12 random char>` (regex
-  `agh_claim_[A-Za-z0-9_-]{12,}`). Cron-spawned sessions and webhook
+- Any literal raw `compozy_claim_<>=12 random char>` (regex
+  `compozy_claim_[A-Za-z0-9_-]{12,}`). Cron-spawned sessions and webhook
   triggers MUST NOT leak claim tokens.
 - Any provider API key shape: `sk-`, `xoxb-`, `AKIA`, `ya29.`.
 - Any raw webhook secret value (the one stored under

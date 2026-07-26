@@ -273,11 +273,11 @@ func TestCoordinationMessageMetadataValidationRejectsRawClaimTokens(t *testing.T
 		},
 		{
 			name: "Should reject token-shaped ext value",
-			body: `{"task_id":"task-1","run_id":"run-1","channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains agh_claim_raw"}}`,
+			body: `{"task_id":"task-1","run_id":"run-1","channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains compozy_claim_raw"}}`,
 		},
 		{
 			name: "Should reject uppercase token-shaped ext value",
-			body: `{"task_id":"task-1","run_id":"run-1","channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains AGH_CLAIM_RAW"}}`,
+			body: `{"task_id":"task-1","run_id":"run-1","channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains COMPOZY_CLAIM_RAW"}}`,
 		},
 	}
 	for _, tc := range testCases {

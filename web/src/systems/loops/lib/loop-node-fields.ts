@@ -4,7 +4,7 @@ import type { FieldSpec, TextFieldSpec } from "./loop-node-schema-types";
 
 /**
  * The per class/kind inspector field builders. Each returns the `FieldSpec[]` the
- * inspector renders for one node kind, derived from the canonical `agh.loop/v1` DSL types
+ * inspector renders for one node kind, derived from the canonical `compozy.loop/v1` DSL types
  * + the ADR-021 reserved kinds. Where the design mockup diverged (`action_ref`, a closed
  * 3-item kind select), the DSL wins — those fields do not exist here. Editable fields carry
  * a `path` into the raw node JSON so a single immutable setter (loop-editor-draft) applies

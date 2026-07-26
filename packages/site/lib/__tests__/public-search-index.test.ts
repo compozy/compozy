@@ -58,7 +58,7 @@ const mockedContent = vi.hoisted(() => ({
       url: "/protocol/implementation-status",
       data: {
         title: "Implementation Status",
-        description: "Understand what agh-network/v0 implements in the alpha runtime.",
+        description: "Understand what compozy-network/v0 implements in the alpha runtime.",
         structuredData: { headings: [{ content: "Current runtime" }] },
       },
     },
@@ -194,7 +194,7 @@ describe("public search index", () => {
       },
       {
         title: "Implementation Status",
-        description: "Understand what agh-network/v0 implements in the alpha runtime.",
+        description: "Understand what compozy-network/v0 implements in the alpha runtime.",
         structuredData: { headings: [{ content: "Current runtime" }] },
         id: "/protocol/implementation-status",
         url: "/protocol/implementation-status",

@@ -540,13 +540,13 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		value := map[string]string{
-			"claim":  "agh_claim_NETWORKSECRET",
+			"claim":  "compozy_claim_NETWORKSECRET",
 			"openai": "sk-network-secret",
 			"slack":  "xoxb-network-secret",
 		}
 		result, err := structuredNetworkResult(
 			value,
-			"Bearer network-secret sk-network-secret xoxb-network-secret agh_claim_NETWORKSECRET",
+			"Bearer network-secret sk-network-secret xoxb-network-secret compozy_claim_NETWORKSECRET",
 		)
 		if err != nil {
 			t.Fatalf("structuredNetworkResult() error = %v", err)
@@ -555,7 +555,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			"network-secret",
 			"sk-network-secret",
 			"xoxb-network-secret",
-			"agh_claim_NETWORKSECRET",
+			"compozy_claim_NETWORKSECRET",
 		} {
 			if strings.Contains(string(result.Structured), secret) || strings.Contains(result.Preview, secret) ||
 				len(result.Content) != 1 || strings.Contains(result.Content[0].Text, secret) {
@@ -2703,7 +2703,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Scope:  taskpkg.ScopeWorkspace,
 			}},
 			getView: func() *taskpkg.View {
-				rawClaimToken := "agh_claim_READSECRET"
+				rawClaimToken := "compozy_claim_READSECRET"
 				blockedReasons := []taskpkg.BlockedReason{{
 					Source:  taskpkg.BlockedSourceBlock,
 					Kind:    taskpkg.BlockKindNeedsInput,
@@ -2766,8 +2766,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if tasks.getCalls != 1 || tasks.lastGetID != "task-read" {
 			t.Fatalf("GetTask calls/id = %d/%q, want task-read", tasks.getCalls, tasks.lastGetID)
 		}
-		requireNativeStructuredContains(t, readResult, []byte(`agh_claim_[REDACTED]`))
-		requireNativeStructuredExcludes(t, readResult, []byte(`agh_claim_READSECRET`))
+		requireNativeStructuredContains(t, readResult, []byte(`compozy_claim_[REDACTED]`))
+		requireNativeStructuredExcludes(t, readResult, []byte(`compozy_claim_READSECRET`))
 
 		_, err = registry.Call(
 			t.Context(),
@@ -3206,7 +3206,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should route autonomy tools through session-bound lease lookup", func(t *testing.T) {
 		t.Parallel()
 
-		rawToken := "agh_claim_NATIVEAUTONOMY123"
+		rawToken := "compozy_claim_NATIVEAUTONOMY123"
 		hash, err := taskpkg.ClaimTokenHash(rawToken)
 		if err != nil {
 			t.Fatalf("ClaimTokenHash() error = %v", err)
@@ -3387,7 +3387,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should gate task block native tools by leased task and operator scope", func(t *testing.T) {
 		t.Parallel()
 
-		rawToken := "agh_claim_TASKBLOCK123"
+		rawToken := "compozy_claim_TASKBLOCK123"
 		hash, err := taskpkg.ClaimTokenHash(rawToken)
 		if err != nil {
 			t.Fatalf("ClaimTokenHash() error = %v", err)
@@ -3453,7 +3453,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(task_block) error = %v", err)
 		}
 		requireNativeStructuredContains(t, blockResult, []byte(`"block-native"`))
-		requireNativeStructuredContains(t, blockResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredContains(t, blockResult, []byte(`compozy_claim_[REDACTED]`))
 		requireNativeStructuredExcludes(t, blockResult, []byte(rawToken))
 		if tasks.blockCalls != 1 ||
 			tasks.lookupCalls != 1 ||
@@ -3486,7 +3486,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(task_unblock) error = %v", err)
 		}
 		requireNativeStructuredContains(t, unblockResult, []byte(`"block-native"`))
-		requireNativeStructuredContains(t, unblockResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredContains(t, unblockResult, []byte(`compozy_claim_[REDACTED]`))
 		requireNativeStructuredExcludes(t, unblockResult, []byte(rawToken))
 		if tasks.clearBlockCalls != 1 ||
 			tasks.lookupCalls != 2 ||
@@ -3515,7 +3515,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(task_blocks) error = %v", err)
 		}
 		requireNativeStructuredContains(t, blocksResult, []byte(`"block-native"`))
-		requireNativeStructuredContains(t, blocksResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredContains(t, blocksResult, []byte(`compozy_claim_[REDACTED]`))
 		requireNativeStructuredExcludes(t, blocksResult, []byte(rawToken))
 		if tasks.listBlockCalls != 1 ||
 			tasks.lastListBlockTaskID != "task-1" ||
@@ -3568,7 +3568,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(task_recover operator) error = %v", err)
 		}
 		requireNativeStructuredContains(t, recoverResult, []byte(`"task-1"`))
-		requireNativeStructuredContains(t, recoverResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredContains(t, recoverResult, []byte(`compozy_claim_[REDACTED]`))
 		requireNativeStructuredExcludes(t, recoverResult, []byte(rawToken))
 		if tasks.recoverCalls != 1 ||
 			tasks.lastRecoverTaskID != "task-1" ||
@@ -3585,7 +3585,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should map stale autonomy writer rejection after session lookup", func(t *testing.T) {
 		t.Parallel()
 
-		rawToken := "agh_claim_STALEWRITER123"
+		rawToken := "compozy_claim_STALEWRITER123"
 		hash, err := taskpkg.ClaimTokenHash(rawToken)
 		if err != nil {
 			t.Fatalf("ClaimTokenHash() error = %v", err)
@@ -3755,15 +3755,15 @@ func TestDaemonNativeTools(t *testing.T) {
 		bindingErr := nativeReviewToolError(toolspkg.ToolIDTaskRunReviewSubmit, taskpkg.ErrRunReviewNotFound)
 		requireToolReason(t, bindingErr, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 
-		rawErr := errors.New("backend leaked agh_claim_secret-123")
+		rawErr := errors.New("backend leaked compozy_claim_secret-123")
 		wrapped := nativeReviewToolError(toolspkg.ToolIDTaskRunReviewSubmit, rawErr)
 		if !errors.Is(wrapped, toolspkg.ErrToolBackendFailed) {
 			t.Fatalf("wrapped error = %v, want %v", wrapped, toolspkg.ErrToolBackendFailed)
 		}
-		if strings.Contains(wrapped.Error(), "agh_claim_secret-123") {
+		if strings.Contains(wrapped.Error(), "compozy_claim_secret-123") {
 			t.Fatalf("wrapped error = %q, want redacted claim token", wrapped.Error())
 		}
-		if !strings.Contains(wrapped.Error(), "agh_claim_[REDACTED]") {
+		if !strings.Contains(wrapped.Error(), "compozy_claim_[REDACTED]") {
 			t.Fatalf("wrapped error = %q, want redacted token marker", wrapped.Error())
 		}
 	})
@@ -4267,9 +4267,9 @@ func TestDaemonNativeTools(t *testing.T) {
 						PeerFrom:    "coder.sess-abc",
 						Kind:        store.NetworkKindSay,
 						WorkID:      "work_launch",
-						Text:        "secret agh_claim_RESULT123",
-						PreviewText: "secret agh_claim_RESULT123",
-						Body:        json.RawMessage(`{"text":"secret agh_claim_BODY123"}`),
+						Text:        "secret compozy_claim_RESULT123",
+						PreviewText: "secret compozy_claim_RESULT123",
+						Body:        json.RawMessage(`{"text":"secret compozy_claim_BODY123"}`),
 						Timestamp:   now,
 					}}, nil
 				case store.NetworkSurfaceDirect:
@@ -4363,8 +4363,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, threadMessagesResult, []byte(`"msg_thread_launch"`))
 		requireNativeStructuredContains(t, threadMessagesResult, []byte(`"limit":5`))
-		requireNativeStructuredExcludes(t, threadMessagesResult, []byte(`agh_claim_RESULT123`))
-		requireNativeStructuredExcludes(t, threadMessagesResult, []byte(`agh_claim_BODY123`))
+		requireNativeStructuredExcludes(t, threadMessagesResult, []byte(`compozy_claim_RESULT123`))
+		requireNativeStructuredExcludes(t, threadMessagesResult, []byte(`compozy_claim_BODY123`))
 
 		directsResult, err := registry.Call(
 			t.Context(),
@@ -4663,7 +4663,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
-		const rawToken = "agh_claim_NATIVE_SECURITY_123"
+		const rawToken = "compozy_claim_NATIVE_SECURITY_123"
 		tests := []struct {
 			name       string
 			input      json.RawMessage
@@ -4772,7 +4772,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			BindID:   bind.BindID,
 			ToolName: toolspkg.ToolIDNetworkSend.String(),
 			Input: json.RawMessage(
-				`{"workspace_id":"ws-1","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"agh_claim_HOSTED123"}}`,
+				`{"workspace_id":"ws-1","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"compozy_claim_HOSTED123"}}`,
 			),
 		}, peer)
 		var toolErr *toolspkg.ToolError
@@ -5352,7 +5352,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should read memory tools through the current memory store with redaction", func(t *testing.T) {
 		t.Parallel()
 
-		rawClaim := "agh_claim_secret123"
+		rawClaim := "compozy_claim_secret123"
 		globalDir := filepath.Join(t.TempDir(), "global-memory")
 		catalogPath := filepath.Join(t.TempDir(), "memory.db")
 		memoryStore := memorypkg.NewStore(globalDir, memorypkg.WithCatalogDatabasePath(catalogPath))
@@ -5504,7 +5504,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(memory_show) error = %v", err)
 		}
-		requireNativeStructuredContains(t, readResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredContains(t, readResult, []byte(`compozy_claim_[REDACTED]`))
 		requireNativeStructuredExcludes(t, readResult, []byte(rawClaim))
 
 		workspaceReadResult, err := registry.Call(
@@ -6624,7 +6624,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should read observe tools through the observer without leaking event secrets", func(t *testing.T) {
 		t.Parallel()
 
-		rawClaim := "agh_claim_observe123"
+		rawClaim := "compozy_claim_observe123"
 		now := time.Date(2026, 4, 29, 15, 0, 0, 0, time.UTC)
 		observer := &nativeObserverStub{
 			eventSummaries: []store.EventSummary{
@@ -6716,7 +6716,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(observe_metrics) error = %v", err)
 		}
 		requireNativeStructuredContains(t, metricsResult, []byte(`"active_sessions":1`))
-		requireNativeStructuredContains(t, metricsResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredContains(t, metricsResult, []byte(`compozy_claim_[REDACTED]`))
 		requireNativeStructuredExcludes(t, metricsResult, []byte(rawClaim))
 
 		_, err = registry.Call(
@@ -6768,7 +6768,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			rawClaim := "agh_claim_bridge123"
+			rawClaim := "compozy_claim_bridge123"
 			now := time.Date(2026, 4, 29, 16, 0, 0, 0, time.UTC)
 			degradation := &bridgepkg.BridgeDegradation{
 				Reason:  bridgepkg.BridgeDegradationReasonAuthFailed,
@@ -6825,7 +6825,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			}
 			requireNativeStructuredContains(t, listResult, []byte(`"bridge-1"`))
 			requireNativeStructuredContains(t, listResult, []byte(`"route_count":2`))
-			requireNativeStructuredContains(t, listResult, []byte(`agh_claim_[REDACTED]`))
+			requireNativeStructuredContains(t, listResult, []byte(`compozy_claim_[REDACTED]`))
 			requireNativeStructuredExcludes(t, listResult, []byte(`bot_token`))
 			requireNativeStructuredExcludes(t, listResult, []byte(`secret-value`))
 			requireNativeStructuredExcludes(t, listResult, []byte(rawClaim))

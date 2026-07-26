@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 // DefaultTaskStarvationAge is the queued age past which a claimable run is treated as
@@ -84,7 +85,7 @@ func (m *Service) MarkRunNeedsAttention(
 		)
 	}
 	diagnostic = strings.TrimSpace(diagnostic)
-	if strings.Contains(diagnostic, "agh_claim_") {
+	if redactpkg.ContainsRawClaimToken(diagnostic) {
 		return Run{}, fmt.Errorf("task: needs_attention diagnostic must not embed a claim token")
 	}
 	updated, err := m.store.MarkTaskRunNeedsAttention(ctx, run.ID, diagnostic)

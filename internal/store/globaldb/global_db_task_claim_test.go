@@ -4490,10 +4490,10 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 		{
 			name:             "success records terminal output",
 			complete:         true,
-			result:           json.RawMessage(`{"message":"approved agh_claim_SECRET123"}`),
+			result:           json.RawMessage(`{"message":"approved compozy_claim_SECRET123"}`),
 			tokensUsed:       3,
 			wantOutputStatus: "succeeded",
-			wantOutputRef:    `{"message":"approved agh_claim_SECRET123"}`,
+			wantOutputRef:    `{"message":"approved compozy_claim_SECRET123"}`,
 			wantEvents: []string{
 				loopRunEventStatusChanged,
 				loopRunEventNodeRunning,
@@ -4688,10 +4688,10 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			if tc.complete {
 				channel := loopEventPayloadForKind(t, events, loopRunEventChannelMsg)
 				text := channel["text"].(string)
-				if strings.Contains(text, "agh_claim_SECRET123") {
+				if strings.Contains(text, "compozy_claim_SECRET123") {
 					t.Fatalf("channel_msg.text leaked raw claim token: %q", text)
 				}
-				if !strings.Contains(text, "agh_claim_[REDACTED]") {
+				if !strings.Contains(text, "compozy_claim_[REDACTED]") {
 					t.Fatalf("channel_msg.text = %q, want redacted claim token marker", text)
 				}
 			}

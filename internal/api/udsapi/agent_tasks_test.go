@@ -18,7 +18,7 @@ import (
 func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *testing.T) {
 	t.Parallel()
 
-	rawToken := "agh_claim_TESTTOKEN123"
+	rawToken := "compozy_claim_TESTTOKEN123"
 	leaseUntil := time.Date(2026, 4, 26, 10, 5, 0, 0, time.UTC)
 	claimHash, err := taskpkg.ClaimTokenHash(rawToken)
 	if err != nil {
@@ -234,7 +234,7 @@ func TestAgentTaskClaimNextWorkspaceCapacityDeferral(t *testing.T) {
 func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testing.T) {
 	t.Parallel()
 
-	rawToken := "agh_claim_MUTATIONTOKEN123"
+	rawToken := "compozy_claim_MUTATIONTOKEN123"
 	lookupFn := func(
 		_ context.Context,
 		sessionID string,
@@ -382,7 +382,7 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 	t.Parallel()
 
-	rawToken := "agh_claim_DENIEDTOKEN123"
+	rawToken := "compozy_claim_DENIEDTOKEN123"
 	t.Run("Should missing identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -423,7 +423,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
 		}
 		if strings.Contains(recorder.Body.String(), rawToken) ||
-			!strings.Contains(recorder.Body.String(), "agh_claim_[REDACTED]") {
+			!strings.Contains(recorder.Body.String(), "compozy_claim_[REDACTED]") {
 			t.Fatalf("body = %s, want redacted claim token", recorder.Body.String())
 		}
 	})

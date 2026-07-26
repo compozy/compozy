@@ -178,11 +178,30 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 		err := host.Request(
 			context.Background(),
 			aghsdk.HostAPIMethodNetworkSend,
-			map[string]any{"claim_token": "agh_claim_secret"},
+			map[string]any{"claim_token": "compozy_claim_secret"},
 			&json.RawMessage{},
 		)
 		if err == nil {
 			t.Fatal("HostAPI.Request() error = nil, want sensitive value rejection")
+		}
+		if transport.calls != 0 {
+			t.Fatalf("transport calls = %d, want 0", transport.calls)
+		}
+	})
+
+	t.Run("Should Reject Uppercase Raw Claim Token Under Benign Key", func(t *testing.T) {
+		t.Parallel()
+
+		transport := &recordingTransport{}
+		host := aghsdk.NewHostAPI(transport, func() bool { return true })
+		err := host.Request(
+			context.Background(),
+			aghsdk.HostAPIMethodNetworkSend,
+			map[string]any{"note": "COMPOZY_CLAIM_EXTENSION_SECRET"},
+			&json.RawMessage{},
+		)
+		if err == nil {
+			t.Fatal("HostAPI.Request() error = nil, want raw claim token rejection")
 		}
 		if transport.calls != 0 {
 			t.Fatalf("transport calls = %d, want 0", transport.calls)

@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "Feed missing/wrong-shape slots and fake secret values containing sk-, Bearer, xoxb-, agh_claim_, PKCE-verifier, *_secret, and private-key markers; verify records, doctor output, errors, and wizard echoes must expose no raw value."
+      - "Feed missing/wrong-shape slots and fake secret values containing sk-, Bearer, xoxb-, compozy_claim_, PKCE-verifier, *_secret, and private-key markers; verify records, doctor output, errors, and wizard echoes must expose no raw value."
       - "Try provider_config API/OAuth/service destinations, localhost/private/link-local/mixed-DNS webhook URLs, redirects, and missing routes; expect deterministic rejection or truthful fail/warn without proxying credentials."
       - "Run verify repeatedly on disabled, ready, degraded, GitHub, and Linear instances; identity skipped must remain explicit and lifecycle state/revision must not change."
       - "Repair one named slot, enable, inspect runtime health, verify public reachability, and compare per-instance records with doctor aggregation."

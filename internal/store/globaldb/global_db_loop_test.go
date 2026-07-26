@@ -691,7 +691,7 @@ func TestGlobalDBLoopRunCreateShouldApplyConcurrencyPolicyAtomically(t *testing.
 
 func testLoopRun(id string, at time.Time, status looppkg.Status) looppkg.Run {
 	definition, err := dsl.Parse([]byte(
-		`{"apiVersion":"agh.loop/v1","kind":"Loop","meta":{"name":"delivery","version":1},"contract":{"goal":"test","definition_of_done":"done","iteration_cap":7,"no_progress":{"window":1},"budget":{"tokens":1,"wall_clock_sec":1}},"graph":{"nodes":[{"id":"finish","class":"action","kind":"transform","params":{"map":{"ok":{"value":true}}}}],"edges":[]}}`,
+		`{"apiVersion":"compozy.loop/v1","kind":"Loop","meta":{"name":"delivery","version":1},"contract":{"goal":"test","definition_of_done":"done","iteration_cap":7,"no_progress":{"window":1},"budget":{"tokens":1,"wall_clock_sec":1}},"graph":{"nodes":[{"id":"finish","class":"action","kind":"transform","params":{"map":{"ok":{"value":true}}}}],"edges":[]}}`,
 	))
 	if err != nil {
 		panic(fmt.Sprintf("parse test Loop definition: %v", err))

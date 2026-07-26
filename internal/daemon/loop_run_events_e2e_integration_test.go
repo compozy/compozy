@@ -192,7 +192,7 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 
 func loopEventsDefinition() aghcontract.LoopDefinitionDocument {
 	return aghcontract.LoopDefinitionDocument{
-		APIVersion:  "agh.loop/v1",
+		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
 		Meta: aghcontract.LoopDefinitionMeta{
@@ -271,7 +271,7 @@ func seedWatchEventsLoopDefinition(t testing.TB, workspaceRoot string) {
 }
 
 func watchEventsE2ELoopYAML() string {
-	return `apiVersion: agh.loop/v1
+	return `apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: watch-events-e2e

@@ -37,7 +37,7 @@ type Envelope struct {
 func main() {
 	now := time.Now().UTC().Unix()
 	envelope := Envelope{
-		Protocol:    "agh-network/v0",
+		Protocol:    "compozy-network/v0",
 		ID:          fmt.Sprintf("msg_demo_%d", now),
 		WorkspaceID: "ws_alpha",
 		Kind:        "say",
@@ -62,7 +62,7 @@ func main() {
 
 ## Validate before delivery
 
-Check that the protocol is exactly `agh-network/v0`, workspace and IDs are non-empty, channel and
+Check that the protocol is exactly `compozy-network/v0`, workspace and IDs are non-empty, channel and
 peer IDs match their grammars, `surface:"thread"` pairs with `thread_id`, and `body.text` is not
 blank. `proof:null` means unverified v0 content.
 

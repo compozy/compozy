@@ -65,9 +65,9 @@ describe("site config metadata helpers", () => {
     const metadata = createPageMetadata({
       title: "Launch Post",
       path: "/blog/launch",
-      keywords: ["alpha", "agh-network/v0"],
+      keywords: ["alpha", "compozy-network/v0"],
     });
-    expect(metadata.keywords).toEqual(["alpha", "agh-network/v0"]);
+    expect(metadata.keywords).toEqual(["alpha", "compozy-network/v0"]);
   });
 
   it("preserves page descriptions and custom social images", () => {

@@ -80,7 +80,7 @@ describe("Hero", () => {
     expect(screen.getByText("An open workplace for AI agents.")).toBeDefined();
     expect(
       screen.getByText(
-        "AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy, tools, and automation, connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts."
+        "AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts."
       )
     ).toBeDefined();
     expect(screen.getByText(/find each other/)).toBeDefined();
@@ -88,13 +88,13 @@ describe("Hero", () => {
     expect(install.closest("a")?.getAttribute("href")).toBe(
       "/runtime/core/getting-started/installation"
     );
-    const spec = screen.getByText("Read the agh-network/v0 spec");
+    const spec = screen.getByText("Read the compozy-network/v0 spec");
     expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
   });
 
   it("renders four proof-of-life signal tiles", () => {
     render(<Hero />);
-    expect(screen.getByText("agh-network/v0, alpha runtime")).toBeDefined();
+    expect(screen.getByText("compozy-network/v0, alpha runtime")).toBeDefined();
     expect(
       screen.getByText("6 message kinds. Commit-first delivery. Audited outcomes.")
     ).toBeDefined();
@@ -421,7 +421,7 @@ describe("Comparison", () => {
       expect(screen.getByText(name)).toBeDefined();
     }
     expect(screen.getByText("None, single agent")).toBeDefined();
-    expect(screen.getByText("agh-network/v0, implemented")).toBeDefined();
+    expect(screen.getByText("compozy-network/v0, implemented")).toBeDefined();
     expect(screen.getByText(`${SUPPORTED_AGENT_COUNT} ACP drivers`)).toBeDefined();
   });
 });
@@ -493,7 +493,7 @@ describe("FinalCta", () => {
     expect(install.closest("a")?.getAttribute("href")).toBe(
       "/runtime/core/getting-started/installation"
     );
-    const spec = screen.getByText("Read agh-network/v0 spec");
+    const spec = screen.getByText("Read compozy-network/v0 spec");
     expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
     const star = screen.getByText("Star on GitHub");
     expect(star.closest("a")?.getAttribute("href")).toBe(baseOptions.githubUrl);

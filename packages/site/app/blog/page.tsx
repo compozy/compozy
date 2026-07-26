@@ -41,7 +41,7 @@ export default function BlogIndexPage() {
           </h1>
           <p className="mt-6 max-w-[58ch] text-lg leading-7 text-muted">
             Protocol design, runtime engineering, and release receipts from the team shipping{" "}
-            <span className="text-fg">agh-network/v0</span>. Read in any order.
+            <span className="text-fg">compozy-network/v0</span>. Read in any order.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-2">
             <CategoryPill label="All" count={posts.length} href="/blog" active />

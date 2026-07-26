@@ -114,7 +114,7 @@ Each screen is one standalone `.html`, previewable on its own.
   Ceilings are hard backstops, never editable in the UI. A SET budget is ENFORCED
   (ADR-022): `budget.on_exceeded: halt` (default, → terminal `exhausted`) | `escalate`
   (→ `needs-approval`). Watch loops default to `iteration_cap` 0 (unbounded).
-- **DSL `agh.loop/v1`:** `meta`, `concurrency (forbid|allow|queue, default forbid,
+- **DSL `compozy.loop/v1`:** `meta`, `concurrency (forbid|allow|queue, default forbid,
   ADR-021)`, `inputs`, `contract { goal, definition_of_done, constraints?, boundaries?,
   stop_when?, verification[], terminal_states (the 6 terminal outcomes), iteration_cap,
   no_progress, budget { tokens, wall_clock_sec, on_exceeded } }`,

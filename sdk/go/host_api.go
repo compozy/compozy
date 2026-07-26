@@ -180,7 +180,7 @@ func scanSensitive(value any, path string) (string, bool) {
 			}
 		}
 	case string:
-		if strings.HasPrefix(typed, "agh_claim_") {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(typed)), "compozy_claim_") {
 			return path, true
 		}
 	}

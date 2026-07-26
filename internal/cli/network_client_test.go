@@ -194,13 +194,13 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 							!strings.Contains(string(body), `"surface":"thread"`) ||
 							!strings.Contains(string(body), `"thread_id":"thread_launch"`) ||
 							!strings.Contains(string(body), `"work_id":"work_1"`) ||
-							!strings.Contains(string(body), `"agh.workflow_id":"wf-1"`) ||
-							!strings.Contains(string(body), `"agh.handoff_version":3`) {
+							!strings.Contains(string(body), `"compozy.workflow_id":"wf-1"`) ||
+							!strings.Contains(string(body), `"compozy.handoff_version":3`) {
 							t.Fatalf("network send body = %s, want ext metadata", body)
 						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"message":{"id":"msg-1","session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_launch","kind":"say","work_id":"work_1","ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}}`,
+							`{"message":{"id":"msg-1","session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_launch","kind":"say","work_id":"work_1","ext":{"compozy.workflow_id":"wf-1","compozy.handoff_version":3}}}`,
 						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-alpha/network/inbox":
 						if got := req.URL.Query().Get("session_id"); got != "sess-a" {
@@ -208,7 +208,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"messages":[{"protocol":"agh-network/v0","id":"msg-inbox","kind":"say","channel":"builders","surface":"direct","direct_id":"direct_99401d24bee62651d189e5a561785466","from":"reviewer.sess-a","work_id":"work_1","ts":1775823000,"body":{"text":"review this","intent":"review"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}]}`,
+							`{"messages":[{"protocol":"compozy-network/v0","id":"msg-inbox","kind":"say","channel":"builders","surface":"direct","direct_id":"direct_99401d24bee62651d189e5a561785466","from":"reviewer.sess-a","work_id":"work_1","ts":1775823000,"body":{"text":"review this","intent":"review"},"ext":{"compozy.workflow_id":"wf-1","compozy.handoff_version":3}}]}`,
 						), nil
 					default:
 						return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
@@ -350,8 +350,8 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 			Body:        json.RawMessage(`{"text":"hello"}`),
 			WorkID:      "work_1",
 			Ext: map[string]json.RawMessage{
-				"agh.workflow_id":     json.RawMessage(`"wf-1"`),
-				"agh.handoff_version": json.RawMessage(`3`),
+				"compozy.workflow_id":     json.RawMessage(`"wf-1"`),
+				"compozy.handoff_version": json.RawMessage(`3`),
 			},
 		})
 		if err != nil || sent.ID != "msg-1" || sent.ThreadID != "thread_launch" || sent.WorkID != "work_1" {
@@ -359,7 +359,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 		}
 
 		inbox, err := client.NetworkInbox(ctx, "ws-alpha", "sess-a")
-		if err != nil || len(inbox) != 1 || string(inbox[0].Ext["agh.workflow_id"]) != `"wf-1"` {
+		if err != nil || len(inbox) != 1 || string(inbox[0].Ext["compozy.workflow_id"]) != `"wf-1"` {
 			t.Fatalf("NetworkInbox() = %#v, %v", inbox, err)
 		}
 	})

@@ -90,7 +90,7 @@ func TestScanContent(t *testing.T) {
 		},
 		{
 			name:    "Should reject a raw AGH claim token",
-			content: "Persist agh_claim_abc123 as durable context.",
+			content: "Persist compozy_claim_abc123 as durable context.",
 			action:  ActionReject,
 			ruleID:  "policy_raw_claim_token",
 		},

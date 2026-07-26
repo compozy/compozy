@@ -96,7 +96,7 @@ When one task should run as several scoped sibling assignments, use the designat
 Fan-out is bounded by `task.orchestration.designated_run_max`, and every sibling assignment must
 carry a non-empty designation and idempotency identity before AGH enqueues any run. Each sibling run
 gets a shared `designation_group_id` and one assignment brief. If the task came from an AGH Network
-thread, terminal run state is summarized back to the origin thread by `agh.runtime`; do not manually
+thread, terminal run state is summarized back to the origin thread by `compozy.runtime`; do not manually
 duplicate raw worker logs into the thread. Read aggregated designation results from task detail JSON
 (`compozy task get <id> -o json`, field `designation_rollups`).
 

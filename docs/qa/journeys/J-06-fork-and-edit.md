@@ -18,7 +18,7 @@ flowchart TD
     NG --> KR[Run the goal-less version and compare truthful terminal behavior]
     KR --> DL[Delete the custom fork from its destructive-action modal]
     DL --> TE[True end: the fork is absent after refresh while the built-in source remains]
-    C --> L[Graph/DSL toggle → agh.loop/v1 YAML read-only, offending field highlighted]
+    C --> L[Graph/DSL toggle → compozy.loop/v1 YAML read-only, offending field highlighted]
     D -->|positions| M[Persist via GET/PUT /annotations sidecar — NEVER in the definition]
     B -.->|edits then closes without publishing| X1[Abandon: draft/unsaved chip warns; nothing published; canonical definition unchanged]
     D -.->|two tabs edit the same loop| X2[Abandon/conflict: second publish hits 409 CAS; the editor shows the current version, no silent overwrite]
@@ -74,7 +74,7 @@ design_reference:
     - "The GUI never owns invariants: the 4 linter chips reflect the shared Go linter's verdict; Publish is disabled while any blocking issue exists (isValidConnection is only a self-loop hint)."
     - "Warnings never claim a 422; only real blocking codes gate publish."
     - "Node positions persist in the loop_ui_annotations sidecar via GET/PUT /annotations — NEVER inside the definition (positions absent from the DSL view)."
-    - "Graph/DSL toggle renders the read-only agh.loop/v1 on disk with the offending field highlighted (bijective codec / FS-as-truth)."
+    - "Graph/DSL toggle renders the read-only compozy.loop/v1 on disk with the offending field highlighted (bijective codec / FS-as-truth)."
     - "Publish is CAS-guarded (expected_version) → 409 on a stale version; no lost update."
 
 e2e_backbone:

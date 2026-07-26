@@ -102,5 +102,5 @@ func networkClaimTokenKeyHasValue(key string, value any) bool {
 }
 
 func networkStringContainsRawClaimToken(value string) bool {
-	return strings.Contains(strings.TrimSpace(value), "agh_claim_")
+	return strings.Contains(strings.ToLower(strings.TrimSpace(value)), "compozy_claim_")
 }

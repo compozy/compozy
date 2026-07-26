@@ -38,7 +38,7 @@ func ResolveGreetSummary(card PeerCard, summary string) string {
 }
 
 func greetCapabilityLabel(card PeerCard) (string, int) {
-	briefs := decodeCapabilityBriefs(card.Ext[capabilityBriefExtKey])
+	briefs := decodeCapabilityBriefs(card.Ext[ExtensionKeyCapabilitiesBrief])
 	if len(briefs) > 0 {
 		label := strings.TrimSpace(briefs[0].Summary)
 		if label == "" {

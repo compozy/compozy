@@ -376,9 +376,9 @@
           <!-- DSL VIEW -->
           <div class="view" id="view-dsl">
             <div class="dsl">
-              <p class="dsl-note">The definition on disk is the source of truth. The graph and this <b>agh.loop/v1</b> document are two views of the same file, edited losslessly in either direction. String values interpolate with Go templates (<b>{{ }}</b>); conditions are CEL over the same namespace; node ids are snake_case. The highlighted value is the open issue.</p>
+              <p class="dsl-note">The definition on disk is the source of truth. The graph and this <b>compozy.loop/v1</b> document are two views of the same file, edited losslessly in either direction. String values interpolate with Go templates (<b>{{ }}</b>); conditions are CEL over the same namespace; node ids are snake_case. The highlighted value is the open issue.</p>
               <pre><span class="c"># .agh/loops/software-delivery.loop.yaml  (fork of built-in v4)</span>
-<span class="k">apiVersion</span>: agh.loop/v1
+<span class="k">apiVersion</span>: compozy.loop/v1
 <span class="k">kind</span>: Loop
 <span class="k">meta</span>:
   <span class="k">name</span>: <span class="s">software-delivery</span>
@@ -499,7 +499,7 @@
 
 <script>
 (function(){
-  // ── Node model (grounded in agh.loop/v1; fields per class/kind) ──────────
+  // ── Node model (grounded in compozy.loop/v1; fields per class/kind) ──────────
   var NODES = {
     "slug": {cls:"source", kind:"input", id:"slug", fields:[
       {t:"text", k:"Node id", v:"slug", mono:true},

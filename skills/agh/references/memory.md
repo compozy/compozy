@@ -153,6 +153,6 @@ If a memory file becomes a running log, extract stable facts into focused files 
 
 ## When Not To Write Memory
 
-Do not write memory for raw transcripts, secrets, claim tokens, OAuth material, MCP credentials, provider state, temporary plans, unverified assumptions, or facts scoped only to the current prompt turn. Ordinary proposals and generated checkpoint summaries containing raw `agh_claim_*` tokens are rejected before persistence; an existing checkpoint remains unchanged.
+Do not write memory for raw transcripts, secrets, claim tokens, OAuth material, MCP credentials, provider state, temporary plans, unverified assumptions, or facts scoped only to the current prompt turn. Ordinary proposals and generated checkpoint summaries containing raw `compozy_claim_*` tokens are rejected before persistence; an existing checkpoint remains unchanged.
 
 Memory should reduce future ambiguity. It should not become another source of stale context.

@@ -45,7 +45,7 @@ func TestSourceStoreShouldValidateWriteForkAndDelete(t *testing.T) {
 		root := t.TempDir()
 		_, _, err := loop.WriteDefinition(
 			root,
-			[]byte("apiVersion: agh.loop/v1\nkind: ["),
+			[]byte("apiVersion: compozy.loop/v1\nkind: ["),
 			loop.WriteDefinitionOptions{Source: loop.SourceUser},
 		)
 		if err == nil {

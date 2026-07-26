@@ -46,8 +46,8 @@ func TestTaskRunTokenFenceHandlersHonorImmutableParticipationOwnershipIntegratio
 				name:            "Should reject human completion with a redacted token-fence conflict",
 				path:            "/task-runs/run-2/complete",
 				body:            []byte(`{"result":{"ok":true}}`),
-				rawToken:        "agh_claim_complete-secret-123",
-				wantErrorSuffix: "requires token-fenced completion with agh_claim_[REDACTED]",
+				rawToken:        "compozy_claim_complete-secret-123",
+				wantErrorSuffix: "requires token-fenced completion with compozy_claim_[REDACTED]",
 				wantOriginRef:   "tasks.complete_run",
 				buildTaskManager: func(
 					t *testing.T,
@@ -79,8 +79,8 @@ func TestTaskRunTokenFenceHandlersHonorImmutableParticipationOwnershipIntegratio
 				name:            "Should reject human failure with a redacted token-fence conflict",
 				path:            "/task-runs/run-2/fail",
 				body:            []byte(`{"error":"boom"}`),
-				rawToken:        "agh_claim_fail-secret-456",
-				wantErrorSuffix: "requires token-fenced failure with agh_claim_[REDACTED]",
+				rawToken:        "compozy_claim_fail-secret-456",
+				wantErrorSuffix: "requires token-fenced failure with compozy_claim_[REDACTED]",
 				wantOriginRef:   "tasks.fail_run",
 				buildTaskManager: func(
 					t *testing.T,

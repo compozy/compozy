@@ -49,7 +49,7 @@ const APPROACHES: Approach[] = [
     approach: "AGH",
     focus: "Run + connect real agent CLIs",
     agentModel: "Your existing ACP agents",
-    coordination: "agh-network/v0, implemented",
+    coordination: "compozy-network/v0, implemented",
     deployment: "Local-first, single binary",
     agents: `${SUPPORTED_AGENT_COUNT} ACP drivers`,
     crossRuntime: true,

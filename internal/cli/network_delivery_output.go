@@ -1,6 +1,9 @@
 package cli
 
-import "github.com/compozy/compozy/internal/api/contract"
+import (
+	"github.com/compozy/compozy/internal/api/contract"
+	networkpkg "github.com/compozy/compozy/internal/network"
+)
 
 func networkWorkBundle(work NetworkWorkRecord) outputBundle {
 	return outputBundle{
@@ -150,8 +153,8 @@ func networkInboxBundle(messages []NetworkEnvelopeRecord) outputBundle {
 				stringOrDash(optionalString(message.To)),
 				stringOrDash(optionalString(message.ReplyTo)),
 				stringOrDash(optionalString(message.TraceID)),
-				stringOrDash(networkExtString(message.Ext, "agh.workflow_id")),
-				stringOrDash(networkExtString(message.Ext, "agh.handoff_version")),
+				stringOrDash(networkExtString(message.Ext, networkpkg.ExtensionKeyWorkflowID)),
+				stringOrDash(networkExtString(message.Ext, networkpkg.ExtensionKeyHandoffVersion)),
 			}
 		},
 		func(message NetworkEnvelopeRecord) []string {
@@ -164,8 +167,8 @@ func networkInboxBundle(messages []NetworkEnvelopeRecord) outputBundle {
 				optionalString(message.ReplyTo),
 				optionalString(message.TraceID),
 				optionalString(message.CausationID),
-				networkExtString(message.Ext, "agh.workflow_id"),
-				networkExtString(message.Ext, "agh.handoff_version"),
+				networkExtString(message.Ext, networkpkg.ExtensionKeyWorkflowID),
+				networkExtString(message.Ext, networkpkg.ExtensionKeyHandoffVersion),
 				formatUnixSeconds(message.ExpiresAt),
 			}
 		},

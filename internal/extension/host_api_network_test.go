@@ -132,10 +132,10 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 				"surface":"thread",
 				"thread_id":"thread_alpha01",
 				"kind":"say",
-				"body":{"claim_token":"agh_claim_secret"}
+				"body":{"claim_token":"compozy_claim_secret"}
 			}`),
 			fragment: "raw claim_token",
-			secret:   "agh_claim_secret",
+			secret:   "compozy_claim_secret",
 		},
 		{
 			name: "ShouldRejectCallerSuppliedVerifiedFormatIdentity",

@@ -121,7 +121,7 @@ describe("blog navigation components", () => {
     const post = postWithoutCover();
     const { container } = render(<FeaturedPost post={post} authorInitial="A" />);
 
-    expect(screen.getByText("agh-network/v0")).toBeDefined();
+    expect(screen.getByText("compozy-network/v0")).toBeDefined();
     expect(screen.getByText("ALPHA")).toBeDefined();
     expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(post.date);
     expect(screen.queryByText("LIVE")).toBeNull();

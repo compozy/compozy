@@ -16,7 +16,7 @@ product
 
 ## Product Purpose
 
-AGH is a local-first agent operating system. One Go daemon hosts durable, inspectable agent sessions; one shared surface (CLI, HTTP/SSE, UDS, and this web UI) serves humans and agents over the same daemon-owned state; and `agh-network/v0` lets sessions discover peers, delegate work, exchange capabilities, and close the loop with receipts.
+AGH is a local-first agent operating system. One Go daemon hosts durable, inspectable agent sessions; one shared surface (CLI, HTTP/SSE, UDS, and this web UI) serves humans and agents over the same daemon-owned state; and `compozy-network/v0` lets sessions discover peers, delegate work, exchange capabilities, and close the loop with receipts.
 
 The runtime UI's job is to make agent work legible and controllable at a glance: what is running, what needs you, what finished, and what it produced. Depth — events, tools, memory, network traffic — stays one step away for whoever wants it, and no one is asked to decode runtime internals to understand their own work. Success looks like: a person supervises several concurrent agents, understands the state of each in seconds, and acts on it (resume, approve, inspect, route) without ever being shown a control or metric the runtime does not actually support.
 

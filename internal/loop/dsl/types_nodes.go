@@ -1,4 +1,4 @@
-// Package dsl defines the agh.loop/v1 authoring document.
+// Package dsl defines the compozy.loop/v1 authoring document.
 package dsl
 
 // NodeClass is the closed node class vocabulary.

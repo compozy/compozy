@@ -37,7 +37,7 @@ const browserLifecycleFixture = path.resolve(
   "browser_session_lifecycle_fixture.json"
 );
 const sensitivePattern =
-  /agh_claim_|claim_token["':\s]|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
+  /compozy_claim_|claim_token["':\s]|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
 
 type HomeOverview = OperationResponse<"getObserveOverview", 200>["overview"];
 type HomeAgentCatalog = OperationResponse<"listAgentCatalog", 200>;

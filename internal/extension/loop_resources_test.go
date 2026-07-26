@@ -101,7 +101,7 @@ func TestLoopResourcesShouldLoadFromManifestResources(t *testing.T) {
 }
 
 func extensionLoopYAML(name string) string {
-	return `apiVersion: agh.loop/v1
+	return `apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: ` + name + `

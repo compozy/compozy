@@ -419,7 +419,7 @@ func watchEventsCompilerDefinition() dsl.Definition {
 	return def
 }
 
-const epicWatchdogFixture = `apiVersion: agh.loop/v1
+const epicWatchdogFixture = `apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: epic-watchdog

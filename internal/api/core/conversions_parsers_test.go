@@ -401,7 +401,7 @@ func TestSessionEventPayloadFromEventIncludesStopDiagnostics(t *testing.T) {
 				TurnID:    "turn-2",
 				Type:      "tool_call",
 				AgentName: "coder",
-				Content:   `{"type":"tool_call","task_id":"task-1","claim_token_hash":"agh_claim_hash_123","lease_until":"2026-04-03T12:05:00Z","timestamp":"not-a-time"}`,
+				Content:   `{"type":"tool_call","task_id":"task-1","claim_token_hash":"compozy_claim_hash_123","lease_until":"2026-04-03T12:05:00Z","timestamp":"not-a-time"}`,
 				Timestamp: time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
 			},
 			nil,
@@ -410,7 +410,7 @@ func TestSessionEventPayloadFromEventIncludesStopDiagnostics(t *testing.T) {
 		if got, want := payload.TaskID, "task-1"; got != want {
 			t.Fatalf("payload.TaskID = %q, want %q", got, want)
 		}
-		if got, want := payload.ClaimTokenHash, "agh_claim_hash_123"; got != want {
+		if got, want := payload.ClaimTokenHash, "compozy_claim_hash_123"; got != want {
 			t.Fatalf("payload.ClaimTokenHash = %q, want %q", got, want)
 		}
 		if payload.LeaseUntil == nil || !payload.LeaseUntil.Equal(leaseUntil) {

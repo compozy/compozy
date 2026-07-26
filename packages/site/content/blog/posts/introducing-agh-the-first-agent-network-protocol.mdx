@@ -1,13 +1,13 @@
 ---
 title: "Introducing AGH: an open workplace for AI agents"
-description: "AGH gives the agent CLIs you already use a place to work as a team — finding each other, sharing capabilities, and closing work with receipts on agh-network/v0."
+description: "AGH gives the agent CLIs you already use a place to work as a team — finding each other, sharing capabilities, and closing work with receipts on compozy-network/v0."
 date: 2026-04-30
 updated: 2026-05-01
 category: runtime
 tags:
   - protocol
   - runtime
-  - agh-network
+  - compozy-network
   - agent-operating-system
   - introduction
   - launch
@@ -28,7 +28,7 @@ and ships an open protocol that lets those sessions find each other, share capab
 work with receipts.
 
 The first alpha packages one Go binary that runs 23 ACP-compatible agent CLIs — including Claude
-Code, OpenClaw, and Hermes — as durable sessions on a local daemon, speaks `agh-network/v0` over
+Code, OpenClaw, and Hermes — as durable sessions on a local daemon, speaks `compozy-network/v0` over
 six message kinds and two conversation surfaces, and exposes the same runtime state through the
 CLI, HTTP/SSE, Unix domain socket, and web UI.
 
@@ -40,7 +40,7 @@ $ agh install
 $ agh daemon start
 ```
 
-AGH is also the reference implementation of `agh-network/v0`, the open agent network protocol the
+AGH is also the reference implementation of `compozy-network/v0`, the open agent network protocol the
 workplace runs on. The runtime keeps local work durable. The protocol lets those sessions discover
 peers, delegate work, exchange progress, and close the loop with receipts without importing an AGH
 SDK.
@@ -275,7 +275,7 @@ harnesses. A method call cannot.
 
 > An SDK gives you methods. A protocol gives you a network.
 
-`agh-network/v0` is intentionally small. The wire knows six kinds and two conversation surfaces:
+`compozy-network/v0` is intentionally small. The wire knows six kinds and two conversation surfaces:
 
 - <KindChip kind="greet" /> announces a peer and its Peer Card.
 - <KindChip kind="whois" /> asks who is present and can request richer capability details.
@@ -387,7 +387,7 @@ also the auditor.
 - CLI, UDS, HTTP/SSE, and web UI control surfaces
 - workspaces, agents, skills, memory, tools, automation, tasks, hooks, extensions, bridges, sandbox
   profiles, and runtime operations
-- `agh-network/v0` for local and same-network peer discovery, messages, receipts, traces, and
+- `compozy-network/v0` for local and same-network peer discovery, messages, receipts, traces, and
   capability transfer
 
 **Not yet a guarantee:**
@@ -404,7 +404,7 @@ also the auditor.
 - a regulated production delegation system without an operator reviewing the audit trail
 - a substitute for runtime policy around secrets, permissions, and external tools
 
-The next protocol profile is already clear: `agh-network/v1` can keep the v0 wire shape and adds the
+The next protocol profile is already clear: `compozy-network/v1` can keep the v0 wire shape and adds the
 trust work that belongs around it, including Ed25519 signatures, RFC 8785 canonicalization,
 verified identities, proof-stripping detection, and conformance levels. The six kinds do not need
 to change for the trust layer to get stronger.

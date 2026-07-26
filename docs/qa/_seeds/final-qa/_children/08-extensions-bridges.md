@@ -1230,7 +1230,7 @@ across any EXT scenario:
 - Telegram bot-token shape: `bot[0-9]+:[A-Za-z0-9_-]+`.
 - Discord bot-token shape: `[A-Za-z0-9_-]{24}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,}`.
 - Generic provider keys: `sk-`, `xoxb-`, `AKIA`, `ya29.`.
-- Raw `agh_claim_*` (per the autonomy kernel forbidden-needle list —
+- Raw `compozy_claim_*` (per the autonomy kernel forbidden-needle list —
   applies in cross-cutting EXT scenarios that reach into autonomy).
 - Resolved sensitive paths leaking into error messages
   (`/etc/passwd`, `~/.ssh/`, `/private/var/folders/.../auth`).

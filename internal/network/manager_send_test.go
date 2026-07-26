@@ -593,8 +593,8 @@ func TestManagerSendGeneratesWhoisResponsesAfterRequestAcceptance(t *testing.T) 
 			Kind: KindWhois, To: &target, Body: mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 			ID: &messageID,
 			Ext: ExtensionMap{
-				whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
-				whoisCapabilityIDsExtKey: mustRawJSON(t, []string{"draft-spec"}),
+				ExtensionKeyInclude:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+				ExtensionKeyCapabilityIDs: mustRawJSON(t, []string{"draft-spec"}),
 			},
 		}); err != nil {
 			t.Fatalf("Send() error = %v", err)
@@ -630,7 +630,7 @@ func TestManagerSendGeneratesWhoisResponsesAfterRequestAcceptance(t *testing.T) 
 			Kind: KindWhois, To: &target, Body: mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 			ID: &messageID,
 			Ext: ExtensionMap{
-				whoisIncludeExtKey: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+				ExtensionKeyInclude: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 			},
 		}); err != nil {
 			t.Fatalf("Send() error = %v", err)
@@ -671,7 +671,7 @@ func TestManagerSendGeneratesWhoisResponsesAfterRequestAcceptance(t *testing.T) 
 			Kind: KindWhois, To: &target, Body: mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 			ID: &messageID,
 			Ext: ExtensionMap{
-				whoisIncludeExtKey: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+				ExtensionKeyInclude: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 			},
 		})
 		if !errors.Is(err, ErrEnvelopeTooLarge) {
@@ -951,7 +951,7 @@ func TestManagerSendRejectsRawCredentialsBeforeAcceptance(t *testing.T) {
 	joinManagerSendParticipant(t, manager, "sess-sender", "sender.sess-abc")
 	logs.Reset()
 
-	rawToken := "agh_claim_MANAGER_SECURITY_123"
+	rawToken := "compozy_claim_MANAGER_SECURITY_123"
 	tests := []struct {
 		name string
 		body json.RawMessage
@@ -1213,7 +1213,7 @@ func decodeWhoisResponseMessage(t *testing.T, message store.NetworkConversationM
 
 func decodeWhoisResponseCatalog(t *testing.T, ext ExtensionMap) whoisCapabilityCatalogPayload {
 	t.Helper()
-	raw, ok := ext[whoisCapabilityCatalogExtKey]
+	raw, ok := ext[ExtensionKeyCapabilityCatalog]
 	if !ok {
 		t.Fatal("whois response capability catalog extension is missing")
 	}

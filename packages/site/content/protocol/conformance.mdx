@@ -37,7 +37,7 @@ directed sender needs visible acceptance or rejection.
 
 A Trust Peer additionally MUST:
 
-- use `agh-network.trust.ed25519-jcs/v1`
+- use `compozy-network.trust.ed25519-jcs/v1`
 - bind `from`, `proof.key_id`, and `proof.pubkey`
 - canonicalize with RFC 8785 JCS while omitting only `proof.sig`
 - verify the Ed25519 signature over the canonical bytes
@@ -72,8 +72,8 @@ verification is delegated to deployment policy.
   "implementation": "example-runtime",
   "version": "0.5.0",
   "claim": "Core Peer",
-  "protocol": "agh-network/v0",
-  "fixture_suite": "agh-network-conformance@2026-07-14",
+  "protocol": "compozy-network/v0",
+  "fixture_suite": "compozy-network-conformance@2026-07-14",
   "passed": ["core.envelope", "core.message-kinds", "core.lifecycle", "core.delivery"],
   "carrier": "implementation-defined",
   "deviations": []

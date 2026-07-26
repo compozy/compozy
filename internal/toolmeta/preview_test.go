@@ -137,10 +137,10 @@ func TestRenderRedactsBeforeCappingAndFormatsUnknownFallback(t *testing.T) {
 
 		got := Render(
 			"terminal.command",
-			json.RawMessage(`{"command":"deploy --token=agh_claim_secret-value then-continue"}`),
+			json.RawMessage(`{"command":"deploy --token=compozy_claim_secret-value then-continue"}`),
 			RenderOptions{PreviewLimit: 24},
 		)
-		if strings.Contains(got.Preview, "agh_claim_secret-value") {
+		if strings.Contains(got.Preview, "compozy_claim_secret-value") {
 			t.Fatalf("Render().Preview = %q leaked claim token", got.Preview)
 		}
 		if len([]rune(got.Preview)) > 24 {
@@ -210,11 +210,11 @@ func TestRenderRedactsBeforeCappingAndFormatsUnknownFallback(t *testing.T) {
 		t.Parallel()
 
 		got := Render(
-			"agh_claim_secret-value",
+			"compozy_claim_secret-value",
 			json.RawMessage(`{"query":"BUG-789"}`),
 			RenderOptions{PreviewLimit: 160},
 		)
-		if want := `⚙️ agh_claim_[REDACTED]: "BUG-789"`; got.String() != want {
+		if want := `⚙️ compozy_claim_[REDACTED]: "BUG-789"`; got.String() != want {
 			t.Fatalf("Render().String() = %q, want %q", got.String(), want)
 		}
 	})

@@ -45,14 +45,14 @@ func TestCanonicalRedactionConsumersStaySafe(t *testing.T) {
 		{
 			name: "Should redact AGH MCP OAuth PKCE and binding secrets identically",
 			input: strings.Join([]string{
-				"agh_claim_raw-claim-value",
+				"compozy_claim_raw-claim-value",
 				"mcp_auth_token=mcp-token-value",
 				"authorization_code=oauth-code-value",
 				"code_verifier=pkce-verifier-value",
 				"secret_ref=vault:bridges/slack/token",
 			}, " "),
 			want: strings.Join([]string{
-				"agh_claim_[REDACTED]",
+				"compozy_claim_[REDACTED]",
 				"mcp_auth_token=[REDACTED]",
 				"authorization_code=[REDACTED]",
 				"code_verifier=[REDACTED]",

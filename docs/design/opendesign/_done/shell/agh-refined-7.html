@@ -2160,7 +2160,7 @@ function colorJSON(obj) {
 
 function OrchestrationTab({ task }) {
   const profile = {
-    runtime: "agh.runtime/v0",
+    runtime: "compozy.runtime/v0",
     owner_kind: "agent_session",
     owner_ref: task.owner.short || task.owner.label,
     sandbox: { tier: "standard", cpu_limit: 4, mem_limit_mb: 4096, network: "egress-allowed" },

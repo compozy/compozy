@@ -100,7 +100,7 @@ func TestBuildBridgeDiagnostics(t *testing.T) {
 			Platform:      "telegram",
 			ExtensionName: "ext-telegram",
 			Enabled:       false,
-			HealthMessage: "claim_token=agh_claim_bridge_secret oauth_code=oauth-secret",
+			HealthMessage: "claim_token=compozy_claim_bridge_secret oauth_code=oauth-secret",
 		}
 		diagnostics := BuildBridgeDiagnostics(BridgeDiagnosticsInput{
 			Instance: BridgeInstance{
@@ -123,7 +123,7 @@ func TestBuildBridgeDiagnostics(t *testing.T) {
 
 		byKind := bridgeDiagnosticsByKind(t, diagnostics)
 		for _, leaked := range []string{
-			"agh_claim_bridge_secret",
+			"compozy_claim_bridge_secret",
 			"oauth-secret",
 			"vault-ref",
 			"mcp-secret",
@@ -136,7 +136,7 @@ func TestBuildBridgeDiagnostics(t *testing.T) {
 		}
 		if got := byKind[BridgeDiagnosticKindUnsupportedCapability].Message; !strings.Contains(
 			got,
-			"agh_claim_[REDACTED]",
+			"compozy_claim_[REDACTED]",
 		) {
 			t.Fatalf("provider diagnostic = %q, want claim token placeholder", got)
 		}

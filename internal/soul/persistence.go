@@ -14,7 +14,7 @@ import (
 
 const (
 	snapshotProfileSchemaVersion = 1
-	configDigestPrefix           = "agh.soul.config.v1\n"
+	configDigestPrefix           = "compozy.soul.config.v1\n"
 )
 
 var (

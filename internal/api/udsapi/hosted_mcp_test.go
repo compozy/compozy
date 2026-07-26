@@ -26,13 +26,14 @@ func TestHostedMCPStreamErrorData(t *testing.T) {
 		t.Parallel()
 
 		payload := hostedMCPStreamErrorData(
-			fmt.Errorf("bind failed for agh_claim_secret: %w", mcppkg.ErrHostedBindNotFound),
+			fmt.Errorf("bind failed for compozy_claim_secret: %w", mcppkg.ErrHostedBindNotFound),
 		)
 		encoded, err := json.Marshal(payload)
 		if err != nil {
 			t.Fatalf("json.Marshal(hosted MCP stream error) error = %v", err)
 		}
-		if strings.Contains(string(encoded), "agh_claim_secret") || strings.Contains(string(encoded), "bind failed") {
+		if strings.Contains(string(encoded), "compozy_claim_secret") ||
+			strings.Contains(string(encoded), "bind failed") {
 			t.Fatalf("hosted MCP stream error payload leaked backend detail: %s", encoded)
 		}
 		if payload.Error != "hosted_mcp_projection_failed" ||
@@ -187,7 +188,7 @@ func TestHostedMCPJSONRouteErrors(t *testing.T) {
 		if got := hostedMCPSafeError().Error(); got != errHostedMCPBackend.Error() {
 			t.Fatalf("hostedMCPSafeError().Error() = %q, want generic backend error", got)
 		}
-		if strings.Contains(hostedMCPSafeError().Error(), errors.New("database leaked agh_claim_secret").Error()) {
+		if strings.Contains(hostedMCPSafeError().Error(), errors.New("database leaked compozy_claim_secret").Error()) {
 			t.Fatal("hostedMCPSafeError leaked backend details")
 		}
 	})

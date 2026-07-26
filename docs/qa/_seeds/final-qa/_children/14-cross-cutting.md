@@ -93,7 +93,7 @@ There is **no single Go test target** for cross-cutting integration. The closest
 | **Soul + memory + hook + tool deny chain runs in correct order on a single call** | `internal/soul`, `internal/memory/recall.go`, `internal/hooks/ordering.go`, `internal/tools/policy.go`. | XCT-03: agent SOUL.md narrows tool capability set, recalled memory triggers a hook narrowing, denied tool path produces stable typed error and ledger row. |
 | **Cron fires → child session → real LLM → events → web UI → consolidation gate** | `internal/automation`, `internal/scheduler`, `internal/session`, `internal/observe`, `internal/memory/consolidation`. | XCT-04: a 1-minute cron runs five times; touched_sessions counter reaches 5 and the Sessions gate fires the consolidation runtime exactly once; real Claude Code child receives the cron-fired prompt and writes a marker; SSE shows lineage `parent_session_id → root_session_id`. |
 | **Coordinator startup → claim → spawn → MCP tool → ledger row → CLI parity** | `internal/coordinator`, `internal/task`, `internal/acp`, `internal/mcp`, `internal/observe`, CLI parity. | XCT-05: fresh AGH_HOME; coordinator boots, claims first task_run, spawns subagent via ACP, subagent calls hosted MCP tool; ledger captures redacted tool call; `agh sessions list -o json` reflects exactly the same state HTTP returns. |
-| **Two-instance network: claim_token_hash crosses, raw `claim_token` never does** | `internal/network` rejects raw claim_token in metadata (`internal/CLAUDE.md:55`); NET-05 covers ingress, NET-19 covers audit. | XCT-06: instance A delegates a sub-task to B's exposed agent via channel; B completes; lineage `root_session_id` correlates both transcripts; `claim_token_hash` appears in B's audit row but the literal regex `\bagh_claim_[A-Za-z0-9]+\b` matches zero bytes across all of A's and B's logs/SSE/audit. |
+| **Two-instance network: claim_token_hash crosses, raw `claim_token` never does** | `internal/network` rejects raw claim_token in metadata (`internal/CLAUDE.md:55`); NET-05 covers ingress, NET-19 covers audit. | XCT-06: instance A delegates a sub-task to B's exposed agent via channel; B completes; lineage `root_session_id` correlates both transcripts; `claim_token_hash` appears in B's audit row but the literal regex `\bcompozy_claim_[A-Za-z0-9]+\b` matches zero bytes across all of A's and B's logs/SSE/audit. |
 | **Extension uninstall is atomic across CLI/HTTP/UDS/web/memory/hooks** | `internal/extension/manager.go`, no partial-surface completions rule (`internal/CLAUDE.md:27`). | XCT-07: install ext-foo; observe CLI verb, HTTP route `/api/ext/foo`, UDS verb, web capability tile, memory hook firing on every invocation; uninstall; observe all four surfaces atomically removed and memory hook stops firing. |
 | **SSE reconnect across daemon restart with `Last-Event-ID` / `after_seq` durability** | OBS-05 anchors single-module; this scenario adds bridge inbound + tool dispatch in flight at restart. | XCT-08: client SSE-subscribes; bridge inbound (Slack) starts a real Claude Code prompt that runs a tool; SIGTERM mid-tool; client retries with the last seq; new daemon replays durably-appended events without duplicates. |
 | **Bridge inbound → real agent → tool call → bridge outbound: full actor correlation** | `internal/bridges`, `internal/session`, `internal/tools`, observability. | XCT-09: real Slack message creates a session via `internal/bridges`, real Claude Code answers with a tool-driven response; outbound matches the same Slack thread; events show `actor_kind=bridge, actor_id=slack:<channel>` for both inbound and outbound. |
@@ -164,7 +164,7 @@ steps:
   - run: agh sessions transcript $SID -o json | tee transcript.json
   - run: jq 'length' transcript.json
   - run: jq '.[].sequence' transcript.json | awk 'NR>1 && $1<=p {print "OUT-OF-ORDER"; exit 1} {p=$1}'
-  - run: grep -E '\bagh_claim_[A-Za-z0-9]+\b' "$LAB_HOME/logs/agh.log" sse.pre.log sse.post.log; echo $?
+  - run: grep -E '\bcompozy_claim_[A-Za-z0-9]+\b' "$LAB_HOME/logs/agh.log" sse.pre.log sse.post.log; echo $?
 expected_behavior:
   - cfgset.json reports `classification: "restart-required"` (settings classify per `internal/settings/classify.go:80-129`).
   - SIGTERM triggers orderly shutdown (DB-05): every ACP subprocess gone, `daemon.json` removed, `daemon.lock` zeroed.
@@ -181,7 +181,7 @@ failure_signatures:
   - cfgset.json reports `classification: "hot-apply"` for a key the table marks restart-required.
   - sse.post.log starts from sequence 1 (replay missed the seek).
   - transcript.json missing the pre-restart prompt.
-  - Any literal `agh_claim_…` in any captured artifact.
+  - Any literal `compozy_claim_…` in any captured artifact.
 cleanup:
   - agh sessions stop $SID && agh daemon stop
 ```
@@ -431,7 +431,7 @@ steps:
   - run: jq -S . sessions.cli.json > a.json && jq -S . sessions.http.json > b.json && diff a.json b.json
   - run: agh observe events --task $TID --type tool_call -o json | tee tool.events.json
   - run: jq '.[] | {tool_id, args, result}' tool.events.json | grep -E '(BEARERSECRET123|REDACTED)'
-  - run: grep -E '(BEARERSECRET123|\bagh_claim_[A-Za-z0-9]+\b)' "$LAB_HOME/logs/agh.log"; echo $?
+  - run: grep -E '(BEARERSECRET123|\bcompozy_claim_[A-Za-z0-9]+\b)' "$LAB_HOME/logs/agh.log"; echo $?
   - run: agh task list --filter "session=$(jq -r '.[0].id' sessions.cli.json)" -o json | tee tasks.json
 expected_behavior:
   - Coordinator session id present in `daemon.json`; coord_sid.txt non-empty.
@@ -446,7 +446,7 @@ failure_signatures:
   - taskrun.json contains a `claim_token` key.
   - sessions.cli.json differs from sessions.http.json.
   - tool.events.json shows `BEARERSECRET123` literally.
-  - agh.log contains `BEARERSECRET123` or `agh_claim_…`.
+  - agh.log contains `BEARERSECRET123` or `compozy_claim_…`.
 cleanup:
   - agh task cancel $TID && agh daemon stop
 ```
@@ -491,7 +491,7 @@ steps:
   - Send one addressed `say` with nonce `OK-XCT06` to the Live session through the structured Network surface.
   - Wait for the bounded wake to settle, then read the conversation, wake task run, session transcript, Network usage, and correlated events.
   - Read the Local control's prompt/environment/tool projection and prove it received no Network state or wake.
-  - Scan all captured bodies, events, transcripts, and logs for raw `agh_claim_*` values.
+  - Scan all captured bodies, events, transcripts, and logs for raw `compozy_claim_*` values.
 expected_behavior:
   - The Local snapshot is immutable Local and has zero Network prompt, tools, wake, and usage delta.
   - The Live transcript acknowledges `OK-XCT06` exactly once and shares the wake task run's `root_session_id`/`run_id` lineage.
@@ -503,7 +503,7 @@ failure_signatures:
   - Local receives any Network affordance or activation.
   - The nonce is absent or prompts more than once.
   - Conversation, wake, transcript, and usage lineage disagree.
-  - Any raw `agh_claim_*` value appears.
+  - Any raw `compozy_claim_*` value appears.
 cleanup:
   - Run the bootstrap manifest teardown command and retain `teardown.json` with `clean: true`.
 ```
@@ -1167,7 +1167,7 @@ Cross-cutting failures that, if shipped, indicate broken module composition. Eac
 3. **A hook runs at the wrong call site.** XCT-02 + XCT-13: deny must short-circuit BEFORE provider spawn; ordering across layers must be hierarchy-then-alphabetical with deterministic ledger.
 4. **Cron→child→real-LLM→consolidation chain breaks at any seam.** XCT-04: touched_count never incrementing → consolidation gate dead. cron events without `parent_session_id` for `delivery=child` → lineage broken.
 5. **Coordinator claims using something other than `task.Service.ClaimNextRun`.** XCT-05 + L-005: any peer claim path is a structural redesign trigger (two-touch rule).
-6. **Network leaks raw `claim_token`.** XCT-06: greedy regex `\bagh_claim_[A-Za-z0-9]+\b` over all logs/audits/SSE on both labs MUST return zero matches.
+6. **Network leaks raw `claim_token`.** XCT-06: greedy regex `\bcompozy_claim_[A-Za-z0-9]+\b` over all logs/audits/SSE on both labs MUST return zero matches.
 7. **SSE replay across restart drops or duplicates events.** XCT-08 + OBS-03: durable-append-before-broadcast invariant must hold even with a tool in-flight at SIGTERM.
 8. **Bridge correlation breaks on outbound delivery.** XCT-09: outbound MUST land in the same Slack thread as the inbound; `actor_kind/actor_id` carries through every event.
 9. **Workspace memory crosses workspaces.** XCT-10: any cross-recall is release-blocking.

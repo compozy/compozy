@@ -49,7 +49,7 @@ the openclaw lowercase dotted/dashed convention.
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `task_runs.single-queue`          | `task_runs` is the single durable queue. No peer package replicates `claim/own`; only `internal/task/` writes claim columns.                               | `internal/CLAUDE.md` "Authoritative primitives are exclusive."                                                                          |
 | `task_runs.claim-authoritative`   | `Service.ClaimNextRun` is the only authoritative claim primitive (token-fenced).                                                                           | `internal/task/lease_manager.go:14`                                                                                                     |
-| `task_runs.claim-token-redaction` | Raw `agh_claim_*` tokens NEVER appear in logs, SSE, web, db, or status APIs. Only `claim_token_hash` over the wire.                                        | `internal/CLAUDE.md` "claim_token redaction is non-negotiable."; `internal/task/lease.go:151,160,168`                                   |
+| `task_runs.claim-token-redaction` | Raw `compozy_claim_*` tokens NEVER appear in logs, SSE, web, db, or status APIs. Only `claim_token_hash` over the wire.                                        | `internal/CLAUDE.md` "claim_token redaction is non-negotiable."; `internal/task/lease.go:151,160,168`                                   |
 | `task_runs.lease-token-fence`     | Heartbeat/Release/Complete/Fail require raw token verification via `VerifyClaimToken` (constant-time).                                                     | `internal/task/lease.go:178`                                                                                                            |
 | `task_runs.lease-expiry-sweep`    | Expired leases (`lease_until < now`) are reclaimed by `RecoverExpiredRunLeases`; previous holders' late writes hit `ErrInvalidClaimToken`.                 | `internal/task/lease_manager.go:259`                                                                                                    |
 | `scheduler.no-claim`              | The mechanical scheduler does NOT call `ClaimNextRun`. It performs sweep, observe, wake only.                                                              | `internal/CLAUDE.md` "Wake/observe/sweep are allowed; claim/own is not. The mechanical scheduler does not call ClaimNextRun."           |
@@ -194,9 +194,9 @@ expected:
     `claimed_by_ref=<winner-session-id>`, `claim_token_hash=<sha256>`,
     `lease_until` ≈ now + DefaultRunLeaseDuration.
   - EventStore has exactly one `task.run.claimed` event with the winner's
-    `claim_token_hash`. Zero events with raw `agh_claim_*` strings in
+    `claim_token_hash`. Zero events with raw `compozy_claim_*` strings in
     `payload` text.
-  - `grep -E 'agh_claim_[A-Za-z0-9_-]{8,}' aut-01-output.log` returns
+  - `grep -E 'compozy_claim_[A-Za-z0-9_-]{8,}' aut-01-output.log` returns
     nothing — the only allowed appearance is the deliberate `[REDACTED]`
     placeholder produced by `RedactClaimTokens`.
 evidence:
@@ -206,7 +206,7 @@ evidence:
   - Daemon log fragment showing one `task.run.claimed` log line.
 failure_signatures:
   - Two or more winners: `task_runs.claim-authoritative` violated.
-  - Raw `agh_claim_<RAW>` appears in any log/SSE/event row:
+  - Raw `compozy_claim_<RAW>` appears in any log/SSE/event row:
     `task_runs.claim-token-redaction` violated.
   - `claim_token_hash` missing from event payload: observability gap.
 cleanup:
@@ -783,7 +783,7 @@ evidence:
 failure_signatures:
   - Any required correlation key missing on any event: observability gap;
     fail.
-  - Raw `agh_claim_*` in any payload: redaction violated.
+  - Raw `compozy_claim_*` in any payload: redaction violated.
 cleanup:
   - Stop coordinator.
 ```
@@ -870,7 +870,7 @@ steps:
     - `rg -n 'UPDATE\s+task_runs\s+SET\s+claim_token_hash' --glob '!internal/task/**'` returns zero hits.
     - `rg -n 'INSERT\s+INTO\s+task_runs.*claimed_by' --glob '!internal/task/**'` returns zero hits.
     - `rg -n 'ClaimNextRun' --glob 'internal/scheduler/**'` returns zero hits.
-    - `rg -n 'agh_claim_[A-Za-z0-9_-]{8,}' --glob '!internal/task/lease.go' --glob '!**/*_test.go'`
+    - `rg -n 'compozy_claim_[A-Za-z0-9_-]{8,}' --glob '!internal/task/lease.go' --glob '!**/*_test.go'`
       returns zero hits in production code (other than the redaction
       regex itself in `internal/task/lease.go:151-166`).
   - Runtime: under load, only `Service.ClaimNextRun` increments the
@@ -950,7 +950,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: aut-16-token-redaction-audit
-title: Across logs, SSE, web responses, and SQLite rows produced during a real run, NO raw agh_claim_* appears
+title: Across logs, SSE, web responses, and SQLite rows produced during a real run, NO raw compozy_claim_* appears
 theme: autonomy-kernel.security
 coverage:
   primary:
@@ -974,10 +974,10 @@ code_refs:
 steps:
   - Drive the lifecycle.
   - Run the audit:
-    `rg -n 'agh_claim_[A-Za-z0-9_-]{12,}' aut-16-daemon.log aut-16-sse-replay.jsonl aut-16-web-responses.jsonl <(sqlite3 agh.db .dump) <(sqlite3 events.db .dump)`
+    `rg -n 'compozy_claim_[A-Za-z0-9_-]{12,}' aut-16-daemon.log aut-16-sse-replay.jsonl aut-16-web-responses.jsonl <(sqlite3 agh.db .dump) <(sqlite3 events.db .dump)`
 expected:
-  - Audit output is empty. The only legitimate "agh_claim_" hit anywhere
-    is the placeholder `agh_claim_[REDACTED]` produced by
+  - Audit output is empty. The only legitimate "compozy_claim_" hit anywhere
+    is the placeholder `compozy_claim_[REDACTED]` produced by
     `RedactClaimTokens` (per `internal/task/lease.go:160-166`) — the
     audit grep MUST NOT match the redaction placeholder because of the
     `{12,}` random-payload length floor.
@@ -1102,8 +1102,8 @@ Per the openclaw `forbiddenNeedles` pattern. None of the following may
 appear in any outbound message, transcript, SSE event, or audit log
 across any AUT scenario:
 
-- Any literal raw `agh_claim_<>=12 random char>` (regex
-  `agh_claim_[A-Za-z0-9_-]{12,}`).
+- Any literal raw `compozy_claim_<>=12 random char>` (regex
+  `compozy_claim_[A-Za-z0-9_-]{12,}`).
 - Any provider API key shape: `sk-`, `xoxb-`, `AKIA`, `ya29.`.
 - Any of the hard-banned phrases for hook bypass evidence:
   `bypass safety`, `release foreign lease`, `forge claim_token`.

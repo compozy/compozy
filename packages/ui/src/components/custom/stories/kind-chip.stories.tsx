@@ -27,7 +27,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * All six canonical agh-network/v0 protocol kinds.
+ * All six canonical compozy-network/v0 protocol kinds.
  */
 export const ProtocolKinds: Story = {
   args: {},

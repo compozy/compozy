@@ -555,7 +555,7 @@ func testLoopSpec(t *testing.T, name string, source looppkg.Source) looppkg.Reso
 }
 
 func testLoopYAML(name string, description string) string {
-	return `apiVersion: agh.loop/v1
+	return `apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: ` + name + `

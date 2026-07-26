@@ -3717,7 +3717,7 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 		for _, forbidden := range []string{
 			"token=",
 			"claim_token",
-			"agh_claim_",
+			"compozy_claim_",
 			"authorization: bearer",
 			"pkce_verifier",
 			"oauth_code",

@@ -43,7 +43,7 @@ const costProvenancePrompt = "Summarize the cost provenance run";
 const toolArtifactDigest = "c82d7447711d610d6c0d8fd52b8c8ee99f051a81e62f51bf052eaad467fca444";
 const toolArtifactTail = "E2E-009 tool artifact tail";
 const sensitivePattern =
-  /agh_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
+  /compozy_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
 
 interface SessionPayload {
   id: string;

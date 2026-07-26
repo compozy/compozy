@@ -603,7 +603,7 @@ func testLoopResponse(t testing.TB, definition dsl.Definition) contract.LoopResp
 func writeTestLoopDefinition(t *testing.T, definition dsl.Definition) string {
 	t.Helper()
 
-	body := []byte(`apiVersion: agh.loop/v1
+	body := []byte(`apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: ` + definition.Meta.Name + `

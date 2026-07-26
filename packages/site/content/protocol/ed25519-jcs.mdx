@@ -12,7 +12,7 @@ This page is normative unless a section is marked as an example.
 
 <OperatorNote label="Implementation status">
   RFC 004 defines this v1 trust profile. The current AGH Runtime `internal/network` package is a v0
-  implementation: it preserves `proof` as opaque JSON, uses `agh-network/v0`, and does not yet
+  implementation: it preserves `proof` as opaque JSON, uses `compozy-network/v0`, and does not yet
   verify Ed25519 proofs.
 </OperatorNote>
 
@@ -21,7 +21,7 @@ This page is normative unless a section is marked as an example.
 The baseline trust profile identifier is:
 
 ```text
-agh-network.trust.ed25519-jcs/v1
+compozy-network.trust.ed25519-jcs/v1
 ```
 
 A sender that expects a receiver to treat an envelope as verified MUST put this value in
@@ -62,7 +62,7 @@ When this profile is used, `proof` MUST be an object with these fields:
 
 | Field     | Type   | Required | Rule                                                                                             |
 | --------- | ------ | -------- | ------------------------------------------------------------------------------------------------ |
-| `profile` | string | Yes      | MUST equal `agh-network.trust.ed25519-jcs/v1`.                                                   |
+| `profile` | string | Yes      | MUST equal `compozy-network.trust.ed25519-jcs/v1`.                                               |
 | `alg`     | string | Yes      | MUST equal `Ed25519`.                                                                            |
 | `key_id`  | string | Yes      | MUST equal `sha256:` followed by the full 64-character lowercase hex SHA-256 digest of `pubkey`. |
 | `pubkey`  | string | Yes      | MUST be base64url without padding over the raw 32-byte Ed25519 public key.                       |
@@ -72,7 +72,7 @@ Shape:
 
 ```json
 {
-  "profile": "agh-network.trust.ed25519-jcs/v1",
+  "profile": "compozy-network.trust.ed25519-jcs/v1",
   "alg": "Ed25519",
   "key_id": "sha256:<64-hex>",
   "pubkey": "base64url(raw-32-byte-public-key)",
@@ -138,7 +138,7 @@ digest = sha256(pubkey)
 
 envelope.from = nickname + "@" + lower_hex(digest)[0:32]
 envelope.proof = {
-  "profile": "agh-network.trust.ed25519-jcs/v1",
+  "profile": "compozy-network.trust.ed25519-jcs/v1",
   "alg": "Ed25519",
   "key_id": "sha256:" + lower_hex(digest),
   "pubkey": base64url_no_pad(pubkey)
@@ -213,7 +213,7 @@ patch-worker@56475aa75463474c0285df5dbf2bcab7
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_ed25519_jcs_01",
   "workspace_id": "ws_alpha",
   "kind": "greet",
@@ -229,14 +229,14 @@ patch-worker@56475aa75463474c0285df5dbf2bcab7
     "peer_card": {
       "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0", "agh-network.trust.ed25519-jcs/v1"],
+      "profiles_supported": ["compozy-network/v0", "compozy-network.trust.ed25519-jcs/v1"],
       "capabilities": ["test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["verified"]
     }
   },
   "proof": {
-    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "profile": "compozy-network.trust.ed25519-jcs/v1",
     "alg": "Ed25519",
     "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
     "pubkey": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
@@ -258,7 +258,7 @@ canonical form of the envelope above looks like:
       "capabilities": ["test.run"],
       "display_name": "Patch Worker",
       "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
-      "profiles_supported": ["agh-network/v0", "agh-network.trust.ed25519-jcs/v1"],
+      "profiles_supported": ["compozy-network/v0", "compozy-network.trust.ed25519-jcs/v1"],
       "trust_modes_supported": ["verified"]
     }
   },
@@ -273,10 +273,10 @@ canonical form of the envelope above looks like:
   "proof": {
     "alg": "Ed25519",
     "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
-    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "profile": "compozy-network.trust.ed25519-jcs/v1",
     "pubkey": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
   },
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "reply_to": null,
   "to": null,
   "trace_id": "trace_ed25519_jcs_01",
@@ -302,7 +302,7 @@ A correct verifier MUST reproduce the canonical bytes from the unsigned envelope
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_ed25519_jcs_01",
   "workspace_id": "ws_alpha",
   "kind": "greet",
@@ -318,14 +318,14 @@ A correct verifier MUST reproduce the canonical bytes from the unsigned envelope
     "peer_card": {
       "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0", "agh-network.trust.ed25519-jcs/v1"],
+      "profiles_supported": ["compozy-network/v0", "compozy-network.trust.ed25519-jcs/v1"],
       "capabilities": ["test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["verified"]
     }
   },
   "proof": {
-    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "profile": "compozy-network.trust.ed25519-jcs/v1",
     "alg": "Ed25519",
     "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
     "pubkey": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",

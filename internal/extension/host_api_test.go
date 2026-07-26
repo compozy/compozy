@@ -4918,27 +4918,27 @@ func TestHostAPITaskPayloadsRedactRawClaimTokens(t *testing.T) {
 	t.Parallel()
 
 	view := taskpkg.View{
-		Summary: taskpkg.Summary{Title: "summary agh_claim_summary-secret"},
+		Summary: taskpkg.Summary{Title: "summary compozy_claim_summary-secret"},
 		Task: taskpkg.Task{
-			Title:       "task agh_claim_title-secret",
-			Description: "description agh_claim_description-secret",
+			Title:       "task compozy_claim_title-secret",
+			Description: "description compozy_claim_description-secret",
 			Metadata: json.RawMessage(
-				`{"keep":"safe","claim_token":"agh_claim_task-field","note":"agh_claim_task-value"}`,
+				`{"keep":"safe","claim_token":"compozy_claim_task-field","note":"compozy_claim_task-value"}`,
 			),
 		},
 		Runs: []taskpkg.Run{{
-			Error:    "run failed with agh_claim_error-secret",
-			Metadata: json.RawMessage(`{"claim_token":"agh_claim_run-field","keep":"run-safe"}`),
-			Result:   json.RawMessage(`{"note":"agh_claim_result-secret"}`),
+			Error:    "run failed with compozy_claim_error-secret",
+			Metadata: json.RawMessage(`{"claim_token":"compozy_claim_run-field","keep":"run-safe"}`),
+			Result:   json.RawMessage(`{"note":"compozy_claim_result-secret"}`),
 		}},
 		Events: []taskpkg.Event{{
-			Payload: json.RawMessage(`{"note":"agh_claim_event-secret"}`),
+			Payload: json.RawMessage(`{"note":"compozy_claim_event-secret"}`),
 		}},
 	}
 	timeline := taskTimelineItemPayloadFromItem(taskpkg.TimelineItem{
-		Task:    taskpkg.Reference{Title: "timeline agh_claim_reference-secret"},
-		Run:     &taskpkg.RunSummary{Error: "summary agh_claim_run-summary-secret"},
-		Payload: json.RawMessage(`{"note":"agh_claim_timeline-secret"}`),
+		Task:    taskpkg.Reference{Title: "timeline compozy_claim_reference-secret"},
+		Run:     &taskpkg.RunSummary{Error: "summary compozy_claim_run-summary-secret"},
+		Payload: json.RawMessage(`{"note":"compozy_claim_timeline-secret"}`),
 	})
 	payload := struct {
 		Detail   apicontract.TaskDetailPayload       `json:"detail"`
@@ -4952,18 +4952,18 @@ func TestHostAPITaskPayloadsRedactRawClaimTokens(t *testing.T) {
 		t.Fatalf("json.Marshal(task payloads) error = %v", err)
 	}
 	for _, secret := range []string{
-		"agh_claim_summary-secret",
-		"agh_claim_title-secret",
-		"agh_claim_description-secret",
-		"agh_claim_task-field",
-		"agh_claim_task-value",
-		"agh_claim_error-secret",
-		"agh_claim_run-field",
-		"agh_claim_result-secret",
-		"agh_claim_event-secret",
-		"agh_claim_reference-secret",
-		"agh_claim_run-summary-secret",
-		"agh_claim_timeline-secret",
+		"compozy_claim_summary-secret",
+		"compozy_claim_title-secret",
+		"compozy_claim_description-secret",
+		"compozy_claim_task-field",
+		"compozy_claim_task-value",
+		"compozy_claim_error-secret",
+		"compozy_claim_run-field",
+		"compozy_claim_result-secret",
+		"compozy_claim_event-secret",
+		"compozy_claim_reference-secret",
+		"compozy_claim_run-summary-secret",
+		"compozy_claim_timeline-secret",
 	} {
 		if strings.Contains(string(content), secret) {
 			t.Fatalf("Host task payloads exposed raw claim token %q: %s", secret, content)

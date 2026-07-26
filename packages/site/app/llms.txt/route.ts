@@ -31,7 +31,7 @@ export function GET() {
   const body = [
     "# AGH Documentation",
     "",
-    "> An open workplace for AI agents, the runtime, the agh-network/v0 protocol, and the blog.",
+    "> An open workplace for AI agents, the runtime, the compozy-network/v0 protocol, and the blog.",
     "",
     section("Runtime", runtimeLines),
     section("Network Protocol", protocolLines),

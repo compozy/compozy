@@ -321,7 +321,7 @@ type ApproveLoopRunRequest struct {
 	Decision LoopGateDecision `json:"decision"`
 }
 
-// LoopDefinitionDocument is the public agh.loop/v1 authoring document.
+// LoopDefinitionDocument is the public compozy.loop/v1 authoring document.
 type LoopDefinitionDocument struct {
 	APIVersion           string                 `json:"apiVersion"`
 	Kind                 string                 `json:"kind"`

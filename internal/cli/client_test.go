@@ -875,7 +875,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 	t.Run("Should redact claim tokens from task errors", func(t *testing.T) {
 		t.Parallel()
 
-		rawToken := "agh_claim_CLIENTERRORTOKEN123"
+		rawToken := "compozy_claim_CLIENTERRORTOKEN123"
 		client := &unixSocketClient{
 			socketPath: "/tmp/agh.sock",
 			httpClient: &http.Client{
@@ -896,7 +896,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 		if err == nil {
 			t.Fatal("AgentTaskRelease() error = nil, want redacted API error")
 		}
-		if strings.Contains(err.Error(), rawToken) || !strings.Contains(err.Error(), "agh_claim_[REDACTED]") {
+		if strings.Contains(err.Error(), rawToken) || !strings.Contains(err.Error(), "compozy_claim_[REDACTED]") {
 			t.Fatalf("error = %q, want redacted claim token", err.Error())
 		}
 	})
@@ -908,7 +908,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			http.StatusInternalServerError,
 			"500 Internal Server Error",
 			[]byte(
-				`{"error":"mcp_auth_token=raw-mcp access_token=raw-access authorization_code=raw-code code_verifier=raw-verifier secret_binding=raw-binding agh_claim_CLIENTERRORTOKEN456"}`,
+				`{"error":"mcp_auth_token=raw-mcp access_token=raw-access authorization_code=raw-code code_verifier=raw-verifier secret_binding=raw-binding compozy_claim_CLIENTERRORTOKEN456"}`,
 			),
 		)
 		if err == nil {
@@ -920,7 +920,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			"raw-code",
 			"raw-verifier",
 			"raw-binding",
-			"agh_claim_CLIENTERRORTOKEN456",
+			"compozy_claim_CLIENTERRORTOKEN456",
 		} {
 			if strings.Contains(err.Error(), leaked) {
 				t.Fatalf("readAPIErrorBody() error = %q leaked %q", err.Error(), leaked)
@@ -1023,7 +1023,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 						t.Fatalf("invoke request = %#v, want scoped tool input", request)
 					}
 					response := sampleInvokeResponse()
-					response.Result.Preview = "token=agh_claim_secret"
+					response.Result.Preview = "token=compozy_claim_secret"
 					response.Result.Structured = json.RawMessage(
 						`{"access_token":"super-secret","completion_tokens":9}`,
 					)
@@ -1110,7 +1110,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 			t.Fatalf("InvokeTool() id = %q, want %q", response.ToolID, toolspkg.ToolIDToolInfo)
 		}
 		encoded := string(mustJSON(t, response))
-		if strings.Contains(encoded, "agh_claim_secret") || strings.Contains(encoded, "super-secret") {
+		if strings.Contains(encoded, "compozy_claim_secret") || strings.Contains(encoded, "super-secret") {
 			t.Fatalf("InvokeTool() leaked sensitive result fields: %s", encoded)
 		}
 		if !strings.Contains(encoded, "completion_tokens") {
@@ -1376,7 +1376,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 					return newHTTPResponse(
 						http.StatusOK,
 						"event: error\n"+
-							"data: {\"error\":\"bind failed for agh_claim_secret\"}\n\n",
+							"data: {\"error\":\"bind failed for compozy_claim_secret\"}\n\n",
 					), nil
 				}),
 			},
@@ -1385,7 +1385,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 		if err == nil {
 			t.Fatal("StreamHostedMCPProjection(error event) error = nil, want redacted error")
 		}
-		if strings.Contains(err.Error(), "agh_claim_secret") || !strings.Contains(err.Error(), "[REDACTED]") {
+		if strings.Contains(err.Error(), "compozy_claim_secret") || !strings.Contains(err.Error(), "[REDACTED]") {
 			t.Fatalf("StreamHostedMCPProjection(error event) error = %q, want redacted claim token", err.Error())
 		}
 	})

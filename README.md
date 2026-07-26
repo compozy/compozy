@@ -18,7 +18,7 @@
   </p>
 </div>
 
-AGH is a local-first agent operating system. It runs the agent CLIs you already use — Claude Code, OpenClaw, Hermes, and others — as durable, inspectable sessions managed by a single background daemon, and connects them on the open `agh-network/v0` so sessions can discover peers, share capabilities, and close work with receipts.
+AGH is a local-first agent operating system. It runs the agent CLIs you already use — Claude Code, OpenClaw, Hermes, and others — as durable, inspectable sessions managed by a single background daemon, and connects them on the open `compozy-network/v0` so sessions can discover peers, share capabilities, and close work with receipts.
 
 The complete documentation lives at [agh.network](https://agh.network).
 
@@ -28,7 +28,7 @@ The complete documentation lives at [agh.network](https://agh.network).
 
 ## Highlights
 
-- **AGH Network.** Active sessions become peers — they discover each other, exchange typed envelopes on `agh-network/v0` channels, and close work with receipts.
+- **AGH Network.** Active sessions become peers — they discover each other, exchange typed envelopes on `compozy-network/v0` channels, and close work with receipts.
 - **Local-first durable runtime.** One Go binary and a background daemon keep sessions, events, and state in local SQLite — durable, resumable, and inspectable long after the terminal closes.
 - **Agent-manageable surfaces.** The same runtime state is exposed through CLI, HTTP/SSE, UDS, and a web UI, so agents operate AGH through structured controls instead of UI-only paths.
 - **Autonomy kernel.** Task runs, claim tokens, leases, and safe spawn keep multi-agent work observable and bounded.

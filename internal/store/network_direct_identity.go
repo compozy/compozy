@@ -46,7 +46,7 @@ func NetworkDirectRoomIdentity(
 		return "", "", "", err
 	}
 	sum := sha256.Sum256([]byte(
-		"agh-network/direct-room/v1\x00" + trimmedWorkspaceID + "\x00" + trimmedChannel + "\x00" +
+		"compozy-network/direct-room/v1\x00" + trimmedWorkspaceID + "\x00" + trimmedChannel + "\x00" +
 			normalizedA + "\x00" + normalizedB,
 	))
 	return "direct_" + hex.EncodeToString(sum[:])[:32], normalizedA, normalizedB, nil

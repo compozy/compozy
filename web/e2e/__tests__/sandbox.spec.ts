@@ -35,7 +35,7 @@ const allowedAgent = "browser-sandbox-allowed";
 const blockedAgent = "browser-sandbox-blocked";
 const sandboxProfileName = "browser-local-sandbox";
 const sensitivePattern =
-  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|DAYTONA_API_KEY|sandbox-secret/i;
+  /compozy_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|DAYTONA_API_KEY|sandbox-secret/i;
 
 interface SettingsSandboxProfile {
   backend: string;

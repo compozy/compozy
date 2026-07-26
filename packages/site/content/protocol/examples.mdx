@@ -30,7 +30,7 @@ caption="A public-thread work unit uses say to open and receipt plus trace messa
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_migration_001",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -62,7 +62,7 @@ caption="A public-thread work unit uses say to open and receipt plus trace messa
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_migration_002",
   "workspace_id": "ws_alpha",
   "kind": "receipt",
@@ -87,7 +87,7 @@ caption="A public-thread work unit uses say to open and receipt plus trace messa
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_migration_003",
   "workspace_id": "ws_alpha",
   "kind": "trace",
@@ -111,7 +111,7 @@ caption="A public-thread work unit uses say to open and receipt plus trace messa
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_migration_004",
   "workspace_id": "ws_alpha",
   "kind": "trace",
@@ -163,12 +163,12 @@ caption="A direct-room handoff opens new work_id but keeps trace_id and reply_to
 
 The control plane resolves both peers to stable session IDs and derives the deterministic
 `direct_id` from
-`agh-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>`. The wire
+`compozy-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>`. The wire
 envelope still carries the explicit `direct_id`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_handoff_001",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -194,7 +194,7 @@ envelope still carries the explicit `direct_id`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_handoff_002",
   "workspace_id": "ws_alpha",
   "kind": "receipt",
@@ -218,7 +218,7 @@ envelope still carries the explicit `direct_id`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_handoff_003",
   "workspace_id": "ws_alpha",
   "kind": "trace",
@@ -252,7 +252,7 @@ direct room.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_handoff_004",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -302,7 +302,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_discovery_001",
   "workspace_id": "ws_alpha",
   "kind": "greet",
@@ -314,7 +314,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["compozy-network/v0"],
       "capabilities": ["code.patch", "test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -328,7 +328,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_discovery_002",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -348,7 +348,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_discovery_003",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -362,7 +362,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["compozy-network/v0"],
       "capabilities": ["code.patch", "test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -399,7 +399,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_capability_flow_001",
   "workspace_id": "ws_alpha",
   "kind": "greet",
@@ -411,12 +411,12 @@ caption="One structured capability concept appears as brief discovery, rich disc
     "peer_card": {
       "peer_id": "capability-curator.session-7",
       "display_name": "Capability Curator",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["compozy-network/v0"],
       "capabilities": ["fix-go-migration-tests"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"],
       "ext": {
-        "agh.capabilities_brief": [
+        "compozy.capabilities_brief": [
           {
             "id": "fix-go-migration-tests",
             "workspace_id": "ws_alpha",
@@ -434,7 +434,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_capability_flow_002",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -447,8 +447,8 @@ caption="One structured capability concept appears as brief discovery, rich disc
     "query": "fix-go-migration-tests"
   },
   "ext": {
-    "agh.include": ["capability_catalog"],
-    "agh.capability_ids": ["fix-go-migration-tests"]
+    "compozy.include": ["capability_catalog"],
+    "compozy.capability_ids": ["fix-go-migration-tests"]
   },
   "proof": null
 }
@@ -458,7 +458,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_capability_flow_003",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -472,12 +472,12 @@ caption="One structured capability concept appears as brief discovery, rich disc
     "peer_card": {
       "peer_id": "capability-curator.session-7",
       "display_name": "Capability Curator",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["compozy-network/v0"],
       "capabilities": ["fix-go-migration-tests"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"],
       "ext": {
-        "agh.capabilities_brief": [
+        "compozy.capabilities_brief": [
           {
             "id": "fix-go-migration-tests",
             "workspace_id": "ws_alpha",
@@ -488,7 +488,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
     }
   },
   "ext": {
-    "agh.capability_catalog": {
+    "compozy.capability_catalog": {
       "capabilities": [
         {
           "id": "fix-go-migration-tests",
@@ -511,7 +511,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_capability_flow_004",
   "workspace_id": "ws_alpha",
   "kind": "capability",
@@ -543,7 +543,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_capability_flow_005",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -569,7 +569,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_capability_flow_006",
   "workspace_id": "ws_alpha",
   "kind": "trace",

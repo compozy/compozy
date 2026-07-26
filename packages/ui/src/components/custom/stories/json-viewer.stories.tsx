@@ -27,7 +27,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Realistic agh-network/v0 receipt payload covering all token kinds.
+ * Realistic compozy-network/v0 receipt payload covering all token kinds.
  */
 export const Receipt: Story = {
   args: {},

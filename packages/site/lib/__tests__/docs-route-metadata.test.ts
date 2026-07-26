@@ -37,13 +37,13 @@ const mockedDocs = vi.hoisted(() => {
       slugs: [],
       url: "/protocol",
       title: "AGH Network Protocol",
-      description: "Understand the public agh-network/v0 protocol surface.",
+      description: "Understand the public compozy-network/v0 protocol surface.",
     },
     {
       slugs: ["implementation-status"],
       url: "/protocol/implementation-status",
       title: "Implementation Status",
-      description: "Understand what agh-network/v0 implements in the alpha runtime.",
+      description: "Understand what compozy-network/v0 implements in the alpha runtime.",
     },
   ];
 

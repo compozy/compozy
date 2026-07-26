@@ -72,7 +72,7 @@ Each screen is one standalone `.html`, previewable on its own.
   `budget.usd` unset · `no_progress.window` 3/10 · `fan_out_ceiling` 4/64 · `gate.max_revisions` 3/10.
   Ceilings are hard backstops — never editable in the UI. Watch loops default to
   `iteration_cap` 0 (unbounded).
-- **DSL `agh.loop/v1`:** `meta`, `inputs`, `contract { goal, definition_of_done,
+- **DSL `compozy.loop/v1`:** `meta`, `inputs`, `contract { goal, definition_of_done,
 verification[], terminal_states, iteration_cap, no_progress, budget, fan_out_ceiling }`,
   `graph { nodes[], edges[] }`, `start[]`. Declared-input types: `string/number/bool/file/agent/ref`.
 - **Linter invariants** (the builder _surfaces_ them, never re-implements): acyclicity ·

@@ -54,7 +54,7 @@ export const WithIconAndMeta: Story = {
   render: () => (
     <TimelineEvent
       title="Capability registered"
-      description="`network.publish` is now callable via the agh-network/v0 protocol."
+      description="`network.publish` is now callable via the compozy-network/v0 protocol."
       time="04:21:15"
       meta={
         <>
@@ -93,7 +93,7 @@ export const Composed: Story = {
       <TimelineEvent title="Session opened" time="04:00" tone="accent" icon={GitCommitIcon} />
       <TimelineEvent
         title="First message"
-        description="User: refactor agh-network/v0"
+        description="User: refactor compozy-network/v0"
         time="04:01"
         tone="neutral"
       />

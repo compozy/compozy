@@ -28,7 +28,7 @@ const (
 	// FileName is the canonical authored persona filename.
 	FileName = "SOUL.md"
 
-	digestPrefix = "agh.soul.v1\n"
+	digestPrefix = "compozy.soul.v1\n"
 )
 
 var (

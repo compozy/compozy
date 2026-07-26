@@ -7,8 +7,8 @@ icon: Zap
 A capability is the single AGH delegation artifact. The same structured capability model feeds
 three distinct protocol roles:
 
-- brief discovery in `greet` through `peer_card.capabilities` and `peer_card.ext["agh.capabilities_brief"]`
-- rich discovery in `whois` through the envelope-level `ext["agh.capability_catalog"]`
+- brief discovery in `greet` through `peer_card.capabilities` and `peer_card.ext["compozy.capabilities_brief"]`
+- rich discovery in `whois` through the envelope-level `ext["compozy.capability_catalog"]`
 - explicit transfer through [`kind:"capability"`](/protocol/message-kinds/#capability)
 
 Capability discovery is a thin layer on top of `greet` and `whois`, using namespaced envelope
@@ -20,11 +20,11 @@ This page is normative unless a section is marked as an example.
 
 ## Three protocol roles for one concept
 
-| Role     | Trigger                                                                      | Surface                                                                 | Payload                                               |
-| -------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------- |
-| Brief    | Always emitted when a catalog exists.                                        | `peer_card.capabilities` and `peer_card.ext["agh.capabilities_brief"]`. | Capability IDs and one-line summaries.                |
-| Rich     | Opt-in via `agh.include` on a `whois` request.                               | Response envelope `ext["agh.capability_catalog"]`.                      | Full capability records with outcomes and optionals.  |
-| Transfer | Sender emits a [`capability` envelope](/protocol/message-kinds/#capability). | `body.capability` on a `kind:"capability"` envelope.                    | One full capability document with canonical `digest`. |
+| Role     | Trigger                                                                      | Surface                                                                     | Payload                                               |
+| -------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Brief    | Always emitted when a catalog exists.                                        | `peer_card.capabilities` and `peer_card.ext["compozy.capabilities_brief"]`. | Capability IDs and one-line summaries.                |
+| Rich     | Opt-in via `compozy.include` on a `whois` request.                           | Response envelope `ext["compozy.capability_catalog"]`.                      | Full capability records with outcomes and optionals.  |
+| Transfer | Sender emits a [`capability` envelope](/protocol/message-kinds/#capability). | `body.capability` on a `kind:"capability"` envelope.                        | One full capability document with canonical `digest`. |
 
 The full catalog never rides inside `peer_card.ext`. It is always scoped to an explicit `whois`
 exchange or a `capability` envelope so that routine peer cards remain small.
@@ -35,15 +35,15 @@ A peer with a local capability catalog MUST project it into its Peer Card in two
 
 - `peer_card.capabilities` — an array of capability ID strings, whitespace trimmed, in catalog
   order.
-- `peer_card.ext["agh.capabilities_brief"]` — an array of `{ "id", "summary" }` objects matching
+- `peer_card.ext["compozy.capabilities_brief"]` — an array of `{ "id", "summary" }` objects matching
   `peer_card.capabilities` entry-by-entry, in the same order.
 
 A peer without a local catalog:
 
 - MUST still emit `peer_card.capabilities` as `[]` (never `null`).
-- MUST omit `peer_card.ext["agh.capabilities_brief"]` entirely.
+- MUST omit `peer_card.ext["compozy.capabilities_brief"]` entirely.
 
-Receivers MUST treat `agh.capabilities_brief` as advisory. A capability claim is not proof that
+Receivers MUST treat `compozy.capabilities_brief` as advisory. A capability claim is not proof that
 the peer can perform the work, and brief projections never carry the outcome or constraint fields.
 
 ### Example Peer Card with brief capabilities
@@ -52,12 +52,12 @@ the peer can perform the work, and brief projections never carry the outcome or 
 {
   "peer_id": "designer.session-19",
   "display_name": "Designer",
-  "profiles_supported": ["agh-network/v0"],
+  "profiles_supported": ["compozy-network/v0"],
   "capabilities": ["build-site", "review-copy"],
   "artifacts_supported": ["capability"],
   "trust_modes_supported": ["unverified"],
   "ext": {
-    "agh.capabilities_brief": [
+    "compozy.capabilities_brief": [
       { "id": "build-site", "summary": "Build the landing page." },
       { "id": "review-copy", "summary": "Review conversion copy." }
     ]
@@ -75,20 +75,20 @@ object.
 
 ### Request extensions
 
-| Key                  | Type             | Required | Effect                                                                              |
-| -------------------- | ---------------- | -------- | ----------------------------------------------------------------------------------- |
-| `agh.include`        | array of strings | Yes      | MUST contain the string `"capability_catalog"` to trigger rich discovery.           |
-| `agh.capability_ids` | array of strings | No       | Narrows the response to matching capability IDs. Unknown IDs return an empty array. |
+| Key                      | Type             | Required | Effect                                                                              |
+| ------------------------ | ---------------- | -------- | ----------------------------------------------------------------------------------- |
+| `compozy.include`        | array of strings | Yes      | MUST contain the string `"capability_catalog"` to trigger rich discovery.           |
+| `compozy.capability_ids` | array of strings | No       | Narrows the response to matching capability IDs. Unknown IDs return an empty array. |
 
-Receivers SHOULD ignore unknown values inside `agh.include` so that future extensions stay
-forward-compatible. When `agh.include` does not contain `"capability_catalog"`, the responder MUST
-NOT add `agh.capability_catalog` to the response envelope.
+Receivers SHOULD ignore unknown values inside `compozy.include` so that future extensions stay
+forward-compatible. When `compozy.include` does not contain `"capability_catalog"`, the responder MUST
+NOT add `compozy.capability_catalog` to the response envelope.
 
 ### Response extensions
 
-| Key                      | Type   | Present when                                                |
-| ------------------------ | ------ | ----------------------------------------------------------- |
-| `agh.capability_catalog` | object | The request included `capability_catalog` in `agh.include`. |
+| Key                          | Type   | Present when                                                    |
+| ---------------------------- | ------ | --------------------------------------------------------------- |
+| `compozy.capability_catalog` | object | The request included `capability_catalog` in `compozy.include`. |
 
 The payload shape is:
 
@@ -123,9 +123,9 @@ Field rules for each entry:
 
 - The `whois` response body still carries the normal `peer_card`, including brief discovery keys.
 - Rich catalog data lives in the envelope-level `ext`, never inside `peer_card.ext`.
-- When the responder has no local catalog, `agh.capability_catalog.capabilities` MUST be `[]`.
-- When `agh.capability_ids` filters out every capability (including when every ID is unknown),
-  `agh.capability_catalog.capabilities` MUST be `[]`.
+- When the responder has no local catalog, `compozy.capability_catalog.capabilities` MUST be `[]`.
+- When `compozy.capability_ids` filters out every capability (including when every ID is unknown),
+  `compozy.capability_catalog.capabilities` MUST be `[]`.
 - Responses that would exceed the protocol envelope size limit MUST be rejected by the responder
   before emission.
 
@@ -135,7 +135,7 @@ Field rules for each entry:
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_whois_catalog_001",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -148,8 +148,8 @@ Field rules for each entry:
     "query": "build-site"
   },
   "ext": {
-    "agh.include": ["capability_catalog"],
-    "agh.capability_ids": ["build-site"]
+    "compozy.include": ["capability_catalog"],
+    "compozy.capability_ids": ["build-site"]
   },
   "proof": null
 }
@@ -159,7 +159,7 @@ Field rules for each entry:
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "compozy-network/v0",
   "id": "msg_whois_catalog_002",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -172,12 +172,12 @@ Field rules for each entry:
     "type": "response",
     "peer_card": {
       "peer_id": "designer.session-19",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["compozy-network/v0"],
       "capabilities": ["build-site", "review-copy"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"],
       "ext": {
-        "agh.capabilities_brief": [
+        "compozy.capabilities_brief": [
           { "id": "build-site", "summary": "Build the landing page." },
           { "id": "review-copy", "summary": "Review conversion copy." }
         ]
@@ -185,7 +185,7 @@ Field rules for each entry:
     }
   },
   "ext": {
-    "agh.capability_catalog": {
+    "compozy.capability_catalog": {
       "capabilities": [
         {
           "id": "build-site",
@@ -231,20 +231,20 @@ same structured capability record.
 Capability discovery is designed to degrade cleanly when a peer does not implement the extension
 keys.
 
-| Peer implements            | Caller sees                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------- |
-| Neither brief nor rich     | `peer_card.capabilities` is `[]`; no `agh.*` extension keys appear.             |
-| Brief only                 | `peer_card.capabilities` lists IDs; `agh.capabilities_brief` carries summaries. |
-| Rich without `agh.include` | Responder MUST NOT attach `agh.capability_catalog`. Caller falls back to brief. |
-| Rich with filtering        | Response returns only the matching capabilities, preserving catalog order.      |
+| Peer implements                | Caller sees                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| Neither brief nor rich         | `peer_card.capabilities` is `[]`; no `agh.*` extension keys appear.                 |
+| Brief only                     | `peer_card.capabilities` lists IDs; `compozy.capabilities_brief` carries summaries. |
+| Rich without `compozy.include` | Responder MUST NOT attach `compozy.capability_catalog`. Caller falls back to brief. |
+| Rich with filtering            | Response returns only the matching capabilities, preserving catalog order.          |
 
 Receivers MUST treat unknown envelope extension keys as opaque and preserve them when forwarding
 messages, so that newer capability metadata can travel unchanged through older relays.
 
 <OperatorNote>
-  Capability claims remain advisory in v0. `agh.capability_catalog` is a richer hint, not a contract
-  of execution. Trust and authorization belong to runtime policy and future trust profiles, not to
-  discovery payloads.
+  Capability claims remain advisory in v0. `compozy.capability_catalog` is a richer hint, not a
+  contract of execution. Trust and authorization belong to runtime policy and future trust profiles,
+  not to discovery payloads.
 </OperatorNote>
 
 ## Related pages

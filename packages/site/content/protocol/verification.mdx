@@ -51,7 +51,7 @@ To mark an envelope as `verified` under the baseline profile, a receiver MUST pe
 this order:
 
 1. Confirm that `proof` is a JSON object.
-2. Confirm that `proof.profile` equals `agh-network.trust.ed25519-jcs/v1`.
+2. Confirm that `proof.profile` equals `compozy-network.trust.ed25519-jcs/v1`.
 3. Confirm that `proof.alg` equals `Ed25519`.
 4. Confirm that `proof.pubkey` is base64url without padding and decodes to exactly 32 bytes.
 5. Compute `digest = SHA-256(pubkey)`.
@@ -169,7 +169,7 @@ function trust_state(envelope):
       return rejected("verification_failed")
     return unverified()
 
-  if envelope.proof.profile != "agh-network.trust.ed25519-jcs/v1":
+  if envelope.proof.profile != "compozy-network.trust.ed25519-jcs/v1":
     return unverified()
 
   proof = envelope.proof
