@@ -151,6 +151,6 @@ func sendWorkspaceEvent(ctx context.Context, out chan<- RunEvent, event RunEvent
 }
 
 func summaryPointer(summary RunSummary) *RunSummary {
-	copyValue := summary
+	copyValue := cloneRunSummary(summary)
 	return &copyValue
 }

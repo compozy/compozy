@@ -28,10 +28,11 @@ type runSnapshotBuilder struct {
 const snapshotJobStatusQueued = "queued"
 
 type runSnapshotJob struct {
-	state     apicore.RunJobState
-	summary   apicore.RunJobSummary
-	session   *transcript.ViewModel
-	startedAt time.Time
+	state                  apicore.RunJobState
+	summary                apicore.RunJobSummary
+	session                *transcript.ViewModel
+	startedAt              time.Time
+	speedResolutionAttempt int
 }
 
 // resolveDurationMs prefers the authoritative duration carried in the terminal
@@ -77,6 +78,8 @@ func (b *runSnapshotBuilder) applyEvent(item events.Event) error {
 		return b.applyJobFailed(item)
 	case events.EventKindJobCancelled:
 		return b.applyJobCancelled(item)
+	case events.EventKindSessionStarted:
+		return b.applySessionStarted(item)
 	case events.EventKindSessionUpdate:
 		return b.applySessionUpdate(item)
 	case events.EventKindShutdownRequested:
@@ -185,6 +188,9 @@ func (b *runSnapshotBuilder) applyJobQueued(item events.Event) error {
 	job.summary.Model = strings.TrimSpace(payload.Model)
 	job.summary.ReasoningEffort = strings.TrimSpace(payload.ReasoningEffort)
 	job.summary.AccessMode = strings.TrimSpace(payload.AccessMode)
+	if payload.Speed != "" {
+		job.summary.Speed = payload.Speed
+	}
 	job.summary.OutLog = strings.TrimSpace(payload.OutLog)
 	job.summary.ErrLog = strings.TrimSpace(payload.ErrLog)
 	return nil
@@ -212,6 +218,7 @@ func (b *runSnapshotBuilder) applyJobStarted(item events.Event) error {
 	}
 
 	job := b.ensureJob(payload.Index)
+	job.beginAttempt(payload.Attempt)
 	job.state.Status = runStatusRunning
 	job.state.AgentName = firstNonEmpty(strings.TrimSpace(payload.IDE), job.state.AgentName)
 	job.state.UpdatedAt = item.Timestamp.UTC()
@@ -225,6 +232,9 @@ func (b *runSnapshotBuilder) applyJobStarted(item events.Event) error {
 	job.summary.Model = firstNonEmpty(strings.TrimSpace(payload.Model), job.summary.Model)
 	job.summary.ReasoningEffort = firstNonEmpty(strings.TrimSpace(payload.ReasoningEffort), job.summary.ReasoningEffort)
 	job.summary.AccessMode = firstNonEmpty(strings.TrimSpace(payload.AccessMode), job.summary.AccessMode)
+	if payload.Speed != "" {
+		job.summary.Speed = payload.Speed
+	}
 	return nil
 }
 
@@ -235,6 +245,7 @@ func (b *runSnapshotBuilder) applyJobRetry(item events.Event) error {
 	}
 
 	job := b.ensureJob(payload.Index)
+	job.beginAttempt(payload.Attempt)
 	job.state.Status = "retrying"
 	job.state.UpdatedAt = item.Timestamp.UTC()
 
@@ -301,6 +312,7 @@ func (b *runSnapshotBuilder) applyJobFailed(item events.Event) error {
 	}
 
 	job := b.ensureJob(payload.Index)
+	job.beginAttempt(payload.Attempt)
 	job.state.Status = runStatusFailed
 	job.state.UpdatedAt = item.Timestamp.UTC()
 
@@ -312,6 +324,9 @@ func (b *runSnapshotBuilder) applyJobFailed(item events.Event) error {
 	job.summary.ErrLog = firstNonEmpty(strings.TrimSpace(payload.ErrLog), job.summary.ErrLog)
 	job.summary.ErrorText = strings.TrimSpace(payload.Error)
 	job.summary.DurationMs = job.resolveDurationMs(payload.DurationMs, item.Timestamp.UTC())
+	if payload.SpeedResolution != nil {
+		job.setSpeedResolution(payload.Attempt, payload.SpeedResolution)
+	}
 	return nil
 }
 
@@ -327,6 +342,20 @@ func (b *runSnapshotBuilder) applyJobCancelled(item events.Event) error {
 
 	job.summary.ErrorText = strings.TrimSpace(payload.Reason)
 	job.summary.DurationMs = job.resolveDurationMs(payload.DurationMs, item.Timestamp.UTC())
+	return nil
+}
+
+func (b *runSnapshotBuilder) applySessionStarted(item events.Event) error {
+	var payload kinds.SessionStartedPayload
+	if err := json.Unmarshal(item.Payload, &payload); err != nil {
+		return fmt.Errorf("decode session started snapshot payload: %w", err)
+	}
+
+	job := b.ensureJob(payload.Index)
+	job.state.UpdatedAt = item.Timestamp.UTC()
+	if payload.SpeedResolution != nil {
+		job.setSpeedResolution(job.summary.Attempt, payload.SpeedResolution)
+	}
 	return nil
 }
 
@@ -387,6 +416,36 @@ func cloneRunJobSummary(src apicore.RunJobSummary) *apicore.RunJobSummary {
 	if len(src.CodeFiles) > 0 {
 		dst.CodeFiles = append([]string(nil), src.CodeFiles...)
 	}
+	dst.SpeedResolution = cloneSpeedResolution(src.SpeedResolution)
+	return &dst
+}
+
+func (j *runSnapshotJob) beginAttempt(attempt int) {
+	if attempt <= 0 || attempt <= j.speedResolutionAttempt {
+		return
+	}
+	j.summary.SpeedResolution = nil
+	j.speedResolutionAttempt = attempt
+}
+
+func (j *runSnapshotJob) setSpeedResolution(attempt int, resolution *kinds.SpeedResolution) {
+	if resolution == nil {
+		return
+	}
+	if attempt > 0 && attempt < j.speedResolutionAttempt {
+		return
+	}
+	if attempt > 0 {
+		j.speedResolutionAttempt = attempt
+	}
+	j.summary.SpeedResolution = cloneSpeedResolution(resolution)
+}
+
+func cloneSpeedResolution(src *kinds.SpeedResolution) *kinds.SpeedResolution {
+	if src == nil {
+		return nil
+	}
+	dst := *src
 	return &dst
 }
 

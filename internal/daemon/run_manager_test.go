@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -569,6 +570,157 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 			t.Fatal("transcript payload retained superseded large tool output")
 		}
 	})
+}
+
+func TestRunManagerLiveAndCompactSnapshotsAgreeOnSpeedOutcomes(t *testing.T) {
+	applied := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusApplied,
+	}
+	unsupported := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+	liveReady := make(chan struct{}, 1)
+	completeRun := make(chan struct{})
+
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			for index, resolution := range []*kinds.SpeedResolution{&applied, &unsupported} {
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobQueued, kinds.JobQueuedPayload{
+					Index:    index,
+					SafeName: fmt.Sprintf("job-%03d", index),
+					Speed:    kinds.SpeedFast,
+				})
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobStarted, kinds.JobStartedPayload{
+					JobAttemptInfo: kinds.JobAttemptInfo{Index: index, Attempt: 1, MaxAttempts: 1},
+					Speed:          kinds.SpeedFast,
+				})
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionStarted,
+					kinds.SessionStartedPayload{
+						Index:           index,
+						ACPSessionID:    fmt.Sprintf("session-%d", index),
+						SpeedResolution: resolution,
+					},
+				)
+			}
+			liveReady <- struct{}{}
+			<-completeRun
+
+			for index := range 2 {
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindJobCompleted,
+					kinds.JobCompletedPayload{
+						JobAttemptInfo: kinds.JobAttemptInfo{Index: index, Attempt: 1, MaxAttempts: 1},
+					},
+				)
+			}
+			submitEvent(
+				ctx,
+				t,
+				prep.Journal(),
+				cfg.RunID,
+				eventspkg.EventKindRunCompleted,
+				kinds.RunCompletedPayload{SummaryMessage: "completed with speed outcomes"},
+			)
+			return nil
+		},
+	})
+
+	const runID = "task-run-speed-snapshot-parity"
+	run := env.startTaskRun(
+		t,
+		runID,
+		rawJSON(t, `{"run_id":"`+runID+`","speed":"fast"}`),
+	)
+	select {
+	case <-liveReady:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for live speed snapshot events")
+	}
+
+	live := waitForRunSnapshotJobs(t, env.manager, run.RunID, 2)
+	assertRunSnapshotSpeedState(t, live, map[int]kinds.SpeedResolution{
+		0: applied,
+		1: unsupported,
+	})
+
+	close(completeRun)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	compact, err := env.manager.Snapshot(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("compact Snapshot(%q) error = %v", run.RunID, err)
+	}
+	assertRunSnapshotSpeedState(t, compact, map[int]kinds.SpeedResolution{
+		0: applied,
+		1: unsupported,
+	})
+
+	for index := range live.Jobs {
+		if live.Jobs[index].Summary == nil || compact.Jobs[index].Summary == nil {
+			t.Fatalf("speed snapshot summaries = live:%#v compact:%#v", live.Jobs, compact.Jobs)
+		}
+		if live.Jobs[index].Summary.Speed != compact.Jobs[index].Summary.Speed ||
+			!reflect.DeepEqual(
+				live.Jobs[index].Summary.SpeedResolution,
+				compact.Jobs[index].Summary.SpeedResolution,
+			) {
+			t.Fatalf(
+				"speed snapshot mismatch for job %d: live=%#v compact=%#v",
+				index,
+				live.Jobs[index].Summary,
+				compact.Jobs[index].Summary,
+			)
+		}
+	}
+}
+
+func assertRunSnapshotSpeedState(
+	t *testing.T,
+	snapshot apicore.RunSnapshot,
+	want map[int]kinds.SpeedResolution,
+) {
+	t.Helper()
+
+	if len(snapshot.Jobs) != len(want) {
+		t.Fatalf("snapshot jobs = %#v, want %d jobs", snapshot.Jobs, len(want))
+	}
+	for _, job := range snapshot.Jobs {
+		resolution, ok := want[job.Index]
+		if !ok {
+			t.Fatalf("unexpected snapshot job index %d", job.Index)
+		}
+		if job.Summary == nil {
+			t.Fatalf("snapshot job %d summary = nil", job.Index)
+		}
+		if job.Summary.Speed != kinds.SpeedFast {
+			t.Fatalf("snapshot job %d speed = %q, want fast", job.Index, job.Summary.Speed)
+		}
+		if job.Summary.SpeedResolution == nil ||
+			!reflect.DeepEqual(*job.Summary.SpeedResolution, resolution) {
+			t.Fatalf(
+				"snapshot job %d resolution = %#v, want %#v",
+				job.Index,
+				job.Summary.SpeedResolution,
+				resolution,
+			)
+		}
+	}
 }
 
 func TestRunManagerModeSpecificStartsProduceSharedLifecycleContract(t *testing.T) {
@@ -3381,6 +3533,38 @@ func waitForRunCount(
 		select {
 		case <-ctx.Done():
 			t.Fatalf("timed out waiting for %d run(s) with status %q", want, status)
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForRunSnapshotJobs(
+	t *testing.T,
+	manager *RunManager,
+	runID string,
+	want int,
+) apicore.RunSnapshot {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		snapshot, err := manager.Snapshot(context.Background(), runID)
+		if err == nil && len(snapshot.Jobs) == want {
+			return snapshot
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf(
+				"timed out waiting for run %q snapshot with %d jobs: last err=%v",
+				runID,
+				want,
+				err,
+			)
 		case <-ticker.C:
 		}
 	}

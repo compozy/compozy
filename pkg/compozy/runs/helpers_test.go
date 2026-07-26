@@ -2,11 +2,13 @@ package runs
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestSchemaVersionErrorFormattingAndUnwrap(t *testing.T) {
@@ -30,7 +32,7 @@ func TestSummaryHandlesNilRun(t *testing.T) {
 	t.Parallel()
 
 	var run *Run
-	if got := run.Summary(); got != (RunSummary{}) {
+	if got := run.Summary(); !reflect.DeepEqual(got, RunSummary{}) {
 		t.Fatalf("Summary() = %#v, want zero summary", got)
 	}
 }
@@ -99,5 +101,93 @@ func TestApplySummaryEventDetailsUsesRunAndJobPayloads(t *testing.T) {
 	}
 	if summary.EndedAt == nil || !summary.EndedAt.Equal(time.Unix(2, 0).UTC()) {
 		t.Fatalf("summary.EndedAt = %v, want failure timestamp", summary.EndedAt)
+	}
+}
+
+func TestApplySummaryEventDetailsProjectsLatestIndexedSpeedOutcomes(t *testing.T) {
+	t.Parallel()
+
+	summary := RunSummary{}
+	applySummaryEventDetails(&summary, []events.Event{
+		{
+			Kind:    events.EventKindRunQueued,
+			Payload: []byte(`{"speed":"fast"}`),
+		},
+		{
+			Kind:    events.EventKindJobStarted,
+			Payload: []byte(`{"index":0,"attempt":1,"speed":"fast"}`),
+		},
+		{
+			Kind: events.EventKindJobFailed,
+			Payload: []byte(
+				`{"index":0,"attempt":1,"speed_resolution":{"requested":"fast","status":"rejected","reason":"provider_rejected"}}`,
+			),
+		},
+		{
+			Kind:    events.EventKindJobRetryScheduled,
+			Payload: []byte(`{"index":0,"attempt":2}`),
+		},
+		{
+			Kind:    events.EventKindJobStarted,
+			Payload: []byte(`{"index":0,"attempt":2,"speed":"fast"}`),
+		},
+		{
+			Kind: events.EventKindSessionStarted,
+			Payload: []byte(
+				`{"index":0,"acp_session_id":"session-0","speed_resolution":{"requested":"fast","status":"applied"}}`,
+			),
+		},
+		{
+			Kind:    events.EventKindJobStarted,
+			Payload: []byte(`{"index":1,"attempt":1,"speed":"fast"}`),
+		},
+		{
+			Kind: events.EventKindSessionStarted,
+			Payload: []byte(
+				`{"index":1,"acp_session_id":"session-1","speed_resolution":{"requested":"fast","status":"unsupported","reason":"capability_absent"}}`,
+			),
+		},
+	})
+
+	if summary.Speed != kinds.SpeedFast {
+		t.Fatalf("summary speed = %q, want fast", summary.Speed)
+	}
+	want := map[int]kinds.SpeedResolution{
+		0: {
+			Requested: kinds.SpeedFast,
+			Status:    kinds.SpeedResolutionStatusApplied,
+		},
+		1: {
+			Requested: kinds.SpeedFast,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}
+	if !reflect.DeepEqual(summary.SpeedResolutions, want) {
+		t.Fatalf("summary speed resolutions = %#v, want %#v", summary.SpeedResolutions, want)
+	}
+}
+
+func TestApplySummaryEventDetailsPreservesHistoricalSpeedAbsence(t *testing.T) {
+	t.Parallel()
+
+	summary := RunSummary{}
+	applySummaryEventDetails(&summary, []events.Event{
+		{
+			Kind:    events.EventKindRunStarted,
+			Payload: []byte(`{"mode":"exec"}`),
+		},
+		{
+			Kind:    events.EventKindJobStarted,
+			Payload: []byte(`{"index":0,"attempt":1}`),
+		},
+		{
+			Kind:    events.EventKindSessionStarted,
+			Payload: []byte(`{"index":0,"acp_session_id":"historical"}`),
+		},
+	})
+
+	if summary.Speed != "" || summary.SpeedResolutions != nil {
+		t.Fatalf("historical summary speed fields = %#v, want absent", summary)
 	}
 }

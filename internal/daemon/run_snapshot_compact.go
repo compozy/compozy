@@ -17,6 +17,7 @@ var compactSnapshotEventKinds = []eventspkg.EventKind{
 	eventspkg.EventKindJobCompleted,
 	eventspkg.EventKindJobFailed,
 	eventspkg.EventKindJobCancelled,
+	eventspkg.EventKindSessionStarted,
 	eventspkg.EventKindShutdownRequested,
 	eventspkg.EventKindShutdownDraining,
 	eventspkg.EventKindShutdownTerminated,

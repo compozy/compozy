@@ -122,7 +122,7 @@ func (r *Run) Summary() RunSummary {
 	if r == nil {
 		return RunSummary{}
 	}
-	return r.summary
+	return cloneRunSummary(r.summary)
 }
 
 func newDefaultDaemonRunReader() (daemonRunReader, error) {
@@ -269,8 +269,15 @@ func (d *defaultDaemonRunReader) summaryFromRun(
 		if jobs[i].Summary == nil {
 			continue
 		}
-		summary.IDE = firstNonEmpty(summary.IDE, jobs[i].Summary.IDE)
-		summary.Model = firstNonEmpty(summary.Model, jobs[i].Summary.Model)
+		jobSummary := jobs[i].Summary
+		summary.IDE = firstNonEmpty(summary.IDE, jobSummary.IDE)
+		summary.Model = firstNonEmpty(summary.Model, jobSummary.Model)
+		if summary.Speed == "" && jobSummary.Speed != "" {
+			summary.Speed = jobSummary.Speed
+		}
+		if jobSummary.SpeedResolution != nil {
+			setSummarySpeedResolution(&summary, runJobIndex(jobs[i]), jobSummary.SpeedResolution)
+		}
 	}
 	if summary.Status == "" {
 		summary.Status = defaultRunStatus()
@@ -301,8 +308,16 @@ func applySummaryEventDetails(summary *RunSummary, items []events.Event) {
 		return
 	}
 
+	snapshotSpeed := summary.Speed
+	snapshotResolutions := cloneSpeedResolutions(summary.SpeedResolutions)
 	for i := range items {
 		applyRunSummaryEvent(summary, items[i])
+	}
+	if snapshotSpeed != "" {
+		summary.Speed = snapshotSpeed
+	}
+	for index, resolution := range snapshotResolutions {
+		setSummarySpeedResolution(summary, index, &resolution)
 	}
 }
 
@@ -328,6 +343,12 @@ func applyRunSummaryEvent(summary *RunSummary, item events.Event) {
 		applyJobQueuedSummary(summary, item.Payload)
 	case events.EventKindJobStarted:
 		applyJobStartedSummary(summary, item.Payload)
+	case events.EventKindJobRetryScheduled:
+		applyJobRetryScheduledSummary(summary, item.Payload)
+	case events.EventKindSessionStarted:
+		applySessionStartedSummary(summary, item.Payload)
+	case events.EventKindJobFailed:
+		applyJobFailedSummary(summary, item.Payload)
 	}
 }
 
@@ -339,6 +360,9 @@ func applyRunQueuedSummary(summary *RunSummary, payloadJSON []byte) {
 	summary.WorkspaceRoot = firstNonEmpty(summary.WorkspaceRoot, payload.WorkspaceRoot)
 	summary.IDE = firstNonEmpty(summary.IDE, payload.IDE)
 	summary.Model = firstNonEmpty(summary.Model, payload.Model)
+	if payload.Speed != "" {
+		summary.Speed = payload.Speed
+	}
 }
 
 func applyRunStartedSummary(summary *RunSummary, payloadJSON []byte) {
@@ -350,6 +374,9 @@ func applyRunStartedSummary(summary *RunSummary, payloadJSON []byte) {
 	summary.IDE = firstNonEmpty(summary.IDE, payload.IDE)
 	summary.Model = firstNonEmpty(summary.Model, payload.Model)
 	summary.ArtifactsDir = firstNonEmpty(summary.ArtifactsDir, payload.ArtifactsDir)
+	if payload.Speed != "" {
+		summary.Speed = payload.Speed
+	}
 }
 
 func applyRunTerminalSummary[T any](
@@ -375,6 +402,9 @@ func applyJobQueuedSummary(summary *RunSummary, payloadJSON []byte) {
 	}
 	summary.IDE = firstNonEmpty(summary.IDE, payload.IDE)
 	summary.Model = firstNonEmpty(summary.Model, payload.Model)
+	if payload.Speed != "" {
+		summary.Speed = payload.Speed
+	}
 }
 
 func applyJobStartedSummary(summary *RunSummary, payloadJSON []byte) {
@@ -384,6 +414,82 @@ func applyJobStartedSummary(summary *RunSummary, payloadJSON []byte) {
 	}
 	summary.IDE = firstNonEmpty(summary.IDE, payload.IDE)
 	summary.Model = firstNonEmpty(summary.Model, payload.Model)
+	if payload.Speed != "" {
+		summary.Speed = payload.Speed
+	}
+	clearSummarySpeedResolution(summary, payload.Index)
+}
+
+func applyJobRetryScheduledSummary(summary *RunSummary, payloadJSON []byte) {
+	var payload kinds.JobRetryScheduledPayload
+	if json.Unmarshal(payloadJSON, &payload) != nil {
+		return
+	}
+	clearSummarySpeedResolution(summary, payload.Index)
+}
+
+func applySessionStartedSummary(summary *RunSummary, payloadJSON []byte) {
+	var payload kinds.SessionStartedPayload
+	if json.Unmarshal(payloadJSON, &payload) != nil || payload.SpeedResolution == nil {
+		return
+	}
+	setSummarySpeedResolution(summary, payload.Index, payload.SpeedResolution)
+}
+
+func applyJobFailedSummary(summary *RunSummary, payloadJSON []byte) {
+	var payload kinds.JobFailedPayload
+	if json.Unmarshal(payloadJSON, &payload) != nil || payload.SpeedResolution == nil {
+		return
+	}
+	setSummarySpeedResolution(summary, payload.Index, payload.SpeedResolution)
+}
+
+func runJobIndex(job daemonRunJobState) int {
+	if job.Index == 0 && job.Summary != nil && job.Summary.Index != 0 {
+		return job.Summary.Index
+	}
+	return job.Index
+}
+
+func setSummarySpeedResolution(
+	summary *RunSummary,
+	index int,
+	resolution *kinds.SpeedResolution,
+) {
+	if summary == nil || resolution == nil {
+		return
+	}
+	if summary.SpeedResolutions == nil {
+		summary.SpeedResolutions = make(map[int]kinds.SpeedResolution)
+	}
+	summary.SpeedResolutions[index] = *resolution
+}
+
+func clearSummarySpeedResolution(summary *RunSummary, index int) {
+	if summary == nil || summary.SpeedResolutions == nil {
+		return
+	}
+	delete(summary.SpeedResolutions, index)
+	if len(summary.SpeedResolutions) == 0 {
+		summary.SpeedResolutions = nil
+	}
+}
+
+func cloneSpeedResolutions(src map[int]kinds.SpeedResolution) map[int]kinds.SpeedResolution {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[int]kinds.SpeedResolution, len(src))
+	for index, resolution := range src {
+		dst[index] = resolution
+	}
+	return dst
+}
+
+func cloneRunSummary(src RunSummary) RunSummary {
+	dst := src
+	dst.SpeedResolutions = cloneSpeedResolutions(src.SpeedResolutions)
+	return dst
 }
 
 func firstNonEmpty(values ...string) string {

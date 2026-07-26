@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,12 +50,33 @@ func TestOpenAndListUseDaemonBackedHTTPTransport(t *testing.T) {
 					EndedAt:     timePointer(base.Add(time.Hour + time.Minute)),
 					WorkspaceID: "ws-1",
 				},
-				Jobs: []apicore.RunJobState{{
-					Summary: &apicore.RunJobSummary{
-						IDE:   "codex",
-						Model: "gpt-5.5",
+				Jobs: []apicore.RunJobState{
+					{
+						Index: 0,
+						Summary: &apicore.RunJobSummary{
+							Index: 0,
+							IDE:   "codex",
+							Model: "gpt-5.5",
+							Speed: kinds.SpeedFast,
+							SpeedResolution: &kinds.SpeedResolution{
+								Requested: kinds.SpeedFast,
+								Status:    kinds.SpeedResolutionStatusApplied,
+							},
+						},
 					},
-				}},
+					{
+						Index: 1,
+						Summary: &apicore.RunJobSummary{
+							Index: 1,
+							Speed: kinds.SpeedFast,
+							SpeedResolution: &kinds.SpeedResolution{
+								Requested: kinds.SpeedFast,
+								Status:    kinds.SpeedResolutionStatusUnsupported,
+								Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+							},
+						},
+					},
+				},
 			},
 		},
 		events: map[string]apicore.RunEventPage{
@@ -66,7 +89,7 @@ func TestOpenAndListUseDaemonBackedHTTPTransport(t *testing.T) {
 						Timestamp:     base.Add(time.Hour),
 						Kind:          events.EventKindRunStarted,
 						Payload: []byte(
-							`{"workspace_root":"/workspace","artifacts_dir":"/tmp/home/.compozy/runs/run-2","ide":"codex","model":"gpt-5.5"}`,
+							`{"workspace_root":"/workspace","artifacts_dir":"/tmp/home/.compozy/runs/run-2","ide":"codex","model":"gpt-5.5","speed":"fast"}`,
 						),
 					},
 				},
@@ -92,6 +115,23 @@ func TestOpenAndListUseDaemonBackedHTTPTransport(t *testing.T) {
 		}
 		if summary.IDE != "codex" || summary.Model != "gpt-5.5" {
 			t.Fatalf("Summary() IDE/model = %q/%q, want codex/gpt-5.5", summary.IDE, summary.Model)
+		}
+		if summary.Speed != kinds.SpeedFast {
+			t.Fatalf("Summary().Speed = %q, want fast", summary.Speed)
+		}
+		wantResolutions := map[int]kinds.SpeedResolution{
+			0: {
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			1: {
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+		}
+		if !reflect.DeepEqual(summary.SpeedResolutions, wantResolutions) {
+			t.Fatalf("Summary().SpeedResolutions = %#v, want %#v", summary.SpeedResolutions, wantResolutions)
 		}
 	})
 }
@@ -251,6 +291,71 @@ func TestOpenMatchesInternalClientSnapshotMetadata(t *testing.T) {
 		}
 		if summary.IDE != "codex" || summary.Model != "gpt-5.5" {
 			t.Fatalf("summary IDE/model = %q/%q, want codex/gpt-5.5", summary.IDE, summary.Model)
+		}
+	})
+}
+
+func TestOpenHistoricalSnapshotAndEventsDoNotFabricateSpeed(t *testing.T) {
+	base := time.Date(2026, 4, 17, 14, 30, 0, 0, time.UTC)
+	service := &integrationRunService{
+		snapshots: map[string]apicore.RunSnapshot{
+			"run-historical": {
+				Run: apicore.Run{
+					RunID:     "run-historical",
+					Mode:      "exec",
+					Status:    "completed",
+					StartedAt: base,
+				},
+				Jobs: []apicore.RunJobState{{
+					Index: 0,
+					Summary: &apicore.RunJobSummary{
+						Index: 0,
+						IDE:   "codex",
+						Model: "historical-model",
+					},
+				}},
+			},
+		},
+		events: map[string]apicore.RunEventPage{
+			"run-historical": {
+				Events: []events.Event{
+					{
+						SchemaVersion: events.SchemaVersion,
+						RunID:         "run-historical",
+						Seq:           1,
+						Timestamp:     base,
+						Kind:          events.EventKindRunStarted,
+						Payload:       []byte(`{"mode":"exec","ide":"codex","model":"historical-model"}`),
+					},
+					{
+						SchemaVersion: events.SchemaVersion,
+						RunID:         "run-historical",
+						Seq:           2,
+						Timestamp:     base.Add(time.Second),
+						Kind:          events.EventKindJobStarted,
+						Payload:       []byte(`{"index":0,"attempt":1}`),
+					},
+					{
+						SchemaVersion: events.SchemaVersion,
+						RunID:         "run-historical",
+						Seq:           3,
+						Timestamp:     base.Add(2 * time.Second),
+						Kind:          events.EventKindSessionStarted,
+						Payload:       []byte(`{"index":0,"acp_session_id":"historical-session"}`),
+					},
+				},
+			},
+		},
+	}
+
+	withIntegrationDaemonServer(t, service, func(_ int) {
+		run, err := Open("/workspace", "run-historical")
+		if err != nil {
+			t.Fatalf("Open() historical error = %v", err)
+		}
+		summary := run.Summary()
+		if summary.Speed != "" || summary.SpeedResolutions != nil {
+			t.Fatalf("historical summary speed fields = %#v, want absent", summary)
 		}
 	})
 }

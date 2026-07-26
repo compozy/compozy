@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"encoding/json"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -405,4 +407,206 @@ func TestRunSnapshotBuilderInfersSparseQueuedTaskNumber(t *testing.T) {
 			t.Fatalf("task number = %d, want %d", got, want)
 		}
 	})
+}
+
+func TestRunSnapshotBuilderProjectsLatestIndexedSpeedOutcomes(t *testing.T) {
+	t.Parallel()
+
+	applied := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusApplied,
+	}
+	unsupported := kinds.SpeedResolution{
+		Requested: kinds.SpeedNormal,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+	rejected := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusRejected,
+		Reason:    kinds.SpeedResolutionReasonProviderRejected,
+	}
+
+	builder := newRunSnapshotBuilder()
+	for _, item := range []struct {
+		kind    eventspkg.EventKind
+		payload any
+	}{
+		{
+			kind: eventspkg.EventKindJobQueued,
+			payload: kinds.JobQueuedPayload{
+				Index: 0,
+				Speed: kinds.SpeedFast,
+			},
+		},
+		{
+			kind: eventspkg.EventKindJobStarted,
+			payload: kinds.JobStartedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 2},
+				Speed:          kinds.SpeedFast,
+			},
+		},
+		{
+			kind: eventspkg.EventKindJobFailed,
+			payload: kinds.JobFailedPayload{
+				JobAttemptInfo:  kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 2},
+				SpeedResolution: &rejected,
+			},
+		},
+		{
+			kind: eventspkg.EventKindJobRetryScheduled,
+			payload: kinds.JobRetryScheduledPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 2, MaxAttempts: 2},
+			},
+		},
+		{
+			kind: eventspkg.EventKindJobStarted,
+			payload: kinds.JobStartedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 2, MaxAttempts: 2},
+				Speed:          kinds.SpeedFast,
+			},
+		},
+		{
+			kind: eventspkg.EventKindSessionStarted,
+			payload: kinds.SessionStartedPayload{
+				Index:           0,
+				ACPSessionID:    "session-retry",
+				SpeedResolution: &applied,
+			},
+		},
+		{
+			kind: eventspkg.EventKindJobQueued,
+			payload: kinds.JobQueuedPayload{
+				Index: 1,
+				Speed: kinds.SpeedNormal,
+			},
+		},
+		{
+			kind: eventspkg.EventKindJobStarted,
+			payload: kinds.JobStartedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
+				Speed:          kinds.SpeedNormal,
+			},
+		},
+		{
+			kind: eventspkg.EventKindSessionStarted,
+			payload: kinds.SessionStartedPayload{
+				Index:           1,
+				ACPSessionID:    "session-unsupported",
+				SpeedResolution: &unsupported,
+			},
+		},
+		{
+			kind: eventspkg.EventKindJobQueued,
+			payload: kinds.JobQueuedPayload{
+				Index: 2,
+				Speed: kinds.SpeedFast,
+			},
+		},
+		{
+			kind: eventspkg.EventKindJobFailed,
+			payload: kinds.JobFailedPayload{
+				JobAttemptInfo:  kinds.JobAttemptInfo{Index: 2, Attempt: 1, MaxAttempts: 1},
+				SpeedResolution: &rejected,
+			},
+		},
+	} {
+		applyRunSnapshotTestEvent(t, builder, item.kind, item.payload)
+	}
+
+	states := builder.jobStates()
+	if len(states) != 3 {
+		t.Fatalf("job states = %#v, want three indexed jobs", states)
+	}
+	assertRunSnapshotSpeed(t, states[0], kinds.SpeedFast, &applied)
+	assertRunSnapshotSpeed(t, states[1], kinds.SpeedNormal, &unsupported)
+	assertRunSnapshotSpeed(t, states[2], kinds.SpeedFast, &rejected)
+}
+
+func TestRunSnapshotBuilderPreservesHistoricalSpeedAbsenceAndClonesResolution(t *testing.T) {
+	t.Parallel()
+
+	builder := newRunSnapshotBuilder()
+	if err := builder.applyEvent(eventspkg.Event{
+		Kind:    eventspkg.EventKindJobQueued,
+		Payload: json.RawMessage(`{"index":0,"safe_name":"historical"}`),
+	}); err != nil {
+		t.Fatalf("apply historical job.queued event: %v", err)
+	}
+	if err := builder.applyEvent(eventspkg.Event{
+		Kind:    eventspkg.EventKindSessionStarted,
+		Payload: json.RawMessage(`{"index":0,"acp_session_id":"historical-session"}`),
+	}); err != nil {
+		t.Fatalf("apply historical session.started event: %v", err)
+	}
+
+	states := builder.jobStates()
+	assertRunSnapshotSpeed(t, states[0], "", nil)
+
+	resolution := &kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusApplied,
+	}
+	cloned := cloneRunJobSummary(apicore.RunJobSummary{
+		Speed:           kinds.SpeedFast,
+		SpeedResolution: resolution,
+	})
+	resolution.Status = kinds.SpeedResolutionStatusRejected
+	if cloned.Speed != kinds.SpeedFast || cloned.SpeedResolution == nil ||
+		cloned.SpeedResolution.Status != kinds.SpeedResolutionStatusApplied {
+		t.Fatalf("cloned speed summary = %#v, want independent canonical values", cloned)
+	}
+}
+
+func TestCompactSnapshotEventKindsRetainResolutionEvents(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []eventspkg.EventKind{
+		eventspkg.EventKindSessionStarted,
+		eventspkg.EventKindJobFailed,
+	} {
+		if !slices.Contains(compactSnapshotEventKinds, kind) {
+			t.Fatalf("compact snapshot event kinds omit resolution-bearing %q", kind)
+		}
+	}
+}
+
+func applyRunSnapshotTestEvent(
+	t *testing.T,
+	builder *runSnapshotBuilder,
+	kind eventspkg.EventKind,
+	payload any,
+) {
+	t.Helper()
+
+	rawPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(%T) error = %v", payload, err)
+	}
+	if err := builder.applyEvent(eventspkg.Event{
+		RunID:   "run-speed-projection",
+		Kind:    kind,
+		Payload: rawPayload,
+	}); err != nil {
+		t.Fatalf("applyEvent(%s) error = %v", kind, err)
+	}
+}
+
+func assertRunSnapshotSpeed(
+	t *testing.T,
+	state apicore.RunJobState,
+	wantSpeed kinds.Speed,
+	wantResolution *kinds.SpeedResolution,
+) {
+	t.Helper()
+
+	if state.Summary == nil {
+		t.Fatalf("job state = %#v, want summary", state)
+	}
+	if state.Summary.Speed != wantSpeed {
+		t.Fatalf("job speed = %q, want %q", state.Summary.Speed, wantSpeed)
+	}
+	if !reflect.DeepEqual(state.Summary.SpeedResolution, wantResolution) {
+		t.Fatalf("job resolution = %#v, want %#v", state.Summary.SpeedResolution, wantResolution)
+	}
 }

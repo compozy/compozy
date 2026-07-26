@@ -6,20 +6,24 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 // RunSummary is the public metadata view for one persisted run.
 type RunSummary struct {
-	RunID         string
-	ParentRunID   string
-	Status        string
-	Mode          string
-	IDE           string
-	Model         string
-	WorkspaceRoot string
-	StartedAt     time.Time
-	EndedAt       *time.Time
-	ArtifactsDir  string
+	RunID            string
+	ParentRunID      string
+	Status           string
+	Mode             string
+	IDE              string
+	Model            string
+	Speed            kinds.Speed
+	SpeedResolutions map[int]kinds.SpeedResolution
+	WorkspaceRoot    string
+	StartedAt        time.Time
+	EndedAt          *time.Time
+	ArtifactsDir     string
 }
 
 // ListOptions filters the runs returned by List.
