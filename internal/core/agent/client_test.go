@@ -56,6 +56,101 @@ func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) 
 	}
 }
 
+func TestClientInitializePreservesCapabilitiesWithoutBooleanClaim(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:              t.TempDir(),
+		ExpectedPrompt:           "verify released client capabilities",
+		ExpectClientCapabilities: true,
+		StopReason:               string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	_ = collectSessionUpdates(t, session)
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestClientReleasedSDKConfigOptionsPreserveSessionCompatibility(t *testing.T) {
+	t.Parallel()
+
+	options := []acp.SessionConfigOption{
+		completeFlatSelectConfigOption(
+			"provider-speed",
+			"Speed",
+			speedTestCategory("model_config"),
+			"standard-tier",
+			completeSelectValue("standard-tier", "Standard"),
+			completeSelectValue("accelerated-tier", "Enabled"),
+		),
+		completeBooleanConfigOption(
+			"provider-fast",
+			"Fast Mode",
+			speedTestCategory("model_config"),
+			false,
+		),
+	}
+
+	t.Run("new session", func(t *testing.T) {
+		t.Parallel()
+
+		scenario := helperScenario{
+			ExpectedCWD:             t.TempDir(),
+			ExpectedPrompt:          "new session with complete options",
+			NewSessionConfigOptions: options,
+			StopReason:              string(acp.StopReasonEndTurn),
+		}
+		client := newTestClient(t, scenario)
+		session, err := client.CreateSession(context.Background(), SessionRequest{
+			WorkingDir: scenario.ExpectedCWD,
+			Prompt:     []byte(scenario.ExpectedPrompt),
+		})
+		if err != nil {
+			t.Fatalf("create session: %v", err)
+		}
+		_ = collectSessionUpdates(t, session)
+		if err := client.Close(); err != nil {
+			t.Fatalf("close client: %v", err)
+		}
+	})
+
+	t.Run("loaded session", func(t *testing.T) {
+		t.Parallel()
+
+		scenario := helperScenario{
+			SessionID:                "session-existing",
+			ExpectedCWD:              t.TempDir(),
+			ExpectedLoadSessionID:    "session-existing",
+			ExpectedPrompt:           "loaded session with complete options",
+			SupportsLoadSession:      true,
+			LoadSessionConfigOptions: options,
+			StopReason:               string(acp.StopReasonEndTurn),
+		}
+		client := newTestClient(t, scenario)
+		session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+			SessionID:  scenario.SessionID,
+			WorkingDir: scenario.ExpectedCWD,
+			Prompt:     []byte(scenario.ExpectedPrompt),
+		})
+		if err != nil {
+			t.Fatalf("resume session: %v", err)
+		}
+		_ = collectSessionUpdates(t, session)
+		if err := client.Close(); err != nil {
+			t.Fatalf("close client: %v", err)
+		}
+	})
+}
+
 func TestClientCreateSessionStartsAgentProcessInWorkingDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -2246,14 +2341,17 @@ func TestProcessStderrHelperProcess(_ *testing.T) {
 }
 
 type helperScenario struct {
-	SessionID                     string          `json:"session_id,omitempty"`
-	ExpectedCWD                   string          `json:"expected_cwd,omitempty"`
-	ExpectedProcessCWD            string          `json:"expected_process_cwd,omitempty"`
-	ExpectedLoadSessionID         string          `json:"expected_load_session_id,omitempty"`
-	ExpectedNewSessionMCPServers  []acp.McpServer `json:"expected_new_session_mcp_servers,omitempty"`
-	ExpectedLoadSessionMCPServers []acp.McpServer `json:"expected_load_session_mcp_servers,omitempty"`
-	ExpectedPrompt                string          `json:"expected_prompt,omitempty"`
-	ExpectedSessionModeID         string          `json:"expected_session_mode_id,omitempty"`
+	SessionID                     string                    `json:"session_id,omitempty"`
+	ExpectedCWD                   string                    `json:"expected_cwd,omitempty"`
+	ExpectedProcessCWD            string                    `json:"expected_process_cwd,omitempty"`
+	ExpectedLoadSessionID         string                    `json:"expected_load_session_id,omitempty"`
+	ExpectedNewSessionMCPServers  []acp.McpServer           `json:"expected_new_session_mcp_servers,omitempty"`
+	ExpectedLoadSessionMCPServers []acp.McpServer           `json:"expected_load_session_mcp_servers,omitempty"`
+	ExpectedPrompt                string                    `json:"expected_prompt,omitempty"`
+	ExpectedSessionModeID         string                    `json:"expected_session_mode_id,omitempty"`
+	ExpectClientCapabilities      bool                      `json:"expect_client_capabilities,omitempty"`
+	NewSessionConfigOptions       []acp.SessionConfigOption `json:"new_session_config_options,omitempty"`
+	LoadSessionConfigOptions      []acp.SessionConfigOption `json:"load_session_config_options,omitempty"`
 	// ExpectedEnvVars asserts process environment values at helper startup.
 	// An empty value means the variable must be unset or empty.
 	ExpectedEnvVars         map[string]string   `json:"expected_env_vars,omitempty"`
@@ -2299,7 +2397,42 @@ func (a *helperAgent) connection() *acp.AgentSideConnection {
 	return a.conn
 }
 
-func (a *helperAgent) Initialize(context.Context, acp.InitializeRequest) (acp.InitializeResponse, error) {
+func (a *helperAgent) Initialize(
+	_ context.Context,
+	req acp.InitializeRequest,
+) (acp.InitializeResponse, error) {
+	if a.scenario.ExpectClientCapabilities {
+		want := acp.ClientCapabilities{
+			Fs: acp.FileSystemCapabilities{
+				ReadTextFile:  true,
+				WriteTextFile: true,
+			},
+			Terminal: true,
+		}
+		if !reflect.DeepEqual(req.ClientCapabilities, want) {
+			return acp.InitializeResponse{}, &acp.RequestError{
+				Code: 4005,
+				Message: fmt.Sprintf(
+					"unexpected client capabilities %#v",
+					req.ClientCapabilities,
+				),
+			}
+		}
+		raw, err := json.Marshal(req.ClientCapabilities)
+		if err != nil {
+			return acp.InitializeResponse{}, fmt.Errorf("marshal client capabilities: %w", err)
+		}
+		encoded := string(raw)
+		if strings.Contains(encoded, `"session"`) ||
+			strings.Contains(encoded, `"configOptions"`) ||
+			strings.Contains(encoded, `"boolean"`) ||
+			strings.Contains(encoded, `"_meta"`) {
+			return acp.InitializeResponse{}, &acp.RequestError{
+				Code:    4006,
+				Message: fmt.Sprintf("unexpected boolean capability claim %s", encoded),
+			}
+		}
+	}
 	return acp.InitializeResponse{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		AgentCapabilities: acp.AgentCapabilities{
@@ -2329,8 +2462,9 @@ func (a *helperAgent) NewSession(_ context.Context, req acp.NewSessionRequest) (
 		return acp.NewSessionResponse{}, err
 	}
 	return acp.NewSessionResponse{
-		SessionId: acp.SessionId(a.sessionID),
-		Meta:      a.scenario.SessionMeta,
+		SessionId:     acp.SessionId(a.sessionID),
+		Meta:          a.scenario.SessionMeta,
+		ConfigOptions: append([]acp.SessionConfigOption(nil), a.scenario.NewSessionConfigOptions...),
 	}, nil
 }
 
@@ -2357,7 +2491,10 @@ func (a *helperAgent) LoadSession(ctx context.Context, req acp.LoadSessionReques
 	if err := a.emitUpdates(ctx, a.scenario.ReplayUpdatesOnLoad); err != nil {
 		return acp.LoadSessionResponse{}, err
 	}
-	return acp.LoadSessionResponse{Meta: a.scenario.SessionMeta}, nil
+	return acp.LoadSessionResponse{
+		Meta:          a.scenario.SessionMeta,
+		ConfigOptions: append([]acp.SessionConfigOption(nil), a.scenario.LoadSessionConfigOptions...),
+	}, nil
 }
 
 func (a *helperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {

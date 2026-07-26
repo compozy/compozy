@@ -585,6 +585,95 @@ func TestSpeedConfigMatchBuildsExactRequestOrSkips(t *testing.T) {
 	}
 }
 
+func TestMatchV1SpeedConfigEnforcesReleasedCapabilityBoundary(t *testing.T) {
+	t.Parallel()
+
+	category := speedTestCategory("model_config")
+	booleanOption := completeBooleanConfigOption(
+		"provider-fast",
+		"Fast Mode",
+		category,
+		false,
+	)
+	selectOption := completeFlatSelectConfigOption(
+		"provider-speed",
+		"Speed",
+		category,
+		"standard-tier",
+		completeSelectValue("standard-tier", "Standard"),
+		completeSelectValue("accelerated-tier", "Enabled"),
+	)
+
+	tests := []struct {
+		name       string
+		requested  kinds.Speed
+		option     acp.SessionConfigOption
+		wantTarget acp.SessionConfigValueId
+	}{
+		{
+			name:      "normal boolean remains unsupported",
+			requested: kinds.SpeedNormal,
+			option:    booleanOption,
+		},
+		{
+			name:      "fast boolean remains unsupported",
+			requested: kinds.SpeedFast,
+			option:    booleanOption,
+		},
+		{
+			name:       "normal select remains eligible",
+			requested:  kinds.SpeedNormal,
+			option:     selectOption,
+			wantTarget: "standard-tier",
+		},
+		{
+			name:       "fast select remains eligible",
+			requested:  kinds.SpeedFast,
+			option:     selectOption,
+			wantTarget: "accelerated-tier",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := matchV1SpeedConfig(
+				test.requested,
+				[]acp.SessionConfigOption{test.option},
+			)
+			if test.wantTarget == "" {
+				if result.match != nil {
+					t.Fatalf("boolean boundary constructed production target: %#v", *result.match)
+				}
+				if result.reason != kinds.SpeedResolutionReasonCapabilityAbsent {
+					t.Fatalf(
+						"boolean boundary reason = %q, want %q",
+						result.reason,
+						kinds.SpeedResolutionReasonCapabilityAbsent,
+					)
+				}
+				return
+			}
+
+			assertSupportedSpeedMatch(
+				t,
+				result,
+				speedConfigShapeSelect,
+				"provider-speed",
+			)
+			if result.match.selectTarget != test.wantTarget {
+				t.Fatalf(
+					"select target = %q, want %q",
+					result.match.selectTarget,
+					test.wantTarget,
+				)
+			}
+		})
+	}
+}
+
 func TestConfirmSpeedConfigBoolean(t *testing.T) {
 	t.Parallel()
 

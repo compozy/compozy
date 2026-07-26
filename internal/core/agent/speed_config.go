@@ -14,6 +14,7 @@ type speedConfigShape uint8
 const (
 	speedConfigShapeBoolean speedConfigShape = iota + 1
 	speedConfigShapeSelect
+	speedConfigCategoryModelConfig = acp.SessionConfigOptionCategory("model_config")
 )
 
 type speedConfigMatch struct {
@@ -74,6 +75,14 @@ func matchSpeedConfig(requested kinds.Speed, options []acp.SessionConfigOption) 
 	return result
 }
 
+func matchV1SpeedConfig(requested kinds.Speed, options []acp.SessionConfigOption) speedConfigMatchResult {
+	result := matchSpeedConfig(requested, options)
+	if result.match != nil && result.match.shape == speedConfigShapeBoolean {
+		return unsupportedSpeedConfigMatch(kinds.SpeedResolutionReasonCapabilityAbsent)
+	}
+	return result
+}
+
 func unsupportedSpeedConfigMatch(reason kinds.SpeedResolutionReason) speedConfigMatchResult {
 	return speedConfigMatchResult{reason: reason}
 }
@@ -98,7 +107,8 @@ func isSpeedConfigOption(
 	id acp.SessionConfigId,
 	name string,
 ) bool {
-	if category == nil || normalizeSpeedToken(string(*category)) != "modelconfig" {
+	if category == nil ||
+		normalizeSpeedToken(string(*category)) != normalizeSpeedToken(string(speedConfigCategoryModelConfig)) {
 		return false
 	}
 	return isSpeedOptionToken(normalizeSpeedToken(string(id))) ||

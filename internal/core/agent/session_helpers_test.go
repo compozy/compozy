@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,6 +14,117 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/subprocess"
 )
+
+func TestReleasedACPConfigOptionAndWriteShapesRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	category := speedTestCategory("model_config")
+	selectOption := completeFlatSelectConfigOption(
+		"provider-speed",
+		"Speed",
+		category,
+		"standard-tier",
+		completeSelectValue("standard-tier", "Standard"),
+		completeSelectValue("accelerated-tier", "Enabled"),
+	)
+	booleanOption := completeBooleanConfigOption(
+		"provider-fast",
+		"Fast Mode",
+		category,
+		false,
+	)
+	sessionID := acp.SessionId("session-123")
+
+	t.Run("select option union", func(t *testing.T) {
+		t.Parallel()
+		assertReleasedACPJSONRoundTrip(t, selectOption)
+	})
+	t.Run("boolean option union", func(t *testing.T) {
+		t.Parallel()
+		assertReleasedACPJSONRoundTrip(t, booleanOption)
+	})
+	t.Run("select value-ID write", func(t *testing.T) {
+		t.Parallel()
+		assertReleasedACPJSONRoundTrip(t, acp.SetSessionConfigOptionRequest{
+			ValueId: &acp.SetSessionConfigOptionValueId{
+				SessionId: sessionID,
+				ConfigId:  "provider-speed",
+				Value:     "accelerated-tier",
+			},
+		})
+	})
+	t.Run("future boolean write", func(t *testing.T) {
+		t.Parallel()
+		assertReleasedACPJSONRoundTrip(t, acp.SetSessionConfigOptionRequest{
+			Boolean: &acp.SetSessionConfigOptionBoolean{
+				SessionId: sessionID,
+				ConfigId:  "provider-fast",
+				Type:      "boolean",
+				Value:     true,
+			},
+		})
+	})
+}
+
+func TestReleasedACPResponsesPreserveCompleteConfigOptionLists(t *testing.T) {
+	t.Parallel()
+
+	options := []acp.SessionConfigOption{
+		completeFlatSelectConfigOption(
+			"provider-speed",
+			"Speed",
+			speedTestCategory("model_config"),
+			"standard-tier",
+			completeSelectValue("standard-tier", "Standard"),
+			completeSelectValue("accelerated-tier", "Enabled"),
+		),
+		completeBooleanConfigOption(
+			"provider-fast",
+			"Fast Mode",
+			speedTestCategory("model_config"),
+			false,
+		),
+	}
+
+	t.Run("new session response", func(t *testing.T) {
+		t.Parallel()
+		assertReleasedACPJSONRoundTrip(t, acp.NewSessionResponse{
+			Meta:          map[string]any{"fixture": "new"},
+			ConfigOptions: options,
+			SessionId:     "session-new",
+		})
+	})
+	t.Run("load session response", func(t *testing.T) {
+		t.Parallel()
+		assertReleasedACPJSONRoundTrip(t, acp.LoadSessionResponse{
+			Meta:          map[string]any{"fixture": "load"},
+			ConfigOptions: options,
+		})
+	})
+	t.Run("set option response", func(t *testing.T) {
+		t.Parallel()
+		assertReleasedACPJSONRoundTrip(t, acp.SetSessionConfigOptionResponse{
+			Meta:          map[string]any{"fixture": "set"},
+			ConfigOptions: options,
+		})
+	})
+}
+
+func assertReleasedACPJSONRoundTrip[T any](t *testing.T, want T) {
+	t.Helper()
+
+	data, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("marshal released ACP value: %v", err)
+	}
+	var got T
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal released ACP value: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("released ACP round trip mismatch:\ngot:  %#v\nwant: %#v", got, want)
+	}
+}
 
 func TestConvertACPUpdateVariants(t *testing.T) {
 	t.Parallel()
