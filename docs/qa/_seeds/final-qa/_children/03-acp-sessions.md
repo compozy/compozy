@@ -100,7 +100,7 @@ The module already has thick unit and integration coverage. Real-LLM scenarios m
 
 ## 4. Real-LLM Scenarios
 
-Every scenario runs in a fresh `agh-qa-bootstrap` lab with isolated `COMPOZY_HOME`,
+Every scenario runs in a fresh `eng-qa-bootstrap` lab with isolated `COMPOZY_HOME`,
 daemon port, and tmux-bridge socket. Provider auth follows the resolved
 provider contract: bound-secret, brokered, and explicitly isolated-home lanes
 use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli` lanes with
@@ -671,7 +671,7 @@ expected_behavior:
 evidence:
   - `events_before.jsonl`, `events_after.jsonl`, `goose_version.txt`, `quick_check.txt`
 failure_signatures:
-  - events.db corrupted on cold start → wal/shm recovery regression (CLAUDE.md "agh-schema-migration: -wal / -shm companion handling on recovery")
+  - events.db corrupted on cold start → wal/shm recovery regression (CLAUDE.md "eng-schema-migration: -wal / -shm companion handling on recovery")
   - schema_version mismatch — migration didn't apply or applied twice
 cleanup: `compozy session stop $S`
 ```
@@ -731,7 +731,7 @@ cleanup: `compozy session stop $S`
 
 ## 9. Fixtures
 
-- **Bootstrap manifest**: produced by `agh-qa-bootstrap` skill; includes unique `COMPOZY_HOME`, daemon ports, tmux-bridge socket, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` paths, `COMPOZY_WEB_API_PROXY_TARGET` (when web QA also runs).
+- **Bootstrap manifest**: produced by `eng-qa-bootstrap` skill; includes unique `COMPOZY_HOME`, daemon ports, tmux-bridge socket, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` paths, `COMPOZY_WEB_API_PROXY_TARGET` (when web QA also runs).
 - **Workspace seed**: `$LAB/workspace/` with a `README.md` (≥3 paragraphs), `src/file_a.go`, `src/file_b.go`, and a `generated_long_file.txt` (~2MB) for ACP-16.
 - **Skill seed**: 12 enabled skills under `$COMPOZY_HOME/skills/` for ACP-11 (truncation proof).
 - **Provider auth**: direct `claude` uses native Claude CLI auth from the effective Claude home for the lane (operator `HOME` by default; isolated `PROVIDER_HOME` only for explicit isolated-home scenarios). OpenClaw, Hermes, wrapped providers, and brokered credentials follow their own contract and may stage auth into `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` when the lane is bound-secret or explicitly isolated.

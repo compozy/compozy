@@ -129,7 +129,7 @@ worktree-bootstrap:
 # lab runtime dirs after a clean sweep.
 .PHONY: qa-reap
 qa-reap:
-	@python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --all $(if $(PURGE),--purge,)
+	@python3 .agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --all $(if $(PURGE),--purge,)
 
 # Local daemon run
 #

@@ -36,7 +36,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 2. Load context.
    - Read `_prd.md`, `_techspec.md`, `_user_stories.md`, and `_tests.md` from `.compozy/tasks/<name>/`.
    - Read existing ADRs from `.compozy/tasks/<name>/adrs/` to understand the decision context behind requirements and design choices.
-   - Resolve every local artifact path or glob cited as a contract, including repo-relative and absolute paths outside the task directory. Read textual contracts and use `agh-ui-screenshot` to render and inspect named visual artifacts; a path mention is an input, not optional background.
+   - Resolve every local artifact path or glob cited as a contract, including repo-relative and absolute paths outside the task directory. Read textual contracts and use `eng-ui-screenshot` to render and inspect named visual artifacts; a path mention is an input, not optional background.
    - If `_techspec.md` is missing:
      - Warn the user that tasks will be higher-level without TechSpec implementation guidance.
      - Derive tasks from PRD functional requirements and the `_user_stories.md` catalog instead of TechSpec implementation sections.
@@ -110,7 +110,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
      - `## Deliverables`: concrete outputs, including every assigned test case implemented and passing.
      - `## Tests`: the assigned test-case IDs grouped by level with the behavior they cover; full case definitions stay in `_tests.md`.
      - `## Success Criteria`: measurable outcomes including "Every assigned test case implemented and passing".
-   - When the task implements visible UI from a named visual reference, also include `## Visual Contract` from the template. Its deliverables and success criteria MUST require the durable `agh-ui-screenshot` evidence bundle for every row; implementation-only captures are invalid evidence.
+   - When the task implements visible UI from a named visual reference, also include `## Visual Contract` from the template. Its deliverables and success criteria MUST require the durable `eng-ui-screenshot` evidence bundle for every row; implementation-only captures are invalid evidence.
    - Reassess complexity based on exploration findings and update if changed.
    - Update the task file in place with enriched content.
    - If enrichment fails for one task, continue to the next and report all failures at the end.

@@ -121,7 +121,7 @@ Same template as `03-acp-sessions` and `11-api-cli-parity`:
 
 Bootstrap and isolation discipline (mandatory for every scenario):
 
-- One isolated `COMPOZY_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario (per `agh-worktree-isolation` skill and `agh-qa-bootstrap`).
+- One isolated `COMPOZY_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario (per `eng-worktree-isolation` skill and `eng-qa-bootstrap`).
 - **`COMPOZY_WEB_API_PROXY_TARGET` exported from `bootstrap.env`** before launching either Vite (`make web-dev`) or Playwright (`make test-e2e-web`). Hardcoding `http://localhost:2123` is a blocker (`web/CLAUDE.md` Critical Rules + `web/src/lib/vite-api-proxy-target.ts`).
 - Bound-secret, brokered, and explicitly isolated-home auth staged into
   `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
@@ -1231,7 +1231,7 @@ cleanup:
 
 ## 11. Fixtures
 
-- **Bootstrap manifest**: produced by `agh-qa-bootstrap`; includes unique `COMPOZY_HOME`, daemon ports, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME`, **`COMPOZY_WEB_API_PROXY_TARGET`** (mandatory).
+- **Bootstrap manifest**: produced by `eng-qa-bootstrap`; includes unique `COMPOZY_HOME`, daemon ports, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME`, **`COMPOZY_WEB_API_PROXY_TARGET`** (mandatory).
 - **Workspace seed**: `$LAB/workspace/{README.md, src/file_a.go, src/file_b.go, generated_long_file.txt(~2MB)}` — same as `03-acp-sessions.md` ACP-16. Required for UI-02, UI-05, UI-09, UI-15, UI-20.
 - **Memory seed (UI-06)**: 3+ memories of mixed types/scopes via `runtime.requestOperatorJSON` POST; deleted in cleanup.
 - **Bridges seed (UI-08)**: 1 bridge with a known adapter and a malformed payload sample.

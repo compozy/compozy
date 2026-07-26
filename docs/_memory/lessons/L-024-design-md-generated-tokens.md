@@ -4,7 +4,7 @@
 **Date discovered:** 2026-05-12 (DESIGN.md token-drift refactor)
 **Evidence sources:** `DESIGN.md`, `packages/ui/src/tokens.css`,
 `packages/site/app/global.css`, `scripts/sync-design-md.mjs`,
-`.agents/skills/agh/agh-design/SKILL.md`, `magefile.go`, and the prior L-022 /
+`.agents/skills/eng/eng-design/SKILL.md`, `magefile.go`, and the prior L-022 /
 L-023 design-token consolidation.
 
 ## Context
@@ -45,7 +45,7 @@ run `make codegen`. `make codegen-check` must fail when `DESIGN.md` is stale.
 - `DESIGN.md` keeps human-authored sections for rationale, semantic component
   contracts, anti-patterns, site profile guidance, and references. It no longer
   owns token values by hand.
-- `.agents/skills/agh/agh-design/SKILL.md` stays short and points agents at
+- `.agents/skills/eng/eng-design/SKILL.md` stays short and points agents at
   `tokens.css`, `DESIGN.md`, component recipes, and `COPY.md` instead of
   duplicating the full design spec.
 - `magefile.go` wires `SyncDesignMD` into `Codegen` and `SyncDesignMDCheck`
@@ -74,7 +74,7 @@ run `make codegen`. `make codegen-check` must fail when `DESIGN.md` is stale.
   marker updater, and site audit.
 - `DESIGN.md` — generated token frontmatter and marker regions plus stable
   rationale.
-- `.agents/skills/agh/agh-design/SKILL.md` — slim design-skill dispatch contract.
+- `.agents/skills/eng/eng-design/SKILL.md` — slim design-skill dispatch contract.
 - `magefile.go` — `SyncDesignMD` and `SyncDesignMDCheck` codegen wiring.
 - `docs/_memory/lessons/L-022-eyebrow-canonical-source.md` and
   `docs/_memory/lessons/L-023-token-utility-canonical-form.md` — prior design

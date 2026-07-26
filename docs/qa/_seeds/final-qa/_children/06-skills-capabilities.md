@@ -87,7 +87,7 @@ QA mode is **real-scenario** (per the standing directive on real-scenario
 QA), not unit-test assertions. Every scenario:
 
 - Runs against an isolated COMPOZY_HOME with unique daemon ports + tmux-bridge
-  socket (per the `agh-worktree-isolation` skill).
+  socket (per the `eng-worktree-isolation` skill).
 - Resolves provider auth from the bootstrap manifest according to each
   provider contract: bound-secret, brokered, and explicitly isolated-home
   lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
@@ -125,7 +125,7 @@ tri-state policy. Per openclaw's own honest framing, no `aimock` lane.
 
 ## 5. Preconditions (apply to every scenario)
 
-- Fresh QA bootstrap via the `agh-qa-bootstrap` skill. Manifest path saved
+- Fresh QA bootstrap via the `eng-qa-bootstrap` skill. Manifest path saved
   to `bootstrap-manifest.json`; `bootstrap.env` exported into the shell
   before any `compozy` command.
 - Unique `COMPOZY_HOME` per worktree (per the worktree-isolation directive).
@@ -1037,11 +1037,11 @@ cleanup:
   - None.
 ```
 
-### SKL-16 — Real-LLM agent uses `agh-design` skill to produce a design artifact
+### SKL-16 — Real-LLM agent uses `eng-design` skill to produce a design artifact
 
 ```yaml qa-scenario
 id: skl-16-real-llm-skill-citation
-title: A real Claude Code subagent activates the `agh-design` skill to produce a design artifact; the final transcript contains explicit citations of the skill's guidance (color tokens, depth model, palette rules)
+title: A real Claude Code subagent activates the `eng-design` skill to produce a design artifact; the final transcript contains explicit citations of the skill's guidance (color tokens, depth model, palette rules)
 theme: skills.activation
 coverage:
   primary:
@@ -1055,11 +1055,11 @@ live: true
 provider: real-claude-code
 preconditions:
   - Vanilla bundled set + workspace skill OR user-installed
-    `agh-design` skill (whichever is shipped — confirm before
+    `eng-design` skill (whichever is shipped — confirm before
     running). The bundled set in `internal/skills/bundled/skills/`
-    today does NOT include `agh-design`; this scenario assumes
-    `agh-design` is installed at the user tier or referenced from
-    `.agents/skills/agh/agh-design/`. Document the exact source on the
+    today does NOT include `eng-design`; this scenario assumes
+    `eng-design` is installed at the user tier or referenced from
+    `.agents/skills/eng/eng-design/`. Document the exact source on the
     report.
   - Real Claude Code session in a test workspace.
 code_refs:
@@ -1067,14 +1067,14 @@ code_refs:
   - /Users/pedronauck/Dev/compozy/compozy/internal/skills/registry.go:91
   - /Users/pedronauck/Dev/compozy/compozy/internal/skills/catalog.go:66-110
 steps:
-  - Confirm `agh-design` is in `compozy skill list -o json`.
-  - Prompt the agent: "Use the `agh-design` skill to produce a 6-line
+  - Confirm `eng-design` is in `compozy skill list -o json`.
+  - Prompt the agent: "Use the `eng-design` skill to produce a 6-line
     summary of the Compozy visual grammar, citing concrete tokens from
     DESIGN.md.".
   - Capture transcript.
 expected:
   - Transcript explicitly mentions tokens from DESIGN.md / the
-    `agh-design` skill body — e.g. accent `#E8572A`, success
+    `eng-design` skill body — e.g. accent `#E8572A`, success
     `#30D158`, "flat depth", "warm-dark palette", Inter / JetBrains
     Mono / Playfair Display, NuixyberNext (wordmark only).
   - At least one explicit skill-body citation (verbatim phrase from
@@ -1086,10 +1086,10 @@ evidence:
   - Transcript fragment with cited tokens (color hex codes, font
     names, palette nomenclature).
   - System prompt snapshot showing `<available-skills>` includes
-    `agh-design`.
+    `eng-design`.
 failure_signatures:
   - Transcript contains hex codes / fonts not present in the
-    `agh-design` body or in DESIGN.md: model hallucinated outside
+    `eng-design` body or in DESIGN.md: model hallucinated outside
     the skill grounding.
   - Transcript reads like generic "design advice" with no Compozy-
     specific citations: skill body did not reach the model.
@@ -1318,7 +1318,7 @@ across any SKL scenario:
   through unchecked).
 - For the design scenario (SKL-16): "gradient", "drop-shadow", "neon
   cyan", "teal accent" — DESIGN.md forbids these and the agent must
-  not invent them when grounding on `agh-design`.
+  not invent them when grounding on `eng-design`.
 
 A single scenario test failure on this list is shippability-critical
 and must be triaged immediately.
@@ -1331,7 +1331,7 @@ operator-flow pattern (markdown report + JSON summary + observed events
 the coverage matrix from §9 alongside per-scenario `outcome ∈ {worked,
 failed, blocked, follow-up}` and machine-readable timing.
 
-The scenario operator runs in-character (per the `real-scenario-qa`
+The scenario operator runs in-character (per the `eng-real-scenario-qa`
 skill); every run ends with a Worked / Failed / Blocked / Follow-up
 section covering all 18 mandatory scenarios. A child run is shippable
 only when:

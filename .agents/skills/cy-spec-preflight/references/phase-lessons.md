@@ -20,7 +20,7 @@ Read the matching lessons before authoring. All paths relative to `docs/_memory/
 
 - `L-002-tparallel-vs-tsetenv.md` — test plan must respect Go testing contract.
 - `L-007-e2e-follows-runtime-contract.md` — E2E mocks ship with runtime contract changes.
-- `L-009-concurrent-worktree-deadlock.md` — QA tasks include `agh-worktree-isolation`.
+- `L-009-concurrent-worktree-deadlock.md` — QA tasks include `eng-worktree-isolation`.
 - `L-011-fraco-test-coverage-pushback.md` — test density must be proportional to behaviors.
 
 ## Phase: `task-body`

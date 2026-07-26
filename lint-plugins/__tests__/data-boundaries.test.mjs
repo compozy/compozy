@@ -46,7 +46,7 @@ function collectMessages(value) {
 }
 
 async function runOxlint({ filename, source }) {
-  const root = await mkdtemp(join(tmpdir(), "agh-data-boundaries-"));
+  const root = await mkdtemp(join(tmpdir(), "compozy-data-boundaries-"));
   tempRoots.push(root);
   const sourcePath = join(root, filename);
   await mkdir(dirname(sourcePath), { recursive: true });

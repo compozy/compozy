@@ -39,7 +39,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 | Duplicate fidelity including sidecars | Pass | MCP, Soul, Heartbeat, and opaque files were byte-identical except requested name/digest changes. |
 | Truthful verbs and metrics | Pass | Non-interactive confirmation, CAS conflict, Heartbeat eligibility, partial sessions, and live/total signals matched daemon state. |
 | WCAG AA floor | Pass | Semantic a11y snapshots plus neutral pill contrast 5.06:1 on canvas and 4.70:1 on soft surface. |
-| Approved design parity | Pass | Desktop/920/560 captures match `docs/design/opendesign`; deterministic topbar capture at `/tmp/agh-ui-screenshot/task09-controller/topbar-actions.png`. |
+| Approved design parity | Pass | Desktop/920/560 captures match `docs/design/opendesign`; deterministic topbar capture at `/tmp/eng-ui-screenshot/task09-controller/topbar-actions.png`. |
 
 ## What Was Fixed
 

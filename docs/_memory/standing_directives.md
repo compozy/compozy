@@ -79,11 +79,11 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 - Every program ends with a `qa-report` task and a `qa-execution` task. UI-bearing features include browser-based e2e.
 - QA state is living repo docs: the pair operates on the committed `docs/qa/` tree (`state.csv` scenario tracker, global `bugs/BUG-NNNN.md` registry, journeys, session charters, dated `reports/<date>-<scope>.md`). Per-round `qa/` trees and reset bug ids are the retired anti-pattern.
-- For release validation on the multi-agent runtime, the `real-scenario-qa` skill runs a playbook lab (bootstrap via `agh-qa-bootstrap`, one in-persona operator kickoff, runtime observation, strict audit) and delegates planning/execution mechanics to the `qa-report` + `qa-execution` pair; its findings also land in `docs/qa/`.
+- For release validation on the multi-agent runtime, the `eng-real-scenario-qa` skill runs a playbook lab (bootstrap via `eng-qa-bootstrap`, one in-persona operator kickoff, runtime observation, strict audit) and delegates planning/execution mechanics to the `qa-report` + `qa-execution` pair; its findings also land in `docs/qa/`.
 - Hermetic QA still respects each provider's auth contract: bound-secret and brokered lanes isolate `PROVIDER_HOME`, while `native_cli` providers with `home_policy=operator` keep the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior.
 - Concrete bug evidence (autonomy task_18 BUG-001/002/003, Hermes BUG-001..007) shows the QA pass surfaces real production bugs the unit/lint/build coverage cannot catch.
 
-**Source:** Codex sessions (most-repeated request); `qa-report`/`qa-execution` SKILL.md (living-docs contract); `real-scenario-qa` SKILL.md (runtime-observation harness); autonomy and Hermes QA verification reports (historical).
+**Source:** Codex sessions (most-repeated request); `qa-report`/`qa-execution` SKILL.md (living-docs contract); `eng-real-scenario-qa` SKILL.md (runtime-observation harness); autonomy and Hermes QA verification reports (historical).
 
 ---
 
@@ -100,7 +100,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 - Add focused regression coverage at the correct layer, or record why an existing gate already owns the invariant.
 - Re-run the narrow reproduction, the impacted scenario, and relevant package tests.
 
-**Source:** `.codex/plans/` (consistent forensic frame in `child-workgroup-activation.md`, `session-stop-hang.md`, `dashboard-xterm-visibility.md`, `prompt-stream-stall.md`); also encoded in `qa-execution` (fix-loop governor: regression test red-before/green-after), `real-scenario-qa`, and `cy-fix-reviews`.
+**Source:** `.codex/plans/` (consistent forensic frame in `child-workgroup-activation.md`, `session-stop-hang.md`, `dashboard-xterm-visibility.md`, `prompt-stream-stall.md`); also encoded in `qa-execution` (fix-loop governor: regression test red-before/green-after), `eng-real-scenario-qa`, and `cy-fix-reviews`.
 
 ---
 

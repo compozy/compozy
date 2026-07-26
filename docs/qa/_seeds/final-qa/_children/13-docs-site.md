@@ -149,7 +149,7 @@ The gap real-scenario lane must close: every existing vitest spec stubs the runt
 
 Bootstrap and isolation discipline (mandatory):
 
-- One isolated `COMPOZY_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario that needs a daemon (DOC-19) — per `agh-worktree-isolation` skill and `agh-qa-bootstrap`.
+- One isolated `COMPOZY_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario that needs a daemon (DOC-19) — per `eng-worktree-isolation` skill and `eng-qa-bootstrap`.
 - For everything else: a clean monorepo checkout, `bun install` at root, `make codegen` green so `openapi/compozy.json` is current, and `make cli-docs` green so the cobra tree under `content/runtime/cli-reference/` is current. No daemon required.
 - For headless-browser scenarios (DOC-01, DOC-02, DOC-08, DOC-09, DOC-22): serve `packages/site/out/` with `npx serve out -p <unique-port>` (or `bun x serve`) bound to `127.0.0.1:<port>` and drive Playwright/Puppeteer against it. Different port per parallel run.
 - Sequential codegen calls only — never run `make codegen` and `bun run generate:openapi` in parallel; the second reads `openapi/compozy.json` produced by the first (per Workflow Rules "Never parallelize config writes against one isolated QA home").

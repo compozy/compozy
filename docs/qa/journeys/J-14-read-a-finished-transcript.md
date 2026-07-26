@@ -83,7 +83,7 @@ e2e_backbone:
     - "E2E-web 4: remove messages on clear-while-viewing AND keep them removed after reload (task 08)."
     - "E2E-web 7: render a long session tail-first and load older history on scroll-up (task 15)."
   visual:
-    - "Visual §8.2–§8.9 (agh-ui-screenshot): grouped 8×Read batch, expanded Bash/Edit/MCP I/O, three-turn fold, hover toolbar, working+reduced-motion, reasoning treatment, per-tool icons/verbs, tool-state matrix."
+    - "Visual §8.2–§8.9 (eng-ui-screenshot): grouped 8×Read batch, expanded Bash/Edit/MCP I/O, three-turn fold, hover toolbar, working+reduced-motion, reasoning treatment, per-tool icons/verbs, tool-state matrix."
     - "Visual §8.11: changed-files roll-up collapsed + expanded (task 36)."
   telemetry:
     - "None specific — read-path perf rides the transcript assembly-duration counter (task 40) via J-12."

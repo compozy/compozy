@@ -3,7 +3,7 @@
 - **Scope:** `loops-refac` targeted QA continuation for Task 16: re-walk the watch-events rows that returned to `untested` after the phase A/B/C substrate landed, and retest BUG-0023-blocked WS2/WS3 rows when the fix-loop permits.
 - **Cadence tier:** targeted + e2e-web inclusion
 - **Build:** `0958aab5` + dirty worktree carrying the current loops-refac implementation batch.
-- **Environment:** fresh isolated `agh-qa-bootstrap` lab at `http://127.0.0.1:49189`.
+- **Environment:** fresh isolated `eng-qa-bootstrap` lab at `http://127.0.0.1:49189`.
 - **Started:** 2026-07-09T03:47:07Z
 - **Status:** complete; final `make verify` passed
 
@@ -43,7 +43,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ## Bootstrap
 
-Fresh isolated lab created with `agh-qa-bootstrap`:
+Fresh isolated lab created with `eng-qa-bootstrap`:
 
 - `SCENARIO_SLUG`: `loops-refac-task-16-20260709-20260709-034751-043179`
 - `WORKSPACE_PATH`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab`
@@ -63,7 +63,7 @@ Fresh isolated lab created with `agh-qa-bootstrap`:
 - `BEHAVIORAL_CHARTER`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/behavioral-scenario-charter.yaml`
 - `JOURNEY_LOG`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/journey-log.jsonl`
 - `PROVIDER_ATTEMPT`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260709-20260709-034751-043179-lab/qa-artifacts/qa/provider-attempt.json`
-- `AUDIT_COMMAND`: `/Users/pedronauck/Dev/compozy/compozy2/.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py`
+- `AUDIT_COMMAND`: `/Users/pedronauck/Dev/compozy/compozy2/.agents/skills/eng-real-scenario-qa/scripts/audit-qa-evidence.py`
 - `REUSED_LAB`: `false`
 
 Bootstrap validation evidence:

@@ -39,7 +39,7 @@ Run after `cy-create-tasks` produces a draft, before handing off to execution.
 - [ ] Critical-complexity tasks list happy + failure-path + concurrency-stress + contract/redaction cases.
 - [ ] CLI/HTTP/UDS changes include agent-operability tests: structured output, status/config discovery, deterministic errors, and cross-surface state comparison when applicable.
 - [ ] Config changes include merge/overlay, default, validation, docs/example, and restart/reload tests where applicable.
-- [ ] Test plan cites `agh-test-conventions` for shape, `agh-cleanup-failure-paths` for cleanup audit, `agh-schema-migration` for migrations, `agh-contract-codegen-coship` for contract changes.
+- [ ] Test plan cites `eng-test-conventions` for shape, `eng-cleanup-failure-paths` for cleanup audit, `eng-schema-migration` for migrations, `eng-contract-codegen-coship` for contract changes.
 
 ## Competitor refs
 

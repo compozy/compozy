@@ -19,7 +19,7 @@ Run before exiting the skill.
 ## Skills & contract
 
 - [ ] `qa-report` task body references the `qa-report` skill with `qa-docs-path=docs/qa`.
-- [ ] `qa-execution` task body references `qa-execution` with `qa-docs-path=docs/qa` (and `real-scenario-qa` for release-grade runtime scope).
+- [ ] `qa-execution` task body references `qa-execution` with `qa-docs-path=docs/qa` (and `eng-real-scenario-qa` for release-grade runtime scope).
 - [ ] Task frontmatter uses exact phase types: `qa-report` and `qa-execution`.
 - [ ] Neither body references per-round `qa/` trees, `qa-output-path`, `TC-*` test cases, or `verification-report.md` — the living-docs contract is `docs/qa/{scenarios/, journeys/, charters/, bugs/BUG-<date>-<slug>.md, reports/<date>-<slug>.md}`; `state.csv` is generated output only.
 

@@ -1,7 +1,7 @@
 # Session Improvements — QA cycle plan (planning report)
 
 - **Scope:** the Session Experience Overhaul program (`.compozy/tasks/session-improvements/`, tasks 01–41) — the session render pipeline (blank-on-return, source flips, SSE reconnect), session open latency, the transcript UI language, and backend streaming.
-- **Type:** **planning** (a `qa-report` deliverable, not a `qa-execution` run). It updates personas, maps journeys J-11…J-15, mints/links `RT-NNN` scenarios, and plans charters CH-014…CH-021. No sessions were walked — every session `RT-*` row is `qa_status: untested`. Execution is **task 43** (`qa-execution` + `agh-qa-bootstrap`).
+- **Type:** **planning** (a `qa-report` deliverable, not a `qa-execution` run). It updates personas, maps journeys J-11…J-15, mints/links `RT-NNN` scenarios, and plans charters CH-014…CH-021. No sessions were walked — every session `RT-*` row is `qa_status: untested`. Execution is **task 43** (`qa-execution` + `eng-qa-bootstrap`).
 - **Cadence tier:** **Full** (program gate, release-candidate class change per SD-005 — `make verify` is necessary but not sufficient for cross-component render drift).
 - **Author:** task 42 (`.compozy/tasks/session-improvements/task_42.md`).
 - **Consumes:** the pre-staged `_qa.md` base (§1–§9); `_techspec.md` (RC-1..11); `_tests.md` (automated lanes §6–§9); `analysis/summary.md` (root-cause chains); task 40 (telemetry) + task 41 (test-gap reproductions).
@@ -101,7 +101,7 @@ The individual UI/lifecycle tasks (21, 22, 25–37) appended granular scenario r
 
 ## 4. Journey → `_tests.md` E2E lane + telemetry map (task 42 requirement)
 
-`_tests.md` numbers its lanes by section: **§6** E2E-runtime, **§7** E2E-web, **§8** `agh-ui-screenshot` visual, **§9** manual QA lane. Telemetry is task 40.
+`_tests.md` numbers its lanes by section: **§6** E2E-runtime, **§7** E2E-web, **§8** `eng-ui-screenshot` visual, **§9** manual QA lane. Telemetry is task 40.
 
 | Journey | E2E-runtime (§6) | E2E-web (§7) | Visual (§8) | Manual (§9) | Telemetry (task 40) | Follow-up |
 |---|---|---|---|---|---|---|
@@ -158,7 +158,7 @@ Order = highest-impact journey × highest-blast-radius tour first (hero → agen
 
 ---
 
-## 8. Handoff to task 43 (`qa-execution` + `agh-qa-bootstrap`)
+## 8. Handoff to task 43 (`qa-execution` + `eng-qa-bootstrap`)
 
 - **Lab fixtures the pass must provide** (`_qa.md` §8): a genuinely running background session (long turn in flight), a 1k+ event finished session, a failed session with a `failure` payload, an empty session, and a second workspace for the switch-notice branch.
 - **Bug policy** (`_qa.md` §7): blank thread while persisted messages exist, any false lifecycle badge, empty-state copy during load/error, fake/permanently-empty metrics, and silent context-losing redirects are Blocks-Completion/Trust-Damage blockers; dedup against `BUG-0001..0019` before filing; every `state.csv` `fail` carries a `BUG-NNNN`; fixes only under the fix-loop governor.

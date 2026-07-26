@@ -85,7 +85,7 @@ e2e_backbone:
     - "task 13 integration: automation.run.completed wake + network work-persisted wake (boot-reconcile variants)."
     - "task 14 integration: coordinator.stopped wake; session-scoped event.post_record wake with redaction + cross-session non-match; doorbell hot-path benchmark."
   web:
-    - "task 12 E2E-web / component: codec round-trips a watch-events node (kind + CEL); run-detail renders subscriptions/cursors/last_wake_at from a fixture, absent block renders nothing; agh-ui-screenshot capture cited."
+    - "task 12 E2E-web / component: codec round-trips a watch-events node (kind + CEL); run-detail renders subscriptions/cursors/last_wake_at from a fixture, absent block renders nothing; eng-ui-screenshot capture cited."
   followups:
     - "AB-009 — a real-daemon watch-events browser seed (park a run, commit a matching event, drive editor→park→wake in Playwright). Task-11 ships the runtime lane and task-12 ships codec/component + screenshots; the live-daemon Playwright walk for LP-043/LP-044 rides AB-009 (same gap class as AB-001 for J-01)."
     - "Phase gating — LP-047/048 (phase B) and LP-049/050 (phase C) only exist once tasks 13/14 land; qa-execution walks the phase-A rows (LP-040..044) first and treats later-phase rows as blocked-until-implemented if a phase is unshipped at run time (record the skip, do not invent a pass)."

@@ -2,20 +2,20 @@
 
 **Class:** Frontend / Design system / Process
 **Date discovered:** 2026-07-10 (operator report "components keep getting recreated instead of reusing `@compozy/ui`" → reuse audit on the `model-selector` worktree)
-**Evidence sources:** First repo-wide run of `compozy-ui-reuse/no-shadow-ui-primitive` found **17 shadow definitions**; discovery audit of the doc/skill hot path; remediation sweep across `web/src` and `packages/site`. Touched files: `lint-plugins/ui-primitive-reuse.mjs`, `.oxlintrc.json`, `packages/ui/CLAUDE.md`, root `CLAUDE.md` (Design System), `DESIGN.md` §9, `.agents/skills/agh/agh-design/SKILL.md`, plus 25+ consumer files.
+**Evidence sources:** First repo-wide run of `compozy-ui-reuse/no-shadow-ui-primitive` found **17 shadow definitions**; discovery audit of the doc/skill hot path; remediation sweep across `web/src` and `packages/site`. Touched files: `lint-plugins/ui-primitive-reuse.mjs`, `.oxlintrc.json`, `packages/ui/CLAUDE.md`, root `CLAUDE.md` (Design System), `DESIGN.md` §9, `.agents/skills/eng/eng-design/SKILL.md`, plus 25+ consumer files.
 
 ## Context
 
 `@compozy/ui` already had everything the docs said it needed: a complete hand-written primitive
 inventory (`packages/ui/README.md`), semantic contracts in `DESIGN.md` §9, and two design skills
-(`agh-design`, `ui-craft`) that were mandatory for all UI work. Duplication happened anyway. The
+(`eng-design`, `ui-craft`) that were mandatory for all UI work. Duplication happened anyway. The
 audit found why:
 
 - The inventory was an **island** — zero references from root `CLAUDE.md`, `web/CLAUDE.md`,
   `DESIGN.md`, or either design skill. Nothing in the hot path told an agent it existed.
 - `web/CLAUDE.md`'s structure map still documented a `components/ui/` shadcn directory that had
   been deleted — actively steering agents toward creating local primitives.
-- `agh-design` told agents to "mirror the class structure and component anatomy in
+- `eng-design` told agents to "mirror the class structure and component anatomy in
   `packages/ui/src/components`" — correct for static HTML artifacts, but read as
   copy-not-import guidance for production code.
 - Nothing failed when a duplicate landed. Every other design-system invariant (tokens, eyebrow,
@@ -63,7 +63,7 @@ that kept regressing.
   valid; keeping the colliding name is not.
 - Hot-path docs point at the source, not at a copy: root `CLAUDE.md` Design System rule,
   `packages/ui/CLAUDE.md` (the contributor guide that replaced the README), `DESIGN.md` §9
-  pointer, and the `agh-design` reuse gate all name `packages/ui/src/index.ts` as the inventory.
+  pointer, and the `eng-design` reuse gate all name `packages/ui/src/index.ts` as the inventory.
 
 ## Anti-pattern
 
@@ -83,6 +83,6 @@ that kept regressing.
 - `.oxlintrc.json` — `jsPlugins` registration + `compozy-ui-reuse/no-shadow-ui-primitive: error`.
 - `packages/ui/CLAUDE.md` — package contributor contract (README.md deleted in the same change).
 - Root `CLAUDE.md` Design System critical rule; `DESIGN.md` §9 inventory pointer;
-  `.agents/skills/agh/agh-design/SKILL.md` production reuse gate.
+  `.agents/skills/eng/eng-design/SKILL.md` production reuse gate.
 - [L-022](L-022-eyebrow-canonical-source.md) — the precedent arc: canonical source + lint gate is
   what ends design-system drift, not documentation volume.

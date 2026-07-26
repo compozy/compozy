@@ -195,7 +195,7 @@ New store queries (sqlc, `internal/store/globaldb/queries/`), all workspace-filt
 | `SessionRuntimeMaxSince` | longest session runtime in window | Pulse insight |
 | `SessionAgentMetricsSince` | extend `AggregateSessionsByAgent` (`internal/store/session_catalog_agent_metrics.go:39`) with an optional `since` bound | Agents zone 7d window |
 
-**Schema-risk flag (resolve first, Phase 1):** daily token bucketing requires token usage rows carrying timestamps. If `token_stats` rows are per-session cumulative without per-day provenance, add a usage-sample/rollup table via **`agh-schema-migration`** (declarative schema + gap-free goose migration + `atlas.sum` + sqlc via `make codegen`). Any new index (e.g., event summaries `(workspace_id, timestamp)`) follows the same skill. If neither is acceptable for Phase 1, `usage.days` ships empty with `cost_status:"unavailable"` and the chart renders its honest empty state — the KPI then shows session-summed totals only (`AggregateTokenStatsCost`, `internal/store/token_stats_cost.go:30`).
+**Schema-risk flag (resolve first, Phase 1):** daily token bucketing requires token usage rows carrying timestamps. If `token_stats` rows are per-session cumulative without per-day provenance, add a usage-sample/rollup table via **`eng-schema-migration`** (declarative schema + gap-free goose migration + `atlas.sum` + sqlc via `make codegen`). Any new index (e.g., event summaries `(workspace_id, timestamp)`) follows the same skill. If neither is acceptable for Phase 1, `usage.days` ships empty with `cost_status:"unavailable"` and the chart renders its honest empty state — the KPI then shows session-summed totals only (`AggregateTokenStatsCost`, `internal/store/token_stats_cost.go:30`).
 
 Cost estimation reuses the session-usage pricing path (model-catalog pricing; same `cost_status`/`cost_source` semantics as `contract/session_usage.go:6`). Footnote copy in UI: "Cost is estimated from model-catalog pricing and may diverge from provider billing."
 
@@ -203,7 +203,7 @@ Attention block composition (server-side, so CLI sees the same list): inbox lane
 
 ### 5.3 Wiring & co-ship (mandatory, one change)
 
-Per `agh-contract-codegen-coship` and the codegen pipeline (`cmd/compozy-codegen`, `magefiles/codegen.go:12`):
+Per `eng-contract-codegen-coship` and the codegen pipeline (`cmd/compozy-codegen`, `magefiles/codegen.go:12`):
 
 1. DTOs in `internal/api/contract/observe_overview.go`.
 2. Handler `ObserveOverview` in `internal/api/core/` (new file, follows `task_read_handlers.go:222` pattern).
@@ -362,13 +362,13 @@ Resolve the token-timestamp schema question (§5.2 flag) → store queries (+ mi
 Lazy recharts components, heatmap, window pills, tooltips, honest empties. *Gate:* §3 rules 4–5; interactions 5, 7.
 
 **Phase 5 — Agents · Activity · System + polish**
-Remaining zones, responsive pass, reduced motion, a11y labels, skeletons, delete-target sweep. *Gate:* `agh-ui-screenshot` capture cited vs. prototype (Visual Contract Mode: rendered reference/implementation bundle, zero unresolved structural mismatches); `make verify`.
+Remaining zones, responsive pass, reduced motion, a11y labels, skeletons, delete-target sweep. *Gate:* `eng-ui-screenshot` capture cited vs. prototype (Visual Contract Mode: rendered reference/implementation bundle, zero unresolved structural mismatches); `make verify`.
 
 Each backend phase task carries the `Web/Docs Impact` subitem; the two-touch rule applies (a third patch to the same behavior becomes a redesign spec).
 
 ---
 
-## 10. Testing contract (placement per `consolidate-test-suites`)
+## 10. Testing contract (placement per `eng-consolidate-test-suites`)
 
 | Invariant | Layer | Suite |
 |---|---|---|

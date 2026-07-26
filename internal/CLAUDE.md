@@ -26,11 +26,11 @@ Repo-wide rules (Critical Rules, Workflow, Build, Commits, Skill Dispatch, Memor
 - **Hooks are typed dispatch, not an event bus.** Dispatch at the call site that owns the state transition. Never tail event/log tables to fire hooks. Hooks may deny/narrow/annotate but cannot bypass safety primitives (claim tokens, leases, TTL, lineage, spawn caps, permission narrowing).
 - **Agent-manageable by default.** User-visible runtime capabilities must expose stable machine-readable control surfaces for agents: CLI verbs with `-o json`/`-o jsonl` where relevant, HTTP/UDS parity when state crosses the daemon boundary, discoverable status/config output, and docs that describe the agent path. UI-only manageability is incomplete.
 - **No partial-surface completions.** Any change touching a public surface closes the loop end-to-end in one pass: contract → HTTP handler → UDS handler → CLI client → CLI command → extension/config/docs surfaces → tests → docs.
-- **Public read boundaries activate `agh-data-boundaries`.** Preserve authorization, scope, ordering, completeness, cursor/fence metadata, and surface parity from store projection through Web cache.
+- **Public read boundaries activate `eng-data-boundaries`.** Preserve authorization, scope, ordering, completeness, cursor/fence metadata, and surface parity from store projection through Web cache.
 
 ### Concurrency
 
-Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `select`/`ctx.Done()` discipline, no `time.Sleep` in orchestration) live in `agh-code-guidelines`. Architectural invariants below are load-bearing for design decisions:
+Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `select`/`ctx.Done()` discipline, no `time.Sleep` in orchestration) live in `eng-code-guidelines`. Architectural invariants below are load-bearing for design decisions:
 
 - **Goroutines spawned by `internal/session/manager_*.go` MUST be tracked by Manager-owned WaitGroup and joined in Manager shutdown.** Never put goroutine-owned channels in a struct field that another goroutine mutates — use a per-run handle.
 - **Detached execution lifetime.** Any work that outlives an HTTP/UDS request — prompts, network channel sends, automation jobs — MUST detach via `context.WithoutCancel(ctx)`. Never tie execution lifetime to request lifetime. Expose explicit cancel endpoints (e.g., `POST /api/workspaces/:workspace_id/sessions/:id/prompt/cancel`).

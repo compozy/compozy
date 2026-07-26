@@ -3,7 +3,7 @@
 - **Scope:** `loops-refac` targeted QA execution for the Task 15 plan: gated loop run-agent sessions, `ext__dev_cycle__import_tasks`, watch-events phase A/B/C scenario rows, and the reviews-watch gating re-walk.
 - **Cadence tier:** targeted + e2e-web inclusion
 - **Build:** `bd21f7e0` + dirty worktree carrying the loops-refac implementation batch and the BUG-0021 local fix.
-- **Environment:** fresh isolated `agh-qa-bootstrap` lab at `http://127.0.0.1:64424`; BUG-0021 retest lab at `http://127.0.0.1:58521`.
+- **Environment:** fresh isolated `eng-qa-bootstrap` lab at `http://127.0.0.1:64424`; BUG-0021 retest lab at `http://127.0.0.1:58521`.
 - **Started:** 2026-07-08T13:01:52Z
 - **Status:** failed / not ready to ship. BUG-0023 remains open and blocks `software-delivery` plus direct import-tool parity. Watch-events phase rows were skipped honestly because the runtime/web substrate is not present in this worktree.
 
@@ -43,7 +43,7 @@ Status legend: `Pass | Fail | Fixed | Skipped | Blocked (needs human verify) | B
 
 ## Bootstrap
 
-Fresh isolated lab created with `agh-qa-bootstrap`:
+Fresh isolated lab created with `eng-qa-bootstrap`:
 
 - `SCENARIO_SLUG`: `loops-refac-task-16-20260708-130224-745100`
 - `WORKSPACE_PATH`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260708-130224-745100-lab`
@@ -63,7 +63,7 @@ Fresh isolated lab created with `agh-qa-bootstrap`:
 - `BEHAVIORAL_CHARTER`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260708-130224-745100-lab/qa-artifacts/qa/behavioral-scenario-charter.yaml`
 - `JOURNEY_LOG`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260708-130224-745100-lab/qa-artifacts/qa/journey-log.jsonl`
 - `PROVIDER_ATTEMPT`: `/Users/pedronauck/dev/qa-labs/compozy-loops-refac-task-16-20260708-130224-745100-lab/qa-artifacts/qa/provider-attempt.json`
-- `AUDIT_COMMAND`: `/Users/pedronauck/Dev/compozy/compozy2/.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py`
+- `AUDIT_COMMAND`: `/Users/pedronauck/Dev/compozy/compozy2/.agents/skills/eng-real-scenario-qa/scripts/audit-qa-evidence.py`
 - `REUSED_LAB`: `false`
 
 Bootstrap validation evidence:

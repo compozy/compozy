@@ -200,7 +200,7 @@ Each scenario is a fenced markdown block with `qa-scenario` + `qa-flow`.
 Numbered TOL-01..TOL-17. Live runs use
 `compozy sessions start --agent claude-code --workspace ./fixtures/<theme>`
 against a real Claude Code subagent unless tagged `provider: none`. All runs
-use `agh-qa-bootstrap`-issued `bootstrap-manifest.json` with unique
+use `eng-qa-bootstrap`-issued `bootstrap-manifest.json` with unique
 `COMPOZY_HOME`, daemon ports, and provider auth resolved per the provider's
 `home_policy`: bound-secret and explicitly isolated-home lanes use
 `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli` lanes with
@@ -228,7 +228,7 @@ provider: claude-code
 
 ```yaml qa-flow
 preconditions:
-  - $LAB_HOME from agh-qa-bootstrap; PROVIDER_HOME set; default :2123 forbidden.
+  - $LAB_HOME from eng-qa-bootstrap; PROVIDER_HOME set; default :2123 forbidden.
   - Workspace fixture: ./fixtures/tol01/ contains AGENT.md + a small README.md.
   - Sandbox profile: backend=local, permissions=approve-reads (the local provider default per provider.go:63).
 steps:
@@ -979,7 +979,7 @@ Matrix of dependencies and obligations.
 | `internal/diagnostics`        | Use `RegisterDynamicSecret` for runtime tokens (claim_token, MCP tokens, OAuth codes).                                                | Provide regex-driven redaction layered with the result limiter.                                                 | `internal/diagnostics/redact.go` (via `internal/CLAUDE.md`)    |
 | `internal/extension`          | Honor extension-supplied MCP server entries; carry `secret_env` validation; respect manifest precedence.                              | Provide validated MCPServer slice; never inject raw secrets into env at registration time.                       | `internal/extension/manifest.go:286-295,654,786,891-922`       |
 | `internal/skills`             | Skills are not tools but use the same `ensurePathWithinRoot` invariant; skill-bound tools surface through the registry.              | Honor five-layer precedence; emit shadow events on collision.                                                    | `internal/skills/path_security.go:9-36`                        |
-| `internal/store/globaldb`     | Tool ledger rows persist via the registry's `events` sink; tool process records persist via toolruntime store.                       | Update the global domain schema fragment, append Goose SQL via codegen, refresh `atlas.sum`/sqlc, and honor `agh-schema-migration`. | `toolruntime/registry.go:548-555` (UpsertProcessRecord)        |
+| `internal/store/globaldb`     | Tool ledger rows persist via the registry's `events` sink; tool process records persist via toolruntime store.                       | Update the global domain schema fragment, append Goose SQL via codegen, refresh `atlas.sum`/sqlc, and honor `eng-schema-migration`. | `toolruntime/registry.go:548-555` (UpsertProcessRecord)        |
 | `internal/api/core`           | Expose tool list/get/search/call + tool ledger + tool processes through `BaseHandlers`.                                              | Share parsing/validation; HTTP and UDS choose registration only.                                                 | `internal/api/contract` types                                  |
 | `internal/api/httpapi`        | Mount `/api/tools/*`, `/api/tool/processes`, `/api/tool/interrupt`, `/api/tool/ledger`.                                              | Honor SSE redaction; never broadcast raw input.                                                                  | `internal/api/httpapi/routes.go`                                 |
 | `internal/api/udsapi`         | Mount UDS parity for the same surface; agents use UDS by default.                                                                    | Same.                                                                                                            | `internal/api/udsapi/routes.go`                                  |
@@ -1049,7 +1049,7 @@ If any of these slip, we ship a broken tool runtime.
 
 The QA harness for this child must:
 
-- Use `agh-qa-bootstrap` with unique `COMPOZY_HOME`, daemon HTTP/UDS ports, `tmux-bridge` socket, and `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`. Default `:2123` is forbidden.
+- Use `eng-qa-bootstrap` with unique `COMPOZY_HOME`, daemon HTTP/UDS ports, `tmux-bridge` socket, and `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`. Default `:2123` is forbidden.
 - Provide a real Claude Code agent path: `compozy sessions start --agent claude-code --workspace ./fixtures/tol<NN>`.
 - Provide a deterministic mock-ACP path for non-LLM scenarios (TOL-04, TOL-12, TOL-13): the existing `internal/acp/acpmock` test binary.
 - Provide a stub MCP HTTP server for TOL-12 — Go test binary that sleeps 60s before responding, exposes a single tool `mcp__qa-stub__noop`.

@@ -20,7 +20,7 @@ Activate alongside this skill — systems span multiple technical domains:
 | Situation             | Activate                                  |
 | --------------------- | ----------------------------------------- |
 | Any hook or component | `react` + `tanstack`                      |
-| Data fetching/caching | `agh-data-boundaries` + `tanstack`        |
+| Data fetching/caching | `eng-data-boundaries` + `tanstack`        |
 | Mutations             | `tanstack`                                |
 | XState store          | `xstate`                                  |
 | Utility functions     | `es-toolkit`                              |

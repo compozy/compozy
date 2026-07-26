@@ -1,7 +1,7 @@
 # UI Alignment Spec — `packages/ui` → Compozy Design System
 
 **Date:** 2026-07-22 · **Authority:** `design-system/` (this folder) is the visual reference; `packages/ui/src/tokens.css` remains the token *source of truth* — every token change below lands there first and flows to `DESIGN.md` via `make codegen` (DESIGN.md is generated and currently in-sync; never hand-edit its token regions).
-**Scope:** visual alignment of the base kit (`packages/ui/src/**`) to the quality bar set by `design-system/ds-core.css` + chapters. Implementation follows repo workflow (designer agent, `agh-design` + `ui-craft`, Storybook capture via `agh-ui-screenshot`).
+**Scope:** visual alignment of the base kit (`packages/ui/src/**`) to the quality bar set by `design-system/ds-core.css` + chapters. Implementation follows repo workflow (designer agent, `eng-design` + `ui-craft`, Storybook capture via `eng-ui-screenshot`).
 **Method:** three parallel audits (controls · surfaces/chrome · tokens+DESIGN.md) against the DS canon. All file:line refs are to `packages/ui/src` at audit time.
 
 ---
@@ -170,6 +170,6 @@ Every deletion follows the greenfield rule: hard cut, migrate call sites in the 
 **P1 — coherence:** Toggle onto button ladder; SearchInput 28/radius-md; disabled model unification; icon-well ladder (topbar glyph, RouteState convergence); tone-map module; crumb consolidation + DetailHeader demotion; Empty/RouteState merge; KpiCard/Metric merge; kpi-value 24/620.
 **P2 — polish & gaps:** Surface primitive refactor; k/v gutter tokens; avatar size tokens; orphan-token cleanup; stale comments; DESIGN.md generator additions; Checkbox/Radio primitives; IntensityMeter promotion.
 
-**Verification:** every P0/P1 change ships a Storybook story diff captured with `agh-ui-screenshot` (before/after per component); `make codegen-check` green after token edits; `compozy-ui-reuse` lint stays green (no shadowed primitives); the DS chapter demos (`design-system/components.html`) are the visual parity reference — a changed primitive must read identical to its DS demo at 100% zoom.
+**Verification:** every P0/P1 change ships a Storybook story diff captured with `eng-ui-screenshot` (before/after per component); `make codegen-check` green after token edits; `compozy-ui-reuse` lint stays green (no shadowed primitives); the DS chapter demos (`design-system/components.html`) are the visual parity reference — a changed primitive must read identical to its DS demo at 100% zoom.
 
 **Compozy Impact Audit:** Native tools — no impact (pure UI kit + tokens; no `compozy__*` surfaces touched). Extensibility and hooks — no impact (no extension/hook/config surfaces; `packages/ui` internal). Workspace data isolation — no impact (no data paths). Official Compozy skill — no impact (no public behavior/CLI/tool change; visual-only). Web/Docs impact — `web/` consumers of renamed/merged primitives (`KpiCard`, `RouteState`, `Breadcrumb`, `DetailHeader`) migrate in the same change; `DESIGN.md` regenerates via codegen.

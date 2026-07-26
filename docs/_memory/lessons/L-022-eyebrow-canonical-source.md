@@ -5,7 +5,7 @@
 **Evidence sources:** Audit run ahead of the dashboard polish; the final consolidation collapsed
 the prop matrix and the multi-utility CSS layer into a single Inter UC contract. Touched files:
 `packages/ui/src/components/custom/eyebrow.tsx`, `packages/ui/src/tokens.css`, `DESIGN.md` §3 / §11,
-`.agents/skills/agh/agh-design/SKILL.md`, `packages/ui/src/lib/utils.ts`,
+`.agents/skills/eng/eng-design/SKILL.md`, `packages/ui/src/lib/utils.ts`,
 `lint-plugins/compozy-design-system.mjs`, plus the cross-monorepo callsite sweep.
 
 ## Context
@@ -23,7 +23,7 @@ hand. At least **five different tuples** were in active use:
 
 The drift was **triplicated in the spec layer too**: `DESIGN.md` table §3 line 147 said
 `Inter | 10.5 px | 0.05em UC`, `tokens.css` declared `--tracking-mono: 0.06em`, and the
-`agh-design` skill brief said `letter-spacing: 0.06em`. The visible eyebrow in the UI was
+`eng-design` skill brief said `letter-spacing: 0.06em`. The visible eyebrow in the UI was
 JetBrains Mono, not Inter — so the spec, the token, and the implementation all disagreed at
 once.
 
@@ -86,7 +86,7 @@ implementation files.
   so `cn("text-eyebrow", "text-(--muted)")` no longer collapses the size into the color group.
   Any new `--text-*` token in `tokens.css` MUST be added to that group on the same change.
 - `DESIGN.md` §3 holds the authoritative type ladder. The eyebrow row references the tokens by
-  name. Drift between this row, `tokens.css`, the `agh-design` skill brief, and `<Eyebrow>` is
+  name. Drift between this row, `tokens.css`, the `eng-design` skill brief, and `<Eyebrow>` is
   treated as a code defect, not a documentation tweak.
 - `lint-plugins/compozy-design-system.mjs::no-inline-eyebrow` rejects:
   - `font-mono` + `uppercase` tuples in JSX `className`.
@@ -128,6 +128,6 @@ implementation files.
   AND the deleted `eyebrow-badge` / `eyebrow-micro` utility-class literals.
 - `DESIGN.md` §3 ("Type Ladder") and §11 ("Anti-patterns") — authoritative type ladder + Eyebrow
   rule + misuse register.
-- `.agents/skills/agh/agh-design/SKILL.md` — brand brief reaffirming the single Inter UC contract.
+- `.agents/skills/eng/eng-design/SKILL.md` — brand brief reaffirming the single Inter UC contract.
 - `web/CLAUDE.md` ("Critical Rules") and `packages/site/CLAUDE.md` ("Critical Rules") — surface
   guards for the rule.

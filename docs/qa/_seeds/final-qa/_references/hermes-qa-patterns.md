@@ -479,11 +479,11 @@ For each pattern below, the **Compozy equivalent** column names the package or s
 
 - **Module-level singletons reset by hand-curated lists** — hermes' `_reset_module_state` (`conftest.py:333-441`) is **necessary** because Python modules are per-process singletons; that's a Python language constraint. In Go, the equivalent — a hand-curated list of `pkg.X.Reset()` calls in every test — is a **design smell**. Each package should expose a `New(opts...)` constructor; tests should construct fresh instances. Compozy should treat the need for `pkg.ResetForTesting()` as a sign the package has hidden global state to refactor.
 
-- **Monkey-patching transport layers per-test** — `with patch("hermes_cli.auth._minimax_save_auth_state"): ...` (`test_minimax_oauth.py:357`) is fine in Python where dynamism is free. The Go equivalent (`monkey` package, function pointer swapping) is forbidden by `agh-code-guidelines` and `testing-boss`. Use **interfaces + dependency injection at the call site** instead — pass an `AuthStore` interface, swap a `fakeAuthStore` in tests.
+- **Monkey-patching transport layers per-test** — `with patch("hermes_cli.auth._minimax_save_auth_state"): ...` (`test_minimax_oauth.py:357`) is fine in Python where dynamism is free. The Go equivalent (`monkey` package, function pointer swapping) is forbidden by `eng-code-guidelines` and `testing-boss`. Use **interfaces + dependency injection at the call site** instead — pass an `AuthStore` interface, swap a `fakeAuthStore` in tests.
 
 - **Source-text regex tests for Go production code** — hermes uses regex-over-`install.sh` because shell has no AST. Go has `go/parser` and `go/ast`. If Compozy ever needs to assert "no eager `AsyncOpenAI` constructor outside `_get_async_client`" (`test_trajectory_compressor_async.py:97-111`), use `go/ast` to walk the AST — far more robust than regex.
 
-- **`unittest.TestCase` mixed with pytest** — `test_yuanbao_markdown.py` still uses `unittest.TestCase`; the rest of hermes uses plain `class TestX:`. The mixed style is a hermes-specific accumulation and is not a pattern to copy. Compozy should pick one style (`*testing.T` plus `t.Run`) and stick to it (this is already enforced by `agh-test-conventions`).
+- **`unittest.TestCase` mixed with pytest** — `test_yuanbao_markdown.py` still uses `unittest.TestCase`; the rest of hermes uses plain `class TestX:`. The mixed style is a hermes-specific accumulation and is not a pattern to copy. Compozy should pick one style (`*testing.T` plus `t.Run`) and stick to it (this is already enforced by `eng-test-conventions`).
 
 - **`SIGALRM`-based per-test timeouts** — `_enforce_test_timeout` (`conftest.py:511-522`) uses `signal.alarm(30)`; it's Unix-only and skipped on Windows. Go has `t.Deadline()` and `context.WithTimeout` — use them. Don't try to install signal handlers in tests.
 
@@ -505,7 +505,7 @@ For each pattern below, the **Compozy equivalent** column names the package or s
 
 5. **Is there an equivalent to hermes' `test_packaging_metadata.py` for Go modules?** hermes pins "no faster-whisper in base deps" in 4 lines. The Compozy equivalent is harder because Go modules don't have optional dependencies — but `go.mod` `replace` directives, `tools.go`-only imports, and Bun workspace boundaries are real risks worth pinning.
 
-6. **Should Compozy adopt hermes' "no change-detector tests" rule (AGENTS.md:717-758) as a contributor-facing rule?** It's a strong signal for what to write and what to delete; it would be a natural addition to `internal/CLAUDE.md` and `agh-test-conventions`.
+6. **Should Compozy adopt hermes' "no change-detector tests" rule (AGENTS.md:717-758) as a contributor-facing rule?** It's a strong signal for what to write and what to delete; it would be a natural addition to `internal/CLAUDE.md` and `eng-test-conventions`.
 
 ## Citations
 

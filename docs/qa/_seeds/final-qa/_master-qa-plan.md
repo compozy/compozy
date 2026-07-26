@@ -101,7 +101,7 @@ Approximately 180 scenarios. Examples (read each child for the complete list):
 - **ACP/Sessions live**: ACP-01 (Claude Code multi-tool prompt), ACP-04 (Last-Event-ID reconnect), ACP-05 (detached cancel proof), ACP-08 (lineage via spawn), ACP-09 (replay equivalence), ACP-19 (daemon-restart persistence)
 - **Autonomy live**: AUT-09 (coordinator bootstrap dispatching to real Claude), AUT-12 (real lineage), AUT-15 (real-LLM end-to-end with cron overlap), AUT-18 (claim_token redaction sweep on real run)
 - **Memory live**: MEM-01 (3-session feedback memory + agent uses it in turn 1 of session 4), MEM-08 (agent soul write-update-delete), MEM-12 (cross-workspace isolation), MEM-13 (stale-memory verification), MEM-16 (consolidation diff)
-- **Skills live**: SKL-01 (bundled skill activates on prompt), SKL-09 (provenance in transcript), SKL-16 (`agh-design` skill citations)
+- **Skills live**: SKL-01 (bundled skill activates on prompt), SKL-09 (provenance in transcript), SKL-16 (`eng-design` skill citations)
 - **Tools live**: TOL-01 (read/write/run roundtrip), TOL-02 (interrupt mid-execution), TOL-08 (secret redaction), TOL-17 (multi-step refactor)
 - **Extensions live**: EXT-01 (install at runtime), EXT-15 (multi-tool real-LLM conversation)
 - **Automation live**: CRN-01 (one-minute ping over 5 minutes with real Claude), CRN-12 (concurrent 50 cron jobs to real LLM), CRN-15 (real-LLM end-to-end with child spawn)
@@ -225,7 +225,7 @@ The needle's *absence* is the proof; its *presence in any output* is a ship-bloc
 
 ### 8.1 The bootstrap manifest
 
-Every QA run starts with `agh-qa-bootstrap`. It produces a `bootstrap-manifest.json` and `bootstrap.env` containing:
+Every QA run starts with `eng-qa-bootstrap`. It produces a `bootstrap-manifest.json` and `bootstrap.env` containing:
 
 - `COMPOZY_HOME` — unique directory under `.tmp/qa/<run-id>/compozy-home`
 - `COMPOZY_DAEMON_PORT` — free port allocated for the run
@@ -240,7 +240,7 @@ A fresh manifest per pass by default. A previous manifest is reused only when co
 
 ### 8.2 Worktree isolation (parallel runs)
 
-Concurrent runs MUST allocate isolated `COMPOZY_HOME` + ports + sockets per the parallel-QA rule. The `agh-worktree-isolation` skill is the canonical helper. Default port use is forbidden when concurrency is signaled.
+Concurrent runs MUST allocate isolated `COMPOZY_HOME` + ports + sockets per the parallel-QA rule. The `eng-worktree-isolation` skill is the canonical helper. Default port use is forbidden when concurrency is signaled.
 
 ### 8.3 Provider-home isolation
 

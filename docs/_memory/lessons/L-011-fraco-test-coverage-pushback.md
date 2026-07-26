@@ -21,9 +21,9 @@ LLMs default to a "good-enough" test density: 1-2 unit tests per behavior, somet
 
 ## Rule
 
-> When generating `_tasks.md`, count behaviors documented in the TechSpec (lease invariants, error paths, concurrency cases, security cases, observability events) and plan tests proportional to that count. Reject lists with 1-2 tests for many behaviors. Use `agh-test-conventions` to enforce shape; this lesson governs density.
+> When generating `_tasks.md`, count behaviors documented in the TechSpec (lease invariants, error paths, concurrency cases, security cases, observability events) and plan tests proportional to that count. Reject lists with 1-2 tests for many behaviors. Use `eng-test-conventions` to enforce shape; this lesson governs density.
 
-This lesson governs density only after a test is justified. It does not authorize tests per task, per file, or per implementation detail. Every proposed test must first name the invariant, owning layer, and canonical suite (`consolidate-test-suites`). "No new automated test" is valid when an existing suite, lint rule, codegen check, typecheck, build, visual QA, or documented manual evidence already owns the invariant.
+This lesson governs density only after a test is justified. It does not authorize tests per task, per file, or per implementation detail. Every proposed test must first name the invariant, owning layer, and canonical suite (`eng-consolidate-test-suites`). "No new automated test" is valid when an existing suite, lint rule, codegen check, typecheck, build, visual QA, or documented manual evidence already owns the invariant.
 
 ## Operationalization
 

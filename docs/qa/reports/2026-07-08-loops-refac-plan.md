@@ -91,8 +91,8 @@ Run in this order — highest-risk/silent-failure classes first, dependencies re
 
 Task 16 MUST NOT reuse a prior lab — a fresh, isolated pass:
 
-- **Bootstrap:** `agh-qa-bootstrap` skill; a **fresh lab per pass** (do not reuse an older loops lab). Persist the machine-readable QA bootstrap block: `bootstrap-manifest.json` path, lab root, runtime home, base URL, and verification evidence.
-- **Worktree isolation (mandatory — concurrency signaled):** unique `COMPOZY_HOME`, unique daemon ports, unique `tmux-bridge` socket per worktree; the default home/port is forbidden. Activate `agh-worktree-isolation`.
+- **Bootstrap:** `eng-qa-bootstrap` skill; a **fresh lab per pass** (do not reuse an older loops lab). Persist the machine-readable QA bootstrap block: `bootstrap-manifest.json` path, lab root, runtime home, base URL, and verification evidence.
+- **Worktree isolation (mandatory — concurrency signaled):** unique `COMPOZY_HOME`, unique daemon ports, unique `tmux-bridge` socket per worktree; the default home/port is forbidden. Activate `eng-worktree-isolation`.
 - **Provider-home policy:** matches the provider contract — bound-secret/brokered creds use `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` from the manifest; `native_cli` + `home_policy = operator` preserves the operator `HOME`/native login unless a scenario tests isolated provider-home.
 - **Isolated web QA:** export `COMPOZY_WEB_API_PROXY_TARGET` **derived from the bootstrap manifest/env** — never hardcode `:2123`.
 - **Config writes:** `compozy config set` and peers run **sequentially** per provider/runtime home — never parallelize config writes against one isolated home.
@@ -110,7 +110,7 @@ Every scenario verdict carries machine-checkable evidence paths recorded in `sta
 - **Import parity (LP-045):** the tool-call record + the load_tasks node output showing byte-identical graphs; the deterministic ErrValidation message across surfaces.
 - **Park read-model (LP-044):** `compozy loop runs show -o json` showing subscriptions/cursors/last_wake_at, and the absent-block negative (a non-watch run renders nothing).
 - **Redaction (LP-050):** the loop-facing event/output_ref + SSE + web run-detail proving record **content is absent** (only record_type/sequence/session correlation present).
-- **UI (LP-043/044):** Playwright artifacts (§7) + `agh-ui-screenshot` captures cited by task 12.
+- **UI (LP-043/044):** Playwright artifacts (§7) + `eng-ui-screenshot` captures cited by task 12.
 
 ---
 
@@ -121,7 +121,7 @@ Task 16 MUST include the browser lane for the UI-bearing changes — **Playwrigh
 - **LP-043 (authoring form):** drive the loop editor → add a "Watch events" source node → assert the kind select renders only registry-supported kinds and the CEL filter per entry; a too-broad/unsupported entry gates Publish through the shared linter.
 - **LP-044 (run-detail park state):** drive a parked run's detail → assert subscriptions/cursors/last_wake_at render; a non-watch run renders nothing (truthful UI).
 
-Live-daemon browser E2E for these rides **AB-009** (the watch-events real-daemon seed harness) — the same gap class as AB-001. Until that seed lands, task 16 covers LP-043/044 at task-12's codec/component fixtures + `agh-ui-screenshot` and records the live-Playwright walk as AB-009-blocked (not a silent pass).
+Live-daemon browser E2E for these rides **AB-009** (the watch-events real-daemon seed harness) — the same gap class as AB-001. Until that seed lands, task 16 covers LP-043/044 at task-12's codec/component fixtures + `eng-ui-screenshot` and records the live-Playwright walk as AB-009-blocked (not a silent pass).
 
 ---
 

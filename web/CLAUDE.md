@@ -26,28 +26,28 @@ Tokens come from `packages/ui/src/tokens.css` + generated `DESIGN.md` — never 
 
 Activate skills **before** writing code. Match task domain → activate all required:
 
-| Domain                        | Required Skills                                                 | Conditional Skills                  |
-| ----------------------------- | --------------------------------------------------------------- | ----------------------------------- |
-| React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`         | `shadcn`                            |
-| Routing                       | `tanstack`                                                      |                                     |
-| Data boundaries               | `agh-data-boundaries`                                           | `tanstack` + `app-renderer-systems` |
-| State management              | `zustand`                                                       |                                     |
-| Schema / Validation           | `zod`                                                           | `typescript-advanced`               |
-| Web testing                   | `consolidate-test-suites` + `vitest` + `react` + `testing-boss` |                                     |
-| TypeScript (types)            | `typescript-advanced`                                           | `context7`                          |
-| UI / UX Design (any surface)  | `agh-design` + `ui-craft` + `impeccable`                        | `shadcn` + `agh-ui-screenshot`      |
-| UI verification / visual diff | `agh-ui-screenshot`                                             |                                     |
-| UI microcopy / product labels | `copywriting` + `documentation-writer` + `ui-craft`             |                                     |
-| Storybook / component stories | `storybook-stories`                                             | `shadcn`                            |
-| Animation / motion            | `ui-craft` + `impeccable`                                       |                                     |
-| Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`   | `ui-craft`                          |
-| AI / Streaming                | `ai-sdk`                                                        | `tanstack`                          |
-| Bug fix                       | `systematic-debugging` + `no-workarounds`                       | `testing-boss`                      |
-| External docs lookup          | `context7`                                                      | `exa-web-search-free`               |
-| Task completion               | `cy-final-verify`                                               |                                     |
+| Domain                        | Required Skills                                                     | Conditional Skills                  |
+| ----------------------------- | ------------------------------------------------------------------- | ----------------------------------- |
+| React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`             | `shadcn`                            |
+| Routing                       | `tanstack`                                                          |                                     |
+| Data boundaries               | `eng-data-boundaries`                                               | `tanstack` + `app-renderer-systems` |
+| State management              | `zustand`                                                           |                                     |
+| Schema / Validation           | `zod`                                                               | `typescript-advanced`               |
+| Web testing                   | `eng-consolidate-test-suites` + `vitest` + `react` + `testing-boss` |                                     |
+| TypeScript (types)            | `typescript-advanced`                                               | `context7`                          |
+| UI / UX Design (any surface)  | `eng-design` + `ui-craft` + `impeccable`                            | `shadcn` + `eng-ui-screenshot`      |
+| UI verification / visual diff | `eng-ui-screenshot`                                                 |                                     |
+| UI microcopy / product labels | `copywriting` + `documentation-writer` + `ui-craft`                 |                                     |
+| Storybook / component stories | `storybook-stories`                                                 | `shadcn`                            |
+| Animation / motion            | `ui-craft` + `impeccable`                                           |                                     |
+| Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`       | `ui-craft`                          |
+| AI / Streaming                | `ai-sdk`                                                            | `tanstack`                          |
+| Bug fix                       | `systematic-debugging` + `no-workarounds`                           | `testing-boss`                      |
+| External docs lookup          | `context7`                                                          | `exa-web-search-free`               |
+| Task completion               | `cy-final-verify`                                                   |                                     |
 
-- **Design-system / redesign passes**: run the `designer` agent in execution mode (not plan) and activate `agh-design` + `ui-craft` before touching any component. `ui-craft` is reference-routed — read the matched rows in full. `tokens.css` + generated `DESIGN.md` win over anything informal in the codebase.
-- **Visual verification is mandatory for every UI change** (`agh-ui-screenshot`; tests verify code, not pixels): capture the matching Storybook story on port 6006 (resolve ids via `list-stories.mjs` — bad ids hit the sub-20 KB "Couldn't find story" fallback), diff against a trusted baseline (before + after for surface-wide passes), and cite the capture when reporting done.
+- **Design-system / redesign passes**: run the `designer` agent in execution mode (not plan) and activate `eng-design` + `ui-craft` before touching any component. `ui-craft` is reference-routed — read the matched rows in full. `tokens.css` + generated `DESIGN.md` win over anything informal in the codebase.
+- **Visual verification is mandatory for every UI change** (`eng-ui-screenshot`; tests verify code, not pixels): capture the matching Storybook story on port 6006 (resolve ids via `list-stories.mjs` — bad ids hit the sub-20 KB "Couldn't find story" fallback), diff against a trusted baseline (before + after for surface-wide passes), and cite the capture when reporting done.
 
 ## Build Commands
 

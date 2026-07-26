@@ -158,10 +158,10 @@ Failure mode this section exists to prevent (real incident): a task shipped "gre
 
 When a spec/task names an OpenDesign artifact, HTML mock, screenshot, or other trusted visual reference, completion additionally requires:
 
-1. Resolve the exact reference path, including absolute paths outside the current worktree. If `agh-ui-screenshot` is installed, follow its Visual Contract Mode in full.
+1. Resolve the exact reference path, including absolute paths outside the current worktree. If `eng-ui-screenshot` is installed, follow its Visual Contract Mode in full.
 2. Enumerate every required state/viewport. For each one, require a durable bundle containing `reference.png`, `implementation.png`, `side-by-side.png`, `diff.png`, `comparison.json`, and `review.md`.
 3. Open and inspect every pair. A wrong shell, missing/reordered region, materially different geometry or hierarchy, substituted component anatomy, missing visible state, or uncited visual-language delta is a blocker regardless of green tests or pixel ratio. Content, data, copy, brand-mark, and control-existence divergences are judged against their canonical owners (runtime truth, `COPY.md`, brand inventory) — require the cited authorized difference, not prototype parity.
-4. Run the `agh-ui-screenshot` bundle validator for every row and require exit zero (`PASS` plus `blocking_divergences: 0`). Implementation-only screenshots, filenames, checklist ticks, and “looks close” prose are not parity evidence.
+4. Run the `eng-ui-screenshot` bundle validator for every row and require exit zero (`PASS` plus `blocking_divergences: 0`). Implementation-only screenshots, filenames, checklist ticks, and “looks close” prose are not parity evidence.
 5. Cite the contract matrix and bundle root in the Verification Report (`Visual contract:` line). If no named visual reference exists, report `n/a — no named visual reference found`.
 
 A runtime-truth conflict does not permit a silent visual deviation: follow runtime truth, then reconcile the contract or cite the higher-authority artifact that explicitly authorizes the difference before reporting PASS.

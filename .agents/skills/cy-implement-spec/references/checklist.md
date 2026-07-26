@@ -42,7 +42,7 @@ final iteration.
 
 - [ ] `qa_report` completed before `qa_execution` (never skip ahead).
 - [ ] `qa_report` was produced by the Fable 5 herdr worker — the orchestrator only verified artifacts; `qa_execution` ran locally.
-- [ ] If `bootstrap-manifest.json` was missing, a QA bootstrap skill (e.g. `agh-qa-bootstrap`) ran first — or its absence in this project was noted before falling through.
+- [ ] If `bootstrap-manifest.json` was missing, a QA bootstrap skill (e.g. `eng-qa-bootstrap`) ran first — or its absence in this project was noted before falling through.
 - [ ] A "not ready" report or Blocks-Completion/Data-Loss bug was repaired and retested before `--qa-execution-done`; no intermediate QA failure advanced state.
 
 ## Phase D only

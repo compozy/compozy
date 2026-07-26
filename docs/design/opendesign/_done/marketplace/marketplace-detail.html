@@ -444,13 +444,13 @@
           { name:"minimal", description:"Screenshot capture only. No agents, jobs, or triggers.",
             primary_channel:"local", channels:[{name:"local",primary:true}],
             agent_count:0, job_count:0, trigger_count:0, bridge_count:0,
-            inventory:[{resource_kind:"skill", resource_name:"agh-ui-screenshot", version:"1.3.0", action:"add"}],
+            inventory:[{resource_kind:"skill", resource_name:"eng-ui-screenshot", version:"1.3.0", action:"add"}],
             agents:[], jobs:[], triggers:[], bridges:[] },
           { name:"full", description:"Screenshot capture plus the Open Design handoff skill and a designer agent.",
             primary_channel:"local", channels:[{name:"local",primary:true}],
             agent_count:1, job_count:0, trigger_count:0, bridge_count:0,
             inventory:[
-              {resource_kind:"skill", resource_name:"agh-ui-screenshot", version:"1.3.0", action:"add"},
+              {resource_kind:"skill", resource_name:"eng-ui-screenshot", version:"1.3.0", action:"add"},
               {resource_kind:"skill", resource_name:"design-handoff", version:"1.0.1", action:"add"}
             ],
             agents:[{name:"designer", provider:"anthropic", model:"claude-opus-4-8"}], jobs:[], triggers:[], bridges:[] }

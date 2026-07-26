@@ -67,7 +67,7 @@ Out of scope:
 
 ## 3. QA lab contract
 
-Start every pass with `agh-qa-bootstrap`. Use one fresh manifest and its generated `COMPOZY_HOME`,
+Start every pass with `eng-qa-bootstrap`. Use one fresh manifest and its generated `COMPOZY_HOME`,
 workspace, HTTP/UDS endpoints, Web proxy target, provider home, evidence path, and teardown command.
 
 Rules:

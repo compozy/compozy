@@ -33,12 +33,12 @@ make cli-docs                                        # regenerate CLI reference 
 | ----------------------------- | ---------------------------------------- | ----------------------------- |
 | Fumadocs page authoring       | `documentation-writer`                   | `context7`                    |
 | Marketing / landing copy      | `copywriting` + `documentation-writer`   | `seo-audit` + `ui-craft`      |
-| Site UI / components          | `agh-design` + `ui-craft` + `impeccable` | `agh-ui-screenshot`           |
+| Site UI / components          | `eng-design` + `ui-craft` + `impeccable` | `eng-ui-screenshot`           |
 | Diagrams (architecture, flow) | `mermaid-diagrams`                       |                               |
 | Next.js / SSR / app router    | `next-best-practices`                    | `vercel-react-best-practices` |
 | Tailwind v4 styling           | `tailwindcss`                            |                               |
 | TanStack (when used in site)  | `tanstack`                               |                               |
-| Site testing                  | `consolidate-test-suites` + `vitest`     | `testing-boss`                |
+| Site testing                  | `eng-consolidate-test-suites` + `vitest` | `testing-boss`                |
 
 ## Coding Style
 
@@ -55,7 +55,7 @@ make cli-docs                                        # regenerate CLI reference 
 
 ## Testing
 
-Use `consolidate-test-suites` before adding/moving a site test (record invariant, owning layer, canonical suite, verification command). A docs/site task needs a test _decision_, not automatic Vitest coverage — "no new test" is valid when source generation, route metadata, `make codegen-check`, build, or link checks already own the invariant. Validation MUST run through Turbo (`bunx turbo run test --filter=./packages/site` or `make bun-test`), never `cd packages/site && bun run test`. After changing `source.config.ts`, regenerate and re-run the focused typecheck.
+Use `eng-consolidate-test-suites` before adding/moving a site test (record invariant, owning layer, canonical suite, verification command). A docs/site task needs a test _decision_, not automatic Vitest coverage — "no new test" is valid when source generation, route metadata, `make codegen-check`, build, or link checks already own the invariant. Validation MUST run through Turbo (`bunx turbo run test --filter=./packages/site` or `make bun-test`), never `cd packages/site && bun run test`. After changing `source.config.ts`, regenerate and re-run the focused typecheck.
 
 ## Cross-References
 

@@ -1,6 +1,6 @@
 # QA — Living Docs
 
-Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-execution` (sessions) skill pair; `real-scenario-qa` (playbook lab + runtime observation) also lands its findings here. One tree, forever: rounds append, ids never reset, history lives in dated reports.
+Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-execution` (sessions) skill pair; `eng-real-scenario-qa` (playbook lab + runtime observation) also lands its findings here. One tree, forever: rounds append, ids never reset, history lives in dated reports.
 
 ## Layout
 
@@ -32,7 +32,7 @@ New areas: define the code here first, then mint ids.
 
 - CLI: `compozy` (structured output; UDS + HTTP parity)
 - Web: `make web-dev` (export `COMPOZY_WEB_API_PROXY_TARGET` from the bootstrap manifest for isolated labs)
-- Release/scenario labs: `agh-qa-bootstrap` skill (isolated `COMPOZY_HOME`/ports/provider homes; see CLAUDE.md Workflow Rules)
+- Release/scenario labs: `eng-qa-bootstrap` skill (isolated `COMPOZY_HOME`/ports/provider homes; see CLAUDE.md Workflow Rules)
 
 ## Adopted from
 

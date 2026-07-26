@@ -272,8 +272,8 @@ Optional later: version diff, node-run drilldown modal, watch-source quiet/stall
 ## 9. Suggested skills (for the next session)
 
 - `impeccable` — UI quality (hierarchy, states, accessibility, anti-slop). **Use it.**
-- `agh-design` — Compozy branded UI/asset generation.
-- `agh-ui-screenshot` — deterministic PNGs for visual-parity checks.
+- `eng-design` — Compozy branded UI/asset generation.
+- `eng-ui-screenshot` — deterministic PNGs for visual-parity checks.
 - `compozy` — repo conventions, for when this moves to real implementation.
 
 ## 10. Key lessons from the redesign pass (don't regress)

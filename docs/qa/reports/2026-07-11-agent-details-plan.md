@@ -38,7 +38,7 @@ Each in-scope row appears once. The union is the complete 12-row scope.
 Task 09 creates a fresh lab with:
 
 ```bash
-python3 .agents/skills/agh/agh-qa-bootstrap/scripts/bootstrap-qa-env.py \
+python3 .agents/skills/eng/eng-qa-bootstrap/scripts/bootstrap-qa-env.py \
   --scenario agent-details-task-09 \
   --repo-root .
 ```

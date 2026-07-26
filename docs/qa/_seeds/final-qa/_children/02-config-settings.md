@@ -251,7 +251,7 @@ Each scenario uses the `qa-scenario` + `qa-flow` anatomy from openclaw. Scenario
 Mandatory boilerplate for every scenario (omitted in the per-scenario blocks for brevity):
 
 - All scenarios run inside an isolated `COMPOZY_HOME`, an isolated daemon port (no `:2123` fallback), and an isolated `tmux-bridge` socket per the worktree-isolation directive (`docs/_memory/standing_directives.md`).
-- Live scenarios also set `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` from the `bootstrap-manifest.json` (`agh-qa-bootstrap`), per the provider-home isolation directive.
+- Live scenarios also set `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` from the `bootstrap-manifest.json` (`eng-qa-bootstrap`), per the provider-home isolation directive.
 - Every scenario `cleanup` step calls `compozy daemon stop` and removes the bootstrap home tree.
 
 ````markdown
@@ -878,7 +878,7 @@ The QA pass MUST also drive the following edges, each as a one-shot assertion (s
 
 ## 9. Fixtures / Bootstrap Requirements
 
-Per `agh-qa-bootstrap` and the worktree-isolation directive:
+Per `eng-qa-bootstrap` and the worktree-isolation directive:
 
 - **Two COMPOZY_HOMEs** — `bootstrap-manifest.json` lab A (`COMPOZY_HOME_A=/tmp/compozyqa-cfg-A`) and lab B (`COMPOZY_HOME_B=/tmp/compozyqa-cfg-B`). Used by CFG-08.
 - **Distinct daemon ports** — port allocation via `worktree.allocatePort()` (e.g. 21230 / 21231). NEVER `2123`.

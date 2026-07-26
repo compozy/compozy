@@ -135,7 +135,7 @@ Every measurement records actions, timestamps, public observables, remediation l
 
 ## Task 10 environment and evidence contract
 
-1. Bootstrap a fresh isolated lab with `agh-qa-bootstrap`; do not reuse another cycle's manifest.
+1. Bootstrap a fresh isolated lab with `eng-qa-bootstrap`; do not reuse another cycle's manifest.
 2. Honor unique `COMPOZY_HOME`, ports, provider homes, and tmux-bridge sockets. Export `COMPOZY_WEB_API_PROXY_TARGET` from the manifest.
 3. Register every long-lived daemon, Web server, browser, watcher, and tmux process under `<QA_OUTPUT_PATH>/qa/pids/`.
 4. Create one dated execution report with every charter initially `Pending`; append observations immediately after each journey checkpoint.

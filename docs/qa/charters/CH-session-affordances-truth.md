@@ -18,7 +18,7 @@ charter:
     must_try:
       - "Unnamed session: exactly one title spawn after the first assistant response, none after the second; explicit names never overwritten; title lands in HTTP/UDS/CLI/Web catalogs."
       - "Interrupt then steer → the composed cancelled+correction input enqueued once under the new generation; interrupt then plain new prompt → no salvage composition."
-      - "Failed edit with no later success → verifier marker in the durable timeline; a later successful edit for the same path suppresses it (agh-ui-screenshot both states)."
+      - "Failed edit with no later success → verifier marker in the durable timeline; a later successful edit for the same path suppresses it (eng-ui-screenshot both states)."
       - "Nested-CWD session: provider observes the mapped runtime path, resume returns to the same directory, outside-workspace CWD stays rejected."
     must_avoid:
       - "Testing compaction here — CH-crash-resume-compaction owns that half of J-11."

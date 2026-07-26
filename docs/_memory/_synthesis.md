@@ -18,7 +18,7 @@ This document is a _review surface_ for Pedro to approve/reject before anything 
 
 5. **CLAUDE.md is materially stale on package layout and build commands.** Missing: `internal/scheduler`, `internal/agentidentity`, `internal/situation`, `internal/hooks`, `internal/task`, `internal/network`, `internal/resources`, `packages/site`. Missing build commands: `make codegen`, `make codegen-check`, `make test-e2e-web`, `make test-e2e-nightly`, `make test-integration`. Phase ordering is outdated. (existing_surfaces)
 
-6. **Three new skills exist locally and aren't in dispatch:** `.agents/skills/agh/real-scenario-qa/` (project-local). The pattern was distilled from autonomy `task_18` QA. Not yet wired to the CLAUDE.md skill dispatch table. (existing_surfaces, codex_sessions)
+6. **Three new skills exist locally and aren't in dispatch:** `.agents/skills/eng/eng-real-scenario-qa/` (project-local). The pattern was distilled from autonomy `task_18` QA. Not yet wired to the CLAUDE.md skill dispatch table. (existing_surfaces, codex_sessions)
 
 7. **The greenfield-alpha discipline is real and visible** in the corpus. Renames are hard-cut (`network-rename`, `assistant-ui`, `workspace-menu`), schema migrations are direct rewrites, no compat shims. Reviews flag "preserve old behavior" PRs. (codex_plans, codex_ledger, multiple)
 
@@ -48,31 +48,31 @@ Listed in 3 priority bands. Each entry: name → trigger → mandate → evidenc
 - **Mandate**: produce a "Web/Docs Impact" subitem listing affected `web/` routes/components/hooks AND affected `packages/site` doc pages. Backend-only tasks may declare "no impact" but only after analysis.
 - **Evidence**: codex_sessions (literally every backend session — Pedro asks "não é preciso mudar nada na UI do web/?" almost every time); compozy_tasks (autonomy `_techspec.md` step boundaries spell this out per task).
 
-#### S-H4. `agh-test-conventions` (or extend `testing-boss`)
+#### S-H4. `eng-test-conventions` (or extend `testing-boss`)
 
 - **Trigger**: any time a Go test file (`*_test.go`) is being written or modified.
 - **Mandate**: enforce (a) every case in `t.Run("Should ...")` subtest; (b) `t.Parallel()` default, opt-out only with comment for `t.Setenv` or shared state; (c) no `_ = errFn(...)` in tests; (d) status-code-only assertions also assert body or error message; (e) deterministic time/IDs; (f) compile-time interface assertions for new types.
 - **Evidence**: ~40% of ALL review issues across all PRs are this category (compozy_tasks counted ~29 issues in autonomy round 1 alone; global_runs documents 12+ separate quotes; codex_ledger; local_runs; codex_sessions). Reviewers quote CLAUDE.md verbatim and still find violations.
 
-#### S-H5. `agh-cleanup-failure-paths`
+#### S-H5. `eng-cleanup-failure-paths`
 
 - **Trigger**: editing a function with multi-step setup/teardown, subprocess spawn, registry registration, or context creation.
 - **Mandate**: enumerate every error-return; require explicit `cancel()`, `Close()`, `Stop()`, lease-release, or process-stop on each. Forbid `http.DefaultClient` for outbound calls. Test fail-paths.
 - **Evidence**: hermes-001 issue_001 (procCtx leak); hermes-001 issue_015 (`http.DefaultClient` no timeout); hermes round-2 issue_010 (logout silently fails on remote revoke); autonomy expired-lease cleanup issues. (compozy_tasks, global_runs, local_runs)
 
-#### S-H6. `agh-schema-migration`
+#### S-H6. `eng-schema-migration`
 
 - **Trigger**: any change to a SQLite column/index/constraint, any new struct field that round-trips through SQLite.
 - **Mandate**: confirm a numbered migration entry exists; reject `EnsureSchema`-style boot reconcile for column additions; test fresh-DB AND reopen-after-restart paths; record migration in `schema_migrations`.
 - **Evidence**: hermes-001 issue_020 was Critical (memory_operation_log widened without migration). Repeated across hermes/autonomy. Hermes Track 1 was rewritten partly to enforce a single migration primitive. (compozy_tasks, global_runs, codex_ledger, local_runs — 4 analyses)
 
-#### S-H7. `agh-contract-codegen-coship`
+#### S-H7. `eng-contract-codegen-coship`
 
 - **Trigger**: edits in `internal/api/contract/**`, `internal/api/spec/**`, `web/src/generated/**`, or `openapi/**`.
 - **Mandate**: regenerate `openapi/compozy.json` and `web/src/generated/compozy-openapi.d.ts` in same PR; update `web/src/systems/*/types.ts` consumers + Storybook/MSW fixtures; pass `make codegen-check`, `make web-typecheck`, `make web-test`.
 - **Evidence**: ADR-011 (autonomous) explicitly mandates this; "co-ship" mentioned in compozy_tasks, codex_plans, codex_ledger. Hermes Task 5's first verify failed because settings MCP fixtures didn't carry `transport`. (4 analyses)
 
-#### S-H8. `agh-worktree-isolation`
+#### S-H8. `eng-worktree-isolation`
 
 - **Trigger**: a QA execution or test run is being prepared while user signals (env or task arg) that other agents run in parallel worktrees.
 - **Mandate**: enforce per-worktree unique `COMPOZY_HOME`, unique daemon ports, unique `tmux-bridge` socket paths. Block ops that would write to `~/.compozy/` or default ports.
@@ -378,9 +378,9 @@ Pulled from `analysis/analysis_existing_surfaces.md`:
 
 4. **`nats` skill in installed catalog vs. forbidden by architecture.** Note that the dispatch table correctly omits it.
 
-5. **`cy-final-verify` row understates verification scope.** Real flow now also runs `qa-report` + `qa-execution` (and now `real-scenario-qa`).
+5. **`cy-final-verify` row understates verification scope.** Real flow now also runs `qa-report` + `qa-execution` (and now `eng-real-scenario-qa`).
 
-6. **Skill dispatch table is missing**: `real-scenario-qa` (just added project-local), the layered QA stack (`qa-execution` + `qa-report` + `real-scenario-qa`), `compozy` skill, `cy-workflow-memory`, the `impeccable:*` family.
+6. **Skill dispatch table is missing**: `eng-real-scenario-qa` (just added project-local), the layered QA stack (`qa-execution` + `qa-report` + `eng-real-scenario-qa`), `compozy` skill, `cy-workflow-memory`, the `impeccable:*` family.
 
 7. **Web search tools row is too coarse.** Multiple tools available: `find-docs`, `context7`, `exa-web-search-free`, `firecrawl:firecrawl-cli`. Pick by purpose.
 
@@ -400,7 +400,7 @@ The user-memory file at `~/.claude/projects/-Users-pedronauck-Dev-compozy-compoz
 
 - The autonomous mode kernel (ADRs 001-012)
 - The manual-first contract
-- The QA pattern from `real-scenario-qa`
+- The QA pattern from `eng-real-scenario-qa`
 - Coordination channels / claim-lease / safe spawn / hook taxonomy
 - The greenfield-alpha "delete don't adapt" working rule
 - The two-touch rule
@@ -430,7 +430,7 @@ If Pedro approves, the next steps would be (in order):
 
 1. **Update CLAUDE.md** with the Tier-1 system prompts, fixed package layout table, fixed build commands, fixed phase framing.
 2. **Update `MEMORY.md`** with project-shape facts (autonomy kernel, manual-first contract, two-touch rule, ledger maintenance) and feedback-shape rules (subagents read-only, BR-PT conversation/EN artifacts).
-3. **Create new skills via `/writing-skills`** in this order: HIGH-priority workflow skills first (`cy-tasks-tail-qa-pair`, `cy-spec-peer-review`, `cy-web-docs-impact`, `agh-worktree-isolation`), then HIGH-priority code-discipline skills (`agh-test-conventions`, `agh-cleanup-failure-paths`, `agh-schema-migration`, `agh-contract-codegen-coship`).
+3. **Create new skills via `/writing-skills`** in this order: HIGH-priority workflow skills first (`cy-tasks-tail-qa-pair`, `cy-spec-peer-review`, `cy-web-docs-impact`, `eng-worktree-isolation`), then HIGH-priority code-discipline skills (`eng-test-conventions`, `eng-cleanup-failure-paths`, `eng-schema-migration`, `eng-contract-codegen-coship`).
 4. **Capture lesson-learned candidates** in a `docs/_memory/lessons/` registry — start with the Tier 1 (multi-source) lessons.
 5. **Decide on standing directives doc** (`docs/_memory/standing_directives.md`) for `long-running-sessions` and `remove-legacy-alpha`.
 6. **Decide on Compozy glossary** to lock down `capability` vs. `recipe` vs. `skill`, AGENT.md vs. AGENTS.md, Compozy-Network Peer Card vs. A2A Agent Card, and the "what Compozy is not" list. Belongs on the marketing site.

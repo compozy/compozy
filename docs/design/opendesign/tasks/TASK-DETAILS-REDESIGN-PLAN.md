@@ -414,7 +414,7 @@ TODO(pedro): confirm whether `tasks/task-detail-states.html` should be one galle
 - **Greenfield rule**: hard cuts, no compat props or legacy variants left behind; obsolete components deleted in the same change.
 - **Compozy Impact Audit (for the implementation task)**: Native tools: no impact expected (UI-only; verify no `compozy__*` descriptor references task UI copy). Extensibility/hooks: no impact (no contract change); config lifecycle: none. Workspace data isolation: no impact (read models unchanged; verify workspace_id stays in all task queries). Official Compozy skill: update `skills/compozy/` only if CLI hints/copy embedded there change.
 - **QA tracker**: changed user-visible behavior → reset affected `docs/qa/scenarios/` task-detail scenarios to `untested` when the web implementation lands (not for prototypes).
-- Design-system/redesign implementation in `web/` must run through the `designer` agent flow with `agh-design` + `ui-craft` and `agh-ui-screenshot` evidence, per repo rules.
+- Design-system/redesign implementation in `web/` must run through the `designer` agent flow with `eng-design` + `ui-craft` and `eng-ui-screenshot` evidence, per repo rules.
 
 ---
 

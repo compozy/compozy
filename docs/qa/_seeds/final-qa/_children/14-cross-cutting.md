@@ -56,7 +56,7 @@ The cross-cutting surface is implicit in:
 - **Composition root** (`internal/daemon/daemon.go`, `internal/daemon/boot.go`) — only place that imports every subsystem; bootCleanup LIFO unwinding is the only place that proves "every Start has a Shutdown".
 - **Authoritative-primitive exclusivity** (L-005, `docs/_memory/lessons/L-005-authoritative-primitive-exclusivity.md`) — `task.Service.ClaimNextRun` is the only claim authority; the mechanical scheduler and manual prompts compose **through** it, never around it.
 - **Detached execution lifetime** (`internal/CLAUDE.md:33-35`, L-001) — prompts, network channel sends, automation jobs, and bridge dispatches all share the `context.WithoutCancel(ctx)` rule; a regression in any one of them silently breaks the others.
-- **Codegen co-ship contract** (`internal/api/contract/`, `openapi/compozy.json`, `web/src/generated/compozy-openapi.d.ts`, `agh-contract-codegen-coship` skill) — backend contract edits cross three repos in one commit; partial regen anywhere breaks the boundary.
+- **Codegen co-ship contract** (`internal/api/contract/`, `openapi/compozy.json`, `web/src/generated/compozy-openapi.d.ts`, `eng-contract-codegen-coship` skill) — backend contract edits cross three repos in one commit; partial regen anywhere breaks the boundary.
 - **Canonical correlation keys** (`internal/CLAUDE.md:49`) — every domain operation emits `workspace_id, session_id, parent_session_id, root_session_id, agent_name, task_id, run_id, claim_token_hash, lease_until, workflow_id, coordinator_session_id, scheduler_reason, hook_event, hook_name, spawn_depth, actor_kind, actor_id, release_reason`. A scenario that touches three subsystems must show all the correlation keys those subsystems should populate, not just the keys for the originating subsystem.
 - **Hook taxonomy + dispatch** (`internal/hooks/`, `internal/CLAUDE.md:24-26`) — typed dispatch at the call site that owns the state transition; never tail event tables. A hook that fires from the wrong call site is invisible to single-module QA but breaks composition.
 - **Truthful UI** (`internal/CLAUDE.md` truthful-UI rule, SD-007) — the web UI is incomplete if it renders a control whose backend is not shipped; the web build must reject backend-ahead-of-frontend AND frontend-ahead-of-backend states equally.
@@ -102,7 +102,7 @@ There is **no single Go test target** for cross-cutting integration. The closest
 | **Greenfield zero-legacy invariant on a fresh COMPOZY_HOME** | `CLAUDE.md` greenfield rule; SD-002. | XCT-12: brand-new COMPOZY_HOME; assert no migration paths fire for "old state"; assert grep-search for the names of deleted features (e.g. `recipe`, `playbook`, deprecated CLI verbs) produces zero hits in the running binary's CLI output, OpenAPI spec, web bundle, and docs site. |
 | **Lifecycle hook chain across three layers in one session** | `internal/hooks/ordering.go`, `internal/skills`, `internal/extension/manager.go`, EXT-14, MEM-09. | XCT-13: bundle B installs skills + hooks at three layers (bundled, marketplace, workspace); session start fires hooks in hierarchy precedence then alphabetical order; one hook errors → fail-open, subsequent hooks run; ledger contains every timing. |
 | **Truthful UI gate: web is rejected when ahead of daemon** | SD-007 truthful-UI; `internal/CLAUDE.md` truthful-UI rule. | XCT-14: deliberately add a control to `web/` for an endpoint that does not exist in `internal/api/contract/`; QA gate must reject the build. |
-| **Codegen co-ship: contract-edit-then-codegen-check is the only legitimate path** | `agh-contract-codegen-coship` skill; L-007. | XCT-15: edit `internal/api/contract/`; `make codegen-check` fails; run `make codegen`; both `openapi/compozy.json` and `web/src/generated/compozy-openapi.d.ts` updated; `make codegen-check` now passes; web TypeScript build green. |
+| **Codegen co-ship: contract-edit-then-codegen-check is the only legitimate path** | `eng-contract-codegen-coship` skill; L-007. | XCT-15: edit `internal/api/contract/`; `make codegen-check` fails; run `make codegen`; both `openapi/compozy.json` and `web/src/generated/compozy-openapi.d.ts` updated; `make codegen-check` now passes; web TypeScript build green. |
 | **SD-005 audit: every module child has at least one real-LLM scenario** | SD-005 (real-scenario QA); CLAUDE.md release rule. | XCT-16: a top-level audit script greps every `_children/*.md` for at least one fenced `qa-scenario` with `live: true` AND `provider: claude-code`/`openclaw`/`hermes`; missing → release-ready verdict denied. |
 
 ## 4. Real-LLM / Real-Agent Scenarios
@@ -140,7 +140,7 @@ modules: [config, settings, daemon, session, transcript, sse, observe]
 
 ```yaml qa-flow
 preconditions:
-  - Fresh lab (`agh-qa-bootstrap`); real Claude Code reachable; COMPOZY_HOME, ports, PROVIDER_HOME isolated.
+  - Fresh lab (`eng-qa-bootstrap`); real Claude Code reachable; COMPOZY_HOME, ports, PROVIDER_HOME isolated.
   - COMPOZY_WEB_API_PROXY_TARGET exported when web is exercised.
 steps:
   - run: compozy daemon start && sleep 5
@@ -483,7 +483,7 @@ modules: [network, agentidentity, task, session, transcript, observe]
 
 ```yaml qa-flow
 preconditions:
-  - One fresh isolated lab from `agh-qa-bootstrap`; real Claude Code reachable under the manifest provider policy.
+  - One fresh isolated lab from `eng-qa-bootstrap`; real Claude Code reachable under the manifest provider policy.
   - Network available and channel `compozy-qa-channel` created.
 steps:
   - Create one Local control session with `compozy session new --network local -o json` and save its resolved snapshot.
@@ -1037,7 +1037,7 @@ steps:
   - run: mv internal/api/contract/sessions.go.bak internal/api/contract/sessions.go && make codegen
 expected_behavior:
   - Drift is detected before codegen.
-  - codegen updates both artifacts in lockstep (per agh-contract-codegen-coship skill, L-007).
+  - codegen updates both artifacts in lockstep (per eng-contract-codegen-coship skill, L-007).
   - TypeScript build remains green.
 evidence_to_capture:
   - codegen-check.before.log, codegen.log, codegen-check.after.log, tsc.log.
@@ -1126,13 +1126,13 @@ Cross-cutting obligations between modules. This is a different table from the pe
 | Detached lifetime: prompts, network sends, automation jobs, bridge dispatches | `internal/session`, `internal/network`, `internal/automation`, `internal/bridges`, `internal/extension/host_api.go:1724` | `internal/CLAUDE.md:33-35`, L-001 |
 | Hook dispatch at the call site, never tail event tables | `internal/hooks`, `internal/session`, `internal/extension`, `internal/tools`, `internal/skills` | `internal/CLAUDE.md:24-26` |
 | Authoritative-primitive exclusivity: only `task.Service.ClaimNextRun` claims | `internal/task`, `internal/scheduler`, `internal/coordinator`, `internal/automation` | L-005, AUT-07/AUT-14 |
-| Codegen co-ship: contract → openapi → web TS in a single change | `internal/api/contract`, `openapi/compozy.json`, `web/src/generated`, `make codegen-check` | `agh-contract-codegen-coship` skill, L-007 |
+| Codegen co-ship: contract → openapi → web TS in a single change | `internal/api/contract`, `openapi/compozy.json`, `web/src/generated`, `make codegen-check` | `eng-contract-codegen-coship` skill, L-007 |
 | Truthful-UI > plausible-UI | `web/`, `internal/api/contract`, packages/site | SD-007 |
 | Composition-root discipline: no package imports `daemon/`, `api/`, `cli/` | `internal/daemon/boundary.go`, `magefile.go` Boundaries | SD-008 |
 | Greenfield-delete: no migration shims for "old state" | every package with persisted state, `docs/_memory/glossary.md` vocabulary | SD-002, L-006 |
 | Extensible + agent-manageable: every capability has CLI/HTTP/UDS parity AND extension surface | `internal/cli`, `internal/api/httpapi`, `internal/api/udsapi`, `internal/extension`, docs/site | SD-011 |
 | Real-scenario QA: every release pass has ≥1 live scenario per module | `final-qa/_children/*.md` | SD-005 |
-| Worktree isolation: unique COMPOZY_HOME, daemon/UDS/Web endpoints, tmux-bridge socket | `agh-qa-bootstrap` skill, `agh-worktree-isolation` skill | L-009, CLAUDE.md worktree rule |
+| Worktree isolation: unique COMPOZY_HOME, daemon/UDS/Web endpoints, tmux-bridge socket | `eng-qa-bootstrap` skill, `eng-worktree-isolation` skill | L-009, CLAUDE.md worktree rule |
 
 ## 7. DX Cliffs
 
@@ -1181,7 +1181,7 @@ Cross-cutting failures that, if shipped, indicate broken module composition. Eac
 
 Cross-cutting QA harness needs, in addition to single-module child requirements:
 
-- **Parallel-lab bootstrap**: `agh-qa-bootstrap` must produce non-overlapping COMPOZY_HOME, daemon/UDS/Web endpoints, tmux-bridge sockets, and provider homes. XCT-06 itself uses one fresh lab because Network delivery is installation-local.
+- **Parallel-lab bootstrap**: `eng-qa-bootstrap` must produce non-overlapping COMPOZY_HOME, daemon/UDS/Web endpoints, tmux-bridge sockets, and provider homes. XCT-06 itself uses one fresh lab because Network delivery is installation-local.
 - **QA bridge fixture**: an in-process bridge (Slack-class) that emits `bridge_inbound`/`bridge_outbound` events with the same shape as the real Slack bridge; gated behind a build tag so production binary cannot ship it. Used by XCT-08, XCT-09 (CI default), with the live Slack lane optional.
 - **Long-tool fixture**: `xct__sleep` that sleeps configurable duration; required for XCT-08.
 - **Panic-extension fixture**: `xct11-ext-X` with a host-API call that triggers `panic("xct11")`; required for XCT-11. Build-tag-gated.

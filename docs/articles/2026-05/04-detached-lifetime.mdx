@@ -100,7 +100,7 @@ func (m *Manager) promptExecutionContext(
 
 The execution context has three cancellation paths. The handler can call `cancelPromptExecution` directly. The manager's fallback lifecycle context fires on daemon shutdown via `context.AfterFunc`. The cancel endpoint can reach the same handle through the session's stored cancel function. The returned `CancelFunc` releases the `AfterFunc` registration when the turn ends normally — without that release, every completed prompt would leak a registration on the lifecycle context.
 
-The rule the code enforces: every goroutine the session manager spawns is tracked by a manager-owned `sync.WaitGroup` and joined during shutdown. The `agh-code-guidelines` skill states it explicitly — _"No fire-and-forget goroutines. Track with `sync.WaitGroup` (or equivalent owner-side primitive) and join on shutdown."_ `internal/CLAUDE.md` adds the architectural form: _"Goroutines spawned by `internal/session/manager\__.go` MUST be tracked by Manager-owned WaitGroup and joined in Manager shutdown."\*
+The rule the code enforces: every goroutine the session manager spawns is tracked by a manager-owned `sync.WaitGroup` and joined during shutdown. The `eng-code-guidelines` skill states it explicitly — _"No fire-and-forget goroutines. Track with `sync.WaitGroup` (or equivalent owner-side primitive) and join on shutdown."_ `internal/CLAUDE.md` adds the architectural form: _"Goroutines spawned by `internal/session/manager\__.go` MUST be tracked by Manager-owned WaitGroup and joined in Manager shutdown."\*
 
 The combination — detached lifetime _plus_ explicit supervisor — is what makes the pattern safe. Detachment without supervision is leaking. Supervision without detachment is request-bound execution dressed up.
 

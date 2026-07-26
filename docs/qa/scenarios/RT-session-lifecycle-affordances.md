@@ -29,7 +29,7 @@ Phase C planning 2026-07-19: persona normalized to Théo; companion to US-004 (E
 interrupt salvage, verifier markers). Forensic contract (SD-006): timestamped commands with observed
 output for one title spawn after the first assistant response (and none after the second), the
 composed interrupt→steer salvage input under the new generation, and the verifier marker present
-without a later successful edit and absent with one — plus `agh-ui-screenshot` captures for the
+without a later successful edit and absent with one — plus `eng-ui-screenshot` captures for the
 title and marker.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-004-compaction-under-pressure-crash-safe

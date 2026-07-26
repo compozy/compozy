@@ -18,7 +18,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - <critical>NEVER discard errors with `_` in production or tests — handle every error or write a justification.</critical>
 - <critical>**No god files — one responsibility per file, hard cap 500 lines for production source (tests excluded).** Never mix domain types + registry/wiring + multiple implementations + generic helpers in a single file: `internal/loop/action.go` landing at 1380 lines (4 executors + registry + schema validation + JSON extraction + template rendering) is the canonical violation. Decide the file split BEFORE writing: contract/types, registry/options, one implementation per file, cross-cutting helpers in their own named file. Creating a file over the cap — or growing one past it — is a blocking architecture failure: split it in the same change; "it's all related" is never a justification. Files already over the cap must not grow — extract into a new file instead of appending.</critical>
 - <critical>**Context-budget docs stay lean.** `CLAUDE.md`/`AGENTS.md` and `SKILL.md`s load into prompts — every line costs every turn. Before editing agent instruction files activate `writing-agents-md`; before editing skills activate `writing-skills`. Growing either with restated or redundant prose is a blocking failure.</critical>
-- **Test placement before test creation** (skill: `consolidate-test-suites`). Name the invariant, owning layer, and canonical suite; edit the existing suite — don't create standalone/duplicate regressions. Static/prose/CSS/snapshot/generated/config tests are forbidden by default: allowed only when that artifact is the product contract and no stronger gate (`make verify`, `codegen-check`, build, link-check, Storybook capture) owns it.
+- **Test placement before test creation** (skill: `eng-consolidate-test-suites`). Name the invariant, owning layer, and canonical suite; edit the existing suite — don't create standalone/duplicate regressions. Static/prose/CSS/snapshot/generated/config tests are forbidden by default: allowed only when that artifact is the product contract and no stronger gate (`make verify`, `codegen-check`, build, link-check, Storybook capture) owns it.
 - **Subagents for exploration** (keeps your context clean): Use your native subagents tool to explore; Just use `agent-exploration` when required
 
 ## Workflow Rules
@@ -28,7 +28,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - **Every spec/feature carries an extensibility + agent-manageability + config-lifecycle analysis** — how it wires into extension surfaces (extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and which `config.toml` keys/defaults/docs change. "No impact" needs explicit evidence.
 - **Reference competitors by file path in tasks.** `.resources/<repo>/`-backed tasks list explicit competitor paths; analysis files go under `.compozy/tasks/<slug>/analysis/`.
 - **Worktree isolation is mandatory for parallel QA** — unique `COMPOZY_HOME`, daemon ports, and `tmux-bridge` sockets. Default home/port is forbidden when concurrency is signaled.
-- **Deterministic QA bootstrap for local release/scenario QA** — start with `agh-qa-bootstrap`; fresh lab per pass; reuse a `bootstrap-manifest.json` only when continuing the same active QA loop. QA state lives in the committed `docs/qa/` tree (`scenarios/*.md`, content-addressed bugs, journeys, charters, dated reports); `state.csv` is a gitignored generated view, and the lab holds only run-scratch evidence indexed by path.
+- **Deterministic QA bootstrap for local release/scenario QA** — start with `eng-qa-bootstrap`; fresh lab per pass; reuse a `bootstrap-manifest.json` only when continuing the same active QA loop. QA state lives in the committed `docs/qa/` tree (`scenarios/*.md`, content-addressed bugs, journeys, charters, dated reports); `state.csv` is a gitignored generated view, and the lab holds only run-scratch evidence indexed by path.
 - <critical>**QA process teardown is mandatory (L-029).** Every QA lab or isolated runtime envelope ends with `eval "$TEARDOWN_COMMAND"` (from the bootstrap manifest) or `make qa-reap` — on every terminal path (pass/fail/blocked/abort). Files may stay for forensics; processes never do. Completing a task while lab daemons, tmux servers, dev servers, browsers, or watchers are still alive is a blocking failure; cite `teardown.json` (`"clean": true`) as evidence. Register long-lived lab processes at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` on spawn.</critical>
 - **QA tracker impact flag before completing any task** — if the diff changes user-visible behavior (UI, CLI verb, API route, config key, copy), flag it in `docs/qa/scenarios/`: new behavior → add an `untested` content-addressed scenario file; changed behavior → reset the affected file's `qa_status` to `untested`. Pure refactors declare "no user-visible change". **Flag, don't retest** — retests belong to the next QA cycle (`untested` scenarios ARE its scope). Use content-addressed ids for new scenarios and bugs; dedup same-behavior/same-symptom add/add conflicts instead of coordinating a shared counter.
 - **Provider-home policy matches the provider contract in local QA.** Bound-secret/brokered creds use `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` from the bootstrap manifest. Exception: `native_cli` + `home_policy = operator` preserves the operator `HOME`/native login unless a scenario tests isolated provider-home.
@@ -64,7 +64,7 @@ Compozy Impact Audit:
 - Pull every color/type/radius/spacing/motion value from `tokens.css` + `DESIGN.md`. Signal palette is information, never decoration: `#E8572A` action · `#5FBF85` success · `#E0635A` danger · `#D6A647` warning · `#8E8EB5` info.
 - Never hand-edit `DESIGN.md` frontmatter or `<!-- BEGIN/END:tokens:* -->` regions. After changing runtime/site theme tokens run `make codegen`; `make codegen-check` enforces drift. Site-only extensions go in `packages/site/app/global.css` `@theme inline`.
 - **Truthful UI > plausible UI.** Never render controls/metrics the runtime doesn't support. On conflict, daemon truth wins.
-- **Design-system/redesign work runs through the `designer` agent in execution mode only** and MUST activate `agh-design` + `ui-craft` (reference-routed — read the matched rows in full). **Verify every `web/` or `packages/ui/` UI change with `agh-ui-screenshot` before completion** and cite the capture; when a spec names a visual reference, Visual Contract Mode requires a rendered reference/implementation bundle with zero unresolved structural mismatches — an implementation-only capture is not parity evidence. Reference parity binds visual language only — a prototype is lossy on content, data, copy, and brand marks; runtime truth, `COPY.md`, and the `@compozy/ui` brand inventory own those axes (divergences become authorized deltas, never new brand variants or invented content).
+- **Design-system/redesign work runs through the `designer` agent in execution mode only** and MUST activate `eng-design` + `ui-craft` (reference-routed — read the matched rows in full). **Verify every `web/` or `packages/ui/` UI change with `eng-ui-screenshot` before completion** and cite the capture; when a spec names a visual reference, Visual Contract Mode requires a rendered reference/implementation bundle with zero unresolved structural mismatches — an implementation-only capture is not parity evidence. Reference parity binds visual language only — a prototype is lossy on content, data, copy, and brand marks; runtime truth, `COPY.md`, and the `@compozy/ui` brand inventory own those axes (divergences become authorized deltas, never new brand variants or invented content).
 
 ## Copy System
 
@@ -80,30 +80,30 @@ Compozy Impact Audit:
 
 | Domain                                            | Required Skills                                                                          | Conditional Skills                    |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
-| Go / Runtime                                      | `agh-code-guidelines` + `golang-pro`                                                     | `context7`                            |
-| Config / Logging                                  | `agh-code-guidelines` + `golang-pro`                                                     |                                       |
-| TUI / CLI Bubbletea                               | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                       |
+| Go / Runtime                                      | `eng-code-guidelines` + `golang-pro`                                                     | `context7`                            |
+| Config / Logging                                  | `eng-code-guidelines` + `golang-pro`                                                     |                                       |
+| TUI / CLI Bubbletea                               | `bubbletea` + `eng-code-guidelines` + `golang-pro`                                       |                                       |
 | Bug fix                                           | `systematic-debugging` + `no-workarounds`                                                | `testing-boss`                        |
-| Writing Go tests                                  | `agh-test-conventions` + `testing-boss` + `golang-pro`                                   | `vitest` (only for test tooling docs) |
-| Test placement / consolidation                    | `consolidate-test-suites`                                                                | `testing-boss`                        |
-| Cleanup / failure paths                           | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       |                                       |
-| Schema / migration changes                        | `agh-schema-migration` + `golang-pro`                                                    |                                       |
-| Contract / OpenAPI changes                        | `agh-contract-codegen-coship`                                                            |                                       |
+| Writing Go tests                                  | `eng-test-conventions` + `testing-boss` + `golang-pro`                                   | `vitest` (only for test tooling docs) |
+| Test placement / consolidation                    | `eng-consolidate-test-suites`                                                            | `testing-boss`                        |
+| Cleanup / failure paths                           | `eng-cleanup-failure-paths` + `eng-code-guidelines` + `golang-pro`                       |                                       |
+| Schema / migration changes                        | `eng-schema-migration` + `golang-pro`                                                    |                                       |
+| Contract / OpenAPI changes                        | `eng-contract-codegen-coship`                                                            |                                       |
 | Task completion                                   | `deslop` + `cy-final-verify`                                                             |                                       |
 | Lessons learned                                   | `lesson-learned`                                                                         |                                       |
 | Architecture audit                                | `architectural-analysis`                                                                 | `refactoring-analysis`                |
-| Concurrency / races                               | `golang-pro` + `systematic-debugging`                                                    | `agh-code-guidelines`                 |
-| Compozy Network (`internal/network` only)         | `agh-code-guidelines` + `golang-pro`                                                     | `systematic-debugging`                |
+| Concurrency / races                               | `golang-pro` + `systematic-debugging`                                                    | `eng-code-guidelines`                 |
+| Compozy Network (`internal/network` only)         | `eng-code-guidelines` + `golang-pro`                                                     | `systematic-debugging`                |
 | Performance / hot paths                           | `extreme-software-optimization` + `golang-pro`                                           |                                       |
 | Security review                                   | `security-review`                                                                        |                                       |
 | Creative / new features                           | `grill-me`                                                                               |                                       |
 | PRD creation                                      | `cy-spec-preflight` + `cy-create-prd`                                                    | `grill-me`                            |
 | TechSpec creation                                 | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review`                 |
 | Task generation                                   | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                       |
-| Research → executable issue backlog               | `cy-research-issues`                                                                     | `consolidate-test-suites`             |
+| Research → executable issue backlog               | `cy-research-issues`                                                                     | `eng-consolidate-test-suites`         |
 | Execute a PRD task                                | `cy-execute-task`                                                                        | `cy-workflow-memory`                  |
 | Review round / fixes                              | `cy-review-round` + `cy-fix-reviews`                                                     |                                       |
-| Release / scenario QA                             | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`              |
+| Release / scenario QA                             | `eng-qa-bootstrap` + `eng-real-scenario-qa` + `qa-report` + `qa-execution`               | `eng-worktree-isolation`              |
 | Git rebase / conflicts                            | `git-rebase`                                                                             |                                       |
 | External docs lookup                              | `context7`                                                                               | `exa-web-search-free`                 |
 | Parallel multi-area research                      | `agent-exploration`                                                                      |                                       |
@@ -112,8 +112,8 @@ Compozy Impact Audit:
 | Copy / public product language                    | `copywriting` + `documentation-writer`                                                   | `seo-audit`                           |
 | Skill authoring                                   | `writing-skills`                                                                         |                                       |
 | Agent instruction files (`CLAUDE.md`/`AGENTS.md`) | `writing-agents-md`                                                                      |                                       |
-| UI / Design (any surface)                         | `agh-design` + `ui-craft` + `impeccable`                                                 | `agh-ui-screenshot`                   |
-| UI verification / visual diff                     | `agh-ui-screenshot` + `impeccable`                                                       |                                       |
+| UI / Design (any surface)                         | `eng-design` + `ui-craft` + `impeccable`                                                 | `eng-ui-screenshot`                   |
+| UI verification / visual diff                     | `eng-ui-screenshot` + `impeccable`                                                       |                                       |
 
 Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`.
 
@@ -168,16 +168,16 @@ Repo layout — **open the surface's instructions file before working in it**:
 
 ## Coding Style
 
-Before editing any production `*.go` under `cmd/`/`internal/`, activate `agh-code-guidelines` (error wrapping `%w`, `errors.Is/As`, `slog`, `context` discipline, compile-time interface assertions, no hardcoded config). Hard invariants are in Critical Rules.
+Before editing any production `*.go` under `cmd/`/`internal/`, activate `eng-code-guidelines` (error wrapping `%w`, `errors.Is/As`, `slog`, `context` discipline, compile-time interface assertions, no hardcoded config). Hard invariants are in Critical Rules.
 
 ## Testing
 
-- Activate `agh-test-conventions` before writing/editing any `*_test.go`; `consolidate-test-suites` before adding/moving a test (see the Critical Rules test-placement rule). Both skills carry their own detail.
+- Activate `eng-test-conventions` before writing/editing any `*_test.go`; `eng-consolidate-test-suites` before adding/moving a test (see the Critical Rules test-placement rule). Both skills carry their own detail.
 - Non-negotiables: `t.Run("Should …")` subtests + `t.Parallel` default; status-code **and** body assertions; `-race`/`CGO_ENABLED=1`; integration/E2E build tags; runtime-contract co-ship (E2E mock + matchers ship with contract changes); 80% per-package coverage floor. `make verify` is the commit gate — test failures are production bugs.
 
 ### Schema Migrations
 
-Any SQLite table/column/index/constraint change → activate `agh-schema-migration`; update the owning stream's declarative schema source (`schema.sql` or ordered domain fragments), append the next gap-free Goose SQL migration, refresh `atlas.sum` and sqlc output with `make codegen`, then pass `make codegen-check`. **Append-only identity:** existing migration bytes, versions, order, and `atlas.sum` history are immutable — never insert, rename, renumber, reorder, or edit an existing migration, weaken integrity checks, or hand-edit a Goose version table. Extend the canonical fresh/reopen/ahead/integrity/equivalence suites; boot-time `EnsureSchema` repair is forbidden.
+Any SQLite table/column/index/constraint change → activate `eng-schema-migration`; update the owning stream's declarative schema source (`schema.sql` or ordered domain fragments), append the next gap-free Goose SQL migration, refresh `atlas.sum` and sqlc output with `make codegen`, then pass `make codegen-check`. **Append-only identity:** existing migration bytes, versions, order, and `atlas.sum` history are immutable — never insert, rename, renumber, reorder, or edit an existing migration, weaken integrity checks, or hand-edit a Goose version table. Extend the canonical fresh/reopen/ahead/integrity/equivalence suites; boot-time `EnsureSchema` repair is forbidden.
 
 ## Memory & Lessons Learned
 

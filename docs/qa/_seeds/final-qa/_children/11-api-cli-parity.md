@@ -164,7 +164,7 @@ Same template as the sibling children (`03-acp-sessions`, `04-autonomy-kernel`):
 
 Bootstrap and isolation discipline (mandatory):
 
-- One isolated `COMPOZY_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario (per `agh-worktree-isolation` skill and `agh-qa-bootstrap`).
+- One isolated `COMPOZY_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario (per `eng-worktree-isolation` skill and `eng-qa-bootstrap`).
 - `COMPOZY_WEB_API_PROXY_TARGET` exported when web QA accompanies a parity scenario (per CLAUDE.md "Isolated Web QA must export `COMPOZY_WEB_API_PROXY_TARGET`").
 - Bound-secret, brokered, and explicitly isolated-home auth staged into
   `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
@@ -953,7 +953,7 @@ cleanup: `compozy session stop $S`; kill any leftover background CLI processes.
 
 ## 11. Fixtures
 
-- **Bootstrap manifest**: produced by `agh-qa-bootstrap`. Includes unique `COMPOZY_HOME`, daemon HTTP port, daemon UDS path, tmux-bridge socket, `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, `COMPOZY_WEB_API_PROXY_TARGET`.
+- **Bootstrap manifest**: produced by `eng-qa-bootstrap`. Includes unique `COMPOZY_HOME`, daemon HTTP port, daemon UDS path, tmux-bridge socket, `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, `COMPOZY_WEB_API_PROXY_TARGET`.
 - **Workspace seed**: `$LAB/workspace/` with `README.md` (≥3 paragraphs), `src/file_a.go`, `src/file_b.go`, `generated_long_file.txt` (~2 MB) for API-06.
 - **Provider auth**: direct `claude` uses native Claude CLI auth from the
   effective Claude home for the lane (operator `HOME` by default; isolated

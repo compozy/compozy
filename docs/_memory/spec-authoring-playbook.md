@@ -148,7 +148,7 @@ Each task file is the unit of execution. The autonomy task files are the canonic
 - **Goal**: 1-3 sentences naming the deliverable.
 - **Files / Surfaces**: enumerated list of files/packages touched.
 - **Implementation Steps**: numbered, deterministic.
-- **Tests**: enumerated assertions covering happy path + failure paths + concurrency stress where relevant. → `agh-test-conventions` skill, `lessons/L-002`, `agh-cleanup-failure-paths` skill.
+- **Tests**: enumerated assertions covering happy path + failure paths + concurrency stress where relevant. → `eng-test-conventions` skill, `lessons/L-002`, `eng-cleanup-failure-paths` skill.
 - **Web/Docs Impact**: paths affected under `web/` and `packages/site`, OR explicit `none — backend-only` line. → `cy-web-docs-impact` skill. Includes the **QA impact** line: `docs/qa/state.csv` scenario ids to reset to `untested` when user-visible behavior changes (flag, don't retest), OR `none — no user-visible behavior change`.
 - **Extensibility / Agent Manageability / Config Lifecycle**: affected extension hooks/manifests/skills/tools/resources/bundles/registries/bridge SDKs, CLI/HTTP/UDS agent operation paths, and `config.toml` keys/docs/tests, OR explicit `none — checked surfaces: ...` line.
 - **References**: `.resources/<competitor>/path` paths cited from the TechSpec.
@@ -164,7 +164,7 @@ Workflow memory under `.compozy/tasks/<slug>/memory/task_NN.md` follows the 6-se
 - Status-code-only assertions without body/contract evidence.
 - `t.Parallel()` on env-mutating tests. → `lessons/L-002`.
 - `force: true` on Playwright actionability checks.
-- `http.DefaultClient` in production code paths. → `agh-cleanup-failure-paths`.
+- `http.DefaultClient` in production code paths. → `eng-cleanup-failure-paths`.
 - Schema changes without numbered migration. → `lessons/L-008`.
 
 ---
@@ -206,11 +206,11 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 | Skill: peer review                          | `.agents/skills/cy-spec-peer-review/`                                  |
 | Skill: tasks tail QA pair                   | `.agents/skills/cy-tasks-tail-qa-pair/`                                |
 | Skill: web/docs impact                      | `.agents/skills/cy-web-docs-impact/`                                   |
-| Skill: test conventions                     | `.agents/skills/agh/agh-test-conventions/`                             |
-| Skill: cleanup failure paths                | `.agents/skills/agh/agh-cleanup-failure-paths/`                        |
-| Skill: schema migration                     | `.agents/skills/agh/agh-schema-migration/`                             |
-| Skill: contract codegen co-ship             | `.agents/skills/agh/agh-contract-codegen-coship/`                      |
-| Skill: worktree isolation                   | `.agents/skills/agh/agh-worktree-isolation/`                           |
+| Skill: test conventions                     | `.agents/skills/eng/eng-test-conventions/`                             |
+| Skill: cleanup failure paths                | `.agents/skills/eng/eng-cleanup-failure-paths/`                        |
+| Skill: schema migration                     | `.agents/skills/eng/eng-schema-migration/`                             |
+| Skill: contract codegen co-ship             | `.agents/skills/eng/eng-contract-codegen-coship/`                      |
+| Skill: worktree isolation                   | `.agents/skills/eng/eng-worktree-isolation/`                           |
 | Skill: spec preflight (loads this playbook) | `.agents/skills/cy-spec-preflight/`                                    |
 | Root rules                                  | `/CLAUDE.md`, `/AGENTS.md`                                             |
 | Web rules                                   | `/web/CLAUDE.md`                                                       |

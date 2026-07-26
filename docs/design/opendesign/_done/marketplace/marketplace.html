@@ -423,7 +423,7 @@
         desc:"Review dependency bumps against changelogs and known advisories." },
       { id:"lockfile-hygiene", name:"lockfile-hygiene", author:"@compozy", version:"0.4.1", downloads:"510", state:"available",
         desc:"Detect drift between manifests and lockfiles before it lands." },
-      { id:"agh-ui-screenshot", name:"agh-ui-screenshot", author:"@compozy", version:"1.3.0", downloads:"2.3k", state:"available",
+      { id:"eng-ui-screenshot", name:"eng-ui-screenshot", author:"@compozy", version:"1.3.0", downloads:"2.3k", state:"available",
         desc:"Deterministic PNG capture of Storybook stories and local UI URLs." },
       { id:"security-review", name:"security-review", author:"@community", version:"1.2.4", downloads:"1.2k", state:"available",
         desc:"Audit a diff for injection, authz, and secret-handling risks." }
@@ -478,9 +478,9 @@
         desc:"Activate the Open Design handoff skill plus screenshot capture helpers.",
         profiles:[
           { name:"minimal", description:"Screenshot capture only. No agents, jobs, or triggers.", summary:"no agents, jobs, or triggers",
-            inventory:[{kind:"skill",name:"agh-ui-screenshot",version:"1.3.0",action:"add"}] },
+            inventory:[{kind:"skill",name:"eng-ui-screenshot",version:"1.3.0",action:"add"}] },
           { name:"full", description:"Screenshot capture plus the handoff skill and a designer agent.", summary:"1 agent",
-            inventory:[{kind:"skill",name:"agh-ui-screenshot",version:"1.3.0",action:"add"},{kind:"skill",name:"design-handoff",version:"1.0.1",action:"add"}] }
+            inventory:[{kind:"skill",name:"eng-ui-screenshot",version:"1.3.0",action:"add"},{kind:"skill",name:"design-handoff",version:"1.0.1",action:"add"}] }
         ] }
     ]
   };

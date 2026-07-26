@@ -228,7 +228,7 @@ Config lifecycle: `window_manager.*` is `DiffClassLive` (`internal/config/lifecy
 
 ## 9. Test plan
 
-Placement first, per `consolidate-test-suites`. Every row names the invariant, the layer that owns it, and the suite it belongs in.
+Placement first, per `eng-consolidate-test-suites`. Every row names the invariant, the layer that owns it, and the suite it belongs in.
 
 | Invariant | Owning layer | Canonical suite |
 |---|---|---|
@@ -316,7 +316,7 @@ E2E: the page is UI-bearing, so a Playwright lane belongs in `make test-e2e-web`
 
 **P4 — profiles.** Card grid with thumbnails, editor, confirm gates.
 
-Acceptance for the whole change: `make verify` green; zero `input[type=number]` bound to a geometry field under `systems/settings/`; no file over 500 lines; `agh-ui-screenshot` capture of the new Storybook stories cited in the completion notes.
+Acceptance for the whole change: `make verify` green; zero `input[type=number]` bound to a geometry field under `systems/settings/`; no file over 500 lines; `eng-ui-screenshot` capture of the new Storybook stories cited in the completion notes.
 
 ---
 

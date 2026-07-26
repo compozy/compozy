@@ -67,10 +67,10 @@ asked for isolated native auth, not because isolation is the blanket default.
   - `AGENTS.md`
   - `CLAUDE.md`
 - QA skill guidance updated:
-  - `.agents/skills/agh/agh-qa-bootstrap/SKILL.md`
-  - `.agents/skills/agh/agh-qa-bootstrap/references/bootstrap-contract.md`
+  - `.agents/skills/eng/eng-qa-bootstrap/SKILL.md`
+  - `.agents/skills/eng/eng-qa-bootstrap/references/bootstrap-contract.md`
   - `.agents/skills/qa-execution/SKILL.md`
-  - `.agents/skills/agh/real-scenario-qa/SKILL.md`
+  - `.agents/skills/eng/eng-real-scenario-qa/SKILL.md`
 - Final QA plan corrected:
   - `.compozy/tasks/final-qa/_master-qa-plan.md`
   - `.compozy/tasks/final-qa/_children/03-acp-sessions.md`

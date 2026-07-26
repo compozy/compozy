@@ -108,7 +108,7 @@ Every journey has ≥1 charter with an assigned persona (J-01: CH-001+CH-012; J-
 
 Recorded in `docs/qa/automation-backlog.md` — not as metadata on scenarios:
 
-- **AB-001** — Loop web E2E seed harness (real-daemon Playwright): the daemon now emits rich Loop SSE frames, but `web/e2e/fixtures/*` still has no loop seed that drives those states in Playwright. Blocks real-browser E2E for J-01/03/04/06/08/09; covered meanwhile at daemon/runtime tests, vitest/component, and `agh-ui-screenshot`.
+- **AB-001** — Loop web E2E seed harness (real-daemon Playwright): the daemon now emits rich Loop SSE frames, but `web/e2e/fixtures/*` still has no loop seed that drives those states in Playwright. Blocks real-browser E2E for J-01/03/04/06/08/09; covered meanwhile at daemon/runtime tests, vitest/component, and `eng-ui-screenshot`.
 - **AB-002** — Converse-and-decide seed: no installed template (docs-only); J-10/CH-010 need a hand-built `compozy__network_send` + `channel_result` seed to exercise E2E-web-6.
 - **AB-003** — Agent-operability parity harness for the full `compozy__loop_*` verb set (J-07).
 - **AB-004** — Seeds that produce all 11 statuses (incl. `no-op`/`blocked`/`queued`/`paused`) to pin the no-coercion invariant (J-03/J-08).

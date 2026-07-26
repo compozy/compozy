@@ -155,7 +155,7 @@ graph:
 - Each test case names the specific input, condition, or expected behavior — "test the happy
   path" is a defect.
 - Name the canonical owning suite for each case; extend existing suites (per the repo's
-  test-placement rules / `consolidate-test-suites`) and create a new file only when no suite owns
+  test-placement rules / `eng-consolidate-test-suites`) and create a new file only when no suite owns
   the invariant — then name the new file explicitly.
 - Never generate a task dedicated solely to testing another task's code; tests ride inside the
   task that changes the behavior. (A cross-cutting test-infrastructure task is allowed.)

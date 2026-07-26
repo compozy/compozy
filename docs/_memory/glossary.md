@@ -362,7 +362,7 @@ Regenerate / verify drift on `openapi/compozy.json`, `web/src/generated/compozy-
 
 ### Real-Scenario QA
 
-The practice of validating Compozy the way real users experience it, owned by the `qa-report` (planning, living docs) + `qa-execution` (persona-driven sessions, evidence) pair over the committed `docs/qa/` tree (`state.csv`, `bugs/BUG-NNNN` registry, journeys, charters, dated reports). For release-grade validation of the multi-agent runtime, the `real-scenario-qa` skill adds the playbook harness: an isolated lab (via `agh-qa-bootstrap`), one in-persona operator kickoff, read-only runtime observation, and a strict deliverable/collaboration audit — exercising CLI + Web + API surfaces end-to-end.
+The practice of validating Compozy the way real users experience it, owned by the `qa-report` (planning, living docs) + `qa-execution` (persona-driven sessions, evidence) pair over the committed `docs/qa/` tree (`state.csv`, `bugs/BUG-NNNN` registry, journeys, charters, dated reports). For release-grade validation of the multi-agent runtime, the `eng-real-scenario-qa` skill adds the playbook harness: an isolated lab (via `eng-qa-bootstrap`), one in-persona operator kickoff, read-only runtime observation, and a strict deliverable/collaboration audit — exercising CLI + Web + API surfaces end-to-end.
 
 ---
 

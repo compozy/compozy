@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /tmp/agh-ui-screenshot.EdZjtp/evidence; /tmp/agh-ui-screenshot.batch-d.X6X6Rq/out
+evidence: /tmp/eng-ui-screenshot.EdZjtp/evidence; /tmp/eng-ui-screenshot.batch-d.X6X6Rq/out
 last_report:
 overlaps: TA-039; NB-045; ET-web-loop-editor-topbar; ET-web-marketplace-landing-browse; ET-window-manager-layout-gestures; ET-web-settings-hooks; ET-web-vault-opendesign-listing; RT-021
 ---

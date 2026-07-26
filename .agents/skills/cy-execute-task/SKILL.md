@@ -45,7 +45,7 @@ Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
    - Extract deliverables, acceptance criteria, and every explicit `Validation`, `Test Plan`, or `Testing` item into a numbered working checklist.
    - Add one checklist line per test-case ID assigned in the task's `## Tests` section, and implement each case as `_tests.md` specifies it — the assigned IDs are part of the deliverable, not a suggestion.
    - Add one checklist line per concrete contract fact extracted from the contract-bearing spec artifacts (input names/types/defaults/required flags, command and route names, node topologies, declared behaviors) — parity with these facts is part of the deliverable.
-   - When visible UI has a named visual reference, activate `agh-design` and `agh-ui-screenshot`, follow Visual Contract Mode before code, and add one checklist line per explicit state/viewport row plus its durable evidence-bundle path. Expand vague “all states” requirements before implementation.
+   - When visible UI has a named visual reference, activate `eng-design` and `eng-ui-screenshot`, follow Visual Contract Mode before code, and add one checklist line per explicit state/viewport row plus its durable evidence-bundle path. Expand vague “all states” requirements before implementation.
    - Include any conflict-resolution decisions from step 1 as checklist lines so the chosen interpretation stays visible during implementation.
    - Print the full checklist before starting implementation so it is visible and trackable.
    - Capture the concrete pre-change signal that proves the task is not finished yet.
@@ -61,7 +61,7 @@ Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
    - Run every test and validation command listed in the task specification — not just the repository-wide verification.
    - Use the installed `cy-final-verify` skill. This step is mandatory regardless of auto-commit mode — always verify before claiming completion.
    - Check the finished deliverable field by field against every contract-bearing spec artifact identified by the survey (cy-final-verify "Spec Contract Parity"), using the resolved interpretation from step 1 when sources had disagreed. A mismatch against that resolved contract fails completion — fix the deliverable and re-verify; do not reinterpret the contract to match what was built, and do not pause to ask.
-   - For every named visual contract, require the complete `agh-ui-screenshot` bundle: rendered reference and implementation at the same state/viewport, side-by-side, diff, metric, reviewed zero-blocker verdict, and a passing bundle validator. A screenshot set containing only the implementation fails completion.
+   - For every named visual contract, require the complete `eng-ui-screenshot` bundle: rendered reference and implementation at the same state/viewport, side-by-side, diff, metric, reviewed zero-blocker verdict, and a passing bundle validator. A screenshot set containing only the implementation fails completion.
    - Perform a self-review after verification and resolve every blocking issue before proceeding.
 
 5. Update task tracking.

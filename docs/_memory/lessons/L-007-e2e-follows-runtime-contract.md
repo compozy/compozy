@@ -6,7 +6,7 @@
 
 ## Context
 
-The autonomy MVP `make verify` passed. Real-scenario QA via `real-scenario-qa` then surfaced three Playwright/E2E regressions:
+The autonomy MVP `make verify` passed. Real-scenario QA via `eng-real-scenario-qa` then surfaced three Playwright/E2E regressions:
 
 - **BUG-001** — workspace onboarding race in the web E2E `TC-AUTO-015` test; absent shared workspace-onboarding wait helper.
 - **BUG-002** — `acpmock` exact-match canonicalization for situation-augmented prompts. Task 04 added a situation-context augmenter that changed the rendered prompt; the deterministic ACP mock fixture matcher still expected the pre-Task-04 shape.

@@ -57,14 +57,14 @@ scenario in §7 maps back to one or more of these IDs.
 | `obs.durable-before-broadcast`      | Live broadcasters publish only **after** the durable append succeeds. Reconnect/replay uses `after_seq`/`Last-Event-ID`. No client may receive an event the daemon cannot later replay.                                                                          | `internal/CLAUDE.md:52`; `internal/api/core/session_stream.go:69-151`; `internal/session/notifier.go:5-16` (notifier fires via the manager prompt path after Record). |
 | `obs.sequence-monotonic`            | Per-session event sequence IDs are strictly monotonic, assigned under exclusive writer-goroutine ownership; clock skew does not corrupt order.                                                                                                                  | `internal/store/sessiondb/session_db.go:474-505,532-550,723-728`                                                                                                       |
 | `obs.replay.after-seq`              | Reconnect with `Last-Event-ID: N` (or `?after_sequence=N`) returns only events with sequence > N, in order, with no duplicates.                                                                                                                                 | `internal/api/core/session_stream.go:16-151`; `internal/api/core/parsers.go:28-39`                                                                                    |
-| `obs.replay.cross-restart`          | Events appended before a daemon restart are still replayable after restart. SQLite `-wal`/`-shm` companion files survive recovery.                                                                                                                              | `internal/store/sessiondb/session_db.go:138-179`; `internal/CLAUDE.md` "agh-schema-migration" wal/shm note                                                              |
+| `obs.replay.cross-restart`          | Events appended before a daemon restart are still replayable after restart. SQLite `-wal`/`-shm` companion files survive recovery.                                                                                                                              | `internal/store/sessiondb/session_db.go:138-179`; `internal/CLAUDE.md` "eng-schema-migration" wal/shm note                                                              |
 | `obs.transcript.replay-equivalence` | Persisted events replayed via `transcript.Assemble` produce the same `[]Message` ordering and content the SSE client originally saw — schema `compozy.session.event.v1`.                                                                                            | `internal/transcript/transcript.go:17, 113-130, 174-318, 737-822`                                                                                                      |
 | `obs.correlation-keys`              | Every SSE/event payload across the prompt → tool → hook → memory write → end lifecycle carries the documented keys: `session_id`, `parent_session_id`, `root_session_id`, `agent_name`, `task_id`, `run_id`, `claim_token_hash`, `lease_until`, `workflow_id`, `coordinator_session_id`, `scheduler_reason`, `hook_event`, `hook_name`, `spawn_depth`, `actor_kind`, `actor_id`, `release_reason`. | `internal/CLAUDE.md:48-50`                                                                                                                                             |
 | `obs.claim-token-redaction`         | Raw `compozy_claim_*` tokens never appear in logs, SSE, web responses, db rows, error payloads, settings views, or channel messages. Only `claim_token_hash` over the wire.                                                                                          | `internal/CLAUDE.md` Security Invariants (`internal/CLAUDE.md:55-56`); `internal/task/lease.go:36, 160-166`; `internal/task/manager.go:3702-3791`                       |
 | `obs.secret-redaction-logs`         | Diagnostic / log text scrubs Bearer tokens, JSON-shaped secret keys, env-style assignments (`API_KEY=…`, `OPENAI_API_KEY=sk-…`), and runtime-registered secrets.                                                                                                  | `internal/diagnostics/redact.go:18-70`                                                                                                                                  |
 | `obs.diagnostics.health`            | `Observer.Health` returns a typed snapshot with derived `status` ∈ {`ok`, `degraded`}; aggregates persistence, retention, failures, agent probes, bridges, tasks, activities; CLI `compozy observe health -o json` and `/api/observe/health` agree byte-for-byte.    | `internal/observe/health.go:30-200`; `internal/cli/observe.go:74-121`; `internal/api/httpapi/routes.go:118`                                                            |
-| `obs.logging.structured-only`       | Production code uses `slog` exclusively; no `fmt.Println`, no `log.Print*`, no `println` outside test files and ignorable `cmd/compozy-daytona-sidecar` boundary code.                                                                                               | `internal/logger/logger.go:85-89`; `agh-code-guidelines` skill                                                                                                          |
-| `obs.errors.no-strings-contains`    | Error propagation uses `%w` and assertions use `errors.Is/As`; no `strings.Contains(err.Error(), …)` outside the documented sqlite-error edge cases.                                                                                                              | `agh-code-guidelines`; existing exemptions cataloged in §10                                                                                                            |
+| `obs.logging.structured-only`       | Production code uses `slog` exclusively; no `fmt.Println`, no `log.Print*`, no `println` outside test files and ignorable `cmd/compozy-daytona-sidecar` boundary code.                                                                                               | `internal/logger/logger.go:85-89`; `eng-code-guidelines` skill                                                                                                          |
+| `obs.errors.no-strings-contains`    | Error propagation uses `%w` and assertions use `errors.Is/As`; no `strings.Contains(err.Error(), …)` outside the documented sqlite-error edge cases.                                                                                                              | `eng-code-guidelines`; existing exemptions cataloged in §10                                                                                                            |
 | `obs.query-engine`                  | `compozy observe events --session <id> --since <ts> --type <t>` returns ordered events with stable pagination; large windows stream via SSE (`compozy observe events --follow`).                                                                                          | `internal/observe/query.go:14-22`; `internal/cli/observe.go:23-71, 123-173`                                                                                            |
 | `obs.acp-fresh-start-fallback`      | A stale ACP session id (`Resource not found`) is classified to a fresh-start fallback and an event records the classification — never propagated as a 5xx.                                                                                                       | `internal/acp/client.go:553-567`; `internal/session/manager_lifecycle.go:77-101`                                                                                       |
 | `obs.startup-pending-vs-crashed`    | A startup-pending session (in `m.pending`) is NOT marked `failed`. A crashed subprocess is. Distinct events are emitted.                                                                                                                                          | `internal/CLAUDE.md` "Forensic Bug Fixes" (`internal/CLAUDE.md:131-135`); `internal/session/manager_lifecycle.go:123-143`                                              |
@@ -78,7 +78,7 @@ QA mode is **real-scenario** (per the standing directive on real-scenario
 QA), not pytest-style assertions. Every scenario:
 
 - Runs against an isolated `COMPOZY_HOME` with unique daemon ports + tmux-bridge
-  socket (per `agh-worktree-isolation`).
+  socket (per `eng-worktree-isolation`).
 - Resolves provider auth from the bootstrap manifest according to each
   provider contract: bound-secret, brokered, and explicitly isolated-home
   lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
@@ -110,7 +110,7 @@ The surrounding daemon, observer, store, and logger remain real.
 
 ## 5. Preconditions (apply to every scenario)
 
-- Fresh QA bootstrap via the `agh-qa-bootstrap` skill. Manifest path saved
+- Fresh QA bootstrap via the `eng-qa-bootstrap` skill. Manifest path saved
   to `bootstrap-manifest.json`; `bootstrap.env` exported into the shell
   before any `compozy` command.
 - Unique `COMPOZY_HOME` per worktree (per the worktree-isolation directive).
@@ -397,7 +397,7 @@ preconditions:
   - Daemon configured with default WAL settings.
 code_refs:
   - /Users/pedronauck/Dev/compozy/compozy/internal/store/sessiondb/session_db.go:138-179, 723-728
-  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (agh-schema-migration wal/shm)
+  - /Users/pedronauck/Dev/compozy/compozy/internal/CLAUDE.md (eng-schema-migration wal/shm)
 steps:
   1. Drive prompt to completion; record `events_count_before`,
      `transcript_hash_before` (sha256 of `compozy session transcript $S`).
@@ -627,7 +627,7 @@ preconditions:
 code_refs:
   - /Users/pedronauck/Dev/compozy/compozy/internal/logger/logger.go:85-89
   - /Users/pedronauck/Dev/compozy/compozy/CLAUDE.md "Critical Rules"
-  - .agents/skills/agh/agh-code-guidelines/
+  - .agents/skills/eng/eng-code-guidelines/
 steps:
   1. Run the static audit grepset (each must produce zero hits OR
      match the documented exemption list):
@@ -665,7 +665,7 @@ evidence:
   - `obs-09-static-audit.txt`
 failure_signatures:
   - Any new `fmt.Println` or `log.Print*` outside §10 → discipline
-    violation; cite `agh-code-guidelines` skill.
+    violation; cite `eng-code-guidelines` skill.
   - Any new `strings.Contains(err.Error(), …)` outside §10 → switch
     to typed error + `errors.Is/As`; cite the same skill.
 cleanup:

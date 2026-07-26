@@ -5,7 +5,7 @@
   O1–O5, plus the W3 retry consolidation and five-rate pricing companions). Implementation is
   source-final (state.yaml iteration 46, 24/24 criteria, `make verify` PASS 2026-07-19T18:19:27Z).
 - **Cadence tier:** full
-- **Build:** `295b68990` (branch `hermes-comparison`) · **Environment:** fresh `agh-qa-bootstrap`
+- **Build:** `295b68990` (branch `hermes-comparison`) · **Environment:** fresh `eng-qa-bootstrap`
   lab — qa-execution fills the machine-readable bootstrap block below before the first session.
 - **Started:** 2026-07-19 (planning phase) · **Status:** in-progress
 
@@ -23,7 +23,7 @@
 - **Evidence root:** `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-20260719-190252-199062-lab/qa-artifacts`
 - **Browser:** `browser-use`; **fresh lab:** `reused_lab=false`; **kickoff:** pending
 
-Bootstrap recovery: the first generic lab lacked the playbook required by `real-scenario-qa` and
+Bootstrap recovery: the first generic lab lacked the playbook required by `eng-real-scenario-qa` and
 was never used for product evidence. It was torn down before this lab was created;
 `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-20260719-20260719-190105-273349-lab/qa-artifacts/qa/teardown.json`
 records `"clean": true` with no survivors.
@@ -239,7 +239,7 @@ Registry census at planning time: 1 `open`, 16 `fixed` (awaiting retest), 90 `ve
   (parity across CLI/HTTP/UDS/native/Web is the recurring functional check).
 - **Experiential:** clarify card keyboard/refresh sweep (row 8), cost badge/full-width provenance
   row (row 9, ADR-012), suggestions card (row 10), artifact viewer states (row 14), title/verifier
-  timeline (row 15) — each requires `agh-ui-screenshot` captures. **Deliberate skip:** a dedicated
+  timeline (row 15) — each requires `eng-ui-screenshot` captures. **Deliberate skip:** a dedicated
   Sol (screen-reader) session — this cycle's new UI is limited to cards/badges inside surfaces
   whose a11y contract is owned by the session-improvements J-13/CH-020 lens; the clarify card
   keyboard path is covered in row 8. Recorded as a skip, not coverage.

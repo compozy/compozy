@@ -28,4 +28,4 @@ A prototype is lossy by construction — it carries demo data, simplified copy, 
 ## Source
 
 - `.compozy/tasks/os-shell/memory/task_03.md` R4 (original crystallization; revised 2026-07-20) and `.compozy/tasks/os-shell/_techspec.md` visual-contract delta #12.
-- Encoded in: `.agents/skills/agh/agh-ui-screenshot/references/visual-contract.md` (visual-language scope), `.agents/skills/agh/agh-design/SKILL.md` (§Named visual contracts + Error Handling), `.agents/skills/cy-final-verify/SKILL.md` §Visual Contract Parity, root `CLAUDE.md` §Design System, `packages/ui/CLAUDE.md` tripwires, SD-007.
+- Encoded in: `.agents/skills/eng/eng-ui-screenshot/references/visual-contract.md` (visual-language scope), `.agents/skills/eng/eng-design/SKILL.md` (§Named visual contracts + Error Handling), `.agents/skills/cy-final-verify/SKILL.md` §Visual Contract Parity, root `CLAUDE.md` §Design System, `packages/ui/CLAUDE.md` tripwires, SD-007.

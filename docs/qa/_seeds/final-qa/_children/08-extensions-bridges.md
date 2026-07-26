@@ -87,7 +87,7 @@ QA mode is **real-scenario** (per the standing directive on real-scenario
 QA). Every scenario:
 
 - Runs against an isolated `COMPOZY_HOME` with unique daemon ports + tmux-bridge
-  socket (per `agh-worktree-isolation` skill).
+  socket (per `eng-worktree-isolation` skill).
 - Resolves provider auth from the bootstrap manifest according to each
   provider contract: bound-secret, brokered, and explicitly isolated-home
   lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
@@ -127,7 +127,7 @@ explicitly with `EXT_SKIP_LIVE=1` in scenario env.
 
 ## 5. Preconditions (apply to every scenario)
 
-- Fresh QA bootstrap via the `agh-qa-bootstrap` skill. `bootstrap-manifest.json`
+- Fresh QA bootstrap via the `eng-qa-bootstrap` skill. `bootstrap-manifest.json`
   exported into shell as `bootstrap.env` before any `compozy` command.
 - Unique `COMPOZY_HOME` per worktree.
 - Bound-secret, brokered, and explicitly isolated-home auth staged into
@@ -1282,7 +1282,7 @@ operator-flow pattern (markdown report + JSON summary + observed events
 the coverage matrix from §9 alongside per-scenario `outcome ∈ {worked,
 failed, blocked, follow-up}` and machine-readable timing.
 
-The scenario operator runs in-character (per the `real-scenario-qa`
+The scenario operator runs in-character (per the `eng-real-scenario-qa`
 skill); every run ends with a Worked / Failed / Blocked / Follow-up
 section covering all 18 mandatory scenarios. A child run is shippable
 only when:

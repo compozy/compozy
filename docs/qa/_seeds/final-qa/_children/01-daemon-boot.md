@@ -237,7 +237,7 @@ provider: none
 
 ```yaml qa-flow
 preconditions:
-  - COMPOZY_HOME=$LAB_HOME exported (`agh-qa-bootstrap` fresh manifest, no provider).
+  - COMPOZY_HOME=$LAB_HOME exported (`eng-qa-bootstrap` fresh manifest, no provider).
   - `$LAB_HOME` directory does not exist.
   - Daemon ports reserved by manifest (no overlap with any other lab).
 steps:
@@ -1022,7 +1022,7 @@ If any of these slip, we ship a broken daemon.
 
 The QA harness for daemon-boot must:
 
-- Use `agh-qa-bootstrap` to obtain `bootstrap-manifest.json` + `bootstrap.env` with:
+- Use `eng-qa-bootstrap` to obtain `bootstrap-manifest.json` + `bootstrap.env` with:
   - **Unique `COMPOZY_HOME`** under `~/.compozy-qa/<run-id>/lab-home` (per worktree-isolation directive in CLAUDE.md and the standing directive on parallel QA runs).
   - **Unique daemon ports** for HTTP and any other listener; default port `:2123` is forbidden.
   - **Unique `tmux-bridge` socket path** if the bridge is exercised.

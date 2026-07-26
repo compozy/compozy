@@ -58,7 +58,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 - **BUG-0033:** daemon boot started recovered Loop coordinators before observer/session reconciliation completed. A shared atomic gate now suppresses the recurring scheduler and Loop hook/watch observers until `bootFinalize`; the initial backstop runs after the barrier and the recurring scheduler starts last. The gate regression, canonical parked-watch restart E2E, and full 70-case runtime lane pass.
 - **BUG-0034:** task recovery co-committed `task.recovered` but did not fan its exact identity out to already-connected subscribers. The immediate store transaction now returns the committed `EventRecord`, which is published directly to the domain observer and every live stream. GlobalDB identity coverage, Manager coverage with two subscribers plus a neighboring same-type record, and the two-tab browser E2E pass.
-- QA helper path resolution now follows the nested `.agents/skills/agh/{agh-qa-bootstrap,real-scenario-qa}` layout. The smoke test and playbook loader validation pass.
+- QA helper path resolution now follows the nested `.agents/skills/eng/{eng-qa-bootstrap,eng-real-scenario-qa}` layout. The smoke test and playbook loader validation pass.
 - Seven stale browser-E2E assumptions were aligned with current product contracts: settled-turn folding, the standalone MCP route, nested Skills detail routes, MSW's non-2xx behavior, task-stream readiness, current Vault list/filter semantics, and current Storybook bootstrap diagnostics. These are test-infrastructure corrections, not product bug entries.
 
 ## Paper Cuts
@@ -70,7 +70,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ## Runtime Errors Observed
 
-- Pre-session infrastructure correction: bootstrap path resolution expected the former flat real-scenario skill path. Fixed the helper to resolve `.agents/skills/agh/real-scenario-qa`; smoke test and playbook validation passed before this lab was created.
+- Pre-session infrastructure correction: bootstrap path resolution expected the former flat real-scenario skill path. Fixed the helper to resolve `.agents/skills/eng/eng-real-scenario-qa`; smoke test and playbook validation passed before this lab was created.
 - Provider boundary: public `codex-acp` `0.16.0` rejects `gpt-5.6-sol` even when launched alongside the newest available Codex alpha (`0.145.0-alpha.4`). Both exact kickoff streams and provider-attempt records are retained in their lab evidence roots. Per the real-scenario contract, this lane is BLOCKED rather than PASS.
 
 ## Human Verifications Needed

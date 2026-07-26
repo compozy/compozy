@@ -91,7 +91,7 @@ Auth mode defaults from the provider harness (`acp` → CLI, `pi_acp` → API ke
 
 - New test on `DesktopGate` (none exists today): chrome renders behind while `completed === false`, the panel is present and blocking, and completion reveals the desktop without remounting it.
 - Existing onboarding hook tests are untouched; `onboarding-steps.stories.tsx` re-hosts on the panel.
-- `make verify`, plus an `agh-ui-screenshot` capture of both steps for the visual contract.
+- `make verify`, plus an `eng-ui-screenshot` capture of both steps for the visual contract.
 
 ## Non-goals
 

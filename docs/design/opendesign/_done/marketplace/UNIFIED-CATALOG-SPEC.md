@@ -114,7 +114,7 @@ Every deletion lands in the same PR as its replacement — no dual routes, no al
 ### 3.4 Data layer
 
 - **No new endpoints.** Installed scope: `GET /api/skills?workspace=`, `GET /api/extensions`, `GET /api/bundles/activations`, `GET /api/settings/mcp-servers`. Marketplace scope: `GET /api/marketplace/{kind}` (limit 100). Refresh: `POST /api/marketplace/refresh?kind=`. Mutations unchanged (`/api/skills/marketplace/*`, `/api/extensions*`, `/api/bundles/*`, `/api/settings/mcp-servers*`).
-- `update_available` stays backend-provided. Extensions already embed the listing in the installed record (`use-extensions.ts`); skills/MCP join client-side by name in `use-marketplace-kind-page.ts` for v1. **Backend follow-up:** embed the listing in skills/MCP inventory responses like extensions (Go + OpenAPI + TS co-ship per `agh-contract-codegen-coship`).
+- `update_available` stays backend-provided. Extensions already embed the listing in the installed record (`use-extensions.ts`); skills/MCP join client-side by name in `use-marketplace-kind-page.ts` for v1. **Backend follow-up:** embed the listing in skills/MCP inventory responses like extensions (Go + OpenAPI + TS co-ship per `eng-contract-codegen-coship`).
 - `GET /api/marketplace/search` (cross-kind fan-out) loses its web surface; it remains an agent/CLI surface — note in the endpoint docs, do not delete.
 - Query keys unchanged; the kind-page hook is a derived selector over existing caches.
 
@@ -166,7 +166,7 @@ Reset to `untested`: `docs/qa/scenarios/ET-web-marketplace-landing-browse.md`, `
 
 ## 8. Acceptance gates
 
-- Prototype parity with `marketplace.html` across the four kinds × two scopes, including §2.1 chrome (`agh-ui-screenshot` captures).
+- Prototype parity with `marketplace.html` across the four kinds × two scopes, including §2.1 chrome (`eng-ui-screenshot` captures).
 - `make verify` per PR; merged e2e lane green.
 - No page-body underline `Marketplace | Installed` tabs; no Rows|Cards toggle on kind pages.
 
