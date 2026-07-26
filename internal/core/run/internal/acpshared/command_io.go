@@ -21,6 +21,11 @@ import (
 
 var newAgentClient = agent.NewClient
 
+type sessionStartClient interface {
+	agent.Client
+	agent.AtomicClient
+}
+
 type runtimeEventSubmitter interface {
 	Submit(context.Context, events.Event) error
 }
@@ -47,14 +52,15 @@ func SwapNewAgentClientForTest(
 }
 
 type SessionExecution struct {
-	Client        agent.Client
-	ReleaseClient func()
-	Session       agent.Session
-	Handler       *SessionUpdateHandler
-	OutFile       *os.File
-	ErrFile       *os.File
-	Logger        *slog.Logger
-	Activity      *activityMonitor
+	Client          agent.Client
+	ReleaseClient   func()
+	Session         agent.Session
+	Handler         *SessionUpdateHandler
+	OutFile         *os.File
+	ErrFile         *os.File
+	Logger          *slog.Logger
+	Activity        *activityMonitor
+	SpeedResolution kinds.SpeedResolution
 }
 
 type SessionSetupRequest struct {
@@ -167,12 +173,13 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 	execution := buildSessionExecution(
 		req,
 		sessionExecutionResources{
-			client:        client,
-			releaseClient: releaseClient,
-			session:       session,
-			outFile:       outFile,
-			errFile:       errFile,
-			logger:        logger,
+			client:          client,
+			releaseClient:   releaseClient,
+			session:         session,
+			outFile:         outFile,
+			errFile:         errFile,
+			logger:          logger,
+			speedResolution: req.Job.SpeedResolution,
 		},
 	)
 	if err := emitSessionStartedEvent(
@@ -209,12 +216,13 @@ func withSetupContextCause(ctx context.Context, err error) error {
 }
 
 type sessionExecutionResources struct {
-	client        agent.Client
-	releaseClient func()
-	session       agent.Session
-	outFile       *os.File
-	errFile       *os.File
-	logger        *slog.Logger
+	client          agent.Client
+	releaseClient   func()
+	session         agent.Session
+	outFile         *os.File
+	errFile         *os.File
+	logger          *slog.Logger
+	speedResolution kinds.SpeedResolution
 }
 
 func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionResources) *SessionExecution {
@@ -259,14 +267,15 @@ func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionRe
 		req.Index,
 	)
 	return &SessionExecution{
-		Client:        resources.client,
-		ReleaseClient: resources.releaseClient,
-		Session:       resources.session,
-		Handler:       handler,
-		OutFile:       resources.outFile,
-		ErrFile:       resources.errFile,
-		Logger:        resources.logger,
-		Activity:      req.Activity,
+		Client:          resources.client,
+		ReleaseClient:   resources.releaseClient,
+		Session:         resources.session,
+		Handler:         handler,
+		OutFile:         resources.outFile,
+		ErrFile:         resources.errFile,
+		Logger:          resources.logger,
+		Activity:        req.Activity,
+		SpeedResolution: resources.speedResolution,
 	}
 }
 
@@ -310,7 +319,12 @@ func resolveSessionLogger(logger *slog.Logger) *slog.Logger {
 	return runtimeLogger(false)
 }
 
-func createACPClient(ctx context.Context, cfg *config, job *job, logger *slog.Logger) (agent.Client, error) {
+func createACPClient(
+	ctx context.Context,
+	cfg *config,
+	job *job,
+	logger *slog.Logger,
+) (sessionStartClient, error) {
 	ide := jobIDE(cfg, job)
 	client, err := newAgentClient(ctx, agent.ClientConfig{
 		IDE:             ide,
@@ -324,7 +338,15 @@ func createACPClient(ctx context.Context, cfg *config, job *job, logger *slog.Lo
 	if err != nil {
 		return nil, fmt.Errorf("create ACP client: %w", err)
 	}
-	return client, nil
+	atomicClient, ok := client.(sessionStartClient)
+	if !ok {
+		contractErr := errors.New("ACP client does not support atomic session setup")
+		if closeErr := client.Close(); closeErr != nil {
+			return nil, errors.Join(contractErr, fmt.Errorf("close incompatible ACP client: %w", closeErr))
+		}
+		return nil, contractErr
+	}
+	return atomicClient, nil
 }
 
 func setupFailureForUser(cfg *config, job *job, err error) error {
@@ -365,18 +387,23 @@ func joinSetupFailure(setupErr error, writeErr error) error {
 func createACPSession(
 	ctx context.Context,
 	setupCtx context.Context,
-	client agent.Client,
+	client agent.AtomicClient,
 	cfg *config,
 	job *job,
 	cwd string,
 ) (agent.Session, error) {
 	prompt := composeSessionPrompt(job.Prompt, job.SystemPrompt)
 	modelName := jobModel(cfg, job)
+	var (
+		start agent.SessionStart
+		err   error
+	)
 	if strings.TrimSpace(job.ResumeSession) == "" {
-		session, err := client.CreateSession(ctx, agent.SessionRequest{
+		start, err = client.CreateSessionAtomic(ctx, agent.SessionRequest{
 			Prompt:       prompt,
 			WorkingDir:   cwd,
 			Model:        modelName,
+			Speed:        cfg.Speed,
 			MCPServers:   model.CloneMCPServers(job.MCPServers),
 			ExtraEnv:     buildSessionEnvironment(),
 			SetupContext: setupCtx,
@@ -384,26 +411,26 @@ func createACPSession(
 			JobID:        safeJobID(job),
 			RuntimeMgr:   cfg.RuntimeManager,
 		})
-		if err != nil {
-			return nil, err
-		}
-		if err := client.SetSessionModel(ctx, session.ID(), modelName); err != nil {
-			return nil, err
-		}
-		return session, nil
+	} else {
+		start, err = client.ResumeSessionAtomic(ctx, agent.ResumeSessionRequest{
+			SessionID:    job.ResumeSession,
+			Prompt:       prompt,
+			WorkingDir:   cwd,
+			Model:        modelName,
+			Speed:        cfg.Speed,
+			MCPServers:   model.CloneMCPServers(job.MCPServers),
+			ExtraEnv:     buildSessionEnvironment(),
+			SetupContext: setupCtx,
+			RunID:        cfg.RunArtifacts.RunID,
+			JobID:        safeJobID(job),
+			RuntimeMgr:   cfg.RuntimeManager,
+		})
 	}
-	return client.ResumeSession(ctx, agent.ResumeSessionRequest{
-		SessionID:    job.ResumeSession,
-		Prompt:       prompt,
-		WorkingDir:   cwd,
-		Model:        modelName,
-		MCPServers:   model.CloneMCPServers(job.MCPServers),
-		ExtraEnv:     buildSessionEnvironment(),
-		SetupContext: setupCtx,
-		RunID:        cfg.RunArtifacts.RunID,
-		JobID:        safeJobID(job),
-		RuntimeMgr:   cfg.RuntimeManager,
-	})
+	job.SpeedResolution = start.Speed
+	if err != nil {
+		return nil, err
+	}
+	return start.Session, nil
 }
 
 func jobIDE(cfg *config, job *job) string {

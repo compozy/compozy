@@ -3,6 +3,7 @@ package exec
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -691,8 +692,30 @@ func (c *capturingExecACPClient) CreateSession(ctx context.Context, req agent.Se
 	return c.createSessionFn(ctx, req)
 }
 
+func (c *capturingExecACPClient) CreateSessionAtomic(
+	ctx context.Context,
+	req agent.SessionRequest,
+) (agent.SessionStart, error) {
+	session, err := c.createSessionFn(ctx, req)
+	return agent.SessionStart{
+		Session: session,
+		Speed: kinds.SpeedResolution{
+			Requested: req.Speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}, err
+}
+
 func (*capturingExecACPClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
 	return nil, nil
+}
+
+func (*capturingExecACPClient) ResumeSessionAtomic(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{}, errors.New("resume not supported in capturing exec fake")
 }
 
 func (*capturingExecACPClient) CancelSession(context.Context, string) error {

@@ -30,6 +30,26 @@ func TestComposeSessionPromptPrependsSystemPrompt(t *testing.T) {
 	}
 }
 
+func TestHookRuntimeConfigPreservesSpeed(t *testing.T) {
+	t.Parallel()
+
+	if got := hookRuntimeConfig(nil); got.Speed != "" {
+		t.Fatalf("hookRuntimeConfig(nil).Speed = %q, want empty", got.Speed)
+	}
+
+	internalCfg := &config{Speed: kinds.SpeedFast}
+	hookCfg := hookRuntimeConfig(internalCfg)
+	if hookCfg.Speed != kinds.SpeedFast {
+		t.Fatalf("hookRuntimeConfig().Speed = %q, want %q", hookCfg.Speed, kinds.SpeedFast)
+	}
+
+	hookCfg.Speed = kinds.SpeedNormal
+	applyHookRuntimeConfig(internalCfg, hookCfg)
+	if internalCfg.Speed != kinds.SpeedNormal {
+		t.Fatalf("applyHookRuntimeConfig().Speed = %q, want %q", internalCfg.Speed, kinds.SpeedNormal)
+	}
+}
+
 func TestExecuteDryRunCompletesTopLevelFlow(t *testing.T) {
 	tmpDir := t.TempDir()
 	err := Execute(context.Background(), []model.Job{
@@ -206,17 +226,14 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 	if got := firstClient.closeCalls.Load() + secondClient.closeCalls.Load(); got != 2 {
 		t.Fatalf("expected both clients to close, got %d", got)
 	}
-	if got := firstClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected first client SetSessionModel once, got %d", got)
+	if got := firstClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no caller-owned model setup on first client, got %d", got)
 	}
-	if got := secondClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected second client SetSessionModel once, got %d", got)
+	if got := secondClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no caller-owned model setup on second client, got %d", got)
 	}
-	secondClient.setModelMu.Lock()
-	gotModelID := secondClient.lastSetModelID
-	secondClient.setModelMu.Unlock()
-	if gotModelID != "test-model" {
-		t.Fatalf("expected second client SetSessionModel model %q, got %q", "test-model", gotModelID)
+	if got := secondClient.lastAtomicCreateRequest().Model; got != "test-model" {
+		t.Fatalf("atomic create model = %q, want %q", got, "test-model")
 	}
 
 	outLog, err := os.ReadFile(job.OutLog)
@@ -301,11 +318,11 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 	if got := secondClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected one successful retry attempt, got %d", got)
 	}
-	if got := firstClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected first client SetSessionModel once, got %d", got)
+	if got := firstClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no caller-owned model setup on first client, got %d", got)
 	}
-	if got := secondClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected second client SetSessionModel once, got %d", got)
+	if got := secondClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no caller-owned model setup on second client, got %d", got)
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
 		t.Fatalf("expected no failed jobs after timeout retry, got %d", got)
@@ -688,10 +705,10 @@ func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
 		t.Fatalf("expected retry attempt to create one successful session, got %d", got)
 	}
 	if got := firstClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no SetSessionModel on failed client, got %d", got)
+		t.Fatalf("expected no caller-owned model setup on failed client, got %d", got)
 	}
-	if got := secondClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected retry client SetSessionModel once, got %d", got)
+	if got := secondClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no caller-owned model setup on retry client, got %d", got)
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
 		t.Fatalf("expected no failed jobs, got %d", got)
@@ -740,7 +757,7 @@ func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 		t.Fatalf("expected no retry after non-retryable setup failure, got %d", got)
 	}
 	if got := firstClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no SetSessionModel on non-retryable failure, got %d", got)
+		t.Fatalf("expected no caller-owned model setup on non-retryable failure, got %d", got)
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 1 {
 		t.Fatalf("expected failed jobs counter to be 1, got %d", got)
@@ -885,8 +902,8 @@ func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
 	if got := runner.lifecycle.state; got != jobPhaseSucceeded {
 		t.Fatalf("expected succeeded lifecycle state, got %s", got)
 	}
-	if got := successClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected SetSessionModel once on success, got %d", got)
+	if got := successClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no caller-owned model setup on success, got %d", got)
 	}
 	updatedTask, err := os.ReadFile(taskPath)
 	if err != nil {
@@ -954,8 +971,8 @@ func TestJobRunnerCancellationDoesNotRetry(t *testing.T) {
 	if got := cancelClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected exactly one attempt before cancellation, got %d", got)
 	}
-	if got := cancelClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected SetSessionModel once before cancellation, got %d", got)
+	if got := cancelClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no caller-owned model setup before cancellation, got %d", got)
 	}
 }
 
@@ -1005,8 +1022,8 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 	if got := timeoutClient.closeCalls.Load(); got != 1 {
 		t.Fatalf("expected client close to run as timeout backstop, got %d closes", got)
 	}
-	if got := timeoutClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected SetSessionModel once before timeout, got %d", got)
+	if got := timeoutClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no caller-owned model setup before timeout, got %d", got)
 	}
 }
 
@@ -1063,8 +1080,8 @@ func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 	if strings.Contains(string(errLog), "activity timeout") {
 		t.Fatalf("expected no activity-timeout error, got %q", string(errLog))
 	}
-	if got := activeClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected SetSessionModel once on successful session, got %d", got)
+	if got := activeClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no caller-owned model setup on successful session, got %d", got)
 	}
 }
 
@@ -1116,7 +1133,7 @@ func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
 					t.Fatalf("expected blocked setup client to be closed, got %d closes", got)
 				}
 				if got := blockingSetupClient.setModelCalls.Load(); got != 0 {
-					t.Fatalf("expected no SetSessionModel when setup times out, got %d", got)
+					t.Fatalf("expected no caller-owned model setup when setup times out, got %d", got)
 				}
 			},
 		},
@@ -1606,21 +1623,23 @@ func TestRecordFailureWithContextAddsFailure(t *testing.T) {
 }
 
 type fakeACPClient struct {
-	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
-	resumeSessionFn func(context.Context, agent.ResumeSessionRequest) (agent.Session, error)
-	promptSessionFn func(context.Context, agent.PromptSessionRequest) (agent.Session, error)
-	supportsLoad    bool
-	createCalls     atomic.Int32
-	resumeCalls     atomic.Int32
-	promptCalls     atomic.Int32
-	cancelCalls     atomic.Int32
-	setModelCalls   atomic.Int32
-	closeCalls      atomic.Int32
-	killCalls       atomic.Int32
+	createSessionFn       func(context.Context, agent.SessionRequest) (agent.Session, error)
+	resumeSessionFn       func(context.Context, agent.ResumeSessionRequest) (agent.Session, error)
+	createSessionAtomicFn func(context.Context, agent.SessionRequest) (agent.SessionStart, error)
+	resumeSessionAtomicFn func(context.Context, agent.ResumeSessionRequest) (agent.SessionStart, error)
+	promptSessionFn       func(context.Context, agent.PromptSessionRequest) (agent.Session, error)
+	supportsLoad          bool
+	createCalls           atomic.Int32
+	resumeCalls           atomic.Int32
+	promptCalls           atomic.Int32
+	cancelCalls           atomic.Int32
+	setModelCalls         atomic.Int32
+	closeCalls            atomic.Int32
+	killCalls             atomic.Int32
 
-	setModelMu         sync.Mutex
-	lastSetModelSessID string
-	lastSetModelID     string
+	requestMu     sync.Mutex
+	lastCreateReq agent.SessionRequest
+	lastResumeReq agent.ResumeSessionRequest
 }
 
 func newFakeACPClient(
@@ -1629,20 +1648,54 @@ func newFakeACPClient(
 	return &fakeACPClient{createSessionFn: createSessionFn}
 }
 
-func (c *fakeACPClient) CreateSession(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
-	c.createCalls.Add(1)
-	if c.createSessionFn == nil {
-		return nil, errors.New("missing fake session factory")
-	}
-	return c.createSessionFn(ctx, req)
+func (c *fakeACPClient) CreateSession(context.Context, agent.SessionRequest) (agent.Session, error) {
+	return nil, errors.New("legacy CreateSession must not be called")
 }
 
-func (c *fakeACPClient) ResumeSession(ctx context.Context, req agent.ResumeSessionRequest) (agent.Session, error) {
-	c.resumeCalls.Add(1)
-	if c.resumeSessionFn == nil {
-		return nil, errors.New("missing fake resume session factory")
+func (c *fakeACPClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
+	return nil, errors.New("legacy ResumeSession must not be called")
+}
+
+func (c *fakeACPClient) CreateSessionAtomic(
+	ctx context.Context,
+	req agent.SessionRequest,
+) (agent.SessionStart, error) {
+	c.requestMu.Lock()
+	c.lastCreateReq = req
+	c.requestMu.Unlock()
+	c.createCalls.Add(1)
+	if c.createSessionAtomicFn != nil {
+		return c.createSessionAtomicFn(ctx, req)
 	}
-	return c.resumeSessionFn(ctx, req)
+	if c.createSessionFn == nil {
+		return agent.SessionStart{}, errors.New("missing fake atomic session factory")
+	}
+	session, err := c.createSessionFn(ctx, req)
+	return agent.SessionStart{
+		Session: session,
+		Speed:   unsupportedFakeSpeedResolution(req.Speed),
+	}, err
+}
+
+func (c *fakeACPClient) ResumeSessionAtomic(
+	ctx context.Context,
+	req agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	c.requestMu.Lock()
+	c.lastResumeReq = req
+	c.requestMu.Unlock()
+	c.resumeCalls.Add(1)
+	if c.resumeSessionAtomicFn != nil {
+		return c.resumeSessionAtomicFn(ctx, req)
+	}
+	if c.resumeSessionFn == nil {
+		return agent.SessionStart{}, errors.New("missing fake atomic resume session factory")
+	}
+	session, err := c.resumeSessionFn(ctx, req)
+	return agent.SessionStart{
+		Session: session,
+		Speed:   unsupportedFakeSpeedResolution(req.Speed),
+	}, err
 }
 
 func (c *fakeACPClient) CancelSession(context.Context, string) error {
@@ -1652,11 +1705,7 @@ func (c *fakeACPClient) CancelSession(context.Context, string) error {
 
 func (c *fakeACPClient) SetSessionModel(_ context.Context, sessionID string, modelID string) error {
 	c.setModelCalls.Add(1)
-	c.setModelMu.Lock()
-	c.lastSetModelSessID = sessionID
-	c.lastSetModelID = modelID
-	c.setModelMu.Unlock()
-	return nil
+	return fmt.Errorf("caller-owned model setup must not be called for session %q model %q", sessionID, modelID)
 }
 
 func (c *fakeACPClient) PromptSession(ctx context.Context, req agent.PromptSessionRequest) (agent.Session, error) {
@@ -1679,6 +1728,20 @@ func (c *fakeACPClient) Close() error {
 func (c *fakeACPClient) Kill() error {
 	c.killCalls.Add(1)
 	return nil
+}
+
+func unsupportedFakeSpeedResolution(speed kinds.Speed) kinds.SpeedResolution {
+	return kinds.SpeedResolution{
+		Requested: speed,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+}
+
+func (c *fakeACPClient) lastAtomicCreateRequest() agent.SessionRequest {
+	c.requestMu.Lock()
+	defer c.requestMu.Unlock()
+	return c.lastCreateReq
 }
 
 type fakeACPSession struct {

@@ -65,6 +65,10 @@ func TestBuildSessionExecutionUsesSessionSetupRequest(t *testing.T) {
 
 	execution := buildSessionExecution(req, sessionExecutionResources{
 		session: session,
+		speedResolution: kinds.SpeedResolution{
+			Requested: kinds.SpeedFast,
+			Status:    kinds.SpeedResolutionStatusApplied,
+		},
 		outFile: outFile,
 		errFile: errFile,
 		logger:  silentLogger(),
@@ -78,6 +82,12 @@ func TestBuildSessionExecutionUsesSessionSetupRequest(t *testing.T) {
 	}
 	if execution.OutFile != outFile || execution.ErrFile != errFile {
 		t.Fatalf("expected execution to retain log files")
+	}
+	if execution.SpeedResolution != (kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusApplied,
+	}) {
+		t.Fatalf("unexpected execution speed resolution: %#v", execution.SpeedResolution)
 	}
 	if execution.Handler == nil {
 		t.Fatal("expected session update handler")
@@ -122,7 +132,11 @@ func TestHasRuntimeEventSubmitterRejectsTypedNilJournal(t *testing.T) {
 func TestCreateACPSessionForwardsMCPServersOnNewSession(t *testing.T) {
 	t.Parallel()
 
-	client := &capturingCommandIOClient{}
+	wantResolution := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusApplied,
+	}
+	client := &capturingCommandIOClient{createResolution: wantResolution}
 	servers := []model.MCPServer{{
 		Stdio: &model.MCPServerStdio{
 			Name:    "compozy",
@@ -131,16 +145,17 @@ func TestCreateACPSessionForwardsMCPServersOnNewSession(t *testing.T) {
 		},
 	}}
 
+	testJob := &job{
+		Prompt:       []byte("solve it"),
+		SystemPrompt: "system framing",
+		MCPServers:   servers,
+	}
 	session, err := createACPSession(
 		context.Background(),
 		context.Background(),
 		client,
-		&config{Model: "model-1"},
-		&job{
-			Prompt:       []byte("solve it"),
-			SystemPrompt: "system framing",
-			MCPServers:   servers,
-		},
+		&config{Model: "model-1", Speed: kinds.SpeedFast},
+		testJob,
 		t.TempDir(),
 	)
 	if err != nil {
@@ -156,12 +171,31 @@ func TestCreateACPSessionForwardsMCPServersOnNewSession(t *testing.T) {
 		client.createReq.MCPServers[0].Stdio.Name != "compozy" {
 		t.Fatalf("unexpected forwarded MCP servers: %#v", client.createReq.MCPServers)
 	}
+	if client.createReq.Model != "model-1" || client.createReq.Speed != kinds.SpeedFast {
+		t.Fatalf("unexpected atomic create request: %#v", client.createReq)
+	}
+	if testJob.SpeedResolution != wantResolution {
+		t.Fatalf("job speed resolution = %#v, want %#v", testJob.SpeedResolution, wantResolution)
+	}
+	if client.createAtomicCalls != 1 || client.createLegacyCalls != 0 || client.setModelCalls != 0 {
+		t.Fatalf(
+			"unexpected lifecycle calls: atomic=%d legacy=%d set_model=%d",
+			client.createAtomicCalls,
+			client.createLegacyCalls,
+			client.setModelCalls,
+		)
+	}
 }
 
 func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
 	t.Parallel()
 
-	client := &capturingCommandIOClient{}
+	wantResolution := kinds.SpeedResolution{
+		Requested: kinds.SpeedNormal,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+	client := &capturingCommandIOClient{resumeResolution: wantResolution}
 	servers := []model.MCPServer{{
 		Stdio: &model.MCPServerStdio{
 			Name:    "filesystem",
@@ -170,16 +204,17 @@ func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
 		},
 	}}
 
+	testJob := &job{
+		Prompt:        []byte("solve it"),
+		ResumeSession: "sess-existing",
+		MCPServers:    servers,
+	}
 	session, err := createACPSession(
 		context.Background(),
 		context.Background(),
 		client,
-		&config{Model: "model-1"},
-		&job{
-			Prompt:        []byte("solve it"),
-			ResumeSession: "sess-existing",
-			MCPServers:    servers,
-		},
+		&config{Model: "model-1", Speed: kinds.SpeedNormal},
+		testJob,
 		t.TempDir(),
 	)
 	if err != nil {
@@ -197,6 +232,20 @@ func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
 	if client.resumeReq.MCPServers[0].Stdio == nil ||
 		client.resumeReq.MCPServers[0].Stdio.Name != "filesystem" {
 		t.Fatalf("unexpected forwarded MCP servers: %#v", client.resumeReq.MCPServers)
+	}
+	if client.resumeReq.Model != "model-1" || client.resumeReq.Speed != kinds.SpeedNormal {
+		t.Fatalf("unexpected atomic resume request: %#v", client.resumeReq)
+	}
+	if testJob.SpeedResolution != wantResolution {
+		t.Fatalf("job speed resolution = %#v, want %#v", testJob.SpeedResolution, wantResolution)
+	}
+	if client.resumeAtomicCalls != 1 || client.resumeLegacyCalls != 0 || client.setModelCalls != 0 {
+		t.Fatalf(
+			"unexpected lifecycle calls: atomic=%d legacy=%d set_model=%d",
+			client.resumeAtomicCalls,
+			client.resumeLegacyCalls,
+			client.setModelCalls,
+		)
 	}
 }
 
@@ -244,13 +293,57 @@ func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 	}
 }
 
+func TestCreateACPClientRejectsLegacyContractAndClosesClient(t *testing.T) {
+	legacyClient := &legacyOnlyCommandIOClient{}
+	restore := SwapNewAgentClientForTest(
+		func(context.Context, agent.ClientConfig) (agent.Client, error) {
+			return legacyClient, nil
+		},
+	)
+	defer restore()
+
+	client, err := createACPClient(
+		context.Background(),
+		&config{IDE: model.IDECodex},
+		&job{},
+		silentLogger(),
+	)
+	if err == nil || !strings.Contains(err.Error(), "does not support atomic session setup") {
+		t.Fatalf("createACPClient() error = %v, want atomic contract failure", err)
+	}
+	if client != nil {
+		t.Fatalf("createACPClient() client = %#v, want nil", client)
+	}
+	if legacyClient.closeCalls != 1 {
+		t.Fatalf("legacy client Close calls = %d, want 1", legacyClient.closeCalls)
+	}
+}
+
 func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResume(t *testing.T) {
 	tests := []struct {
-		name    string
-		resumed bool
+		name           string
+		resumed        bool
+		speed          kinds.Speed
+		wantResolution kinds.SpeedResolution
 	}{
-		{name: "new session", resumed: false},
-		{name: "resume session", resumed: true},
+		{
+			name:  "new session",
+			speed: kinds.SpeedFast,
+			wantResolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+		},
+		{
+			name:    "resume session",
+			resumed: true,
+			speed:   kinds.SpeedNormal,
+			wantResolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedNormal,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -270,41 +363,58 @@ func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResu
 							updates: make(chan model.SessionUpdate),
 							done:    make(chan struct{}),
 						},
+						resolution: tt.wantResolution,
 					}, nil
 				},
 			)
 			defer restore()
 
 			tmpDir := t.TempDir()
+			testJob := &job{
+				SafeName:     "exec",
+				Prompt:       []byte("finish the task"),
+				SystemPrompt: "workflow memory\n\n<agent_metadata>\nname: planner\n</agent_metadata>",
+				ReusableAgent: &reusableAgentExecution{
+					Name:                "planner",
+					Source:              "workspace",
+					AvailableAgentCount: 2,
+				},
+				MCPServers: []model.MCPServer{
+					{Stdio: &model.MCPServerStdio{Name: "compozy", Command: "/tmp/compozy-test"}},
+					{Stdio: &model.MCPServerStdio{Name: "filesystem", Command: "/tmp/fs-mcp"}},
+				},
+				ResumeSession: map[bool]string{true: "sess-existing", false: ""}[tt.resumed],
+				OutLog:        filepath.Join(tmpDir, "exec.out.log"),
+				ErrLog:        filepath.Join(tmpDir, "exec.err.log"),
+			}
 			execution, err := SetupSessionExecution(SessionSetupRequest{
 				Context: context.Background(),
 				Config: &config{
 					IDE:          model.IDECodex,
+					Speed:        tt.speed,
 					RunArtifacts: model.RunArtifacts{RunID: runID},
 				},
-				Job: &job{
-					SafeName:     "exec",
-					Prompt:       []byte("finish the task"),
-					SystemPrompt: "workflow memory\n\n<agent_metadata>\nname: planner\n</agent_metadata>",
-					ReusableAgent: &reusableAgentExecution{
-						Name:                "planner",
-						Source:              "workspace",
-						AvailableAgentCount: 2,
-					},
-					MCPServers: []model.MCPServer{
-						{Stdio: &model.MCPServerStdio{Name: "compozy", Command: "/tmp/compozy-test"}},
-						{Stdio: &model.MCPServerStdio{Name: "filesystem", Command: "/tmp/fs-mcp"}},
-					},
-					ResumeSession: map[bool]string{true: "sess-existing", false: ""}[tt.resumed],
-					OutLog:        filepath.Join(tmpDir, "exec.out.log"),
-					ErrLog:        filepath.Join(tmpDir, "exec.err.log"),
-				},
+				Job:        testJob,
 				CWD:        tmpDir,
 				RunJournal: runJournal,
 				Logger:     silentLogger(),
 			})
 			if err != nil {
 				t.Fatalf("setup session execution: %v", err)
+			}
+			if testJob.SpeedResolution != tt.wantResolution {
+				t.Fatalf(
+					"job speed resolution = %#v, want %#v",
+					testJob.SpeedResolution,
+					tt.wantResolution,
+				)
+			}
+			if execution.SpeedResolution != tt.wantResolution {
+				t.Fatalf(
+					"execution speed resolution = %#v, want %#v",
+					execution.SpeedResolution,
+					tt.wantResolution,
+				)
 			}
 			execution.Close()
 
@@ -474,6 +584,80 @@ func TestSetupSessionExecutionWritesSessionCreateFailureToErrLog(t *testing.T) {
 	})
 }
 
+func TestSetupSessionExecutionPreservesRejectedResolutionAndClosesResources(t *testing.T) {
+	rejected := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusRejected,
+		Reason:    kinds.SpeedResolutionReasonProviderRejected,
+	}
+	client := &failingCommandIOClient{
+		createErr: &agent.SessionSetupError{
+			Stage: agent.SessionSetupStageSetSpeed,
+			Err:   errors.New("speed rejected"),
+		},
+		resolution: rejected,
+	}
+	restore := SwapNewAgentClientForTest(
+		func(context.Context, agent.ClientConfig) (agent.Client, error) {
+			return client, nil
+		},
+	)
+	defer restore()
+
+	tmpDir := t.TempDir()
+	outLog := filepath.Join(tmpDir, "exec.out.log")
+	errLog := filepath.Join(tmpDir, "exec.err.log")
+	testJob := &job{
+		SafeName: "exec",
+		Prompt:   []byte("finish the task"),
+		OutLog:   outLog,
+		ErrLog:   errLog,
+	}
+	releaseCalls := 0
+	_, err := SetupSessionExecution(SessionSetupRequest{
+		Context: context.Background(),
+		Config: &config{
+			IDE:          model.IDECodex,
+			Model:        "model-1",
+			Speed:        kinds.SpeedFast,
+			RunArtifacts: model.RunArtifacts{RunID: "run-rejected"},
+		},
+		Job:    testJob,
+		CWD:    tmpDir,
+		Logger: silentLogger(),
+		TrackClient: func(agent.Client) func() {
+			return func() {
+				releaseCalls++
+			}
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "speed rejected") {
+		t.Fatalf("setup error = %v, want rejected speed failure", err)
+	}
+	if testJob.SpeedResolution != rejected {
+		t.Fatalf("job speed resolution = %#v, want %#v", testJob.SpeedResolution, rejected)
+	}
+	if client.closeCalls != 1 {
+		t.Fatalf("client Close calls = %d, want 1", client.closeCalls)
+	}
+	if releaseCalls != 1 {
+		t.Fatalf("client release calls = %d, want 1", releaseCalls)
+	}
+
+	errLogContents, readErr := os.ReadFile(errLog)
+	if readErr != nil {
+		t.Fatalf("read err log: %v", readErr)
+	}
+	if !strings.Contains(string(errLogContents), "speed rejected") {
+		t.Fatalf("err log = %q, want rejected speed failure", string(errLogContents))
+	}
+	for _, path := range []string{outLog, errLog} {
+		if removeErr := os.Remove(path); removeErr != nil {
+			t.Fatalf("remove closed setup log %s: %v", path, removeErr)
+		}
+	}
+}
+
 func TestSetupSessionExecutionWritesSessionStartedEventFailureToErrLog(t *testing.T) {
 	t.Run("Should write session started event failure to err.log", func(t *testing.T) {
 		restore := SwapNewAgentClientForTest(
@@ -581,16 +765,30 @@ func (s fakeSessionExecutionSession) DroppedUpdates() uint64 {
 }
 
 type capturingCommandIOClient struct {
-	createReq agent.SessionRequest
-	resumeReq agent.ResumeSessionRequest
+	createReq         agent.SessionRequest
+	resumeReq         agent.ResumeSessionRequest
+	createResolution  kinds.SpeedResolution
+	resumeResolution  kinds.SpeedResolution
+	createAtomicCalls int
+	resumeAtomicCalls int
+	createLegacyCalls int
+	resumeLegacyCalls int
+	setModelCalls     int
 }
 
 type lifecycleCommandIOClient struct {
-	session agent.Session
+	session    agent.Session
+	resolution kinds.SpeedResolution
 }
 
 type failingCommandIOClient struct {
-	createErr error
+	createErr  error
+	resolution kinds.SpeedResolution
+	closeCalls int
+}
+
+type legacyOnlyCommandIOClient struct {
+	closeCalls int
 }
 
 type stubRuntimeEventSubmitter struct {
@@ -633,23 +831,49 @@ func (c *capturingCommandIOClient) CreateSession(
 	_ context.Context,
 	req agent.SessionRequest,
 ) (agent.Session, error) {
+	c.createLegacyCalls++
 	c.createReq = req
-	return fakeSessionExecutionSession{
-		id:      "sess-create",
-		updates: make(chan model.SessionUpdate),
-		done:    make(chan struct{}),
-	}, nil
+	return nil, errors.New("legacy CreateSession must not be called")
 }
 
 func (c *capturingCommandIOClient) ResumeSession(
 	_ context.Context,
 	req agent.ResumeSessionRequest,
 ) (agent.Session, error) {
+	c.resumeLegacyCalls++
 	c.resumeReq = req
-	return fakeSessionExecutionSession{
-		id:      "sess-resume",
-		updates: make(chan model.SessionUpdate),
-		done:    make(chan struct{}),
+	return nil, errors.New("legacy ResumeSession must not be called")
+}
+
+func (c *capturingCommandIOClient) CreateSessionAtomic(
+	_ context.Context,
+	req agent.SessionRequest,
+) (agent.SessionStart, error) {
+	c.createAtomicCalls++
+	c.createReq = req
+	return agent.SessionStart{
+		Session: fakeSessionExecutionSession{
+			id:      "sess-create",
+			updates: make(chan model.SessionUpdate),
+			done:    make(chan struct{}),
+		},
+		Speed: c.createResolution,
+	}, nil
+}
+
+func (c *capturingCommandIOClient) ResumeSessionAtomic(
+	_ context.Context,
+	req agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	c.resumeAtomicCalls++
+	c.resumeReq = req
+	return agent.SessionStart{
+		Session: fakeSessionExecutionSession{
+			id:      "sess-resume",
+			updates: make(chan model.SessionUpdate),
+			done:    make(chan struct{}),
+		},
+		Speed: c.resumeResolution,
 	}, nil
 }
 
@@ -661,8 +885,9 @@ func (*capturingCommandIOClient) CancelSession(context.Context, string) error {
 	return nil
 }
 
-func (*capturingCommandIOClient) SetSessionModel(context.Context, string, string) error {
-	return nil
+func (c *capturingCommandIOClient) SetSessionModel(context.Context, string, string) error {
+	c.setModelCalls++
+	return errors.New("caller-owned model setup must not be called")
 }
 
 func (*capturingCommandIOClient) PromptSession(
@@ -680,14 +905,28 @@ func (c *lifecycleCommandIOClient) CreateSession(
 	context.Context,
 	agent.SessionRequest,
 ) (agent.Session, error) {
-	return c.session, nil
+	return nil, errors.New("legacy CreateSession must not be called")
 }
 
 func (c *lifecycleCommandIOClient) ResumeSession(
 	context.Context,
 	agent.ResumeSessionRequest,
 ) (agent.Session, error) {
-	return c.session, nil
+	return nil, errors.New("legacy ResumeSession must not be called")
+}
+
+func (c *lifecycleCommandIOClient) CreateSessionAtomic(
+	context.Context,
+	agent.SessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{Session: c.session, Speed: c.resolution}, nil
+}
+
+func (c *lifecycleCommandIOClient) ResumeSessionAtomic(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{Session: c.session, Speed: c.resolution}, nil
 }
 
 func (*lifecycleCommandIOClient) SupportsLoadSession() bool { return true }
@@ -699,7 +938,7 @@ func (*lifecycleCommandIOClient) CancelSession(context.Context, string) error {
 }
 
 func (*lifecycleCommandIOClient) SetSessionModel(context.Context, string, string) error {
-	return nil
+	return errors.New("caller-owned model setup must not be called")
 }
 
 func (c *lifecycleCommandIOClient) PromptSession(
@@ -713,26 +952,43 @@ func (c *failingCommandIOClient) CreateSession(
 	context.Context,
 	agent.SessionRequest,
 ) (agent.Session, error) {
-	return nil, c.createErr
+	return nil, errors.New("legacy CreateSession must not be called")
 }
 
 func (c *failingCommandIOClient) ResumeSession(
 	context.Context,
 	agent.ResumeSessionRequest,
 ) (agent.Session, error) {
-	return nil, c.createErr
+	return nil, errors.New("legacy ResumeSession must not be called")
+}
+
+func (c *failingCommandIOClient) CreateSessionAtomic(
+	context.Context,
+	agent.SessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{Speed: c.resolution}, c.createErr
+}
+
+func (c *failingCommandIOClient) ResumeSessionAtomic(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{Speed: c.resolution}, c.createErr
 }
 
 func (*failingCommandIOClient) SupportsLoadSession() bool { return true }
-func (*failingCommandIOClient) Close() error              { return nil }
-func (*failingCommandIOClient) Kill() error               { return nil }
+func (c *failingCommandIOClient) Close() error {
+	c.closeCalls++
+	return nil
+}
+func (*failingCommandIOClient) Kill() error { return nil }
 
 func (*failingCommandIOClient) CancelSession(context.Context, string) error {
 	return nil
 }
 
 func (*failingCommandIOClient) SetSessionModel(context.Context, string, string) error {
-	return nil
+	return errors.New("caller-owned model setup must not be called")
 }
 
 func (c *failingCommandIOClient) PromptSession(
@@ -741,3 +997,41 @@ func (c *failingCommandIOClient) PromptSession(
 ) (agent.Session, error) {
 	return nil, c.createErr
 }
+
+func (*legacyOnlyCommandIOClient) CreateSession(
+	context.Context,
+	agent.SessionRequest,
+) (agent.Session, error) {
+	return nil, errors.New("legacy CreateSession must not be called")
+}
+
+func (*legacyOnlyCommandIOClient) ResumeSession(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.Session, error) {
+	return nil, errors.New("legacy ResumeSession must not be called")
+}
+
+func (*legacyOnlyCommandIOClient) CancelSession(context.Context, string) error {
+	return nil
+}
+
+func (*legacyOnlyCommandIOClient) PromptSession(
+	context.Context,
+	agent.PromptSessionRequest,
+) (agent.Session, error) {
+	return nil, nil
+}
+
+func (*legacyOnlyCommandIOClient) SetSessionModel(context.Context, string, string) error {
+	return errors.New("caller-owned model setup must not be called")
+}
+
+func (*legacyOnlyCommandIOClient) SupportsLoadSession() bool { return false }
+
+func (c *legacyOnlyCommandIOClient) Close() error {
+	c.closeCalls++
+	return nil
+}
+
+func (*legacyOnlyCommandIOClient) Kill() error { return nil }

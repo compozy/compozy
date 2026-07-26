@@ -18,6 +18,7 @@ import (
 	execpkg "github.com/compozy/compozy/internal/core/run/exec"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
 	"github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestAgenticRemediationBuildsNonRecursiveRecoveryRunConfig(t *testing.T) {
@@ -409,8 +410,33 @@ func (c *recoveryFakeACPClient) CreateSession(ctx context.Context, req agent.Ses
 	return c.createSessionFn(ctx, req)
 }
 
+func (c *recoveryFakeACPClient) CreateSessionAtomic(
+	ctx context.Context,
+	req agent.SessionRequest,
+) (agent.SessionStart, error) {
+	if c.createSessionFn == nil {
+		return agent.SessionStart{}, errors.New("missing CreateSessionAtomic fake")
+	}
+	session, err := c.createSessionFn(ctx, req)
+	return agent.SessionStart{
+		Session: session,
+		Speed: kinds.SpeedResolution{
+			Requested: req.Speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}, err
+}
+
 func (*recoveryFakeACPClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
 	return nil, errors.New("resume not supported in recovery fake")
+}
+
+func (*recoveryFakeACPClient) ResumeSessionAtomic(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{}, errors.New("resume not supported in recovery fake")
 }
 
 func (*recoveryFakeACPClient) CancelSession(context.Context, string) error {

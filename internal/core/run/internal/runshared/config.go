@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 type Config struct {
@@ -21,6 +22,7 @@ type Config struct {
 	BatchSize              int
 	IDE                    string
 	Model                  string
+	Speed                  kinds.Speed
 	AddDirs                []string
 	TailLines              int
 	ReasoningEffort        string
@@ -70,6 +72,7 @@ type Job struct {
 	Failure         string
 	ExitCode        int
 	Usage           model.Usage
+	SpeedResolution kinds.SpeedResolution
 	OutBuffer       *LineBuffer
 	ErrBuffer       *LineBuffer
 }
@@ -126,6 +129,7 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		BatchSize:              src.BatchSize,
 		IDE:                    src.IDE,
 		Model:                  src.Model,
+		Speed:                  src.Speed,
 		AddDirs:                append([]string(nil), src.AddDirs...),
 		TailLines:              src.TailLines,
 		ReasoningEffort:        src.ReasoningEffort,

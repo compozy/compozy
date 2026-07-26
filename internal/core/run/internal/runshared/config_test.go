@@ -1,6 +1,38 @@
 package runshared
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
+)
+
+func TestNewConfigCopiesSpeedAndNewJobsStartUnresolved(t *testing.T) {
+	t.Parallel()
+
+	if cfg := NewConfig(nil, model.RunArtifacts{}); cfg != nil {
+		t.Fatalf("NewConfig(nil) = %#v, want nil", cfg)
+	}
+
+	cfg := NewConfig(
+		&model.RuntimeConfig{Speed: kinds.SpeedFast},
+		model.RunArtifacts{},
+	)
+	if cfg.Speed != kinds.SpeedFast {
+		t.Fatalf("NewConfig().Speed = %q, want %q", cfg.Speed, kinds.SpeedFast)
+	}
+
+	jobs := NewJobs([]model.Job{{SafeName: "task_01"}})
+	if len(jobs) != 1 {
+		t.Fatalf("NewJobs() length = %d, want 1", len(jobs))
+	}
+	if jobs[0].SpeedResolution != (kinds.SpeedResolution{}) {
+		t.Fatalf(
+			"NewJobs()[0].SpeedResolution = %#v, want unresolved zero value",
+			jobs[0].SpeedResolution,
+		)
+	}
+}
 
 func TestJobCodeFileLabel(t *testing.T) {
 	t.Parallel()

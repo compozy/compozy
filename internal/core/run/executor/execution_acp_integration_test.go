@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
+	"github.com/compozy/compozy/internal/core/run/internal/runshared"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -115,6 +116,145 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	}
 	if !strings.Contains(string(outLog), "hello from ACP") || !strings.Contains(string(outLog), "README contents") {
 		t.Fatalf("expected rendered ACP output in out log, got %q", string(outLog))
+	}
+}
+
+func TestExecuteJobWithTimeoutACPAtomicSpeedSetup(t *testing.T) {
+	tests := []struct {
+		name           string
+		speed          kinds.Speed
+		resume         bool
+		modelOptions   []acp.SessionConfigOption
+		speedOptions   []acp.SessionConfigOption
+		speedError     *runACPHelperRequestError
+		wantResolution kinds.SpeedResolution
+		wantStatus     runshared.JobAttemptStatus
+		wantOrder      []string
+	}{
+		{
+			name:         "fast workflow applies speed before prompt",
+			speed:        kinds.SpeedFast,
+			modelOptions: workflowSpeedSelectOptions("standard-tier"),
+			speedOptions: workflowSpeedSelectOptions("accelerated-tier"),
+			wantResolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			wantStatus: attemptStatusSuccess,
+			wantOrder:  []string{"new", "model", "speed", "prompt"},
+		},
+		{
+			name:  "normal workflow retains unsupported reason",
+			speed: kinds.SpeedNormal,
+			wantResolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedNormal,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+			wantStatus: attemptStatusSuccess,
+			wantOrder:  []string{"new", "model", "prompt"},
+		},
+		{
+			name:         "rejected workflow preserves failure without prompt",
+			speed:        kinds.SpeedFast,
+			modelOptions: workflowSpeedSelectOptions("standard-tier"),
+			speedError: &runACPHelperRequestError{
+				Code:    4711,
+				Message: "speed rejected",
+			},
+			wantResolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusRejected,
+				Reason:    kinds.SpeedResolutionReasonProviderRejected,
+			},
+			wantStatus: attemptStatusSetupFailed,
+			wantOrder:  []string{"new", "model", "speed"},
+		},
+		{
+			name:         "resume reapplies speed before prompt",
+			speed:        kinds.SpeedFast,
+			resume:       true,
+			modelOptions: workflowSpeedSelectOptions("standard-tier"),
+			speedOptions: workflowSpeedSelectOptions("accelerated-tier"),
+			wantResolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			wantStatus: attemptStatusSuccess,
+			wantOrder:  []string{"load", "model", "speed", "prompt"},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			protocolLog := filepath.Join(tmpDir, "protocol.log")
+			scenario := runACPHelperScenario{
+				SessionID:                "sess-speed",
+				ExpectedPromptContains:   "finish the task",
+				ExpectedModelValue:       "model-v2",
+				ExpectedSpeedConfigID:    "provider-speed",
+				ExpectedSpeedValue:       "accelerated-tier",
+				ProtocolLogPath:          protocolLog,
+				SupportsLoadSession:      test.resume,
+				ModelConfigOptions:       test.modelOptions,
+				SpeedConfigOptions:       test.speedOptions,
+				SpeedConfigError:         test.speedError,
+				Updates:                  []acp.SessionUpdate{acp.UpdateAgentMessageText("prompt reached")},
+				ExpectedLoadSessionID:    map[bool]string{true: "sess-speed"}[test.resume],
+				LoadSessionConfigOptions: workflowSpeedSelectOptions("standard-tier"),
+			}
+			installACPHelperOnPath(t, []runACPHelperScenario{scenario})
+
+			testJob := newTestACPJob(tmpDir)
+			if test.resume {
+				testJob.ResumeSession = "sess-speed"
+			}
+			result := executeJobWithTimeout(
+				context.Background(),
+				&config{
+					IDE:                    model.IDECodex,
+					Model:                  "model-v2",
+					Speed:                  test.speed,
+					ReasoningEffort:        "medium",
+					RetryBackoffMultiplier: 2,
+				},
+				&testJob,
+				tmpDir,
+				false,
+				0,
+				runACPHelperDefaultTimeout,
+				nil,
+				nil,
+				nil,
+				nil,
+			)
+
+			if result.Status != test.wantStatus {
+				t.Fatalf("workflow status = %s, want %s (%#v)", result.Status, test.wantStatus, result.Failure)
+			}
+			if testJob.SpeedResolution != test.wantResolution {
+				t.Fatalf(
+					"job speed resolution = %#v, want %#v",
+					testJob.SpeedResolution,
+					test.wantResolution,
+				)
+			}
+			assertWorkflowProtocolOrder(t, protocolLog, test.wantOrder)
+			if test.wantStatus == attemptStatusSetupFailed {
+				if result.Retryable {
+					t.Fatal("rejected speed setup must remain non-retryable")
+				}
+				outLog, err := os.ReadFile(testJob.OutLog)
+				if err != nil {
+					t.Fatalf("read rejected workflow out log: %v", err)
+				}
+				if strings.Contains(string(outLog), "prompt reached") {
+					t.Fatalf("rejected workflow produced prompt output: %q", string(outLog))
+				}
+			}
+		})
 	}
 }
 
@@ -1233,19 +1373,28 @@ func TestRunACPHelperProcess(_ *testing.T) {
 }
 
 type runACPHelperScenario struct {
-	SessionID               string                    `json:"session_id,omitempty"`
-	ExpectedLoadSessionID   string                    `json:"expected_load_session_id,omitempty"`
-	ExpectedPromptContains  string                    `json:"expected_prompt_contains,omitempty"`
-	SupportsLoadSession     bool                      `json:"supports_load_session,omitempty"`
-	InitializeDelayMillis   int                       `json:"initialize_delay_millis,omitempty"`
-	ReplayUpdatesOnLoad     []acp.SessionUpdate       `json:"replay_updates_on_load,omitempty"`
-	SessionMeta             map[string]any            `json:"session_meta,omitempty"`
-	Updates                 []acp.SessionUpdate       `json:"updates,omitempty"`
-	StopReason              string                    `json:"stop_reason,omitempty"`
-	BlockUntilCancel        bool                      `json:"block_until_cancel,omitempty"`
-	NewSessionError         *runACPHelperRequestError `json:"new_session_error,omitempty"`
-	PromptError             *runACPHelperRequestError `json:"prompt_error,omitempty"`
-	PromptErrorAfterUpdates bool                      `json:"prompt_error_after_updates,omitempty"`
+	SessionID                string                    `json:"session_id,omitempty"`
+	ExpectedLoadSessionID    string                    `json:"expected_load_session_id,omitempty"`
+	ExpectedPromptContains   string                    `json:"expected_prompt_contains,omitempty"`
+	ExpectedModelValue       string                    `json:"expected_model_value,omitempty"`
+	ExpectedSpeedConfigID    string                    `json:"expected_speed_config_id,omitempty"`
+	ExpectedSpeedValue       string                    `json:"expected_speed_value,omitempty"`
+	ProtocolLogPath          string                    `json:"protocol_log_path,omitempty"`
+	SupportsLoadSession      bool                      `json:"supports_load_session,omitempty"`
+	InitializeDelayMillis    int                       `json:"initialize_delay_millis,omitempty"`
+	NewSessionConfigOptions  []acp.SessionConfigOption `json:"new_session_config_options,omitempty"`
+	LoadSessionConfigOptions []acp.SessionConfigOption `json:"load_session_config_options,omitempty"`
+	ModelConfigOptions       []acp.SessionConfigOption `json:"model_config_options,omitempty"`
+	SpeedConfigOptions       []acp.SessionConfigOption `json:"speed_config_options,omitempty"`
+	ReplayUpdatesOnLoad      []acp.SessionUpdate       `json:"replay_updates_on_load,omitempty"`
+	SessionMeta              map[string]any            `json:"session_meta,omitempty"`
+	Updates                  []acp.SessionUpdate       `json:"updates,omitempty"`
+	StopReason               string                    `json:"stop_reason,omitempty"`
+	BlockUntilCancel         bool                      `json:"block_until_cancel,omitempty"`
+	NewSessionError          *runACPHelperRequestError `json:"new_session_error,omitempty"`
+	SpeedConfigError         *runACPHelperRequestError `json:"speed_config_error,omitempty"`
+	PromptError              *runACPHelperRequestError `json:"prompt_error,omitempty"`
+	PromptErrorAfterUpdates  bool                      `json:"prompt_error_after_updates,omitempty"`
 }
 
 type runACPHelperRequestError struct {
@@ -1279,12 +1428,16 @@ func (a *runACPHelperAgent) Initialize(ctx context.Context, _ acp.InitializeRequ
 }
 
 func (a *runACPHelperAgent) NewSession(_ context.Context, _ acp.NewSessionRequest) (acp.NewSessionResponse, error) {
+	if err := a.recordProtocolStep("new"); err != nil {
+		return acp.NewSessionResponse{}, err
+	}
 	if a.scenario.NewSessionError != nil {
 		return acp.NewSessionResponse{}, a.scenario.NewSessionError.toACPError()
 	}
 	return acp.NewSessionResponse{
-		SessionId: acp.SessionId(a.sessionID),
-		Meta:      a.scenario.SessionMeta,
+		SessionId:     acp.SessionId(a.sessionID),
+		ConfigOptions: append([]acp.SessionConfigOption(nil), a.scenario.NewSessionConfigOptions...),
+		Meta:          a.scenario.SessionMeta,
 	}, nil
 }
 
@@ -1292,6 +1445,9 @@ func (a *runACPHelperAgent) LoadSession(
 	ctx context.Context,
 	req acp.LoadSessionRequest,
 ) (acp.LoadSessionResponse, error) {
+	if err := a.recordProtocolStep("load"); err != nil {
+		return acp.LoadSessionResponse{}, err
+	}
 	if a.scenario.ExpectedLoadSessionID != "" && string(req.SessionId) != a.scenario.ExpectedLoadSessionID {
 		return acp.LoadSessionResponse{}, &acp.RequestError{
 			Code:    4002,
@@ -1306,7 +1462,10 @@ func (a *runACPHelperAgent) LoadSession(
 			return acp.LoadSessionResponse{}, err
 		}
 	}
-	return acp.LoadSessionResponse{Meta: a.scenario.SessionMeta}, nil
+	return acp.LoadSessionResponse{
+		ConfigOptions: append([]acp.SessionConfigOption(nil), a.scenario.LoadSessionConfigOptions...),
+		Meta:          a.scenario.SessionMeta,
+	}, nil
 }
 
 func (a *runACPHelperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
@@ -1314,6 +1473,9 @@ func (a *runACPHelperAgent) Authenticate(context.Context, acp.AuthenticateReques
 }
 
 func (a *runACPHelperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.PromptResponse, error) {
+	if err := a.recordProtocolStep("prompt"); err != nil {
+		return acp.PromptResponse{}, err
+	}
 	if want := strings.TrimSpace(a.scenario.ExpectedPromptContains); want != "" {
 		gotPrompt := helperPromptText(req.Prompt)
 		if !strings.Contains(gotPrompt, want) {
@@ -1373,11 +1535,59 @@ func (*runACPHelperAgent) ResumeSession(context.Context, acp.ResumeSessionReques
 	return acp.ResumeSessionResponse{}, nil
 }
 
-func (*runACPHelperAgent) SetSessionConfigOption(
-	context.Context,
-	acp.SetSessionConfigOptionRequest,
+func (a *runACPHelperAgent) SetSessionConfigOption(
+	_ context.Context,
+	req acp.SetSessionConfigOptionRequest,
 ) (acp.SetSessionConfigOptionResponse, error) {
-	return acp.SetSessionConfigOptionResponse{}, nil
+	if req.ValueId == nil || req.Boolean != nil {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4008,
+			Message: "expected value-id session configuration request",
+		}
+	}
+	valueRequest := req.ValueId
+	if valueRequest.SessionId != acp.SessionId(a.sessionID) {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4009,
+			Message: fmt.Sprintf("unexpected config session id %q", valueRequest.SessionId),
+		}
+	}
+	if valueRequest.ConfigId == acp.SessionConfigId("model") {
+		if err := a.recordProtocolStep("model"); err != nil {
+			return acp.SetSessionConfigOptionResponse{}, err
+		}
+		if want := a.scenario.ExpectedModelValue; want != "" && string(valueRequest.Value) != want {
+			return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+				Code:    4010,
+				Message: fmt.Sprintf("unexpected model value %q", valueRequest.Value),
+			}
+		}
+		return acp.SetSessionConfigOptionResponse{
+			ConfigOptions: append([]acp.SessionConfigOption(nil), a.scenario.ModelConfigOptions...),
+		}, nil
+	}
+
+	if err := a.recordProtocolStep("speed"); err != nil {
+		return acp.SetSessionConfigOptionResponse{}, err
+	}
+	if want := a.scenario.ExpectedSpeedConfigID; want != "" && string(valueRequest.ConfigId) != want {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4011,
+			Message: fmt.Sprintf("unexpected speed config id %q", valueRequest.ConfigId),
+		}
+	}
+	if want := a.scenario.ExpectedSpeedValue; want != "" && string(valueRequest.Value) != want {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4012,
+			Message: fmt.Sprintf("unexpected speed value %q", valueRequest.Value),
+		}
+	}
+	if a.scenario.SpeedConfigError != nil {
+		return acp.SetSessionConfigOptionResponse{}, a.scenario.SpeedConfigError.toACPError()
+	}
+	return acp.SetSessionConfigOptionResponse{
+		ConfigOptions: append([]acp.SessionConfigOption(nil), a.scenario.SpeedConfigOptions...),
+	}, nil
 }
 
 func (a *runACPHelperAgent) SetSessionMode(
@@ -1385,6 +1595,25 @@ func (a *runACPHelperAgent) SetSessionMode(
 	acp.SetSessionModeRequest,
 ) (acp.SetSessionModeResponse, error) {
 	return acp.SetSessionModeResponse{}, nil
+}
+
+func (a *runACPHelperAgent) recordProtocolStep(step string) error {
+	path := strings.TrimSpace(a.scenario.ProtocolLogPath)
+	if path == "" {
+		return nil
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("open protocol log: %w", err)
+	}
+	if _, err := fmt.Fprintln(file, step); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("write protocol log: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close protocol log: %w", err)
+	}
+	return nil
 }
 
 func (e *runACPHelperRequestError) toACPError() error {
@@ -1609,6 +1838,50 @@ func helperFirstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func workflowSpeedSelectOptions(current acp.SessionConfigValueId) []acp.SessionConfigOption {
+	category := acp.SessionConfigOptionCategory("model_config")
+	description := "Complete workflow speed fixture"
+	values := acp.SessionConfigSelectOptionsUngrouped{
+		{
+			Meta:        map[string]any{"tier": "standard"},
+			Description: &description,
+			Name:        "Standard",
+			Value:       acp.SessionConfigValueId("standard-tier"),
+		},
+		{
+			Meta:        map[string]any{"tier": "accelerated"},
+			Description: &description,
+			Name:        "Enabled",
+			Value:       acp.SessionConfigValueId("accelerated-tier"),
+		},
+	}
+	return []acp.SessionConfigOption{{
+		Select: &acp.SessionConfigOptionSelect{
+			Meta:         map[string]any{"fixture": "workflow"},
+			Category:     &category,
+			CurrentValue: current,
+			Description:  &description,
+			Id:           acp.SessionConfigId("provider-speed"),
+			Name:         "Speed",
+			Options:      acp.SessionConfigSelectOptions{Ungrouped: &values},
+			Type:         "select",
+		},
+	}}
+}
+
+func assertWorkflowProtocolOrder(t *testing.T, path string, want []string) {
+	t.Helper()
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read workflow protocol log: %v", err)
+	}
+	got := strings.Fields(string(raw))
+	if !slices.Equal(got, want) {
+		t.Fatalf("workflow protocol order = %#v, want %#v", got, want)
+	}
 }
 
 func newNamedTestACPJob(tmpDir, safeName string) job {

@@ -4156,6 +4156,27 @@ func (c *cliCapturingACPClient) CreateSession(
 	return c.createSessionFn(ctx, req)
 }
 
+func (c *cliCapturingACPClient) CreateSessionAtomic(
+	ctx context.Context,
+	req agent.SessionRequest,
+) (agent.SessionStart, error) {
+	var (
+		session agent.Session
+		err     error
+	)
+	if c.createSessionFn != nil {
+		session, err = c.createSessionFn(ctx, req)
+	}
+	return agent.SessionStart{
+		Session: session,
+		Speed: kinds.SpeedResolution{
+			Requested: req.Speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}, err
+}
+
 func (c *cliCapturingACPClient) ResumeSession(
 	ctx context.Context,
 	req agent.ResumeSessionRequest,
@@ -4164,6 +4185,27 @@ func (c *cliCapturingACPClient) ResumeSession(
 		return nil, nil
 	}
 	return c.resumeSessionFn(ctx, req)
+}
+
+func (c *cliCapturingACPClient) ResumeSessionAtomic(
+	ctx context.Context,
+	req agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	var (
+		session agent.Session
+		err     error
+	)
+	if c.resumeSessionFn != nil {
+		session, err = c.resumeSessionFn(ctx, req)
+	}
+	return agent.SessionStart{
+		Session: session,
+		Speed: kinds.SpeedResolution{
+			Requested: req.Speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}, err
 }
 
 func (*cliCapturingACPClient) SupportsLoadSession() bool { return true }

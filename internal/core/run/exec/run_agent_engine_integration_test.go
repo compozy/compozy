@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/core/agents/mcpserver"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestRunAgentEngineExecutesRealNestedChildSession(t *testing.T) {
@@ -133,8 +134,30 @@ func (c *fakeRunAgentACPClient) CreateSession(ctx context.Context, req agent.Ses
 	return c.createSessionFn(ctx, req)
 }
 
+func (c *fakeRunAgentACPClient) CreateSessionAtomic(
+	ctx context.Context,
+	req agent.SessionRequest,
+) (agent.SessionStart, error) {
+	session, err := c.createSessionFn(ctx, req)
+	return agent.SessionStart{
+		Session: session,
+		Speed: kinds.SpeedResolution{
+			Requested: req.Speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}, err
+}
+
 func (*fakeRunAgentACPClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
 	return nil, nil
+}
+
+func (*fakeRunAgentACPClient) ResumeSessionAtomic(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{}, nil
 }
 
 func (*fakeRunAgentACPClient) CancelSession(context.Context, string) error { return nil }

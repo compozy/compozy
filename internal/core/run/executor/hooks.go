@@ -147,6 +147,7 @@ func hookRuntimeConfig(src *config) model.RuntimeConfig {
 		BatchSize:              src.BatchSize,
 		IDE:                    src.IDE,
 		Model:                  src.Model,
+		Speed:                  src.Speed,
 		AddDirs:                append([]string(nil), src.AddDirs...),
 		TailLines:              src.TailLines,
 		ReasoningEffort:        src.ReasoningEffort,
@@ -186,6 +187,7 @@ func applyHookRuntimeConfig(dst *config, updated model.RuntimeConfig) {
 	dst.BatchSize = updated.BatchSize
 	dst.IDE = updated.IDE
 	dst.Model = updated.Model
+	dst.Speed = updated.Speed
 	dst.AddDirs = append([]string(nil), updated.AddDirs...)
 	dst.TailLines = updated.TailLines
 	dst.ReasoningEffort = updated.ReasoningEffort

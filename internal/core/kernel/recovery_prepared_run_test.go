@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/core/run/recovery"
 	"github.com/compozy/compozy/internal/core/workspace"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestKernelWorkflowPreparedRunRestartFailedFiltersBySafeName(t *testing.T) {
@@ -542,6 +543,10 @@ func newKernelBoundaryACP(t *testing.T, root string) *kernelBoundaryACP {
 }
 
 func (c *kernelBoundaryACP) CreateSession(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+	return c.createSession(req)
+}
+
+func (c *kernelBoundaryACP) createSession(req agent.SessionRequest) (agent.Session, error) {
 	promptText := string(req.Prompt)
 	if strings.Contains(promptText, "Failure context:") {
 		return c.createRecoverySession()
@@ -556,6 +561,21 @@ func (c *kernelBoundaryACP) CreateSession(_ context.Context, req agent.SessionRe
 	default:
 		return nil, fmt.Errorf("unexpected kernel boundary ACP job %q", jobID)
 	}
+}
+
+func (c *kernelBoundaryACP) CreateSessionAtomic(
+	_ context.Context,
+	req agent.SessionRequest,
+) (agent.SessionStart, error) {
+	session, err := c.createSession(req)
+	return agent.SessionStart{
+		Session: session,
+		Speed: kinds.SpeedResolution{
+			Requested: req.Speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}, err
 }
 
 func kernelBoundaryTaskID(jobID string) string {
@@ -623,6 +643,13 @@ func (c *kernelBoundaryACP) assertCallCounts(t *testing.T, wantJobs map[string]i
 
 func (*kernelBoundaryACP) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
 	return nil, errors.New("resume not supported in kernel boundary fake")
+}
+
+func (*kernelBoundaryACP) ResumeSessionAtomic(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{}, errors.New("resume not supported in kernel boundary fake")
 }
 
 func (*kernelBoundaryACP) CancelSession(context.Context, string) error {
