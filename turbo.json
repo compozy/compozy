@@ -5,17 +5,17 @@
             "cache": false,
             "inputs": ["scripts/codegen-check.sh"],
             "outputs": [],
-            "passThroughEnv": ["AGH_CODEGEN_CHECKED"]
+            "passThroughEnv": ["COMPOZY_CODEGEN_CHECKED"]
         },
         "build": {
             "dependsOn": ["//#codegen-check", "^build"],
             "outputs": ["dist/**"],
-            "env": ["VITE_AGH_API_URL"]
+            "env": ["VITE_COMPOZY_API_URL"]
         },
         "agh-web#build": {
             "dependsOn": ["//#codegen-check", "typecheck", "^build"],
             "outputs": ["dist/**"],
-            "env": ["VITE_AGH_API_URL"]
+            "env": ["VITE_COMPOZY_API_URL"]
         },
         "@agh/ui#build": {
             "dependsOn": [],

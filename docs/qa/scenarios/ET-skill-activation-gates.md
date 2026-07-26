@@ -5,7 +5,7 @@ title: Offer only skills whose runtime activation gates pass
 persona: Ada
 journey: J-offer-runnable-capabilities
 expected: A skill with satisfied metadata.agh.when gates appears in startup and current-turn catalogs; one with an unmet platform, environment, tool, or authored-capability gate remains manageable with structured inactive reasons but is absent from both catalogs; restoring a required callable tool makes the next catalog projection offer it without restarting AGH.
-entry_points: SKILL.md metadata.agh.when; agent startup and current-turn prompt catalogs; GET /api/skills; agh skill list|inspect|view; agh__skill_list|view; Web /skills
+entry_points: SKILL.md metadata.agh.when; agent startup and current-turn prompt catalogs; GET /api/skills; agh skill list|inspect|view; compozy__skill_list|view; Web /skills
 qa_status: untested
 bug_ids:
 fix_status:

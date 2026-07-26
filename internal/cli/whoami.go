@@ -13,7 +13,7 @@ const (
 const (
 	envSessionID = agentidentity.EnvSessionID
 	envAgentID   = agentidentity.EnvAgent
-	envAgentName = "AGH_AGENT_NAME"
+	envAgentName = "COMPOZY_AGENT_NAME"
 )
 
 func newWhoamiCommand(deps commandDeps) *cobra.Command {

@@ -36,8 +36,8 @@ const (
 )
 
 const (
-	linearListenAddrEnv = "AGH_BRIDGE_LINEAR_LISTEN_ADDR"
-	linearAPIBaseEnv    = "AGH_BRIDGE_LINEAR_API_BASE_URL"
+	linearListenAddrEnv = "COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR"
+	linearAPIBaseEnv    = "COMPOZY_BRIDGE_LINEAR_API_BASE_URL"
 
 	linearDefaultAPIBaseURL  = "https://api.linear.app"
 	linearDefaultWebhookPath = "/linear"

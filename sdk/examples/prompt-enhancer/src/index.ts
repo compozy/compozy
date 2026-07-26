@@ -11,10 +11,10 @@ import {
   type ShutdownRequest,
 } from "@agh/extension-sdk";
 
-const handshakePath = process.env.AGH_PROMPT_ENHANCER_HANDSHAKE_PATH?.trim() ?? "";
-const hostCallPath = process.env.AGH_PROMPT_ENHANCER_HOST_CALL_PATH?.trim() ?? "";
-const capabilityPath = process.env.AGH_PROMPT_ENHANCER_CAPABILITY_PATH?.trim() ?? "";
-const shutdownPath = process.env.AGH_PROMPT_ENHANCER_SHUTDOWN_PATH?.trim() ?? "";
+const handshakePath = process.env.COMPOZY_PROMPT_ENHANCER_HANDSHAKE_PATH?.trim() ?? "";
+const hostCallPath = process.env.COMPOZY_PROMPT_ENHANCER_HOST_CALL_PATH?.trim() ?? "";
+const capabilityPath = process.env.COMPOZY_PROMPT_ENHANCER_CAPABILITY_PATH?.trim() ?? "";
+const shutdownPath = process.env.COMPOZY_PROMPT_ENHANCER_SHUTDOWN_PATH?.trim() ?? "";
 
 function workspacePrefix(workspace?: string, workspaceID?: string): string {
   return workspace?.trim() || workspaceID?.trim() || "unknown";

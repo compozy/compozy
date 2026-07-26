@@ -107,7 +107,7 @@ func TestExtensionInstallOfflineInvalidManifest(t *testing.T) {
 	writeExtensionManifest(t, filepath.Join(dir, "extension.toml"), `[extension]
 version = "0.1.0"
 description = "broken"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [resources]
 `)
@@ -548,7 +548,7 @@ func extensionFixtureManifest(name string, opts extensionFixtureOptions) string 
 name = %q
 version = "0.1.0"
 description = "CLI extension test fixture"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 `, name)
 	if len(opts.requiresEnv) > 0 {
 		fmt.Fprintf(&builder, `requires_env = [%s]

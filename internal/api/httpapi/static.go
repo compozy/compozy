@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const webDistDirEnvVar = "AGH_WEB_DIST_DIR"
+const webDistDirEnvVar = "COMPOZY_WEB_DIST_DIR"
 
 type staticSourceFS struct {
 	fs     fs.FS

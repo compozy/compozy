@@ -22,8 +22,8 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
-		executable := hostedTestExecutable(t, "agh")
-		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("agh__hosted_echo")}}
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
 		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
 
 		launch, err := service.Launch(t.Context(), HostedLaunchRequest{
@@ -77,9 +77,9 @@ func TestHostedServiceValidatesPeerAndBinaryFailClosed(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
-		executable := hostedTestExecutable(t, "agh")
-		otherExecutable := hostedTestExecutable(t, "other-agh")
-		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("agh__hosted_echo")}}
+		executable := hostedTestExecutable(t, "compozy")
+		otherExecutable := hostedTestExecutable(t, "other-compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
 		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
 
 		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-1"})
@@ -119,12 +119,12 @@ func TestHostedServiceValidatesPeerAndBinaryFailClosed(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
-		executable := hostedTestExecutable(t, "agh")
-		alternate := filepath.Join(t.TempDir(), "agh-hardlink")
+		executable := hostedTestExecutable(t, "compozy")
+		alternate := filepath.Join(t.TempDir(), "compozy-hardlink")
 		if err := os.Link(executable, alternate); err != nil {
 			t.Fatalf("Link(%q, %q) error = %v", executable, alternate, err)
 		}
-		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("agh__hosted_echo")}}
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
 		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
 
 		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-1"})
@@ -155,11 +155,11 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
-		executable := hostedTestExecutable(t, "agh")
+		executable := hostedTestExecutable(t, "compozy")
 		registry := &hostedRegistryStub{
 			views: []tools.ToolView{
-				hostedToolView("agh__zeta"),
-				hostedToolView("agh__alpha"),
+				hostedToolView("compozy__zeta"),
+				hostedToolView("compozy__alpha"),
 			},
 			result: tools.ToolResult{Content: []tools.ToolContent{{Type: "text", Text: "ok"}}},
 		}
@@ -182,7 +182,10 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Bind() error = %v", err)
 		}
-		if got, want := hostedToolIDs(bind.Tools), []string{"agh__alpha", "agh__zeta"}; !slices.Equal(got, want) {
+		if got, want := hostedToolIDs(bind.Tools), []string{
+			"compozy__alpha",
+			"compozy__zeta",
+		}; !slices.Equal(got, want) {
 			t.Fatalf("bind tools = %#v, want sorted session projection %#v", got, want)
 		}
 
@@ -200,7 +203,7 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 
 		_, err = service.Call(t.Context(), HostedCallRequest{
 			BindID:        bind.BindID,
-			ToolName:      "agh__alpha",
+			ToolName:      "compozy__alpha",
 			ToolCallID:    "call-1",
 			CorrelationID: "corr-1",
 			Input:         json.RawMessage(`{"message":"hello","approval_token":"client-supplied"}`),
@@ -213,7 +216,7 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 		if scope.SessionID != "sess-1" || scope.WorkspaceID != "ws-1" || scope.AgentName != "codex" {
 			t.Fatalf("registry call scope = %#v, want hosted launch scope", scope)
 		}
-		if call.ToolID != "agh__alpha" || call.ToolCallID != "call-1" || call.CorrelationID != "corr-1" {
+		if call.ToolID != "compozy__alpha" || call.ToolCallID != "call-1" || call.CorrelationID != "corr-1" {
 			t.Fatalf("registry call identity = %#v, want hosted call identity", call)
 		}
 		if call.ApprovalToken != "" {
@@ -229,7 +232,7 @@ func TestHostedServiceProjectionMatchesRegistrySessionProjection(t *testing.T) {
 		t.Parallel()
 
 		readID := tools.ToolIDMCPAuthStatus
-		mutateID := tools.ToolID("agh__hosted_mutate")
+		mutateID := tools.ToolID("compozy__hosted_mutate")
 		registry := hostedRuntimeRegistry(t, tools.PolicyInputs{
 			SystemPermissionMode: tools.PermissionModeApproveReads,
 			ApprovalAvailable:    false,
@@ -238,7 +241,7 @@ func TestHostedServiceProjectionMatchesRegistrySessionProjection(t *testing.T) {
 			tools.RiskMutating,
 			false,
 		))
-		executable := hostedTestExecutable(t, "agh")
+		executable := hostedTestExecutable(t, "compozy")
 		service := newHostedTestService(
 			t,
 			executable,
@@ -293,13 +296,13 @@ func TestHostedServiceCallUsesRegistryApprovalBridge(t *testing.T) {
 	t.Run("Should request daemon-mediated approval without accepting hosted approval tokens", func(t *testing.T) {
 		t.Parallel()
 
-		mutateID := tools.ToolID("agh__hosted_mutate")
+		mutateID := tools.ToolID("compozy__hosted_mutate")
 		bridge := &hostedApprovalBridge{}
 		registry := hostedRuntimeRegistry(t, tools.PolicyInputs{
 			SystemPermissionMode: tools.PermissionModeDenyAll,
 			ApprovalAvailable:    true,
 		}, bridge, hostedRuntimeNativeTool(mutateID, tools.RiskMutating, false))
-		executable := hostedTestExecutable(t, "agh")
+		executable := hostedTestExecutable(t, "compozy")
 		service := newHostedTestService(
 			t,
 			executable,
@@ -352,8 +355,8 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
-	executable := hostedTestExecutable(t, "agh")
-	registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("agh__hosted_echo")}}
+	executable := hostedTestExecutable(t, "compozy")
+	registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
 	peer := hostedTestPeer(executable)
 
 	t.Run("Should reject disabled service and invalid construction", func(t *testing.T) {
@@ -464,12 +467,12 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 	t.Run("Should default empty call input to object", func(t *testing.T) {
 		t.Parallel()
 
-		localRegistry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("agh__hosted_echo")}}
+		localRegistry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
 		service := newHostedTestService(t, executable, localRegistry, func() time.Time { return now })
 		bind := hostedTestBind(t, service, "sess-empty-input", peer)
 		if _, err := service.Call(t.Context(), HostedCallRequest{
 			BindID:   bind.BindID,
-			ToolName: "agh__hosted_echo",
+			ToolName: "compozy__hosted_echo",
 		}, peer); err != nil {
 			t.Fatalf("Call(empty input) error = %v", err)
 		}

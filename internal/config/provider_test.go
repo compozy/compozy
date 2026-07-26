@@ -2102,9 +2102,9 @@ func TestResolveSessionAgent(t *testing.T) {
 			Model:       "agent-model",
 			Permissions: string(PermissionModeApproveReads),
 			Prompt:      "prompt",
-			Tools:       []string{"agh__skill_view"},
-			Toolsets:    []string{"agh__catalog"},
-			DenyTools:   []string{"agh__task_*"},
+			Tools:       []string{"compozy__skill_view"},
+			Toolsets:    []string{"compozy__catalog"},
+			DenyTools:   []string{"compozy__task_*"},
 			MCPServers: []MCPServer{
 				{Name: "agent", Command: "agent-command"},
 			},

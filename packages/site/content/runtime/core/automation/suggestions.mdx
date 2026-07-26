@@ -58,11 +58,11 @@ agent-management path.
 
 ## Public surfaces
 
-| Operation      | Native tool                           | HTTP and UDS                                                                         |
-| -------------- | ------------------------------------- | ------------------------------------------------------------------------------------ |
-| List           | `agh__automation_suggestions_list`    | `GET /api/workspaces/{workspace_id}/automation/suggestions?status=pending`           |
-| Create the Job | `agh__automation_suggestions_accept`  | `POST /api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/accept`  |
-| Dismiss        | `agh__automation_suggestions_dismiss` | `POST /api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss` |
+| Operation      | Native tool                               | HTTP and UDS                                                                         |
+| -------------- | ----------------------------------------- | ------------------------------------------------------------------------------------ |
+| List           | `compozy__automation_suggestions_list`    | `GET /api/workspaces/{workspace_id}/automation/suggestions?status=pending`           |
+| Create the Job | `compozy__automation_suggestions_accept`  | `POST /api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/accept`  |
+| Dismiss        | `compozy__automation_suggestions_dismiss` | `POST /api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss` |
 
 Every operation resolves the workspace from its path or required input and applies that workspace id
 to the store predicate. A suggestion from one workspace cannot be listed, accepted, or dismissed

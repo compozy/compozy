@@ -259,7 +259,7 @@ process environment.
 name = "prompt-enhancer"
 version = "0.1.0"
 description = "Adds workspace context to assembled prompts"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [[resources.hooks]]
 name = "workspace-context"
@@ -327,10 +327,10 @@ agh hooks info block-secret-file-edits --workspace checkout
 agh hooks runs --workspace checkout --session sess_9f4a --event tool.pre_call --last 20 -o json
 ```
 
-Agents can read the same projection through `agh__hooks_list`, `agh__hooks_info`,
-`agh__hooks_events`, and `agh__hooks_runs`. Agents may also mutate config-backed or
-overlay-backed declarations through `agh__hooks_create`, `agh__hooks_update`,
-`agh__hooks_delete`, `agh__hooks_enable`, and `agh__hooks_disable`. Source-owned hooks remain
+Agents can read the same projection through `compozy__hooks_list`, `compozy__hooks_info`,
+`compozy__hooks_events`, and `compozy__hooks_runs`. Agents may also mutate config-backed or
+overlay-backed declarations through `compozy__hooks_create`, `compozy__hooks_update`,
+`compozy__hooks_delete`, `compozy__hooks_enable`, and `compozy__hooks_disable`. Source-owned hooks remain
 structurally immutable through agent tools; the daemon returns
 `HOOK_SOURCE_IMMUTABLE` instead of attempting the mutation.
 

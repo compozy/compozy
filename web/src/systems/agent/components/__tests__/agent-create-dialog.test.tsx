@@ -298,13 +298,15 @@ describe("AgentCreateDialog", () => {
     await user.click(screen.getByTestId("agent-create-mode-advanced"));
     const input = screen.getByTestId("agent-create-tools-input");
 
-    await user.type(input, "agh__skill_view,");
+    await user.type(input, "compozy__skill_view,");
     await user.type(input, "mcp__github__*{enter}");
-    await user.type(input, "agh__skill_view{enter}");
+    await user.type(input, "compozy__skill_view{enter}");
 
-    expect(screen.getByTestId("agent-create-tools-tokens")).toHaveTextContent("agh__skill_view");
+    expect(screen.getByTestId("agent-create-tools-tokens")).toHaveTextContent(
+      "compozy__skill_view"
+    );
     expect(screen.getByTestId("agent-create-tools-tokens")).toHaveTextContent("mcp__github__*");
-    expect(screen.getAllByLabelText("Remove agh__skill_view")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Remove compozy__skill_view")).toHaveLength(1);
   });
 
   it("Should retain the draft and stay open when the save fails", () => {

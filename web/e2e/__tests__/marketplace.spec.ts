@@ -517,7 +517,7 @@ test.describe("Marketplace acquisition", () => {
         {
           extension: {
             description: "Browser marketplace bundle provider",
-            min_agh_version: "0.0.0",
+            min_compozy_version: "0.0.0",
             name: bundleExtensionName,
             version: "1.0.0",
           },
@@ -541,7 +541,7 @@ test.describe("Marketplace acquisition", () => {
         {
           extension: {
             description: "Browser marketplace lifecycle toggle fixture",
-            min_agh_version: "0.0.0",
+            min_compozy_version: "0.0.0",
             name: toggleExtensionName,
             version: "1.0.0",
           },
@@ -1254,7 +1254,7 @@ test.describe("Skills marketplace management", () => {
   function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
     return {
       ...process.env,
-      AGH_HOME: paths.homeDir,
+      COMPOZY_HOME: paths.homeDir,
       HOME: paths.homeDir,
       PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
     };
@@ -1588,7 +1588,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
     runtimeOptions: {
       env: {
         ...process.env,
-        AGH_BROWSER_EXTENSION_SECRET: extensionSecretSentinel,
+        COMPOZY_BROWSER_EXTENSION_SECRET: extensionSecretSentinel,
       },
       extensionsAllowUnverified: true,
       readyTimeoutMs: 45_000,
@@ -2109,7 +2109,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
             name: extensionName,
             version: "0.1.0",
             description: "Browser E2E extension tool provider",
-            min_agh_version: "0.0.0",
+            min_compozy_version: "0.0.0",
           },
           capabilities: { provides: ["tool.provider"] },
           subprocess: {
@@ -2129,7 +2129,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
                 max_result_bytes: 4096,
                 backend: { kind: "extension_host", handler: "search" },
                 input_schema: inputSchema,
-                toolsets: ["agh__catalog"],
+                toolsets: ["compozy__catalog"],
               },
             },
           },
@@ -2179,7 +2179,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
             name: "browser-invalid-extension",
             version: "0.1.0",
             description: "Invalid browser E2E extension",
-            min_agh_version: "0.0.0",
+            min_compozy_version: "0.0.0",
           },
           capabilities: { provides: ["bad capability"] },
         },
@@ -2201,7 +2201,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
             name: "browser-checksum-reject",
             version: "0.1.0",
             description: "Valid extension used to prove checksum rejection",
-            min_agh_version: "0.0.0",
+            min_compozy_version: "0.0.0",
           },
           capabilities: { provides: [] },
         },
@@ -2642,8 +2642,8 @@ test.describe("Extension and bundle marketplace runtime", () => {
   function browserRuntimeCLIEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
     return {
       ...process.env,
-      AGH_E2E_CLI_BIN: paths.cliShim,
-      AGH_HOME: paths.homeDir,
+      COMPOZY_E2E_CLI_BIN: paths.cliShim,
+      COMPOZY_HOME: paths.homeDir,
       HOME: paths.homeDir,
       PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
         .filter(Boolean)

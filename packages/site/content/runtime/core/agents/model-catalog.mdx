@@ -187,19 +187,19 @@ transport regression tests can compare daemon output directly.
 
 ## Native tools
 
-Managed agents can use the `agh__provider_models` toolset instead of shelling out to the CLI. The
+Managed agents can use the `compozy__provider_models` toolset instead of shelling out to the CLI. The
 native tools share the same daemon service and response payloads as HTTP, UDS, and
 `agh provider models`.
 
-| Native tool                    | Purpose                                                |
-| ------------------------------ | ------------------------------------------------------ |
-| `agh__provider_models_list`    | List `curated` (default) or `all` model projections.   |
-| `agh__provider_models_curate`  | Persist model flags/default effort through live apply. |
-| `agh__provider_models_refresh` | Refresh provider model catalog sources.                |
-| `agh__provider_models_status`  | Inspect source status and stale fallback.              |
+| Native tool                        | Purpose                                                |
+| ---------------------------------- | ------------------------------------------------------ |
+| `compozy__provider_models_list`    | List `curated` (default) or `all` model projections.   |
+| `compozy__provider_models_curate`  | Persist model flags/default effort through live apply. |
+| `compozy__provider_models_refresh` | Refresh provider model catalog sources.                |
+| `compozy__provider_models_status`  | Inspect source status and stale fallback.              |
 
-`agh__provider_models_list` accepts `view=curated|all`; `provider_id` remains optional for read and
-refresh tools. `agh__provider_models_curate` is mutating, requires `providers.models.write`, and
+`compozy__provider_models_list` accepts `view=curated|all`; `provider_id` remains optional for read and
+refresh tools. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and
 accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and
 `default_effort`. The effort must be canonical and present in that model's actual subset. Omitted
 flags preserve projected values; a call with no optional flags still materializes an explicit

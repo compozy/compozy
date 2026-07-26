@@ -46,7 +46,7 @@ func TestOpenLocalGlobalDatabaseMigrationErrors(t *testing.T) {
 					t.Fatalf("structured error = %#v, want surface %q path %q", openErr, surface, canonicalPath)
 				}
 				if !strings.Contains(err.Error(), canonicalPath) ||
-					!strings.Contains(err.Error(), "complete AGH_HOME or workspace .compozy directory") {
+					!strings.Contains(err.Error(), "complete COMPOZY_HOME or workspace .compozy directory") {
 					t.Fatalf(
 						"openLocalGlobalDatabase(%s) error = %q, want path and whole-family remediation",
 						surface,
@@ -85,13 +85,13 @@ func TestOpenLocalGlobalDatabaseMigrationErrors(t *testing.T) {
 			t.Fatalf("openLocalGlobalDatabase(ahead) error type = %T, want *localDatabaseOpenError", err)
 		}
 		if !strings.Contains(err.Error(), "install a newer AGH binary") ||
-			!strings.Contains(err.Error(), "complete AGH_HOME or workspace .compozy directory") {
+			!strings.Contains(err.Error(), "complete COMPOZY_HOME or workspace .compozy directory") {
 			t.Fatalf("openLocalGlobalDatabase(ahead) error = %q, want deterministic remediation", err)
 		}
 	})
 }
 
-// This test mutates AGH_HOME and the process-wide slog default, so its cases must stay serial.
+// This test mutates COMPOZY_HOME and the process-wide slog default, so its cases must stay serial.
 func TestExecuteContextLocalDatabaseMigrationErrors(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -128,7 +128,7 @@ func TestExecuteContextLocalDatabaseMigrationErrors(t *testing.T) {
 		for _, tt := range tests {
 			t.Run("Should emit one JSON envelope for "+tt.name+" against a "+state.name, func(t *testing.T) {
 				home := t.TempDir()
-				t.Setenv("AGH_HOME", home)
+				t.Setenv("COMPOZY_HOME", home)
 				if tt.prepareConfig {
 					writeLocalDatabaseProviderConfig(t, home)
 				}
@@ -171,7 +171,10 @@ func TestExecuteContextLocalDatabaseMigrationErrors(t *testing.T) {
 				if got := payload.Diagnostic.Evidence["offending_path"]; got != canonicalPath {
 					t.Fatalf("ExecuteContext(%s) path = %#v, want %q", tt.name, got, canonicalPath)
 				}
-				if !strings.Contains(payload.Diagnostic.Message, "complete AGH_HOME or workspace .compozy directory") {
+				if !strings.Contains(
+					payload.Diagnostic.Message,
+					"complete COMPOZY_HOME or workspace .compozy directory",
+				) {
 					t.Fatalf(
 						"ExecuteContext(%s) message = %q, want whole-family remediation",
 						tt.name,

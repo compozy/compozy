@@ -144,7 +144,7 @@ Native tools routed through AGH's approval gateway have an additional daemon-own
 Selecting `allow-always` or `reject-always` stores an exact workspace + agent + tool + input-digest
 decision. The next matching invocation uses that decision before prompting, and the decision
 survives daemon restart. Operators and agents can inspect or revoke these records through Web,
-`agh tool approvals`, HTTP/UDS, or the `agh__tool_approvals_*` native tools. This does not change ACP
+`agh tool approvals`, HTTP/UDS, or the `compozy__tool_approvals_*` native tools. This does not change ACP
 subprocess permissions or sandbox policy. See [Policy and Invocation](/runtime/core/tools/policy-and-invocation#remembered-native-tool-decisions).
 
 ## Permission events
@@ -194,7 +194,7 @@ surface today.
 
 ## Clarification questions are not approvals
 
-`agh__clarify` lets an active managed session ask one bounded question and wait for an operator.
+`compozy__clarify` lets an active managed session ask one bounded question and wait for an operator.
 It is a read-only, non-destructive tool with its own live broker; it does not reuse permission
 requests, approval decisions, or remembered native-tool grants. One session can have at most one
 pending clarification.

@@ -99,7 +99,7 @@ func TestSecretGuardShutdownLifecycle(t *testing.T) {
 		t.Parallel()
 
 		cmd := exec.CommandContext(context.Background(), os.Args[0], "-test.run=TestSecretGuardShutdownHelper")
-		cmd.Env = append(os.Environ(), "AGH_SECRET_GUARD_SHUTDOWN_HELPER=1")
+		cmd.Env = append(os.Environ(), "COMPOZY_SECRET_GUARD_SHUTDOWN_HELPER=1")
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
 			t.Fatalf("cmd.StdinPipe() error = %v", err)
@@ -162,7 +162,7 @@ func TestSecretGuardShutdownLifecycle(t *testing.T) {
 }
 
 func TestSecretGuardShutdownHelper(t *testing.T) {
-	if os.Getenv("AGH_SECRET_GUARD_SHUTDOWN_HELPER") != "1" {
+	if os.Getenv("COMPOZY_SECRET_GUARD_SHUTDOWN_HELPER") != "1" {
 		t.Skip("helper only")
 	}
 

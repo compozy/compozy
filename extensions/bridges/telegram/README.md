@@ -51,8 +51,8 @@ Notes:
 
 - `bot_token` is required through bridge secret bindings.
 - `webhook_secret` is optional; when set, inbound requests must include `X-Telegram-Bot-Api-Secret-Token`.
-- `AGH_BRIDGE_TELEGRAM_LISTEN_ADDR` configures the process-level listener default.
-- `AGH_BRIDGE_TELEGRAM_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
+- `COMPOZY_BRIDGE_TELEGRAM_LISTEN_ADDR` configures the process-level listener default.
+- `COMPOZY_BRIDGE_TELEGRAM_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
 
 ## Outbound text

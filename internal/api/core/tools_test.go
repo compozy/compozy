@@ -109,7 +109,7 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			t.Fatalf("session search query = %#v, want skill limit", searchQuery)
 		}
 
-		getResp := performRequest(t, engine, http.MethodGet, "/tools/agh__skill_view", nil)
+		getResp := performRequest(t, engine, http.MethodGet, "/tools/compozy__skill_view", nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
 		}
@@ -123,7 +123,7 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/tools/agh__skill_view/invoke",
+			"/tools/compozy__skill_view/invoke",
 			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"message":"hello"}}`),
 		)
 		if invokeResp.Code != http.StatusOK {
@@ -153,7 +153,7 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			t.Fatalf("toolset payload = %#v, want expanded skill_view", toolsets.Toolsets[0])
 		}
 
-		toolsetResp := performRequest(t, engine, http.MethodGet, "/toolsets/agh__catalog", nil)
+		toolsetResp := performRequest(t, engine, http.MethodGet, "/toolsets/compozy__catalog", nil)
 		if toolsetResp.Code != http.StatusOK {
 			t.Fatalf("toolset get status = %d, want %d", toolsetResp.Code, http.StatusOK)
 		}
@@ -517,7 +517,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/tools/agh__skill_view/invoke?session_id=sess-query&workspace_id=ws-query&agent_name=coder",
+			"/tools/compozy__skill_view/invoke?session_id=sess-query&workspace_id=ws-query&agent_name=coder",
 			[]byte(`{"input":{"message":"hello"}}`),
 		)
 		if resp.Code != http.StatusOK {
@@ -638,7 +638,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 					t,
 					newToolCoreEngine(t, handlers),
 					http.MethodPost,
-					"/tools/agh__skill_view/invoke",
+					"/tools/compozy__skill_view/invoke",
 					[]byte(`{"input":{"name":"test"}}`),
 				)
 				if got, want := resp.Code, http.StatusUnprocessableEntity; got != want {
@@ -830,7 +830,7 @@ func newAPITestToolRegistry(
 	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "agh"}
 	descriptors := []toolspkg.Descriptor{
 		testToolDescriptor(toolspkg.ToolIDSkillView, source, toolspkg.VisibilityModel),
-		testToolDescriptor("agh__operator_diag", source, toolspkg.VisibilityOperator),
+		testToolDescriptor("compozy__operator_diag", source, toolspkg.VisibilityOperator),
 	}
 	inputs := toolspkg.DefaultPolicyInputs()
 	if approvalRequired {
@@ -843,7 +843,7 @@ func newAPITestToolRegistry(
 		inputs.ApprovalAvailable = true
 	}
 	catalog, err := toolspkg.NewToolsetCatalog(toolspkg.Toolset{
-		ID:    "agh__catalog",
+		ID:    "compozy__catalog",
 		Tools: []string{string(ids[0])},
 	})
 	if err != nil {
@@ -1078,7 +1078,7 @@ func testToolDescriptor(
 		Visibility:   visibility,
 		Risk:         toolspkg.RiskRead,
 		ReadOnly:     true,
-		Toolsets:     []toolspkg.ToolsetID{"agh__catalog"},
+		Toolsets:     []toolspkg.ToolsetID{"compozy__catalog"},
 		Tags:         []string{"skill", "test"},
 	}
 }

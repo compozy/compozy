@@ -5,7 +5,7 @@ title: Set, remember, and revoke native-tool approval decisions
 persona: Théo
 journey: J-answer-agent-requests
 expected: Allow-always and reject-always decisions survive daemon restart only for the exact workspace, agent, tool, and input digest; explicit agent-wide and tool-wide decisions set through Web, CLI, HTTP, UDS, and native tools survive restart without an input digest; every surface lists the same rows; revocation removes each decision everywhere and wider allows never exceed the configured tool-policy ceiling.
-entry_points: Native-tool permission prompt; Web Settings / General; agh tool approvals set/list/revoke; PUT/GET/DELETE /api/tool-approval-grants; agh__tool_approvals_set/list/revoke
+entry_points: Native-tool permission prompt; Web Settings / General; agh tool approvals set/list/revoke; PUT/GET/DELETE /api/tool-approval-grants; compozy__tool_approvals_set/list/revoke
 qa_status: untested
 bug_ids:
 fix_status:
@@ -35,7 +35,7 @@ Phase C planning 2026-07-19: linked to J-answer-agent-requests; settles US-001 (
 
 Forensic evidence contract (SD-006) — each item cites timestamp, exact command, observed output:
 
-- Grant row before and after daemon restart via `agh__tool_approvals_list`, CLI `-o json`, and HTTP
+- Grant row before and after daemon restart via `compozy__tool_approvals_list`, CLI `-o json`, and HTTP
   parity (identical data).
 - Explicit agent-wide and tool-wide set requests (native, CLI, HTTP, UDS, Web) with their persisted
   no-digest keys.

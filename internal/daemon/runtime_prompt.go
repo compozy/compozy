@@ -97,10 +97,10 @@ func renderAGHRuntimeEnvelope(startup session.StartupPromptContext) string {
 			"otherwise use AGH CLI, HTTP, or UDS surfaces for AGH runtime operations.\n\n",
 	)
 	builder.WriteString(
-		"AGH native tool IDs such as `agh__tool_search` are canonical registry IDs, not guaranteed " +
+		"Compozy native tool IDs such as `compozy__tool_search` are canonical registry IDs, not guaranteed " +
 			"direct harness invocation names. When you need a native tool, search or load it by " +
 			"capability and canonical ID, then call the tool reference surfaced by the active harness " +
-			"exactly as returned. Use bare `agh__*` IDs inside AGH descriptor fields, policy config, " +
+			"exactly as returned. Use bare `compozy__*` IDs inside Compozy descriptor fields, policy config, " +
 			"CLI/API commands, and `tool_id` inputs.\n\n",
 	)
 	builder.WriteString("Current session facts:\n")

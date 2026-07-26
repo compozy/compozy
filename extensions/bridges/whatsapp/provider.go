@@ -26,8 +26,8 @@ const (
 )
 
 const (
-	whatsappListenAddrEnv = "AGH_BRIDGE_WHATSAPP_LISTEN_ADDR"
-	whatsappAPIBaseEnv    = "AGH_BRIDGE_WHATSAPP_API_BASE_URL"
+	whatsappListenAddrEnv = "COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR"
+	whatsappAPIBaseEnv    = "COMPOZY_BRIDGE_WHATSAPP_API_BASE_URL"
 
 	whatsappDefaultAPIBaseURL        = "https://graph.facebook.com"
 	whatsappDefaultAPIVersion        = "v21.0"

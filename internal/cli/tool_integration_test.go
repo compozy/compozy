@@ -368,7 +368,7 @@ var _ core.ToolsetRegistry = (*cliToolIntegrationRegistry)(nil)
 func newCLIToolIntegrationRegistry() *cliToolIntegrationRegistry {
 	return &cliToolIntegrationRegistry{views: []toolspkg.ToolView{
 		cliToolIntegrationView(toolspkg.ToolIDSkillView, true),
-		cliToolIntegrationView("agh__operator_diag", false),
+		cliToolIntegrationView("compozy__operator_diag", false),
 	}}
 }
 
@@ -521,7 +521,7 @@ func cliToolIntegrationView(id toolspkg.ToolID, callable bool) toolspkg.ToolView
 
 func cliToolIntegrationToolset() toolspkg.ToolsetView {
 	return toolspkg.ToolsetView{
-		Toolset:       toolspkg.Toolset{ID: toolspkg.ToolsetIDCatalog, Tools: []string{"agh__skill_view"}},
+		Toolset:       toolspkg.Toolset{ID: toolspkg.ToolsetIDCatalog, Tools: []string{"compozy__skill_view"}},
 		ExpandedTools: []toolspkg.ToolID{toolspkg.ToolIDSkillView},
 	}
 }

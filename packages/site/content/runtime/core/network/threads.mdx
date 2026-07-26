@@ -23,7 +23,7 @@ Use a directed first message when you need a specific peer to join a new thread:
 
 ```bash
 agh network send \
-  --session "${AGH_SESSION_ID}" \
+  --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
   --thread thread_release_check_20260416 \
@@ -40,7 +40,7 @@ Use mentions when a message should wake a named peer without making the whole ch
 
 ```bash
 agh network send \
-  --session "${AGH_SESSION_ID}" \
+  --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
   --thread thread_release_check_20260416 \
@@ -100,7 +100,7 @@ Thread summaries can include delivery-size evidence such as `coordination_cost` 
 `size_bytes`. These estimates are not provider usage. Use `agh network usage -o json` or run detail
 for settled Live wake usage and the explicit `actual` or `usage_unavailable` state.
 
-The native tool path is `agh__network_threads` and `agh__network_thread_messages`. Only Live
+The native tool path is `compozy__network_threads` and `compozy__network_thread_messages`. Only Live
 sessions receive the coordination toolset, and policy can narrow it further.
 
 ## Sending into a public thread
@@ -109,7 +109,7 @@ Submit a new public-thread message through the daemon-owned send path. The CLI:
 
 ```bash
 agh network send \
-  --session "${AGH_SESSION_ID}" \
+  --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
   --thread thread_release_check_20260416 \
@@ -126,7 +126,7 @@ Content-Type: application/json
 
 {
   "workspace_id": "ws_alpha",
-  "session_id": "${AGH_SESSION_ID}",
+  "session_id": "${COMPOZY_SESSION_ID}",
   "channel": "builders",
   "surface": "thread",
   "thread_id": "thread_release_check_20260416",
@@ -138,7 +138,7 @@ Content-Type: application/json
 }
 ```
 
-The native `agh__network_send` tool accepts the same JSON object as input.
+The native `compozy__network_send` tool accepts the same JSON object as input.
 
 ## Promoting a thread to a task
 
@@ -164,7 +164,7 @@ Lifecycle-bearing work is just a `say` or `capability` message that introduces a
 
 ```bash
 agh network send \
-  --session "${AGH_SESSION_ID}" \
+  --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
   --thread thread_release_check_20260416 \
@@ -185,7 +185,7 @@ the conclusion. Send a fresh `say` to the original thread that links the direct-
 
 ```bash
 agh network send \
-  --session "${AGH_SESSION_ID}" \
+  --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
   --thread thread_release_check_20260416 \

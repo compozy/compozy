@@ -808,7 +808,7 @@ func TestRegistryUtilityHelpers(t *testing.T) {
   "extension": {
     "name": "json-only",
     "version": "0.2.1",
-    "min_agh_version": "0.5.0"
+    "min_compozy_version": "0.5.0"
   }
 }`)
 
@@ -960,11 +960,11 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		dir := t.TempDir()
 		jsonPath := filepath.Join(dir, manifestJSONFileName)
 		tomlPath := filepath.Join(dir, manifestTOMLFileName)
-		writeFile(t, jsonPath, `{"extension":{"name":"json-only","version":"0.2.1","min_agh_version":"0.5.0"}}`)
+		writeFile(t, jsonPath, `{"extension":{"name":"json-only","version":"0.2.1","min_compozy_version":"0.5.0"}}`)
 		writeFile(t, tomlPath, `[extension]
 name = "toml-first"
 version = "0.2.1"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 `)
 
 		gotPath, err := resolveManifestPath(dir)
@@ -1163,7 +1163,7 @@ func registryManifestTOML(name string, opts registryManifestOptions) string {
 name = %q
 version = "0.2.1"
 description = "Registry test extension"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [capabilities]
 provides = %s

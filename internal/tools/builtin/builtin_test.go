@@ -243,22 +243,22 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 
 		excluded := []toolspkg.ToolID{
-			"agh__skill_install",
-			"agh__skill_update",
-			"agh__skill_remove",
-			"agh__task_claim",
-			"agh__task_release",
-			"agh__task_complete",
-			"agh__task_fail",
-			"agh__task_run_start",
-			"agh__task_run_cancel",
-			"agh__mcp_auth_login",
-			"agh__mcp_auth_logout",
-			"agh__memory_read",
-			"agh__memory_history",
-			"agh__memory_write",
-			"agh__memory_edit",
-			"agh__memory_delete",
+			"compozy__skill_install",
+			"compozy__skill_update",
+			"compozy__skill_remove",
+			"compozy__task_claim",
+			"compozy__task_release",
+			"compozy__task_complete",
+			"compozy__task_fail",
+			"compozy__task_run_start",
+			"compozy__task_run_cancel",
+			"compozy__mcp_auth_login",
+			"compozy__mcp_auth_logout",
+			"compozy__memory_read",
+			"compozy__memory_history",
+			"compozy__memory_write",
+			"compozy__memory_edit",
+			"compozy__memory_delete",
 		}
 		for _, id := range excluded {
 			if _, ok := got[id]; ok {
@@ -1243,11 +1243,11 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		t.Parallel()
 
 		first := NativeDescriptors()
-		first[0].ID = "agh__mutated"
+		first[0].ID = "compozy__mutated"
 		first[0].InputSchema[0] = '['
 
 		second := NativeDescriptors()
-		if second[0].ID == "agh__mutated" {
+		if second[0].ID == "compozy__mutated" {
 			t.Fatal("NativeDescriptors() reused descriptor slice")
 		}
 		if len(second[0].InputSchema) == 0 || second[0].InputSchema[0] == '[' {
@@ -1733,7 +1733,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if !slices.Contains(sessions, toolspkg.ToolIDSessionList) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionDescribe) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionHealth) ||
-			slices.Contains(sessions, toolspkg.ToolID("agh__session_stop")) {
+			slices.Contains(sessions, toolspkg.ToolID("compozy__session_stop")) {
 			t.Fatalf("sessions toolset expansion = %#v, want read-only session tools", sessions)
 		}
 
@@ -1756,7 +1756,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if !slices.Contains(workspace, toolspkg.ToolIDWorkspaceList) ||
 			!slices.Contains(workspace, toolspkg.ToolIDWorkspaceDescribe) ||
 			!slices.Contains(workspace, toolspkg.ToolIDAgentCreate) ||
-			slices.Contains(workspace, toolspkg.ToolID("agh__workspace_remove")) {
+			slices.Contains(workspace, toolspkg.ToolID("compozy__workspace_remove")) {
 			t.Fatalf("workspace toolset expansion = %#v, want workspace read + agent authoring tools", workspace)
 		}
 
@@ -1782,9 +1782,9 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(memory, toolspkg.ToolIDMemoryNote) ||
 			slices.Contains(memory, toolspkg.ToolIDMemoryHealth) ||
 			slices.Contains(memory, toolspkg.ToolIDMemoryReset) ||
-			slices.Contains(memory, toolspkg.ToolID("agh__memory_read")) ||
-			slices.Contains(memory, toolspkg.ToolID("agh__memory_history")) ||
-			slices.Contains(memory, toolspkg.ToolID("agh__memory_write")) {
+			slices.Contains(memory, toolspkg.ToolID("compozy__memory_read")) ||
+			slices.Contains(memory, toolspkg.ToolID("compozy__memory_history")) ||
+			slices.Contains(memory, toolspkg.ToolID("compozy__memory_write")) {
 			t.Fatalf("memory toolset expansion = %#v, want Memory v2 Slice 1 tools", memory)
 		}
 
@@ -1833,7 +1833,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Contains(observe, toolspkg.ToolIDListLogs) ||
 			!slices.Contains(observe, toolspkg.ToolIDObserveMetrics) ||
-			slices.Contains(observe, toolspkg.ToolID("agh__observe_delete")) {
+			slices.Contains(observe, toolspkg.ToolID("compozy__observe_delete")) {
 			t.Fatalf("observe toolset expansion = %#v, want read-only observe tools", observe)
 		}
 
@@ -1843,7 +1843,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Contains(bridges, toolspkg.ToolIDBridgesList) ||
 			!slices.Contains(bridges, toolspkg.ToolIDBridgesStatus) ||
-			slices.Contains(bridges, toolspkg.ToolID("agh__bridges_update")) {
+			slices.Contains(bridges, toolspkg.ToolID("compozy__bridges_update")) {
 			t.Fatalf("bridges toolset expansion = %#v, want read-only bridge tools", bridges)
 		}
 
@@ -1871,7 +1871,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Contains(automation, toolspkg.ToolIDAutomationJobsCreate) ||
 			!slices.Contains(automation, toolspkg.ToolIDAutomationRunsGet) ||
-			slices.Contains(automation, toolspkg.ToolID("agh__automation_webhook_secret_set")) {
+			slices.Contains(automation, toolspkg.ToolID("compozy__automation_webhook_secret_set")) {
 			t.Fatalf("automation toolset expansion = %#v, want bounded automation tools", automation)
 		}
 
@@ -1884,7 +1884,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(loops, toolspkg.ToolIDGoalGet) ||
 			!slices.Contains(loops, toolspkg.ToolIDGoalReport) ||
 			!slices.Contains(loops, toolspkg.ToolIDLoopTurns) ||
-			slices.Contains(loops, toolspkg.ToolID("agh__loop_edit")) {
+			slices.Contains(loops, toolspkg.ToolID("compozy__loop_edit")) {
 			t.Fatalf("loops toolset expansion = %#v, want bounded loop tools without edit", loops)
 		}
 
@@ -1894,7 +1894,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Contains(extensions, toolspkg.ToolIDExtensionsInstall) ||
 			!slices.Contains(extensions, toolspkg.ToolIDExtensionsRemove) ||
-			slices.Contains(extensions, toolspkg.ToolID("agh__extensions_trust_root_set")) {
+			slices.Contains(extensions, toolspkg.ToolID("compozy__extensions_trust_root_set")) {
 			t.Fatalf("extensions toolset expansion = %#v, want bounded extension lifecycle tools", extensions)
 		}
 
@@ -1921,7 +1921,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Contains(resourceTools, toolspkg.ToolIDResourcesList) ||
 			!slices.Contains(resourceTools, toolspkg.ToolIDResourcesSnapshot) ||
-			slices.Contains(resourceTools, toolspkg.ToolID("agh__resource_list")) {
+			slices.Contains(resourceTools, toolspkg.ToolID("compozy__resource_list")) {
 			t.Fatalf("resources toolset expansion = %#v, want plural desired-state resource tools", resourceTools)
 		}
 

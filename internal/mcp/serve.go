@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	hostAPIServerName          = "agh-host-api"
+	hostAPIServerName          = "compozy-host-api"
 	jsonNullLiteral            = "null"
 	hostAPISessionCloseTimeout = 5 * time.Second
 )

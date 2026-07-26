@@ -30,7 +30,7 @@ Read the current Goal through any of these public surfaces:
 
 - Web session header — status, turn meter, context state, Run link, active binding link, and valid controls.
 - `agh session prompt <id> '/goal status' -o json` — structured session command result.
-- `agh__goal_get` — session-scoped native read, including terminal state until clear.
+- `compozy__goal_get` — session-scoped native read, including terminal state until clear.
 - `GET /api/workspaces/{workspace_id}/sessions/{session_id}/goal` — canonical snapshot or `{ "goal": null }`.
 
 The snapshot includes `run_id`, `node_id`, objective, origin and bound session IDs, Goal and Run
@@ -156,15 +156,15 @@ The tags survive reload; clients do not infer them from prompt prose.
 
 Agents operating inside the active binding have three dedicated tools:
 
-- `agh__goal_get` reads the visible snapshot for the caller session and follows an active moved-binding alias.
-- `agh__goal_report` records `complete` or evidenced `blocked` intent for the current prompt binding.
-- `agh__loop_turns` reads the workspace-authorized Run audit with cursor and node/item filters, even after the binding is terminal.
+- `compozy__goal_get` reads the visible snapshot for the caller session and follows an active moved-binding alias.
+- `compozy__goal_report` records `complete` or evidenced `blocked` intent for the current prompt binding.
+- `compozy__loop_turns` reads the workspace-authorized Run audit with cursor and node/item filters, even after the binding is terminal.
 
-`agh__goal_report` is a durable boundary intent, not immediate completion or proof of provider-side
+`compozy__goal_report` is a durable boundary intent, not immediate completion or proof of provider-side
 effect uniqueness. The daemon revalidates prompt, control, and binding epochs when invoked. Evidence is limited
 to 16 KiB; `blocked` requires evidence. Retries with the same payload deduplicate, while conflicting
 or revoked reports fail with stable reason codes. Resolve each live descriptor with
-`agh__tool_info` before calling it.
+`compozy__tool_info` before calling it.
 
 ## Configure defaults
 

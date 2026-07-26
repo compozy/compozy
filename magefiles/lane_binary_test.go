@@ -11,11 +11,11 @@ import (
 )
 
 func TestResolveOrBuildLaneBinary(t *testing.T) {
-	// KEEP: AGH_TEST_DAEMON_BIN is the operator-facing override that lets E2E
+	// KEEP: COMPOZY_TEST_DAEMON_BIN is the operator-facing override that lets E2E
 	// lanes reuse a prebuilt daemon binary without leaking generated artifacts.
 	// not parallel: these cases mutate process-wide environment variables with t.Setenv.
 	t.Run("Should return executable override path without cleanup side effects", func(t *testing.T) {
-		envVar := "AGH_TEST_DAEMON_BIN"
+		envVar := "COMPOZY_TEST_DAEMON_BIN"
 		overridePath := filepath.Join(t.TempDir(), laneBinaryName("compozy"))
 		writeExecutableFile(t, overridePath)
 		t.Setenv(envVar, overridePath)
@@ -39,7 +39,7 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 	})
 
 	t.Run("Should reject missing override paths", func(t *testing.T) {
-		envVar := "AGH_TEST_DAEMON_BIN"
+		envVar := "COMPOZY_TEST_DAEMON_BIN"
 		missingPath := filepath.Join(t.TempDir(), laneBinaryName("missing-compozy"))
 		t.Setenv(envVar, missingPath)
 
@@ -52,7 +52,7 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 	})
 
 	t.Run("Should reject directory override paths", func(t *testing.T) {
-		envVar := "AGH_TEST_DAEMON_BIN"
+		envVar := "COMPOZY_TEST_DAEMON_BIN"
 		overridePath := t.TempDir()
 		t.Setenv(envVar, overridePath)
 
@@ -70,7 +70,7 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 
 	if runtime.GOOS != "windows" {
 		t.Run("Should reject non-executable override paths", func(t *testing.T) {
-			envVar := "AGH_TEST_DAEMON_BIN"
+			envVar := "COMPOZY_TEST_DAEMON_BIN"
 			overridePath := filepath.Join(t.TempDir(), "compozy")
 			if err := os.WriteFile(overridePath, []byte("binary"), 0o644); err != nil {
 				t.Fatalf("os.WriteFile(%q) error = %v", overridePath, err)
@@ -91,7 +91,7 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 	}
 
 	t.Run("Should remove generated binary directories during cleanup", func(t *testing.T) {
-		envVar := "AGH_TEST_DAEMON_BIN"
+		envVar := "COMPOZY_TEST_DAEMON_BIN"
 		t.Setenv(envVar, "")
 		var buildDir string
 

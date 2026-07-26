@@ -194,7 +194,7 @@ func testProgressDeliveryRequestContract(deliveryID string, seq int64) bridgepkg
 	request.Event.Content = bridgepkg.MessageContent{}
 	request.Event.Progress = &bridgepkg.ToolProgress{
 		ToolCallID: "call-progress",
-		ToolID:     "agh__terminal",
+		ToolID:     "compozy__terminal",
 		Phase:      bridgepkg.ToolProgressPhaseStarted,
 		Label:      "Running",
 		Emoji:      "⚙️",

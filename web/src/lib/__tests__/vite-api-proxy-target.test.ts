@@ -14,7 +14,7 @@ describe("resolveApiProxyTarget", () => {
   it("Should trim and use the override target when provided", () => {
     expect(
       resolveApiProxyTarget({
-        AGH_WEB_API_PROXY_TARGET: "  http://127.0.0.1:2255  ",
+        COMPOZY_WEB_API_PROXY_TARGET: "  http://127.0.0.1:2255  ",
       })
     ).toBe("http://127.0.0.1:2255/");
   });
@@ -22,7 +22,7 @@ describe("resolveApiProxyTarget", () => {
   it("Should expose the daemon origin for proxied browser requests", () => {
     expect(
       resolveApiProxyOrigin({
-        AGH_WEB_API_PROXY_TARGET: "  http://127.0.0.1:2255  ",
+        COMPOZY_WEB_API_PROXY_TARGET: "  http://127.0.0.1:2255  ",
       })
     ).toBe("http://127.0.0.1:2255");
   });
@@ -30,10 +30,10 @@ describe("resolveApiProxyTarget", () => {
   it("Should reject invalid override values", () => {
     expect(() =>
       resolveApiProxyTarget({
-        AGH_WEB_API_PROXY_TARGET: "127.0.0.1:2255",
+        COMPOZY_WEB_API_PROXY_TARGET: "127.0.0.1:2255",
       })
     ).toThrowError(
-      'web: AGH_WEB_API_PROXY_TARGET must be an absolute URL, received "127.0.0.1:2255"'
+      'web: COMPOZY_WEB_API_PROXY_TARGET must be an absolute URL, received "127.0.0.1:2255"'
     );
   });
 });

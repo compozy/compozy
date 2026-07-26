@@ -22,7 +22,7 @@
                         {
                             "kind": "tool_call",
                             "tool_call_id": "bridge-runtime-terminal-1",
-                            "title": "agh__terminal",
+                            "title": "compozy__terminal",
                             "tool_kind": "read",
                             "raw_input": {
                                 "command": "echo sk-e2e-progress-secret"
@@ -33,7 +33,7 @@
                         {
                             "kind": "tool_call",
                             "tool_call_id": "bridge-runtime-tools-2",
-                            "title": "agh__tool_list",
+                            "title": "compozy__tool_list",
                             "tool_kind": "read",
                             "raw_input": {},
                             "status": "completed",
@@ -42,7 +42,7 @@
                         {
                             "kind": "tool_call",
                             "tool_call_id": "bridge-runtime-skills-3",
-                            "title": "agh__skill_list",
+                            "title": "compozy__skill_list",
                             "tool_kind": "read",
                             "raw_input": {},
                             "status": "failed",

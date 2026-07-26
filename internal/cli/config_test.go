@@ -470,7 +470,7 @@ func TestConfigValidateRepairEnvRepairsWorkspaceDotEnvWithoutLeakingValues(t *te
 	deps := newTestDeps(t, &stubClient{})
 	workspaceRoot := t.TempDir()
 	dotenvPath := filepath.Join(workspaceRoot, ".env")
-	before := "AGH_TASK09_API_KEY=very-secret\u200b-token OTHER=value\n"
+	before := "COMPOZY_TASK09_API_KEY=very-secret\u200b-token OTHER=value\n"
 	if err := os.WriteFile(dotenvPath, []byte(before), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(.env) error = %v", err)
 	}
@@ -512,7 +512,7 @@ func TestConfigValidateRepairEnvRepairsWorkspaceDotEnvWithoutLeakingValues(t *te
 		t.Fatalf("os.ReadFile(.env after repair) error = %v", readErr)
 	}
 	for _, want := range []string{
-		"AGH_TASK09_API_KEY=very-secret-token",
+		"COMPOZY_TASK09_API_KEY=very-secret-token",
 		"OTHER=value",
 	} {
 		if !strings.Contains(string(after), want) {
@@ -526,7 +526,7 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 	dotEnvHome := filepath.Join(t.TempDir(), "dotenv-home")
 	processHome := filepath.Join(t.TempDir(), "process-home")
 	dotenvPath := filepath.Join(workspaceRoot, ".env")
-	if err := os.WriteFile(dotenvPath, []byte("AGH_HOME="+dotEnvHome+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(dotenvPath, []byte("COMPOZY_HOME="+dotEnvHome+"\n"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(.env) error = %v", err)
 	}
 
@@ -536,9 +536,9 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 	}
 	deps.resolveHomeForWorkspace = aghconfig.ResolveHomePathsForWorkspace
 
-	restoreEnvAfterTest(t, "AGH_HOME")
-	if err := os.Unsetenv("AGH_HOME"); err != nil {
-		t.Fatalf("os.Unsetenv(AGH_HOME) error = %v", err)
+	restoreEnvAfterTest(t, "COMPOZY_HOME")
+	if err := os.Unsetenv("COMPOZY_HOME"); err != nil {
+		t.Fatalf("os.Unsetenv(COMPOZY_HOME) error = %v", err)
 	}
 	stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
 	if err != nil {
@@ -564,19 +564,19 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 		t.Fatalf("workspace ConfigFile = %q, want dotenv home", workspaceRecord.ConfigFile)
 	}
 
-	if err := os.Setenv("AGH_HOME", processHome); err != nil {
-		t.Fatalf("os.Setenv(AGH_HOME) error = %v", err)
+	if err := os.Setenv("COMPOZY_HOME", processHome); err != nil {
+		t.Fatalf("os.Setenv(COMPOZY_HOME) error = %v", err)
 	}
 	stdout, _, err = executeRootCommand(t, deps, "config", "validate", "--workspace", workspaceRoot, "-o", "json")
 	if err != nil {
-		t.Fatalf("config validate process AGH_HOME error = %v", err)
+		t.Fatalf("config validate process COMPOZY_HOME error = %v", err)
 	}
 	var processRecord configValidateRecord
 	if err := json.Unmarshal([]byte(stdout), &processRecord); err != nil {
 		t.Fatalf("json.Unmarshal(config validate process) error = %v", err)
 	}
 	if processRecord.ConfigFile != filepath.Join(processHome, aghconfig.ConfigName) {
-		t.Fatalf("process ConfigFile = %q, want process AGH_HOME", processRecord.ConfigFile)
+		t.Fatalf("process ConfigFile = %q, want process COMPOZY_HOME", processRecord.ConfigFile)
 	}
 }
 

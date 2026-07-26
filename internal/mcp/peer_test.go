@@ -52,7 +52,7 @@ func TestPeerInfoFromConnFailsClosedForUnsupportedConnections(t *testing.T) {
 func TestPeerInfoFromUnixConnIdentifiesLocalPeer(t *testing.T) {
 	t.Parallel()
 
-	socketDir, err := os.MkdirTemp("/tmp", "agh-peer-")
+	socketDir, err := os.MkdirTemp("/tmp", "compozy-peer-")
 	if err != nil {
 		t.Fatalf("MkdirTemp() error = %v", err)
 	}

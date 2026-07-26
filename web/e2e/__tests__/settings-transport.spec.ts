@@ -16,7 +16,7 @@ test.use({
     host: "0.0.0.0",
     env: {
       ...process.env,
-      AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
+      COMPOZY_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
     },
   },
 });
@@ -110,7 +110,7 @@ async function runCLIJSON(paths: RuntimePaths, args: string[]): Promise<unknown>
 function cliEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    AGH_HOME: paths.homeDir,
+    COMPOZY_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
   };

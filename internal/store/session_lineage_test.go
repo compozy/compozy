@@ -29,15 +29,15 @@ func TestSessionLineageNormalizeAndValidate(t *testing.T) {
 			SpawnRole:       " worker ",
 			TTLExpiresAt:    &ttl,
 			PermissionPolicy: SessionPermissionPolicy{
-				Tools: []string{" agh__skill_view ", "agh__task_update", "agh__task_update"},
+				Tools: []string{" compozy__skill_view ", "compozy__task_update", "compozy__task_update"},
 			},
 		})
 		if child.ParentSessionID != "sess-root" ||
 			child.RootSessionID != "sess-root" ||
 			child.SpawnRole != "worker" ||
 			len(child.PermissionPolicy.Tools) != 2 ||
-			child.PermissionPolicy.Tools[0] != "agh__skill_view" ||
-			child.PermissionPolicy.Tools[1] != "agh__task_update" {
+			child.PermissionPolicy.Tools[0] != "compozy__skill_view" ||
+			child.PermissionPolicy.Tools[1] != "compozy__task_update" {
 			t.Fatalf("NormalizeSessionLineage(child) = %#v", child)
 		}
 		if err := ValidateSessionLineage("sess-child", child); err != nil {
@@ -70,7 +70,7 @@ func TestSessionLineageValidationRejectsInvalidPolicyAndBudget(t *testing.T) {
 			lineage: &SessionLineage{
 				RootSessionID: "sess-root",
 				PermissionPolicy: SessionPermissionPolicy{
-					Tools: []string{"agh__skill_view", " "},
+					Tools: []string{"compozy__skill_view", " "},
 				},
 			},
 			want: "empty atom",
@@ -208,7 +208,7 @@ func TestCloneSessionLineageReturnsDeepCopy(t *testing.T) {
 			SpawnRole:       "worker",
 			TTLExpiresAt:    &ttl,
 			PermissionPolicy: SessionPermissionPolicy{
-				Tools: []string{"agh__task_update", "agh__skill_view"},
+				Tools: []string{"compozy__task_update", "compozy__skill_view"},
 			},
 		}
 
@@ -225,13 +225,13 @@ func TestCloneSessionLineageReturnsDeepCopy(t *testing.T) {
 		if !cloned.TTLExpiresAt.Equal(ttl.UTC()) {
 			t.Fatalf("cloned TTL = %s, want %s", cloned.TTLExpiresAt, ttl.UTC())
 		}
-		if cloned.PermissionPolicy.Tools[0] != "agh__skill_view" ||
-			cloned.PermissionPolicy.Tools[1] != "agh__task_update" {
+		if cloned.PermissionPolicy.Tools[0] != "compozy__skill_view" ||
+			cloned.PermissionPolicy.Tools[1] != "compozy__task_update" {
 			t.Fatalf("cloned tools = %#v, want sorted policy atoms", cloned.PermissionPolicy.Tools)
 		}
 
 		original.PermissionPolicy.Tools[0] = "mutated"
-		if cloned.PermissionPolicy.Tools[0] != "agh__skill_view" {
+		if cloned.PermissionPolicy.Tools[0] != "compozy__skill_view" {
 			t.Fatalf("cloned tools changed after original mutation: %#v", cloned.PermissionPolicy.Tools)
 		}
 	})
@@ -269,7 +269,7 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 		}
 
 		policy := SessionPermissionPolicy{
-			Tools:           []string{"agh__task_update", " agh__skill_view ", "agh__skill_view"},
+			Tools:           []string{"compozy__task_update", " compozy__skill_view ", "compozy__skill_view"},
 			Skills:          []string{"go"},
 			MCPServers:      []string{"memory"},
 			WorkspacePaths:  []string{"/repo"},
@@ -285,7 +285,7 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 			t.Fatalf("DecodeSessionPermissionPolicy() error = %v", err)
 		}
 		wantPolicy := SessionPermissionPolicy{
-			Tools:           []string{"agh__skill_view", "agh__task_update"},
+			Tools:           []string{"compozy__skill_view", "compozy__task_update"},
 			Skills:          []string{"go"},
 			MCPServers:      []string{"memory"},
 			WorkspacePaths:  []string{"/repo"},
@@ -385,10 +385,10 @@ func TestValidateChildSessionToolSubset(t *testing.T) {
 		t.Parallel()
 
 		parent := SessionPermissionPolicy{
-			Tools: []string{"agh__skill_view", "agh__task_read", "agh__task_update"},
+			Tools: []string{"compozy__skill_view", "compozy__task_read", "compozy__task_update"},
 		}
 		child := SessionPermissionPolicy{
-			Tools: []string{" agh__task_read ", "agh__skill_view"},
+			Tools: []string{" compozy__task_read ", "compozy__skill_view"},
 		}
 		if err := ValidateChildSessionToolSubset(parent, child); err != nil {
 			t.Fatalf("ValidateChildSessionToolSubset() error = %v", err)
@@ -399,10 +399,10 @@ func TestValidateChildSessionToolSubset(t *testing.T) {
 		t.Parallel()
 
 		parent := SessionPermissionPolicy{
-			Tools: []string{"agh__skill_view"},
+			Tools: []string{"compozy__skill_view"},
 		}
 		child := SessionPermissionPolicy{
-			Tools: []string{"agh__skill_view", "agh__task_update"},
+			Tools: []string{"compozy__skill_view", "compozy__task_update"},
 		}
 		err := ValidateChildSessionToolSubset(parent, child)
 		if err == nil {
@@ -417,7 +417,7 @@ func TestValidateChildSessionToolSubset(t *testing.T) {
 		t.Parallel()
 
 		parent := SessionPermissionPolicy{
-			Tools: []string{"agh__skill_view"},
+			Tools: []string{"compozy__skill_view"},
 		}
 		child := SessionPermissionPolicy{
 			Tools: []string{"read"},

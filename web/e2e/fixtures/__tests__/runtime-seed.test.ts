@@ -50,7 +50,7 @@ describe("browser runtime seed helpers", () => {
     await mkdir(path.join(homeDir, "logs"), { recursive: true });
     const driverPath = path.join(homeDir, "test-acpmock-driver");
     await writeFile(driverPath, "#!/bin/sh\n", { encoding: "utf8", mode: 0o700 });
-    vi.stubEnv("AGH_TEST_ACPMOCK_DRIVER_BIN", driverPath);
+    vi.stubEnv("COMPOZY_TEST_ACPMOCK_DRIVER_BIN", driverPath);
 
     await seedBrowserRuntimeHome(
       {

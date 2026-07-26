@@ -24,7 +24,7 @@ The effective config for a resolved workspace is built in this order:
 | Order | Source                            | Notes                                                                                    |
 | ----- | --------------------------------- | ---------------------------------------------------------------------------------------- |
 | 1     | Built-in defaults                 | `DefaultWithHome(homePaths)`.                                                            |
-| 2     | `~/.agh/config.toml`              | Global operator settings. `$AGH_HOME/config.toml` when `AGH_HOME` is set.                |
+| 2     | `~/.agh/config.toml`              | Global operator settings. `$COMPOZY_HOME/config.toml` when `COMPOZY_HOME` is set.        |
 | 3     | `~/.agh/mcp.json`                 | Global top-level MCP sidecar.                                                            |
 | 4     | `<workspace>/.agh/config.toml`    | Workspace root overlay only.                                                             |
 | 5     | `<workspace>/.agh/mcp.json`       | Workspace top-level MCP sidecar.                                                         |
@@ -208,18 +208,18 @@ Effective result for the workspace:
 | `limits.max_concurrent_agents` | `20`                                    | Workspace omitted the table, so global remains. |
 | `skills.disabled_skills`       | `["deploy-production", "legacy-notes"]` | Workspace slice replaces the global slice.      |
 
-## `.env` And `AGH_HOME`
+## `.env` And `COMPOZY_HOME`
 
 If a workspace root contains `.env`, AGH loads it before resolving the AGH home layout for that
-config load. That means a workspace can set `AGH_HOME` for sessions that resolve that workspace:
+config load. That means a workspace can set `COMPOZY_HOME` for sessions that resolve that workspace:
 
 ```dotenv
-AGH_HOME=/Users/you/.agh-checkout
+COMPOZY_HOME=/Users/you/.agh-checkout
 ```
 
 Use this carefully. It changes the global config, agents, skills, memory, sessions, logs, socket,
 and database locations for that resolved workspace config load. Most projects should prefer
-`<workspace>/.agh/config.toml` for project-specific behavior and keep `AGH_HOME` stable.
+`<workspace>/.agh/config.toml` for project-specific behavior and keep `COMPOZY_HOME` stable.
 
 ## Failure Behavior
 

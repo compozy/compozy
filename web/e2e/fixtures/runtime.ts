@@ -43,12 +43,12 @@ export {
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
 const DEFAULT_READY_POLL_MS = 200;
-const DAEMON_BINARY_ENV_VAR = "AGH_TEST_DAEMON_BIN";
+const DAEMON_BINARY_ENV_VAR = "COMPOZY_TEST_DAEMON_BIN";
 const RUNTIME_CONTROL_ENV_VARS = [
-  "AGH_E2E_BASE_URL",
-  "AGH_TEST_ACPMOCK_DRIVER_BIN",
+  "COMPOZY_E2E_BASE_URL",
+  "COMPOZY_TEST_ACPMOCK_DRIVER_BIN",
   DAEMON_BINARY_ENV_VAR,
-  "AGH_WEB_DIST_DIR",
+  "COMPOZY_WEB_DIST_DIR",
 ] as const;
 
 let daemonBinaryPromise: Promise<string> | undefined;
@@ -488,9 +488,9 @@ async function createRuntimeEnv(
 
   return buildLaunchRuntimeEnv(repoRoot, {
     ...env,
-    AGH_E2E_CLI_BIN: paths.cliShim,
+    COMPOZY_E2E_CLI_BIN: paths.cliShim,
     [DAEMON_BINARY_ENV_VAR]: binaryPath,
-    AGH_HOME: paths.homeDir,
+    COMPOZY_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: prependPath(path.dirname(paths.cliShim), env.PATH),
   });

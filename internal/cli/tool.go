@@ -37,7 +37,7 @@ func newToolMCPCommand(deps commandDeps) *cobra.Command {
 	var bindNonce string
 	cmd := &cobra.Command{
 		Use:    toolMCPKey,
-		Short:  "Serve session-bound AGH tools over MCP stdio",
+		Short:  "Serve session-bound Compozy tools over MCP stdio",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			sessionID = strings.TrimSpace(sessionID)

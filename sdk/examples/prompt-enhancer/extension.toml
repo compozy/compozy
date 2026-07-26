@@ -2,7 +2,7 @@
 name = "prompt-enhancer"
 version = "0.1.0"
 description = "Adds workspace context to the assembled prompt"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [capabilities]
 provides = ["prompt.provider"]
@@ -23,10 +23,10 @@ command = "node"
 args = ["dist/index.js", "serve"]
 
 [subprocess.env]
-AGH_PROMPT_ENHANCER_HANDSHAKE_PATH = "{{env:AGH_PROMPT_ENHANCER_HANDSHAKE_PATH}}"
-AGH_PROMPT_ENHANCER_HOST_CALL_PATH = "{{env:AGH_PROMPT_ENHANCER_HOST_CALL_PATH}}"
-AGH_PROMPT_ENHANCER_CAPABILITY_PATH = "{{env:AGH_PROMPT_ENHANCER_CAPABILITY_PATH}}"
-AGH_PROMPT_ENHANCER_SHUTDOWN_PATH = "{{env:AGH_PROMPT_ENHANCER_SHUTDOWN_PATH}}"
+COMPOZY_PROMPT_ENHANCER_HANDSHAKE_PATH = "{{env:COMPOZY_PROMPT_ENHANCER_HANDSHAKE_PATH}}"
+COMPOZY_PROMPT_ENHANCER_HOST_CALL_PATH = "{{env:COMPOZY_PROMPT_ENHANCER_HOST_CALL_PATH}}"
+COMPOZY_PROMPT_ENHANCER_CAPABILITY_PATH = "{{env:COMPOZY_PROMPT_ENHANCER_CAPABILITY_PATH}}"
+COMPOZY_PROMPT_ENHANCER_SHUTDOWN_PATH = "{{env:COMPOZY_PROMPT_ENHANCER_SHUTDOWN_PATH}}"
 
 [security]
 capabilities = ["session.read"]

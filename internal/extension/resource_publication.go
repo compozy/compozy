@@ -157,11 +157,11 @@ func manifestToolID(extensionName string, name string, explicit string) (toolspk
 	if err := id.Validate(); err != nil {
 		return "", err
 	}
-	if strings.HasPrefix(id.String(), "agh__") {
+	if strings.HasPrefix(id.String(), "compozy__") {
 		return "", toolspkg.NewValidationError(
 			"tool_id",
 			toolspkg.ReasonReservedNamespace,
-			"extension tools cannot claim agh__ namespace",
+			"extension tools cannot claim compozy__ namespace",
 		)
 	}
 	if !strings.HasPrefix(id.String(), namespace.String()+"__") {

@@ -19,7 +19,7 @@ func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".env")
 	contents := strings.Join([]string{
 		"# keep comments",
-		"AGH_HOME=/tmp/agh-home",
+		"COMPOZY_HOME=/tmp/agh-home",
 		"OPENAI_API_KEY=sk-live\u200b ANTHROPIC_API_KEY=anthropic\u2011key",
 		`PLAIN_VALUE="hello world"`,
 		"",
@@ -54,7 +54,7 @@ func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 	repairedText := string(repaired)
 	for _, want := range []string{
 		"# keep comments",
-		"AGH_HOME=/tmp/agh-home",
+		"COMPOZY_HOME=/tmp/agh-home",
 		"OPENAI_API_KEY=sk-live",
 		"ANTHROPIC_API_KEY=anthropickey",
 		`PLAIN_VALUE="hello world"`,
@@ -72,7 +72,7 @@ func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 		t.Fatalf("parseDotEnvDocument(repaired) = %#v, want clean parse", parsed)
 	}
 	wantValues := map[string]string{
-		"AGH_HOME":          "/tmp/agh-home",
+		"COMPOZY_HOME":      "/tmp/agh-home",
 		"OPENAI_API_KEY":    "sk-live",
 		"ANTHROPIC_API_KEY": "anthropickey",
 		"PLAIN_VALUE":       "hello world",
@@ -188,7 +188,7 @@ func TestRepairDotEnvFileRejectsSymlinkWithoutReadingTarget(t *testing.T) {
 
 	dir := t.TempDir()
 	targetPath := filepath.Join(dir, "actual.env")
-	before := "AGH_TASK09_API_KEY=secret\u200b-value\n"
+	before := "COMPOZY_TASK09_API_KEY=secret\u200b-value\n"
 	if err := os.WriteFile(targetPath, []byte(before), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(target .env) error = %v", err)
 	}
@@ -222,7 +222,7 @@ func TestLoadDotEnvLookupUsesSanitizedInMemoryValuesWithoutMutatingFile(t *testi
 
 	workspace := t.TempDir()
 	path := filepath.Join(workspace, ".env")
-	before := "AGH_CONFIG_TASK09_TOKEN=tok\u200ben OTHER=value\n"
+	before := "COMPOZY_CONFIG_TASK09_TOKEN=tok\u200ben OTHER=value\n"
 	if err := os.WriteFile(path, []byte(before), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(.env) error = %v", err)
 	}
@@ -231,7 +231,7 @@ func TestLoadDotEnvLookupUsesSanitizedInMemoryValuesWithoutMutatingFile(t *testi
 	if err != nil {
 		t.Fatalf("loadDotEnvLookup() error = %v", err)
 	}
-	value, ok := lookup("AGH_CONFIG_TASK09_TOKEN")
+	value, ok := lookup("COMPOZY_CONFIG_TASK09_TOKEN")
 	if !ok || value != "token" {
 		t.Fatalf("lookup(token) = %q, %t; want sanitized token", value, ok)
 	}

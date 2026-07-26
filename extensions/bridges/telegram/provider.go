@@ -19,8 +19,8 @@ const (
 )
 
 const (
-	telegramListenAddrEnv = "AGH_BRIDGE_TELEGRAM_LISTEN_ADDR"
-	telegramAPIBaseEnv    = "AGH_BRIDGE_TELEGRAM_API_BASE_URL"
+	telegramListenAddrEnv = "COMPOZY_BRIDGE_TELEGRAM_LISTEN_ADDR"
+	telegramAPIBaseEnv    = "COMPOZY_BRIDGE_TELEGRAM_API_BASE_URL"
 
 	telegramDefaultAPIBaseURL        = "https://api.telegram.org"
 	telegramGeneralTopicID           = "1"

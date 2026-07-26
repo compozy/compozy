@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	testToolEdit  = "agh__edit"
-	testToolRead  = "agh__read"
-	testToolShell = "agh__shell"
+	testToolEdit  = "compozy__edit"
+	testToolRead  = "compozy__read"
+	testToolShell = "compozy__shell"
 )
 
 func TestValidatePermissionSubset(t *testing.T) {

@@ -83,7 +83,7 @@ func TestWindowManagerHookBridge(t *testing.T) {
 					ClientIDs:  []windowmanager.ClientID{"client-a"},
 				},
 				Actor:      windowmanager.Actor{Kind: "agent", ID: "agent-a"},
-				Origin:     "native:agh__window_manager",
+				Origin:     "native:compozy__window_manager",
 				OccurredAt: time.Date(2026, time.July, 23, 12, 0, 0, 0, time.UTC),
 			})
 			select {
@@ -99,7 +99,7 @@ func TestWindowManagerHookBridge(t *testing.T) {
 					payload.Changes.ClientIDs[0] != "client-a" ||
 					payload.Actor.Kind != "agent" ||
 					payload.Actor.ID != "agent-a" ||
-					payload.Origin != "native:agh__window_manager" ||
+					payload.Origin != "native:compozy__window_manager" ||
 					!payload.Timestamp.Equal(time.Date(2026, time.July, 23, 12, 0, 0, 0, time.UTC)) {
 					t.Fatalf("hook payload = %#v", payload)
 				}

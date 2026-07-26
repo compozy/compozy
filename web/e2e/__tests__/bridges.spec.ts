@@ -52,9 +52,9 @@ const bridgeSensitiveValues = [
 ] as const;
 
 const bridgeRuntimeEnv = {
-  AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
-  ...(process.env.AGH_WEB_DIST_DIR?.trim()
-    ? { AGH_WEB_DIST_DIR: process.env.AGH_WEB_DIST_DIR }
+  COMPOZY_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
+  ...(process.env.COMPOZY_WEB_DIST_DIR?.trim()
+    ? { COMPOZY_WEB_DIST_DIR: process.env.COMPOZY_WEB_DIST_DIR }
     : {}),
   ...(process.env.PATH?.trim() ? { PATH: process.env.PATH } : {}),
   ...(process.env.TMPDIR?.trim() ? { TMPDIR: process.env.TMPDIR } : {}),
@@ -689,8 +689,8 @@ function assertNoSensitiveText(label: string, text: string | null | undefined): 
 function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    AGH_HOME: paths.homeDir,
-    AGH_E2E_CLI_BIN: paths.cliShim,
+    COMPOZY_HOME: paths.homeDir,
+    COMPOZY_E2E_CLI_BIN: paths.cliShim,
     HOME: paths.homeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)

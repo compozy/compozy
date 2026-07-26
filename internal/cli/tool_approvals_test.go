@@ -20,7 +20,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 				workspaceID string,
 				request ToolApprovalGrantSetRequest,
 			) (ToolApprovalGrantRecord, error) {
-				if workspaceID != "ws-1" || request.ToolID != "agh__approval_probe" {
+				if workspaceID != "ws-1" || request.ToolID != "compozy__approval_probe" {
 					t.Fatalf("SetToolApprovalGrant workspace/tool = %q/%q", workspaceID, request.ToolID)
 				}
 				if request.Decision != toolspkg.ApprovalGrantAllow ||
@@ -38,7 +38,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 			"tool",
 			"approvals",
 			"set",
-			"agh__approval_probe",
+			"compozy__approval_probe",
 			"--workspace",
 			"ws-1",
 			"--decision",
@@ -69,7 +69,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 			"tool",
 			"approvals",
 			"set",
-			"agh__approval_probe",
+			"compozy__approval_probe",
 			"--workspace",
 			"ws-1",
 			"--decision",
@@ -172,7 +172,7 @@ func toolApprovalGrantCLIRecord() ToolApprovalGrantRecord {
 		ID:          "grant-1",
 		WorkspaceID: "ws-1",
 		AgentName:   "codex",
-		ToolID:      toolspkg.ToolID("agh__approval_probe"),
+		ToolID:      toolspkg.ToolID("compozy__approval_probe"),
 		InputDigest: "sha256:abc",
 		Decision:    toolspkg.ApprovalGrantAllow,
 		CreatedAt:   now,

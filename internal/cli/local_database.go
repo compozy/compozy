@@ -67,7 +67,7 @@ func (e *localDatabaseOpenError) errorPayload() contract.ErrorPayload {
 		diagnostics.WithEvidence(map[string]any{
 			"surface":        e.Surface,
 			"offending_path": e.Path,
-			"recovery_scope": "complete AGH_HOME or workspace .compozy directory",
+			"recovery_scope": "complete COMPOZY_HOME or workspace .compozy directory",
 		}),
 	)
 	return contract.ErrorPayload{Error: diagnostics.Redact(e.Error()), Diagnostic: &item}

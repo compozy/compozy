@@ -102,7 +102,7 @@ func TestPortHandlesNilServer(t *testing.T) {
 func TestNewWithHomePathsRealignsDefaultConfig(t *testing.T) {
 	t.Run("Should use overridden home paths for the default daemon socket", func(t *testing.T) {
 		processHome := filepath.Join(t.TempDir(), "process-home")
-		t.Setenv("AGH_HOME", processHome)
+		t.Setenv("COMPOZY_HOME", processHome)
 		homePaths := newTestHomePaths(t)
 
 		server, err := New(
@@ -540,7 +540,7 @@ func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
 					ExecutorKind: hookspkg.HookExecutorSubprocess,
 					Command:      "/bin/capture",
 					Matcher: hookspkg.HookMatcher{
-						ToolID:       "agh__read",
+						ToolID:       "compozy__read",
 						ToolReadOnly: &readOnly,
 					},
 				},
@@ -789,13 +789,13 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 		{
 			name:   "Should block tool approvals",
 			method: http.MethodPost,
-			path:   "/api/tools/agh__skill_view/approvals",
+			path:   "/api/tools/compozy__skill_view/approvals",
 			body:   []byte(`{}`),
 		},
 		{
 			name:   "Should block tool invocation",
 			method: http.MethodPost,
-			path:   "/api/tools/agh__skill_view/invoke",
+			path:   "/api/tools/compozy__skill_view/invoke",
 			body:   []byte(`{}`),
 		},
 		{

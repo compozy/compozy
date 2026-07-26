@@ -13,7 +13,7 @@ import (
 const (
 	nativeMCPAuthToolsAPISettingsMCPServersPath = "/api/settings/mcp-servers"
 	nativeMCPCallableDiscoveryNote              = "Auth-blocked MCP tools are omitted from callable discovery; " +
-		"use agh__mcp_status or agh__mcp_auth_status for repair detail."
+		"use compozy__mcp_status or compozy__mcp_auth_status for repair detail."
 	nativeMCPStateHealthy     = "healthy"
 	nativeMCPStateAuthBlocked = "auth-blocked"
 	nativeMCPStateUnavailable = "unavailable"

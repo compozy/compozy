@@ -52,7 +52,7 @@ func (h testHandle) Call(_ context.Context, _ CallRequest) (ToolResult, error) {
 
 func validDescriptor() Descriptor {
 	return Descriptor{
-		ID:           "agh__skill_view",
+		ID:           "compozy__skill_view",
 		DisplayTitle: "Skill View",
 		Description:  "View one skill",
 		InputSchema:  json.RawMessage(`{"type":"object"}`),
@@ -70,7 +70,7 @@ func validDescriptor() Descriptor {
 		ReadOnly:        true,
 		ConcurrencySafe: true,
 		MaxResultBytes:  1024,
-		Toolsets:        []ToolsetID{"agh__bootstrap"},
+		Toolsets:        []ToolsetID{"compozy__bootstrap"},
 		Tags:            []string{"skills"},
 		SearchHints:     []string{"skill body"},
 	}
@@ -95,7 +95,7 @@ func TestToolIDValidation(t *testing.T) {
 	t.Parallel()
 
 	valid := []ToolID{
-		"agh__skill_view",
+		"compozy__skill_view",
 		"mcp__github__create_issue",
 		"ext__linear__search",
 		"a__b2_c3",
@@ -110,7 +110,7 @@ func TestToolIDValidation(t *testing.T) {
 		})
 	}
 
-	tooLong := ToolID("agh__" + strings.Repeat("a", 60))
+	tooLong := ToolID("compozy__" + strings.Repeat("a", 60))
 	invalid := []struct {
 		name   string
 		id     ToolID
@@ -118,10 +118,10 @@ func TestToolIDValidation(t *testing.T) {
 	}{
 		{name: "Should reject empty ids", id: "", reason: ReasonIDEmpty},
 		{name: "Should reject dotted ids", id: "agh.skill_view", reason: ReasonIDInvalidFormat},
-		{name: "Should reject hyphenated ids", id: "agh__skill-view", reason: ReasonIDInvalidFormat},
-		{name: "Should reject uppercase ids", id: "agh__Skill_view", reason: ReasonIDInvalidFormat},
-		{name: "Should reject empty segments", id: "agh__", reason: ReasonIDEmptySegment},
-		{name: "Should reject reserved separator ambiguity", id: "agh___skill", reason: ReasonIDReservedConflict},
+		{name: "Should reject hyphenated ids", id: "compozy__skill-view", reason: ReasonIDInvalidFormat},
+		{name: "Should reject uppercase ids", id: "compozy__Skill_view", reason: ReasonIDInvalidFormat},
+		{name: "Should reject empty segments", id: "compozy__", reason: ReasonIDEmptySegment},
+		{name: "Should reject reserved separator ambiguity", id: "compozy___skill", reason: ReasonIDReservedConflict},
 		{name: "Should reject over length ids", id: tooLong, reason: ReasonIDTooLong},
 	}
 	for _, tt := range invalid {
@@ -245,19 +245,19 @@ func TestShouldValidateIdentifierHelpers(t *testing.T) {
 	t.Run("Should marshal and unmarshal validated ids", func(t *testing.T) {
 		t.Parallel()
 
-		encoded, err := ToolID("agh__skill_view").MarshalText()
+		encoded, err := ToolID("compozy__skill_view").MarshalText()
 		if err != nil {
 			t.Fatalf("ToolID.MarshalText() error = %v", err)
 		}
-		if got, want := string(encoded), "agh__skill_view"; got != want {
+		if got, want := string(encoded), "compozy__skill_view"; got != want {
 			t.Fatalf("ToolID.MarshalText() = %q, want %q", got, want)
 		}
 		var decoded ToolID
-		if err := decoded.UnmarshalText([]byte(" agh__skill_view ")); err != nil {
+		if err := decoded.UnmarshalText([]byte(" compozy__skill_view ")); err != nil {
 			t.Fatalf("ToolID.UnmarshalText() error = %v", err)
 		}
-		if decoded != "agh__skill_view" {
-			t.Fatalf("decoded ToolID = %q, want agh__skill_view", decoded)
+		if decoded != "compozy__skill_view" {
+			t.Fatalf("decoded ToolID = %q, want compozy__skill_view", decoded)
 		}
 		requireReason(t, decoded.UnmarshalText([]byte("Bad")), ReasonIDInvalidFormat)
 	})
@@ -265,19 +265,19 @@ func TestShouldValidateIdentifierHelpers(t *testing.T) {
 	t.Run("Should marshal and unmarshal validated toolsets", func(t *testing.T) {
 		t.Parallel()
 
-		encoded, err := ToolsetID("agh__core").MarshalText()
+		encoded, err := ToolsetID("compozy__core").MarshalText()
 		if err != nil {
 			t.Fatalf("ToolsetID.MarshalText() error = %v", err)
 		}
-		if got, want := string(encoded), "agh__core"; got != want {
+		if got, want := string(encoded), "compozy__core"; got != want {
 			t.Fatalf("ToolsetID.MarshalText() = %q, want %q", got, want)
 		}
 		var decoded ToolsetID
-		if err := decoded.UnmarshalText([]byte(" agh__core ")); err != nil {
+		if err := decoded.UnmarshalText([]byte(" compozy__core ")); err != nil {
 			t.Fatalf("ToolsetID.UnmarshalText() error = %v", err)
 		}
-		if decoded.String() != "agh__core" {
-			t.Fatalf("decoded ToolsetID = %q, want agh__core", decoded)
+		if decoded.String() != "compozy__core" {
+			t.Fatalf("decoded ToolsetID = %q, want compozy__core", decoded)
 		}
 		requireReason(t, decoded.UnmarshalText([]byte("agh.core")), ReasonIDInvalidFormat)
 	})
@@ -706,7 +706,7 @@ func TestToolErrorReasonExtraction(t *testing.T) {
 		cause := errors.New("permission source")
 		err := NewToolError(
 			ErrorCodeDenied,
-			"agh__network_send",
+			"compozy__network_send",
 			"denied",
 			cause,
 			ReasonPolicyDenied,
@@ -725,11 +725,11 @@ func TestToolErrorReasonExtraction(t *testing.T) {
 		t.Parallel()
 
 		cause := errors.New("backend down")
-		withCause := NewToolError(ErrorCodeBackendFailed, "agh__skill_view", "", cause)
+		withCause := NewToolError(ErrorCodeBackendFailed, "compozy__skill_view", "", cause)
 		if got, want := withCause.Error(), "backend down"; got != want {
 			t.Fatalf("ToolError.Error() = %q, want %q", got, want)
 		}
-		codeOnly := NewToolError(ErrorCodeNotFound, "agh__skill_view", "", nil)
+		codeOnly := NewToolError(ErrorCodeNotFound, "compozy__skill_view", "", nil)
 		if got, want := codeOnly.Error(), string(ErrorCodeNotFound); got != want {
 			t.Fatalf("ToolError.Error() = %q, want %q", got, want)
 		}

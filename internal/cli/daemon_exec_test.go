@@ -80,7 +80,7 @@ func TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv(t *testing.T) {
 		}
 
 		scriptPath := filepath.Join(t.TempDir(), "compozy-test-daemon-env.sh")
-		script := "#!/bin/sh\nprintf 'mirror=%s\\n' \"$AGH_INTERNAL_LOG_MIRROR_STDERR\" >&2\nexit 1\n"
+		script := "#!/bin/sh\nprintf 'mirror=%s\\n' \"$COMPOZY_INTERNAL_LOG_MIRROR_STDERR\" >&2\nexit 1\n"
 		if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
 			t.Fatalf("os.WriteFile(script) error = %v", err)
 		}
@@ -110,9 +110,9 @@ func TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv(t *testing.T) {
 
 		if !strings.Contains(
 			strings.Join(aghlogger.WithMirrorToStderrEnv(nil, false), "\n"),
-			"AGH_INTERNAL_LOG_MIRROR_STDERR=0",
+			"COMPOZY_INTERNAL_LOG_MIRROR_STDERR=0",
 		) {
-			t.Fatal("WithMirrorToStderrEnv(nil, false) did not inject AGH_INTERNAL_LOG_MIRROR_STDERR=0")
+			t.Fatal("WithMirrorToStderrEnv(nil, false) did not inject COMPOZY_INTERNAL_LOG_MIRROR_STDERR=0")
 		}
 	})
 }

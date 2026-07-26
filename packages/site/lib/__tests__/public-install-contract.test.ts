@@ -32,7 +32,7 @@ const retiredPackageInstallCommands = [
   "homebrew-agh",
 ];
 const installOptions = ["--version", "--dir", "--skip-bootstrap", "--dry-run", "--help"];
-const installEnvVars = ["AGH_VERSION", "AGH_INSTALL_DIR", "AGH_SKIP_BOOTSTRAP"];
+const installEnvVars = ["COMPOZY_VERSION", "COMPOZY_INSTALL_DIR", "COMPOZY_SKIP_BOOTSTRAP"];
 const cosignVersion = "v2.2.4";
 const cosignDigests = {
   "darwin/x64": "0e5a77a86115e4c00ba4243db01abceacb13cc06981c45e53ee71f2e1db8ce25",
@@ -238,14 +238,14 @@ function hermeticInstallEnv(source: InstallEnv = process.env): NodeJS.ProcessEnv
   env.LC_ALL = "C.UTF-8";
   env.LC_CTYPE = "C.UTF-8";
   env.NODE_ENV ??= "test";
-  env.AGH_SKIP_BOOTSTRAP = "";
+  env.COMPOZY_SKIP_BOOTSTRAP = "";
   return env as NodeJS.ProcessEnv;
 }
 
 function blocksHermeticInstallEnv(key: string): boolean {
   const normalized = key.trim().toUpperCase();
   return (
-    normalized.startsWith("AGH_") ||
+    normalized.startsWith("COMPOZY_") ||
     credentialEnvPattern.test(normalized) ||
     [
       "CLAUDE_CONFIG_DIR",
@@ -270,7 +270,7 @@ describe("public install contract", () => {
 
     expect(script.startsWith("#!/bin/sh\nset -eu\n")).toBe(true);
     expect(script).toContain('RELEASE_REPO="compozy/agh"');
-    expect(script).not.toContain("AGH_RELEASE_REPO");
+    expect(script).not.toContain("COMPOZY_RELEASE_REPO");
     expect(script).toContain('BASE_URL="https://github.com/${RELEASE_REPO}/releases');
     expect(script).not.toContain("http://");
     expect(script).toContain('command -v curl >/dev/null 2>&1 || fail "curl is required"');
@@ -419,8 +419,8 @@ describe("public install contract", () => {
 
   it("runs install contract checks with a hermetic release environment", () => {
     const env = hermeticInstallEnv({
-      AGH_VERSION: "v9.9.9",
-      AGH_INSTALL_DIR: "/operator/bin",
+      COMPOZY_VERSION: "v9.9.9",
+      COMPOZY_INSTALL_DIR: "/operator/bin",
       HOME: "/Users/operator",
       OPENAI_API_KEY: "sk-operator",
       PATH: "/usr/bin",
@@ -430,11 +430,11 @@ describe("public install contract", () => {
 
     expect(env.HOME).toBe("/Users/operator");
     expect(env.PATH).toBe("/usr/bin");
-    expect(env.AGH_VERSION).toBeUndefined();
-    expect(env.AGH_INSTALL_DIR).toBeUndefined();
+    expect(env.COMPOZY_VERSION).toBeUndefined();
+    expect(env.COMPOZY_INSTALL_DIR).toBeUndefined();
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect(env.PROVIDER_HOME).toBeUndefined();
-    expect(env.AGH_SKIP_BOOTSTRAP).toBe("");
+    expect(env.COMPOZY_SKIP_BOOTSTRAP).toBe("");
     expect(env.TZ).toBe("UTC");
     expect(env.LANG).toBe("C.UTF-8");
     expect(env.LC_ALL).toBe("C.UTF-8");
@@ -493,7 +493,7 @@ describe("public install contract", () => {
     for (const option of installOptions.slice(0, -1)) {
       expect(installPage, option).toContain(option);
     }
-    for (const envVar of ["AGH_VERSION", "AGH_INSTALL_DIR", "AGH_SKIP_BOOTSTRAP"]) {
+    for (const envVar of ["COMPOZY_VERSION", "COMPOZY_INSTALL_DIR", "COMPOZY_SKIP_BOOTSTRAP"]) {
       expect(installPage, envVar).toContain(envVar);
     }
     expect(installPage).toContain("pinned temporary cosign verifier");

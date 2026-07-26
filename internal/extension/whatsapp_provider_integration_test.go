@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	whatsappProviderListenAddrEnv = "AGH_BRIDGE_WHATSAPP_LISTEN_ADDR"
-	whatsappProviderAPIBaseEnv    = "AGH_BRIDGE_WHATSAPP_API_BASE_URL"
+	whatsappProviderListenAddrEnv = "COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR"
+	whatsappProviderAPIBaseEnv    = "COMPOZY_BRIDGE_WHATSAPP_API_BASE_URL"
 )
 
 var (

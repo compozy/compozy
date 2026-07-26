@@ -56,7 +56,7 @@ func TestHostedMCPJSONToolErrors(t *testing.T) {
 		router, service, peer := newHostedMCPRouteTestHarnessWithRegistry(t, registry)
 		bind := launchAndBindHostedMCP(t, service, peer, "sess-tool-not-found")
 
-		recorder := postHostedMCPToolCall(t, router, peer, bind.BindID, "agh__missing_tool")
+		recorder := postHostedMCPToolCall(t, router, peer, bind.BindID, "compozy__missing_tool")
 
 		if recorder.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNotFound, recorder.Body.String())
@@ -65,8 +65,8 @@ func TestHostedMCPJSONToolErrors(t *testing.T) {
 		if payload.Error.Code != toolspkg.ErrorCodeNotFound {
 			t.Fatalf("error code = %q, want %q; payload=%#v", payload.Error.Code, toolspkg.ErrorCodeNotFound, payload)
 		}
-		if payload.Error.ToolID != "agh__missing_tool" {
-			t.Fatalf("tool_id = %q, want agh__missing_tool; payload=%#v", payload.Error.ToolID, payload)
+		if payload.Error.ToolID != "compozy__missing_tool" {
+			t.Fatalf("tool_id = %q, want compozy__missing_tool; payload=%#v", payload.Error.ToolID, payload)
 		}
 		if !slices.Contains(payload.Error.ReasonCodes, toolspkg.ReasonToolUnknown) {
 			t.Fatalf("reason_codes = %#v, want %q", payload.Error.ReasonCodes, toolspkg.ReasonToolUnknown)
@@ -83,7 +83,7 @@ func TestHostedMCPJSONToolErrors(t *testing.T) {
 		router, service, peer := newHostedMCPRouteTestHarnessWithRegistry(t, registry)
 		bind := launchAndBindHostedMCP(t, service, peer, "sess-tool-denied")
 
-		recorder := postHostedMCPToolCall(t, router, peer, bind.BindID, "agh__hosted_denied")
+		recorder := postHostedMCPToolCall(t, router, peer, bind.BindID, "compozy__hosted_denied")
 
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
@@ -92,8 +92,8 @@ func TestHostedMCPJSONToolErrors(t *testing.T) {
 		if payload.Error.Code != toolspkg.ErrorCodeDenied {
 			t.Fatalf("error code = %q, want %q; payload=%#v", payload.Error.Code, toolspkg.ErrorCodeDenied, payload)
 		}
-		if payload.Error.ToolID != "agh__hosted_denied" {
-			t.Fatalf("tool_id = %q, want agh__hosted_denied; payload=%#v", payload.Error.ToolID, payload)
+		if payload.Error.ToolID != "compozy__hosted_denied" {
+			t.Fatalf("tool_id = %q, want compozy__hosted_denied; payload=%#v", payload.Error.ToolID, payload)
 		}
 		if !slices.Contains(payload.Error.ReasonCodes, toolspkg.ReasonPolicyDenied) {
 			t.Fatalf("reason_codes = %#v, want %q", payload.Error.ReasonCodes, toolspkg.ReasonPolicyDenied)
@@ -315,7 +315,7 @@ func newDeniedHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 
 	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: toolspkg.BuiltinSourceOwner}
 	descriptor := toolspkg.Descriptor{
-		ID:           "agh__hosted_denied",
+		ID:           "compozy__hosted_denied",
 		DisplayTitle: "Hosted Denied",
 		Description:  "Denied hosted test tool.",
 		InputSchema:  json.RawMessage(`{"type":"object","additionalProperties":false}`),

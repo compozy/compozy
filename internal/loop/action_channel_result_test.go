@@ -319,7 +319,7 @@ func channelResultHarvestRequestForTest(
 			Structured:     json.RawMessage(structured),
 			RenderedParams: json.RawMessage(params),
 		},
-		Node: dsl.Node{ID: "ask", Class: dsl.NodeClassAction, Kind: "agh__network_send"},
+		Node: dsl.Node{ID: "ask", Class: dsl.NodeClassAction, Kind: "compozy__network_send"},
 	}
 }
 

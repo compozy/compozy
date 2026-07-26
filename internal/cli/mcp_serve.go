@@ -17,7 +17,7 @@ const (
 	mcpServeTransportStdio = "stdio"
 	mcpServeTransportHTTP  = "http"
 	// #nosec G101 -- this is an environment variable name, not a credential.
-	mcpServeTokenEnv = "AGH_MCP_SERVE_TOKEN"
+	mcpServeTokenEnv = "COMPOZY_MCP_SERVE_TOKEN"
 )
 
 type mcpServeOptions struct {
@@ -34,7 +34,7 @@ func newMCPServeCommand(deps commandDeps) *cobra.Command {
 	opts := mcpServeOptions{}
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Serve the workspace-bound AGH Host API over MCP",
+		Short: "Serve the workspace-bound Compozy Host API over MCP",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			opts.Stdin = cmd.InOrStdin()

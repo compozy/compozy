@@ -1164,7 +1164,7 @@ func (s *recordingToolArtifactStore) lastContent() []byte {
 
 func validDispatchDescriptor() Descriptor {
 	descriptor := validDescriptor()
-	descriptor.ID = "agh__dispatch_probe"
+	descriptor.ID = "compozy__dispatch_probe"
 	descriptor.Backend.NativeName = "dispatch_probe"
 	descriptor.InputSchema = json.RawMessage(`{
 		"type":"object",
@@ -1177,7 +1177,7 @@ func validDispatchDescriptor() Descriptor {
 
 func nativeDenyAllDescriptor() Descriptor {
 	descriptor := validDispatchDescriptor()
-	descriptor.ID = "agh__deny_native"
+	descriptor.ID = "compozy__deny_native"
 	descriptor.Backend.NativeName = "deny_native"
 	return descriptor
 }

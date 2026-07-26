@@ -6,9 +6,10 @@ import (
 	"fmt"
 )
 
-const migrationFamilyRecoveryInstruction = "stop AGH; preserve or move the complete AGH_HOME or workspace .compozy " +
-	"directory containing this database, including every sibling database file; then start AGH with a separately " +
-	"selected fresh AGH_HOME or workspace"
+const migrationFamilyRecoveryInstruction = "stop AGH; preserve or move the complete COMPOZY_HOME or " +
+	"workspace .compozy directory containing this database, including every sibling database file; " +
+	"then start AGH with a separately " +
+	"selected fresh COMPOZY_HOME or workspace"
 
 func refuseLegacyDatabase(ctx context.Context, db *sql.DB, stream MigrationStream, path string) error {
 	for _, table := range stream.LegacyTables {

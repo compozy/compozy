@@ -5,7 +5,7 @@ title: Operate window lifecycle with URL and semantic topology parity
 persona: Bruno
 journey:
 expected: Dock, palette, pointer, and keyboard activation open or focus one window instance; drag, structural resize, zoom, minimize, restore, and close preserve return anchors and successor focus; the focused window owns the URL with one history write per user cause; task/detail/search route intent survives reload and daemon restart, layout undo does not rewind it, and browser, CLI, native tool, and peer-browser changes converge by revision.
-entry_points: web desktop dock and windows; browser history; agh window; agh__window_manager
+entry_points: web desktop dock and windows; browser history; agh window; compozy__window_manager
 qa_status: untested
 bug_ids:
 fix_status:

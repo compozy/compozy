@@ -35,12 +35,12 @@ describe("getToolIcon", () => {
     }
   });
 
-  it("Should map AGH native tool families from the agh__ taxonomy", () => {
-    expect(getToolIcon("agh__edit")).toBe(FileEdit);
-    expect(getToolIcon("agh__memory_note")).toBe(Brain);
-    expect(getToolIcon("agh__memory_search")).toBe(Brain);
+  it("Should map Compozy native tool families from the compozy__ taxonomy", () => {
+    expect(getToolIcon("compozy__edit")).toBe(FileEdit);
+    expect(getToolIcon("compozy__memory_note")).toBe(Brain);
+    expect(getToolIcon("compozy__memory_search")).toBe(Brain);
     // Unmapped native family falls through to the generic tool glyph.
-    expect(getToolIcon("agh__deny_native")).toBe(Wrench);
+    expect(getToolIcon("compozy__deny_native")).toBe(Wrench);
   });
 
   it("Should map MCP bridge tools to the connector glyph", () => {
@@ -105,7 +105,7 @@ describe("resolveRegisteredToolName", () => {
   });
 
   it("returns the trimmed name for unknown tools", () => {
-    expect(resolveRegisteredToolName("agh__skill_view")).toBe("agh__skill_view");
+    expect(resolveRegisteredToolName("compozy__skill_view")).toBe("compozy__skill_view");
     expect(resolveRegisteredToolName("  custom  ")).toBe("custom");
   });
 

@@ -21,7 +21,7 @@ const FONT_MANIFEST: ReadonlyArray<{ file: string; name: string; weight: FontWei
 let cached: ReadonlyArray<OGFont> | null = null;
 
 function fontPath(file: string): string {
-  const siteRoot = process.env.AGH_SITE_ROOT ?? process.cwd();
+  const siteRoot = process.env.COMPOZY_SITE_ROOT ?? process.cwd();
   return path.join(siteRoot, "lib", "og", "fonts", file);
 }
 

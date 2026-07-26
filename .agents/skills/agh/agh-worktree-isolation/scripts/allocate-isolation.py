@@ -5,11 +5,11 @@ Outputs export statements (POSIX-shell syntax) to stdout so callers can:
     eval "$(python3 allocate-isolation.py --slug my-qa)"
 
 Variables set:
-    AGH_ISOLATION_ROOT  owned envelope root for targeted teardown
-    AGH_HOME            unique directory under TMPDIR (or worktree-scoped)
-    AGH_HTTP_PORT       free 127.0.0.1 TCP port
-    AGH_UDS_PATH        unique UDS socket path under AGH_HOME
-    TMUX_BRIDGE_SOCKET  unique tmux-bridge socket path under AGH_HOME
+    COMPOZY_ISOLATION_ROOT  owned envelope root for targeted teardown
+    COMPOZY_HOME            unique directory under TMPDIR (or worktree-scoped)
+    COMPOZY_HTTP_PORT       free 127.0.0.1 TCP port
+    COMPOZY_UDS_PATH        unique UDS socket path under COMPOZY_HOME
+    TMUX_BRIDGE_SOCKET  unique tmux-bridge socket path under COMPOZY_HOME
 
 Exits 0 on success, 1 on failure.
 """
@@ -65,7 +65,7 @@ def main() -> int:
     try:
         agh_home = resolve_home(slug, prefer_worktree=args.prefer_worktree)
     except Exception as exc:
-        print(f"FAILED to allocate AGH_HOME: {exc}", file=sys.stderr)
+        print(f"FAILED to allocate COMPOZY_HOME: {exc}", file=sys.stderr)
         return 1
 
     try:
@@ -79,16 +79,16 @@ def main() -> int:
 
     sys.stderr.write(
         f"# Allocated isolation envelope for slug={slug}\n"
-        f"#   AGH_HOME={agh_home}\n"
-        f"#   AGH_HTTP_PORT={http_port}\n"
-        f"#   AGH_UDS_PATH={uds_path}\n"
+        f"#   COMPOZY_HOME={agh_home}\n"
+        f"#   COMPOZY_HTTP_PORT={http_port}\n"
+        f"#   COMPOZY_UDS_PATH={uds_path}\n"
         f"#   TMUX_BRIDGE_SOCKET={tmux_socket}\n"
     )
 
-    print(f"export AGH_ISOLATION_ROOT={shquote(str(agh_home))}")
-    print(f"export AGH_HOME={shquote(str(agh_home))}")
-    print(f"export AGH_HTTP_PORT={http_port}")
-    print(f"export AGH_UDS_PATH={shquote(str(uds_path))}")
+    print(f"export COMPOZY_ISOLATION_ROOT={shquote(str(agh_home))}")
+    print(f"export COMPOZY_HOME={shquote(str(agh_home))}")
+    print(f"export COMPOZY_HTTP_PORT={http_port}")
+    print(f"export COMPOZY_UDS_PATH={shquote(str(uds_path))}")
     print(f"export TMUX_BRIDGE_SOCKET={shquote(str(tmux_socket))}")
     return 0
 

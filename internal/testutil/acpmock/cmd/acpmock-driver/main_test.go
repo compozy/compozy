@@ -15,20 +15,20 @@ import (
 
 func TestNetworkEnvironmentNames(t *testing.T) {
 	t.Run("Should return only populated Network environment names", func(t *testing.T) {
-		t.Setenv("AGH_SESSION_CHANNEL", "builders")
-		t.Setenv("AGH_PEER_ID", "coder.session-1")
+		t.Setenv("COMPOZY_SESSION_CHANNEL", "builders")
+		t.Setenv("COMPOZY_PEER_ID", "coder.session-1")
 
 		got := networkEnvironmentNames()
-		want := []string{"AGH_SESSION_CHANNEL", "AGH_PEER_ID"}
+		want := []string{"COMPOZY_SESSION_CHANNEL", "COMPOZY_PEER_ID"}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("networkEnvironmentNames() = %#v, want %#v", got, want)
 		}
 
-		if err := os.Unsetenv("AGH_SESSION_CHANNEL"); err != nil {
-			t.Fatalf("Unsetenv(AGH_SESSION_CHANNEL) error = %v", err)
+		if err := os.Unsetenv("COMPOZY_SESSION_CHANNEL"); err != nil {
+			t.Fatalf("Unsetenv(COMPOZY_SESSION_CHANNEL) error = %v", err)
 		}
-		if err := os.Unsetenv("AGH_PEER_ID"); err != nil {
-			t.Fatalf("Unsetenv(AGH_PEER_ID) error = %v", err)
+		if err := os.Unsetenv("COMPOZY_PEER_ID"); err != nil {
+			t.Fatalf("Unsetenv(COMPOZY_PEER_ID) error = %v", err)
 		}
 		if got := networkEnvironmentNames(); len(got) != 0 {
 			t.Fatalf("networkEnvironmentNames() = %#v, want empty", got)

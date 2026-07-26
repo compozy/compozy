@@ -33,8 +33,8 @@ const (
 )
 
 const (
-	slackListenAddrEnv = "AGH_BRIDGE_SLACK_LISTEN_ADDR"
-	slackAPIBaseEnv    = "AGH_BRIDGE_SLACK_API_BASE_URL"
+	slackListenAddrEnv = "COMPOZY_BRIDGE_SLACK_LISTEN_ADDR"
+	slackAPIBaseEnv    = "COMPOZY_BRIDGE_SLACK_API_BASE_URL"
 
 	slackDefaultAPIBaseURL        = "https://slack.com/api"
 	slackSignatureVersion         = "v0"

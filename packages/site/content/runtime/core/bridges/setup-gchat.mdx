@@ -139,7 +139,7 @@ Google Chat or Pub/Sub → https://bridge.example.com/gchat/support
 ```
 
 The example stores the listener on the instance. You can instead set
-`AGH_BRIDGE_GCHAT_LISTEN_ADDR=127.0.0.1:18087` in the daemon environment. One provider process uses
+`COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR=127.0.0.1:18087` in the daemon environment. One provider process uses
 one listener address and requires unique paths for its instances.
 
 ## Step 4: Create the bridge disabled
@@ -346,7 +346,7 @@ instance above intentionally rejects DMs because its route requires `group_id`.
 | ------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------- |
 | `mode`                                            | `direct`                           | `direct`, `pubsub`, or `hybrid` ingress validation.                                          |
 | `webhook.public_url`                              | none                               | Full public HTTPS endpoint used by Chat/Pub/Sub and AGH verification.                        |
-| `webhook.listen_addr`                             | `AGH_BRIDGE_GCHAT_LISTEN_ADDR`     | Local provider listener.                                                                     |
+| `webhook.listen_addr`                             | `COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR` | Local provider listener.                                                                     |
 | `webhook.path`                                    | `/gchat/<bridge-id>`               | Local callback path.                                                                         |
 | `verification.direct_issuer`                      | Google Chat system service account | Expected issuer for direct Chat JWTs.                                                        |
 | `verification.direct_certs_url`                   | Google Chat certificate URL        | Direct JWT certificate source; instance overrides must remain HTTPS on `www.googleapis.com`. |

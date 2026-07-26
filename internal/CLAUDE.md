@@ -74,7 +74,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
   `vault:providers/<provider>/<slot>` refs and injects exactly those values. Provider env/home
   policy is part of this security boundary: `env_policy = filtered` strips secret-shaped daemon
   variables, `env_policy = isolated` starts from a minimal allowlist, and
-  `home_policy = isolated` points providers at `$AGH_HOME/providers/<provider>` without copying
+  `home_policy = isolated` points providers at `$COMPOZY_HOME/providers/<provider>` without copying
   operator credentials.
 
 ## Package Layout
@@ -84,7 +84,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 | `cmd/compozy`                   | Main entry point, CLI binary                                                  |
 | `internal/config`               | TOML loading, validation, merge, home paths, agent def parsing                |
 | `internal/acp`                  | ACP client: subprocess spawn, JSON-RPC over stdio                             |
-| `internal/agentidentity`        | Caller-identity inference from `AGH_SESSION_ID`/`AGH_AGENT`                   |
+| `internal/agentidentity`        | Caller-identity inference from `COMPOZY_SESSION_ID`/`COMPOZY_AGENT`           |
 | `internal/automation`           | Cron, webhook, and scheduled triggers; durable scheduler state                |
 | `internal/bridges`              | External messaging adapters (Slack, Telegram, etc.)                           |
 | `internal/bridgesdk`            | Bridge SDK / contract types                                                   |

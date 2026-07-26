@@ -320,7 +320,7 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 			wantSource: "flag",
 		},
 		{
-			name:       "Should use AGH_WORKSPACE when flag and positional are omitted",
+			name:       "Should use COMPOZY_WORKSPACE when flag and positional are omitted",
 			args:       []string{"workspace", "info", "-o", "json"},
 			envValue:   "ws-beta",
 			cwd:        "/workspace/alpha",
@@ -357,7 +357,7 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 				return tt.cwd, nil
 			}
 			deps.getenv = func(key string) string {
-				if key == "AGH_WORKSPACE" {
+				if key == "COMPOZY_WORKSPACE" {
 					return tt.envValue
 				}
 				return ""

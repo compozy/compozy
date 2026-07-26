@@ -44,7 +44,7 @@ func TestWorkspaceContractResolverCacheDependencies(t *testing.T) {
 		}
 
 		workspaceEnv := aghconfig.WorkspaceDotEnvFile(root)
-		writeFile(t, workspaceEnv, "AGH_TEST_CACHE_MARKER=one\n")
+		writeFile(t, workspaceEnv, "COMPOZY_TEST_CACHE_MARKER=one\n")
 		touchPath(t, workspaceEnv, time.Unix(1_700_010_100, 0).UTC())
 		currentTime = currentTime.Add(time.Minute)
 		if _, err := resolver.Resolve(ctx, ws.ID); err != nil {

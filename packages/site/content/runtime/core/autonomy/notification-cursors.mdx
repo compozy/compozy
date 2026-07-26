@@ -253,14 +253,14 @@ Generated reference for each verb:
 
 ## Manage subscriptions with native tools
 
-Managed agents use the same bridge subscription contract through the `agh__tasks` toolset:
+Managed agents use the same bridge subscription contract through the `compozy__tasks` toolset:
 
-| Native tool                        | Purpose                                                 |
-| ---------------------------------- | ------------------------------------------------------- |
-| `agh__task_notification_subscribe` | Create or idempotently replace one bridge subscription. |
-| `agh__task_notification_list`      | List a task's bridge notification subscriptions.        |
-| `agh__task_notification_show`      | Read one subscription plus inline cursor diagnostics.   |
-| `agh__task_notification_delete`    | Remove the active subscription target.                  |
+| Native tool                            | Purpose                                                 |
+| -------------------------------------- | ------------------------------------------------------- |
+| `compozy__task_notification_subscribe` | Create or idempotently replace one bridge subscription. |
+| `compozy__task_notification_list`      | List a task's bridge notification subscriptions.        |
+| `compozy__task_notification_show`      | Read one subscription plus inline cursor diagnostics.   |
+| `compozy__task_notification_delete`    | Remove the active subscription target.                  |
 
 `subscription_id` is optional on subscribe. When present, the daemon preserves it as the
 idempotency key; when omitted, AGH generates the `bts-*` identifier.

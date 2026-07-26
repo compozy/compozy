@@ -648,8 +648,8 @@ export function assertNoSensitiveArtifactPayload(
 function browserRuntimeCLIEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    AGH_E2E_CLI_BIN: paths.cliShim,
-    AGH_HOME: paths.homeDir,
+    COMPOZY_E2E_CLI_BIN: paths.cliShim,
+    COMPOZY_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
   };

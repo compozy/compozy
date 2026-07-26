@@ -10,8 +10,8 @@ only when it needs it.
 
 <OperatorNote>
   Skills are metadata-first. The startup prompt receives names and descriptions, not every
-  `SKILL.md` body. Agents resolve canonical `agh__skill_view` through the active harness (or
-  canonical `agh__skill_search` first if the exact name is not yet known), then call the returned
+  `SKILL.md` body. Agents resolve canonical `compozy__skill_view` through the active harness (or
+  canonical `compozy__skill_search` first if the exact name is not yet known), then call the returned
   tool reference; operators read the same content through `agh skill view <name>`.
 </OperatorNote>
 
@@ -64,7 +64,7 @@ only when it needs it.
 `SKILL.md` has YAML frontmatter followed by Markdown instructions. The frontmatter gives AGH the
 skill name, description, version, and optional AGH-specific metadata. The Markdown body is procedural
 guidance for the agent. Resource files stay next to the skill and are read on demand with
-the returned tool reference for canonical `agh__skill_view` with a `file` input from inside a session,
+the returned tool reference for canonical `compozy__skill_view` with a `file` input from inside a session,
 or with `agh skill view <name> --file <path>` from the operator CLI.
 
 The runtime does not keep full skill bodies in list/detail payloads. This keeps prompts, APIs, and
@@ -76,14 +76,14 @@ AGH starts from the filesystem-backed skill layers implemented today, then appli
 agent's `skills/` directory as a final overlay when one effective agent is selected. Later rows
 override earlier rows when the same skill name is visible.
 
-| Precedence | Source          | Directory or owner                                | Notes                                                                    |
-| ---------- | --------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
-| 1          | Bundled         | compiled into the binary from `skills/*/SKILL.md` | Lowest precedence. Always available when skills are enabled.             |
-| 2          | Marketplace     | `$AGH_HOME/skills/<name>` with `.agh-meta.json`   | Installed by `agh skill install`. Load-time hash verification must pass. |
-| 3          | User            | `$AGH_HOME/skills/<name>`                         | Local operator-controlled global skills.                                 |
-| 4          | Additional root | `<additional-dir>/.agh/skills/<name>`             | Visible to workspaces that registered additional roots.                  |
-| 5          | Workspace       | `<workspace>/.agh/skills/<name>`                  | Highest base precedence for that workspace.                              |
-| 6          | Agent-local     | `<effective-agent-root>/skills/<name>`            | Final overlay for the winning agent definition only.                     |
+| Precedence | Source          | Directory or owner                                  | Notes                                                                    |
+| ---------- | --------------- | --------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1          | Bundled         | compiled into the binary from `skills/*/SKILL.md`   | Lowest precedence. Always available when skills are enabled.             |
+| 2          | Marketplace     | `$COMPOZY_HOME/skills/<name>` with `.agh-meta.json` | Installed by `agh skill install`. Load-time hash verification must pass. |
+| 3          | User            | `$COMPOZY_HOME/skills/<name>`                       | Local operator-controlled global skills.                                 |
+| 4          | Additional root | `<additional-dir>/.agh/skills/<name>`               | Visible to workspaces that registered additional roots.                  |
+| 5          | Workspace       | `<workspace>/.agh/skills/<name>`                    | Highest base precedence for that workspace.                              |
+| 6          | Agent-local     | `<effective-agent-root>/skills/<name>`              | Final overlay for the winning agent definition only.                     |
 
 In short, bundled, marketplace, user, additional root, and workspace form the base stack, then
 Agent-local overlays on top. Agent-local is resolved from the winning `AGENT.md` directory only
@@ -160,7 +160,7 @@ MCP --> StartOpts[Merge into ACP start options]`}
 The daemon boot path is responsible for the global registry:
 
 1. Load bundled skills.
-2. Load global AGH skills from `$AGH_HOME/skills/`.
+2. Load global AGH skills from `$COMPOZY_HOME/skills/`.
 3. Start the global watcher when `skills.enabled` is true.
 
 The session start path is workspace-aware:
@@ -185,23 +185,23 @@ The prompt catalog has this shape:
   <skill name="agh">Operate and extend AGH, the local-first agent operating system...</skill>
 </available-skills>
 
-Resolve canonical `agh__skill_view` through the active harness, then call the returned tool
+Resolve canonical `compozy__skill_view` through the active harness, then call the returned tool
 reference with `{ "name": "agh" }` to load full instructions for any skill, or
 `agh skill view <name>` from the operator CLI when the tool path is unavailable.
-Use the returned tool reference for canonical `agh__skill_view` with
+Use the returned tool reference for canonical `compozy__skill_view` with
 `{ "name": "agh", "file": "references/network.md" }` (or
 `agh skill view <name> --file <path>`) to read a
 specific skill resource file.
 ```
 
-When the runtime denies `agh__skill_view` for the active scope, agents fall back to
+When the runtime denies `compozy__skill_view` for the active scope, agents fall back to
 `agh skill view`. The conditional guidance is part of the rendered catalog so the prompt never
 advertises a CLI fallback when the dedicated tool is callable.
 
 Runtime prompts do not repeat the full current-skill catalog after every turn when the resolved
 catalog is unchanged for the session. The first prompt, and any later catalog change, carries the
 full `<current-available-skills>` block; repeated turns carry a compact unchanged marker that keeps
-the previous block authoritative and points agents back to canonical `agh__skill_view` for full
+the previous block authoritative and points agents back to canonical `compozy__skill_view` for full
 instructions.
 
 Important details:

@@ -241,7 +241,7 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 		t,
 		ctx,
 		harness.HTTPClient,
-		harness.HTTPURL("/api/tools/agh__agent_create/invoke"),
+		harness.HTTPURL("/api/tools/compozy__agent_create/invoke"),
 		aghcontract.ToolInvokeRequest{
 			WorkspaceID: harness.WorkspaceID,
 			Input:       input,

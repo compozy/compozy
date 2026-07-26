@@ -43,19 +43,19 @@ caption="Tool invocation flows through validation, policy, dispatch, redaction, 
 Invoke with inline JSON:
 
 ```bash
-agh tool invoke agh__tool_info --input '{"tool_id":"agh__skill_view"}' -o json
+agh tool invoke compozy__tool_info --input '{"tool_id":"compozy__skill_view"}' -o json
 ```
 
 Invoke with a file:
 
 ```bash
-agh tool invoke agh__tool_info --input-file ./input.json -o json
+agh tool invoke compozy__tool_info --input-file ./input.json -o json
 ```
 
 Invoke with stdin:
 
 ```bash
-echo '{"tool_id":"agh__skill_view"}' | agh tool invoke agh__tool_info -o json
+echo '{"tool_id":"compozy__skill_view"}' | agh tool invoke compozy__tool_info -o json
 ```
 
 What happened: the CLI sent JSON input to the daemon, the daemon validated and dispatched the tool,
@@ -67,7 +67,7 @@ Some tools depend on workspace, session, or agent context. Pass scope when you n
 the same view a managed session would receive:
 
 ```bash
-agh tool info agh__skill_view --workspace ws-1 --session sess-1 --agent reviewer -o json
+agh tool info compozy__skill_view --workspace ws-1 --session sess-1 --agent reviewer -o json
 ```
 
 Use scoped diagnostics when:
@@ -113,13 +113,13 @@ They do not broaden sandbox, ACP, or workspace policy.
 Set, list, or revoke remembered decisions from any management surface:
 
 ```bash
-agh tool approvals set agh__workspace_list \
+agh tool approvals set compozy__workspace_list \
   --workspace <workspace> \
   --decision allow \
   --scope agent \
   --agent claude-code \
   -o json
-agh tool approvals set agh__workspace_list \
+agh tool approvals set compozy__workspace_list \
   --workspace <workspace> \
   --decision reject \
   --scope tool \
@@ -131,8 +131,8 @@ agh tool approvals revoke <grant-id> --workspace <workspace> -o json
 The matching HTTP and UDS routes are `PUT /api/tool-approval-grants`,
 `GET /api/tool-approval-grants`, and `DELETE /api/tool-approval-grants/:grant_id`, all with
 `workspace_id`. The PUT body is `{tool_id, decision, scope, agent_name?}`; `agent_name` is required
-for agent scope and forbidden for tool scope. Managed agents can use `agh__tool_approvals_set`,
-`agh__tool_approvals_list`, and `agh__tool_approvals_revoke`. Web Settings → General exposes the
+for agent scope and forbidden for tool scope. Managed agents can use `compozy__tool_approvals_set`,
+`compozy__tool_approvals_list`, and `compozy__tool_approvals_revoke`. Web Settings → General exposes the
 same wider set, workspace list, and revoke actions.
 
 An explicit wider allow only skips the prompt when the workspace tool policy already permits the

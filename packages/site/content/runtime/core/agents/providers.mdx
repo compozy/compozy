@@ -102,7 +102,7 @@ Provider overrides and custom providers are configured in `config.toml`.
 | `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                           |
 | `none_security`       | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.      |
 | `env_policy`          | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.              |
-| `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$AGH_HOME/providers/<provider>`.                     |
+| `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                 |
 | `auth_status_command` | string | no                       | Optional native CLI status probe used by `agh provider auth status`.                                          |
 | `auth_login_command`  | string | no                       | Optional native CLI login command used by `agh provider auth login`.                                          |
 | `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                    |

@@ -21,8 +21,8 @@ func TestSecretLikeEnvName(t *testing.T) {
 		{name: "Should reject SSH private key values", env: "SSH_PRIVATE_KEY", want: true},
 		{name: "Should reject GitHub app private key values", env: "GITHUB_APP_PRIVATE_KEY", want: true},
 		{name: "Should reject compact private key values", env: "SERVICE_PRIVATEKEY", want: true},
-		{name: "Should allow token endpoint URLs", env: "AGH_BRIDGE_LINEAR_TOKEN_URL", want: false},
-		{name: "Should allow secret named path variables", env: "AGH_SECRET_GUARD_HOST_CALL_PATH", want: false},
+		{name: "Should allow token endpoint URLs", env: "COMPOZY_BRIDGE_LINEAR_TOKEN_URL", want: false},
+		{name: "Should allow secret named path variables", env: "COMPOZY_SECRET_GUARD_HOST_CALL_PATH", want: false},
 		{name: "Should allow credential file paths", env: "AWS_SHARED_CREDENTIALS_FILE", want: false},
 		{name: "Should allow private key file paths", env: "GITHUB_APP_PRIVATE_KEY_FILE", want: false},
 	}

@@ -66,7 +66,7 @@ func TestToolProgressContract(t *testing.T) {
 
 		progress := ToolProgress{
 			ToolCallID: " call-1 ",
-			ToolID:     " agh__task_read ",
+			ToolID:     " compozy__task_read ",
 			Phase:      " STARTED ",
 			Label:      " Reading task ",
 			Preview:    " task-42 ",
@@ -78,7 +78,7 @@ func TestToolProgressContract(t *testing.T) {
 			t.Fatalf("ToolProgress.Validate() error = %v", err)
 		}
 		normalized := NormalizeToolProgress(progress)
-		if normalized.ToolCallID != "call-1" || normalized.ToolID != "agh__task_read" ||
+		if normalized.ToolCallID != "call-1" || normalized.ToolID != "compozy__task_read" ||
 			normalized.Phase != ToolProgressPhaseStarted || normalized.Label != "Reading task" ||
 			normalized.Preview != "task-42" || normalized.Emoji != "🔧" {
 			t.Fatalf("NormalizeToolProgress() = %#v, want canonical progress", normalized)
@@ -123,7 +123,7 @@ func TestToolProgressContract(t *testing.T) {
 
 				progress := ToolProgress{
 					ToolCallID: "call-1",
-					ToolID:     "agh__task_read",
+					ToolID:     "compozy__task_read",
 					Phase:      ToolProgressPhaseStarted,
 					Label:      "Reading task",
 					Preview:    "task-42",

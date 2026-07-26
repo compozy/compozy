@@ -125,12 +125,12 @@ func (m *Manager) prepareProviderStartPolicies(
 }
 
 func setProviderStartEnv(env []string, resolved aghconfig.ResolvedAgent) []string {
-	env = setSessionStartEnvValue(env, "AGH_PROVIDER", strings.TrimSpace(resolved.Provider))
-	env = setSessionStartEnvValue(env, "AGH_PROVIDER_HARNESS", string(resolved.Harness))
-	env = setSessionStartEnvValue(env, "AGH_PROVIDER_AUTH_MODE", string(resolved.AuthMode))
-	env = setSessionStartEnvValue(env, "AGH_PROVIDER_ENV_POLICY", string(resolved.EnvPolicy))
-	env = setSessionStartEnvValue(env, "AGH_PROVIDER_HOME_POLICY", string(resolved.HomePolicy))
-	env = setSessionStartEnvValue(env, "AGH_MODEL", strings.TrimSpace(resolved.Model))
+	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER", strings.TrimSpace(resolved.Provider))
+	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_HARNESS", string(resolved.Harness))
+	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_AUTH_MODE", string(resolved.AuthMode))
+	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_ENV_POLICY", string(resolved.EnvPolicy))
+	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_HOME_POLICY", string(resolved.HomePolicy))
+	env = setSessionStartEnvValue(env, "COMPOZY_MODEL", strings.TrimSpace(resolved.Model))
 	return setProviderModelEnv(env, resolved)
 }
 

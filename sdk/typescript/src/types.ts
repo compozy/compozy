@@ -107,7 +107,7 @@ export interface ExtensionManifest {
   name: string;
   version: string;
   description?: string;
-  min_agh_version?: string;
+  min_compozy_version?: string;
   resources?: ResourcesConfig;
   capabilities?: CapabilitiesConfig;
   actions?: ActionsConfig;
@@ -117,7 +117,13 @@ export interface ExtensionManifest {
 
 export interface ExtensionDefinition extends Pick<
   ExtensionManifest,
-  "name" | "version" | "description" | "min_agh_version" | "capabilities" | "actions" | "security"
+  | "name"
+  | "version"
+  | "description"
+  | "min_compozy_version"
+  | "capabilities"
+  | "actions"
+  | "security"
 > {
   supported_hook_events?: HookEvent[];
 }

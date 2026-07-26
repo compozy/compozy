@@ -474,7 +474,7 @@ func TestManagerDelete(t *testing.T) {
 					session.ID,
 					"coder",
 					"invoke",
-					"agh__task_run_complete",
+					"compozy__task_run_complete",
 					"allow",
 					"test",
 					now.Format(time.RFC3339Nano),

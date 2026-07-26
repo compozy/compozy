@@ -75,7 +75,7 @@ const aghMemoryToolMessageFixture: UIMessage = {
   id: "tool_agh_memory",
   role: "tool_result",
   content: "",
-  toolName: "agh__memory_note",
+  toolName: "compozy__memory_note",
   toolInput: {
     note: "Launch cutover blocked on partner-bank timeout copy sign-off.",
   },
@@ -174,7 +174,7 @@ const truncatedToolMessageFixture: UIMessage = {
   id: "tool_retained_result",
   role: "tool_result",
   content: "",
-  toolName: "agh__memory_recall",
+  toolName: "compozy__memory_recall",
   toolInput: { query: "release verification evidence" },
   toolResult: {
     preview: retainedResultPreview,

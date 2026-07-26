@@ -189,7 +189,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		runtime := &loopActionRuntime{sessions: loopActionSessionStatusStub{info: &session.Info{
 			Liveness: &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{
 				LastActivityAt: &activityAt,
-				CurrentTool:    "agh__task_read",
+				CurrentTool:    "compozy__task_read",
 			}},
 		}}}
 

@@ -11,7 +11,7 @@ mage_version=$1
 shift
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-cache_base=${AGH_MAGE_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/compozy-dev/mage}
+cache_base=${COMPOZY_MAGE_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/compozy-dev/mage}
 mkdir -p "$cache_base"
 
 repo_lock_key=$(printf '%s\0' "$repo_root" | git hash-object --stdin)

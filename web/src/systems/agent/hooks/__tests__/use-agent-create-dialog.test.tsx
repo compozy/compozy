@@ -205,9 +205,9 @@ describe("useAgentCreateDialog", () => {
         model: "gpt-5.4",
         reasoningEffort: "high",
         prompt: "Own release readiness.",
-        tools: ["agh__skill_view"],
-        toolsets: ["agh__catalog"],
-        denyTools: ["agh__task_*"],
+        tools: ["compozy__skill_view"],
+        toolsets: ["compozy__catalog"],
+        denyTools: ["compozy__task_*"],
         disabledSkills: ["copywriting"],
         permissions: "approve-reads",
       });
@@ -226,9 +226,9 @@ describe("useAgentCreateDialog", () => {
         prompt: "Own release readiness.",
         model: "gpt-5.4",
         reasoning_effort: "high",
-        tools: ["agh__skill_view"],
-        toolsets: ["agh__catalog"],
-        deny_tools: ["agh__task_*"],
+        tools: ["compozy__skill_view"],
+        toolsets: ["compozy__catalog"],
+        deny_tools: ["compozy__task_*"],
         permissions: "approve-reads",
         category_path: ["Engineering", "Release"],
         skills: { disabled: ["copywriting"] },
@@ -348,7 +348,7 @@ describe("useAgentCreateDialog", () => {
       provider: "codex",
       prompt: "Own release readiness.",
       model: "gpt-5.4",
-      tools: ["agh__skill_view"],
+      tools: ["compozy__skill_view"],
       origin: "workspace" as const,
       definition_digest: "d".repeat(64),
       category_path: ["Engineering", "Release"],
@@ -364,7 +364,7 @@ describe("useAgentCreateDialog", () => {
     expect(result.current.draft.name).toBe("");
     expect(result.current.draft.provider).toBe("codex");
     expect(result.current.draft.prompt).toBe("Own release readiness.");
-    expect(result.current.draft.tools).toEqual(["agh__skill_view"]);
+    expect(result.current.draft.tools).toEqual(["compozy__skill_view"]);
     expect(result.current.draft.categoryPath).toBe("Engineering/Release");
 
     act(() => {
@@ -385,7 +385,7 @@ describe("useAgentCreateDialog", () => {
       provider: "codex",
       prompt: "Own release readiness.",
       model: "gpt-5.4",
-      tools: ["agh__skill_view"],
+      tools: ["compozy__skill_view"],
       origin: "workspace" as const,
       definition_digest: "d".repeat(64),
     };

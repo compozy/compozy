@@ -36,10 +36,10 @@ const (
 )
 
 const (
-	gchatListenAddrEnv  = "AGH_BRIDGE_GCHAT_LISTEN_ADDR"
-	gchatAPIBaseEnv     = "AGH_BRIDGE_GCHAT_API_BASE_URL"
-	gchatDirectCertsEnv = "AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL"
-	gchatPubSubCertsEnv = "AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL"
+	gchatListenAddrEnv  = "COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR"
+	gchatAPIBaseEnv     = "COMPOZY_BRIDGE_GCHAT_API_BASE_URL"
+	gchatDirectCertsEnv = "COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL"
+	gchatPubSubCertsEnv = "COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL"
 
 	gchatDefaultAPIBaseURL      = "https://chat.googleapis.com"
 	gchatDefaultAuthEndpointURL = "https://oauth2.googleapis.com/token"

@@ -109,7 +109,7 @@ func firstNetworkUsingNode(graph dsl.Graph) (dsl.Node, bool) {
 
 func networkNodeCapability(node dsl.Node) string {
 	kind := strings.TrimSpace(node.Kind)
-	if strings.HasPrefix(kind, "agh__network_") {
+	if strings.HasPrefix(kind, "compozy__network_") {
 		return kind
 	}
 	if node.Harvest != nil && strings.TrimSpace(node.Harvest.Kind) == harvestKindChannelResult {

@@ -13,7 +13,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 	t.Parallel()
 	catalog, err := toolspkg.NewToolsetCatalog(toolspkg.Toolset{
 		ID:    toolspkg.ToolsetIDTasks,
-		Tools: []string{"agh__task_*"},
+		Tools: []string{"compozy__task_*"},
 	})
 	if err != nil {
 		t.Fatalf("NewToolsetCatalog() error = %v", err)
@@ -34,7 +34,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 		t.Parallel()
 
 		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{
-			Tools: []string{"agh__task_*"},
+			Tools: []string{"compozy__task_*"},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),
 		}, catalog)
@@ -47,7 +47,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 		t.Parallel()
 
 		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{
-			DenyTools: []string{"agh__task_*"},
+			DenyTools: []string{"compozy__task_*"},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),
 		}, catalog)

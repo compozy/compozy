@@ -4,7 +4,7 @@ package contract
 type AgentOrigin string
 
 const (
-	// AgentOriginGlobal identifies a definition stored under AGH_HOME.
+	// AgentOriginGlobal identifies a definition stored under COMPOZY_HOME.
 	AgentOriginGlobal AgentOrigin = "global"
 	// AgentOriginWorkspace identifies a definition stored under a workspace root.
 	AgentOriginWorkspace AgentOrigin = "workspace"

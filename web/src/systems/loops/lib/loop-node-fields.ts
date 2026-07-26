@@ -420,7 +420,7 @@ export function toolActionFields(_raw: RawLoopNode): FieldSpec[] {
       path: ["kind"],
       mono: true,
       required: true,
-      hint: "The literal ToolID this action calls (e.g. agh__network_send). Reserved names are run-agent / run-loop / transform.",
+      hint: "The literal ToolID this action calls (e.g. compozy__network_send). Reserved names are run-agent / run-loop / transform.",
     },
     {
       type: "textarea",
@@ -434,7 +434,7 @@ export function toolActionFields(_raw: RawLoopNode): FieldSpec[] {
     {
       type: "hint",
       key: "hint",
-      hint: "An action's kind IS the tool it calls. Optional harvest (e.g. channel_result on agh__network_send) is declared in the DSL view.",
+      hint: "An action's kind IS the tool it calls. Optional harvest (e.g. channel_result on compozy__network_send) is declared in the DSL view.",
     },
   ];
 }

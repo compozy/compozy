@@ -10,8 +10,8 @@ describe("loop palette", () => {
     expect(actionKinds).toContain("run-agent");
     expect(actionKinds).toContain("run-loop");
     expect(actionKinds).toContain("transform");
-    // The Channel post shortcut is a pre-filled agh__network_send, not a bespoke kind.
-    expect(actionKinds).toContain("agh__network_send");
+    // The Channel post shortcut is a pre-filled compozy__network_send, not a bespoke kind.
+    expect(actionKinds).toContain("compozy__network_send");
   });
 
   it("Should offer both source watch kinds with valid-shaped seeds", () => {

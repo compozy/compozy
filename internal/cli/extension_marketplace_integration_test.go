@@ -131,7 +131,7 @@ func newExtensionDownloadResult(
 func remoteExtensionArchiveFiles(name string, version string) map[string]string {
 	return map[string]string{
 		filepath.Join(name, "extension.toml"): fmt.Sprintf(
-			"[extension]\nname = %q\nversion = %q\ndescription = \"CLI marketplace integration fixture\"\nmin_agh_version = \"0.5.0\"\n",
+			"[extension]\nname = %q\nversion = %q\ndescription = \"CLI marketplace integration fixture\"\nmin_compozy_version = \"0.5.0\"\n",
 			name,
 			version,
 		),

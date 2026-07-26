@@ -649,7 +649,7 @@ func TestManagerSessionTaskActorLifecycle(t *testing.T) {
 
 func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 	h := newManagerHarness(t)
-	t.Setenv("AGH_TEST_WEBHOOK_SECRET", "super-secret")
+	t.Setenv("COMPOZY_TEST_WEBHOOK_SECRET", "super-secret")
 	cfg := aghconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
@@ -659,7 +659,7 @@ func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 			func() aghconfig.AutomationTrigger {
 				trigger := managerConfigTrigger(AutomationScopeWorkspace, "webhook-trigger", h.workspaceRoot, "webhook")
 				trigger.EndpointSlug = "deploy-review"
-				trigger.WebhookSecretRef = "env:AGH_TEST_WEBHOOK_SECRET"
+				trigger.WebhookSecretRef = "env:COMPOZY_TEST_WEBHOOK_SECRET"
 				trigger.Filter = map[string]string{"data.payload": "deploy"}
 				return trigger
 			}(),
@@ -718,7 +718,7 @@ func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 
 func TestManagerHandleWebhookWithConfigSecretEnv(t *testing.T) {
 	h := newManagerHarness(t)
-	t.Setenv("AGH_TEST_CONFIG_WEBHOOK_SECRET", "config-super-secret")
+	t.Setenv("COMPOZY_TEST_CONFIG_WEBHOOK_SECRET", "config-super-secret")
 	cfg := aghconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
@@ -733,7 +733,7 @@ func TestManagerHandleWebhookWithConfigSecretEnv(t *testing.T) {
 					"webhook",
 				)
 				trigger.EndpointSlug = "config-deploy-review"
-				trigger.WebhookSecretRef = "env:AGH_TEST_CONFIG_WEBHOOK_SECRET"
+				trigger.WebhookSecretRef = "env:COMPOZY_TEST_CONFIG_WEBHOOK_SECRET"
 				trigger.Filter = map[string]string{"data.payload": "deploy"}
 				return trigger
 			}(),

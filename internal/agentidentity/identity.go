@@ -14,9 +14,9 @@ import (
 
 const (
 	// EnvSessionID is the daemon-issued session identifier visible inside agent sessions.
-	EnvSessionID = "AGH_SESSION_ID"
+	EnvSessionID = "COMPOZY_SESSION_ID"
 	// EnvAgent is the daemon-issued agent name visible inside agent sessions.
-	EnvAgent = "AGH_AGENT"
+	EnvAgent = "COMPOZY_AGENT"
 
 	// HeaderSessionID carries EnvSessionID over the local UDS HTTP transport.
 	HeaderSessionID = "X-AGH-Session-ID"

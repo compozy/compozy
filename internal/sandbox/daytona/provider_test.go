@@ -37,14 +37,14 @@ func TestDaytonaProviderPrepareCreatesSandboxWithSnapshotLabelsAndRuntime(t *tes
 	provider.processRegistry = registry
 	req := newDaytonaPrepareRequest(t)
 	req.AgentEnv = []string{
-		"AGH_SESSION_ID=sess-daytona",
+		"COMPOZY_SESSION_ID=sess-daytona",
 		"DAYTONA_API_KEY=secret",
 		"IGNORED=value",
 	}
 	req.Sandbox.Env = map[string]string{
-		"NODE_ENV":         "test",
-		"DAYTONA_API_KEY":  "blocked",
-		"AGH_SESSION_ROLE": "profile",
+		"NODE_ENV":             "test",
+		"DAYTONA_API_KEY":      "blocked",
+		"COMPOZY_SESSION_ROLE": "profile",
 	}
 
 	prepared, err := provider.Prepare(context.Background(), req)
@@ -71,8 +71,8 @@ func TestDaytonaProviderPrepareCreatesSandboxWithSnapshotLabelsAndRuntime(t *tes
 	if _, leaked := create.EnvVars["DAYTONA_API_KEY"]; leaked {
 		t.Fatal("Create env propagated DAYTONA_API_KEY")
 	}
-	if got, want := create.EnvVars["AGH_SESSION_ID"], "sess-daytona"; got != want {
-		t.Fatalf("Create env AGH_SESSION_ID = %q, want %q", got, want)
+	if got, want := create.EnvVars["COMPOZY_SESSION_ID"], "sess-daytona"; got != want {
+		t.Fatalf("Create env COMPOZY_SESSION_ID = %q, want %q", got, want)
 	}
 	if got, want := create.EnvVars["NODE_ENV"], "test"; got != want {
 		t.Fatalf("Create env NODE_ENV = %q, want %q", got, want)
@@ -99,7 +99,7 @@ func TestDaytonaProviderPrepareCreatesSandboxWithSnapshotLabelsAndRuntime(t *tes
 	if daytonaHost.ProcessRegistry() != registry {
 		t.Fatalf("Prepared.ToolHost.ProcessRegistry() = %p, want %p", daytonaHost.ProcessRegistry(), registry)
 	}
-	if got := prepared.Launch.Env; !containsString(got, "AGH_SESSION_ID=sess-daytona") ||
+	if got := prepared.Launch.Env; !containsString(got, "COMPOZY_SESSION_ID=sess-daytona") ||
 		!containsString(got, "NODE_ENV=test") ||
 		containsKey(got, "DAYTONA_API_KEY") ||
 		containsKey(got, "IGNORED") {
@@ -357,7 +357,7 @@ func TestDaytonaLauncherLaunchReturnsHandleStreams(t *testing.T) {
 	handle, err := launcher.Launch(context.Background(), sandbox.LaunchSpec{
 		Command: "cat",
 		Cwd:     "/workspace",
-		Env:     []string{"AGH_SESSION_ID=sess"},
+		Env:     []string{"COMPOZY_SESSION_ID=sess"},
 	})
 	if err != nil {
 		t.Fatalf("Launch() error = %v", err)
@@ -609,7 +609,7 @@ func TestRemoteEnvAllowlist(t *testing.T) {
 
 	env := remoteEnvMap(
 		[]string{
-			"AGH_SESSION_ID=sess",
+			"COMPOZY_SESSION_ID=sess",
 			"DAYTONA_API_KEY=secret",
 			"PATH=/bin",
 		},
@@ -621,8 +621,8 @@ func TestRemoteEnvAllowlist(t *testing.T) {
 	if _, ok := env["DAYTONA_API_KEY"]; ok {
 		t.Fatal("remoteEnvMap propagated DAYTONA_API_KEY")
 	}
-	if got, want := env["AGH_SESSION_ID"], "sess"; got != want {
-		t.Fatalf("AGH_SESSION_ID = %q, want %q", got, want)
+	if got, want := env["COMPOZY_SESSION_ID"], "sess"; got != want {
+		t.Fatalf("COMPOZY_SESSION_ID = %q, want %q", got, want)
 	}
 	if got, want := env["NODE_ENV"], "test"; got != want {
 		t.Fatalf("NODE_ENV = %q, want %q", got, want)
@@ -723,12 +723,12 @@ func TestDaytonaDurationParsingAndShellHelpers(t *testing.T) {
 		Args:    []string{"%s", "hello world"},
 		Cwd:     &cwd,
 		Env: []acpsdk.EnvVariable{
-			{Name: "AGH_SESSION_ID", Value: "sess-daytona"},
+			{Name: "COMPOZY_SESSION_ID", Value: "sess-daytona"},
 			{Name: "DAYTONA_API_KEY", Value: "secret"},
 			{Name: "", Value: "ignored"},
 		},
 	})
-	assertCommandContains(t, command, "AGH_SESSION_ID=sess-daytona")
+	assertCommandContains(t, command, "COMPOZY_SESSION_ID=sess-daytona")
 	assertCommandContains(t, command, "printf")
 	if strings.Contains(command, "DAYTONA_API_KEY") || strings.Contains(command, "secret") {
 		t.Fatalf("remoteTerminalCommand leaked blocked env var: %q", command)
@@ -958,7 +958,7 @@ func newDaytonaPrepareRequest(t *testing.T) sandbox.PrepareRequest {
 			},
 		},
 		AgentCommand: "cat",
-		AgentEnv:     []string{"AGH_SESSION_ID=sess-daytona"},
+		AgentEnv:     []string{"COMPOZY_SESSION_ID=sess-daytona"},
 		Permissions:  string(config.PermissionModeApproveAll),
 	}
 }

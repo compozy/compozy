@@ -750,7 +750,7 @@ func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
 			1,
 			bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-search",
-				ToolID:     "agh__search",
+				ToolID:     "compozy__search",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Search",
 				Preview:    "project docs",
@@ -779,7 +779,7 @@ func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
 			2,
 			bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-build",
-				ToolID:     "agh__build",
+				ToolID:     "compozy__build",
 				Phase:      bridgepkg.ToolProgressPhaseCompleted,
 				Label:      "Build",
 				DurationMS: 31_200,
@@ -815,7 +815,7 @@ func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
 			3,
 			bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-deploy",
-				ToolID:     "agh__deploy",
+				ToolID:     "compozy__deploy",
 				Phase:      bridgepkg.ToolProgressPhaseFailed,
 				Label:      "Deploy",
 				Error:      "permission denied",
@@ -878,7 +878,7 @@ func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
 			1,
 			bridgepkg.ToolProgress{
 				ToolCallID: "call-progress-started",
-				ToolID:     "agh__terminal",
+				ToolID:     "compozy__terminal",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Inspecting",
 				Emoji:      "\U0001f527",
@@ -893,7 +893,7 @@ func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
 			2,
 			bridgepkg.ToolProgress{
 				ToolCallID: "call-progress-completed",
-				ToolID:     "agh__terminal",
+				ToolID:     "compozy__terminal",
 				Phase:      bridgepkg.ToolProgressPhaseCompleted,
 				Label:      "Inspecting",
 				Emoji:      "\U0001f527",
@@ -941,7 +941,7 @@ func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
 			1,
 			bridgepkg.ToolProgress{
 				ToolCallID: "call-progress-started",
-				ToolID:     "agh__terminal",
+				ToolID:     "compozy__terminal",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Inspecting",
 				Emoji:      "\U0001f527",
@@ -1006,7 +1006,7 @@ func TestDiscordProgressDeliveryHonorsModeOffBeforeCreatingAPI(t *testing.T) {
 			1,
 			bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-off",
-				ToolID:     "agh__search",
+				ToolID:     "compozy__search",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Search",
 				Index:      1,
@@ -1055,7 +1055,7 @@ func TestDiscordProgressDeliveryHonorsModeOffBeforeCreatingAPI(t *testing.T) {
 		}
 		request := testDiscordProgressRequest("delivery-flip", 1, bridgepkg.ToolProgress{
 			ToolCallID: "tool-call-flip",
-			ToolID:     "agh__search",
+			ToolID:     "compozy__search",
 			Phase:      bridgepkg.ToolProgressPhaseStarted,
 			Label:      "Search",
 			Index:      1,
@@ -1070,7 +1070,7 @@ func TestDiscordProgressDeliveryHonorsModeOffBeforeCreatingAPI(t *testing.T) {
 		request.Event.Seq = 2
 		request.Event.Progress = &bridgepkg.ToolProgress{
 			ToolCallID: "tool-call-flip-dirty",
-			ToolID:     "agh__read",
+			ToolID:     "compozy__read",
 			Phase:      bridgepkg.ToolProgressPhaseCompleted,
 			Label:      "Read",
 			Index:      2,
@@ -1127,7 +1127,7 @@ func TestDiscordProgressSinkRetriesRateLimitedEdits(t *testing.T) {
 			1,
 			bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-retry",
-				ToolID:     "agh__search",
+				ToolID:     "compozy__search",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Search",
 				Index:      1,

@@ -76,8 +76,8 @@ Notes:
 
 - `access_token`, `app_secret`, and `verify_token` are required through bridge secret bindings.
 - `provider_config.phone_number_id` is required per bridge instance because the runtime multiplexes multiple business numbers behind one provider process.
-- `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR` configures the process-level listener default.
-- `AGH_BRIDGE_WHATSAPP_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
+- `COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR` configures the process-level listener default.
+- `COMPOZY_BRIDGE_WHATSAPP_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
 - WhatsApp Cloud API does not support bridge-level delete semantics and the provider reports those requests as permanent unsupported operations.
 

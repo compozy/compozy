@@ -708,10 +708,10 @@ func extensionToolManifestJSON(
 	}
 	payload := map[string]any{
 		"extension": map[string]any{
-			"name":            name,
-			"version":         "0.1.0",
-			"description":     "Extension tool provider test fixture",
-			"min_agh_version": "0.5.0",
+			"name":                name,
+			"version":             "0.1.0",
+			"description":         "Extension tool provider test fixture",
+			"min_compozy_version": "0.5.0",
 		},
 		"capabilities": map[string]any{
 			"provides": []string{extensionprotocol.CapabilityToolProvider},

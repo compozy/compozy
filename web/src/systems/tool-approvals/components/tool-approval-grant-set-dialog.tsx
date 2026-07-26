@@ -95,7 +95,7 @@ export function ToolApprovalGrantSetDialog({
                   data-testid="tool-approval-grant-tool-id"
                   id="tool-approval-grant-tool-id"
                   onChange={event => onChange({ ...draft, toolId: event.target.value })}
-                  placeholder="agh__workspace_list"
+                  placeholder="compozy__workspace_list"
                   required
                   value={draft.toolId}
                 />

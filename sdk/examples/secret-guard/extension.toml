@@ -2,7 +2,7 @@
 name = "secret-guard"
 version = "0.1.0"
 description = "Blocks prompt submissions that contain obvious secrets"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [capabilities]
 provides = ["content.validate"]
@@ -23,11 +23,11 @@ command = "./bin/secret-guard"
 args = ["serve"]
 
 [subprocess.env]
-AGH_SECRET_GUARD_HANDSHAKE_PATH = "{{env:AGH_SECRET_GUARD_HANDSHAKE_PATH}}"
-AGH_SECRET_GUARD_HOST_CALL_PATH = "{{env:AGH_SECRET_GUARD_HOST_CALL_PATH}}"
-AGH_SECRET_GUARD_STARTS_PATH = "{{env:AGH_SECRET_GUARD_STARTS_PATH}}"
-AGH_SECRET_GUARD_CRASH_ONCE_PATH = "{{env:AGH_SECRET_GUARD_CRASH_ONCE_PATH}}"
-AGH_SECRET_GUARD_SHUTDOWN_PATH = "{{env:AGH_SECRET_GUARD_SHUTDOWN_PATH}}"
+COMPOZY_SECRET_GUARD_HANDSHAKE_PATH = "{{env:COMPOZY_SECRET_GUARD_HANDSHAKE_PATH}}"
+COMPOZY_SECRET_GUARD_HOST_CALL_PATH = "{{env:COMPOZY_SECRET_GUARD_HOST_CALL_PATH}}"
+COMPOZY_SECRET_GUARD_STARTS_PATH = "{{env:COMPOZY_SECRET_GUARD_STARTS_PATH}}"
+COMPOZY_SECRET_GUARD_CRASH_ONCE_PATH = "{{env:COMPOZY_SECRET_GUARD_CRASH_ONCE_PATH}}"
+COMPOZY_SECRET_GUARD_SHUTDOWN_PATH = "{{env:COMPOZY_SECRET_GUARD_SHUTDOWN_PATH}}"
 
 [security]
 capabilities = ["session.read"]

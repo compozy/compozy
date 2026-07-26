@@ -27,7 +27,7 @@ func TestBridgeDeliveryProjectionUsesOneCanonicalPath(t *testing.T) {
 			Timestamp:  time.Date(2026, time.April, 11, 12, 8, 0, 0, time.UTC),
 			ToolCallID: "call-tool-projection",
 		}).WithTool(
-			"agh__terminal",
+			"compozy__terminal",
 			json.RawMessage(`{"command":"echo sk-live-replay-secret"}`),
 			false,
 		)

@@ -635,7 +635,7 @@ func TestHookBindingCodecPreservesInternalDeclarationFields(t *testing.T) {
 		Command:      "node",
 		Args:         []string{"dist/index.js", "hook", "prompt_post_assemble"},
 		WorkingDir:   "/tmp/extensions/prompt-enhancer",
-		Env:          map[string]string{"AGH_TEST_MARKER": "1"},
+		Env:          map[string]string{"COMPOZY_TEST_MARKER": "1"},
 		Metadata:     map[string]string{"extension": "prompt-enhancer"},
 		SkillSource:  hookspkg.HookSkillSourceUser,
 	}
@@ -672,8 +672,8 @@ func TestHookBindingCodecPreservesInternalDeclarationFields(t *testing.T) {
 	if got, want := decoded.Metadata["extension"], spec.Metadata["extension"]; got != want {
 		t.Fatalf("decoded.Metadata[extension] = %q, want %q", got, want)
 	}
-	if got, want := decoded.Env["AGH_TEST_MARKER"], spec.Env["AGH_TEST_MARKER"]; got != want {
-		t.Fatalf("decoded.Env[AGH_TEST_MARKER] = %q, want %q", got, want)
+	if got, want := decoded.Env["COMPOZY_TEST_MARKER"], spec.Env["COMPOZY_TEST_MARKER"]; got != want {
+		t.Fatalf("decoded.Env[COMPOZY_TEST_MARKER] = %q, want %q", got, want)
 	}
 }
 

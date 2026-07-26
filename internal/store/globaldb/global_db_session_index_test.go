@@ -352,7 +352,7 @@ func TestDeleteSessionRemovesDurableCatalogTruth(t *testing.T) {
 				sessionInfo.ID,
 				sessionInfo.AgentName,
 				"invoke",
-				"agh__task_run_complete",
+				"compozy__task_run_complete",
 				"allow",
 				"test",
 				sessionInfo.UpdatedAt.Format(time.RFC3339Nano),

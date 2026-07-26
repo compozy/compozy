@@ -181,7 +181,7 @@ inventory; deactivation removes only the layouts owned by that activation.
 | Agent references              | Jobs and triggers must reference packaged or already-visible agents.                   |
 
 Native bundle tools inherit a trusted caller workspace when one is present. That means an
-`agh__bundles_activate` call made from a workspace-scoped agent or operator context defaults to a
+`compozy__bundles_activate` call made from a workspace-scoped agent or operator context defaults to a
 workspace activation unless it explicitly requests global scope without a workspace.
 
 ## Deactivation

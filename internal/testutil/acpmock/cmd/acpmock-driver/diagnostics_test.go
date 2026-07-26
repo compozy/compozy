@@ -15,7 +15,7 @@ import (
 func TestWriteDiagnosticsStampsProcessOwner(t *testing.T) {
 	// not parallel: t.Setenv owns the process environment until this subtest completes.
 	t.Run("Should replace a caller-supplied owner with the trimmed process owner", func(t *testing.T) {
-		t.Setenv("AGH_SESSION_ID", "  agh-session-process  ")
+		t.Setenv("COMPOZY_SESSION_ID", "  agh-session-process  ")
 
 		diagnosticsPath := filepath.Join(t.TempDir(), "owned-diagnostics.jsonl")
 		agent := &mockAgent{diagnosticsPath: diagnosticsPath}

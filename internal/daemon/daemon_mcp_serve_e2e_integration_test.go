@@ -37,7 +37,7 @@ func TestDaemonE2EMCPServeProjectsWorkspaceBoundHostAPI(t *testing.T) {
 
 	createdSession := callMCPServeToolJSON[struct {
 		SessionID string `json:"session_id"`
-	}](t, ctx, clientA, "agh_host__sessions__create", map[string]any{
+	}](t, ctx, clientA, "compozy_host__sessions__create", map[string]any{
 		"agent": agentName,
 	})
 	if createdSession.SessionID == "" {
@@ -49,14 +49,14 @@ func TestDaemonE2EMCPServeProjectsWorkspaceBoundHostAPI(t *testing.T) {
 
 	listedSessions := callMCPServeToolJSON[[]struct {
 		ID string `json:"id"`
-	}](t, ctx, clientA, "agh_host__sessions__list", map[string]any{})
+	}](t, ctx, clientA, "compozy_host__sessions__list", map[string]any{})
 	if !mcpServeSessionListContains(listedSessions, createdSession.SessionID) {
 		t.Fatalf("sessions/list = %#v, want %q", listedSessions, createdSession.SessionID)
 	}
 
 	createdTask := callMCPServeToolJSON[struct {
 		ID string `json:"id"`
-	}](t, ctx, clientA, "agh_host__tasks__create", map[string]any{
+	}](t, ctx, clientA, "compozy_host__tasks__create", map[string]any{
 		"title": "MCP-created task",
 	})
 	if createdTask.ID == "" {
@@ -78,7 +78,7 @@ func TestDaemonE2EMCPServeProjectsWorkspaceBoundHostAPI(t *testing.T) {
 	clientB := startMCPServeClient(t, ctx, harness, workspaceB)
 	isolatedSessions := callMCPServeToolJSON[[]struct {
 		ID string `json:"id"`
-	}](t, ctx, clientB, "agh_host__sessions__list", map[string]any{})
+	}](t, ctx, clientB, "compozy_host__sessions__list", map[string]any{})
 	if mcpServeSessionListContains(isolatedSessions, createdSession.SessionID) {
 		t.Fatalf("workspace B %q listed workspace A session %q", resolvedB.ID, createdSession.SessionID)
 	}
@@ -87,7 +87,7 @@ func TestDaemonE2EMCPServeProjectsWorkspaceBoundHostAPI(t *testing.T) {
 		t,
 		ctx,
 		clientA,
-		"agh_host__sessions__stop",
+		"compozy_host__sessions__stop",
 		map[string]any{"session_id": createdSession.SessionID},
 	)
 }
@@ -102,7 +102,7 @@ func startMCPServeClient(
 	client, err := mcpclient.NewStdioMCPClientWithOptions(
 		harness.BinaryPath,
 		[]string{
-			"AGH_HOME=" + harness.HomePaths.HomeDir,
+			"COMPOZY_HOME=" + harness.HomePaths.HomeDir,
 			"HOME=" + harness.HomePaths.HomeDir,
 		},
 		[]string{"mcp", "serve", "--workspace", workspace},

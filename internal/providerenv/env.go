@@ -224,7 +224,7 @@ func SetEnvValue(env []string, key string, value string) []string {
 }
 
 // SafeProviderHomeSegment reports whether a provider name can be used as one
-// path segment below $AGH_HOME/providers.
+// path segment below $COMPOZY_HOME/providers.
 func SafeProviderHomeSegment(value string) bool {
 	if value == "" || value == "." || value == ".." {
 		return false

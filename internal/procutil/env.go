@@ -98,9 +98,9 @@ func safeDaemonEnvName(name string) bool {
 		"COLORTERM",
 		"NO_COLOR",
 		"FORCE_COLOR",
-		"AGH_HOME",
-		"AGH_CONFIG",
-		"AGH_LOG_LEVEL",
+		"COMPOZY_HOME",
+		"COMPOZY_CONFIG",
+		"COMPOZY_LOG_LEVEL",
 		"PROVIDER_HOME",
 		"PROVIDER_CODEX_HOME":
 		return true

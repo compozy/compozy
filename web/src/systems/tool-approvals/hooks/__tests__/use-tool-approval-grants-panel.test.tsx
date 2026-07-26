@@ -98,7 +98,7 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
 
     act(() => {
       result.current.set.change({
-        toolId: "agh__config_set",
+        toolId: "compozy__config_set",
         decision: "allow",
         scope: "agent",
         agentName: "",
@@ -108,7 +108,7 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
 
     act(() => {
       result.current.set.change({
-        toolId: "agh__config_set",
+        toolId: "compozy__config_set",
         decision: "allow",
         scope: "agent",
         agentName: "claude-code",
@@ -124,7 +124,7 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
     act(() => {
       result.current.set.open();
       result.current.set.change({
-        toolId: "agh__config_set",
+        toolId: "compozy__config_set",
         decision: "reject",
         scope: "tool",
         agentName: "must-not-leak",
@@ -144,7 +144,7 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
     await waitFor(() => expect(putRequests).toHaveLength(1));
     expect(putRequests[0]!.url.searchParams.get("workspace_id")).toBe(ACTIVE_WS);
     expect(putRequests[0]!.body).toEqual({
-      tool_id: "agh__config_set",
+      tool_id: "compozy__config_set",
       decision: "reject",
       scope: "tool",
     });

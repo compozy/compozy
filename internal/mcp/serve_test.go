@@ -44,7 +44,7 @@ func TestHostAPIProjectionDecisions(t *testing.T) {
 
 		for _, method := range ProjectedHostAPIMethods() {
 			name := hostAPIToolName(extensionprotocol.HostAPIMethod(method))
-			if strings.HasPrefix(name, "agh__") {
+			if strings.HasPrefix(name, "compozy__") {
 				t.Fatalf("hostAPIToolName(%q) = %q, want non-native namespace", method, name)
 			}
 			got, ok := hostAPIMethodFromToolName(name)
@@ -329,12 +329,12 @@ func TestHostAPIMCPServerRoundTrip(t *testing.T) {
 		for _, tool := range listed.Tools {
 			names = append(names, tool.Name)
 		}
-		if !slices.Contains(names, "agh_host__sessions__list") || slices.Contains(names, "agh__sessions_list") {
+		if !slices.Contains(names, "compozy_host__sessions__list") || slices.Contains(names, "compozy__sessions_list") {
 			t.Fatalf("tool names = %v, want MCP Host API namespace only", names)
 		}
 
 		var call sdkmcp.CallToolRequest
-		call.Params.Name = "agh_host__sessions__list"
+		call.Params.Name = "compozy_host__sessions__list"
 		call.Params.Arguments = map[string]any{}
 		result, err := client.CallTool(t.Context(), call)
 		if err != nil {
@@ -349,7 +349,7 @@ func TestHostAPIMCPServerRoundTrip(t *testing.T) {
 			t.Fatalf("InvokeHostAPI call = %#v, want bound workspace and sessions/list", observed)
 		}
 
-		call.Params.Name = "agh_host__tasks__create"
+		call.Params.Name = "compozy_host__tasks__create"
 		call.Params.Arguments = map[string]any{"title": "Ship"}
 		if _, err := client.CallTool(t.Context(), call); err != nil {
 			t.Fatalf("client.CallTool(tasks/create without bound fields) error = %v", err)

@@ -1,6 +1,6 @@
 export const defaultApiProxyTarget = "http://localhost:2123/";
 
-const apiProxyTargetEnvKey = "AGH_WEB_API_PROXY_TARGET";
+const apiProxyTargetEnvKey = "COMPOZY_WEB_API_PROXY_TARGET";
 
 export function resolveApiProxyTarget(env: Record<string, string | undefined>): string {
   return parseApiProxyTarget(env).toString();

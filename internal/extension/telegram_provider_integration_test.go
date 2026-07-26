@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	telegramProviderListenAddrEnv = "AGH_BRIDGE_TELEGRAM_LISTEN_ADDR"
-	telegramProviderAPIBaseEnv    = "AGH_BRIDGE_TELEGRAM_API_BASE_URL"
+	telegramProviderListenAddrEnv = "COMPOZY_BRIDGE_TELEGRAM_LISTEN_ADDR"
+	telegramProviderAPIBaseEnv    = "COMPOZY_BRIDGE_TELEGRAM_API_BASE_URL"
 	telegramWebhookSecretHeader   = "X-Telegram-Bot-Api-Secret-Token"
 )
 

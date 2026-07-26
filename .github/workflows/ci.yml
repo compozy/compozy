@@ -171,7 +171,7 @@ jobs:
 
       - name: Run frontend verification
         env:
-          AGH_CODEGEN_CHECKED: "1"
+          COMPOZY_CODEGEN_CHECKED: "1"
         run: |
           bun run lint
           bun run typecheck
@@ -230,9 +230,9 @@ jobs:
           - shard_index: "1"
             shard_label: "2/2"
     env:
-      AGH_GO_TEST_P: "1"
-      AGH_GO_TEST_SHARD_INDEX: ${{ matrix.shard_index }}
-      AGH_GO_TEST_SHARD_TOTAL: "2"
+      COMPOZY_GO_TEST_P: "1"
+      COMPOZY_GO_TEST_SHARD_INDEX: ${{ matrix.shard_index }}
+      COMPOZY_GO_TEST_SHARD_TOTAL: "2"
     needs: [changes, preflight]
     if: needs.changes.outputs.relevant == 'true'
     steps:

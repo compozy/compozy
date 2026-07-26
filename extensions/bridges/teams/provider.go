@@ -29,10 +29,10 @@ const (
 )
 
 const (
-	teamsListenAddrEnv            = "AGH_BRIDGE_TEAMS_LISTEN_ADDR"
-	teamsServiceURLEnv            = "AGH_BRIDGE_TEAMS_SERVICE_URL"
-	teamsOpenIDMetadataURLEnv     = "AGH_BRIDGE_TEAMS_OPENID_METADATA_URL"
-	teamsTestLoopbackAuthEnv      = "AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
+	teamsListenAddrEnv            = "COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR"
+	teamsServiceURLEnv            = "COMPOZY_BRIDGE_TEAMS_SERVICE_URL"
+	teamsOpenIDMetadataURLEnv     = "COMPOZY_BRIDGE_TEAMS_OPENID_METADATA_URL"
+	teamsTestLoopbackAuthEnv      = "COMPOZY_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
 	teamsDefaultOpenIDMetadata    = "https://login.botframework.com/v1/.well-known/openidconfiguration"
 	teamsDefaultServiceURL        = "https://smba.trafficmanager.net/teams/"
 	teamsDefaultScope             = "https://api.botframework.com/.default"

@@ -2,8 +2,8 @@
     "extension": {
         "name": "__EXTENSION_NAME__",
         "version": "0.1.0",
-        "description": "AGH tool provider scaffold",
-        "min_agh_version": "0.5.0"
+        "description": "Compozy tool provider scaffold",
+        "min_compozy_version": "0.5.0"
     },
     "capabilities": {
         "provides": ["tool.provider"]

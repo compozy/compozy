@@ -287,7 +287,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 				if request.SessionID != "sess-1" || request.WorkspaceID != "ws-1" || request.AgentName != "general" {
 					t.Fatalf("tool approval scope = %#v", request)
 				}
-				if string(request.Input) != `{"tool_id":"agh__skill_view"}` {
+				if string(request.Input) != `{"tool_id":"compozy__skill_view"}` {
 					t.Fatalf("tool approval input = %s", request.Input)
 				}
 				return ToolApprovalRecord{
@@ -311,7 +311,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 			"--agent",
 			"general",
 			"--input",
-			`{"tool_id":"agh__skill_view"}`,
+			`{"tool_id":"compozy__skill_view"}`,
 			"-o",
 			"json",
 		)

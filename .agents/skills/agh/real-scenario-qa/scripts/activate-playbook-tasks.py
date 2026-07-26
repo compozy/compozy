@@ -61,11 +61,11 @@ def cli_environment(manifest: dict) -> dict[str, str]:
     manifest_env = manifest.get("env", {})
     if not isinstance(manifest_env, dict):
         raise RuntimeError("bootstrap manifest env must be an object")
-    agh_home = str(manifest_env.get("AGH_HOME", "")).strip()
+    agh_home = str(manifest_env.get("COMPOZY_HOME", "")).strip()
     if not agh_home:
-        raise RuntimeError("bootstrap manifest env is missing AGH_HOME")
+        raise RuntimeError("bootstrap manifest env is missing COMPOZY_HOME")
     env = os.environ.copy()
-    for key in ("AGH_HOME", "AGH_UDS_PATH", "TMUX_BRIDGE_SOCKET"):
+    for key in ("COMPOZY_HOME", "COMPOZY_UDS_PATH", "TMUX_BRIDGE_SOCKET"):
         value = str(manifest_env.get(key, "")).strip()
         if value:
             env[key] = value
@@ -315,7 +315,7 @@ def main() -> int:
     parser.add_argument("--qa-output-path", required=True)
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--kickoff-evidence", default="")
-    parser.add_argument("--agh-bin", default=os.environ.get("AGH_BIN", "compozy"))
+    parser.add_argument("--agh-bin", default=os.environ.get("COMPOZY_BIN", "compozy"))
     args = parser.parse_args()
 
     workspace = Path(args.workspace).resolve()

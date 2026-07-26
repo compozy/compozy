@@ -2413,7 +2413,7 @@ func daemonExtensionManifest(fixture daemonExtensionFixture) string {
 
 	fmt.Fprintf(
 		&builder,
-		"[extension]\nname = %q\nversion = \"0.1.0\"\ndescription = %q\nmin_agh_version = \"0.5.0\"\n\n",
+		"[extension]\nname = %q\nversion = \"0.1.0\"\ndescription = %q\nmin_compozy_version = \"0.5.0\"\n\n",
 		fixture.name,
 		fixture.description,
 	)

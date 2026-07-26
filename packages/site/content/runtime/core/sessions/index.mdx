@@ -8,8 +8,8 @@ permission policy, event store, and attach record under one stable AGH session I
 
 Live session events are written to `events.db` while the session runs. After the session stops,
 AGH materializes a read-only forensic JSONL ledger at
-`$AGH_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` (or
-`$AGH_HOME/sessions/_unbound/<session_id>/ledger.jsonl` when no workspace is resolved). The ledger
+`$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` (or
+`$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl` when no workspace is resolved). The ledger
 is content-addressed and idempotent on rerun, never accepted as a memory scope, and never read by
 the recall pipeline — it is operator-readable history only.
 

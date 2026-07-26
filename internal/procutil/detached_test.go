@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const detachedSleepHelperEnv = "AGH_PROCUTIL_DETACHED_SLEEP_HELPER"
+const detachedSleepHelperEnv = "COMPOZY_PROCUTIL_DETACHED_SLEEP_HELPER"
 
 func TestDetachedSleepHelperProcess(t *testing.T) {
 	t.Run("Should sleep until the parent cleanup path terminates it", func(t *testing.T) {

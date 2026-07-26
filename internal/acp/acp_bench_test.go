@@ -112,7 +112,7 @@ func BenchmarkMergeCommandEnvWithOverrides(b *testing.B) {
 		"LANG=en_US.UTF-8",
 		"TERM=xterm-256color",
 		"NO_COLOR=1",
-		"AGH_BIN=/tmp/agh",
+		"COMPOZY_BIN=/tmp/agh",
 	}
 	overrides := []acpsdk.EnvVariable{
 		{Name: "PATH", Value: "/custom/bin:/usr/bin:/bin"},

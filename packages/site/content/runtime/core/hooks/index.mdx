@@ -47,21 +47,21 @@ Two hook events feed the Memory v2 pipeline:
   whether to start a `dreaming-curator` session for that workspace.
 
 Memory hooks never bypass the controller. Extractor outputs route through `Store.ProposeWrite` /
-`agh__memory_propose`, and dreaming promotions are real `memory_decisions` rows with
+`compozy__memory_propose`, and dreaming promotions are real `memory_decisions` rows with
 `origin = dreaming`. See [Memory System](/runtime/core/memory/system) for the controller path and
 [Dream](/runtime/core/memory/dream) for the gate cascade.
 
 ## Management surfaces
 
-Hooks are agent-manageable for mutable sources. The `agh__hooks` toolset and the parallel
+Hooks are agent-manageable for mutable sources. The `compozy__hooks` toolset and the parallel
 `agh hooks` CLI both call the same hook normalization, validation, and persistence pipeline.
 
-| Surface     | Read tools                             | Mutation tools                                                | CLI parity                                        |
-| ----------- | -------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------- |
-| Catalog     | `agh__hooks_list`, `agh__hooks_info`   | —                                                             | `agh hooks list`, `agh hooks info`                |
-| History     | `agh__hooks_events`, `agh__hooks_runs` | —                                                             | `agh hooks events`, `agh hooks runs`              |
-| Declaration | —                                      | `agh__hooks_create`, `agh__hooks_update`, `agh__hooks_delete` | overlay edits in `config.toml` plus daemon reload |
-| Lifecycle   | —                                      | `agh__hooks_enable`, `agh__hooks_disable`                     | overlay edits plus daemon reload                  |
+| Surface     | Read tools                                     | Mutation tools                                                            | CLI parity                                        |
+| ----------- | ---------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------- |
+| Catalog     | `compozy__hooks_list`, `compozy__hooks_info`   | —                                                                         | `agh hooks list`, `agh hooks info`                |
+| History     | `compozy__hooks_events`, `compozy__hooks_runs` | —                                                                         | `agh hooks events`, `agh hooks runs`              |
+| Declaration | —                                              | `compozy__hooks_create`, `compozy__hooks_update`, `compozy__hooks_delete` | overlay edits in `config.toml` plus daemon reload |
+| Lifecycle   | —                                              | `compozy__hooks_enable`, `compozy__hooks_disable`                         | overlay edits plus daemon reload                  |
 
 Source-owned hooks (extension manifests, skill metadata, native daemon hooks) stay structurally
 immutable through agent tools. Mutating tools require approval and reject secret-bearing

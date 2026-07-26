@@ -23,7 +23,7 @@ import (
 func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
 	ctx := context.Background()
 	homePaths := newIntegrationHomePaths(t)
-	t.Setenv("AGH_HOME", homePaths.HomeDir)
+	t.Setenv("COMPOZY_HOME", homePaths.HomeDir)
 
 	db := openTestGlobalDB(t, ctx)
 	defer closeTestGlobalDB(t, ctx, db)
@@ -88,7 +88,7 @@ func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
 func TestResolverIntegrationResolveUpdatesStaleSymlinkRegistration(t *testing.T) {
 	ctx := context.Background()
 	homePaths := newIntegrationHomePaths(t)
-	t.Setenv("AGH_HOME", homePaths.HomeDir)
+	t.Setenv("COMPOZY_HOME", homePaths.HomeDir)
 
 	db := openTestGlobalDB(t, ctx)
 	defer closeTestGlobalDB(t, ctx, db)
@@ -249,7 +249,7 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 func TestResolverIntegrationSandboxConfigRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	homePaths := newIntegrationHomePaths(t)
-	t.Setenv("AGH_HOME", homePaths.HomeDir)
+	t.Setenv("COMPOZY_HOME", homePaths.HomeDir)
 
 	db := openTestGlobalDB(t, ctx)
 	defer closeTestGlobalDB(t, ctx, db)

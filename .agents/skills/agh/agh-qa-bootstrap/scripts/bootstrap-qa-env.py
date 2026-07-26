@@ -52,7 +52,7 @@ def socket_path_length(path: Path) -> int:
 
 def socket_limited_paths(agh_home: Path, provider_home: Path) -> dict[str, Path]:
     return {
-        "AGH_UDS_PATH": agh_home / "compozyd.sock",
+        "COMPOZY_UDS_PATH": agh_home / "compozyd.sock",
         "TMUX_BRIDGE_SOCKET": agh_home / "tmux-bridge.sock",
         "PROVIDER_DEFAULT_UDS": provider_home / ".compozy" / "daemon.sock",
     }
@@ -198,10 +198,10 @@ def validate_runtime_config(config_path: Path, http_port: str, uds_path: str) ->
     notes: list[str] = []
     got_port = str(data.get("http", {}).get("port", ""))
     if got_port != str(http_port):
-        notes.append(f"runtime config http.port={got_port}, manifest AGH_HTTP_PORT={http_port}")
+        notes.append(f"runtime config http.port={got_port}, manifest COMPOZY_HTTP_PORT={http_port}")
     got_socket = str(data.get("daemon", {}).get("socket", ""))
     if got_socket != str(uds_path):
-        notes.append(f"runtime config daemon.socket={got_socket}, manifest AGH_UDS_PATH={uds_path}")
+        notes.append(f"runtime config daemon.socket={got_socket}, manifest COMPOZY_UDS_PATH={uds_path}")
     return notes
 
 
@@ -214,7 +214,7 @@ def manifest_health(manifest: dict) -> tuple[bool, list[str]]:
     required_paths = {
         "WORKSPACE_PATH": Path(str(env.get("WORKSPACE_PATH", ""))),
         "QA_OUTPUT_PATH": Path(str(env.get("QA_OUTPUT_PATH", ""))),
-        "AGH_HOME": Path(str(env.get("AGH_HOME", ""))),
+        "COMPOZY_HOME": Path(str(env.get("COMPOZY_HOME", ""))),
         "PROVIDER_HOME": Path(str(env.get("PROVIDER_HOME", ""))),
         "PROVIDER_CODEX_HOME": Path(str(env.get("PROVIDER_CODEX_HOME", ""))),
     }
@@ -228,14 +228,14 @@ def manifest_health(manifest: dict) -> tuple[bool, list[str]]:
             healthy = False
             notes.append(f"{label} path missing: {path}")
 
-    proxy_target = str(env.get("AGH_WEB_API_PROXY_TARGET", ""))
+    proxy_target = str(env.get("COMPOZY_WEB_API_PROXY_TARGET", ""))
     parsed = urlparse(proxy_target)
     if not proxy_target or parsed.scheme not in {"http", "https"} or not parsed.netloc:
         healthy = False
-        notes.append("AGH_WEB_API_PROXY_TARGET is missing or not an absolute URL")
+        notes.append("COMPOZY_WEB_API_PROXY_TARGET is missing or not an absolute URL")
 
     socket_paths = {
-        "AGH_UDS_PATH": Path(str(env.get("AGH_UDS_PATH", ""))),
+        "COMPOZY_UDS_PATH": Path(str(env.get("COMPOZY_UDS_PATH", ""))),
         "TMUX_BRIDGE_SOCKET": Path(str(env.get("TMUX_BRIDGE_SOCKET", ""))),
         "PROVIDER_DEFAULT_UDS": required_paths["PROVIDER_HOME"] / ".compozy" / "daemon.sock",
     }
@@ -243,9 +243,9 @@ def manifest_health(manifest: dict) -> tuple[bool, list[str]]:
         healthy = False
         notes.append(note)
     config_notes = validate_runtime_config(
-        required_paths["AGH_HOME"] / "config.toml",
-        str(env.get("AGH_HTTP_PORT", "")),
-        str(env.get("AGH_UDS_PATH", "")),
+        required_paths["COMPOZY_HOME"] / "config.toml",
+        str(env.get("COMPOZY_HTTP_PORT", "")),
+        str(env.get("COMPOZY_UDS_PATH", "")),
     )
     if config_notes:
         healthy = False
@@ -590,7 +590,7 @@ def main() -> int:
     parser.add_argument("--repo-root", default=".", help="Repository root")
     parser.add_argument(
         "--workspace-root",
-        default=os.environ.get("AGH_QA_WORKSPACE_ROOT", str(Path.home() / "dev" / "qa-labs")),
+        default=os.environ.get("COMPOZY_QA_WORKSPACE_ROOT", str(Path.home() / "dev" / "qa-labs")),
         help="Parent directory for the QA lab workspace",
     )
     parser.add_argument(
@@ -674,7 +674,7 @@ def main() -> int:
             str(existing_env.get("RUNTIME_WORKSPACE_PATH", workspace_path))
         ).resolve()
         provider_home = Path(str(existing_env.get("PROVIDER_HOME", workspace_path / ".provider-home"))).resolve()
-        agh_home = Path(str(existing_env.get("AGH_HOME", workspace_path / ".compozy" / "runtime"))).resolve()
+        agh_home = Path(str(existing_env.get("COMPOZY_HOME", workspace_path / ".compozy" / "runtime"))).resolve()
     else:
         runtime_workspace_path = Path(
             str(seed_summary.get("runtime_workspace_path", workspace_path))
@@ -707,11 +707,11 @@ def main() -> int:
             "WORKSPACE_PATH": str(workspace_path),
             "RUNTIME_WORKSPACE_PATH": str(runtime_workspace_path),
             "QA_OUTPUT_PATH": str(qa_output_path),
-            "AGH_HOME": str(agh_home),
-            "AGH_HTTP_PORT": str(pick_free_port()),
-            "AGH_UDS_PATH": str(agh_home / "compozyd.sock"),
+            "COMPOZY_HOME": str(agh_home),
+            "COMPOZY_HTTP_PORT": str(pick_free_port()),
+            "COMPOZY_UDS_PATH": str(agh_home / "compozyd.sock"),
             "TMUX_BRIDGE_SOCKET": str(agh_home / "tmux-bridge.sock"),
-            "AGH_WEB_API_PROXY_TARGET": "",
+            "COMPOZY_WEB_API_PROXY_TARGET": "",
             "PROVIDER_HOME": str(provider_home),
             "PROVIDER_CODEX_HOME": str(provider_codex_home),
             "BROWSER_MODE": "",
@@ -725,7 +725,7 @@ def main() -> int:
             "KICKOFF_POSTED": "false",
             "KICKOFF_TIMESTAMP": "",
         }
-        write_runtime_config(agh_home, env_block["AGH_HTTP_PORT"], env_block["AGH_UDS_PATH"])
+        write_runtime_config(agh_home, env_block["COMPOZY_HTTP_PORT"], env_block["COMPOZY_UDS_PATH"])
 
     env_block["SCENARIO_SLUG"] = workspace_info["SCENARIO_SLUG"]
     env_block["WORKSPACE_PATH"] = str(workspace_path)
@@ -733,7 +733,7 @@ def main() -> int:
     env_block["QA_OUTPUT_PATH"] = str(qa_output_path)
     env_block["PROVIDER_HOME"] = str(provider_home)
     env_block["PROVIDER_CODEX_HOME"] = str(provider_codex_home)
-    env_block["AGH_WEB_API_PROXY_TARGET"] = f"http://127.0.0.1:{env_block['AGH_HTTP_PORT']}"
+    env_block["COMPOZY_WEB_API_PROXY_TARGET"] = f"http://127.0.0.1:{env_block['COMPOZY_HTTP_PORT']}"
     env_block["SCENARIO_CONTRACT"] = str(evidence_paths["SCENARIO_CONTRACT"])
     env_block["BEHAVIORAL_CHARTER"] = str(evidence_paths["BEHAVIORAL_CHARTER"])
     env_block["JOURNEY_LOG"] = str(evidence_paths["JOURNEY_LOG"])
@@ -795,11 +795,11 @@ def main() -> int:
         "QA_OUTPUT_PATH": str(qa_output_path),
         "BOOTSTRAP_MANIFEST": str(manifest_path),
         "BOOTSTRAP_ENV": str(env_path),
-        "AGH_HOME": env_block["AGH_HOME"],
-        "AGH_HTTP_PORT": env_block["AGH_HTTP_PORT"],
-        "AGH_UDS_PATH": env_block["AGH_UDS_PATH"],
+        "COMPOZY_HOME": env_block["COMPOZY_HOME"],
+        "COMPOZY_HTTP_PORT": env_block["COMPOZY_HTTP_PORT"],
+        "COMPOZY_UDS_PATH": env_block["COMPOZY_UDS_PATH"],
         "TMUX_BRIDGE_SOCKET": env_block["TMUX_BRIDGE_SOCKET"],
-        "AGH_WEB_API_PROXY_TARGET": env_block["AGH_WEB_API_PROXY_TARGET"],
+        "COMPOZY_WEB_API_PROXY_TARGET": env_block["COMPOZY_WEB_API_PROXY_TARGET"],
         "PROVIDER_HOME": env_block["PROVIDER_HOME"],
         "PROVIDER_CODEX_HOME": env_block["PROVIDER_CODEX_HOME"],
         "BROWSER_MODE": env_block["BROWSER_MODE"],

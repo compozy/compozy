@@ -31,7 +31,7 @@ Structured output is intentionally write-gated:
 agh support bundle --yes --json
 ```
 
-The daemon stores its archive under `$AGH_HOME/support-bundles/`. Passing `--output` downloads the
+The daemon stores its archive under `$COMPOZY_HOME/support-bundles/`. Passing `--output` downloads the
 completed daemon archive to a specific file or directory.
 
 ## Operation API
@@ -87,7 +87,7 @@ downloaded file.
 
 Operations are retained in the daemon's in-memory operation store for the current daemon lifetime
 and cleaned up after the support-bundle retention window. Archive files remain under
-`$AGH_HOME/support-bundles/` until the operator removes them.
+`$COMPOZY_HOME/support-bundles/` until the operator removes them.
 
 ## Log Rotation
 

@@ -15,7 +15,7 @@ in an inspector, and publish. It is one of three surfaces over the **same** cano
 - **Node palette** (left), grouped by class:
   - **Action** — the three reserved kinds `run-agent`, `run-loop`, `transform`, a curated shortlist
     of common tools (including a **Channel post** shortcut that inserts a pre-filled
-    `agh__network_send` node), and a searchable "Call tool…" picker over the whole tool registry.
+    `compozy__network_send` node), and a searchable "Call tool…" picker over the whole tool registry.
   - **Control** — `fan-out`, `collect`, `branch`, `gate`, `sub-loop`.
   - **Source** — `watch-source`, `file-import`, `input`.
 - **Canvas** (center) — positioned node cards and edges on a dot grid. A selected node gets an
@@ -65,8 +65,8 @@ Node layout positions persist separately in a UI-annotation store keyed
 mixed into the canonical definition.
 
 <OperatorNote label="Not node kinds">
-  `channel-post` and `call-tool` are not node kinds. Posting to a channel is an `agh__network_send`
-  action with a [`channel_result`](/runtime/core/loops/converse-and-decide) harvest; calling a tool
-  is that tool's ID as the action kind. The palette's "Channel post" and "Call tool…" entries are
-  shortcuts that insert those real nodes.
+  `channel-post` and `call-tool` are not node kinds. Posting to a channel is an
+  `compozy__network_send` action with a [`channel_result`](/runtime/core/loops/converse-and-decide)
+  harvest; calling a tool is that tool's ID as the action kind. The palette's "Channel post" and
+  "Call tool…" entries are shortcuts that insert those real nodes.
 </OperatorNote>

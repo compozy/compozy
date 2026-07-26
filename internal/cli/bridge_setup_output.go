@@ -34,8 +34,8 @@ func bridgeSetupBundle(result bridgeSetupResult) outputBundle {
 }
 
 func whatsappVerificationCommand(publicURL string) string {
-	return "AGH_BRIDGE_WEBHOOK_URL=" + shellSingleQuote(publicURL) +
-		" curl --get \"${AGH_BRIDGE_WEBHOOK_URL}\" " +
+	return "COMPOZY_BRIDGE_WEBHOOK_URL=" + shellSingleQuote(publicURL) +
+		" curl --get \"${COMPOZY_BRIDGE_WEBHOOK_URL}\" " +
 		"--data-urlencode \"hub.mode=subscribe\" " +
 		"--data-urlencode \"hub.verify_token=${WHATSAPP_VERIFY_TOKEN}\" " +
 		"--data-urlencode \"hub.challenge=hello\""
@@ -47,10 +47,10 @@ func whatsappVerificationCommandWithGeneratedToken(publicURL string, verifyToken
 }
 
 func telegramWebhookCommand(publicURL string) string {
-	return "AGH_BRIDGE_WEBHOOK_URL=" + shellSingleQuote(publicURL) +
+	return "COMPOZY_BRIDGE_WEBHOOK_URL=" + shellSingleQuote(publicURL) +
 		" curl --request POST " +
 		"\"https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook\" " +
-		"--data-urlencode \"url=${AGH_BRIDGE_WEBHOOK_URL}\" " +
+		"--data-urlencode \"url=${COMPOZY_BRIDGE_WEBHOOK_URL}\" " +
 		"--data-urlencode \"secret_token=${TELEGRAM_WEBHOOK_SECRET}\" " +
 		"--data \"drop_pending_updates=true\""
 }

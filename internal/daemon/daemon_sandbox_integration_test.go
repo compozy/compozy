@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	daemonSandboxHelperEnvKey         = "AGH_TEST_DAEMON_ENV_HELPER"
-	daemonSandboxHelperScenarioEnvKey = "AGH_TEST_DAEMON_ENV_SCENARIO"
+	daemonSandboxHelperEnvKey         = "COMPOZY_TEST_DAEMON_ENV_HELPER"
+	daemonSandboxHelperScenarioEnvKey = "COMPOZY_TEST_DAEMON_ENV_SCENARIO"
 	daemonSandboxFixtureAgentName     = "sandbox-helper"
 	daemonSandboxProfileName          = "local-sandbox"
 	daemonSandboxScenarioAllowed      = "allowed"

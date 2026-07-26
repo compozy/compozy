@@ -204,11 +204,11 @@ describe("runtime docs truth", () => {
     const toolSource = readRepoFile("internal/tools/builtin_ids.go");
     const builtinToolIDs = extractGoStringConstants(toolSource, "ToolID");
     const content = manualContent();
-    const concreteInvocations = [...content.matchAll(/\bagh tool invoke\s+(agh__[a-z0-9_]+)/g)].map(
-      match => match[1] ?? ""
-    );
+    const concreteInvocations = [
+      ...content.matchAll(/\bagh tool invoke\s+(compozy__[a-z0-9_]+)/g),
+    ].map(match => match[1] ?? "");
 
-    expect(content).not.toContain("agh__example_tool");
+    expect(content).not.toContain("compozy__example_tool");
     expect(concreteInvocations.length).toBeGreaterThan(0);
     expect(concreteInvocations.filter(id => !builtinToolIDs.has(id))).toEqual([]);
   });
@@ -239,7 +239,9 @@ describe("runtime docs truth", () => {
       expect(rows.length, doc.path).toBeGreaterThan(0);
       for (const row of rows) {
         const cell = row[doc.nativeCell] ?? "";
-        const ids = [...cell.matchAll(/\x60(agh__[a-z0-9_]+)\x60/g)].map(match => match[1] ?? "");
+        const ids = [...cell.matchAll(/\x60(compozy__[a-z0-9_]+)\x60/g)].map(
+          match => match[1] ?? ""
+        );
         const explicitException = /\bn\/a\b/i.test(cell);
         expect(ids.length > 0 || explicitException, doc.path + ": " + row.join(" | ")).toBe(true);
         expect(
@@ -264,9 +266,9 @@ describe("runtime docs truth", () => {
     expect(memoryDocs).toContain("agh memory dream trigger");
     expect(memoryDocs).toContain("POST /api/memory/search");
     expect(memoryDocs).toContain("POST /api/memory/dreams/trigger");
-    expect(memoryDocs).toContain("agh__memory_show");
-    expect(memoryDocs).toContain("agh__memory_propose");
-    expect(memoryDocs).toContain("agh__memory_note");
+    expect(memoryDocs).toContain("compozy__memory_show");
+    expect(memoryDocs).toContain("compozy__memory_propose");
+    expect(memoryDocs).toContain("compozy__memory_note");
     expect(memoryDocs).toContain("workspace.toml");
     expect(memoryDocs).toContain("workspace_id");
     expect(memoryDocs).toContain("agent-workspace");
@@ -339,13 +341,15 @@ describe("runtime docs truth", () => {
       "packages/site/content/runtime/core/configuration/file-locations.mdx"
     );
 
-    expect(fileLocations).toContain("$AGH_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl");
-    expect(fileLocations).toContain("$AGH_HOME/sessions/_unbound/<session_id>/ledger.jsonl");
+    expect(fileLocations).toContain(
+      "$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl"
+    );
+    expect(fileLocations).toContain("$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl");
     expect(fileLocations).toContain("<workspace>/.agh/workspace.toml");
     expect(fileLocations).toContain("<workspace>/.agh/agents/<name>/memory/");
-    expect(fileLocations).toContain("$AGH_HOME/agents/<name>/memory/");
-    expect(fileLocations).toContain("$AGH_HOME/memory/_inbox/");
-    expect(fileLocations).toContain("$AGH_HOME/memory/_system/");
+    expect(fileLocations).toContain("$COMPOZY_HOME/agents/<name>/memory/");
+    expect(fileLocations).toContain("$COMPOZY_HOME/memory/_inbox/");
+    expect(fileLocations).toContain("$COMPOZY_HOME/memory/_system/");
   });
 
   it("keeps the generated memory CLI reference aligned with the Slice 1 verbs", () => {
@@ -418,50 +422,50 @@ describe("runtime docs truth", () => {
     const ids = extractGoStringConstants(builtinIDs, "ToolID");
 
     for (const required of [
-      "agh__memory_list",
-      "agh__memory_show",
-      "agh__memory_search",
-      "agh__memory_propose",
-      "agh__memory_note",
-      "agh__memory_health",
-      "agh__memory_scope_show",
-      "agh__memory_admin_history",
-      "agh__memory_reindex",
-      "agh__memory_promote",
-      "agh__memory_reset",
-      "agh__memory_reload",
-      "agh__memory_decisions_list",
-      "agh__memory_decisions_show",
-      "agh__memory_decisions_revert",
-      "agh__memory_recall_trace",
-      "agh__memory_dream_status",
-      "agh__memory_dream_list",
-      "agh__memory_dream_show",
-      "agh__memory_dream_trigger",
-      "agh__memory_dream_retry",
-      "agh__memory_daily_list",
-      "agh__memory_extractor_status",
-      "agh__memory_extractor_failures",
-      "agh__memory_extractor_retry",
-      "agh__memory_extractor_drain",
-      "agh__memory_provider_list",
-      "agh__memory_provider_get",
-      "agh__memory_provider_select",
-      "agh__memory_provider_enable",
-      "agh__memory_provider_disable",
-      "agh__memory_session_ledger",
-      "agh__memory_session_replay",
-      "agh__memory_sessions_prune",
-      "agh__memory_sessions_repair",
+      "compozy__memory_list",
+      "compozy__memory_show",
+      "compozy__memory_search",
+      "compozy__memory_propose",
+      "compozy__memory_note",
+      "compozy__memory_health",
+      "compozy__memory_scope_show",
+      "compozy__memory_admin_history",
+      "compozy__memory_reindex",
+      "compozy__memory_promote",
+      "compozy__memory_reset",
+      "compozy__memory_reload",
+      "compozy__memory_decisions_list",
+      "compozy__memory_decisions_show",
+      "compozy__memory_decisions_revert",
+      "compozy__memory_recall_trace",
+      "compozy__memory_dream_status",
+      "compozy__memory_dream_list",
+      "compozy__memory_dream_show",
+      "compozy__memory_dream_trigger",
+      "compozy__memory_dream_retry",
+      "compozy__memory_daily_list",
+      "compozy__memory_extractor_status",
+      "compozy__memory_extractor_failures",
+      "compozy__memory_extractor_retry",
+      "compozy__memory_extractor_drain",
+      "compozy__memory_provider_list",
+      "compozy__memory_provider_get",
+      "compozy__memory_provider_select",
+      "compozy__memory_provider_enable",
+      "compozy__memory_provider_disable",
+      "compozy__memory_session_ledger",
+      "compozy__memory_session_replay",
+      "compozy__memory_sessions_prune",
+      "compozy__memory_sessions_repair",
     ]) {
       expect(ids.has(required)).toBe(true);
     }
     for (const removed of [
-      "agh__memory_read",
-      "agh__memory_history",
-      "agh__memory_write",
-      "agh__memory_edit",
-      "agh__memory_delete",
+      "compozy__memory_read",
+      "compozy__memory_history",
+      "compozy__memory_write",
+      "compozy__memory_edit",
+      "compozy__memory_delete",
     ]) {
       expect(ids.has(removed)).toBe(false);
     }

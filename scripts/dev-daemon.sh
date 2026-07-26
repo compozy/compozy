@@ -11,9 +11,9 @@ if [[ ! -x "$binary" ]]; then
   exit 1
 fi
 
-: "${AGH_AIR_DEV_RUN_ID:?AGH_AIR_DEV_RUN_ID must identify the owning development session}"
+: "${COMPOZY_AIR_DEV_RUN_ID:?COMPOZY_AIR_DEV_RUN_ID must identify the owning development session}"
 
-state_dir=${AGH_AIR_STATE_DIR:-}
+state_dir=${COMPOZY_AIR_STATE_DIR:-}
 if [[ -z "$state_dir" ]]; then
   state_dir=$(go run ./scripts/air-state-dir)
 fi
@@ -21,8 +21,8 @@ running_binary_id_file="$state_dir/running-binary-id"
 owner_id_file="$state_dir/dev-owner-id"
 mkdir -p "$state_dir"
 
-if [[ ${AGH_AIR_STATE_LOCK_HELD:-} != 1 ]]; then
-  export AGH_AIR_STATE_LOCK_HELD=1
+if [[ ${COMPOZY_AIR_STATE_LOCK_HELD:-} != 1 ]]; then
+  export COMPOZY_AIR_STATE_LOCK_HELD=1
   exec go run ./scripts/air-state-lock "$state_dir/dev-owner.lock" -- bash "$0" "$binary"
 fi
 
@@ -60,7 +60,7 @@ replace_daemon_locked() {
   if [[ -f "$owner_id_file" ]]; then
     owner_id=$(<"$owner_id_file")
   fi
-  if [[ "$binary_id" == "$running_binary_id" && "$owner_id" == "$AGH_AIR_DEV_RUN_ID" ]]; then
+  if [[ "$binary_id" == "$running_binary_id" && "$owner_id" == "$COMPOZY_AIR_DEV_RUN_ID" ]]; then
     echo "dev: build failed or produced unchanged daemon bytes; keeping the current daemon"
     return 0
   fi
@@ -74,7 +74,7 @@ replace_daemon_locked() {
     return 1
   fi
 
-  if ! atomic_write "$owner_id_file" "$AGH_AIR_DEV_RUN_ID"; then
+  if ! atomic_write "$owner_id_file" "$COMPOZY_AIR_DEV_RUN_ID"; then
     return 1
   fi
 
@@ -90,9 +90,9 @@ if ! replace_daemon_locked; then
   exit 1
 fi
 
-if [[ -n ${AGH_AIR_READY_FIFO:-} || -n ${AGH_AIR_READY_MARKER:-} ]]; then
-  : "${AGH_AIR_READY_FIFO:?AGH_AIR_READY_FIFO must identify the development readiness channel}"
-  : "${AGH_AIR_READY_MARKER:?AGH_AIR_READY_MARKER must identify the one-shot readiness marker}"
+if [[ -n ${COMPOZY_AIR_READY_FIFO:-} || -n ${COMPOZY_AIR_READY_MARKER:-} ]]; then
+  : "${COMPOZY_AIR_READY_FIFO:?COMPOZY_AIR_READY_FIFO must identify the development readiness channel}"
+  : "${COMPOZY_AIR_READY_MARKER:?COMPOZY_AIR_READY_MARKER must identify the one-shot readiness marker}"
   bash "$repo_root/scripts/dev-readiness.sh" ready \
-    "$AGH_AIR_READY_FIFO" "$AGH_AIR_DEV_RUN_ID" "$AGH_AIR_READY_MARKER" "$binary_id"
+    "$COMPOZY_AIR_READY_FIFO" "$COMPOZY_AIR_DEV_RUN_ID" "$COMPOZY_AIR_READY_MARKER" "$binary_id"
 fi

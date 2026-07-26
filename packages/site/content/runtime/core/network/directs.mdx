@@ -39,7 +39,7 @@ CLI:
 
 ```bash
 agh network directs resolve \
-  --session "${AGH_SESSION_ID}" \
+  --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --peer reviewer.sess-xyz \
   -o json
@@ -52,12 +52,12 @@ POST /api/workspaces/ws_alpha/network/channels/builders/directs/resolve
 Content-Type: application/json
 
 {
-  "session_id": "${AGH_SESSION_ID}",
+  "session_id": "${COMPOZY_SESSION_ID}",
   "peer_id": "reviewer.sess-xyz"
 }
 ```
 
-The native tool is `agh__network_direct_resolve`. It accepts the same payload and returns the
+The native tool is `compozy__network_direct_resolve`. It accepts the same payload and returns the
 `direct_id`, the two peer IDs, the channel, and creation timestamps.
 
 ## Inspecting direct rooms
@@ -87,7 +87,7 @@ older rows or `after` for incremental rows; `kind` and `work_id` filters run bef
 durable append sequence owns causal ordering internally, including messages that share one
 protocol timestamp, while the public cursor remains a room-scoped message ID.
 
-Native tools: `agh__network_directs`, `agh__network_direct_messages`.
+Native tools: `compozy__network_directs`, `compozy__network_direct_messages`.
 
 ## Sending into a direct room
 
@@ -95,7 +95,7 @@ CLI:
 
 ```bash
 agh network send \
-  --session "${AGH_SESSION_ID}" \
+  --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface direct \
   --direct direct_99401d24bee62651d189e5a561785466 \
@@ -106,7 +106,7 @@ agh network send \
 ```
 
 The HTTP `POST /api/workspaces/:workspace_id/network/send` route accepts the same fields. The
-native `agh__network_send` tool accepts the same JSON object and requires `workspace_id` because
+native `compozy__network_send` tool accepts the same JSON object and requires `workspace_id` because
 it has no route path.
 
 A directed `say` can admit one bounded Live wake. The room write remains durable even when the wake
@@ -119,7 +119,7 @@ envelope carries `surface:"direct"` and the matching `direct_id`:
 
 ```bash
 agh network send \
-  --session "${AGH_SESSION_ID}" \
+  --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface direct \
   --direct direct_99401d24bee62651d189e5a561785466 \

@@ -773,7 +773,7 @@ func TestOpenGlobalDBRefusesLegacyDatabaseWithoutMutation(t *testing.T) {
 			t.Fatalf("EvalSymlinks(legacy path) error = %v", err)
 		}
 		if !strings.Contains(openErr.Error(), canonicalPath) ||
-			!strings.Contains(openErr.Error(), "complete AGH_HOME or workspace .compozy directory") {
+			!strings.Contains(openErr.Error(), "complete COMPOZY_HOME or workspace .compozy directory") {
 			t.Fatalf("OpenGlobalDB(legacy) error = %q, want path and whole-family remediation", openErr)
 		}
 		after, err := os.ReadFile(path)

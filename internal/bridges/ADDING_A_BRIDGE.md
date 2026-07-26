@@ -46,7 +46,7 @@ Record these decisions in the task or TechSpec:
 
 Credential-bearing upstream destinations are operator-owned process configuration. Do not add API,
 OAuth, service, token, or metadata URLs to `provider_config`. Use fixed official defaults and a
-validated `AGH_BRIDGE_*` environment seam for trusted sovereign or fake-server deployments.
+validated `COMPOZY_BRIDGE_*` environment seam for trusted sovereign or fake-server deployments.
 
 ## Implementation checklist
 

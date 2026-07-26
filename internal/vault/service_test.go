@@ -300,7 +300,7 @@ func TestSecretRefValidationSupportsSessionNamespace(t *testing.T) {
 func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should load supported AGH_VAULT_KEY encodings", func(t *testing.T) {
+	t.Run("Should load supported COMPOZY_VAULT_KEY encodings", func(t *testing.T) {
 		t.Parallel()
 
 		rawKey := "01234567890123456789012345678901"
@@ -318,7 +318,7 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 				t.Parallel()
 
 				provider := NewFileKeyProvider(t.TempDir(), func(key string) (string, bool) {
-					if key == "AGH_VAULT_KEY" {
+					if key == "COMPOZY_VAULT_KEY" {
 						return tc.value, true
 					}
 					return "", false

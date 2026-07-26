@@ -75,11 +75,11 @@ published in place — adapting one means forking it first.
 The catalog and detail views are one surface over the daemon. The same reads are available to
 agents and scripts:
 
-| Action       | CLI                | HTTP                                                   | Native tool         |
-| ------------ | ------------------ | ------------------------------------------------------ | ------------------- |
-| List Loops   | `agh loop list`    | `GET /api/workspaces/{workspace_id}/loops`             | `agh__loop_list`    |
-| Read a Loop  | `agh loop inspect` | `GET /api/workspaces/{workspace_id}/loops/{name}`      | `agh__loop_inspect` |
-| Launch a run | `agh loop run`     | `POST /api/workspaces/{workspace_id}/loops/{name}/run` | `agh__loop_run`     |
+| Action       | CLI                | HTTP                                                   | Native tool             |
+| ------------ | ------------------ | ------------------------------------------------------ | ----------------------- |
+| List Loops   | `agh loop list`    | `GET /api/workspaces/{workspace_id}/loops`             | `compozy__loop_list`    |
+| Read a Loop  | `agh loop inspect` | `GET /api/workspaces/{workspace_id}/loops/{name}`      | `compozy__loop_inspect` |
+| Launch a run | `agh loop run`     | `POST /api/workspaces/{workspace_id}/loops/{name}/run` | `compozy__loop_run`     |
 
 See the full [`agh loop`](/runtime/cli-reference/loop) CLI and the
 [Loops API](/runtime/api-reference/loops).

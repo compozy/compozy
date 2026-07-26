@@ -17,8 +17,8 @@ import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const MOCK_AGENT = "mock-tool-approval-grants";
 const FIXTURE_AGENT = "tool-approval-grants";
-const REVOKE_TOOL = "agh__tool_approvals_revoke";
-const WIDER_TOOL = "agh__workspace_list";
+const REVOKE_TOOL = "compozy__tool_approvals_revoke";
+const WIDER_TOOL = "compozy__workspace_list";
 
 function repoFixture(name: string): string {
   return path.resolve(

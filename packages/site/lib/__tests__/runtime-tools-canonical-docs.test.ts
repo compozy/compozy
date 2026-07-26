@@ -28,20 +28,20 @@ describe("tool-first canonical surface docs", () => {
     const definitions = readDoc("core/agents/definitions.mdx");
 
     expectIncludesAll(agentMd, [
-      "`agh__bootstrap`",
-      "`agh__catalog`",
-      "`agh__tool_search`",
-      "`agh__tool_info`",
+      "`compozy__bootstrap`",
+      "`compozy__catalog`",
+      "`compozy__tool_search`",
+      "`compozy__tool_info`",
       "Operator-only management",
       "MCP OAuth login/logout",
     ]);
     expectIncludesAll(definitions, [
-      "`agh__bootstrap` and `agh__catalog`",
-      "resolve canonical `agh__tool_search`",
-      "canonical `agh__tool_info`",
+      "`compozy__bootstrap` and `compozy__catalog`",
+      "resolve canonical `compozy__tool_search`",
+      "canonical `compozy__tool_info`",
       "harness-returned tool reference",
-      "canonical `agh__skill_search`",
-      "and `agh__skill_view`",
+      "canonical `compozy__skill_search`",
+      "and `compozy__skill_view`",
       "Operator-only management",
     ]);
   });
@@ -51,16 +51,16 @@ describe("tool-first canonical surface docs", () => {
     const tools = readDoc("core/tools/index.mdx");
 
     expectIncludesAll(toolsets, [
-      "agh__tasks",
-      "agh__provider_models",
-      "agh__memory",
-      "agh__memory_admin",
-      "agh__memory_admin_history",
-      "agh__bundles",
-      "agh__resources",
-      "agh__mcp",
+      "compozy__tasks",
+      "compozy__provider_models",
+      "compozy__memory",
+      "compozy__memory_admin",
+      "compozy__memory_admin_history",
+      "compozy__bundles",
+      "compozy__resources",
+      "compozy__mcp",
     ]);
-    expectExcludesAll(toolsets, ["agh__memory_history"]);
+    expectExcludesAll(toolsets, ["compozy__memory_history"]);
     expectIncludesAll(tools, [
       "task bridge notification subscription management",
       "Memory v2 operational/admin actions",
@@ -74,11 +74,11 @@ describe("tool-first canonical surface docs", () => {
     const autonomyIndex = readDoc("core/autonomy/index.mdx");
 
     expectIncludesAll(leases, [
-      "agh__task_run_claim_next",
-      "agh__task_run_heartbeat",
-      "agh__task_run_complete",
-      "agh__task_run_fail",
-      "agh__task_run_release",
+      "compozy__task_run_claim_next",
+      "compozy__task_run_heartbeat",
+      "compozy__task_run_complete",
+      "compozy__task_run_fail",
+      "compozy__task_run_release",
       "AUTONOMY_SESSION_REQUIRED",
       "AUTONOMY_NO_ACTIVE_LEASE",
       "AUTONOMY_FOREIGN_RUN",
@@ -87,9 +87,9 @@ describe("tool-first canonical surface docs", () => {
     ]);
     expectExcludesAll(leases, ["--claim-token", '"claim_token":']);
     expectIncludesAll(autonomyIndex, [
-      "`agh__autonomy`",
-      "agh__task_run_claim_next",
-      "agh__task_run_heartbeat",
+      "`compozy__autonomy`",
+      "compozy__task_run_claim_next",
+      "compozy__task_run_heartbeat",
     ]);
   });
 
@@ -100,34 +100,34 @@ describe("tool-first canonical surface docs", () => {
     const extensionsInstall = readDoc("core/extensions/install.mdx");
 
     expectIncludesAll(hooksIndex, [
-      "`agh__hooks`",
-      "`agh__hooks_create`",
-      "`agh__hooks_update`",
-      "`agh__hooks_delete`",
+      "`compozy__hooks`",
+      "`compozy__hooks_create`",
+      "`compozy__hooks_update`",
+      "`compozy__hooks_delete`",
       "HOOK_SOURCE_IMMUTABLE",
       "HOOK_APPROVAL_REQUIRED",
     ]);
     expectIncludesAll(hooksDecl, [
-      "`agh__hooks_list`",
-      "`agh__hooks_info`",
-      "`agh__hooks_events`",
-      "`agh__hooks_runs`",
+      "`compozy__hooks_list`",
+      "`compozy__hooks_info`",
+      "`compozy__hooks_events`",
+      "`compozy__hooks_runs`",
       "HOOK_SOURCE_IMMUTABLE",
     ]);
     expectIncludesAll(automationIndex, [
-      "`agh__automation`",
-      "`agh__automation_jobs_create`",
-      "`agh__automation_triggers_create`",
+      "`compozy__automation`",
+      "`compozy__automation_jobs_create`",
+      "`compozy__automation_triggers_create`",
       "AUTOMATION_SCOPE_FORBIDDEN",
       "AUTOMATION_SECRET_INPUT_FORBIDDEN",
       "webhook_secret_ref",
     ]);
     expectIncludesAll(extensionsInstall, [
-      "`agh__extensions`",
-      "`agh__extensions_install`",
-      "`agh__extensions_remove`",
-      "`agh__bundles_activate`",
-      "`agh__resources_snapshot`",
+      "`compozy__extensions`",
+      "`compozy__extensions_install`",
+      "`compozy__extensions_remove`",
+      "`compozy__bundles_activate`",
+      "`compozy__resources_snapshot`",
       "`resource.write` capability names are not accepted",
       "EXTENSION_SOURCE_FORBIDDEN",
       "EXTENSION_APPROVAL_REQUIRED",
@@ -138,8 +138,8 @@ describe("tool-first canonical surface docs", () => {
     const configToml = readDoc("core/configuration/config-toml.mdx");
 
     expectIncludesAll(configToml, [
-      "`agh__mcp_status`",
-      "`agh__mcp_auth_status`",
+      "`compozy__mcp_status`",
+      "`compozy__mcp_auth_status`",
       "operator flows available through CLI, HTTP, and UDS",
       "omitted from callable discovery",
       "agh mcp auth login",
@@ -162,12 +162,16 @@ describe("tool-first canonical surface docs", () => {
     const skillsIndex = readDoc("core/skills/index.mdx");
     const bundled = readDoc("core/skills/bundled.mdx");
 
-    expectIncludesAll(skillsIndex, ["`agh__skill_view`", "`agh__skill_search`", "operator CLI"]);
+    expectIncludesAll(skillsIndex, [
+      "`compozy__skill_view`",
+      "`compozy__skill_search`",
+      "operator CLI",
+    ]);
     expectIncludesAll(bundled, [
       "`agh`",
       "references/native-tools.md",
       "AGH-native tools",
-      "agh__tool_search",
+      "compozy__tool_search",
     ]);
   });
 

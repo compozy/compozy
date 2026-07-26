@@ -112,7 +112,7 @@ configured authored agent that cannot be resolved produces `role_agent_not_found
 returns `role_unknown`. The reads are diagnostic only and never simulate a provider invocation.
 
 Scalar role keys can be written through `compozy config set roles.<role>.<field> <value> -o json` or the
-live `agh__config_set` descriptor. Role writes are Live desired state at global or workspace scope
+live `compozy__config_set` descriptor. Role writes are Live desired state at global or workspace scope
 and affect later invocations without restarting the daemon. Use `config.toml` or the Settings Roles
 API/UI for the ordered `fallback_chain`, which is an array of route tables and replaces as a whole in
 a workspace overlay. A fallback may advance only at the owning invocation's pre-acceptance boundary;
@@ -149,8 +149,8 @@ The session catalog is counted and workspace-scoped. Dream sessions are internal
 
 Use `compozy mcp serve --workspace <id|name|path>` to expose the approved Host API subset to a trusted
 external MCP client over stdio. The command is a foreground relay to the running daemon; it does not
-start another daemon or open stores directly. Published names use `agh_host__<family>__<verb>`, not
-the native `agh__*` namespace. Sessions, workspace-safe task operations, Network, memory, and
+start another daemon or open stores directly. Published names use `compozy_host__<family>__<verb>`, not
+the native `compozy__*` namespace. Sessions, workspace-safe task operations, Network, memory, and
 resources are included; target-only task mutations and unrelated Host API families are excluded.
 
 The workspace is mandatory and injected into every call. Conflicting caller workspace fields are
@@ -164,7 +164,7 @@ remaining client-scoped registrations.
 
 For a local client that cannot spawn stdio, use authenticated loopback HTTP:
 
-    export AGH_MCP_SERVE_TOKEN='replace-with-a-high-entropy-token'
+    export COMPOZY_MCP_SERVE_TOKEN='replace-with-a-high-entropy-token'
     compozy mcp serve --workspace <workspace> --transport http --listen 127.0.0.1:3210
 
 Connect to `http://127.0.0.1:3210/mcp` with `Authorization: Bearer <token>`. HTTP refuses non-loopback
@@ -184,14 +184,14 @@ The web first-run wizard blocks the dashboard until this flag is set. Resetting 
 
 Native session tools are read-oriented. Clarification answers, recap, repair, approval, session
 inspect, and Soul refresh use CLI/HTTP/UDS management surfaces unless the live registry exposes a
-scoped native tool. `agh__clarify` asks from inside the active session; it does not answer another
+scoped native tool. `compozy__clarify` asks from inside the active session; it does not answer another
 session's question.
 
 ## Automation Suggestions
 
 List one workspace's pending Job proposals with
 `compozy automation suggestions --workspace <workspace> -o json` or
-`agh__automation_suggestions_list`. A list first seeds the fixed starter catalog idempotently; no
+`compozy__automation_suggestions_list`. A list first seeds the fixed starter catalog idempotently; no
 Job exists until acceptance. Use `compozy automation suggestions accept <id> --workspace <workspace>
 -o json` to create the validated Job, or `dismiss` to durably latch that proposal away. Accept and
 dismiss are compare-and-swap resolutions. On a conflict, list again instead of retrying the stale
@@ -210,7 +210,7 @@ An empty bridge `dm_policy` normalizes to permissive `open`. The current create/
 
 `compozy bridge verify <id> --json` asks the owning adapter for typed `pass|warn|fail|skipped` checks without changing instance lifecycle state; GitHub and Linear currently skip identity, so enabled runtime health owns their live auth result. Any failed check makes the command nonzero after it writes the records. `compozy doctor --only bridge --json` aggregates the same checks. After enablement, `compozy bridge send-test <id> --message ...` makes a real provider delivery. `compozy bridge test-delivery` remains a target-resolution dry run and sends nothing. HTTP and UDS expose `GET /api/bridges/providers/slack/manifest?instance=<id>` plus `POST /api/bridges/:id/verify`, `/send-test`, and `/webhook/register`; there is no `/api/bridges/setup` route.
 
-Credential-bearing API, OAuth, and service destinations are operator-owned adapter environment, not instance configuration. `provider_config` rejects `api_base_url`, `oauth_token_url`, `service_url`, `openid_metadata_url`, and `token_url`; use the provider's `AGH_BRIDGE_*` process variables for trusted overrides. Provider clients use `bridgesdk.CredentialedHTTPClient`, returning the original `3xx` for classification without forwarding credentials or replaying mutation bodies. `webhook.public_url` must be public HTTPS, and verification blocks internal/special-use addresses, proxying, and redirects before reachability is attempted. Bridge reads expose the validated callback as optional `webhook_public_url`; clients use that projection for setup readiness instead of re-parsing `provider_config`.
+Credential-bearing API, OAuth, and service destinations are operator-owned adapter environment, not instance configuration. `provider_config` rejects `api_base_url`, `oauth_token_url`, `service_url`, `openid_metadata_url`, and `token_url`; use the provider's `COMPOZY_BRIDGE_*` process variables for trusted overrides. Provider clients use `bridgesdk.CredentialedHTTPClient`, returning the original `3xx` for classification without forwarding credentials or replaying mutation bodies. `webhook.public_url` must be public HTTPS, and verification blocks internal/special-use addresses, proxying, and redirects before reachability is attempted. Bridge reads expose the validated callback as optional `webhook_public_url`; clients use that projection for setup readiness instead of re-parsing `provider_config`.
 
 Terminal replies are split provider-side on natural boundaries with `(N/M)` markers. AGH measures Slack at 40,000 UTF-16 code units, Telegram at 4,096 UTF-16 code units, Discord at 2,000 Unicode code points, Teams at 28,000 Unicode code points, Google Chat at 32,000 UTF-8 bytes, and WhatsApp at 4,096 Unicode code points. Every multi-chunk delivery acknowledges its last remote message. Edit-capable providers keep an oversized non-terminal response in one mutable preview and materialize its continuations only on the terminal update. Slack converts common Markdown to mrkdwn; Telegram sends escaped MarkdownV2 and retries a typed parse rejection as plain text.
 
@@ -269,13 +269,13 @@ Doctor is read-only and never consumes that recovery attempt. There is no manual
 surface: use the diagnostic to repair the underlying command, configuration, permission, or
 authentication problem, then let the next due runtime access recover automatically.
 
-For `legacy_database`, stop AGH, cold-move the complete containing `AGH_HOME` or workspace `.compozy` family, and select a separate fresh home. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible AGH binary against the stopped, intact family—the state-preserving recovery. Use a fresh home only if discarding that state is acceptable. If AGH reports SQLite corruption, stop it and cold-copy the complete containing family before inspection. AGH leaves the named database and its `-wal` and `-shm` sidecars unchanged instead of quarantining or recreating them; diagnose a copy, then restore a complete known-good family or select a fresh home only when discarding the retained state is acceptable. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `compozy doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents. Its `runtime.memory` item reports the latest daemon-owned heap, goroutine, uptime, and resident-memory snapshot. Treat `resident_memory_kind=peak` as a high-water mark, not current use. When `enabled=false`, set `daemon.memory_report_interval` above zero and restart the daemon; there is no native doctor tool.
+For `legacy_database`, stop AGH, cold-move the complete containing `COMPOZY_HOME` or workspace `.compozy` family, and select a separate fresh home. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible AGH binary against the stopped, intact family—the state-preserving recovery. Use a fresh home only if discarding that state is acceptable. If AGH reports SQLite corruption, stop it and cold-copy the complete containing family before inspection. AGH leaves the named database and its `-wal` and `-shm` sidecars unchanged instead of quarantining or recreating them; diagnose a copy, then restore a complete known-good family or select a fresh home only when discarding the retained state is acceptable. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `compozy doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents. Its `runtime.memory` item reports the latest daemon-owned heap, goroutine, uptime, and resident-memory snapshot. Treat `resident_memory_kind=peak` as a high-water mark, not current use. When `enabled=false`, set `daemon.memory_report_interval` above zero and restart the daemon; there is no native doctor tool.
 
 `compozy logs --follow -o jsonl` streams redacted runtime logs over SSE. Use filters such as `--session`, `--workspace`, `--run`, `--actor kind:id`, `--provider`, `--component`, `--outcome`, and `--error-only` before broad log reads.
 
 `redact.enabled` controls the additive heuristic for likely credentials in content and log
 messages. The daemon snapshots it at boot; `compozy config set redact.enabled <true|false> -o json` or
-the live `agh__config_set` descriptor records restart-required desired state and does not change the
+the live `compozy__config_set` descriptor records restart-required desired state and does not change the
 running process. Exact claim-token, secret-reference, and registered-secret protections remain
 active when the heuristic is disabled. Correlation IDs, hashes, digests, and fingerprints stay
 structural rather than heuristic candidates.
@@ -288,4 +288,4 @@ AGH must remain agent-manageable. Any runtime capability that affects state shou
 
 Management flows involving daemon lifecycle, raw secrets, OAuth, trust roots, provider bootstrap, destructive repair, and cross-session terminal-state mutation stay on operator surfaces unless AGH explicitly exposes a scoped tool for them.
 
-Marketplace catalog configuration is global-only because its projection and refresh service are global. `agh__config_set` and `agh__config_unset` may change `marketplace.catalog.ttl` and `marketplace.catalog.timeout` at global scope; each mutation runs the daemon settings apply lifecycle and returns the real `applied`, `apply_record_id`, `active_generation`, `next_action`, and reconciliation diagnostics. `marketplace.catalog.base_url` is a trust root and remains operator-only through global `compozy config set`. Workspace overlays and workspace-scoped writes are rejected.
+Marketplace catalog configuration is global-only because its projection and refresh service are global. `compozy__config_set` and `compozy__config_unset` may change `marketplace.catalog.ttl` and `marketplace.catalog.timeout` at global scope; each mutation runs the daemon settings apply lifecycle and returns the real `applied`, `apply_record_id`, `active_generation`, `next_action`, and reconciliation diagnostics. `marketplace.catalog.base_url` is a trust root and remains operator-only through global `compozy config set`. Workspace overlays and workspace-scoped writes are rejected.

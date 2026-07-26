@@ -27,9 +27,9 @@ import (
 )
 
 const (
-	linearProviderListenAddrEnv = "AGH_BRIDGE_LINEAR_LISTEN_ADDR"
-	linearProviderAPIBaseEnv    = "AGH_BRIDGE_LINEAR_API_BASE_URL"
-	linearProviderTokenURLEnv   = "AGH_BRIDGE_LINEAR_TOKEN_URL"
+	linearProviderListenAddrEnv = "COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR"
+	linearProviderAPIBaseEnv    = "COMPOZY_BRIDGE_LINEAR_API_BASE_URL"
+	linearProviderTokenURLEnv   = "COMPOZY_BRIDGE_LINEAR_TOKEN_URL"
 	linearProviderWebhookSecret = "linear-webhook-secret"
 )
 

@@ -239,7 +239,7 @@ func approvalGrantHostedClient(
 	client := startHostedMCPClient(t, requireHostedMCPStdioServer(t, diagnostics))
 	var init sdkmcp.InitializeRequest
 	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-	init.Params.ClientInfo = sdkmcp.Implementation{Name: "agh-tool-approval-e2e", Version: "1.0.0"}
+	init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-tool-approval-e2e", Version: "1.0.0"}
 	if _, err := client.Initialize(ctx, init); err != nil {
 		if closeErr := client.Close(); closeErr != nil {
 			t.Fatalf("Initialize(hosted MCP client) error = %v; Close() error = %v", err, closeErr)

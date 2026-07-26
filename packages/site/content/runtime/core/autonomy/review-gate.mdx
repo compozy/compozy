@@ -237,11 +237,11 @@ in `web/src/generated/agh-openapi.d.ts`.
 ## Reviewer-bound native tool
 
 In-session reviewers submit verdicts through one model-facing tool. AGH registers the tool
-internally with the `agh__` prefix so toolset routing can hide it when the session is not bound.
+internally with the `compozy__` prefix so toolset routing can hide it when the session is not bound.
 
-| Model-facing name   | Internal id                   | Authority                                                                                               |
-| ------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `submit_run_review` | `agh__task_run_review_submit` | Persists the verdict through `task.Service.RecordRunReview`. Available only to reviewer-bound sessions. |
+| Model-facing name   | Internal id                       | Authority                                                                                               |
+| ------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `submit_run_review` | `compozy__task_run_review_submit` | Persists the verdict through `task.Service.RecordRunReview`. Available only to reviewer-bound sessions. |
 
 Visibility rules enforced by the runtime:
 
@@ -256,8 +256,8 @@ Visibility rules enforced by the runtime:
   debug-only native-tool bypass for unbound sessions.
 
 The reviewer-related auxiliary tools — `task_run_review_request`, `task_run_review_list`, and
-`task_run_review_show` (registered as `agh__task_run_review_request`,
-`agh__task_run_review_list`, and `agh__task_run_review_show`) — are read/request helpers that
+`task_run_review_show` (registered as `compozy__task_run_review_request`,
+`compozy__task_run_review_list`, and `compozy__task_run_review_show`) — are read/request helpers that
 delegate to `task.Service.RequestRunReview`, `task.Service.ListRunReviews`, and
 `task.Service.GetRunReview`. They never bypass review policy validation or write GlobalDB directly.
 
@@ -326,7 +326,7 @@ Behavior to keep in mind:
 
 - Workspace overlays (`<workspace>/.agh/config.toml`) may tighten or relax the review defaults per
   workspace. Unknown keys still fail validation.
-- Updating `[task.orchestration.review]` via `agh config set` or the `agh__config_*` native tools
+- Updating `[task.orchestration.review]` via `agh config set` or the `compozy__config_*` native tools
   is allowed because review policy is a runtime configuration value, not a credential. Secret-
   shaped paths and trust-rooted sections remain off-limits.
 - Per-task review policy and reviewer routing are managed through the task execution profile, not

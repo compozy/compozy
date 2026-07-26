@@ -1080,7 +1080,7 @@ func TestResolveConfigFromRootOnly(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	additional := t.TempDir()
-	t.Setenv("AGH_HOME", homePaths.HomeDir)
+	t.Setenv("COMPOZY_HOME", homePaths.HomeDir)
 
 	writeFile(t, homePaths.ConfigFile, "[http]\nhost = \"localhost\"\nport = 2123\n")
 	writeFile(t, filepath.Join(root, aghconfig.DirName, aghconfig.ConfigName), "[http]\nport = 4242\n")

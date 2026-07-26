@@ -46,7 +46,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 		markers := extensiontest.NewTempMarkerPaths(t)
 		env := markers.Env()
 		delete(env, extensiontest.EnvCrashOncePath)
-		env["AGH_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
+		env["COMPOZY_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
 		homePaths := e2etest.NewHomePaths(t)
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 		options := e2etest.RuntimeHarnessOptions{
@@ -252,7 +252,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	markers := extensiontest.NewTempMarkerPaths(t)
 	env := markers.Env()
 	delete(env, extensiontest.EnvCrashOncePath)
-	env["AGH_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
+	env["COMPOZY_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
@@ -455,7 +455,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	if progressDelivery == nil || progressDelivery.Request.Event.Progress == nil {
 		t.Fatalf("first deliveries = %#v, want typed progress event", firstDeliveries)
 	}
-	if got, want := progressDelivery.Request.Event.Progress.ToolID, "agh__terminal"; got != want {
+	if got, want := progressDelivery.Request.Event.Progress.ToolID, "compozy__terminal"; got != want {
 		t.Fatalf("progress tool_id = %q, want %q", got, want)
 	}
 	if got, want := progressDelivery.Request.Event.Progress.Phase, bridgepkg.ToolProgressPhaseStarted; got != want {
@@ -464,7 +464,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	if got, want := progressDelivery.Request.Event.Progress.Emoji, "⚙️"; got != want {
 		t.Fatalf("progress emoji = %q, want %q", got, want)
 	}
-	if got, want := progressDelivery.Request.Event.Progress.Label, "agh__terminal:"; got != want {
+	if got, want := progressDelivery.Request.Event.Progress.Label, "compozy__terminal:"; got != want {
 		t.Fatalf("progress label = %q, want %q", got, want)
 	}
 	if got, want := progressDelivery.Request.Event.Progress.Preview, `"echo"`; got != want {
@@ -481,12 +481,12 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 		toolID string
 		phase  bridgepkg.ToolProgressPhase
 	}{
-		{toolID: "agh__terminal", phase: bridgepkg.ToolProgressPhaseStarted},
-		{toolID: "agh__terminal", phase: bridgepkg.ToolProgressPhaseCompleted},
-		{toolID: "agh__tool_list", phase: bridgepkg.ToolProgressPhaseStarted},
-		{toolID: "agh__tool_list", phase: bridgepkg.ToolProgressPhaseCompleted},
-		{toolID: "agh__skill_list", phase: bridgepkg.ToolProgressPhaseStarted},
-		{toolID: "agh__skill_list", phase: bridgepkg.ToolProgressPhaseFailed},
+		{toolID: "compozy__terminal", phase: bridgepkg.ToolProgressPhaseStarted},
+		{toolID: "compozy__terminal", phase: bridgepkg.ToolProgressPhaseCompleted},
+		{toolID: "compozy__tool_list", phase: bridgepkg.ToolProgressPhaseStarted},
+		{toolID: "compozy__tool_list", phase: bridgepkg.ToolProgressPhaseCompleted},
+		{toolID: "compozy__skill_list", phase: bridgepkg.ToolProgressPhaseStarted},
+		{toolID: "compozy__skill_list", phase: bridgepkg.ToolProgressPhaseFailed},
 	}
 	if got, want := len(progressRecords), len(wantProgressLifecycle); got != want {
 		t.Fatalf("progress delivery count = %d, want %d: %#v", got, want, progressRecords)
@@ -909,10 +909,10 @@ func relaxDaemonTelegramReferenceMinVersion(t *testing.T, extensionDir string) {
 	if err != nil {
 		t.Fatalf("read telegram reference manifest %q error = %v", manifestPath, err)
 	}
-	rewriteMinVersion := regexp.MustCompile(`(?m)^(\s*min_agh_version\s*=\s*).*$`)
+	rewriteMinVersion := regexp.MustCompile(`(?m)^(\s*min_compozy_version\s*=\s*).*$`)
 	updated := rewriteMinVersion.ReplaceAllString(string(contents), `${1}"0.0.0"`)
 	if updated == string(contents) {
-		t.Fatalf("telegram reference manifest %q did not contain a min_agh_version assignment", manifestPath)
+		t.Fatalf("telegram reference manifest %q did not contain a min_compozy_version assignment", manifestPath)
 	}
 	if err := os.WriteFile(manifestPath, []byte(updated), 0o644); err != nil {
 		t.Fatalf("write telegram reference manifest %q error = %v", manifestPath, err)

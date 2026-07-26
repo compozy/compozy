@@ -50,8 +50,8 @@ compozy extension status linear -o json
 }
 ```
 
-`AGH_BRIDGE_LINEAR_LISTEN_ADDR` supplies the listener fallback.
-`AGH_BRIDGE_LINEAR_API_BASE_URL` and `AGH_BRIDGE_LINEAR_TOKEN_URL` are trusted process overrides for
+`COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR` supplies the listener fallback.
+`COMPOZY_BRIDGE_LINEAR_API_BASE_URL` and `COMPOZY_BRIDGE_LINEAR_TOKEN_URL` are trusted process overrides for
 integration tests or sovereign deployments. Bridge config cannot redirect bound credentials.
 
 ## Known limits

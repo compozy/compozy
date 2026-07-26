@@ -761,7 +761,7 @@ func TestTelegramProgressDelivery(t *testing.T) {
 		t.Cleanup(dispatcher.Close)
 		if err := dispatcher.OnProgress(context.Background(), bridgepkg.ToolProgress{
 			ToolCallID: "call-progress-started",
-			ToolID:     "agh__terminal",
+			ToolID:     "compozy__terminal",
 			Phase:      bridgepkg.ToolProgressPhaseStarted,
 			Label:      "Inspecting",
 			Emoji:      "\U0001f527",
@@ -771,7 +771,7 @@ func TestTelegramProgressDelivery(t *testing.T) {
 		}
 		if err := dispatcher.OnProgress(context.Background(), bridgepkg.ToolProgress{
 			ToolCallID: "call-progress-completed",
-			ToolID:     "agh__terminal",
+			ToolID:     "compozy__terminal",
 			Phase:      bridgepkg.ToolProgressPhaseCompleted,
 			Label:      "Inspecting",
 			Emoji:      "\U0001f527",
@@ -3190,7 +3190,7 @@ func testProgressRequest(
 	request.Event.Content = bridgepkg.MessageContent{}
 	request.Event.Progress = &bridgepkg.ToolProgress{
 		ToolCallID: fmt.Sprintf("call-%d", seq),
-		ToolID:     "agh__terminal",
+		ToolID:     "compozy__terminal",
 		Phase:      phase,
 		Label:      label,
 		Emoji:      "\U0001f527",

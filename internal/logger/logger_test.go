@@ -212,8 +212,8 @@ func TestMirrorToStderrHelpers(t *testing.T) {
 
 		sandbox := WithMirrorToStderrEnv([]string{"PATH=/usr/bin"}, false)
 		joined := strings.Join(sandbox, "\n")
-		if !strings.Contains(joined, "AGH_INTERNAL_LOG_MIRROR_STDERR=0") {
-			t.Fatalf("WithMirrorToStderrEnv(false) = %q, want AGH_INTERNAL_LOG_MIRROR_STDERR=0", joined)
+		if !strings.Contains(joined, "COMPOZY_INTERNAL_LOG_MIRROR_STDERR=0") {
+			t.Fatalf("WithMirrorToStderrEnv(false) = %q, want COMPOZY_INTERNAL_LOG_MIRROR_STDERR=0", joined)
 		}
 	})
 }

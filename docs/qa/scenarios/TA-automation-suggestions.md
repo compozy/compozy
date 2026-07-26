@@ -5,7 +5,7 @@ title: Review and resolve consent-first automation suggestions
 persona: Bruno
 journey: J-24
 expected: A fresh workspace lists 3–5 workspace-owned pending Job proposals up to the positive configured cap; Create job accepts exactly one proposal through normal Job validation and the lifecycle-command guard, persists a schedulable dynamic Job, and removes the proposal; Dismiss durably latches another proposal across reload; no suggestion crosses workspace boundaries.
-entry_points: Web `/jobs`; `*/workspaces/{workspace_id}/automation/suggestions*`; CLI `automation suggestions`; native `agh__automation_suggestions_*`; config `automation.suggestions.pending_cap`
+entry_points: Web `/jobs`; `*/workspaces/{workspace_id}/automation/suggestions*`; CLI `automation suggestions`; native `compozy__automation_suggestions_*`; config `automation.suggestions.pending_cap`
 qa_status: untested
 bug_ids:
 fix_status:

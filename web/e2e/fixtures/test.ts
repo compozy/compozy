@@ -33,7 +33,7 @@ export const test = base.extend<E2EFixtures>({
       const session = await BrowserArtifactSession.start({
         collector: runtime.artifactCollector,
         context,
-        qaOutputRootDir: process.env.AGH_E2E_QA_OUTPUT_DIR,
+        qaOutputRootDir: process.env.COMPOZY_E2E_QA_OUTPUT_DIR,
       });
       await provide(session);
       await session.persist();

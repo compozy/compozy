@@ -25,25 +25,25 @@ Use shell commands for repository work, explicit operator requests, and manageme
 
 Use this sequence for AGH-native work:
 
-1. Resolve canonical `agh__tool_search`, then search using the runtime domain or action.
-2. Resolve canonical `agh__tool_info`, then inspect the selected ToolID before first invocation.
+1. Resolve canonical `compozy__tool_search`, then search using the runtime domain or action.
+2. Resolve canonical `compozy__tool_info`, then inspect the selected ToolID before first invocation.
 3. Invoke the returned dedicated tool reference with the descriptor's input schema.
 4. Diagnose denied or missing tools from reason codes before changing surface.
 
-`agh__*` names are canonical IDs, not harness call names. Use them for registry, policy, CLI, descriptors, and `tool_id`; call only the reference the harness returns.
+`compozy__*` names are canonical IDs, not harness call names. Use them for registry, policy, CLI, descriptors, and `tool_id`; call only the reference the harness returns.
 
 Hosted MCP projects the full availability-gated callable catalog for a bare managed session. AGH no
 longer caps that projection to bootstrap/catalog tools unless the agent definition or session
-lineage explicitly narrows it. Use `agh__tool_search` and `agh__tool_info` to diagnose known but
-denied tools; use `agh__tool_list` when you need only the currently callable set.
+lineage explicitly narrows it. Use `compozy__tool_search` and `compozy__tool_info` to diagnose known but
+denied tools; use `compozy__tool_list` when you need only the currently callable set.
 
-For skills, resolve canonical `agh__skill_search`/`agh__skill_view`, then call returned references. Use CLI fallback only when denied, absent, or explicitly requested.
+For skills, resolve canonical `compozy__skill_search`/`compozy__skill_view`, then call returned references. Use CLI fallback only when denied, absent, or explicitly requested.
 
 ## Oversized Tool Results
 
 A truncated tool result can carry a bounded `preview` and an opaque
 `agh://tool-artifacts/art_<sha256>` reference. Keep using the preview for immediate context, then
-resolve canonical `agh__tool_artifact_read` and page the exact retained result with the returned
+resolve canonical `compozy__tool_artifact_read` and page the exact retained result with the returned
 tool reference. Pass the artifact URI unchanged; continue from `next_offset` until `eof`.
 
 The artifact is readable only from its owning workspace. Missing, expired, and foreign-workspace
@@ -68,7 +68,7 @@ contract.
 
 ## Marketplace Discovery
 
-Use `agh__marketplace_search` for read-only MCP, extension, skill, and bundle discovery. Results carry
+Use `compozy__marketplace_search` for read-only MCP, extension, skill, and bundle discovery. Results carry
 stable `entry_id` values and scoped installed state. CLI fallback:
 `compozy marketplace search [query] [--kind mcp|extension|skill|bundle] [--scope global|workspace]
 [--workspace <id>] [--cursor <opaque>] -o json`. Continuation requires one kind and unchanged query,
@@ -128,7 +128,7 @@ paste session. The HTTP-only callback auto-completes only on loopback, follows t
 (including IPv6), and returns documented `503` HTML when unavailable. Keep exchange codes/redirects
 out of status and events.
 
-Inspect MCP management truth with `agh__mcp_status`, `agh__mcp_auth_status`, or
+Inspect MCP management truth with `compozy__mcp_status`, `compozy__mcp_auth_status`, or
 `GET /api/settings/mcp-servers`. Configuration, authorization, runtime, and probe are independent
 signals; `configured` alone never means ready. Edit stdio or remote HTTP/SSE definitions through
 `PUT /api/settings/mcp-servers/{name}` with explicit scope. A generic edit clears provenance; OAuth
@@ -188,7 +188,7 @@ directory before retrying.
 
 ## Native AGH Tool Map
 
-Inside AGH, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `agh__*` IDs, but parameters and availability come from the live descriptor returned by canonical `agh__tool_info`.
+Inside AGH, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `compozy__*` IDs, but parameters and availability come from the live descriptor returned by canonical `compozy__tool_info`.
 
 ## Management-Surface Exceptions
 

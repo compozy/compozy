@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	discordProviderListenAddrEnv = "AGH_BRIDGE_DISCORD_LISTEN_ADDR"
-	discordProviderAPIBaseEnv    = "AGH_BRIDGE_DISCORD_API_BASE_URL"
+	discordProviderListenAddrEnv = "COMPOZY_BRIDGE_DISCORD_LISTEN_ADDR"
+	discordProviderAPIBaseEnv    = "COMPOZY_BRIDGE_DISCORD_API_BASE_URL"
 	discordWebhookAckBudget      = 3 * time.Second
 )
 

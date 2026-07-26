@@ -69,7 +69,7 @@ func TestEnumsShouldClassifyLoopKinds(t *testing.T) {
 				t.Fatalf("IsReservedActionKind(%q) = false, want true", kind)
 			}
 		}
-		if dsl.IsReservedActionKind("agh__tool_info") {
+		if dsl.IsReservedActionKind("compozy__tool_info") {
 			t.Fatal("IsReservedActionKind(open ToolID) = true, want false")
 		}
 	})
@@ -124,7 +124,7 @@ func TestNodeParamsShouldDecodePerKindSchemas(t *testing.T) {
 			"output_schema": map[string]any{"summary": "string"},
 			"cwd":           "/repo",
 			"model":         "gpt-5",
-			"allowed_tools": []string{"agh__task_read"},
+			"allowed_tools": []string{"compozy__task_read"},
 			"max_turns":     3,
 		}
 		var agentParams dsl.RunAgentParams
@@ -137,8 +137,8 @@ func TestNodeParamsShouldDecodePerKindSchemas(t *testing.T) {
 		if got := agentParams.OutputSchema["summary"]; got != "string" {
 			t.Fatalf("OutputSchema[summary] = %#v, want string", got)
 		}
-		if len(agentParams.AllowedTools) != 1 || agentParams.AllowedTools[0] != "agh__task_read" {
-			t.Fatalf("AllowedTools = %#v, want agh__task_read", agentParams.AllowedTools)
+		if len(agentParams.AllowedTools) != 1 || agentParams.AllowedTools[0] != "compozy__task_read" {
+			t.Fatalf("AllowedTools = %#v, want compozy__task_read", agentParams.AllowedTools)
 		}
 	})
 

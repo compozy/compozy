@@ -34,11 +34,11 @@ import (
 )
 
 const (
-	gchatProviderListenAddrEnv  = "AGH_BRIDGE_GCHAT_LISTEN_ADDR"
-	gchatProviderAPIBaseEnv     = "AGH_BRIDGE_GCHAT_API_BASE_URL"
-	gchatProviderTokenURLEnv    = "AGH_BRIDGE_GCHAT_TOKEN_URL"
-	gchatProviderDirectCertsEnv = "AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL"
-	gchatProviderPubSubCertsEnv = "AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL"
+	gchatProviderListenAddrEnv  = "COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR"
+	gchatProviderAPIBaseEnv     = "COMPOZY_BRIDGE_GCHAT_API_BASE_URL"
+	gchatProviderTokenURLEnv    = "COMPOZY_BRIDGE_GCHAT_TOKEN_URL"
+	gchatProviderDirectCertsEnv = "COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL"
+	gchatProviderPubSubCertsEnv = "COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL"
 
 	gchatProviderDirectIssuer = "chat@system.gserviceaccount.com"
 	gchatProviderPubSubIssuer = "https://accounts.google.com"

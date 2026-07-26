@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/storeseed"
 )
 
-const deadEntityMCPHelperEnv = "AGH_TEST_DEAD_ENTITY_MCP_HELPER"
+const deadEntityMCPHelperEnv = "COMPOZY_TEST_DEAD_ENTITY_MCP_HELPER"
 
 var daemonTestStoreSeed *storeseed.Seed
 
@@ -41,12 +41,12 @@ func runDaemonTests(m *testing.M) (code int) {
 
 func isDaemonTestHelperProcess() bool {
 	for _, name := range []string{
-		"AGH_DAEMON_GOLEAK_HELPER",
-		"AGH_TEST_DAEMON_ENV_HELPER",
-		"AGH_TEST_DAEMON_EXTENSION_HELPER",
-		"AGH_TEST_DAEMON_SESSION_STOP_HELPER",
+		"COMPOZY_DAEMON_GOLEAK_HELPER",
+		"COMPOZY_TEST_DAEMON_ENV_HELPER",
+		"COMPOZY_TEST_DAEMON_EXTENSION_HELPER",
+		"COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER",
 		deadEntityMCPHelperEnv,
-		"AGH_TEST_NIGHTLY_COMBINED_HELPER",
+		"COMPOZY_TEST_NIGHTLY_COMBINED_HELPER",
 	} {
 		if os.Getenv(name) == "1" {
 			return true

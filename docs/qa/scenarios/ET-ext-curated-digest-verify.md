@@ -5,7 +5,7 @@ title: Verify a curated extension archive against the feed digest
 persona: Ada
 journey: J-extension-policy-admin
 expected: A curated extension install downloads the feed's exact HTTPS artifact, hashes it before extraction, persists verified catalog/archive/tree provenance on a match, and hard-fails without install state on a mismatch even when unverified installs are allowed.
-entry_points: agh extension install; GET /api/extensions/:name/provenance; agh__extensions_install; extension.digest.verify events
+entry_points: agh extension install; GET /api/extensions/:name/provenance; compozy__extensions_install; extension.digest.verify events
 qa_status: untested
 bug_ids: BUG-20260715-extension-cli-slow-boot-offline
 fix_status: verified

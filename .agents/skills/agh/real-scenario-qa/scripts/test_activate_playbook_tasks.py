@@ -48,7 +48,7 @@ class ActivatePlaybookTasksTest(unittest.TestCase):
                 json.dumps(
                     {
                         "env": {
-                            "AGH_HOME": str(root / "runtime"),
+                            "COMPOZY_HOME": str(root / "runtime"),
                             "KICKOFF_POSTED": "false",
                         }
                     }

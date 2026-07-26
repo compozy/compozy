@@ -118,14 +118,14 @@ compozy layout watch --workspace <workspace-id> --client <stable-client-id> -o j
 ```
 
 `--resource` is exclusive with inline arrangement fields. Declarative `window_layout` resources are
-discovered through `agh__resources_list` and may be global or workspace-scoped; a workspace resource
+discovered through `compozy__resources_list` and may be global or workspace-scoped; a workspace resource
 wins when IDs collide.
 
 ## Native Tools
 
-The lazy `agh__window_manager` toolset provides desktop, window, and layout operations with the same
+The lazy `compozy__window_manager` toolset provides desktop, window, and layout operations with the same
 workspace, revision, client, diagnostic, and risk contracts as the CLI/API. Resolve
-`agh__tool_info` for an exact tool before calling it. Use `window_manager.read` for reads/previews and
+`compozy__tool_info` for an exact tool before calling it. Use `window_manager.read` for reads/previews and
 `window_manager.write` for mutations.
 
 ## HTTP, UDS, And Stream
@@ -187,7 +187,7 @@ validated deep capture of its source group. For Zoom, an unchanged live source r
 restore that exact group identity, node order, weights, placement, and active stack member. If the
 source changed while the window was zoomed, AGH keeps those edits and uses the structural anchor
 fallback. Treat `source_group` as daemon-owned recovery state: preserve it during raw document round
-trips, and use `compozy window zoom` or `agh__window_zoom` instead of fabricating or editing it.
+trips, and use `compozy window zoom` or `compozy__window_zoom` instead of fabricating or editing it.
 
 ## Configuration And Hooks
 

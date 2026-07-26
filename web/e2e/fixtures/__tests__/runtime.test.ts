@@ -28,21 +28,21 @@ describe("runtime helpers", () => {
     expect(
       resolveBrowserRuntimeEnv(
         {
-          AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
+          COMPOZY_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
           PATH: "/runtime/bin",
         },
         {
-          AGH_TEST_ACPMOCK_DRIVER_BIN: "/lane/acpmock-driver",
-          AGH_TEST_DAEMON_BIN: "/lane/agh",
-          AGH_WEB_DIST_DIR: "/lane/web-dist",
+          COMPOZY_TEST_ACPMOCK_DRIVER_BIN: "/lane/acpmock-driver",
+          COMPOZY_TEST_DAEMON_BIN: "/lane/agh",
+          COMPOZY_WEB_DIST_DIR: "/lane/web-dist",
           OPERATOR_SECRET: "must-not-propagate",
         }
       )
     ).toEqual({
-      AGH_TEST_ACPMOCK_DRIVER_BIN: "/lane/acpmock-driver",
-      AGH_TEST_DAEMON_BIN: "/lane/agh",
-      AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
-      AGH_WEB_DIST_DIR: "/lane/web-dist",
+      COMPOZY_TEST_ACPMOCK_DRIVER_BIN: "/lane/acpmock-driver",
+      COMPOZY_TEST_DAEMON_BIN: "/lane/agh",
+      COMPOZY_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
+      COMPOZY_WEB_DIST_DIR: "/lane/web-dist",
       PATH: "/runtime/bin",
     });
   });
@@ -65,7 +65,7 @@ describe("runtime helpers", () => {
           expect(args).toEqual(["daemon", "stop", "-o", "json"]);
           expect(options).toMatchObject({
             cwd: "/tmp/repo",
-            env: { AGH_HOME: "/tmp/agh-home", HOME: "/tmp/agh-home" },
+            env: { COMPOZY_HOME: "/tmp/agh-home", HOME: "/tmp/agh-home" },
           });
           return { stderr: "", stdout: "{}" };
         },
@@ -99,7 +99,7 @@ describe("runtime helpers", () => {
   });
 
   it("normalizes attach mode base URLs", () => {
-    expect(resolveRuntimeMode({ AGH_E2E_BASE_URL: "http://127.0.0.1:4213/" })).toEqual({
+    expect(resolveRuntimeMode({ COMPOZY_E2E_BASE_URL: "http://127.0.0.1:4213/" })).toEqual({
       kind: "attach",
       baseURL: "http://127.0.0.1:4213",
     });
@@ -107,7 +107,7 @@ describe("runtime helpers", () => {
 
   it("rejects attach URLs that target a non-root path", () => {
     expect(() => normalizeBaseURL("http://127.0.0.1:4213/ui")).toThrow(
-      /AGH_E2E_BASE_URL must point at the daemon root/
+      /COMPOZY_E2E_BASE_URL must point at the daemon root/
     );
   });
 
@@ -406,11 +406,11 @@ describe("runtime helpers", () => {
   it("serves the freshly built checkout bundle in launch mode", () => {
     expect(
       buildLaunchRuntimeEnv("/work/agh", {
-        AGH_WEB_DIST_DIR: "/tmp/stale-dist",
+        COMPOZY_WEB_DIST_DIR: "/tmp/stale-dist",
         PATH: "/usr/bin",
       })
     ).toMatchObject({
-      AGH_WEB_DIST_DIR: "/work/agh/web/dist",
+      COMPOZY_WEB_DIST_DIR: "/work/agh/web/dist",
       PATH: "/usr/bin",
     });
   });

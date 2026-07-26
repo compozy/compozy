@@ -7,8 +7,8 @@ Use this guide when you need to run AGH as a long-lived daemon, inspect whether 
 install it under a service manager.
 
 <OperatorNote>
-  The daemon is the singleton runtime for one `AGH_HOME`. By default `AGH_HOME` is `~/.agh`; set the
-  environment variable before running `agh` when you want a different home directory.
+  The daemon is the singleton runtime for one `COMPOZY_HOME`. By default `COMPOZY_HOME` is `~/.agh`;
+  set the environment variable before running `agh` when you want a different home directory.
 </OperatorNote>
 
 ## Start the daemon
@@ -20,7 +20,7 @@ agh daemon start
 ```
 
 The CLI starts a detached child process, redirects the child stdout and stderr to
-`$AGH_HOME/logs/agh.log`, and waits for daemon readiness. Readiness is checked by polling the daemon
+`$COMPOZY_HOME/logs/agh.log`, and waits for daemon readiness. Readiness is checked by polling the daemon
 status API every 100 ms for up to 15 seconds.
 
 Use foreground mode when you are debugging startup or when a service manager should own the process:
@@ -42,7 +42,7 @@ agh status --output json
 ```
 
 The command first calls `/api/status` over the Unix domain socket. If the socket is not
-available, it falls back to `$AGH_HOME/daemon.json` and verifies whether the recorded PID is alive.
+available, it falls back to `$COMPOZY_HOME/daemon.json` and verifies whether the recorded PID is alive.
 
 Use `agh doctor` for DiagnosticItem-backed runtime checks:
 
@@ -69,7 +69,7 @@ process view and does not infer a workspace.
 
 <Mermaid
   chart={`flowchart LR
-  CLI["agh status"] --> UDS["$AGH_HOME/daemon.sock"]
+  CLI["agh status"] --> UDS["$COMPOZY_HOME/daemon.sock"]
   UDS --> Status["/api/status"]
   CLI --> Fallback["daemon.json + PID check"]
   Health["agh doctor"] --> Observe["/api/doctor"]
@@ -145,7 +145,7 @@ Stop the daemon cleanly:
 agh daemon stop
 ```
 
-The CLI reads `$AGH_HOME/daemon.json`, verifies that the PID is alive, sends `SIGTERM`, and waits up
+The CLI reads `$COMPOZY_HOME/daemon.json`, verifies that the PID is alive, sends `SIGTERM`, and waits up
 to 15 seconds for the daemon to disappear.
 
 Restart by stopping and starting:
@@ -187,20 +187,20 @@ session work alone.
 
 ## Know the runtime files
 
-| File                     | Purpose                                                                                                |
-| ------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `$AGH_HOME/daemon.lock`  | Advisory flock used to prevent two daemons from managing the same home directory.                      |
-| `$AGH_HOME/daemon.json`  | Discovery file with PID, HTTP port, start time, and optional network diagnostics.                      |
-| `$AGH_HOME/daemon.sock`  | Unix domain socket for local CLI and API traffic.                                                      |
-| `$AGH_HOME/logs/agh.log` | Structured daemon log file and detached child stdout/stderr target.                                    |
-| `$AGH_HOME/agh.db`       | Global SQLite catalog for sessions, workspaces, automation, bridges, extensions, tasks, and summaries. |
-| `$AGH_HOME/sessions/`    | Per-session directories with event databases and metadata.                                             |
+| File                         | Purpose                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `$COMPOZY_HOME/daemon.lock`  | Advisory flock used to prevent two daemons from managing the same home directory.                      |
+| `$COMPOZY_HOME/daemon.json`  | Discovery file with PID, HTTP port, start time, and optional network diagnostics.                      |
+| `$COMPOZY_HOME/daemon.sock`  | Unix domain socket for local CLI and API traffic.                                                      |
+| `$COMPOZY_HOME/logs/agh.log` | Structured daemon log file and detached child stdout/stderr target.                                    |
+| `$COMPOZY_HOME/agh.db`       | Global SQLite catalog for sessions, workspaces, automation, bridges, extensions, tasks, and summaries. |
+| `$COMPOZY_HOME/sessions/`    | Per-session directories with event databases and metadata.                                             |
 
 See [File Locations](/runtime/core/configuration/file-locations) for the full home directory map.
 
 ## Understand the lock file
 
-AGH acquires `$AGH_HOME/daemon.lock` before opening the global database or starting servers. The lock
+AGH acquires `$COMPOZY_HOME/daemon.lock` before opening the global database or starting servers. The lock
 uses an operating-system advisory file lock and stores the daemon PID in the lock file.
 
 When another process already owns the lock, startup fails with a singleton error such as:
@@ -218,8 +218,8 @@ while a daemon is alive; use `agh daemon stop` so AGH can shut down sessions and
 Tail the daemon log:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
-tail -f "$AGH_HOME/logs/agh.log"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
+tail -f "$COMPOZY_HOME/logs/agh.log"
 ```
 
 The default log level is `info`. Supported levels are `debug`, `info`, `warn`, and `error`; configure
@@ -231,7 +231,7 @@ readiness, the CLI returns the recent log text and prefers a recent line beginni
 
 ## Manage the Unix socket
 
-The default socket is `$AGH_HOME/daemon.sock`. You can override it with `[daemon].socket` in
+The default socket is `$COMPOZY_HOME/daemon.sock`. You can override it with `[daemon].socket` in
 `config.toml`; `~` is expanded during config loading.
 
 The UDS server:
@@ -258,7 +258,7 @@ After=network.target
 Type=simple
 User=agh
 Group=agh
-Environment=AGH_HOME=/var/lib/agh
+Environment=COMPOZY_HOME=/var/lib/agh
 EnvironmentFile=-/etc/agh/agh.env
 ExecStart=/usr/local/bin/agh daemon start --foreground
 ExecStop=/usr/local/bin/agh daemon stop
@@ -307,7 +307,7 @@ On macOS, run the foreground command from a user LaunchAgent:
 
   <key>EnvironmentVariables</key>
   <dict>
-    <key>AGH_HOME</key>
+    <key>COMPOZY_HOME</key>
     <string>/Users/you/.agh</string>
   </dict>
 
@@ -333,6 +333,6 @@ launchctl print "gui/$(id -u)/dev.agh.daemon"
 
 ## Related pages
 
-- [Database Operations](/runtime/core/operations/database) covers the SQLite files under `AGH_HOME`.
+- [Database Operations](/runtime/core/operations/database) covers the SQLite files under `COMPOZY_HOME`.
 - [Troubleshooting](/runtime/core/operations/troubleshooting) lists common daemon startup and socket failures.
 - [CLI Daemon Reference](/runtime/cli-reference/daemon) lists the exact daemon command surface.

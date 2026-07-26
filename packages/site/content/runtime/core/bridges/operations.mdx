@@ -245,14 +245,14 @@ Define the same loopback listeners in the daemon's existing systemd environment 
 instance does not set `provider_config.webhook.listen_addr`:
 
 ```dotenv
-AGH_BRIDGE_SLACK_LISTEN_ADDR=127.0.0.1:18081
-AGH_BRIDGE_TELEGRAM_LISTEN_ADDR=127.0.0.1:18082
-AGH_BRIDGE_DISCORD_LISTEN_ADDR=127.0.0.1:18083
-AGH_BRIDGE_TEAMS_LISTEN_ADDR=127.0.0.1:18085
-AGH_BRIDGE_WHATSAPP_LISTEN_ADDR=127.0.0.1:18086
-AGH_BRIDGE_GCHAT_LISTEN_ADDR=127.0.0.1:18087
-AGH_BRIDGE_GITHUB_LISTEN_ADDR=127.0.0.1:18088
-AGH_BRIDGE_LINEAR_LISTEN_ADDR=127.0.0.1:18089
+COMPOZY_BRIDGE_SLACK_LISTEN_ADDR=127.0.0.1:18081
+COMPOZY_BRIDGE_TELEGRAM_LISTEN_ADDR=127.0.0.1:18082
+COMPOZY_BRIDGE_DISCORD_LISTEN_ADDR=127.0.0.1:18083
+COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR=127.0.0.1:18085
+COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR=127.0.0.1:18086
+COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR=127.0.0.1:18087
+COMPOZY_BRIDGE_GITHUB_LISTEN_ADDR=127.0.0.1:18088
+COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR=127.0.0.1:18089
 ```
 
 The systemd unit in [Daemon Operations](/runtime/core/operations/daemon#run-under-systemd) reads
@@ -322,7 +322,7 @@ these providers. A local replacement is a planned outage: disable every bridge i
 the extension, remove the managed copy, and install a prebuilt replacement.
 
 Removing the extension does not delete its bridge instances, bindings, routes, or delivery records.
-It does delete the managed provider copy under `AGH_HOME`, so preserve a known-good source tree and
+It does delete the managed provider copy under `COMPOZY_HOME`, so preserve a known-good source tree and
 build its binary _before_ starting the outage. Do not use the installed directory itself as the
 rollback artifact.
 
@@ -398,7 +398,7 @@ curl -sS http://127.0.0.1:2123/api/bridges/providers | \
 ```
 
 The local install enables the replacement extension. Do not edit or copy files directly into its
-managed `AGH_HOME` directory; doing so bypasses provenance, trust evaluation, runtime reload, and
+managed `COMPOZY_HOME` directory; doing so bypasses provenance, trust evaluation, runtime reload, and
 extension events.
 
 Enable one bridge as a canary. A successful process start is not enough: prove configuration,

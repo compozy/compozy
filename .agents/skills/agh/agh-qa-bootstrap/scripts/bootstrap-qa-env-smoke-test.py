@@ -145,7 +145,7 @@ def main() -> None:
         manifest_path = qa_root / "bootstrap-manifest.json"
         manifest = {
             "env": {
-                "AGH_HOME": str(workspace_path / ".compozy" / "runtime"),
+                "COMPOZY_HOME": str(workspace_path / ".compozy" / "runtime"),
                 "WORKSPACE_PATH": str(workspace_path),
                 "RUNTIME_WORKSPACE_PATH": str(runtime_workspace_path),
                 "KICKOFF_POSTED": "false",

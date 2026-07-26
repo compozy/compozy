@@ -43,7 +43,7 @@ describe("useSetToolApprovalGrant", () => {
     await result.current.mutateAsync({
       workspaceId: WS,
       request: {
-        tool_id: "agh__config_set",
+        tool_id: "compozy__config_set",
         decision: "allow",
         scope: "agent",
         agent_name: "claude-code",

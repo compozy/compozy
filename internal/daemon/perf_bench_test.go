@@ -217,7 +217,7 @@ func daemonBenchmarkToolMCPDesiredResources(count int) toolMCPDesiredResources {
 			sourceKey: fmt.Sprintf("bench/tool/%03d", i),
 			scope:     scope,
 			spec: toolspkg.Tool{
-				ID:           toolspkg.ToolID(fmt.Sprintf("agh__bench_tool_%03d", i)),
+				ID:           toolspkg.ToolID(fmt.Sprintf("compozy__bench_tool_%03d", i)),
 				DisplayTitle: fmt.Sprintf("tool-%03d", i),
 				Description:  fmt.Sprintf("Tool %d", i),
 				Backend: toolspkg.BackendRef{

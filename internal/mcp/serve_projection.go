@@ -13,7 +13,7 @@ import (
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 )
 
-const hostAPIToolPrefix = "agh_host__"
+const hostAPIToolPrefix = "compozy_host__"
 
 type workspaceBinding uint8
 
@@ -78,7 +78,7 @@ func projectedHostAPITools() ([]mcpgo.Tool, error) {
 		}
 		tools = append(tools, mcpgo.NewToolWithRawSchema(
 			hostAPIToolName(method),
-			"Invoke the AGH Host API method "+string(method)+" in the workspace bound to this MCP server.",
+			"Invoke the Compozy Host API method "+string(method)+" in the workspace bound to this MCP server.",
 			rawSchema,
 		))
 	}

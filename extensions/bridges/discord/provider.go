@@ -26,8 +26,8 @@ const (
 )
 
 const (
-	discordListenAddrEnv = "AGH_BRIDGE_DISCORD_LISTEN_ADDR"
-	discordAPIBaseEnv    = "AGH_BRIDGE_DISCORD_API_BASE_URL"
+	discordListenAddrEnv = "COMPOZY_BRIDGE_DISCORD_LISTEN_ADDR"
+	discordAPIBaseEnv    = "COMPOZY_BRIDGE_DISCORD_API_BASE_URL"
 
 	discordDefaultAPIBaseURL        = "https://discord.com/api/v10"
 	discordWebhookReadHeaderTimeout = 10 * time.Second

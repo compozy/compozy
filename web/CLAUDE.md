@@ -11,7 +11,7 @@ React 19 SPA with Vite 8, TanStack Router (file-based) + Query v5, Tailwind v4, 
 - **Eyebrow markup is mandatory** for every uppercase label: use `<Eyebrow>` from `@agh/ui` (children + `className` only) **or** the `eyebrow` utility class (from `packages/ui/src/tokens.css`) on structural elements; tone via `className` (`text-(--muted)`, `text-(--accent)`, signal palette). Inlining `font-mono` + `uppercase` + `text-[…]` + `tracking-[…]` tuples IS the utility and is **forbidden** (`compozy-design-system/no-inline-eyebrow`), as are the removed `eyebrow-badge`/`eyebrow-micro` literals. Contract: **Inter UC 11/600/-0.005em** (`--text-eyebrow`, `--tracking-eyebrow`). Full rule: `DESIGN.md` §3 + lesson `L-022`.
 - **Test placement before any Vitest/Playwright file.** Name the invariant, owning layer, and canonical suite; update existing route/hook/component/story/e2e suites first. No CSS-literal/snapshot/generated/prose tests unless that artifact is the product contract and no stronger gate exists.
 - **Storybook setup is validation infrastructure, not product behavior.** Don't test `.storybook/main`, decorator arrays, story globs, or bootstrap unless the task names the visual-QA contract it protects. Prefer Storybook build/capture, `list-stories`, and rendered-story smoke. Static exceptions need a `KEEP:` note.
-- **Isolated-daemon QA reads `AGH_WEB_API_PROXY_TARGET`** from the active bootstrap manifest/env — never hardcode `http://localhost:2123`.
+- **Isolated-daemon QA reads `COMPOZY_WEB_API_PROXY_TARGET`** from the active bootstrap manifest/env — never hardcode `http://localhost:2123`.
 
 ## Design & Copy (web surface)
 
@@ -62,7 +62,7 @@ bunx turbo run test --filter=./web         # focused agh-web tests
 Web-local dev/build only (not validation evidence):
 
 ```bash
-make web-dev     # Vite dev on :3000 (proxies /api to :2123; for isolated QA export AGH_WEB_API_PROXY_TARGET first)
+make web-dev     # Vite dev on :3000 (proxies /api to :2123; for isolated QA export COMPOZY_WEB_API_PROXY_TARGET first)
 make web-build   # Production build (vite build + tsc --noEmit)
 make bun-lint    # Repo-root frontend lint gate (web + packages/ui + packages/site)
 make web-fmt     # oxfmt
@@ -111,4 +111,4 @@ Domain features are self-contained **systems** under `src/systems/<domain>/`, ea
 
 ## Tooling
 
-Bun (workspaces) + Turborepo · Oxlint (zero warnings) · Oxfmt (printWidth 100, double quotes, semicolons) · Vitest + Testing Library (jsdom) · Conventional Commits + commitlint + husky + lint-staged · lucide-react icons · sonner toasts. Vite proxy `/api` → `:2123` by default; isolated QA reads `AGH_WEB_API_PROXY_TARGET` from the bootstrap manifest/`bootstrap.env`.
+Bun (workspaces) + Turborepo · Oxlint (zero warnings) · Oxfmt (printWidth 100, double quotes, semicolons) · Vitest + Testing Library (jsdom) · Conventional Commits + commitlint + husky + lint-staged · lucide-react icons · sonner toasts. Vite proxy `/api` → `:2123` by default; isolated QA reads `COMPOZY_WEB_API_PROXY_TARGET` from the bootstrap manifest/`bootstrap.env`.

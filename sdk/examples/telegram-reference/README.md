@@ -45,7 +45,7 @@ compozy extension install ./sdk/examples/telegram-reference
 
 ## Fake Platform Contract
 
-The runtime watches the file named by `AGH_BRIDGE_ADAPTER_UPDATES_PATH`. Each non-empty line must be one Telegram-like update JSON object. The minimal supported shape is:
+The runtime watches the file named by `COMPOZY_BRIDGE_ADAPTER_UPDATES_PATH`. Each non-empty line must be one Telegram-like update JSON object. The minimal supported shape is:
 
 ```json
 {
@@ -64,15 +64,15 @@ The runtime watches the file named by `AGH_BRIDGE_ADAPTER_UPDATES_PATH`. Each no
 
 The adapter reads these optional environment variables. They are used by the conformance harness and can also help extension authors debug runtime behavior:
 
-- `AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH`: writes the initialize request/response marker as JSON.
-- `AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH`: writes the provider-owned `bridges/instances/list` result plus explicit `bridges/instances/get` fetches as JSON.
-- `AGH_BRIDGE_ADAPTER_STATE_PATH`: appends one JSON line per reported bridge status.
-- `AGH_BRIDGE_ADAPTER_DELIVERY_PATH`: appends one JSON line per `bridges/deliver` request, including the returned ack when available.
-- `AGH_BRIDGE_ADAPTER_INGEST_PATH`: appends one JSON line per fake inbound update ingest attempt.
-- `AGH_BRIDGE_ADAPTER_UPDATES_PATH`: JSONL file polled for fake inbound Telegram updates.
-- `AGH_BRIDGE_ADAPTER_STARTS_PATH`: appends one line per runtime process start.
-- `AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH`: appends one line when the daemon sends `shutdown`.
-- `AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH`: if set and the file does not exist yet, the runtime exits on its first outbound delivery after writing the request marker. The broker should then resume delivery after restart.
+- `COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH`: writes the initialize request/response marker as JSON.
+- `COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH`: writes the provider-owned `bridges/instances/list` result plus explicit `bridges/instances/get` fetches as JSON.
+- `COMPOZY_BRIDGE_ADAPTER_STATE_PATH`: appends one JSON line per reported bridge status.
+- `COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH`: appends one JSON line per `bridges/deliver` request, including the returned ack when available.
+- `COMPOZY_BRIDGE_ADAPTER_INGEST_PATH`: appends one JSON line per fake inbound update ingest attempt.
+- `COMPOZY_BRIDGE_ADAPTER_UPDATES_PATH`: JSONL file polled for fake inbound Telegram updates.
+- `COMPOZY_BRIDGE_ADAPTER_STARTS_PATH`: appends one line per runtime process start.
+- `COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH`: appends one line when the daemon sends `shutdown`.
+- `COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH`: if set and the file does not exist yet, the runtime exits on its first outbound delivery after writing the request marker. The broker should then resume delivery after restart.
 
 When the provider runtime owns multiple bridge instances, fake inbound updates should include `bridge_instance_id` so the runtime can route them against the correct owned instance explicitly.
 

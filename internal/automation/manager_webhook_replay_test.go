@@ -13,7 +13,7 @@ func TestManagerContractWebhookReplay(t *testing.T) {
 	t.Run("Should reject replayed webhook deliveries after trigger engine restart", func(t *testing.T) {
 		// not parallel: t.Setenv updates process-wide webhook secret lookup state.
 		h := newManagerHarness(t)
-		t.Setenv("AGH_TEST_WEBHOOK_SECRET", "super-secret")
+		t.Setenv("COMPOZY_TEST_WEBHOOK_SECRET", "super-secret")
 		current := time.Date(2026, 4, 12, 11, 0, 0, 0, time.UTC)
 		cfg := aghconfig.AutomationConfig{
 			Enabled:           true,
@@ -29,7 +29,7 @@ func TestManagerContractWebhookReplay(t *testing.T) {
 						"webhook",
 					)
 					trigger.EndpointSlug = "deploy-review"
-					trigger.WebhookSecretRef = "env:AGH_TEST_WEBHOOK_SECRET"
+					trigger.WebhookSecretRef = "env:COMPOZY_TEST_WEBHOOK_SECRET"
 					trigger.Prompt = `Review payload {{ index .Data "payload" }}`
 					trigger.Filter = map[string]string{"data.payload": "deploy"}
 					return trigger

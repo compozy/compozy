@@ -37,7 +37,7 @@ export function AgentCreateToolsSection({
           error={errors.tools}
           label="Allowed tools"
           onChange={tools => onDraftChange({ ...draft, tools })}
-          placeholder="agh__skill_view, mcp__github__*"
+          placeholder="compozy__skill_view, mcp__github__*"
           testId="agent-create-tools"
           values={draft.tools}
         />
@@ -46,7 +46,7 @@ export function AgentCreateToolsSection({
           error={errors.toolsets}
           label="Allowed toolsets"
           onChange={toolsets => onDraftChange({ ...draft, toolsets })}
-          placeholder="agh__catalog"
+          placeholder="compozy__catalog"
           testId="agent-create-toolsets"
           values={draft.toolsets}
         />
@@ -55,7 +55,7 @@ export function AgentCreateToolsSection({
           error={errors.denyTools}
           label="Denied tools"
           onChange={denyTools => onDraftChange({ ...draft, denyTools })}
-          placeholder="agh__task_*"
+          placeholder="compozy__task_*"
           testId="agent-create-deny-tools"
           values={draft.denyTools}
         />

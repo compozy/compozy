@@ -169,7 +169,7 @@ task = { title = "Check network health", network_participation = { mode = "live"
 }
 
 func TestLoadRejectsAutomationWebhookFieldMismatches(t *testing.T) {
-	t.Setenv("AGH_AUTOMATION_WEBHOOK_SECRET", "super-secret")
+	t.Setenv("COMPOZY_AUTOMATION_WEBHOOK_SECRET", "super-secret")
 
 	testCases := []struct {
 		name     string
@@ -198,7 +198,7 @@ name = "deploy"
 	event = "webhook"
 	agent = "summarizer"
 	prompt = "Review {{ index .Data \"payload\" }}"
-	webhook_secret_ref = "env:AGH_AUTOMATION_WEBHOOK_SECRET"
+	webhook_secret_ref = "env:COMPOZY_AUTOMATION_WEBHOOK_SECRET"
 	`,
 			wantErr: "endpoint_slug",
 		},
@@ -224,7 +224,7 @@ name = "post-run"
 	event = "session.stopped"
 	agent = "summarizer"
 	prompt = "Summarize {{ .Kind }}"
-	webhook_secret_ref = "env:AGH_AUTOMATION_WEBHOOK_SECRET"
+	webhook_secret_ref = "env:COMPOZY_AUTOMATION_WEBHOOK_SECRET"
 	`,
 			wantErr: "webhook_secret_ref",
 		},
@@ -335,7 +335,7 @@ func prepareAutomationConfigTestEnv(t *testing.T) (string, HomePaths) {
 
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {

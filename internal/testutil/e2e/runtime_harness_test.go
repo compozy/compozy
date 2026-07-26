@@ -84,21 +84,21 @@ func TestPrepareRuntimeLayoutUsesEnabledNetworkByDefaultAndAllowsExplicitDisable
 
 func TestPrepareRuntimeLayoutOverridesCallerHomeState(t *testing.T) {
 	t.Setenv("HOME", "/tmp/caller-home")
-	t.Setenv("AGH_HOME", "/tmp/caller-agh-home")
+	t.Setenv("COMPOZY_HOME", "/tmp/caller-agh-home")
 
 	layout := prepareRuntimeLayout(t, &RuntimeHarnessOptions{})
 
 	if got, want := lookupEnvValue(layout.Env, "HOME"), layout.HomePaths.HomeDir; got != want {
 		t.Fatalf("lookupEnvValue(HOME) = %q, want %q", got, want)
 	}
-	if got, want := lookupEnvValue(layout.Env, "AGH_HOME"), layout.HomePaths.HomeDir; got != want {
-		t.Fatalf("lookupEnvValue(AGH_HOME) = %q, want %q", got, want)
+	if got, want := lookupEnvValue(layout.Env, "COMPOZY_HOME"), layout.HomePaths.HomeDir; got != want {
+		t.Fatalf("lookupEnvValue(COMPOZY_HOME) = %q, want %q", got, want)
 	}
 	if got, want := countEnvEntries(layout.Env, "HOME"), 1; got != want {
 		t.Fatalf("countEnvEntries(HOME) = %d, want %d", got, want)
 	}
-	if got, want := countEnvEntries(layout.Env, "AGH_HOME"), 1; got != want {
-		t.Fatalf("countEnvEntries(AGH_HOME) = %d, want %d", got, want)
+	if got, want := countEnvEntries(layout.Env, "COMPOZY_HOME"), 1; got != want {
+		t.Fatalf("countEnvEntries(COMPOZY_HOME) = %d, want %d", got, want)
 	}
 }
 

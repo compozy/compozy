@@ -17,9 +17,9 @@ readiness_fd_open=0
 air_state_dir=$(go run ./scripts/air-state-dir)
 air_build_dir="$repo_root/.tmp/air"
 dev_run_id="dev-$$-$(date +%s)"
-export AGH_AIR_BUILD_DIR=$air_build_dir
-export AGH_AIR_STATE_DIR=$air_state_dir
-export AGH_AIR_DEV_RUN_ID=$dev_run_id
+export COMPOZY_AIR_BUILD_DIR=$air_build_dir
+export COMPOZY_AIR_STATE_DIR=$air_state_dir
+export COMPOZY_AIR_DEV_RUN_ID=$dev_run_id
 
 configured_api_proxy_target() {
   local config_json
@@ -42,12 +42,12 @@ configured_api_proxy_target() {
   '
 }
 
-if [[ -n ${AGH_WEB_API_PROXY_TARGET:-} ]]; then
-  api_proxy_target=$AGH_WEB_API_PROXY_TARGET
+if [[ -n ${COMPOZY_WEB_API_PROXY_TARGET:-} ]]; then
+  api_proxy_target=$COMPOZY_WEB_API_PROXY_TARGET
 else
   api_proxy_target=$(configured_api_proxy_target)
 fi
-export AGH_WEB_API_PROXY_TARGET=$api_proxy_target
+export COMPOZY_WEB_API_PROXY_TARGET=$api_proxy_target
 
 terminate_process() {
   local pid=$1
@@ -167,8 +167,8 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if [[ -n ${AGH_WEB_PORT:-} ]]; then
-  web_port=$(bun scripts/find-dev-port.mjs "$AGH_WEB_PORT" --strict)
+if [[ -n ${COMPOZY_WEB_PORT:-} ]]; then
+  web_port=$(bun scripts/find-dev-port.mjs "$COMPOZY_WEB_PORT" --strict)
 else
   web_port=$(bun scripts/find-dev-port.mjs 3000)
 fi
@@ -188,7 +188,7 @@ fi
   printf '%s\n' '</script>'
   printf '<p>Open <a href="%s/">%s</a>.</p>\n' "$web_url" "$web_url"
 } > "$dev_web_dir/index.html"
-export AGH_WEB_DIST_DIR=$dev_web_dir
+export COMPOZY_WEB_DIST_DIR=$dev_web_dir
 
 if ! readiness_dir=$(mktemp -d "$dev_web_parent/dev-readiness.XXXXXX"); then
   echo "dev: failed to allocate the readiness directory" >&2
@@ -205,8 +205,8 @@ if ! exec 9<> "$readiness_fifo"; then
   exit 1
 fi
 readiness_fd_open=1
-export AGH_AIR_READY_FIFO=$readiness_fifo
-export AGH_AIR_READY_MARKER=$readiness_marker
+export COMPOZY_AIR_READY_FIFO=$readiness_fifo
+export COMPOZY_AIR_READY_MARKER=$readiness_marker
 
 echo "dev: live web UI: $web_url"
 echo "dev: daemon web routes will redirect to the live UI"

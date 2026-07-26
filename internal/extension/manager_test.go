@@ -31,9 +31,9 @@ import (
 )
 
 const (
-	extensionHelperEnvKey      = "AGH_TEST_EXTENSION_HELPER"
-	extensionHelperScenarioKey = "AGH_TEST_EXTENSION_SCENARIO"
-	extensionHelperMarkerKey   = "AGH_TEST_EXTENSION_MARKER"
+	extensionHelperEnvKey      = "COMPOZY_TEST_EXTENSION_HELPER"
+	extensionHelperScenarioKey = "COMPOZY_TEST_EXTENSION_SCENARIO"
+	extensionHelperMarkerKey   = "COMPOZY_TEST_EXTENSION_MARKER"
 )
 
 type noopBridgeTelemetrySink struct{}
@@ -1566,21 +1566,21 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	if err := manager.validateExtension(validate); err == nil {
 		t.Fatal("validateExtension(nil manifest) error = nil, want manifest-required error")
 	}
-	validate.manifest = &Manifest{Name: "other", Version: "1.0.0", MinAGHVersion: "0.5.0"}
+	validate.manifest = &Manifest{Name: "other", Version: "1.0.0", MinCompozyVersion: "0.5.0"}
 	if err := manager.validateExtension(validate); err == nil {
 		t.Fatal("validateExtension(name mismatch) error = nil, want mismatch error")
 	}
 	validate.info.Version = "1.0.0"
-	validate.manifest = &Manifest{Name: "ext-validate", Version: "2.0.0", MinAGHVersion: "0.5.0"}
+	validate.manifest = &Manifest{Name: "ext-validate", Version: "2.0.0", MinCompozyVersion: "0.5.0"}
 	if err := manager.validateExtension(validate); err == nil {
 		t.Fatal("validateExtension(version mismatch) error = nil, want mismatch error")
 	}
 	validate.info.Version = ""
 	validate.manifest = &Manifest{
-		Name:          "ext-validate",
-		Version:       "1.0.0",
-		MinAGHVersion: "0.5.0",
-		Actions:       ActionsConfig{Requires: []string{"sessions/list"}},
+		Name:              "ext-validate",
+		Version:           "1.0.0",
+		MinCompozyVersion: "0.5.0",
+		Actions:           ActionsConfig{Requires: []string{"sessions/list"}},
 	}
 	if err := manager.validateExtension(validate); err == nil {
 		t.Fatal("validateExtension(missing subprocess command) error = nil, want subprocess validation error")
@@ -1589,9 +1589,9 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	lite := &managedExtension{
 		info: ExtensionInfo{Name: "ext-lite", Source: SourceUser, Enabled: true},
 		manifest: &Manifest{
-			Name:          "ext-lite",
-			Version:       "1.0.0",
-			MinAGHVersion: "0.5.0",
+			Name:              "ext-lite",
+			Version:           "1.0.0",
+			MinCompozyVersion: "0.5.0",
 		},
 	}
 	if err := manager.validateExtension(lite); err != nil {
@@ -1615,9 +1615,9 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 		info:    ExtensionInfo{Name: "ext-skills", Source: SourceUser},
 		rootDir: rootDir,
 		manifest: &Manifest{
-			Name:          "ext-skills",
-			Version:       "1.0.0",
-			MinAGHVersion: "0.5.0",
+			Name:              "ext-skills",
+			Version:           "1.0.0",
+			MinCompozyVersion: "0.5.0",
 			Resources: ResourcesConfig{
 				Skills: []string{"skills"},
 			},
@@ -2463,7 +2463,7 @@ func managerTestManifest(name string, opts managerManifestOptions) string {
 name = %q
 version = "0.2.1"
 description = "Extension manager test fixture"
-min_agh_version = %q
+min_compozy_version = %q
 
 [resources]
 `, name, minVersion)

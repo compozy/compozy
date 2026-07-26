@@ -30,8 +30,8 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 				Reasons: []contract.SkillActivationReasonPayload{{
 					Gate:    "requires_tools",
 					Code:    contract.SkillActivationReasonMissingTool,
-					Missing: []string{"agh__extension_call"},
-					Message: "gate requires_tools unmet: agh__extension_call",
+					Missing: []string{"compozy__extension_call"},
+					Message: "gate requires_tools unmet: compozy__extension_call",
 				}},
 			},
 			Dir:      "/agh-home/extensions/review/skills/extension-review",

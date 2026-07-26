@@ -56,7 +56,7 @@ func newSupportBundleCommand(deps commandDeps) *cobra.Command {
 		Use:   supportBundleKey,
 		Short: "Create and download a redacted support bundle",
 		Example: strings.Join([]string{
-			"  # Create a bundle and write it under $AGH_HOME/support-bundles",
+			"  # Create a bundle and write it under $COMPOZY_HOME/support-bundles",
 			"  compozy support bundle --yes",
 			"",
 			"  # Write the daemon-built bundle to a specific path",

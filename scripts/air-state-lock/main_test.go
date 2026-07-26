@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const descendantHelperEnv = "AGH_AIR_STATE_LOCK_DESCENDANT_HELPER"
+const descendantHelperEnv = "COMPOZY_AIR_STATE_LOCK_DESCENDANT_HELPER"
 
 func TestAirStateLockProcess(t *testing.T) {
 	t.Run("Should hold the lock while the serialized command is running", func(t *testing.T) {

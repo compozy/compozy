@@ -61,7 +61,7 @@ func TestDaytonaProviderIntegrationFullLifecycle(t *testing.T) {
 			},
 		},
 		AgentCommand: "cat",
-		AgentEnv:     []string{"AGH_SESSION_ID=integration-daytona"},
+		AgentEnv:     []string{"COMPOZY_SESSION_ID=integration-daytona"},
 		Permissions:  string(config.PermissionModeApproveAll),
 	})
 	if err != nil {
@@ -90,7 +90,7 @@ func TestDaytonaProviderIntegrationFullLifecycle(t *testing.T) {
 	handle, err := prepared.Launcher.Launch(ctx, sandbox.LaunchSpec{
 		Command: "cat",
 		Cwd:     prepared.RuntimeRootDir,
-		Env:     []string{"AGH_SESSION_ID=integration-daytona"},
+		Env:     []string{"COMPOZY_SESSION_ID=integration-daytona"},
 	})
 	if err != nil {
 		t.Fatalf("Launch(cat) error = %v", err)

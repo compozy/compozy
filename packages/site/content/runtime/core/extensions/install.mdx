@@ -8,7 +8,7 @@ extension can bundle skills, agent definitions, hooks, bundles, MCP servers, bri
 backends, and subprocess services.
 
 AGH stores installed extensions in the global registry and copies managed installs into
-`<AGH_HOME>/extensions/<name>`.
+`<COMPOZY_HOME>/extensions/<name>`.
 
 <OperatorNote>
   Extension marketplace operations are daemon-owned. Search, registry install, update, remove,
@@ -17,20 +17,20 @@ AGH stores installed extensions in the global registry and copies managed instal
   install --allow-unverified --yes`.
 </OperatorNote>
 
-Extension lifecycle is agent-manageable. The `agh__extensions` toolset and the parallel
+Extension lifecycle is agent-manageable. The `compozy__extensions` toolset and the parallel
 `agh extension` CLI reach the same registry, marketplace, install, update, remove, enable, and
 disable services:
 
-| Action             | Tool                                | CLI                            |
-| ------------------ | ----------------------------------- | ------------------------------ |
-| Search marketplace | `agh__marketplace_search`           | `agh extension search`         |
-| List installed     | `agh__extensions_list`              | `agh extension list`           |
-| Inspect one        | `agh__extensions_info`              | `agh extension status`         |
-| Inspect provenance | `agh__extensions_info`              | `agh extension provenance`     |
-| Install            | `agh__extensions_install`           | `agh extension install`        |
-| Update             | `agh__extensions_update`            | `agh extension update`         |
-| Remove             | `agh__extensions_remove`            | `agh extension remove`         |
-| Enable / disable   | `agh__extensions_enable`/`_disable` | `agh extension enable/disable` |
+| Action             | Tool                                    | CLI                            |
+| ------------------ | --------------------------------------- | ------------------------------ |
+| Search marketplace | `compozy__marketplace_search`           | `agh extension search`         |
+| List installed     | `compozy__extensions_list`              | `agh extension list`           |
+| Inspect one        | `compozy__extensions_info`              | `agh extension status`         |
+| Inspect provenance | `compozy__extensions_info`              | `agh extension provenance`     |
+| Install            | `compozy__extensions_install`           | `agh extension install`        |
+| Update             | `compozy__extensions_update`            | `agh extension update`         |
+| Remove             | `compozy__extensions_remove`            | `agh extension remove`         |
+| Enable / disable   | `compozy__extensions_enable`/`_disable` | `agh extension enable/disable` |
 
 Tool mutations require approval and pass through the same source-trust filter as the CLI.
 Deterministic denials include `EXTENSION_SOURCE_FORBIDDEN`, `EXTENSION_APPROVAL_REQUIRED`,
@@ -46,10 +46,10 @@ Extension bundles have their own UDS-backed CLI surface. After installing an ext
 inspect and manage preset activations with `agh bundle catalog`, `agh bundle preview`,
 `agh bundle activate`, `agh bundle list`, `agh bundle get`, `agh bundle update`,
 `agh bundle deactivate`, and `agh bundle network-settings`.
-The same daemon service is exposed to agents through `agh__bundles_list`, `agh__bundles_info`,
-`agh__bundles_activate`, `agh__bundles_deactivate`, and `agh__bundles_status`. Desired-state
-resources published by extensions are inspectable through `agh__resources_list`,
-`agh__resources_info`, and `agh__resources_snapshot`; the old singular `resource.read` and
+The same daemon service is exposed to agents through `compozy__bundles_list`, `compozy__bundles_info`,
+`compozy__bundles_activate`, `compozy__bundles_deactivate`, and `compozy__bundles_status`. Desired-state
+resources published by extensions are inspectable through `compozy__resources_list`,
+`compozy__resources_info`, and `compozy__resources_snapshot`; the old singular `resource.read` and
 `resource.write` capability names are not accepted.
 
 ## Install From A Local Directory
@@ -86,7 +86,7 @@ Extensions that need process environment variables declare the variable names in
 [extension]
 name = "daytona"
 version = "1.2.3"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 requires_env = ["DAYTONA_API_KEY", "DAYTONA_ORGANIZATION_ID"]
 ```
 
@@ -228,7 +228,7 @@ Marketplace install flow:
    top-level directory.
 5. AGH validates the manifest, computes the extracted-tree checksum, and evaluates the trust
    report.
-6. AGH moves the package to `<AGH_HOME>/extensions/<name>`.
+6. AGH moves the package to `<COMPOZY_HOME>/extensions/<name>`.
 7. AGH persists catalog identity, archive digest, extracted checksum, registry tier, install actor,
    trust report, and diagnostics.
 8. AGH reloads extension runtime resources and writes an `extension.installed` event.

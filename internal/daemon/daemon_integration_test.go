@@ -42,7 +42,7 @@ import (
 	"github.com/kballard/go-shellquote"
 )
 
-const daemonSessionStopHelperEnvKey = "AGH_TEST_DAEMON_SESSION_STOP_HELPER"
+const daemonSessionStopHelperEnvKey = "COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER"
 
 type daemonMigrationExpectation struct {
 	stream  store.MigrationStream
@@ -51,7 +51,7 @@ type daemonMigrationExpectation struct {
 
 func daemonMigrationExpectations() []daemonMigrationExpectation {
 	return []daemonMigrationExpectation{
-		{stream: globaldb.MigrationStream(), version: 25},
+		{stream: globaldb.MigrationStream(), version: 26},
 		{stream: memory.MigrationStream(), version: 1},
 	}
 }
@@ -3813,7 +3813,7 @@ func integrationHomePaths(t *testing.T) aghconfig.HomePaths {
 	t.Helper()
 
 	homeDir := t.TempDir()
-	t.Setenv("AGH_HOME", homeDir)
+	t.Setenv("COMPOZY_HOME", homeDir)
 	t.Setenv("HOME", homeDir)
 
 	homePaths, err := aghconfig.ResolveHomePathsFrom(homeDir)

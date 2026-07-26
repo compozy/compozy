@@ -100,7 +100,7 @@ type ExtensionDefinition struct {
 	Name                string             `json:"name"`
 	Version             string             `json:"version"`
 	Description         string             `json:"description,omitempty"`
-	MinAGHVersion       string             `json:"min_agh_version,omitempty"`
+	MinCompozyVersion   string             `json:"min_compozy_version,omitempty"`
 	Capabilities        CapabilitiesConfig `json:"capabilities"`
 	Actions             ActionsConfig      `json:"actions"`
 	Security            SecurityConfig     `json:"security"`

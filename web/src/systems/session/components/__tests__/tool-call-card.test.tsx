@@ -31,7 +31,7 @@ function requestURL(input: RequestInfo | URL): URL {
 
 function truncatedMessage(uri = ARTIFACT_URI_A, preview = "bounded preview"): UIMessage {
   return makeToolMessage({
-    toolName: "agh__memory_recall",
+    toolName: "compozy__memory_recall",
     toolResult: {
       preview,
       truncated: true,
@@ -119,7 +119,8 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
   });
 
   it("Should map Bash command summaries to the row preview slot", () => {
-    const longCommand = "agh tool invoke agh__tool_info --input " + '{"tool_id":"agh__skill_view"}';
+    const longCommand =
+      "agh tool invoke compozy__tool_info --input " + '{"tool_id":"compozy__skill_view"}';
     render(
       <SessionToolCallRow
         message={makeToolMessage({

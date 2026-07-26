@@ -199,7 +199,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveAgent(coder) error = %v", err)
 		}
-		if !slices.Contains(coder.Tools, "agh__lookup") {
+		if !slices.Contains(coder.Tools, "compozy__lookup") {
 			t.Fatalf("ResolveAgent(coder).Tools = %#v, want canonical lookup tool reference preserved", coder.Tools)
 		}
 		if !agentHasMCP(coder, "workspace-agent-mcp") {
@@ -618,7 +618,7 @@ func agentSkillIntegrationWorkspace(t *testing.T) string {
 	writeAgentSkillIntegrationFile(t, filepath.Join(agentDir, "AGENT.md"), `---
 name: coder
 provider: claude
-tools: ["agh__lookup"]
+tools: ["compozy__lookup"]
 ---
 
 Use the workspace tool catalog.
@@ -664,7 +664,7 @@ func agentSkillIntegrationExtension(
 	writeAgentSkillIntegrationFile(t, filepath.Join(dir, "extension.toml"), `[extension]
 name = "agent-skill-ext"
 version = "0.1.0"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [resources]
 skills = ["skills/"]

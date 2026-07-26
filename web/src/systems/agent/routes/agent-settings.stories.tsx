@@ -227,9 +227,9 @@ export const AccessPopulated: Story = {
           HttpResponse.json({
             agent: {
               ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
-              tools: ["agh__skill_view", "mcp__github__*"],
-              toolsets: ["agh__catalog"],
-              deny_tools: ["agh__task_delete"],
+              tools: ["compozy__skill_view", "mcp__github__*"],
+              toolsets: ["compozy__catalog"],
+              deny_tools: ["compozy__task_delete"],
               skills: { disabled: ["code-review"] },
             },
           })
@@ -243,7 +243,7 @@ export const AccessPopulated: Story = {
     const body = within(canvasElement.ownerDocument.body);
     await expect(await body.findByTestId("agent-settings-access")).toBeInTheDocument();
     await expect(await body.findByTestId("agent-settings-tools")).toHaveTextContent(
-      "agh__skill_view"
+      "compozy__skill_view"
     );
   },
 };

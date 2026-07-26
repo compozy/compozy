@@ -24,15 +24,15 @@ const (
 )
 
 const (
-	adapterHandshakeEnv = "AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH"
-	adapterOwnershipEnv = "AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH"
-	adapterStateEnv     = "AGH_BRIDGE_ADAPTER_STATE_PATH"
-	adapterDeliveryEnv  = "AGH_BRIDGE_ADAPTER_DELIVERY_PATH"
-	adapterIngestEnv    = "AGH_BRIDGE_ADAPTER_INGEST_PATH"
-	adapterUpdatesEnv   = "AGH_BRIDGE_ADAPTER_UPDATES_PATH"
-	adapterStartsEnv    = "AGH_BRIDGE_ADAPTER_STARTS_PATH"
-	adapterShutdownEnv  = "AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH"
-	adapterCrashOnceEnv = "AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH"
+	adapterHandshakeEnv = "COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH"
+	adapterOwnershipEnv = "COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH"
+	adapterStateEnv     = "COMPOZY_BRIDGE_ADAPTER_STATE_PATH"
+	adapterDeliveryEnv  = "COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH"
+	adapterIngestEnv    = "COMPOZY_BRIDGE_ADAPTER_INGEST_PATH"
+	adapterUpdatesEnv   = "COMPOZY_BRIDGE_ADAPTER_UPDATES_PATH"
+	adapterStartsEnv    = "COMPOZY_BRIDGE_ADAPTER_STARTS_PATH"
+	adapterShutdownEnv  = "COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH"
+	adapterCrashOnceEnv = "COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH"
 
 	rpcCodeNotInitialized = -32003
 )

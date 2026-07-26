@@ -24,7 +24,7 @@ agh toolsets list -o json
 Inspect one expansion:
 
 ```bash
-agh toolsets info agh__catalog -o json
+agh toolsets info compozy__catalog -o json
 ```
 
 What happened: AGH resolved the toolset through the registry and returned the expanded tool IDs plus
@@ -34,12 +34,12 @@ diagnostics. Use diagnostics when an expected tool is missing or unavailable in 
 
 Bootstrap and catalog toolsets identify the registry tools that help an agent orient itself:
 
-| Toolset or tool    | Job                                                                    |
-| ------------------ | ---------------------------------------------------------------------- |
-| `agh__bootstrap`   | Gives a managed agent enough initial runtime context to orient itself. |
-| `agh__catalog`     | Exposes the high-level registry catalog.                               |
-| `agh__tool_search` | Searches for tools by descriptor text.                                 |
-| `agh__tool_info`   | Returns one descriptor, schema, and diagnostics before invocation.     |
+| Toolset or tool        | Job                                                                    |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `compozy__bootstrap`   | Gives a managed agent enough initial runtime context to orient itself. |
+| `compozy__catalog`     | Exposes the high-level registry catalog.                               |
+| `compozy__tool_search` | Searches for tools by descriptor text.                                 |
+| `compozy__tool_info`   | Returns one descriptor, schema, and diagnostics before invocation.     |
 
 These toolsets no longer cap the hosted MCP projection for a bare managed session. When no agent or
 session policy narrows the tool surface, hosted MCP projects the full availability-gated callable
@@ -48,31 +48,31 @@ gates still restrict invocation.
 
 The goal is precise discovery. Agents should not load every tool schema into context on every turn.
 They resolve the canonical discovery ToolID through the active harness, search, inspect, then invoke
-the returned tool reference. `agh__tool_list` shows the currently callable projection;
-`agh__tool_search` and `agh__tool_info` can also report known but denied tools with reason codes.
+the returned tool reference. `compozy__tool_list` shows the currently callable projection;
+`compozy__tool_search` and `compozy__tool_info` can also report known but denied tools with reason codes.
 
 ## Operational toolsets
 
 AGH groups runtime capabilities by owning subsystem. These toolsets are canonical IDs that can be
 granted through agent definitions or inspected through `agh toolsets info`.
 
-| Toolset                | Includes                                                                        |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `agh__tasks`           | Task CRUD, task runs, reviews, execution profiles, and notifications.           |
-| `agh__provider_models` | Provider model catalog list, curation, refresh, and source-status tools.        |
-| `agh__memory`          | Memory list, show, search, proposal, and ad-hoc note tools.                     |
-| `agh__memory_admin`    | Memory health, history, reindex, dream, provider, extractor, and ledger tools.  |
-| `agh__bridges`         | Bridge instance, route, secret-binding, and status diagnostics.                 |
-| `agh__automation`      | Automation job, trigger, and run management.                                    |
-| `agh__extensions`      | Extension marketplace, install, update, enable, disable, and remove tools.      |
-| `agh__bundles`         | Extension bundle catalog, activation, deactivation, and network-default status. |
-| `agh__resources`       | Desired-state resource list, info, and snapshot inspection tools.               |
-| `agh__mcp`             | MCP server probe/status diagnostics without login or logout tool calls.         |
-| `agh__mcp_auth`        | Redacted MCP OAuth status for configured servers.                               |
-| `agh__clarify`         | One bounded operator question through the read-only `agh__clarify` tool.        |
+| Toolset                    | Includes                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `compozy__tasks`           | Task CRUD, task runs, reviews, execution profiles, and notifications.           |
+| `compozy__provider_models` | Provider model catalog list, curation, refresh, and source-status tools.        |
+| `compozy__memory`          | Memory list, show, search, proposal, and ad-hoc note tools.                     |
+| `compozy__memory_admin`    | Memory health, history, reindex, dream, provider, extractor, and ledger tools.  |
+| `compozy__bridges`         | Bridge instance, route, secret-binding, and status diagnostics.                 |
+| `compozy__automation`      | Automation job, trigger, and run management.                                    |
+| `compozy__extensions`      | Extension marketplace, install, update, enable, disable, and remove tools.      |
+| `compozy__bundles`         | Extension bundle catalog, activation, deactivation, and network-default status. |
+| `compozy__resources`       | Desired-state resource list, info, and snapshot inspection tools.               |
+| `compozy__mcp`             | MCP server probe/status diagnostics without login or logout tool calls.         |
+| `compozy__mcp_auth`        | Redacted MCP OAuth status for configured servers.                               |
+| `compozy__clarify`         | One bounded operator question through the read-only `compozy__clarify` tool.    |
 
-Toolsets expose current canonical tool IDs only. For Memory administration, `agh__memory_admin`
-includes `agh__memory_admin_history` for operation-history inspection.
+Toolsets expose current canonical tool IDs only. For Memory administration, `compozy__memory_admin`
+includes `compozy__memory_admin_history` for operation-history inspection.
 
 ## How toolsets help operators
 

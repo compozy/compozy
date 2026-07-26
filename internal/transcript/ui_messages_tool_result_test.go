@@ -175,7 +175,7 @@ func TestToUIMessagesToolResultContract(t *testing.T) {
 				SessionID:  "sess-tool-artifact",
 				TurnID:     "turn-tool-artifact",
 				Timestamp:  timestamp,
-				Title:      "agh__memory_recall",
+				Title:      "compozy__memory_recall",
 				ToolCallID: "tool-artifact",
 				Raw: json.RawMessage(
 					`{"sessionUpdate":"tool_call_update","status":"completed",` +
@@ -193,7 +193,7 @@ func TestToUIMessagesToolResultContract(t *testing.T) {
 		if got, want := len(messages), 1; got != want {
 			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
 		}
-		part := findUIToolPart(messages[0].Parts, "tool-agh__memory_recall", "tool-artifact")
+		part := findUIToolPart(messages[0].Parts, "tool-compozy__memory_recall", "tool-artifact")
 		if part == nil {
 			t.Fatalf("tool artifact part not found; parts=%#v", messages[0].Parts)
 		}

@@ -16,7 +16,7 @@ const (
 	loggerInfoKey = "info"
 )
 
-const mirrorToStderrEnvKey = "AGH_INTERNAL_LOG_MIRROR_STDERR"
+const mirrorToStderrEnvKey = "COMPOZY_INTERNAL_LOG_MIRROR_STDERR"
 
 type options struct {
 	level          string

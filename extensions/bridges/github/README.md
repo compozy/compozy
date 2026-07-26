@@ -52,8 +52,8 @@ compozy extension status github -o json
 App mode also accepts `installation_id`. The provider can learn the installation from accepted app
 webhook metadata, but outbound App delivery is incomplete until an installation is available.
 
-`AGH_BRIDGE_GITHUB_LISTEN_ADDR` supplies the listener fallback.
-`AGH_BRIDGE_GITHUB_API_BASE_URL` is a trusted process override for integration tests or sovereign
+`COMPOZY_BRIDGE_GITHUB_LISTEN_ADDR` supplies the listener fallback.
+`COMPOZY_BRIDGE_GITHUB_API_BASE_URL` is a trusted process override for integration tests or sovereign
 deployments. Bridge config cannot redirect bound credentials.
 
 ## Known limits

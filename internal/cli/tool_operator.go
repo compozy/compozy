@@ -128,7 +128,7 @@ func newToolInfoCommand(deps commandDeps) *cobra.Command {
 		Use:   "info <tool_id>",
 		Short: "Show one registry tool descriptor and diagnostics",
 		Example: `  # Show a tool descriptor and availability diagnostics
-  compozy tool info agh__skill_view -o json`,
+  compozy tool info compozy__skill_view -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseToolIDArg(args[0])
@@ -204,13 +204,13 @@ func newToolInvokeCommand(deps commandDeps) *cobra.Command {
 		Use:   "invoke <tool_id>",
 		Short: "Invoke one registry tool through daemon policy",
 		Example: `  # Invoke a tool with inline JSON input
-  compozy tool invoke agh__tool_info --input '{"tool_id":"agh__skill_view"}' -o json
+  compozy tool invoke compozy__tool_info --input '{"tool_id":"compozy__skill_view"}' -o json
 
   # Invoke a tool with JSON read from a file
-  compozy tool invoke agh__tool_info --input-file ./input.json -o json
+  compozy tool invoke compozy__tool_info --input-file ./input.json -o json
 
   # Invoke a tool with JSON read from stdin
-  echo '{"tool_id":"agh__skill_view"}' | compozy tool invoke agh__tool_info -o json`,
+  echo '{"tool_id":"compozy__skill_view"}' | compozy tool invoke compozy__tool_info -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseToolIDArg(args[0])
@@ -292,7 +292,7 @@ func newToolsetsInfoCommand(deps commandDeps) *cobra.Command {
 		Use:   "info <toolset_id>",
 		Short: "Show one registry toolset expansion",
 		Example: `  # Show one toolset and expanded tool ids
-  compozy toolsets info agh__catalog -o json`,
+  compozy toolsets info compozy__catalog -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseToolsetIDArg(args[0])

@@ -31,7 +31,7 @@ const (
 	currentAvailableSkillsSelfClosing = "<current-available-skills />"
 	currentSkillsCatalogOpeningLine   = "The <current-available-skills> block above is " +
 		"the authoritative current skill state for this turn."
-	currentSkillsCatalogFinalLine = "If current tool policy denies canonical `agh__skill_view`, " +
+	currentSkillsCatalogFinalLine = "If current tool policy denies canonical `compozy__skill_view`, " +
 		"use `compozy skill view <name>` as an operator fallback."
 	durableMemoryOpen         = "<turn-recall>"
 	durableMemoryClose        = "</turn-recall>"

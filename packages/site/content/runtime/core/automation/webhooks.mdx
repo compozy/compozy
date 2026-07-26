@@ -62,7 +62,7 @@ workspace = "/Users/you/src/checkout-api"
 name = "deploy-webhook"
 event = "webhook"
 endpoint_slug = "deploy"
-webhook_secret_ref = "env:AGH_DEPLOY_WEBHOOK_SECRET"
+webhook_secret_ref = "env:COMPOZY_DEPLOY_WEBHOOK_SECRET"
 agent = "deployer"
 prompt = "Validate deployment {{ index .Data \"sha\" }} on {{ index .Data \"branch\" }}."
 filter = { "data.action" = "deploy", "data.branch" = "main" }
@@ -81,7 +81,7 @@ agh automation triggers create \
   --workspace /Users/you/src/checkout-api \
   --event webhook \
   --endpoint-slug deploy \
-  --webhook-secret "$AGH_DEPLOY_WEBHOOK_SECRET" \
+  --webhook-secret "$COMPOZY_DEPLOY_WEBHOOK_SECRET" \
   --agent deployer \
   --prompt 'Validate deployment {{ index .Data "sha" }} on {{ index .Data "branch" }}.' \
   --filter data.action=deploy,data.branch=main \
@@ -145,7 +145,7 @@ HMAC signature.
 ```bash
 body='{"action":"deploy","branch":"main","repository":"checkout-api","sha":"abc123"}'
 timestamp="$(date -u +%s)"
-signature="sha256=$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$AGH_DEPLOY_WEBHOOK_SECRET" -hex | awk '{print $2}')"
+signature="sha256=$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$COMPOZY_DEPLOY_WEBHOOK_SECRET" -hex | awk '{print $2}')"
 
 curl -sS -X POST "http://localhost:2123/api/webhooks/workspaces/ws_123/deploy--wbh_abc123" \
   -H "Content-Type: application/json" \
@@ -177,8 +177,8 @@ jobs:
     steps:
       - name: Send signed deployment webhook
         env:
-          AGH_WEBHOOK_URL: ${{ secrets.AGH_WEBHOOK_URL }}
-          AGH_WEBHOOK_SECRET: ${{ secrets.AGH_WEBHOOK_SECRET }}
+          COMPOZY_WEBHOOK_URL: ${{ secrets.COMPOZY_WEBHOOK_URL }}
+          COMPOZY_WEBHOOK_SECRET: ${{ secrets.COMPOZY_WEBHOOK_SECRET }}
           BRANCH: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
           SHA: ${{ github.sha }}
@@ -191,9 +191,9 @@ jobs:
             '{action:$action, branch:$branch, repository:$repository, sha:$sha}')
 
           timestamp=$(date -u +%s)
-          signature="sha256=$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$AGH_WEBHOOK_SECRET" -hex | awk '{print $2}')"
+          signature="sha256=$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$COMPOZY_WEBHOOK_SECRET" -hex | awk '{print $2}')"
 
-          curl -sS -X POST "$AGH_WEBHOOK_URL" \
+          curl -sS -X POST "$COMPOZY_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -H "X-AGH-Webhook-Timestamp: $timestamp" \
             -H "X-AGH-Webhook-Signature: $signature" \
@@ -201,7 +201,7 @@ jobs:
             --data "$body"
 ```
 
-Store the full webhook URL in `AGH_WEBHOOK_URL`, for example:
+Store the full webhook URL in `COMPOZY_WEBHOOK_URL`, for example:
 
 ```text
 http://localhost:2123/api/webhooks/workspaces/ws_123/deploy--wbh_abc123

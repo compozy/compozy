@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const redactionSnapshotHelperEnv = "AGH_TEST_REDACTION_SNAPSHOT_HELPER"
+const redactionSnapshotHelperEnv = "COMPOZY_TEST_REDACTION_SNAPSHOT_HELPER"
 
 func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 	t.Parallel()

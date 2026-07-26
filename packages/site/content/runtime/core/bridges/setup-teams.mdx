@@ -58,7 +58,7 @@ Collect or decide these values:
 | Tenant ID                   | conditional              | CLI output or Entra app overview. Required for a single-tenant bot or proactive DMs without remembered context. |
 | Teams app ID                | yes                      | Teams Developer CLI output or the `id` in a manually authored Teams app manifest.                               |
 | Public messaging endpoint   | yes                      | Stable HTTPS URL that forwards to this bridge's provider listener and path.                                     |
-| Local listener address      | yes                      | `provider_config.webhook.listen_addr` or `AGH_BRIDGE_TEAMS_LISTEN_ADDR` in the daemon environment.              |
+| Local listener address      | yes                      | `provider_config.webhook.listen_addr` or `COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR` in the daemon environment.          |
 | AGH workspace ID            | yes for inbound sessions | The workspace whose default agent receives new routed Teams messages.                                           |
 | Teams app administration    | yes                      | Permission to create or upload an app and install it in the target tenant.                                      |
 | Azure subscription/resource | path-dependent           | Required when the CLI provisions Azure resources or when you create an Azure Bot in the portal.                 |
@@ -462,19 +462,19 @@ configuration.
 
 ## Configuration reference
 
-| Field                                     | Default / fallback             | Purpose                                                                             |
-| ----------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
-| `webhook.public_url`                      | none                           | Full public HTTPS messaging endpoint used by Azure Bot and AGH reachability checks. |
-| `webhook.listen_addr`                     | `AGH_BRIDGE_TEAMS_LISTEN_ADDR` | Local provider listener. One address per provider process.                          |
-| `webhook.path`                            | `/teams/<bridge-id>`           | Local path; it must be unique within the provider process.                          |
-| `batching.delay_ms`                       | `0`                            | Batches inbound items when positive; zero dispatches immediately.                   |
-| `batching.split_delay_ms`                 | `delay_ms`                     | Delay used when the batching split threshold is crossed.                            |
-| `batching.split_threshold`                | `0`                            | Provider batching split threshold.                                                  |
-| `dm.allow_user_ids` / `paired_user_ids`   | empty                          | Bot Framework IDs admitted by bridge `dm_policy`.                                   |
-| `dm.allow_usernames` / `paired_usernames` | empty                          | Normalized display-name fallbacks for DM policy. IDs are safer.                     |
+| Field                                     | Default / fallback                 | Purpose                                                                             |
+| ----------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------- |
+| `webhook.public_url`                      | none                               | Full public HTTPS messaging endpoint used by Azure Bot and AGH reachability checks. |
+| `webhook.listen_addr`                     | `COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR` | Local provider listener. One address per provider process.                          |
+| `webhook.path`                            | `/teams/<bridge-id>`               | Local path; it must be unique within the provider process.                          |
+| `batching.delay_ms`                       | `0`                                | Batches inbound items when positive; zero dispatches immediately.                   |
+| `batching.split_delay_ms`                 | `delay_ms`                         | Delay used when the batching split threshold is crossed.                            |
+| `batching.split_threshold`                | `0`                                | Provider batching split threshold.                                                  |
+| `dm.allow_user_ids` / `paired_user_ids`   | empty                              | Bot Framework IDs admitted by bridge `dm_policy`.                                   |
+| `dm.allow_usernames` / `paired_usernames` | empty                              | Normalized display-name fallbacks for DM policy. IDs are safer.                     |
 
 Credential-bearing service, OpenID metadata, and OAuth token URLs are not instance settings. Use the
-operator-owned `AGH_BRIDGE_TEAMS_*` environment variables only for a trusted sovereign deployment
+operator-owned `COMPOZY_BRIDGE_TEAMS_*` environment variables only for a trusted sovereign deployment
 or integration lab.
 
 ## Troubleshooting

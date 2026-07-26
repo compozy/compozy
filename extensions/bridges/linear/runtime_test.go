@@ -593,7 +593,7 @@ func TestRuntimeProgressDeliveryAcknowledgesWithoutPlatformSideEffects(t *testin
 		)
 		request.Event.Progress = &bridgepkg.ToolProgress{
 			ToolCallID: "tool-call-linear-noop",
-			ToolID:     "agh__search",
+			ToolID:     "compozy__search",
 			Phase:      bridgepkg.ToolProgressPhaseStarted,
 			Label:      "Search",
 			Index:      1,

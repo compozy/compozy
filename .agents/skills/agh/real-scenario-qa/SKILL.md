@@ -48,7 +48,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 **Step 4: Post the Operator Kickoff**
 
 1. After runtime agents, sessions, channels, and the deterministic task ids from `.compozy/tasks/open-tasks.json` exist under the shared `RUNTIME_WORKSPACE_PATH`, prepare task activation behind a scheduler barrier (mutating):
-   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py prepare --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --agh-bin "${AGH_BIN:-compozy}"`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py prepare --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --agh-bin "${COMPOZY_BIN:-compozy}"`
 2. Render and validate the kickoff payload (mutating only the inspectable payload file):
    `python3 .agents/skills/agh/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST"`
 3. The helper aborts with exit code 2 if the rendered kickoff contains any phrase from `references/forbidden-prompt-phrases.md`. Rewrite the playbook's `kickoff_brief` when blocked.
@@ -56,7 +56,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
    `compozy session prompt <operator-session-id> "$(cat $WORKSPACE_PATH/.compozy/operator-kickoff.txt)" -o jsonl > $QA_OUTPUT_PATH/qa/operator-kickoff.jsonl`
 5. Confirm the successful post from its non-empty evidence (mutating), then release the queued task runs (mutating):
    `python3 .agents/skills/agh/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --confirm-posted "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl"`
-   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py release --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --kickoff-evidence "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl" --agh-bin "${AGH_BIN:-compozy}"`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py release --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --kickoff-evidence "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl" --agh-bin "${COMPOZY_BIN:-compozy}"`
 6. Confirm the manifest reports `KICKOFF_POSTED=true`, `KICKOFF_TIMESTAMP` is set, task activation is `released`, and the scheduler is unpaused. Send no further prompt to any agent under test; a stall becomes a bug.
 
 *Done when:* every declared task has one queued run behind the barrier, exactly one evidenced kickoff is confirmed, dispatch is released, and the observer has no path for a second agent prompt.
@@ -68,7 +68,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 2. While the observer is tailing the journey log, capture cross-surface evidence WITHOUT directing agents:
    - CLI: `compozy task list`, `compozy agent list`, `compozy channel list`, `compozy session list` against the isolated daemon.
    - API: read endpoints that intersect the playbook's primary domain.
-   - Web: open the AGH web app via `browser-use:browser` (or the `agent-browser` fallback) against `$AGH_WEB_API_PROXY_TARGET`. Capture DOM snapshot, URL, screenshot.
+   - Web: open the AGH web app via `browser-use:browser` (or the `agent-browser` fallback) against `$COMPOZY_WEB_API_PROXY_TARGET`. Capture DOM snapshot, URL, screenshot.
    - Runtime: confirm the journey-log keeps growing.
 3. Record observer-only or out-of-band evidence with the mutating helper `.agents/skills/agh/real-scenario-qa/scripts/record-scenario-action.py`; never use it to fabricate runtime-owned actions.
 4. When the observer reports stall (exit code 1), open `<QA_OUTPUT_PATH>/qa/observation-summary.json`, identify the silent agent / unstarted task, and proceed to Step 6 with that diagnosis. Do not attempt to "wake" the agent with a prompt.

@@ -75,9 +75,9 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		draft := AgentDefinitionDraft{
 			Name:      "coder",
 			Provider:  "codex",
-			Tools:     []string{"agh__zeta", "agh__alpha", "agh__zeta"},
-			Toolsets:  []string{"agh__network", "agh__catalog"},
-			DenyTools: []string{"agh__write_*", "agh__delete_*"},
+			Tools:     []string{"compozy__zeta", "compozy__alpha", "compozy__zeta"},
+			Toolsets:  []string{"compozy__network", "compozy__catalog"},
+			DenyTools: []string{"compozy__write_*", "compozy__delete_*"},
 			Skills:    AgentSkillsConfig{Disabled: []string{"zeta", "alpha"}},
 			MCPServers: []MCPServer{{
 				Name:      "zeta",
@@ -109,7 +109,7 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		if !bytes.Equal(first, second) {
 			t.Fatalf("repeated render differs:\nfirst=%s\nsecond=%s", first, second)
 		}
-		if !slices.Equal(firstAgent.Tools, []string{"agh__alpha", "agh__zeta"}) ||
+		if !slices.Equal(firstAgent.Tools, []string{"compozy__alpha", "compozy__zeta"}) ||
 			!slices.Equal(secondAgent.Skills.Disabled, []string{"alpha", "zeta"}) {
 			t.Fatalf("canonical agent ordering = %#v", firstAgent)
 		}
@@ -438,9 +438,9 @@ name: coder
 provider: claude
 model: claude-opus
 reasoning_effort: max
-tools: ["agh__skill_view", "mcp__github__*"]
-toolsets: ["agh__catalog"]
-deny_tools: ["agh__task_*"]
+tools: ["compozy__skill_view", "mcp__github__*"]
+toolsets: ["compozy__catalog"]
+deny_tools: ["compozy__task_*"]
 permissions: approve-reads
 mcp_servers:
   - name: github
@@ -461,10 +461,10 @@ You are a senior Go engineer.
 	if len(agent.Tools) != 2 {
 		t.Fatalf("ParseAgentDef() Tools = %#v", agent.Tools)
 	}
-	if got, want := strings.Join(agent.Toolsets, ","), "agh__catalog"; got != want {
+	if got, want := strings.Join(agent.Toolsets, ","), "compozy__catalog"; got != want {
 		t.Fatalf("ParseAgentDef() Toolsets = %#v, want %q", agent.Toolsets, want)
 	}
-	if got, want := strings.Join(agent.DenyTools, ","), "agh__task_*"; got != want {
+	if got, want := strings.Join(agent.DenyTools, ","), "compozy__task_*"; got != want {
 		t.Fatalf("ParseAgentDef() DenyTools = %#v, want %q", agent.DenyTools, want)
 	}
 	if !strings.Contains(agent.Prompt, "senior Go engineer") {
@@ -509,7 +509,7 @@ Prompt.
 			name: "ShouldRejectMidSegmentWildcard",
 			content: `---
 name: coder
-tools: ["agh__*__view"]
+tools: ["compozy__*__view"]
 ---
 
 Prompt.
@@ -585,8 +585,8 @@ func TestParseAgentDefAllowsDenyToolsToNarrowAllowedTools(t *testing.T) {
 
 		agent, err := ParseAgentDef([]byte(`---
 name: coder
-tools: ["agh__skill_view"]
-deny_tools: ["agh__skill_view"]
+tools: ["compozy__skill_view"]
+deny_tools: ["compozy__skill_view"]
 ---
 
 Prompt.
@@ -594,10 +594,10 @@ Prompt.
 		if err != nil {
 			t.Fatalf("ParseAgentDef() error = %v", err)
 		}
-		if got, want := strings.Join(agent.Tools, ","), "agh__skill_view"; got != want {
+		if got, want := strings.Join(agent.Tools, ","), "compozy__skill_view"; got != want {
 			t.Fatalf("ParseAgentDef() Tools = %#v, want %q", agent.Tools, want)
 		}
-		if got, want := strings.Join(agent.DenyTools, ","), "agh__skill_view"; got != want {
+		if got, want := strings.Join(agent.DenyTools, ","), "compozy__skill_view"; got != want {
 			t.Fatalf("ParseAgentDef() DenyTools = %#v, want %q", agent.DenyTools, want)
 		}
 	})

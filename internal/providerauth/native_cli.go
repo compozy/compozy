@@ -174,11 +174,11 @@ func CommandEnv(
 	if provider.EffectiveEnvPolicy() == aghconfig.ProviderEnvPolicyIsolated {
 		env = procutil.IsolatedDaemonEnv(environ)
 	}
-	env = providerenv.SetEnvValue(env, "AGH_PROVIDER", strings.TrimSpace(providerName))
-	env = providerenv.SetEnvValue(env, "AGH_PROVIDER_HARNESS", string(provider.EffectiveHarness()))
-	env = providerenv.SetEnvValue(env, "AGH_PROVIDER_AUTH_MODE", string(provider.EffectiveAuthMode()))
-	env = providerenv.SetEnvValue(env, "AGH_PROVIDER_ENV_POLICY", string(provider.EffectiveEnvPolicy()))
-	env = providerenv.SetEnvValue(env, "AGH_PROVIDER_HOME_POLICY", string(provider.EffectiveHomePolicy()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER", strings.TrimSpace(providerName))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_HARNESS", string(provider.EffectiveHarness()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_AUTH_MODE", string(provider.EffectiveAuthMode()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_ENV_POLICY", string(provider.EffectiveEnvPolicy()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_HOME_POLICY", string(provider.EffectiveHomePolicy()))
 	var err error
 	env, err = providerenv.ApplyHomePolicy(homePaths, providerName, provider.EffectiveHomePolicy(), env)
 	if err != nil {

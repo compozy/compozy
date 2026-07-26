@@ -511,7 +511,7 @@ func TestParseSkillFileParsesActivationGatesStrictly(t *testing.T) {
 			"    when:",
 			"      platforms: [darwin, linux]",
 			"      environments: [container]",
-			"      requires_tools: [agh__skill_view]",
+			"      requires_tools: [compozy__skill_view]",
 			"      requires_capabilities: [review.code]",
 			"---",
 			"body",
@@ -524,7 +524,7 @@ func TestParseSkillFileParsesActivationGatesStrictly(t *testing.T) {
 		want := ActivationGates{
 			Platforms:            []string{"darwin", "linux"},
 			Environments:         []string{"container"},
-			RequiresTools:        []string{"agh__skill_view"},
+			RequiresTools:        []string{"compozy__skill_view"},
 			RequiresCapabilities: []string{"review.code"},
 		}
 		if !reflect.DeepEqual(skill.ActivationGates, want) {

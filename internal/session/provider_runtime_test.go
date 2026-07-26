@@ -74,17 +74,17 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 			if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-6" {
 				t.Fatalf("ANTHROPIC_MODEL = %q, want claude-sonnet-4-6", got)
 			}
-			if got := envValue(opts.Env, "AGH_MODEL"); got != "claude-sonnet-4-6" {
-				t.Fatalf("AGH_MODEL = %q, want claude-sonnet-4-6", got)
+			if got := envValue(opts.Env, "COMPOZY_MODEL"); got != "claude-sonnet-4-6" {
+				t.Fatalf("COMPOZY_MODEL = %q, want claude-sonnet-4-6", got)
 			}
-			if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
-				t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
+			if got := envValue(opts.Env, "COMPOZY_PROVIDER_AUTH_MODE"); got != "native_cli" {
+				t.Fatalf("COMPOZY_PROVIDER_AUTH_MODE = %q, want native_cli", got)
 			}
-			if got := envValue(opts.Env, "AGH_PROVIDER_ENV_POLICY"); got != "filtered" {
-				t.Fatalf("AGH_PROVIDER_ENV_POLICY = %q, want filtered", got)
+			if got := envValue(opts.Env, "COMPOZY_PROVIDER_ENV_POLICY"); got != "filtered" {
+				t.Fatalf("COMPOZY_PROVIDER_ENV_POLICY = %q, want filtered", got)
 			}
-			if got := envValue(opts.Env, "AGH_PROVIDER_HOME_POLICY"); got != "operator" {
-				t.Fatalf("AGH_PROVIDER_HOME_POLICY = %q, want operator", got)
+			if got := envValue(opts.Env, "COMPOZY_PROVIDER_HOME_POLICY"); got != "operator" {
+				t.Fatalf("COMPOZY_PROVIDER_HOME_POLICY = %q, want operator", got)
 			}
 		},
 	)
@@ -197,8 +197,8 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != "" {
 			t.Fatalf("PI_CODING_AGENT_DIR = %q, want operator Pi auth path untouched", got)
 		}
-		if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
-			t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
+		if got := envValue(opts.Env, "COMPOZY_PROVIDER_AUTH_MODE"); got != "native_cli" {
+			t.Fatalf("COMPOZY_PROVIDER_AUTH_MODE = %q, want native_cli", got)
 		}
 		assertNoPath(t, filepath.Join(session.sessionDir, "provider-runtime", "pi"))
 	})
@@ -561,8 +561,8 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 				if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != "" {
 					t.Fatalf("PI_CODING_AGENT_DIR = %q, want operator Pi auth path untouched", got)
 				}
-				if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
-					t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
+				if got := envValue(opts.Env, "COMPOZY_PROVIDER_AUTH_MODE"); got != "native_cli" {
+					t.Fatalf("COMPOZY_PROVIDER_AUTH_MODE = %q, want native_cli", got)
 				}
 				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-pi-runtime"), nil
 			}

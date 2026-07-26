@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-func TestResolveHomeDirUsesAGHHomeOverride(t *testing.T) {
+func TestResolveHomeDirUsesCompozyHomeOverride(t *testing.T) {
 	override := filepath.Join(t.TempDir(), "custom-home")
-	t.Setenv("AGH_HOME", override)
+	t.Setenv("COMPOZY_HOME", override)
 
 	got, err := ResolveHomeDir()
 	if err != nil {
@@ -70,10 +70,10 @@ func TestResolveOperatorHomeDirWithLookupUsesHome(t *testing.T) {
 	})
 }
 
-func TestResolveOperatorHomeDirWithLookupFallsBackFromAGHHome(t *testing.T) {
+func TestResolveOperatorHomeDirWithLookupFallsBackFromCompozyHome(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should fall back to the parent of AGH home", func(t *testing.T) {
+	t.Run("Should fall back to the parent of Compozy home", func(t *testing.T) {
 		t.Parallel()
 
 		operatorHome := filepath.Join(t.TempDir(), "operator-home")

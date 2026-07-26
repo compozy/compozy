@@ -15,7 +15,7 @@ import (
 	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
-const driverBinaryEnvVar = "AGH_TEST_ACPMOCK_DRIVER_BIN"
+const driverBinaryEnvVar = "COMPOZY_TEST_ACPMOCK_DRIVER_BIN"
 
 const defaultDriverBuildTimeout = 45 * time.Second
 

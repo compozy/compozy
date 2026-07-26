@@ -50,7 +50,7 @@ const (
 var ErrNoCachedRelease = errors.New("update: cached release info not found")
 
 // ManagedEnvName overrides the install-method detector for managed package installs.
-const ManagedEnvName = "AGH_MANAGED"
+const ManagedEnvName = "COMPOZY_MANAGED"
 
 // Status reports the operator-facing update state.
 type Status string

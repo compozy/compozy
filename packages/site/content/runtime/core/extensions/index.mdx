@@ -30,7 +30,7 @@ workspace. The provider implements the 10-method ABC (`Initialize`, `SystemPromp
 controller. AGH memory is **separate from** any provider-native memory or context: provider-side
 state is owned by the provider, and the AGH controller still records `memory_events`,
 `memory_decisions`, and updates the catalog projection. Provider-supplied tools that collide with
-reserved names (`agh__memory_*`) are rejected at registration with `memory.provider.collision`. The
+reserved names (`compozy__memory_*`) are rejected at registration with `memory.provider.collision`. The
 circuit breaker (`[memory.provider]` keys: `timeout`, `failure_threshold`, `cooldown`) falls back
 to the bundled local provider when the active provider is unhealthy.
 

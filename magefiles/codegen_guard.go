@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const codegenCheckedEnvVar = "AGH_CODEGEN_CHECKED"
+const codegenCheckedEnvVar = "COMPOZY_CODEGEN_CHECKED"
 
 // markCodegenChecked exports the pipeline marker consumed by
 // scripts/codegen-check.sh so turbo's //#codegen-check root task becomes a

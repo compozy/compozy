@@ -20,7 +20,7 @@ agh network threads promote \
   -o json
 ```
 
-Agents can perform the same transition with `agh__task_promote_from_thread`. HTTP and UDS clients
+Agents can perform the same transition with `compozy__task_promote_from_thread`. HTTP and UDS clients
 use `POST /api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task`.
 
 Promotion creates a draft task and a durable origin link containing the workspace, channel, thread,

@@ -357,7 +357,7 @@ async function runCLIJSON<T>(runtime: BrowserRuntime, args: string[]): Promise<T
     throw new Error(`CLI snapshot ${args.join(" ")} requires launch-mode runtime paths.`);
   }
   const { stdout } = await execFileAsync(runtime.paths.cliShim, args, {
-    env: { ...process.env, AGH_HOME: runtime.paths.homeDir, HOME: runtime.paths.homeDir },
+    env: { ...process.env, COMPOZY_HOME: runtime.paths.homeDir, HOME: runtime.paths.homeDir },
     maxBuffer: 10 * 1024 * 1024,
   });
   return JSON.parse(stdout) as T;

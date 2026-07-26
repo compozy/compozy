@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { generateFiles } from "fumadocs-openapi";
 import { createOpenAPI } from "fumadocs-openapi/server";
-import { AGH_OPENAPI_ID, AGH_OPENAPI_PATH } from "../lib/openapi";
+import { COMPOZY_OPENAPI_ID, COMPOZY_OPENAPI_PATH } from "../lib/openapi";
 import { API_SECTIONS } from "../lib/runtime-navigation";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -162,7 +162,7 @@ async function loadReferenceDocument(): Promise<OpenAPIDocument> {
     return referenceDocument;
   }
   const [raw, routes] = await Promise.all([
-    fs.readFile(AGH_OPENAPI_PATH, "utf8"),
+    fs.readFile(COMPOZY_OPENAPI_PATH, "utf8"),
     implementedRoutes(),
   ]);
   referenceDocument = filterUnimplementedRoutes(JSON.parse(raw) as OpenAPIDocument, routes);
@@ -170,7 +170,7 @@ async function loadReferenceDocument(): Promise<OpenAPIDocument> {
 }
 
 const referenceOpenAPI = createOpenAPI({
-  input: { [AGH_OPENAPI_ID]: async () => (await loadReferenceDocument()) as FumadocsDocument },
+  input: { [COMPOZY_OPENAPI_ID]: async () => (await loadReferenceDocument()) as FumadocsDocument },
 });
 
 async function readUsedTags(): Promise<string[]> {

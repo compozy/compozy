@@ -232,9 +232,9 @@ func TestDriverDiagnosticsCaptureSessionMCPServers(t *testing.T) {
 			AgentName: "golden",
 			Command:   command,
 			Cwd:       t.TempDir(),
-			Env:       append(testutil.HermeticProcessEnv(nil), "AGH_SESSION_ID=sess-driver-owner"),
+			Env:       append(testutil.HermeticProcessEnv(nil), "COMPOZY_SESSION_ID=sess-driver-owner"),
 			MCPServers: []aghconfig.MCPServer{{
-				Name:      "agh-hosted-tools",
+				Name:      "compozy-hosted-tools",
 				Transport: aghconfig.MCPServerTransportStdio,
 				Command:   "/bin/compozy",
 				Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
@@ -262,7 +262,7 @@ func TestDriverDiagnosticsCaptureSessionMCPServers(t *testing.T) {
 			t.Fatalf("MCPServers = %#v, want hosted MCP entry", records[0].MCPServers)
 		}
 		stdio := records[0].MCPServers[0].Stdio
-		if stdio == nil || stdio.Name != "agh-hosted-tools" || stdio.Command != "/bin/compozy" {
+		if stdio == nil || stdio.Name != "compozy-hosted-tools" || stdio.Command != "/bin/compozy" {
 			t.Fatalf("diagnostic MCP server = %#v, want AGH hosted stdio entry", records[0].MCPServers[0])
 		}
 	})

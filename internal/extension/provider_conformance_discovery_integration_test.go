@@ -423,7 +423,7 @@ const syntheticProviderManifest = `
 name = "synthetic"
 version = "0.1.0"
 description = "Synthetic conformance provider"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [capabilities]
 provides = ["bridge.adapter"]

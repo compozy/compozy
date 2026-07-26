@@ -32,13 +32,13 @@ func TestHookMatcherMatchesToolWithWildcard(t *testing.T) {
 
 	readOnly := true
 	matcher := HookMatcher{
-		ToolID:       "agh__read_*",
+		ToolID:       "compozy__read_*",
 		ToolReadOnly: &readOnly,
 	}
 
 	payload := ToolPreCallPayload{
 		ToolCallRef: ToolCallRef{
-			ToolID:   "agh__read_text_file",
+			ToolID:   "compozy__read_text_file",
 			ReadOnly: true,
 		},
 	}
@@ -46,7 +46,7 @@ func TestHookMatcherMatchesToolWithWildcard(t *testing.T) {
 		t.Fatal("MatchesToolPreCall() = false, want true")
 	}
 
-	payload.ToolID = "agh__write_text_file"
+	payload.ToolID = "compozy__write_text_file"
 	if matcher.MatchesToolPreCall(payload) {
 		t.Fatal("MatchesToolPreCall() = true, want false for tool ID mismatch")
 	}
@@ -306,15 +306,15 @@ func TestHookMatcherMatchesToolResponses(t *testing.T) {
 	t.Parallel()
 
 	toolMatcher := HookMatcher{
-		ToolID: "agh__terminal_run",
+		ToolID: "compozy__terminal_run",
 	}
 	if !toolMatcher.MatchesToolPostCall(ToolPostCallPayload{
-		ToolCallRef: ToolCallRef{ToolID: "agh__terminal_run"},
+		ToolCallRef: ToolCallRef{ToolID: "compozy__terminal_run"},
 	}) {
 		t.Fatal("MatchesToolPostCall() = false, want true")
 	}
 	if !toolMatcher.MatchesToolPostError(ToolPostErrorPayload{
-		ToolCallRef: ToolCallRef{ToolID: "agh__terminal_run"},
+		ToolCallRef: ToolCallRef{ToolID: "compozy__terminal_run"},
 	}) {
 		t.Fatal("MatchesToolPostError() = false, want true")
 	}

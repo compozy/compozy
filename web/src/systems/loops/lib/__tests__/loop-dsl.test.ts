@@ -50,7 +50,7 @@ describe("loop dsl view", () => {
       apiVersion: "agh.loop/v1",
       graph: {
         nodes: [
-          { id: "post", class: "action", kind: "agh__network_send", params: {} },
+          { id: "post", class: "action", kind: "compozy__network_send", params: {} },
           { id: "gate", class: "control", kind: "gate", criteria: [], on_result: {} },
           { id: "shape", class: "action", kind: "transform", params: { map: {} } },
         ],

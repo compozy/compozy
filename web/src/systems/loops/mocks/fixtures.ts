@@ -56,7 +56,7 @@ const deliveryGraph = graph(
 const watchGraph = graph(
   [
     { id: "watch_pr", class: "source", kind: "watch-source" },
-    { id: "fetch_issues", class: "action", kind: "agh__network_send" },
+    { id: "fetch_issues", class: "action", kind: "compozy__network_send" },
     { id: "remediate", class: "action", kind: "run-agent" },
     { id: "resolve", class: "control", kind: "gate", verdict_policy: "revise_until_clean" },
   ],

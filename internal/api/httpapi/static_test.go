@@ -91,7 +91,7 @@ func TestStaticRoutesDoNotFallbackForMissingAssetsOrAPIRoutes(t *testing.T) {
 }
 
 func TestStaticRoutesServeLocalWebDistOverride(t *testing.T) {
-	t.Run("Should serve AGH_WEB_DIST_DIR index and assets from disk", func(t *testing.T) {
+	t.Run("Should serve COMPOZY_WEB_DIST_DIR index and assets from disk", func(t *testing.T) {
 		distDir := writeLocalStaticDist(t, "local shell one", map[string]string{
 			"assets/local.js": "console.log('local asset');",
 		})
@@ -124,7 +124,7 @@ func TestStaticRoutesServeLocalWebDistOverride(t *testing.T) {
 }
 
 func TestStaticRoutesObserveLocalWebDistRewrite(t *testing.T) {
-	t.Run("Should serve rewritten AGH_WEB_DIST_DIR files without rebuilding Go", func(t *testing.T) {
+	t.Run("Should serve rewritten COMPOZY_WEB_DIST_DIR files without rebuilding Go", func(t *testing.T) {
 		distDir := writeLocalStaticDist(t, "local shell before", nil)
 		t.Setenv(webDistDirEnvVar, distDir)
 
@@ -149,7 +149,7 @@ func TestStaticRoutesObserveLocalWebDistRewrite(t *testing.T) {
 }
 
 func TestStaticRoutesRejectMissingLocalWebDistIndex(t *testing.T) {
-	t.Run("Should fail clearly when AGH_WEB_DIST_DIR has no index", func(t *testing.T) {
+	t.Run("Should fail clearly when COMPOZY_WEB_DIST_DIR has no index", func(t *testing.T) {
 		distDir := t.TempDir()
 		t.Setenv(webDistDirEnvVar, distDir)
 

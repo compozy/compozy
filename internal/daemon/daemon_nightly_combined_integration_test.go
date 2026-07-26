@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	nightlyCombinedHelperEnvKey     = "AGH_TEST_NIGHTLY_COMBINED_HELPER"
-	nightlyCombinedScenarioEnvKey   = "AGH_TEST_NIGHTLY_COMBINED_SCENARIO"
+	nightlyCombinedHelperEnvKey     = "COMPOZY_TEST_NIGHTLY_COMBINED_HELPER"
+	nightlyCombinedScenarioEnvKey   = "COMPOZY_TEST_NIGHTLY_COMBINED_SCENARIO"
 	nightlyCombinedTaskScenario     = "task-resume-network"
 	nightlyCombinedBridgeScenario   = "bridge-sandbox-delivery"
 	nightlyCombinedTaskAgentName    = "nightly-task-network-runner"
@@ -306,7 +306,7 @@ func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) 
 	markers := extensiontest.NewTempMarkerPaths(t)
 	env := markers.Env()
 	delete(env, extensiontest.EnvCrashOncePath)
-	env["AGH_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
+	env["COMPOZY_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
 
 	configSeed := nightlyCombinedConfigSeed(
 		t,

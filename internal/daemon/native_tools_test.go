@@ -512,7 +512,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if slices.ContainsFunc(views, func(view toolspkg.ToolView) bool {
 			return view.Descriptor.ID == toolspkg.ToolIDClarify
 		}) {
-			t.Fatal("List(before clarify broker) exposed agh__clarify")
+			t.Fatal("List(before clarify broker) exposed compozy__clarify")
 		}
 
 		broker = nativeClarifyBrokerStub{}
@@ -523,7 +523,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if !slices.ContainsFunc(views, func(view toolspkg.ToolView) bool {
 			return view.Descriptor.ID == toolspkg.ToolIDClarify
 		}) {
-			t.Fatal("List(after clarify broker) missing agh__clarify")
+			t.Fatal("List(after clarify broker) missing compozy__clarify")
 		}
 
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
@@ -531,7 +531,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			Input:  json.RawMessage(`{"question":"Deploy?","choices":["Staging","Production"]}`),
 		})
 		if err != nil {
-			t.Fatalf("Call(agh__clarify) error = %v", err)
+			t.Fatalf("Call(compozy__clarify) error = %v", err)
 		}
 		requireNativeStructuredContains(t, result, []byte(`"choice":0`))
 	})
@@ -673,15 +673,15 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(tool_list) error = %v", err)
 		}
-		requireNativeStructuredContains(t, listResult, []byte(`"agh__task_child_create"`))
-		requireNativeStructuredContains(t, listResult, []byte(`"agh__bundles_list"`))
-		requireNativeStructuredContains(t, listResult, []byte(`"agh__resources_list"`))
-		requireNativeStructuredContains(t, listResult, []byte(`"agh__mcp_status"`))
-		requireNativeStructuredContains(t, listResult, []byte(`"agh__mcp_auth_status"`))
-		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__task_claim"`))
-		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__skill_install"`))
-		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__mcp_auth_login"`))
-		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__mcp_auth_logout"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"compozy__task_child_create"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"compozy__bundles_list"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"compozy__resources_list"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"compozy__mcp_status"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"compozy__mcp_auth_status"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(`"compozy__task_claim"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(`"compozy__skill_install"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(`"compozy__mcp_auth_login"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(`"compozy__mcp_auth_logout"`))
 
 		searchResult, err := registry.Call(
 			t.Context(),
@@ -694,14 +694,14 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(tool_search) error = %v", err)
 		}
-		requireNativeStructuredContains(t, searchResult, []byte(`"agh__task_child_create"`))
+		requireNativeStructuredContains(t, searchResult, []byte(`"compozy__task_child_create"`))
 
 		infoResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDToolInfo,
-				Input:  json.RawMessage(`{"tool_id":"agh__network_send"}`),
+				Input:  json.RawMessage(`{"tool_id":"compozy__network_send"}`),
 			},
 		)
 		if err != nil {
@@ -709,7 +709,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, infoResult, []byte(`"open_world"`))
 
-		_, err = registry.Get(t.Context(), toolspkg.Scope{Operator: true}, "agh__task_claim")
+		_, err = registry.Get(t.Context(), toolspkg.Scope{Operator: true}, "compozy__task_claim")
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
 			t.Fatalf("Registry.Get(excluded task claim) error = %v, want ErrToolNotFound", err)
 		}
@@ -2352,7 +2352,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Priority:     500,
 				Timeout:      time.Second,
 				ExecutorKind: hookspkg.HookExecutorSubprocess,
-				Matcher:      hookspkg.HookMatcher{ToolID: "agh__task_read"},
+				Matcher:      hookspkg.HookMatcher{ToolID: "compozy__task_read"},
 				Metadata: map[string]string{
 					"access_token": "secret-value",
 					"visible":      "ok",
@@ -5931,7 +5931,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Get(memory_admin_history) error = %v", err)
 		}
-		_, err = registry.Get(t.Context(), toolspkg.Scope{Operator: true}, "agh__memory_history")
+		_, err = registry.Get(t.Context(), toolspkg.Scope{Operator: true}, "compozy__memory_history")
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
 			t.Fatalf("Registry.Get(memory_history legacy) error = %v, want ErrToolNotFound", err)
 		}
@@ -7089,7 +7089,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		if !view.Descriptor.Destructive || view.Descriptor.ReadOnly {
 			t.Fatalf("task_cancel risk flags = %#v, want destructive mutating tool", view.Descriptor)
 		}
-		_, err = state.deps.ToolRegistry.Get(t.Context(), toolspkg.Scope{Operator: true}, "agh__skill_remove")
+		_, err = state.deps.ToolRegistry.Get(t.Context(), toolspkg.Scope{Operator: true}, "compozy__skill_remove")
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
 			t.Fatalf("ToolRegistry.Get(skill_remove) error = %v, want ErrToolNotFound", err)
 		}
@@ -7145,7 +7145,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 
 		_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolInfo,
-			Input:  json.RawMessage(`{"tool_id":"agh__tool_list"}`),
+			Input:  json.RawMessage(`{"tool_id":"compozy__tool_list"}`),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(tool_info full default) error = %v", err)
@@ -7160,7 +7160,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireNativeViewExcludes(t, views, toolspkg.ToolIDToolInfo)
 		_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolInfo,
-			Input:  json.RawMessage(`{"tool_id":"agh__tool_list"}`),
+			Input:  json.RawMessage(`{"tool_id":"compozy__tool_list"}`),
 		})
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonPolicyDenied)
 
@@ -7330,18 +7330,18 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(tool_search diagnostic) error = %v", err)
 		}
-		requireNativeStructuredContains(t, searchResult, []byte(`"agh__network_channel_create"`))
+		requireNativeStructuredContains(t, searchResult, []byte(`"compozy__network_channel_create"`))
 		requireNativeStructuredContains(t, searchResult, []byte(`"callable":false`))
 		requireNativeStructuredContains(t, searchResult, []byte(`"policy_denied"`))
 
 		infoResult, err := registry.Call(ctx, scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolInfo,
-			Input:  json.RawMessage(`{"tool_id":"agh__network_channel_create"}`),
+			Input:  json.RawMessage(`{"tool_id":"compozy__network_channel_create"}`),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(tool_info diagnostic) error = %v", err)
 		}
-		requireNativeStructuredContains(t, infoResult, []byte(`"agh__network_channel_create"`))
+		requireNativeStructuredContains(t, infoResult, []byte(`"compozy__network_channel_create"`))
 		requireNativeStructuredContains(t, infoResult, []byte(`"callable":false`))
 		requireNativeStructuredContains(t, infoResult, []byte(`"policy_denied"`))
 	})

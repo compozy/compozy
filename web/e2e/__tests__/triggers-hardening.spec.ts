@@ -1005,7 +1005,7 @@ async function readFileIfExists(filePath: string): Promise<string> {
 function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    AGH_HOME: paths.homeDir,
+    COMPOZY_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
   };

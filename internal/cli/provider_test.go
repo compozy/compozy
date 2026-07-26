@@ -143,8 +143,8 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 			if !strings.Contains(spec.Command, "claude auth status") {
 				t.Fatalf("Command = %q, want claude status command", spec.Command)
 			}
-			if providerTestEnvValue(spec.Env, "AGH_PROVIDER_AUTH_MODE") != "native_cli" {
-				t.Fatalf("AGH_PROVIDER_AUTH_MODE missing from provider auth command env: %#v", spec.Env)
+			if providerTestEnvValue(spec.Env, "COMPOZY_PROVIDER_AUTH_MODE") != "native_cli" {
+				t.Fatalf("COMPOZY_PROVIDER_AUTH_MODE missing from provider auth command env: %#v", spec.Env)
 			}
 			return providerAuthCommandResult{ExitCode: 0, Stdout: "logged in"}, nil
 		}
@@ -389,8 +389,8 @@ func TestProviderAuthStatusCommandHermeticEnv(t *testing.T) {
 		if len(record.Credentials) != 1 || record.Credentials[0].Present {
 			t.Fatalf("Credentials = %#v, want hermetic env to hide operator credential", record.Credentials)
 		}
-		if got, want := os.Getenv("AGH_HOME"), hermetic.HomeDir; got != want {
-			t.Fatalf("AGH_HOME = %q, want %q", got, want)
+		if got, want := os.Getenv("COMPOZY_HOME"), hermetic.HomeDir; got != want {
+			t.Fatalf("COMPOZY_HOME = %q, want %q", got, want)
 		}
 	})
 }

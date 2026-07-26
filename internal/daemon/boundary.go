@@ -58,7 +58,7 @@ func (d *Daemon) shouldVerifyBoundaries() bool {
 	if envGetter == nil {
 		envGetter = os.Getenv
 	}
-	value := strings.ToLower(strings.TrimSpace(envGetter("AGH_DEV_VERIFY_BOUNDARIES")))
+	value := strings.ToLower(strings.TrimSpace(envGetter("COMPOZY_DEV_VERIFY_BOUNDARIES")))
 	return value == "1" || value == boundaryTrueKey || value == boundaryYesKey
 }
 

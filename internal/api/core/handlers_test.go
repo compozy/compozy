@@ -2938,9 +2938,9 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					Command:         "claude --print",
 					Model:           "claude-opus",
 					ReasoningEffort: contract.ReasoningEffort("high"),
-					Tools:           []string{"agh__skill_view"},
-					Toolsets:        []string{"agh__catalog"},
-					DenyTools:       []string{"agh__delete_*"},
+					Tools:           []string{"compozy__skill_view"},
+					Toolsets:        []string{"compozy__catalog"},
+					DenyTools:       []string{"compozy__delete_*"},
 					Permissions:     contract.SettingsPermissionModeApproveReads,
 					CategoryPath:    []string{"Engineering", "Review"},
 					Skills:          &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
@@ -2956,9 +2956,9 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			if payload.Agent.Name != "reviewer" || payload.Agent.Provider != "claude" ||
 				payload.Agent.Command != "claude --print" || payload.Agent.Model != "claude-opus" ||
 				payload.Agent.ReasoningEffort != contract.ReasoningEffort("high") ||
-				!slices.Equal(payload.Agent.Tools, []string{"agh__skill_view"}) ||
-				!slices.Equal(payload.Agent.Toolsets, []string{"agh__catalog"}) ||
-				!slices.Equal(payload.Agent.DenyTools, []string{"agh__delete_*"}) ||
+				!slices.Equal(payload.Agent.Tools, []string{"compozy__skill_view"}) ||
+				!slices.Equal(payload.Agent.Toolsets, []string{"compozy__catalog"}) ||
+				!slices.Equal(payload.Agent.DenyTools, []string{"compozy__delete_*"}) ||
 				payload.Agent.Permissions != string(contract.SettingsPermissionModeApproveReads) ||
 				!slices.Equal(payload.Agent.CategoryPath, []string{"Engineering", "Review"}) ||
 				payload.Agent.Skills == nil || !slices.Equal(payload.Agent.Skills.Disabled, []string{"legacy"}) ||

@@ -404,7 +404,7 @@ func TestDaemonE2EAgentMemoryBatchIsRecalledByNextSession(t *testing.T) {
 
 	var init sdkmcp.InitializeRequest
 	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-	init.Params.ClientInfo = sdkmcp.Implementation{Name: "agh-memory-batch-e2e", Version: "1.0.0"}
+	init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-memory-batch-e2e", Version: "1.0.0"}
 	if _, err := client.Initialize(ctx, init); err != nil {
 		t.Fatalf("Initialize(memory batch hosted MCP client) error = %v", err)
 	}

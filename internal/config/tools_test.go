@@ -465,9 +465,9 @@ trusted_sources = ["mcp:github", "extension:linear"]
 		writeFile(t, agentPath, `---
 name: coder
 provider: claude
-tools: ["agh__skill_view", "mcp__github__*"]
-toolsets: ["agh__catalog"]
-deny_tools: ["agh__task_*"]
+tools: ["compozy__skill_view", "mcp__github__*"]
+toolsets: ["compozy__catalog"]
+deny_tools: ["compozy__task_*"]
 ---
 
 You are a code agent.
@@ -485,13 +485,13 @@ You are a code agent.
 		if err != nil {
 			t.Fatalf("ResolveAgent() error = %v", err)
 		}
-		if got, want := resolved.Tools, []string{"agh__skill_view", "mcp__github__*"}; !slices.Equal(got, want) {
+		if got, want := resolved.Tools, []string{"compozy__skill_view", "mcp__github__*"}; !slices.Equal(got, want) {
 			t.Fatalf("ResolveAgent() Tools = %#v, want %#v", got, want)
 		}
-		if got, want := resolved.Toolsets, []string{"agh__catalog"}; !slices.Equal(got, want) {
+		if got, want := resolved.Toolsets, []string{"compozy__catalog"}; !slices.Equal(got, want) {
 			t.Fatalf("ResolveAgent() Toolsets = %#v, want %#v", got, want)
 		}
-		if got, want := resolved.DenyTools, []string{"agh__task_*"}; !slices.Equal(got, want) {
+		if got, want := resolved.DenyTools, []string{"compozy__task_*"}; !slices.Equal(got, want) {
 			t.Fatalf("ResolveAgent() DenyTools = %#v, want %#v", got, want)
 		}
 	})

@@ -862,14 +862,14 @@ func TestDispatchToolPreCallReturnsDenyError(t *testing.T) {
 				Mode:         HookModeSync,
 				ExecutorKind: HookExecutorNative,
 				Matcher: HookMatcher{
-					ToolID: "agh__write",
+					ToolID: "compozy__write",
 				},
 			}}),
 			WithExecutorResolver(testExecutorResolver(map[string]Executor{
 				"tool-pre": NewTypedNativeExecutor(
 					func(_ context.Context, _ RegisteredHook, payload ToolPreCallPayload) (ToolCallPatch, error) {
-						if payload.ToolID != "agh__write" {
-							t.Fatalf("payload.ToolID = %q, want agh__write", payload.ToolID)
+						if payload.ToolID != "compozy__write" {
+							t.Fatalf("payload.ToolID = %q, want compozy__write", payload.ToolID)
 						}
 						return ToolCallPatch{
 							ControlPatch: ControlPatch{
@@ -888,7 +888,7 @@ func TestDispatchToolPreCallReturnsDenyError(t *testing.T) {
 
 		result, err := hooks.DispatchToolPreCall(t.Context(), ToolPreCallPayload{
 			PayloadBase: PayloadBase{Event: HookToolPreCall},
-			ToolCallRef: ToolCallRef{ToolID: "agh__write"},
+			ToolCallRef: ToolCallRef{ToolID: "compozy__write"},
 		})
 		if err == nil {
 			t.Fatal("DispatchToolPreCall() error = nil, want deny error")
@@ -896,7 +896,7 @@ func TestDispatchToolPreCallReturnsDenyError(t *testing.T) {
 		if !strings.Contains(err.Error(), "denied: policy") {
 			t.Fatalf("DispatchToolPreCall() error = %q, want deny reason", err)
 		}
-		if result.ToolID != "agh__write" {
+		if result.ToolID != "compozy__write" {
 			t.Fatalf("result.ToolID = %q, want original tool id", result.ToolID)
 		}
 	})
@@ -1108,7 +1108,7 @@ func TestDispatchAsyncEventPanicDoesNotAffectSyncToolChain(t *testing.T) {
 				Mode:         HookModeSync,
 				Required:     true,
 				ExecutorKind: HookExecutorNative,
-				Matcher:      HookMatcher{ToolID: "agh__read"},
+				Matcher:      HookMatcher{ToolID: "compozy__read"},
 			},
 		}),
 		WithExecutorResolver(testExecutorResolver(map[string]Executor{
@@ -1121,7 +1121,7 @@ func TestDispatchAsyncEventPanicDoesNotAffectSyncToolChain(t *testing.T) {
 			"sync-tool": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, _ ToolPreCallPayload) (ToolCallPatch, error) {
 					syncCalled = true
-					id := "agh__write"
+					id := "compozy__write"
 					return ToolCallPatch{ToolID: &id, ToolInput: []byte(`{"aut17":true}`)}, nil
 				},
 			),
@@ -1146,7 +1146,7 @@ func TestDispatchAsyncEventPanicDoesNotAffectSyncToolChain(t *testing.T) {
 
 	result, err := hooks.DispatchToolPreCall(t.Context(), ToolPreCallPayload{
 		PayloadBase: PayloadBase{Event: HookToolPreCall},
-		ToolCallRef: ToolCallRef{ToolID: "agh__read"},
+		ToolCallRef: ToolCallRef{ToolID: "compozy__read"},
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPreCall() error = %v, want nil", err)
@@ -1154,7 +1154,7 @@ func TestDispatchAsyncEventPanicDoesNotAffectSyncToolChain(t *testing.T) {
 	if !syncCalled {
 		t.Fatal("sync tool hook was not called")
 	}
-	if result.ToolID != "agh__write" || string(result.ToolInput) != `{"aut17":true}` {
+	if result.ToolID != "compozy__write" || string(result.ToolInput) != `{"aut17":true}` {
 		t.Fatalf("result = %#v, want sync tool patch after async panic", result)
 	}
 }
@@ -1452,27 +1452,27 @@ func TestDispatchToolHooksApplyPatches(t *testing.T) {
 				Event:        HookToolPreCall,
 				Mode:         HookModeSync,
 				ExecutorKind: HookExecutorNative,
-				Matcher:      HookMatcher{ToolID: "agh__read"},
+				Matcher:      HookMatcher{ToolID: "compozy__read"},
 			},
 			{
 				Name:         "tool-post",
 				Event:        HookToolPostCall,
 				Mode:         HookModeSync,
 				ExecutorKind: HookExecutorNative,
-				Matcher:      HookMatcher{ToolID: "agh__read"},
+				Matcher:      HookMatcher{ToolID: "compozy__read"},
 			},
 			{
 				Name:         "tool-error",
 				Event:        HookToolPostError,
 				Mode:         HookModeSync,
 				ExecutorKind: HookExecutorNative,
-				Matcher:      HookMatcher{ToolID: "agh__read"},
+				Matcher:      HookMatcher{ToolID: "compozy__read"},
 			},
 		}),
 		WithExecutorResolver(testExecutorResolver(map[string]Executor{
 			"tool-pre": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, _ ToolPreCallPayload) (ToolCallPatch, error) {
-					id := "agh__write"
+					id := "compozy__write"
 					readOnly := false
 					return ToolCallPatch{
 						ToolID:    &id,
@@ -1509,12 +1509,12 @@ func TestDispatchToolHooksApplyPatches(t *testing.T) {
 
 	pre, err := hooks.DispatchToolPreCall(t.Context(), ToolPreCallPayload{
 		PayloadBase: PayloadBase{Event: HookToolPreCall},
-		ToolCallRef: ToolCallRef{ToolID: "agh__read"},
+		ToolCallRef: ToolCallRef{ToolID: "compozy__read"},
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPreCall() error = %v, want nil", err)
 	}
-	if pre.ToolID != "agh__write" || pre.ReadOnly {
+	if pre.ToolID != "compozy__write" || pre.ReadOnly {
 		t.Fatalf("pre = %#v, want patched tool identity", pre)
 	}
 	if string(pre.ToolInput) != `{"patched":true}` {
@@ -1523,7 +1523,7 @@ func TestDispatchToolHooksApplyPatches(t *testing.T) {
 
 	post, err := hooks.DispatchToolPostCall(t.Context(), ToolPostCallPayload{
 		PayloadBase: PayloadBase{Event: HookToolPostCall},
-		ToolCallRef: ToolCallRef{ToolID: "agh__read"},
+		ToolCallRef: ToolCallRef{ToolID: "compozy__read"},
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPostCall() error = %v, want nil", err)
@@ -1534,7 +1534,7 @@ func TestDispatchToolHooksApplyPatches(t *testing.T) {
 
 	postErr, err := hooks.DispatchToolPostError(t.Context(), ToolPostErrorPayload{
 		PayloadBase: PayloadBase{Event: HookToolPostError},
-		ToolCallRef: ToolCallRef{ToolID: "agh__read"},
+		ToolCallRef: ToolCallRef{ToolID: "compozy__read"},
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPostError() error = %v, want nil", err)

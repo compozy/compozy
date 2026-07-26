@@ -818,8 +818,8 @@ describe("MarketplaceKindPage", () => {
             {
               gate: "requires_tools",
               code: "missing_tool",
-              missing: ["agh__browser_screenshot"],
-              message: "gate requires_tools unmet: agh__browser_screenshot",
+              missing: ["compozy__browser_screenshot"],
+              message: "gate requires_tools unmet: compozy__browser_screenshot",
             },
           ],
         },
@@ -836,7 +836,7 @@ describe("MarketplaceKindPage", () => {
     expect(mocks.skillsWorkspace).toHaveBeenLastCalledWith("");
     const card = screen.getByTestId("marketplace-installed-card-global-review");
     expect(card).toHaveTextContent("Inactive");
-    expect(card).toHaveTextContent("Missing tool: agh__browser_screenshot");
+    expect(card).toHaveTextContent("Missing tool: compozy__browser_screenshot");
   });
 
   it("Should derive installed update state from later catalog pages", () => {

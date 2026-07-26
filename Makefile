@@ -134,10 +134,10 @@ qa-reap:
 # Local daemon run
 #
 # `start` rebuilds both the daemon and web bundle so their public contracts
-# cannot drift, then launches the daemon with the AGH_WEB_DIST_DIR override so
+# cannot drift, then launches the daemon with the COMPOZY_WEB_DIST_DIR override so
 # it serves the freshly-built web/dist from disk instead of the embedded bundle.
 # `dev` runs the real daemon under Air and the web UI under Vite. The first
-# successful Air build gracefully stops any daemon using the active AGH_HOME;
+# successful Air build gracefully stops any daemon using the active COMPOZY_HOME;
 # daemon web routes redirect to Vite, and Air owns every later rebuild/restart.
 .PHONY: start stop restart dev dev-daemon
 
@@ -150,7 +150,7 @@ dev-daemon:
 start: build web-build
 	@test -x ./bin/compozy || { echo "bin/compozy not found — run 'make build' first"; exit 1; }
 	@echo "Starting daemon serving local web bundle: $(CURDIR)/web/dist"
-	@AGH_WEB_DIST_DIR="$(CURDIR)/web/dist" ./bin/compozy daemon start
+	@COMPOZY_WEB_DIST_DIR="$(CURDIR)/web/dist" ./bin/compozy daemon start
 
 stop:
 	@./bin/compozy daemon stop

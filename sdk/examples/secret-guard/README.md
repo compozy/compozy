@@ -41,11 +41,11 @@ compozy extension install ./sdk/examples/secret-guard
 
 The persistent runtime reads these optional environment variables so integration tests and extension authors can inspect runtime behavior without patching the code:
 
-- `AGH_SECRET_GUARD_HANDSHAKE_PATH`: writes the negotiated initialize contract as JSON.
-- `AGH_SECRET_GUARD_HOST_CALL_PATH`: writes the result of the `sessions/list` Host API probe as JSON.
-- `AGH_SECRET_GUARD_STARTS_PATH`: appends one line per runtime process start.
-- `AGH_SECRET_GUARD_CRASH_ONCE_PATH`: if set and the file does not exist yet, the runtime exits once after its first successful Host API probe and creates the file first.
-- `AGH_SECRET_GUARD_SHUTDOWN_PATH`: appends one line when the daemon sends `shutdown`.
+- `COMPOZY_SECRET_GUARD_HANDSHAKE_PATH`: writes the negotiated initialize contract as JSON.
+- `COMPOZY_SECRET_GUARD_HOST_CALL_PATH`: writes the result of the `sessions/list` Host API probe as JSON.
+- `COMPOZY_SECRET_GUARD_STARTS_PATH`: appends one line per runtime process start.
+- `COMPOZY_SECRET_GUARD_CRASH_ONCE_PATH`: if set and the file does not exist yet, the runtime exits once after its first successful Host API probe and creates the file first.
+- `COMPOZY_SECRET_GUARD_SHUTDOWN_PATH`: appends one line when the daemon sends `shutdown`.
 
 ## Hook Behavior
 

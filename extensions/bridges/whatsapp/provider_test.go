@@ -55,7 +55,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-progress-off",
 			1,
 			"call-off",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		ack, err := provider.handleBridgesProgress(
@@ -122,7 +122,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-progress-disabled",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		second := testWhatsAppProgressRequest(
@@ -130,7 +130,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-progress-disabled",
 			2,
 			"call-2",
-			"agh__task_list",
+			"compozy__task_list",
 			"Reading tasks",
 		)
 		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
@@ -202,7 +202,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-progress-failure",
 			1,
 			"call-failure",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		if _, err := provider.handleBridgesProgress(
@@ -240,7 +240,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		api := &fakeWhatsAppAPI{nextMessageID: 50}
 		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
 
-		toolIDs := []string{"agh__terminal", "agh__task_list"}
+		toolIDs := []string{"compozy__terminal", "compozy__task_list"}
 		labels := []string{"Inspecting", "Reading tasks"}
 		var first bridgepkg.DeliveryRequest
 		for index := range toolIDs {
@@ -350,7 +350,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-progress-accumulate",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		second := testWhatsAppProgressRequest(
@@ -358,7 +358,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-progress-accumulate",
 			2,
 			"call-2",
-			"agh__task_list",
+			"compozy__task_list",
 			"Reading tasks",
 		)
 		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
@@ -453,7 +453,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-progress-final",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		if _, err := provider.handleBridgesProgress(
@@ -525,7 +525,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-progress-committed-flush",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		second := testWhatsAppProgressRequest(
@@ -533,7 +533,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			first.Event.DeliveryID,
 			2,
 			"call-2",
-			"agh__task_list",
+			"compozy__task_list",
 			"Reading tasks",
 		)
 		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
@@ -604,7 +604,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-final-committed",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		if _, err := provider.handleBridgesProgress(
@@ -675,7 +675,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			"delivery-progress-unicode",
 			1,
 			"call-unicode",
-			"agh__terminal",
+			"compozy__terminal",
 			label,
 		)
 		if _, err := provider.handleBridgesProgress(

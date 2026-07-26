@@ -121,7 +121,7 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 		first := validDescriptor()
 		first.ToolPresentation = NewToolPresentation("Reading skill", "arg:name")
 		second := validDescriptor()
-		second.ID = "agh__skill_search"
+		second.ID = "compozy__skill_search"
 		second.Backend.NativeName = "skill_search"
 		second.ToolPresentation = NewToolPresentation("Searching skills", "query")
 		descriptors := []Descriptor{first, second}
@@ -315,7 +315,7 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDescriptor()
-		descriptor.ID = ToolID("agh__" + longASCII(65))
+		descriptor.ID = ToolID("compozy__" + longASCII(65))
 		provider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor)
 		registry, err := NewRegistry(WithProviders(provider))
 		if err != nil {
@@ -335,11 +335,11 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		ctx := context.Background()
 		skillView := validDescriptor()
 		taskUpdate := validDescriptor()
-		taskUpdate.ID = "agh__task_update"
+		taskUpdate.ID = "compozy__task_update"
 		taskUpdate.ReadOnly = false
 		taskUpdate.Risk = RiskMutating
 		networkSend := validDescriptor()
-		networkSend.ID = "agh__network_send"
+		networkSend.ID = "compozy__network_send"
 		networkSend.ReadOnly = false
 		networkSend.OpenWorld = true
 		networkSend.Risk = RiskOpenWorld
@@ -361,7 +361,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 				ReasonCodes: []ReasonCode{ReasonBackendUnhealthy},
 			},
 		}
-		denyTaskPattern, err := ParseToolPattern("agh__task_*")
+		denyTaskPattern, err := ParseToolPattern("compozy__task_*")
 		if err != nil {
 			t.Fatalf("ParseToolPattern() error = %v", err)
 		}
@@ -411,7 +411,7 @@ func TestRuntimeRegistrySearchGetAndCustomEvaluator(t *testing.T) {
 		skillView := validDescriptor()
 		skillView.Tags = []string{"skills"}
 		taskRead := validDescriptor()
-		taskRead.ID = "agh__task_read"
+		taskRead.ID = "compozy__task_read"
 		taskRead.DisplayTitle = "Read Task"
 		taskRead.Description = "Read task details"
 		taskRead.Tags = []string{"tasks"}

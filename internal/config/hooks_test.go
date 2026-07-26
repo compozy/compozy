@@ -21,7 +21,7 @@ priority = 640
 timeout = "7s"
 
 [hooks.declarations.matcher]
-tool_id = "agh__read_file"
+tool_id = "compozy__read_file"
 tool_read_only = true
 
 [hooks.declarations.executor]
@@ -74,7 +74,7 @@ env = { PHASE = "pre" }
 	if got, want := hook.Env["PHASE"], "pre"; got != want {
 		t.Fatalf("hook.Env[PHASE] = %q, want %q", got, want)
 	}
-	if got, want := hook.Matcher.ToolID, "agh__read_file"; got != want {
+	if got, want := hook.Matcher.ToolID, "compozy__read_file"; got != want {
 		t.Fatalf("hook.Matcher.ToolID = %q, want %q", got, want)
 	}
 	if hook.Matcher.ToolReadOnly == nil || !*hook.Matcher.ToolReadOnly {
@@ -470,7 +470,7 @@ func prepareHookConfigTestEnv(t *testing.T) (string, HomePaths) {
 
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {

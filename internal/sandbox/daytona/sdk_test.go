@@ -79,7 +79,7 @@ func TestSDKClientAdapter(t *testing.T) {
 		created, err := client.Create(ctx, createSandboxRequest{
 			Snapshot: "snap-sdk",
 			Labels:   map[string]string{"agh_sandbox_id": "env-sdk"},
-			EnvVars:  map[string]string{"AGH_SESSION_ID": "sess-sdk"},
+			EnvVars:  map[string]string{"COMPOZY_SESSION_ID": "sess-sdk"},
 			Timeout:  time.Second,
 		})
 		if err != nil {

@@ -45,14 +45,14 @@ webhook.
 
 Collect or decide these values:
 
-| Value                    | Required | Where it comes from                                                                                |
-| ------------------------ | -------- | -------------------------------------------------------------------------------------------------- |
-| AGH workspace ID         | yes      | `agh workspace list -o json`; this workspace's default agent receives new routed messages.         |
-| Public callback URL      | yes      | Stable HTTPS URL that forwards to the Slack provider listener and path.                            |
-| Local listener address   | yes      | `provider_config.webhook.listen_addr` or `AGH_BRIDGE_SLACK_LISTEN_ADDR` in the daemon environment. |
-| Bot User OAuth token     | yes      | Slack app **OAuth & Permissions** after installation; use the bot token, not a user token.         |
-| App signing secret       | yes      | Slack app **Basic Information → App Credentials**.                                                 |
-| Slack app administration | yes      | Permission to create and install an app in the target Slack workspace.                             |
+| Value                    | Required | Where it comes from                                                                                    |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------------------ |
+| AGH workspace ID         | yes      | `agh workspace list -o json`; this workspace's default agent receives new routed messages.             |
+| Public callback URL      | yes      | Stable HTTPS URL that forwards to the Slack provider listener and path.                                |
+| Local listener address   | yes      | `provider_config.webhook.listen_addr` or `COMPOZY_BRIDGE_SLACK_LISTEN_ADDR` in the daemon environment. |
+| Bot User OAuth token     | yes      | Slack app **OAuth & Permissions** after installation; use the bot token, not a user token.             |
+| App signing secret       | yes      | Slack app **Basic Information → App Credentials**.                                                     |
+| Slack app administration | yes      | Permission to create and install an app in the target Slack workspace.                                 |
 
 The provider needs no Slack app-level token. Keep Socket Mode disabled.
 
@@ -151,7 +151,7 @@ agh bridge manifest slack \
 ```
 
 Without `--write`, the command prints the manifest to stdout. With `--write` and no `--out`, it
-writes to `$AGH_HOME/slack-manifest.json`.
+writes to `$COMPOZY_HOME/slack-manifest.json`.
 
 The manifest contains the persisted bridge instance's public callback. If you change that URL,
 update the bridge first and generate a new manifest. Do not hand-patch an old copy while AGH retains
@@ -391,16 +391,16 @@ See [Tool progress](/runtime/core/bridges/progress) for mode and grouping semant
 
 ## Configuration reference
 
-| Field                                     | Default                        | Purpose                                                          |
-| ----------------------------------------- | ------------------------------ | ---------------------------------------------------------------- |
-| `webhook.public_url`                      | none                           | Complete public callback used by Slack and enabled verification. |
-| `webhook.listen_addr`                     | `AGH_BRIDGE_SLACK_LISTEN_ADDR` | Local listener shared by owned Slack instances.                  |
-| `webhook.path`                            | `/slack/<bridge-id>`           | Local callback path; each instance needs a unique path.          |
-| `batching.delay_ms`                       | `0`                            | Enables inbound batching when positive.                          |
-| `batching.split_delay_ms`                 | `delay_ms`                     | Delay used after the configured split threshold.                 |
-| `batching.split_threshold`                | `0`                            | Provider batching split threshold.                               |
-| `dm.allow_user_ids` / `paired_user_ids`   | empty                          | Stable Slack identities used by `allowlist` or `pairing`.        |
-| `dm.allow_usernames` / `paired_usernames` | empty                          | Normalized name fallbacks; IDs are safer when names can change.  |
+| Field                                     | Default                            | Purpose                                                          |
+| ----------------------------------------- | ---------------------------------- | ---------------------------------------------------------------- |
+| `webhook.public_url`                      | none                               | Complete public callback used by Slack and enabled verification. |
+| `webhook.listen_addr`                     | `COMPOZY_BRIDGE_SLACK_LISTEN_ADDR` | Local listener shared by owned Slack instances.                  |
+| `webhook.path`                            | `/slack/<bridge-id>`               | Local callback path; each instance needs a unique path.          |
+| `batching.delay_ms`                       | `0`                                | Enables inbound batching when positive.                          |
+| `batching.split_delay_ms`                 | `delay_ms`                         | Delay used after the configured split threshold.                 |
+| `batching.split_threshold`                | `0`                                | Provider batching split threshold.                               |
+| `dm.allow_user_ids` / `paired_user_ids`   | empty                              | Stable Slack identities used by `allowlist` or `pairing`.        |
+| `dm.allow_usernames` / `paired_usernames` | empty                              | Normalized name fallbacks; IDs are safer when names can change.  |
 
 The Slack API destination is an operator-owned process setting. Instance configuration cannot
 redirect bound credentials to another host.

@@ -136,7 +136,7 @@ func daemonMatchedEnv(base []string) []string {
 		return env
 	}
 
-	env = setEnvValue(env, "AGH_BIN", executable)
+	env = setEnvValue(env, "COMPOZY_BIN", executable)
 
 	binDir := strings.TrimSpace(filepath.Dir(executable))
 	if binDir == "" {

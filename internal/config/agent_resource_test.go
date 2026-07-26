@@ -159,14 +159,14 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		raw, err := codec.Encode(AgentDef{
 			Name:   " coder ",
 			Prompt: " Build things. ",
-			Tools:  []string{" mcp__github__search ", "mcp__github__search", " agh__skill_* "},
+			Tools:  []string{" mcp__github__search ", "mcp__github__search", " compozy__skill_* "},
 			Toolsets: []string{
-				" agh__catalog ",
-				"agh__catalog",
+				" compozy__catalog ",
+				"compozy__catalog",
 			},
 			DenyTools: []string{
-				" agh__task_* ",
-				"agh__task_*",
+				" compozy__task_* ",
+				"compozy__task_*",
 			},
 			CategoryPath: []string{" Marketing ", " Sales "},
 			Capabilities: &CapabilityCatalog{
@@ -198,7 +198,7 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		}
 		if want := []string{
 			"mcp__github__search",
-			"agh__skill_*",
+			"compozy__skill_*",
 		}; strings.Join(
 			got.Tools,
 			",",
@@ -208,10 +208,10 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		) {
 			t.Fatalf("Tools = %#v, want %#v", got.Tools, want)
 		}
-		if want := []string{"agh__catalog"}; strings.Join(got.Toolsets, ",") != strings.Join(want, ",") {
+		if want := []string{"compozy__catalog"}; strings.Join(got.Toolsets, ",") != strings.Join(want, ",") {
 			t.Fatalf("Toolsets = %#v, want %#v", got.Toolsets, want)
 		}
-		if want := []string{"agh__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {
+		if want := []string{"compozy__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {
 			t.Fatalf("DenyTools = %#v, want %#v", got.DenyTools, want)
 		}
 		if want := []string{"Marketing", "Sales"}; strings.Join(got.CategoryPath, ",") != strings.Join(want, ",") {
@@ -259,8 +259,8 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 			"provider": " openai ",
 			"prompt": " Build things. ",
 			"tools": [" mcp__github__search "],
-			"toolsets": [" agh__catalog "],
-			"deny_tools": [" agh__task_* ", "agh__task_*"],
+			"toolsets": [" compozy__catalog "],
+			"deny_tools": [" compozy__task_* ", "compozy__task_*"],
 			"permissions": " approve-reads ",
 			"skills": {
 				"disabled": [" legacy-skill ", "legacy-skill"]
@@ -287,7 +287,7 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		if got.Name != "coder" || got.Provider != "openai" || got.Prompt != "Build things." {
 			t.Fatalf("decoded agent = %#v, want trimmed scalar fields", got)
 		}
-		if want := []string{"agh__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {
+		if want := []string{"compozy__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {
 			t.Fatalf("DenyTools = %#v, want %#v", got.DenyTools, want)
 		}
 		if want := []string{"legacy-skill"}; strings.Join(got.Skills.Disabled, ",") != strings.Join(want, ",") {

@@ -77,7 +77,7 @@ func TestSkillResourceCodecRejectsInvalidSpecs(t *testing.T) {
 				Source:      "user",
 				Enabled:     true,
 				ActivationGates: ActivationGates{
-					RequiresTools: []string{"agh__skill_view", "   "},
+					RequiresTools: []string{"compozy__skill_view", "   "},
 				},
 			},
 			wantErr: "metadata.agh.when.requires_tools[1] is required",
@@ -154,7 +154,7 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 		"  agh:",
 		"    when:",
 		"      platforms: [DARWIN, linux, darwin]",
-		"      requires_tools: [agh__skill_view]",
+		"      requires_tools: [compozy__skill_view]",
 		"---",
 		"Use this skill.",
 	}, "\n"))
@@ -227,7 +227,7 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 	if got, want := projected.ActivationGates.Platforms, []string{"darwin", "linux"}; !slices.Equal(got, want) {
 		t.Fatalf("ActivationGates.Platforms = %#v, want %#v", got, want)
 	}
-	if got, want := projected.ActivationGates.RequiresTools, []string{"agh__skill_view"}; !slices.Equal(got, want) {
+	if got, want := projected.ActivationGates.RequiresTools, []string{"compozy__skill_view"}; !slices.Equal(got, want) {
 		t.Fatalf("ActivationGates.RequiresTools = %#v, want %#v", got, want)
 	}
 }

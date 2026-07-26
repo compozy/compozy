@@ -40,9 +40,9 @@ function agent(overrides: Partial<AgentPayload> = {}): AgentPayload {
     ...primaryAgentFixture,
     origin: "workspace",
     permissions: "approve-reads",
-    tools: ["agh__task_view"],
-    toolsets: ["agh__catalog"],
-    deny_tools: ["agh__task_delete"],
+    tools: ["compozy__task_view"],
+    toolsets: ["compozy__catalog"],
+    deny_tools: ["compozy__task_delete"],
     skills: { disabled: ["release-notes"] },
     mcp_servers: [
       {
@@ -153,7 +153,9 @@ describe("AgentSettingsPanels", () => {
     expect(onPatch).toHaveBeenCalledWith({ prompt: expect.stringContaining("updated") });
 
     view.rerender(<AgentSettingsPanels {...props("access", { onPatch })} />);
-    expect(screen.getByTestId("agent-settings-tools-tokens")).toHaveTextContent("agh__task_view");
+    expect(screen.getByTestId("agent-settings-tools-tokens")).toHaveTextContent(
+      "compozy__task_view"
+    );
     expect(screen.getByTestId("agent-settings-disabled-skills-tokens")).toHaveTextContent(
       "release-notes"
     );
@@ -161,10 +163,10 @@ describe("AgentSettingsPanels", () => {
       await user.type(screen.getByTestId(`agent-settings-${field}-input`), `new-${field}`);
       await user.click(screen.getByTestId(`agent-settings-${field}-add`));
     }
-    expect(onPatch).toHaveBeenCalledWith({ tools: ["agh__task_view", "new-tools"] });
-    expect(onPatch).toHaveBeenCalledWith({ toolsets: ["agh__catalog", "new-toolsets"] });
+    expect(onPatch).toHaveBeenCalledWith({ tools: ["compozy__task_view", "new-tools"] });
+    expect(onPatch).toHaveBeenCalledWith({ toolsets: ["compozy__catalog", "new-toolsets"] });
     expect(onPatch).toHaveBeenCalledWith({
-      denyTools: ["agh__task_delete", "new-deny-tools"],
+      denyTools: ["compozy__task_delete", "new-deny-tools"],
     });
     expect(onPatch).toHaveBeenCalledWith({
       disabledSkills: ["release-notes", "new-disabled-skills"],

@@ -59,7 +59,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			"delivery-progress-off",
 			1,
 			"call-off",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		ack, err := provider.handleBridgesProgress(
@@ -129,7 +129,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			"delivery-progress-failure",
 			1,
 			"call-failure",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		if _, err := provider.handleBridgesProgress(
@@ -171,7 +171,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			"delivery-progress-disabled",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		second := testGChatProgressRequest(
@@ -179,7 +179,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			"delivery-progress-disabled",
 			2,
 			"call-2",
-			"agh__task_list",
+			"compozy__task_list",
 			"Reading tasks",
 		)
 		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
@@ -249,7 +249,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			"delivery-progress-on",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		second := testGChatProgressRequest(
@@ -257,7 +257,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			"delivery-progress-on",
 			2,
 			"call-2",
-			"agh__task_list",
+			"compozy__task_list",
 			"Reading tasks",
 		)
 		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
@@ -347,7 +347,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			"delivery-progress-committed-flush",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		second := testGChatProgressRequest(
@@ -355,7 +355,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			first.Event.DeliveryID,
 			2,
 			"call-2",
-			"agh__task_list",
+			"compozy__task_list",
 			"Reading tasks",
 		)
 		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
@@ -428,7 +428,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			"delivery-final-committed",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		if _, err := provider.handleBridgesProgress(
@@ -499,7 +499,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			"delivery-progress-lifecycle",
 			1,
 			"call-lifecycle",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		if _, err := provider.handleBridgesProgress(

@@ -93,7 +93,7 @@ Meta → https://bridge.example.com/whatsapp/support
 The guided wizard asks for the public URL and path, but not the listener address. Before the provider
 starts, choose one of these configurations:
 
-- set `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR=127.0.0.1:18086` in the daemon service environment; or
+- set `COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR=127.0.0.1:18086` in the daemon service environment; or
 - in strict JSON setup, include `webhook.listen_addr` inside `provider_config` as shown below.
 
 If the daemon was already started without the environment variable, changing your interactive shell
@@ -229,17 +229,17 @@ agh bridge send-test "$BRIDGE_ID" \
 
 ## Configuration reference
 
-| Field                                   | Default / fallback                | Purpose                                                                         |
-| --------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
-| `api_version`                           | `v21.0`                           | Graph API version used by the in-tree provider.                                 |
-| `phone_number_id`                       | none                              | Required Meta Phone Number ID used for inbound ownership and outbound requests. |
-| `webhook.public_url`                    | none                              | Full public HTTPS callback used in Meta and AGH verification.                   |
-| `webhook.listen_addr`                   | `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR` | Local listener; one address per provider process.                               |
-| `webhook.path`                          | `/whatsapp/<bridge-id>`           | Local callback path.                                                            |
-| `dm.allow_user_ids` / `paired_user_ids` | empty                             | WhatsApp user IDs used by `allowlist` or `pairing` policy.                      |
-| `batching.delay_ms`                     | `0`                               | Batches inbound messages when positive.                                         |
-| `batching.split_delay_ms`               | `delay_ms`                        | Delay after the configured split threshold.                                     |
-| `batching.split_threshold`              | `0`                               | Split threshold for inbound batching.                                           |
+| Field                                   | Default / fallback                    | Purpose                                                                         |
+| --------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------- |
+| `api_version`                           | `v21.0`                               | Graph API version used by the in-tree provider.                                 |
+| `phone_number_id`                       | none                                  | Required Meta Phone Number ID used for inbound ownership and outbound requests. |
+| `webhook.public_url`                    | none                                  | Full public HTTPS callback used in Meta and AGH verification.                   |
+| `webhook.listen_addr`                   | `COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR` | Local listener; one address per provider process.                               |
+| `webhook.path`                          | `/whatsapp/<bridge-id>`               | Local callback path.                                                            |
+| `dm.allow_user_ids` / `paired_user_ids` | empty                                 | WhatsApp user IDs used by `allowlist` or `pairing` policy.                      |
+| `batching.delay_ms`                     | `0`                                   | Batches inbound messages when positive.                                         |
+| `batching.split_delay_ms`               | `delay_ms`                            | Delay after the configured split threshold.                                     |
+| `batching.split_threshold`              | `0`                                   | Split threshold for inbound batching.                                           |
 
 `access_token`, `app_secret`, and `verify_token` are required secret bindings. The Graph API base URL
 is operator-owned process configuration, never mutable `provider_config`.
@@ -263,7 +263,7 @@ is operator-owned process configuration, never mutable `provider_config`.
 | `provider.identity` fails                     | The access token is expired, revoked, missing access to the phone number, or paired with the wrong Phone Number ID.                    |
 | GET verification works but signed POSTs fail  | The `app_secret` binding must come from the same Meta app that sends the webhook. Do not use the verify token as the app secret.       |
 | No inbound messages arrive after verification | Subscribe the webhook to the `messages` field and confirm the sending number belongs to the configured Phone Number ID.                |
-| Bridge degrades with a listener error         | Set `webhook.listen_addr` or `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR` in the daemon environment, then restart.                                |
+| Bridge degrades with a listener error         | Set `webhook.listen_addr` or `COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR` in the daemon environment, then restart.                            |
 | Send-test returns a Graph error               | Confirm the recipient is allowed by Meta for the app's current mode, the access token is valid, and the peer ID has country code only. |
 | Progress creates too many messages            | Keep progress off, or use `tool_progress: "new"` with `grouping: "separate"`.                                                          |
 

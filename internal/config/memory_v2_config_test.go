@@ -80,11 +80,11 @@ func TestMemoryV2ConfigDefaultsAndOverlay(t *testing.T) {
 		}
 	})
 
-	// not parallel: this subtest uses t.Setenv for AGH_HOME overlay resolution.
+	// not parallel: this subtest uses t.Setenv for COMPOZY_HOME overlay resolution.
 	t.Run("Should merge every Memory v2 backend section from overlays", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		homeRoot := filepath.Join(t.TempDir(), "home")
-		t.Setenv("AGH_HOME", homeRoot)
+		t.Setenv("COMPOZY_HOME", homeRoot)
 
 		homePaths, err := ResolveHomePaths()
 		if err != nil {

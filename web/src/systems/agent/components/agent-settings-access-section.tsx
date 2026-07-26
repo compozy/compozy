@@ -32,7 +32,7 @@ export function AgentSettingsAccessSection({
           readOnly={readOnly}
           label="Tools"
           onChange={tools => onPatch({ tools })}
-          placeholder="agh__skill_view, mcp__github__*"
+          placeholder="compozy__skill_view, mcp__github__*"
           testId="agent-settings-tools"
           values={draft.tools}
         />
@@ -42,7 +42,7 @@ export function AgentSettingsAccessSection({
           readOnly={readOnly}
           label="Toolsets"
           onChange={toolsets => onPatch({ toolsets })}
-          placeholder="agh__catalog"
+          placeholder="compozy__catalog"
           testId="agent-settings-toolsets"
           values={draft.toolsets}
         />
@@ -52,7 +52,7 @@ export function AgentSettingsAccessSection({
           readOnly={readOnly}
           label="Denied tools"
           onChange={denyTools => onPatch({ denyTools })}
-          placeholder="agh__task_*"
+          placeholder="compozy__task_*"
           testId="agent-settings-deny-tools"
           values={draft.denyTools}
         />

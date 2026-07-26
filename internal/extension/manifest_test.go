@@ -63,7 +63,7 @@ func TestLoadManifest_FiltersBlankStringEntries(t *testing.T) {
 name = "filtered"
 version = "0.2.1"
 description = "Normalization coverage"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [resources]
 skills = ["skills/", "  ", ""]
@@ -116,7 +116,7 @@ func TestLoadManifestParsesNetworkHookMatcher(t *testing.T) {
 name = "network-observer"
 version = "0.1.0"
 description = "Network hook observer"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [[resources.hooks]]
 name = "observe-network"
@@ -212,7 +212,7 @@ func TestLoadManifestRequiresEnvValidationAndMissingDetection(t *testing.T) {
 name = "env-ext"
 version = "0.2.1"
 description = "Environment requirement coverage"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 requires_env = ["PRESENT_TOKEN", "MISSING_TOKEN"]
 `)
 	t.Setenv("PRESENT_TOKEN", "configured")
@@ -256,7 +256,7 @@ func TestLoadManifestRejectsInvalidRequiresEnv(t *testing.T) {
 			writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
 name = "invalid-env-ext"
 version = "0.2.1"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 requires_env = `+tt.values+`
 `)
 
@@ -360,7 +360,7 @@ func TestLoadManifest_ParsesResourcePublishRequest(t *testing.T) {
 	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
 name = "resource-grants"
 version = "0.2.1"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [resources.publish]
 families = ["tools", "mcp_servers"]
@@ -389,12 +389,12 @@ func TestLoadManifestRejectsInvalidToolMetadata(t *testing.T) {
 		wantText string
 	}{
 		{
-			name: "Should Reject Reserved AGH Namespace",
-			toolJSON: `"id": "agh__skill_view",
+			name: "Should Reject Reserved Compozy Namespace",
+			toolJSON: `"id": "compozy__skill_view",
         "description": "Search",
         "backend": {"kind": "extension_host", "handler": "lookup"},
         "read_only": true`,
-			wantText: "reserved_namespace",
+			wantText: "extension tools cannot claim compozy__ namespace",
 		},
 		{
 			name: "Should Reject Invalid Tool ID",
@@ -453,7 +453,7 @@ func TestLoadManifestRejectsInvalidToolMetadata(t *testing.T) {
   "extension": {
     "name": "tool-metadata",
     "version": "0.2.1",
-    "min_agh_version": "0.5.0"
+    "min_compozy_version": "0.5.0"
   },
   "resources": {
     "tools": {
@@ -558,7 +558,7 @@ func TestLoadManifest_ValidationErrors(t *testing.T) {
 			fileName:      manifestTOMLFileName,
 			content: `[extension]
 version = "0.2.1"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 `,
 			wantErr:   ErrManifestInvalid,
 			wantField: "name",
@@ -569,10 +569,37 @@ min_agh_version = "0.5.0"
 			fileName:      manifestTOMLFileName,
 			content: `[extension]
 name = "pgvector-memory"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 `,
 			wantErr:   ErrManifestInvalid,
 			wantField: "version",
+		},
+		{
+			name:          "legacy minimum daemon version TOML key",
+			daemonVersion: "0.6.0",
+			fileName:      manifestTOMLFileName,
+			content: `[extension]
+name = "pgvector-memory"
+version = "0.2.1"
+min_agh_version = "0.5.0"
+`,
+			wantErr:   ErrManifestInvalid,
+			wantField: "min_compozy_version",
+		},
+		{
+			name:          "legacy minimum daemon version JSON key",
+			daemonVersion: "0.6.0",
+			fileName:      manifestJSONFileName,
+			content: `{
+  "extension": {
+    "name": "pgvector-memory",
+    "version": "0.2.1",
+    "min_agh_version": "0.5.0"
+  }
+}
+`,
+			wantErr:   ErrManifestInvalid,
+			wantField: "min_compozy_version",
 		},
 		{
 			name:          "invalid version semver",
@@ -582,7 +609,7 @@ min_agh_version = "0.5.0"
   "extension": {
     "name": "pgvector-memory",
     "version": "latest",
-    "min_agh_version": "0.5.0"
+    "min_compozy_version": "0.5.0"
   }
 }
 `,
@@ -597,7 +624,7 @@ min_agh_version = "0.5.0"
   "extension": {
     "name": "pgvector-memory",
     "version": "0.2.1",
-    "min_agh_version": "0.5.0"
+    "min_compozy_version": "0.5.0"
   },
   "capabilities": {
     "provides": ["bad capability"]
@@ -701,7 +728,7 @@ func TestLoadManifest_PrefersTOMLWhenBothFilesExist(t *testing.T) {
   "extension": {
     "name": "json-fallback",
     "version": "0.2.1",
-    "min_agh_version": "0.5.0"
+    "min_compozy_version": "0.5.0"
   }
 }`)
 
@@ -742,7 +769,7 @@ func TestLoadManifest_AcceptsUnknownTopLevelSections(t *testing.T) {
   "extension": {
     "name": "future-friendly",
     "version": "0.2.1",
-    "min_agh_version": "0.5.0"
+    "min_compozy_version": "0.5.0"
   },
   "future": {
     "mode": "enabled"
@@ -767,7 +794,7 @@ func TestLoadManifest_RejectsConflictingRootAndWrappedValues(t *testing.T) {
   "extension": {
     "name": "wrapped-name",
     "version": "0.2.1",
-    "min_agh_version": "0.5.0"
+    "min_compozy_version": "0.5.0"
   }
 }`)
 
@@ -1209,10 +1236,10 @@ func duration(value time.Duration) Duration {
 
 func expectedManifest() Manifest {
 	return Manifest{
-		Name:          "pgvector-memory",
-		Version:       "0.2.1",
-		Description:   "PostgreSQL pgvector memory backend for AGH",
-		MinAGHVersion: "0.5.0",
+		Name:              "pgvector-memory",
+		Version:           "0.2.1",
+		Description:       "PostgreSQL pgvector memory backend for AGH",
+		MinCompozyVersion: "0.5.0",
 		Resources: ResourcesConfig{
 			Skills: []string{"skills/"},
 			Agents: []string{"agents/"},
@@ -1282,7 +1309,7 @@ const validManifestTOML = `[extension]
 name = "pgvector-memory"
 version = "0.2.1"
 description = "PostgreSQL pgvector memory backend for AGH"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [resources]
 skills = ["skills/"]
@@ -1343,7 +1370,7 @@ const validManifestJSON = `{
     "name": "pgvector-memory",
     "version": "0.2.1",
     "description": "PostgreSQL pgvector memory backend for AGH",
-    "min_agh_version": "0.5.0"
+    "min_compozy_version": "0.5.0"
   },
   "resources": {
     "skills": ["skills/"],

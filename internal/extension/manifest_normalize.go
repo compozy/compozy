@@ -24,7 +24,11 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	minVersion, err := mergeManifestValue("min_agh_version", d.MinAGHVersion, d.Extension.MinAGHVersion)
+	minVersion, err := mergeManifestValue(
+		manifestMinCompozyVersionKey,
+		d.MinCompozyVersion,
+		d.Extension.MinCompozyVersion,
+	)
 	if err != nil {
 		return Manifest{}, err
 	}
@@ -37,7 +41,7 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 		Name:                 name,
 		Version:              versionValue,
 		Description:          description,
-		MinAGHVersion:        minVersion,
+		MinCompozyVersion:    minVersion,
 		RequiresEnv:          normalizeStrings(requiresEnv),
 		NetworkParticipation: d.NetworkParticipation.Normalize(),
 		Resources:            normalizeResourcesConfig(d.Resources),

@@ -63,7 +63,7 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
     {
       author: "@agh",
       description:
-        "Spin an isolated AGH_HOME lab with ports, provider homes, and a bootstrap manifest.",
+        "Spin an isolated COMPOZY_HOME lab with ports, provider homes, and a bootstrap manifest.",
       downloads: 2100,
       entry_id: "qa-bootstrap",
       install_slug: "agh/qa-bootstrap",

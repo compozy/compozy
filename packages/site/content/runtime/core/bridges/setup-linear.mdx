@@ -90,7 +90,7 @@ Linear → https://bridge.example.com/linear/product
 ```
 
 Store the listener in `provider_config.webhook.listen_addr`, or set
-`AGH_BRIDGE_LINEAR_LISTEN_ADDR=127.0.0.1:18089` in the daemon environment. One Linear provider
+`COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR=127.0.0.1:18089` in the daemon environment. One Linear provider
 process uses one listener address. A shared path is allowed because the provider selects an instance
 by organization and runtime mode before verifying that instance's secret.
 
@@ -285,14 +285,14 @@ Agent Activity and subsequent updates append rather than editing the earlier act
 
 ## Configuration reference
 
-| Field                 | Requirement / fallback          | Purpose                                                                 |
-| --------------------- | ------------------------------- | ----------------------------------------------------------------------- |
-| `organization_id`     | yes                             | Linear organization that owns webhook routing and authenticated viewer. |
-| `mode`                | yes                             | `comments` or `agent_sessions`.                                         |
-| `auth_mode`           | yes                             | `api_key` or `oauth`, independent of runtime mode.                      |
-| `webhook.public_url`  | yes for setup/verification      | Full public HTTPS webhook URL.                                          |
-| `webhook.listen_addr` | `AGH_BRIDGE_LINEAR_LISTEN_ADDR` | Local provider listener.                                                |
-| `webhook.path`        | `/linear`                       | Local callback path; shared paths remain organization/mode scoped.      |
+| Field                 | Requirement / fallback              | Purpose                                                                 |
+| --------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| `organization_id`     | yes                                 | Linear organization that owns webhook routing and authenticated viewer. |
+| `mode`                | yes                                 | `comments` or `agent_sessions`.                                         |
+| `auth_mode`           | yes                                 | `api_key` or `oauth`, independent of runtime mode.                      |
+| `webhook.public_url`  | yes for setup/verification          | Full public HTTPS webhook URL.                                          |
+| `webhook.listen_addr` | `COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR` | Local provider listener.                                                |
+| `webhook.path`        | `/linear`                           | Local callback path; shared paths remain organization/mode scoped.      |
 
 The GraphQL and OAuth token destinations are official defaults or operator-owned process variables.
 `provider_config.api_base_url` and `oauth_token_url` are rejected.

@@ -184,7 +184,7 @@ caption="The CLI groups commands by the runtime surface they operate: daemon pro
     href="/runtime/cli-reference/toolsets"
     label="Toolsets"
     title="Inspect registry toolsets"
-    description="Use this group to list and expand named toolsets such as agh__bootstrap, agh__catalog, and agh__autonomy."
+    description="Use this group to list and expand named toolsets such as compozy__bootstrap, compozy__catalog, and compozy__autonomy."
     meta="Tool registry"
   />
   <RouteRow
@@ -243,23 +243,23 @@ The current CLI has one persistent flag inherited by every user-facing command.
 There is no global `--config`, `--log-level`, or `--socket` flag today. These settings come from
 the AGH home directory and `config.toml`.
 
-| Input                                | Default                                       | Effect                                                                                                                                                       |
-| ------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `AGH_HOME`                           | `~/.agh`                                      | Overrides the global AGH home directory. This changes the default config path, socket path, log path, session store, skill store, and memory store together. |
-| `~/.agh/config.toml`                 | created by `agh install`                      | Global configuration loaded by the daemon and most CLI commands before they contact the socket.                                                              |
-| `[daemon].socket`                    | `$AGH_HOME/daemon.sock`                       | Overrides the Unix domain socket path used by daemon clients. Empty values fall back to the AGH home socket.                                                 |
-| `[log].level`                        | `info`                                        | Controls daemon structured logging. Accepted values are `debug`, `info`, `warn`, and `error`.                                                                |
-| `[http].host`, `[http].port`         | `localhost`, `2123`                           | Controls the daemon HTTP/SSE bind address exposed behind the runtime.                                                                                        |
-| `AGH_SESSION_ID`                     | injected into managed agent sessions          | Identifies the current AGH session for agent-side CLI calls and `agh whoami`.                                                                                |
-| `AGH_SESSION_CHANNEL`, `AGH_PEER_ID` | injected only for executions resolved as Live | Identify the immutable participation channel and daemon-owned peer identity for agent-side `agh network` calls.                                              |
-| `AGH_AGENT`, `AGH_AGENT_NAME`        | caller-provided when present                  | Read by `agh whoami`; current session launch code does not synthesize these values.                                                                          |
+| Input                                        | Default                                       | Effect                                                                                                                                                       |
+| -------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `COMPOZY_HOME`                               | `~/.agh`                                      | Overrides the global AGH home directory. This changes the default config path, socket path, log path, session store, skill store, and memory store together. |
+| `~/.agh/config.toml`                         | created by `agh install`                      | Global configuration loaded by the daemon and most CLI commands before they contact the socket.                                                              |
+| `[daemon].socket`                            | `$COMPOZY_HOME/daemon.sock`                   | Overrides the Unix domain socket path used by daemon clients. Empty values fall back to the AGH home socket.                                                 |
+| `[log].level`                                | `info`                                        | Controls daemon structured logging. Accepted values are `debug`, `info`, `warn`, and `error`.                                                                |
+| `[http].host`, `[http].port`                 | `localhost`, `2123`                           | Controls the daemon HTTP/SSE bind address exposed behind the runtime.                                                                                        |
+| `COMPOZY_SESSION_ID`                         | injected into managed agent sessions          | Identifies the current AGH session for agent-side CLI calls and `agh whoami`.                                                                                |
+| `COMPOZY_SESSION_CHANNEL`, `COMPOZY_PEER_ID` | injected only for executions resolved as Live | Identify the immutable participation channel and daemon-owned peer identity for agent-side `agh network` calls.                                              |
+| `COMPOZY_AGENT`, `COMPOZY_AGENT_NAME`        | caller-provided when present                  | Read by `agh whoami`; current session launch code does not synthesize these values.                                                                          |
 
 Example: run a separate AGH home for a demo without touching your normal daemon.
 
 ```bash
-AGH_HOME="$PWD/.agh-demo" agh install
-AGH_HOME="$PWD/.agh-demo" agh daemon start
-AGH_HOME="$PWD/.agh-demo" agh status --output json
+COMPOZY_HOME="$PWD/.agh-demo" agh install
+COMPOZY_HOME="$PWD/.agh-demo" agh daemon start
+COMPOZY_HOME="$PWD/.agh-demo" agh status --output json
 ```
 
 Example: set the daemon socket and log level in `~/.agh/config.toml`.

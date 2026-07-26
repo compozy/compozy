@@ -594,7 +594,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-agh__memory_recall",
+            type: "tool-compozy__memory_recall",
             toolCallId: "tool-native-artifact",
             state: "output-available",
             turn_id: "turn-native-artifact",
@@ -628,7 +628,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-agh__memory_recall",
+            type: "tool-compozy__memory_recall",
             toolCallId: "tool-acp-artifact",
             state: "output-available",
             turn_id: "turn-acp-artifact",
@@ -666,7 +666,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-agh__memory_recall",
+            type: "tool-compozy__memory_recall",
             toolCallId: "tool-persisted-artifact",
             state: "output-available",
             turn_id: "turn-persisted-artifact",

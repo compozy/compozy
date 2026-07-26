@@ -15,13 +15,13 @@ agh tool invoke <tool_id> [flags]
 
 ```
   # Invoke a tool with inline JSON input
-  agh tool invoke agh__tool_info --input '{"tool_id":"agh__skill_view"}' -o json
+  agh tool invoke compozy__tool_info --input '{"tool_id":"compozy__skill_view"}' -o json
 
   # Invoke a tool with JSON read from a file
-  agh tool invoke agh__tool_info --input-file ./input.json -o json
+  agh tool invoke compozy__tool_info --input-file ./input.json -o json
 
   # Invoke a tool with JSON read from stdin
-  echo '{"tool_id":"agh__skill_view"}' | agh tool invoke agh__tool_info -o json
+  echo '{"tool_id":"compozy__skill_view"}' | agh tool invoke compozy__tool_info -o json
 ```
 
 ### Options

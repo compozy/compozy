@@ -5,7 +5,7 @@ title: Route background work by global and workspace role
 persona: Dora
 journey: J-route-background-work
 expected: New coordinator, dream, extractor, auto-title, checkpoint-summary, and memory-controller work resolves the configured global or workspace identity and model without changing role policy or leaking across workspaces.
-entry_points: config.toml; agh config set roles.<role>.<key> <value>; agh config set roles '<table-json>'; agh config set --scope workspace --workspace <root> roles '<table-json>'; agh__config_list|get|set|unset over exact roles.* leaves or the structured roles table (agh__config_path proves the selected scope target only); docs runtime/core/configuration/config-toml [roles]
+entry_points: config.toml; agh config set roles.<role>.<key> <value>; agh config set roles '<table-json>'; agh config set --scope workspace --workspace <root> roles '<table-json>'; compozy__config_list|get|set|unset over exact roles.* leaves or the structured roles table (compozy__config_path proves the selected scope target only); docs runtime/core/configuration/config-toml [roles]
 qa_status: untested
 bug_ids: BUG-20260724-coordinator-config-list-path;BUG-20260724-inherited-role-provider-resolution
 fix_status: fixed
@@ -18,7 +18,7 @@ overlaps: MS-026; RT-033; RT-session-auto-title; MS-workspace-checkpoint-continu
 
 QA impact 2026-07-23: the six daemon-owned background roles moved to the live `[roles]` routing model with global defaults, workspace overlays, builtin identities, and strict rejection of the deleted role-bearing keys. Planning update only; the next QA cycle owns the real-user walk.
 
-Planning 2026-07-24 (Task 05): persona reconciled Bruno → Dora — role routing is runtime administration (config keys, daemon ownership), which is Dora's definition. Entry points widened to the full write plane: workspace-scoped `agh config set`, the native `agh__config_list|get|set|unset` tools over exact `roles.*` leaves (removed paths must reject deterministically; `agh__config_path` only proves the selected global/workspace config file target and scope), and the docs config reference as the entry origin real users start from. Session charter: CH-background-role-routing-scopes.
+Planning 2026-07-24 (Task 05): persona reconciled Bruno → Dora — role routing is runtime administration (config keys, daemon ownership), which is Dora's definition. Entry points widened to the full write plane: workspace-scoped `agh config set`, the native `compozy__config_list|get|set|unset` tools over exact `roles.*` leaves (removed paths must reject deterministically; `compozy__config_path` only proves the selected global/workspace config file target and scope), and the docs config reference as the entry origin real users start from. Session charter: CH-background-role-routing-scopes.
 
 QA 2026-07-24: global/workspace overlays, strict removed-key rejection, bounded validation, native config lifecycle, ghost diagnostics, hidden builtin sessions, and live invocation all passed. Two contained defects were fixed and retested: the flattened coordinator config path and model-only inherited-provider resolution.
 

@@ -265,7 +265,7 @@ func newTestPrepareRequest(t *testing.T) sandbox.PrepareRequest {
 			SyncMode: sandbox.SyncModeNone,
 		},
 		AgentCommand:  "sh -c 'cat'",
-		AgentEnv:      []string{"AGH_SESSION_ID=sess-local", "CUSTOM=value"},
+		AgentEnv:      []string{"COMPOZY_SESSION_ID=sess-local", "CUSTOM=value"},
 		Permissions:   string(aghconfig.PermissionModeApproveAll),
 		ProviderState: json.RawMessage(`{"sandbox":"local"}`),
 	}

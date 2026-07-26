@@ -81,19 +81,19 @@ my-repo/
       release-rules.md
 ```
 
-| Path                                      | Used by                    | Behavior                                                                                  |
-| ----------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------- |
-| `<workspace>/.agh/config.toml`            | Config loader              | Overlays built-in defaults and global config for this workspace root.                     |
-| `<workspace>/.agh/mcp.json`               | Config loader              | Adds or replaces top-level MCP servers after workspace TOML is applied.                   |
-| `<workspace>/.agh/agents/<name>/AGENT.md` | Resolver                   | Makes an agent visible to sessions in this workspace.                                     |
-| `<workspace>/.agh/agents/<name>/mcp.json` | Agent loader               | Replaces same-name MCP servers declared inline in that agent definition.                  |
-| `<workspace>/.agh/skills/<name>/SKILL.md` | Resolver + skills registry | Makes a skill directory visible to sessions in this workspace.                            |
-| `<workspace>/.agh/skills/<name>/mcp.json` | Skills registry            | Replaces same-name MCP servers declared in that skill's frontmatter.                      |
-| `<workspace>/.agh/workspace.toml`         | Workspace identity         | Stable workspace ULID. Created on first daemon touch when auto_create is true.            |
-| `<workspace>/.agh/memory/`                | Memory runtime             | Stores workspace-scoped memory files after the workspace root is resolved.                |
-| `<workspace>/.agh/agents/<name>/memory/`  | Memory runtime             | Stores agent-workspace memory for that workspace agent.                                   |
-| `<workspace>/.agh/agh.db`                 | Workspace catalog DB       | Per-workspace catalog plus workspace-scoped `memory_events`, `memory_decisions`, signals. |
-| `<workspace>/.env`                        | Config loader              | Optional. Loaded before `AGH_HOME` is resolved when config is loaded for this workspace.  |
+| Path                                      | Used by                    | Behavior                                                                                     |
+| ----------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
+| `<workspace>/.agh/config.toml`            | Config loader              | Overlays built-in defaults and global config for this workspace root.                        |
+| `<workspace>/.agh/mcp.json`               | Config loader              | Adds or replaces top-level MCP servers after workspace TOML is applied.                      |
+| `<workspace>/.agh/agents/<name>/AGENT.md` | Resolver                   | Makes an agent visible to sessions in this workspace.                                        |
+| `<workspace>/.agh/agents/<name>/mcp.json` | Agent loader               | Replaces same-name MCP servers declared inline in that agent definition.                     |
+| `<workspace>/.agh/skills/<name>/SKILL.md` | Resolver + skills registry | Makes a skill directory visible to sessions in this workspace.                               |
+| `<workspace>/.agh/skills/<name>/mcp.json` | Skills registry            | Replaces same-name MCP servers declared in that skill's frontmatter.                         |
+| `<workspace>/.agh/workspace.toml`         | Workspace identity         | Stable workspace ULID. Created on first daemon touch when auto_create is true.               |
+| `<workspace>/.agh/memory/`                | Memory runtime             | Stores workspace-scoped memory files after the workspace root is resolved.                   |
+| `<workspace>/.agh/agents/<name>/memory/`  | Memory runtime             | Stores agent-workspace memory for that workspace agent.                                      |
+| `<workspace>/.agh/agh.db`                 | Workspace catalog DB       | Per-workspace catalog plus workspace-scoped `memory_events`, `memory_decisions`, signals.    |
+| `<workspace>/.env`                        | Config loader              | Optional. Loaded before `COMPOZY_HOME` is resolved when config is loaded for this workspace. |
 
 The resolver directly snapshots config, MCP sidecars, agent definitions, and skill definitions.
 Workspace memory uses the resolved root, but memory files are managed by the memory runtime instead
@@ -196,8 +196,8 @@ produces this cascade:
 4. Config is loaded as built-in defaults, then `~/.agh/config.toml`, then `~/.agh/mcp.json`, then
    `<workspace>/.agh/config.toml`, then `<workspace>/.agh/mcp.json`.
 5. Agents are discovered from `<workspace>/.agh/agents/`, then additional roots, then global
-   `$AGH_HOME/agents/`.
-6. Base skills are resolved from bundled plus global `$AGH_HOME/skills/`, then additional roots,
+   `$COMPOZY_HOME/agents/`.
+6. Base skills are resolved from bundled plus global `$COMPOZY_HOME/skills/`, then additional roots,
    then `<workspace>/.agh/skills/`.
 7. If the winning agent has `skills/`, that agent-local directory overlays the base set last.
 8. Same-name agents and skills use first-wins or higher-precedence overlay behavior, so the

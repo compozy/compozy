@@ -161,8 +161,8 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		}
 		requireNativeViewContains(t, views, toolspkg.ToolIDMCPStatus)
 		requireNativeViewContains(t, views, toolspkg.ToolIDMCPAuthStatus)
-		requireNativeViewExcludes(t, views, toolspkg.ToolID("agh__mcp_auth_login"))
-		requireNativeViewExcludes(t, views, toolspkg.ToolID("agh__mcp_auth_logout"))
+		requireNativeViewExcludes(t, views, toolspkg.ToolID("compozy__mcp_auth_login"))
+		requireNativeViewExcludes(t, views, toolspkg.ToolID("compozy__mcp_auth_logout"))
 	})
 
 	t.Run("Should expose MCP probe status without login or logout tools", func(t *testing.T) {

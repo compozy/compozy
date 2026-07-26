@@ -174,7 +174,7 @@ func TestRuntimeProgressDeliveryDefaultsToContractNoop(t *testing.T) {
 			EventType: bridgepkg.DeliveryEventTypeProgress,
 			Progress: &bridgepkg.ToolProgress{
 				ToolCallID: "call-progress-noop",
-				ToolID:     "agh__terminal",
+				ToolID:     "compozy__terminal",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Running",
 				Emoji:      "⚙️",
@@ -667,7 +667,7 @@ func testRuntimeProgressDeliveryRequest() bridgepkg.DeliveryRequest {
 		EventType: bridgepkg.DeliveryEventTypeProgress,
 		Progress: &bridgepkg.ToolProgress{
 			ToolCallID: "call-progress-handler",
-			ToolID:     "agh__terminal",
+			ToolID:     "compozy__terminal",
 			Phase:      bridgepkg.ToolProgressPhaseStarted,
 			Label:      "Running",
 			Emoji:      "⚙️",

@@ -10,8 +10,8 @@ audit row.
 
 | File                           | Scope                 | Loaded when                                                        |
 | ------------------------------ | --------------------- | ------------------------------------------------------------------ |
-| `$AGH_HOME/config.toml`        | Global                | Every config load. Defaults to `~/.agh/config.toml`.               |
-| `$AGH_HOME/mcp.json`           | Global MCP sidecar    | After global TOML.                                                 |
+| `$COMPOZY_HOME/config.toml`    | Global                | Every config load. Defaults to `~/.agh/config.toml`.               |
+| `$COMPOZY_HOME/mcp.json`       | Global MCP sidecar    | After global TOML.                                                 |
 | `<workspace>/.agh/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
 | `<workspace>/.agh/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
 
@@ -19,82 +19,82 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 `[sandboxes.<name>]` for session execution boundaries.
 
 <OperatorNote>
-  Workspace `.env` files are loaded before AGH resolves `$AGH_HOME`. This means
-  `<workspace>/.env` can set `AGH_HOME` for that workspace before the global config file path is
+  Workspace `.env` files are loaded before AGH resolves `$COMPOZY_HOME`. This means
+  `<workspace>/.env` can set `COMPOZY_HOME` for that workspace before the global config file path is
   chosen.
 </OperatorNote>
 
 ## Quick Reference
 
-| Section                              | Purpose                                                                              | Default                                                                                           |
-| ------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.  | `socket = "$AGH_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
-| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.         | providers `5s`, MCP `10s`, bridges `30s`                                                          |
-| `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                               |
-| `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                             |
-| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                              |
-| `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace             |
-| `[roles.dream]`                      | Dream-session routing.                                                               | enabled, builtin `dreaming-curator`                                                               |
-| `[roles.checkpoint_summary]`         | Checkpoint-summary session routing.                                                  | enabled, builtin `dreaming-curator`                                                               |
-| `[roles.memory_extractor]`           | Memory-extractor session routing.                                                    | enabled, inherits the invoking agent                                                              |
-| `[roles.auto_title]`                 | Automatic-title session routing.                                                     | enabled, inherits the invoking agent                                                              |
-| `[roles.memory_controller]`          | In-process memory-controller model routing and call bounds.                          | enabled, `pi` + `anthropic/claude-haiku-4`, 250 ms, top-K 5, prompt v1, 256 output tokens         |
-| `[limits]`                           | Daemon-level concurrently running agent cap.                                         | `max_concurrent_agents = 20`                                                                      |
-| `[session.limits]`                   | Session-scoped wall-clock timeout.                                                   | `timeout = "0s"`                                                                                  |
-| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.      | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes                 |
-| `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.               | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                             |
-| `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.              | enabled, 32 KiB body, 2 KiB compact projection                                                    |
-| `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.       | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                 |
-| `[permissions]`                      | Default permission mode.                                                             | `mode = "approve-all"`                                                                            |
-| `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.          | enabled, hosted MCP enabled, 256 KiB result default                                               |
-| `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                             | 30 seconds                                                                                        |
-| `[tools.clarify]`                    | Timeout for one live agent clarification question.                                   | 5 minutes                                                                                         |
-| `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.                | external tools disabled, 120 second approval timeout, no trusted sources                          |
-| `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                              | empty list                                                                                        |
-| `[providers.<name>]`                 | Built-in provider override or custom provider definition.                            | empty map plus built-ins                                                                          |
-| `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                     | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                    |
-| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                  | AGH `main` catalog, 1 h TTL, 10 s timeout                                                         |
-| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                                 | local backend when no profile is selected                                                         |
-| `[observability]`                    | Event summary retention and global byte cap.                                         | enabled, 7 days, 1 GiB                                                                            |
-| `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                       | enabled, 1 MiB segments, 256 MiB per session                                                      |
-| `[log]`                              | Structured log level and daemon-owned rotation.                                      | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                     |
-| `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.    | `enabled = true`                                                                                  |
-| `[memory]`                           | Persistent memory runtime and global memory directory.                               | enabled, `$AGH_HOME/memory`                                                                       |
-| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                              | hybrid, 300 ms, noop                                                                              |
-| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                         | 4096 chars, 60 writes/min, all canonical origins                                                  |
-| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                       | top-K 5, raw 50, weighted fusion                                                                  |
-| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                         | 90 days, audit summary on, 64 KiB body cap                                                        |
-| `[memory.extractor]`                 | Post-message extractor policy and bounded queue.                                     | post_message mode, capacity 1, coalesce 16                                                        |
-| `[memory.dream]`                     | Dreaming gates, cadence, and scoring policy.                                         | 24 h, 3 sessions, 30 min ticker                                                                   |
-| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.             | jsonl, `$AGH_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition                |
-| `[memory.daily]`                     | Daily-log retention and rotation.                                                    | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                              |
-| `[memory.file]`                      | Curated memory body and prompt-index limits.                                         | 200 lines, 25 KiB                                                                                 |
-| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                                | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                             |
-| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                  | `<workspace>/.agh/workspace.toml`, auto-create on first touch                                     |
-| `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.                 | enabled, poll every 3 seconds                                                                     |
-| `[skills.marketplace]`               | Skill registry override.                                                             | unset                                                                                             |
-| `[extensions.marketplace]`           | Extension registry override and side-load policy.                                    | registry unset, unverified side-loads disabled                                                    |
-| `[automation]`                       | Automation scheduler defaults.                                                       | enabled, UTC, 5 concurrent jobs                                                                   |
-| `[[automation.jobs]]`                | Scheduled automation jobs.                                                           | empty list                                                                                        |
-| `[[automation.triggers]]`            | Event-driven automation triggers.                                                    | empty list                                                                                        |
-| `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery loops.                                   | iteration cap 50, no-progress window 3, gate revisions 10, fan-out 4                              |
-| `[loops.defaults.watch]`             | Global/workspace seed defaults for watch loops.                                      | no iteration cap, no-progress window 2, fan-out 2                                                 |
-| `[goals]`                            | Goal defaults and durable session-event relay controls.                              | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                          |
-| `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                | block recurrence limit 2                                                                          |
-| `[task.orchestration]`               | Bounds for active workspace runs, summaries, context, scheduler health, and runtime. | 16 active runs/workspace, 4 KiB summaries, 8 KiB context, prior 5/recent 50 events                |
-| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                      | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                    |
-| `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                               | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                    |
-| `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                                 | agents may force release, force fail, and retry                                                   |
-| `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                        | empty list                                                                                        |
-| `[network]`                          | Network availability, protocol safety, and bounded Live defaults/limits.             | enabled; Local remains the execution default                                                      |
+| Section                              | Purpose                                                                              | Default                                                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.  | `socket = "$COMPOZY_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
+| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.         | providers `5s`, MCP `10s`, bridges `30s`                                                              |
+| `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                                   |
+| `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
+| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
+| `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
+| `[roles.dream]`                      | Dream-session routing.                                                               | enabled, builtin `dreaming-curator`                                                                   |
+| `[roles.checkpoint_summary]`         | Checkpoint-summary session routing.                                                  | enabled, builtin `dreaming-curator`                                                                   |
+| `[roles.memory_extractor]`           | Memory-extractor session routing.                                                    | enabled, inherits the invoking agent                                                                  |
+| `[roles.auto_title]`                 | Automatic-title session routing.                                                     | enabled, inherits the invoking agent                                                                  |
+| `[roles.memory_controller]`          | In-process memory-controller model routing and call bounds.                          | enabled, `pi` + `anthropic/claude-haiku-4`, 250 ms, top-K 5, prompt v1, 256 output tokens             |
+| `[limits]`                           | Daemon-level concurrently running agent cap.                                         | `max_concurrent_agents = 20`                                                                          |
+| `[session.limits]`                   | Session-scoped wall-clock timeout.                                                   | `timeout = "0s"`                                                                                      |
+| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.      | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes                     |
+| `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.               | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                                 |
+| `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.              | enabled, 32 KiB body, 2 KiB compact projection                                                        |
+| `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.       | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
+| `[permissions]`                      | Default permission mode.                                                             | `mode = "approve-all"`                                                                                |
+| `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.          | enabled, hosted MCP enabled, 256 KiB result default                                                   |
+| `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                             | 30 seconds                                                                                            |
+| `[tools.clarify]`                    | Timeout for one live agent clarification question.                                   | 5 minutes                                                                                             |
+| `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.                | external tools disabled, 120 second approval timeout, no trusted sources                              |
+| `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                              | empty list                                                                                            |
+| `[providers.<name>]`                 | Built-in provider override or custom provider definition.                            | empty map plus built-ins                                                                              |
+| `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                     | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
+| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                  | AGH `main` catalog, 1 h TTL, 10 s timeout                                                             |
+| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                                 | local backend when no profile is selected                                                             |
+| `[observability]`                    | Event summary retention and global byte cap.                                         | enabled, 7 days, 1 GiB                                                                                |
+| `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                       | enabled, 1 MiB segments, 256 MiB per session                                                          |
+| `[log]`                              | Structured log level and daemon-owned rotation.                                      | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                         |
+| `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.    | `enabled = true`                                                                                      |
+| `[memory]`                           | Persistent memory runtime and global memory directory.                               | enabled, `$COMPOZY_HOME/memory`                                                                       |
+| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                              | hybrid, 300 ms, noop                                                                                  |
+| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                         | 4096 chars, 60 writes/min, all canonical origins                                                      |
+| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                       | top-K 5, raw 50, weighted fusion                                                                      |
+| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                         | 90 days, audit summary on, 64 KiB body cap                                                            |
+| `[memory.extractor]`                 | Post-message extractor policy and bounded queue.                                     | post_message mode, capacity 1, coalesce 16                                                            |
+| `[memory.dream]`                     | Dreaming gates, cadence, and scoring policy.                                         | 24 h, 3 sessions, 30 min ticker                                                                       |
+| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.             | jsonl, `$COMPOZY_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition                |
+| `[memory.daily]`                     | Daily-log retention and rotation.                                                    | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                                  |
+| `[memory.file]`                      | Curated memory body and prompt-index limits.                                         | 200 lines, 25 KiB                                                                                     |
+| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                                | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                                 |
+| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                  | `<workspace>/.agh/workspace.toml`, auto-create on first touch                                         |
+| `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.                 | enabled, poll every 3 seconds                                                                         |
+| `[skills.marketplace]`               | Skill registry override.                                                             | unset                                                                                                 |
+| `[extensions.marketplace]`           | Extension registry override and side-load policy.                                    | registry unset, unverified side-loads disabled                                                        |
+| `[automation]`                       | Automation scheduler defaults.                                                       | enabled, UTC, 5 concurrent jobs                                                                       |
+| `[[automation.jobs]]`                | Scheduled automation jobs.                                                           | empty list                                                                                            |
+| `[[automation.triggers]]`            | Event-driven automation triggers.                                                    | empty list                                                                                            |
+| `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery loops.                                   | iteration cap 50, no-progress window 3, gate revisions 10, fan-out 4                                  |
+| `[loops.defaults.watch]`             | Global/workspace seed defaults for watch loops.                                      | no iteration cap, no-progress window 2, fan-out 2                                                     |
+| `[goals]`                            | Goal defaults and durable session-event relay controls.                              | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                              |
+| `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                | block recurrence limit 2                                                                              |
+| `[task.orchestration]`               | Bounds for active workspace runs, summaries, context, scheduler health, and runtime. | 16 active runs/workspace, 4 KiB summaries, 8 KiB context, prior 5/recent 50 events                    |
+| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                      | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                        |
+| `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                               | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                        |
+| `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                                 | agents may force release, force fail, and retry                                                       |
+| `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                        | empty list                                                                                            |
+| `[network]`                          | Network availability, protocol safety, and bounded Live defaults/limits.             | enabled; Local remains the execution default                                                          |
 
 ## Load And Merge Order
 
 | Order | Source                            | Merge behavior                                                                            |
 | ----- | --------------------------------- | ----------------------------------------------------------------------------------------- |
 | 1     | Built-in defaults                 | Base config.                                                                              |
-| 2     | `$AGH_HOME/config.toml`           | Scalar fields replace defaults. TOML MCP and provider MCP entries merge by `name`.        |
-| 3     | `$AGH_HOME/mcp.json`              | Same-name MCP servers replace the whole server object.                                    |
+| 2     | `$COMPOZY_HOME/config.toml`       | Scalar fields replace defaults. TOML MCP and provider MCP entries merge by `name`.        |
+| 3     | `$COMPOZY_HOME/mcp.json`          | Same-name MCP servers replace the whole server object.                                    |
 | 4     | `<workspace>/.agh/config.toml`    | Workspace overlay applies over global config.                                             |
 | 5     | `<workspace>/.agh/mcp.json`       | Same-name MCP servers replace the whole server object after workspace TOML.               |
 | 6     | Path normalization and validation | `~` is expanded for `daemon.socket` and `memory.global_dir`; invalid values fail startup. |
@@ -474,8 +474,8 @@ mode = "post_message"
 throttle_turns = 1
 deadline = "60s"
 sandbox_inbox_only = true
-inbox_path = "$AGH_HOME/memory/_inbox"
-dlq_path = "$AGH_HOME/memory/_system/extractor/failures"
+inbox_path = "$COMPOZY_HOME/memory/_inbox"
+dlq_path = "$COMPOZY_HOME/memory/_system/extractor/failures"
 
 [memory.extractor.queue]
 capacity = 1
@@ -504,7 +504,7 @@ freshness = 0.15
 
 [memory.session]
 ledger_format = "jsonl"
-ledger_root = "$AGH_HOME/sessions"
+ledger_root = "$COMPOZY_HOME/sessions"
 events_purge_grace = "24h"
 cold_archive_days = 30
 hard_delete_days = 0
@@ -735,11 +735,11 @@ max_coalesce_window = "5s"
 
 ## `[daemon]`
 
-| Field                                    | Type        | Default                 | Valid values                               | Description                                                                                                           |
-| ---------------------------------------- | ----------- | ----------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `socket`                                 | string path | `$AGH_HOME/daemon.sock` | Non-empty path. `~` is expanded.           | Unix domain socket used by CLI IPC and the UDS API server.                                                            |
-| `memory_report_interval`                 | duration    | `5m`                    | `0s` to disable, or any positive duration. | Cadence for daemon process-memory snapshots in logs and `runtime.memory`.                                             |
-| `subprocess_health_escalation_threshold` | integer     | `3`                     | `0` or a positive integer.                 | Failed health checks before AGH moves a task-bound nonterminal run to `needs_attention`; `0` disables the transition. |
+| Field                                    | Type        | Default                     | Valid values                               | Description                                                                                                           |
+| ---------------------------------------- | ----------- | --------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `socket`                                 | string path | `$COMPOZY_HOME/daemon.sock` | Non-empty path. `~` is expanded.           | Unix domain socket used by CLI IPC and the UDS API server.                                                            |
+| `memory_report_interval`                 | duration    | `5m`                        | `0s` to disable, or any positive duration. | Cadence for daemon process-memory snapshots in logs and `runtime.memory`.                                             |
+| `subprocess_health_escalation_threshold` | integer     | `3`                         | `0` or a positive integer.                 | Failed health checks before AGH moves a task-bound nonterminal run to `needs_attention`; `0` disables the transition. |
 
 The daemon captures a baseline snapshot at startup, periodic snapshots at this cadence, and one
 final snapshot during joined shutdown. Each `[memory]` log record and the `runtime.memory` item from
@@ -819,7 +819,7 @@ not a second config source.
 ## `[roles.<role>]`
 
 `[roles]` is the closed routing roster for daemon-owned background work. It is not an extension
-registry: only the six sections below are accepted. Global `$AGH_HOME/config.toml` values apply to
+registry: only the six sections below are accepted. Global `$COMPOZY_HOME/config.toml` values apply to
 every workspace unless the selected workspace's `.agh/config.toml` overlays them.
 
 | Role                 | Default | Empty `agent` resolution   | Extra policy owned here                                   |
@@ -946,7 +946,7 @@ never included in its own compaction span.
 | `failure_cooldown`      | duration | `10m`   | Zero or positive value. | Per-session delay after a failed summary, archive, or hook transition. |
 
 These paths are global or workspace desired state and are available through `agh config set` and
-the `agh__config_*` native tools. Structured writes return `lifecycle="restart-required"` and
+the `compozy__config_*` native tools. Structured writes return `lifecycle="restart-required"` and
 `next_action="restart-daemon"`; the running daemon keeps its bound compaction policy until restart.
 Use `agh config apply-history -o json` to inspect the blocked apply record.
 
@@ -1075,8 +1075,8 @@ They can point at local stdio processes or remote HTTP/SSE MCP endpoints.
 | `secret_env` | string map   | empty               | `env:NAME` or `vault:mcp/**` refs. | Scope-qualified secret environment bindings for stdio servers. Values are resolved at launch and redacted from diagnostics. |
 
 OAuth-enabled remote servers store only metadata in config. Token material is encrypted in the AGH
-Vault and is exposed through API, settings, CLI, logs, and the agent-callable `agh__mcp_status` /
-`agh__mcp_auth_status` tools only as redacted status. Authorization and logout are daemon-mediated
+Vault and is exposed through API, settings, CLI, logs, and the agent-callable `compozy__mcp_status` /
+`compozy__mcp_auth_status` tools only as redacted status. Authorization and logout are daemon-mediated
 operator flows available through CLI, HTTP, and UDS. The browser callback is HTTP-only and enabled
 only when the daemon binds to a loopback host.
 
@@ -1110,14 +1110,14 @@ authorization URL. `--manual` accepts either the returned code or the full redir
 the supported path for remote operators and non-loopback HTTP binds. A command succeeds only after
 status confirms both `authenticated` and `token_present`.
 
-Agents can read the same redacted status from inside a session through `agh__mcp_status` or
-`agh__mcp_auth_status`. These tools never trigger an OAuth browser flow; missing or expired
+Agents can read the same redacted status from inside a session through `compozy__mcp_status` or
+`compozy__mcp_auth_status`. These tools never trigger an OAuth browser flow; missing or expired
 authentication is repaired through the operator login/logout commands above. Auth-blocked MCP
 tools are omitted from callable discovery while status/probe output explains the repair path.
 
 For workspace-scoped servers, five consecutive confirmed permanent discovery failures mark the MCP
-runtime as `dead`. Settings, status, doctor, and `agh__mcp_status` expose the redacted diagnostic;
-last-known tool descriptors remain visible through `agh__tool_info` with reason `backend_dead`
+runtime as `dead`. Settings, status, doctor, and `compozy__mcp_status` expose the redacted diagnostic;
+last-known tool descriptors remain visible through `compozy__tool_info` with reason `backend_dead`
 during the same daemon lifetime instead of disappearing from the catalog. AGH suppresses ordinary
 attempts while the mark is active. After 60 seconds, the next runtime MCP status or discovery access
 may run one recovery probe; a successful probe clears the mark without restarting the daemon.
@@ -1237,7 +1237,7 @@ or Claude name prefixes, and it never substitutes the provider default for an un
 while stripping secret-shaped daemon variables before launch. `env_policy = "isolated"` starts from
 a small operational allowlist and then adds only AGH session metadata, provider-home variables, and
 explicit `bound_secret` slots. `home_policy = "operator"` lets native CLIs reuse existing login
-state. `home_policy = "isolated"` creates `$AGH_HOME/providers/<provider>` with private
+state. `home_policy = "isolated"` creates `$COMPOZY_HOME/providers/<provider>` with private
 permissions, sets `PROVIDER_HOME`, XDG directories, and known provider-specific home variables such
 as `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `OPENCODE_CONFIG_DIR`.
 
@@ -1334,7 +1334,7 @@ projection, AGH keeps serving the prior rows with stale status instead of replac
 invalid or incomplete document.
 
 This section is global-only because the projection and refresh service are global. Put it in
-`$AGH_HOME/config.toml`; workspace overlays and workspace-scoped CLI/native writes are rejected.
+`$COMPOZY_HOME/config.toml`; workspace overlays and workspace-scoped CLI/native writes are rejected.
 
 | Key        | Type     | Default                                                      | Validation                  | Effect                                                                             |
 | ---------- | -------- | ------------------------------------------------------------ | --------------------------- | ---------------------------------------------------------------------------------- |
@@ -1359,7 +1359,7 @@ agh config reload -o json
 agh config apply-history --limit 5 -o json
 ```
 
-Agent-side config mutation is narrower than the operator CLI. `agh__config_set` accepts
+Agent-side config mutation is narrower than the operator CLI. `compozy__config_set` accepts
 `marketplace.catalog.ttl` and `marketplace.catalog.timeout` with the same duration validation and
 live lifecycle. It rejects `marketplace.catalog.base_url` with
 `config_trust_root_forbidden`; changing the feed root remains an operator action through
@@ -1383,7 +1383,7 @@ live lifecycle. It rejects `marketplace.catalog.base_url` with
 
 ## `[log]`
 
-The daemon writes structured logs to `$AGH_HOME/logs/agh.log`. Rotation is owned by the daemon's
+The daemon writes structured logs to `$COMPOZY_HOME/logs/agh.log`. Rotation is owned by the daemon's
 LogSink, so operators do not need an external `logrotate` rule for the default file.
 
 Changing any `[log]` key is `restart-required` in v1. The daemon applies the new rotation
@@ -1414,7 +1414,7 @@ authoritative. The heuristic is an additional defense for unregistered provider 
 credentials.
 
 Manage the setting through General Settings, `agh config set redact.enabled <true|false> -o json`,
-or the live `agh__config_set` descriptor. These writes return
+or the live `compozy__config_set` descriptor. These writes return
 `lifecycle="restart-required"` and `next_action="restart-daemon"`; they do not change the running
 process.
 
@@ -1425,10 +1425,10 @@ there is no `[memory.v2] enabled` flag and no parallel compatibility namespace. 
 `[memory] enabled` short-circuits prompt assembly, the controller, recall, dreaming, the extractor,
 and the bundled local provider.
 
-| Field        | Type        | Default            | Valid values                              | Description                                                                      |
-| ------------ | ----------- | ------------------ | ----------------------------------------- | -------------------------------------------------------------------------------- |
-| `enabled`    | boolean     | `true`             | `true` or `false`                         | Master switch for the Memory v2 runtime.                                         |
-| `global_dir` | string path | `$AGH_HOME/memory` | Non-empty path when set. `~` is expanded. | Global memory directory. Blank overlays are ignored and keep the previous value. |
+| Field        | Type        | Default                | Valid values                              | Description                                                                      |
+| ------------ | ----------- | ---------------------- | ----------------------------------------- | -------------------------------------------------------------------------------- |
+| `enabled`    | boolean     | `true`                 | `true` or `false`                         | Master switch for the Memory v2 runtime.                                         |
+| `global_dir` | string path | `$COMPOZY_HOME/memory` | Non-empty path when set. `~` is expanded. | Global memory directory. Blank overlays are ignored and keep the previous value. |
 
 ## `[memory.controller]`
 
@@ -1498,14 +1498,14 @@ The extractor consumes the `session.message_persisted` hook and writes structure
 controller. `inbox_path` and `dlq_path` are validation-locked to the canonical AGH-managed
 locations.
 
-| Field                | Type     | Default                                       | Valid values          | Description                                                                                                       |
-| -------------------- | -------- | --------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `mode`               | string   | `post_message`                                | `post_message`        | Extraction mode. AGH currently supports only post-message extraction.                                             |
-| `throttle_turns`     | integer  | `1`                                           | Positive integer.     | Minimum same-session queued turns to coalesce before launching another extraction; drain flushes pending content. |
-| `deadline`           | duration | `60s`                                         | Positive Go duration. | Per-extraction deadline before the runtime drops the candidate.                                                   |
-| `sandbox_inbox_only` | boolean  | `true`                                        | `true` or `false`     | Restricts extractor writes to `_inbox/` until the controller accepts them.                                        |
-| `inbox_path`         | string   | `$AGH_HOME/memory/_inbox`                     | Daemon-managed.       | Read-only display field; the daemon manages the inbox path.                                                       |
-| `dlq_path`           | string   | `$AGH_HOME/memory/_system/extractor/failures` | Daemon-managed.       | Read-only display field; the daemon manages the DLQ path.                                                         |
+| Field                | Type     | Default                                           | Valid values          | Description                                                                                                       |
+| -------------------- | -------- | ------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `mode`               | string   | `post_message`                                    | `post_message`        | Extraction mode. AGH currently supports only post-message extraction.                                             |
+| `throttle_turns`     | integer  | `1`                                               | Positive integer.     | Minimum same-session queued turns to coalesce before launching another extraction; drain flushes pending content. |
+| `deadline`           | duration | `60s`                                             | Positive Go duration. | Per-extraction deadline before the runtime drops the candidate.                                                   |
+| `sandbox_inbox_only` | boolean  | `true`                                            | `true` or `false`     | Restricts extractor writes to `_inbox/` until the controller accepts them.                                        |
+| `inbox_path`         | string   | `$COMPOZY_HOME/memory/_inbox`                     | Daemon-managed.       | Read-only display field; the daemon manages the inbox path.                                                       |
+| `dlq_path`           | string   | `$COMPOZY_HOME/memory/_system/extractor/failures` | Daemon-managed.       | Read-only display field; the daemon manages the DLQ path.                                                         |
 
 ## `[memory.extractor.queue]`
 
@@ -1555,15 +1555,15 @@ Forensic ledger materialization. The materializer writes one read-only `ledger.j
 under `<ledger_root>/<workspace_id>/<session_id>/`. Sessions without a workspace use
 `<unbound_partition>` instead of a workspace_id segment.
 
-| Field                | Type     | Default              | Valid values          | Description                                                         |
-| -------------------- | -------- | -------------------- | --------------------- | ------------------------------------------------------------------- |
-| `ledger_format`      | string   | `jsonl`              | `jsonl`               | Forensic ledger format.                                             |
-| `ledger_root`        | string   | `$AGH_HOME/sessions` | Daemon-managed.       | Ledger root. Read-only; daemon-managed path.                        |
-| `events_purge_grace` | duration | `24h`                | Positive Go duration. | Time after materialization before live `events.db` rows are purged. |
-| `cold_archive_days`  | integer  | `30`                 | Zero or positive.     | Cold-archive window for `ledger.jsonl`. `0` keeps ledgers in-place. |
-| `hard_delete_days`   | integer  | `0`                  | Zero or positive.     | `0` keeps ledgers forever; explicit prune via CLI.                  |
-| `max_archive_bytes`  | integer  | `10737418240`        | Positive integer.     | Safety-valve cap on the cold-archive store.                         |
-| `unbound_partition`  | string   | `_unbound`           | Daemon-managed.       | Partition used for sessions without a workspace_id.                 |
+| Field                | Type     | Default                  | Valid values          | Description                                                         |
+| -------------------- | -------- | ------------------------ | --------------------- | ------------------------------------------------------------------- |
+| `ledger_format`      | string   | `jsonl`                  | `jsonl`               | Forensic ledger format.                                             |
+| `ledger_root`        | string   | `$COMPOZY_HOME/sessions` | Daemon-managed.       | Ledger root. Read-only; daemon-managed path.                        |
+| `events_purge_grace` | duration | `24h`                    | Positive Go duration. | Time after materialization before live `events.db` rows are purged. |
+| `cold_archive_days`  | integer  | `30`                     | Zero or positive.     | Cold-archive window for `ledger.jsonl`. `0` keeps ledgers in-place. |
+| `hard_delete_days`   | integer  | `0`                      | Zero or positive.     | `0` keeps ledgers forever; explicit prune via CLI.                  |
+| `max_archive_bytes`  | integer  | `10737418240`            | Positive integer.     | Safety-valve cap on the cold-archive store.                         |
+| `unbound_partition`  | string   | `_unbound`               | Daemon-managed.       | Partition used for sessions without a workspace_id.                 |
 
 ## `[memory.daily]`
 
@@ -1755,7 +1755,7 @@ one relay serves every workspace in the daemon.
 the ratio of an existing Run, including after daemon restart or a later generation.
 
 Goal defaults follow the normal config precedence: built-in defaults, then global
-`$AGH_HOME/config.toml`, then the resolved workspace's `.agh/config.toml`. The Run start resolves
+`$COMPOZY_HOME/config.toml`, then the resolved workspace's `.agh/config.toml`. The Run start resolves
 that effective config once and persists the selected values. Later config generations apply only to
 later starts.
 
@@ -1777,7 +1777,7 @@ agh config set goals.context_nudge_ratio 0.75 \
   -o json
 ```
 
-The equivalent agent path is `agh__config_set` after resolving its live descriptor. Both surfaces
+The equivalent agent path is `compozy__config_set` after resolving its live descriptor. Both surfaces
 validate the same allowlist and bounds, write desired state at global or workspace scope, and return
 `lifecycle="restart-required"` with `next_action="restart-daemon"`. They do not mutate a live Goal.
 
@@ -1816,7 +1816,7 @@ overlay sets a value.
 | `network_status_timeout`        | duration | `5s`    | Positive Go duration with whole-second precision.                     | Per-event timeout for summarizing task run status back to the AGH Network origin thread.                                                                            |
 
 `[task.orchestration]` keys are agent-mutable through the existing config tool surface
-(`agh config set` and the `agh__config_*` native tools). Workspace overlays apply through the
+(`agh config set` and the `compozy__config_*` native tools). Workspace overlays apply through the
 existing config loader without any special handling.
 
 Task orchestration writes are restart-required because the task runtime snapshots these bounds at

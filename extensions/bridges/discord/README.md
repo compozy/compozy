@@ -73,8 +73,8 @@ Notes:
 - `bot_token` and the Ed25519 `public_key` are required through bridge secret bindings.
 - `application_id` is checked against the authenticated bot identity when configured.
 - `webhook.public_url`, `invite.scopes`, and `invite.permissions` are daemon setup and verification metadata. The adapter listens on `webhook.listen_addr` plus `webhook.path`; the setup wizard uses the public URL and invite values for the operator handoff.
-- `AGH_BRIDGE_DISCORD_LISTEN_ADDR` configures the process-level listener default.
-- `AGH_BRIDGE_DISCORD_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
+- `COMPOZY_BRIDGE_DISCORD_LISTEN_ADDR` configures the process-level listener default.
+- `COMPOZY_BRIDGE_DISCORD_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
 
 See the [Discord operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-discord.mdx)

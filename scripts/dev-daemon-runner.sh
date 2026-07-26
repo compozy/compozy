@@ -17,9 +17,9 @@ air_pid=
 air_state_dir=$(go run ./scripts/air-state-dir)
 air_build_dir="$repo_root/.tmp/air"
 dev_run_id="dev-daemon-$$-$(date +%s)"
-export AGH_AIR_BUILD_DIR=$air_build_dir
-export AGH_AIR_STATE_DIR=$air_state_dir
-export AGH_AIR_DEV_RUN_ID=$dev_run_id
+export COMPOZY_AIR_BUILD_DIR=$air_build_dir
+export COMPOZY_AIR_STATE_DIR=$air_state_dir
+export COMPOZY_AIR_DEV_RUN_ID=$dev_run_id
 
 stop_owned_daemon() {
   go run ./scripts/air-state-lock "$air_state_dir/dev-owner.lock" -- \

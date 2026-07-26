@@ -6,7 +6,7 @@ import "strings"
 // Marker is the canonical replacement for secret material in public text.
 const Marker = "[REDACTED]"
 
-const protectedMarker = "__AGH_REDACTED"
+const protectedMarker = "__COMPOZY_REDACTED"
 
 // String removes canonical, heuristic, and runtime-registered secret shapes from text.
 func String(value string) string {

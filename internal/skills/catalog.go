@@ -17,15 +17,15 @@ const (
 	currentCatalogOpen                    = "<current-available-skills>"
 	currentCatalogClose                   = "</current-available-skills>"
 	catalogToolPolicyFallbackInstructions = "" +
-		"If current tool policy denies canonical `agh__skill_view`, use `compozy skill view <name>` as an operator fallback."
-	catalogUsageInstructions = "Resolve canonical `agh__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.\n" +
-		"Use the returned tool reference for canonical `agh__skill_view` to read a specific skill resource file when the skill references one.\n" +
+		"If current tool policy denies canonical `compozy__skill_view`, use `compozy skill view <name>` as an operator fallback."
+	catalogUsageInstructions = "Resolve canonical `compozy__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.\n" +
+		"Use the returned tool reference for canonical `compozy__skill_view` to read a specific skill resource file when the skill references one.\n" +
 		catalogToolPolicyFallbackInstructions
 	currentCatalogInstructions = "" +
 		"The <current-available-skills> block above is the authoritative current skill state for this turn.\n" +
 		"If it differs from any earlier <available-skills> startup snapshot, trust the current block."
 	currentCatalogUnchangedInstructions = "" +
-		"Previous catalog remains current; resolve canonical `agh__skill_view` for full skill/resource instructions."
+		"Previous catalog remains current; resolve canonical `compozy__skill_view` for full skill/resource instructions."
 )
 
 var (

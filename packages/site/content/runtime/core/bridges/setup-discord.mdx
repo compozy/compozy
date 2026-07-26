@@ -30,7 +30,7 @@ Gateway socket or privileged message-content intent for its HTTP webhook path.
 | Ed25519 public key     | yes      | Discord Developer Portal **General Information**; exactly 64 hexadecimal characters.      |
 | Bot token              | yes      | Discord Developer Portal **Bot** page.                                                    |
 | Public callback URL    | yes      | Stable public HTTPS route to the Discord provider listener.                               |
-| Local listener address | yes      | `provider_config.webhook.listen_addr` or `AGH_BRIDGE_DISCORD_LISTEN_ADDR`.                |
+| Local listener address | yes      | `provider_config.webhook.listen_addr` or `COMPOZY_BRIDGE_DISCORD_LISTEN_ADDR`.            |
 | AGH workspace ID       | yes      | Workspace whose default agent receives accepted Discord events.                           |
 | Server permissions     | yes      | Permission to install an app in the test server and configure its webhook/event settings. |
 
@@ -313,19 +313,19 @@ agh bridge update "$BRIDGE_ID" \
 
 ## Configuration reference
 
-| Field                                     | Default                          | Purpose                                                                  |
-| ----------------------------------------- | -------------------------------- | ------------------------------------------------------------------------ |
-| `application_id`                          | none                             | Expected identity for the authenticated bot token and invite generation. |
-| `webhook.public_url`                      | none                             | Complete public Discord endpoint and enabled reachability target.        |
-| `webhook.listen_addr`                     | `AGH_BRIDGE_DISCORD_LISTEN_ADDR` | Local listener shared by Discord instances.                              |
-| `webhook.path`                            | `/discord/<bridge-id>`           | Local callback path; each instance needs a unique path.                  |
-| `invite.scopes`                           | guided setup values              | OAuth scopes used to construct the operator handoff URL.                 |
-| `invite.permissions`                      | `68672` in guided setup          | Decimal Discord permission bitset placed in the invite URL.              |
-| `batching.delay_ms`                       | `0`                              | Enables inbound batching when positive.                                  |
-| `batching.split_delay_ms`                 | `delay_ms`                       | Delay after the configured split threshold.                              |
-| `batching.split_threshold`                | `0`                              | Provider batching split threshold.                                       |
-| `dm.allow_user_ids` / `paired_user_ids`   | empty                            | Discord IDs admitted by `allowlist` or `pairing`.                        |
-| `dm.allow_usernames` / `paired_usernames` | empty                            | Normalized username fallbacks; IDs are safer.                            |
+| Field                                     | Default                              | Purpose                                                                  |
+| ----------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------ |
+| `application_id`                          | none                                 | Expected identity for the authenticated bot token and invite generation. |
+| `webhook.public_url`                      | none                                 | Complete public Discord endpoint and enabled reachability target.        |
+| `webhook.listen_addr`                     | `COMPOZY_BRIDGE_DISCORD_LISTEN_ADDR` | Local listener shared by Discord instances.                              |
+| `webhook.path`                            | `/discord/<bridge-id>`               | Local callback path; each instance needs a unique path.                  |
+| `invite.scopes`                           | guided setup values                  | OAuth scopes used to construct the operator handoff URL.                 |
+| `invite.permissions`                      | `68672` in guided setup              | Decimal Discord permission bitset placed in the invite URL.              |
+| `batching.delay_ms`                       | `0`                                  | Enables inbound batching when positive.                                  |
+| `batching.split_delay_ms`                 | `delay_ms`                           | Delay after the configured split threshold.                              |
+| `batching.split_threshold`                | `0`                                  | Provider batching split threshold.                                       |
+| `dm.allow_user_ids` / `paired_user_ids`   | empty                                | Discord IDs admitted by `allowlist` or `pairing`.                        |
+| `dm.allow_usernames` / `paired_usernames` | empty                                | Normalized username fallbacks; IDs are safer.                            |
 
 `bot_token` and `public_key` are required write-only bindings. The Discord REST destination is an
 operator-owned process setting and cannot be redirected by bridge instance configuration.

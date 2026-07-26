@@ -594,9 +594,9 @@ func TestRuntimeHelpersCoverCLIEnvAndRepoUtilities(t *testing.T) {
 		t.Fatalf("withRuntimeCLIEnv() error = %v", err)
 	}
 
-	shimPath := lookupEnvValue(withCLI, "AGH_E2E_CLI_BIN")
+	shimPath := lookupEnvValue(withCLI, "COMPOZY_E2E_CLI_BIN")
 	if strings.TrimSpace(shimPath) == "" {
-		t.Fatal("AGH_E2E_CLI_BIN = empty, want installed runtime shim")
+		t.Fatal("COMPOZY_E2E_CLI_BIN = empty, want installed runtime shim")
 	}
 	if _, err := os.Stat(shimPath); err != nil {
 		t.Fatalf("os.Stat(%q) error = %v", shimPath, err)

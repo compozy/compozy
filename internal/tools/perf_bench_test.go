@@ -10,7 +10,7 @@ import (
 
 var (
 	benchmarkCanonicalToolJSON = []byte(`{
-		"id":"agh__skill_view",
+		"id":"compozy__skill_view",
 		"display_title":"Skill View",
 		"description":"View one skill",
 		"backend":{"kind":"native_go","native_name":"skill_view"},

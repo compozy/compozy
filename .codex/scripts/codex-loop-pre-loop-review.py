@@ -24,7 +24,7 @@ from typing import Any
 
 sys.dont_write_bytecode = True
 
-HEADER = "AGH_PRE_LOOP_REVIEW"
+HEADER = "COMPOZY_PRE_LOOP_REVIEW"
 DEFAULT_COMPOZY_TIMEOUT = "8m"
 SCRIPT_RELATIVE = Path(".codex/scripts/codex-loop-pre-loop-review.py")
 STATE_IO_RELATIVE = Path(".agents/skills/cy-loop-tasks/scripts/_state_io.py")
@@ -471,7 +471,7 @@ def format_review_output(target: ReviewTarget, output: str) -> str:
             "Confidence: 0.50",
             "",
             "Blockers:",
-            "- Claude review returned output that did not follow the required AGH_PRE_LOOP_REVIEW contract. Treat the raw output as advisory and inspect before stopping again.",
+            "- Claude review returned output that did not follow the required COMPOZY_PRE_LOOP_REVIEW contract. Treat the raw output as advisory and inspect before stopping again.",
             "",
             "Risks:",
             "- Review output contract drift can hide actionable blockers from the continuation prompt.",

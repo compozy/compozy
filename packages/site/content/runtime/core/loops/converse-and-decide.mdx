@@ -7,9 +7,9 @@ description: A documented Loop that posts a question into a channel, lets agents
 
 <Callout type="info">
   This is a **documented example**, not a packaged default Loop. The capability ships in the runtime
-  — it is an `agh__network_send` action with a `channel_result` harvest — but AGH does not install a
-  `converse-and-decide` Loop, because it needs a configured channel and participating agents to run.
-  Save the definition below to author it in your own workspace.
+  — it is an `compozy__network_send` action with a `channel_result` harvest — but AGH does not
+  install a `converse-and-decide` Loop, because it needs a configured channel and participating
+  agents to run. Save the definition below to author it in your own workspace.
 </Callout>
 
 The **converse-and-decide** pattern drives a live discussion and acts on its result: a step posts a
@@ -21,7 +21,7 @@ is the canonical illustration of harvesting a channel outcome into a Loop.
 
 The example uses the word _kind_ at two levels — keep them separate:
 
-- the **node** `kind: agh__network_send` — the action's tool ID (there is no `channel-post` kind);
+- the **node** `kind: compozy__network_send` — the action's tool ID (there is no `channel-post` kind);
 - the network **message** `kind: say` inside that node's `params` — the wire message kind. The
   question is a `say` with `intent: request`.
 
@@ -66,8 +66,8 @@ graph:
     # post the request AND harvest the designated result
     - id: ask
       class: action
-      kind: agh__network_send # the tool ID IS the action kind (not channel-post)
-      params: # exactly the agh__network_send input schema
+      kind: compozy__network_send # the tool ID IS the action kind (not channel-post)
+      params: # exactly the compozy__network_send input schema
         workspace_id: "{{ .inputs.workspace_id }}"
         channel: "{{ .inputs.channel }}"
         surface: thread # required so the harvest can resolve the conversation

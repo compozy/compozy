@@ -6,15 +6,15 @@ COSIGN_VERSION="v2.2.4"
 COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
 COSIGN_CERT_IDENTITY_REGEXP='^https://github\.com/compozy/agh/\.github/workflows/release\.yml@refs/heads/main$'
 COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"
-VERSION="${AGH_VERSION:-latest}"
-INSTALL_DIR="${AGH_INSTALL_DIR:-}"
+VERSION="${COMPOZY_VERSION:-latest}"
+INSTALL_DIR="${COMPOZY_INSTALL_DIR:-}"
 SKIP_BOOTSTRAP="false"
 DRY_RUN="false"
 COSIGN_BIN=""
 COSIGN_NAME=""
 COSIGN_SHA256=""
 
-if [ "${AGH_SKIP_BOOTSTRAP:-}" != "" ] && [ "${AGH_SKIP_BOOTSTRAP:-}" != "0" ]; then
+if [ "${COMPOZY_SKIP_BOOTSTRAP:-}" != "" ] && [ "${COMPOZY_SKIP_BOOTSTRAP:-}" != "0" ]; then
   SKIP_BOOTSTRAP="true"
 fi
 
@@ -34,9 +34,9 @@ Options:
   -h, --help            Show this help.
 
 Environment:
-  AGH_VERSION           Same as --version.
-  AGH_INSTALL_DIR       Same as --dir.
-  AGH_SKIP_BOOTSTRAP=1  Same as --skip-bootstrap.
+  COMPOZY_VERSION           Same as --version.
+  COMPOZY_INSTALL_DIR       Same as --dir.
+  COMPOZY_SKIP_BOOTSTRAP=1  Same as --skip-bootstrap.
 
 Requires:
   curl, tar, and sha256sum or shasum.

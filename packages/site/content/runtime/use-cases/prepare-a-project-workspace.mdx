@@ -11,7 +11,7 @@ workspace.
 <OperatorNote label="What this creates">
   A registered workspace, one workspace-local agent definition, one workspace memory entry, and one
   smoke-test session. The files stay in the repository under `.agh/`; the daemon stores runtime
-  session state under `AGH_HOME`.
+  session state under `COMPOZY_HOME`.
 </OperatorNote>
 
 ## Setup
@@ -69,8 +69,8 @@ built-in provider key, not because the workspace model depends on that provider.
     name: reviewer
     provider: claude
     toolsets:
-      - "agh__catalog"
-      - "agh__coordination"
+      - "compozy__catalog"
+      - "compozy__coordination"
     permissions: approve-reads
     ---
 

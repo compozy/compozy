@@ -41,7 +41,7 @@ container ID and MUST come from the initiator or target.
 
 ```bash
 agh network send \
-  --session "${AGH_SESSION_ID}" \
+  --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
   --thread thread_release_check_20260416 \
@@ -67,7 +67,7 @@ HTTP:
 GET /api/workspaces/ws_alpha/network/work/work_migration_check_20260416
 ```
 
-Native tool: `agh__network_work` accepts `{"work_id": "..."}` and returns the same payload.
+Native tool: `compozy__network_work` accepts `{"work_id": "..."}` and returns the same payload.
 
 A successful lookup returns the work entry with its bound conversation container, opener, target,
 state, opened-at, last-activity, and terminal timestamps. If the work does not exist, the runtime

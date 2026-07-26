@@ -19,7 +19,7 @@ func validateDaemonCompatibility(minVersion string) error {
 	requiredVersion, ok := parseSemanticVersion(minVersion)
 	if !ok {
 		return &ManifestValidationError{
-			Field:   "min_agh_version",
+			Field:   manifestMinCompozyVersionKey,
 			Value:   minVersion,
 			Message: manifestMustBeASemanticVersionValue,
 		}

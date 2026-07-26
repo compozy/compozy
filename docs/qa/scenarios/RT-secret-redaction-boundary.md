@@ -5,7 +5,7 @@ title: Redact planted secrets before storage and streaming
 persona: Dora
 journey: J-keep-secrets-contained
 expected: With redaction heuristics enabled at daemon boot, a planted provider-shaped secret appears only as the canonical redaction marker in runtime logs, SSE, session history, the global event ledger, and the session events database. Correlation IDs and hashes remain intact. Disabling the heuristic and restarting leaves exact claim-token, secret-reference, and registered-secret protections active.
-entry_points: General Settings; agh config get/set; agh__config_get/set; daemon logs; session SSE/history; global and session event stores
+entry_points: General Settings; agh config get/set; compozy__config_get/set; daemon logs; session SSE/history; global and session event stores
 qa_status: untested
 bug_ids:
 fix_status:

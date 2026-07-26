@@ -5,7 +5,7 @@ title: First-run setup renders over an inert desktop shell
 persona: Lea
 journey: J-19
 expected: With onboarding incomplete the desktop chrome renders behind a blocking setup panel — wallpaper, a menu bar whose workspace slot reads "No workspace" with no sync-status pill, and a dimmed dormant dock — while the panel owns focus; Esc and outside-press do not dismiss it, ⌘K and ⌘N do nothing, nothing behind the scrim is clickable or tabbable, the runtime popover still opens above the panel, and finishing setup wakes the same desktop (menu bar names the first workspace) without a full reload.
-entry_points: web `/_app/` first-run against a fresh `AGH_HOME`; `desktop-gate.tsx`, `desktop-shell.tsx`, `onboarding-setup-panel.tsx`
+entry_points: web `/_app/` first-run against a fresh `COMPOZY_HOME`; `desktop-gate.tsx`, `desktop-shell.tsx`, `onboarding-setup-panel.tsx`
 qa_status: untested
 bug_ids:
 fix_status:

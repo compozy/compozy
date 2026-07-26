@@ -362,7 +362,7 @@ func writeToolMCPIntegrationExtension(t *testing.T) string {
 	manifest := `[extension]
 name = "static-tool-mcp"
 version = "0.1.0"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [resources.tools.lookup]
 description = "Search extension data"

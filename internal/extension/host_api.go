@@ -93,7 +93,7 @@ const hostAPIResourceSessionContextKey hostAPIContextKey = "extension.host_api.r
 // HostAPIOption customizes a HostAPIHandler.
 type HostAPIOption func(*HostAPIHandler)
 
-// HostAPIHandler handles extension -> AGH Host API JSON-RPC requests.
+// HostAPIHandler handles extension -> Compozy Host API JSON-RPC requests.
 type HostAPIHandler struct {
 	sessions         hostAPISessionManager
 	automation       HostAPIAutomationManager

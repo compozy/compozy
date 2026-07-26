@@ -143,7 +143,7 @@ describe("compozy-ui-reuse lint plugin", () => {
           'export type { CardProps, CardSize } from "./components/card";',
           'export {\n  Timeline,\n  type TimelineProps,\n} from "./components/custom/timeline";',
           'export { useDirection, DirectionProvider } from "./components/direction";',
-          'export { AGH_CODE_THEMES, normalizeAghCodeLanguage } from "./lib/code-theme";',
+          'export { COMPOZY_CODE_THEMES, normalizeAghCodeLanguage } from "./lib/code-theme";',
           'export { StatusDot as RenamedDot } from "./components/custom/status-dot";',
         ].join("\n")
       );

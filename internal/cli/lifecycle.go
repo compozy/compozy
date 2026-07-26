@@ -117,7 +117,7 @@ func managedRecommendation(manager string, action string) string {
 		}
 		return "Use `sudo dnf upgrade agh` or the package name used to install AGH."
 	default:
-		return "Use the package manager that set AGH_MANAGED instead of mutating this install directly."
+		return "Use the package manager that set COMPOZY_MANAGED instead of mutating this install directly."
 	}
 }
 

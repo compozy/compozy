@@ -26,7 +26,7 @@ type HermeticEnv struct {
 }
 
 // ApplyHermeticEnv scrubs ambient credentials and pins deterministic env values
-// for tests that intentionally exercise process environment, AGH_HOME, provider
+// for tests that intentionally exercise process environment, COMPOZY_HOME, provider
 // home, or release shell behavior. It mutates process environment and therefore
 // must not be used by tests that call t.Parallel.
 func ApplyHermeticEnv(t testing.TB) HermeticEnv {
@@ -53,8 +53,8 @@ func ApplyHermeticEnv(t testing.TB) HermeticEnv {
 		OpenCodeHomeDir:  filepath.Join(t.TempDir(), "opencode-config"),
 	}
 
-	restorer.set(t, "AGH_HOME", state.HomeDir)
-	restorer.set(t, "AGH_CONFIG_HOME", state.ConfigHomeDir)
+	restorer.set(t, "COMPOZY_HOME", state.HomeDir)
+	restorer.set(t, "COMPOZY_CONFIG_HOME", state.ConfigHomeDir)
 	restorer.set(t, "PROVIDER_HOME", state.ProviderHomeDir)
 	restorer.set(t, "PROVIDER_CODEX_HOME", state.ProviderCodexDir)
 	restorer.set(t, "CLAUDE_CONFIG_DIR", state.ClaudeConfigDir)
@@ -70,7 +70,7 @@ func ApplyHermeticEnv(t testing.TB) HermeticEnv {
 // HermeticProcessEnv returns a child-process environment with credential-shaped
 // and AGH/provider-local state removed, plus deterministic timezone and locale
 // pins. It intentionally leaves HOME untouched; tests that need isolated AGH
-// state should set AGH_HOME explicitly after calling this helper.
+// state should set COMPOZY_HOME explicitly after calling this helper.
 func HermeticProcessEnv(base []string) []string {
 	if base == nil {
 		base = os.Environ()
@@ -156,13 +156,13 @@ func shouldClearHermeticEnvName(name string) bool {
 	if normalized == "" {
 		return false
 	}
-	if strings.HasPrefix(normalized, "AGH_TEST_") {
+	if strings.HasPrefix(normalized, "COMPOZY_TEST_") {
 		return false
 	}
 	if procutil.SensitiveEnvName(normalized) {
 		return true
 	}
-	if strings.HasPrefix(normalized, "AGH_") {
+	if strings.HasPrefix(normalized, "COMPOZY_") {
 		return true
 	}
 	switch normalized {

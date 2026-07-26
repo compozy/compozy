@@ -37,10 +37,10 @@ func (s *LiveProviderSource) discoveryEnv(ctx context.Context) ([]string, error)
 	default:
 		env = procutil.FilteredDaemonEnv(env)
 	}
-	env = providerenv.SetEnvValue(env, "AGH_PROVIDER", s.providerID)
-	env = providerenv.SetEnvValue(env, "AGH_PROVIDER_AUTH_MODE", string(s.provider.EffectiveAuthMode()))
-	env = providerenv.SetEnvValue(env, "AGH_PROVIDER_ENV_POLICY", string(s.provider.EffectiveEnvPolicy()))
-	env = providerenv.SetEnvValue(env, "AGH_PROVIDER_HOME_POLICY", string(s.provider.EffectiveHomePolicy()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER", s.providerID)
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_AUTH_MODE", string(s.provider.EffectiveAuthMode()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_ENV_POLICY", string(s.provider.EffectiveEnvPolicy()))
+	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_HOME_POLICY", string(s.provider.EffectiveHomePolicy()))
 
 	var err error
 	env, err = providerenv.ApplyHomePolicy(s.homePaths, s.providerID, s.provider.EffectiveHomePolicy(), env)

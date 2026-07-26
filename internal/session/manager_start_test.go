@@ -609,11 +609,11 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 		if got := envValue(env, "PROVIDER_HOME"); got != "/tmp/provider" {
 			t.Fatalf("PROVIDER_HOME = %q, want %q", got, "/tmp/provider")
 		}
-		if got := envValue(env, "AGH_SESSION_ID"); got != "sess-1" {
-			t.Fatalf("AGH_SESSION_ID = %q, want %q", got, "sess-1")
+		if got := envValue(env, "COMPOZY_SESSION_ID"); got != "sess-1" {
+			t.Fatalf("COMPOZY_SESSION_ID = %q, want %q", got, "sess-1")
 		}
-		if got := envValue(env, "AGH_PEER_ID"); got == "" {
-			t.Fatal("AGH_PEER_ID = empty, want network peer id")
+		if got := envValue(env, "COMPOZY_PEER_ID"); got == "" {
+			t.Fatal("COMPOZY_PEER_ID = empty, want network peer id")
 		}
 	})
 }
@@ -649,8 +649,8 @@ func TestSessionStartEnvForProviderSupportsIsolatedPolicy(t *testing.T) {
 		if got := envValue(env, "PATH"); got != "/usr/bin" {
 			t.Fatalf("PATH = %q, want %q", got, "/usr/bin")
 		}
-		if got := envValue(env, "AGH_SESSION_ID"); got != "sess-1" {
-			t.Fatalf("AGH_SESSION_ID = %q, want %q", got, "sess-1")
+		if got := envValue(env, "COMPOZY_SESSION_ID"); got != "sess-1" {
+			t.Fatalf("COMPOZY_SESSION_ID = %q, want %q", got, "sess-1")
 		}
 	})
 }

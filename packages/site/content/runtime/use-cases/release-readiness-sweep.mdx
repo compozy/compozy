@@ -57,8 +57,8 @@ queued run, renews its lease while working, and closes it; the operator reviews 
 ```bash
 agh task run enqueue task_123 -o json
 agh session new --workspace project --agent reviewer --name release-docs -o json
-export AGH_SESSION_ID=sess_1234
-export AGH_AGENT=reviewer
+export COMPOZY_SESSION_ID=sess_1234
+export COMPOZY_AGENT=reviewer
 agh task next --run-id run_123 -o json
 agh session prompt sess_1234 "Verify release documentation. Report mismatches, missing examples, and commands used."
 ```

@@ -30,7 +30,7 @@ reference files:
 | `references/runtime-operations.md`       | Daemon state, session lifecycle, session CLI, and runtime troubleshooting.                                  |
 | `references/agent-definitions.md`        | `AGENT.md`, provider defaults, permission modes, agent MCP sidecars, and setup workflow.                    |
 | `references/tools-and-skills.md`         | Tool-first operating model, skill search/view, skill resources, and skill authoring rules.                  |
-| `references/native-tools.md`             | Daemon-native toolsets, stable `agh__*` IDs, descriptor discipline, and CLI fallback rules.                 |
+| `references/native-tools.md`             | Daemon-native toolsets, stable `compozy__*` IDs, descriptor discipline, and CLI fallback rules.             |
 | `references/network.md`                  | AGH Network channels, peers, inboxes, threads, direct rooms, work items, receipts, traces, and send safety. |
 | `references/memory.md`                   | Memory scopes, read/write/search flows, hygiene, and consolidation boundaries.                              |
 | `references/tasks-and-orchestration.md`  | Coordinator, worker, and reviewer loops, task authority, session-bound tools, and review verdict rules.     |
@@ -63,7 +63,7 @@ The normal prompt catalog lists the bundled skill by name and description:
 </available-skills>
 ```
 
-Agents resolve canonical `agh__skill_view` through the active harness, then load the full router with
+Agents resolve canonical `compozy__skill_view` through the active harness, then load the full router with
 the returned tool reference and `{ "name": "agh" }`. Operators can read the same body with:
 
 ```bash
@@ -96,9 +96,9 @@ not in the skill text.
 
 The bundled `agh` skill teaches agents how to find and use AGH-native tools, but it does not grant
 tool access. Tool visibility and invocation are enforced by the tool registry, session scope,
-toolsets, approval policy, and the owning runtime service. `agh__*` names are canonical ToolIDs, not
-guaranteed harness invocation names. Agents should resolve canonical `agh__tool_search`, inspect
-candidates through canonical `agh__tool_info`, and then call the dedicated tool reference returned
+toolsets, approval policy, and the owning runtime service. `compozy__*` names are canonical ToolIDs, not
+guaranteed harness invocation names. Agents should resolve canonical `compozy__tool_search`, inspect
+candidates through canonical `compozy__tool_info`, and then call the dedicated tool reference returned
 by the active harness when it is available in the active scope.
 
 The review submit path is the clearest example. The reviewer-facing prompt tells the session to load

@@ -52,7 +52,7 @@ The registry gives those actions one shape:
 
   <WorkflowStep title="Inspect the tool before invoking it">
     ```bash
-    agh tool info agh__skill_view -o json
+    agh tool info compozy__skill_view -o json
     ```
 
     What happened: AGH returned the descriptor, input schema, output shape, policy requirements, and
@@ -62,7 +62,7 @@ The registry gives those actions one shape:
 
   <WorkflowStep title="Invoke through daemon policy">
     ```bash
-    agh tool invoke agh__tool_info --input '{"tool_id":"agh__skill_view"}' -o json
+    agh tool invoke compozy__tool_info --input '{"tool_id":"compozy__skill_view"}' -o json
     ```
 
     What happened: AGH validated JSON input, applied policy, dispatched the daemon-owned tool, and
@@ -85,20 +85,20 @@ The registry gives those actions one shape:
 The normal managed-agent path starts with discovery, not blind invocation. These canonical IDs help
 agents orient and inspect the registry:
 
-- `agh__bootstrap`
-- `agh__catalog`
-- `agh__tool_search`
-- `agh__tool_info`
-- `agh__skill_search`
-- `agh__skill_view`
+- `compozy__bootstrap`
+- `compozy__catalog`
+- `compozy__tool_search`
+- `compozy__tool_info`
+- `compozy__skill_search`
+- `compozy__skill_view`
 
 For a bare managed session, hosted MCP projects the full availability-gated callable catalog. AGH
 does not add an automatic bootstrap/catalog allowlist over that hosted projection. Agent
 definitions, session lineage, disabled sources, denylists, and approval/risk gates still narrow or
 block invocation.
 
-`agh__tool_list` returns only the currently callable projection. `agh__tool_search` and
-`agh__tool_info` are diagnostic: they can return known descriptors with callable or denied status so
+`compozy__tool_list` returns only the currently callable projection. `compozy__tool_search` and
+`compozy__tool_info` are diagnostic: they can return known descriptors with callable or denied status so
 an agent can explain whether a tool is absent, unavailable, or policy-denied before falling back to
 CLI or HTTP.
 
@@ -111,9 +111,9 @@ The expected pattern is:
 
 <Mermaid
   chart={`flowchart LR
-    ToolSearch["Resolve canonical agh__tool_search"] --> ToolInfo["Resolve canonical agh__tool_info"]
+    ToolSearch["Resolve canonical compozy__tool_search"] --> ToolInfo["Resolve canonical compozy__tool_info"]
     ToolInfo --> Invoke["Invoke returned tool reference"]
-    SkillSearch["Resolve canonical agh__skill_search"] --> SkillView["Resolve canonical agh__skill_view"]`}
+    SkillSearch["Resolve canonical compozy__skill_search"] --> SkillView["Resolve canonical compozy__skill_view"]`}
   caption="Managed agents should discover tools and skills before invoking a runtime action."
 />
 

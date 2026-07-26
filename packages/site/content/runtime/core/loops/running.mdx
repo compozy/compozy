@@ -83,14 +83,14 @@ the Loop and run id, the goal, the generation count, timing, and a budget mini-b
 
 ## Every surface, not just the UI
 
-| Action          | CLI                                         | HTTP                                    | Native tool                            |
-| --------------- | ------------------------------------------- | --------------------------------------- | -------------------------------------- |
-| Start / dry-run | `agh loop run [--dry-run]`                  | `POST /loops/:name/run[?dry=true]`      | `agh__loop_run`                        |
-| Run status      | `agh loop status`                           | `GET /loop-runs/:id`                    | `agh__loop_status`                     |
-| List runs       | `agh loop runs`                             | `GET /loop-runs`                        | `agh__loop_runs`                       |
-| Pause / resume  | `agh loop pause` · `agh loop resume`        | `POST /loop-runs/:id/pause` · `/resume` | `agh__loop_pause` · `agh__loop_resume` |
-| Approve         | `agh loop approve --gate-id … --decision …` | `POST /loop-runs/:id/approve`           | `agh__loop_approve`                    |
-| Stop            | `agh loop stop`                             | `POST /loop-runs/:id/stop`              | `agh__loop_stop`                       |
+| Action          | CLI                                         | HTTP                                    | Native tool                                    |
+| --------------- | ------------------------------------------- | --------------------------------------- | ---------------------------------------------- |
+| Start / dry-run | `agh loop run [--dry-run]`                  | `POST /loops/:name/run[?dry=true]`      | `compozy__loop_run`                            |
+| Run status      | `agh loop status`                           | `GET /loop-runs/:id`                    | `compozy__loop_status`                         |
+| List runs       | `agh loop runs`                             | `GET /loop-runs`                        | `compozy__loop_runs`                           |
+| Pause / resume  | `agh loop pause` · `agh loop resume`        | `POST /loop-runs/:id/pause` · `/resume` | `compozy__loop_pause` · `compozy__loop_resume` |
+| Approve         | `agh loop approve --gate-id … --decision …` | `POST /loop-runs/:id/approve`           | `compozy__loop_approve`                        |
+| Stop            | `agh loop stop`                             | `POST /loop-runs/:id/stop`              | `compozy__loop_stop`                           |
 
 Live events stream from `GET /loop-runs/:id/events` (SSE). HTTP routes are workspace-scoped under
 `/api/workspaces/{workspace_id}/…`; the [Loops API](/runtime/api-reference/loops) reference lists

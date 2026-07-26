@@ -43,7 +43,7 @@ Provider config is stored per bridge instance in `provider_config`:
 }
 ```
 
-Teams learns the service URL from authenticated inbound activities and uses the Bot Framework default as the proactive-delivery fallback. `AGH_BRIDGE_TEAMS_SERVICE_URL`, `AGH_BRIDGE_TEAMS_OPENID_METADATA_URL`, and `AGH_BRIDGE_TEAMS_TOKEN_URL` are operator-owned process overrides for local development and integration tests. Bridge config cannot change these credential-bearing destinations.
+Teams learns the service URL from authenticated inbound activities and uses the Bot Framework default as the proactive-delivery fallback. `COMPOZY_BRIDGE_TEAMS_SERVICE_URL`, `COMPOZY_BRIDGE_TEAMS_OPENID_METADATA_URL`, and `COMPOZY_BRIDGE_TEAMS_TOKEN_URL` are operator-owned process overrides for local development and integration tests. Bridge config cannot change these credential-bearing destinations.
 
 ## Scope
 

@@ -107,7 +107,7 @@ func TestSchedulerConfigValidateMonotonic(t *testing.T) {
 }
 
 func TestLoadLayersAutonomyAndRolesWithoutClobberingOtherSections(t *testing.T) {
-	// not parallel: mutates AGH_HOME through the config test harness.
+	// not parallel: mutates COMPOZY_HOME through the config test harness.
 	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
 
 	writeFile(t, homePaths.ConfigFile, `
@@ -220,7 +220,7 @@ max_children = 2
 }
 
 func TestLoadAutonomyDoesNotUseAmbientWorkspaceOrMutateEnv(t *testing.T) {
-	// not parallel: changes the process working directory and AGH_HOME.
+	// not parallel: changes the process working directory and COMPOZY_HOME.
 	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
 	ambientWorkspace := t.TempDir()
 	writeFile(t, homePaths.ConfigFile, "[roles.coordinator]\nmodel = \"global-coordinator\"\n")
@@ -247,7 +247,7 @@ func TestLoadAutonomyDoesNotUseAmbientWorkspaceOrMutateEnv(t *testing.T) {
 			t.Fatalf("restore working directory: %v", err)
 		}
 	})
-	beforeHome := os.Getenv("AGH_HOME")
+	beforeHome := os.Getenv("COMPOZY_HOME")
 
 	cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
 	if err != nil {
@@ -256,8 +256,8 @@ func TestLoadAutonomyDoesNotUseAmbientWorkspaceOrMutateEnv(t *testing.T) {
 	if cfg.Roles.Coordinator.Model != "target-workspace" {
 		t.Fatalf("LoadForHome() coordinator model = %q, want target-workspace", cfg.Roles.Coordinator.Model)
 	}
-	if got := os.Getenv("AGH_HOME"); got != beforeHome {
-		t.Fatalf("LoadForHome() mutated AGH_HOME = %q, want %q", got, beforeHome)
+	if got := os.Getenv("COMPOZY_HOME"); got != beforeHome {
+		t.Fatalf("LoadForHome() mutated COMPOZY_HOME = %q, want %q", got, beforeHome)
 	}
 	globalOnly, err := LoadForHome(homePaths)
 	if err != nil {
@@ -269,7 +269,7 @@ func TestLoadAutonomyDoesNotUseAmbientWorkspaceOrMutateEnv(t *testing.T) {
 }
 
 func TestLoadWorkspaceOverridesAutonomyBlockRecurrenceLimit(t *testing.T) {
-	// not parallel: mutates AGH_HOME through the config test harness.
+	// not parallel: mutates COMPOZY_HOME through the config test harness.
 	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
 	writeFile(t, homePaths.ConfigFile, "[autonomy]\nblock_recurrence_limit = 3\n")
 	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), "[autonomy]\nblock_recurrence_limit = 0\n")
@@ -284,7 +284,7 @@ func TestLoadWorkspaceOverridesAutonomyBlockRecurrenceLimit(t *testing.T) {
 }
 
 func TestLoadRejectsInvalidAutonomyBlockRecurrenceLimit(t *testing.T) {
-	// not parallel: mutates AGH_HOME through the config test harness.
+	// not parallel: mutates COMPOZY_HOME through the config test harness.
 	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
 	writeFile(t, homePaths.ConfigFile, "[autonomy]\nblock_recurrence_limit = -1\n")
 
@@ -295,7 +295,7 @@ func TestLoadRejectsInvalidAutonomyBlockRecurrenceLimit(t *testing.T) {
 }
 
 func TestLoadRejectsUnknownAutonomyConfigKeys(t *testing.T) {
-	// not parallel: mutates AGH_HOME through the config test harness.
+	// not parallel: mutates COMPOZY_HOME through the config test harness.
 	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
 	writeFile(t, homePaths.ConfigFile, "[autonomy]\nunknown = true\n")
 
@@ -306,7 +306,7 @@ func TestLoadRejectsUnknownAutonomyConfigKeys(t *testing.T) {
 }
 
 func TestRootExampleConfigIncludesBlockRecurrenceLimit(t *testing.T) {
-	// not parallel: mutates AGH_HOME through the config test harness.
+	// not parallel: mutates COMPOZY_HOME through the config test harness.
 	examplePath := filepath.Join("..", "..", "config.toml")
 	contents, err := os.ReadFile(examplePath)
 	if err != nil {
@@ -331,7 +331,7 @@ func prepareAutonomyConfigTestEnv(t *testing.T) (string, HomePaths) {
 
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
 		t.Fatalf("ResolveHomePaths() error = %v", err)

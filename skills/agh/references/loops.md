@@ -2,68 +2,68 @@
 
 Agent operation guidance for AGH Loops — the deterministic goal → verify → stop programs the daemon
 owns and runs. Use this reference when you author, configure, run, observe, approve, or stop a Loop
-from inside AGH. Prefer the native `agh__loop_*` tools; fall back to `compozy loop` CLI or HTTP with
-structured output. Never guess a schema — resolve `agh__tool_info` for the exact descriptor first.
+from inside AGH. Prefer the native `compozy__loop_*` tools; fall back to `compozy loop` CLI or HTTP with
+structured output. Never guess a schema — resolve `compozy__tool_info` for the exact descriptor first.
 
 ## The Tool Set And CLI Verbs
 
-Toolset `agh__loops` — 16 native tools. Thirteen definition/run controls have matching `compozy loop`
-verbs; `agh__loop_turns` maps to `compozy loop turns`; the two session-bound Goal tools use the session
+Toolset `compozy__loops` — 16 native tools. Thirteen definition/run controls have matching `compozy loop`
+verbs; `compozy__loop_turns` maps to `compozy loop turns`; the two session-bound Goal tools use the session
 command/native report surfaces. The CLI adds one verb (`edit`) that has no native tool.
 
-| Native tool           | Mode                            | CLI                      | Purpose                                                                      |
-| --------------------- | ------------------------------- | ------------------------ | ---------------------------------------------------------------------------- |
-| `agh__loop_list`      | read                            | `compozy loop list`      | List Loop definitions in the workspace.                                      |
-| `agh__loop_inspect`   | read                            | `compozy loop inspect`   | Read one definition: inputs, contract, start bindings, version.              |
-| `agh__loop_validate`  | read                            | `compozy loop validate`  | Lint + compile a definition without saving.                                  |
-| `agh__loop_status`    | read                            | `compozy loop status`    | Read one run's status with generation detail.                                |
-| `agh__loop_runs`      | read                            | `compozy loop runs`      | List runs in the workspace.                                                  |
-| `agh__loop_create`    | mutating                        | `compozy loop create`    | Create/fork, or CAS-publish when `expected_version` is set.                  |
-| `agh__loop_run`       | mutating                        | `compozy loop run`       | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
-| `agh__loop_configure` | mutating                        | `compozy loop configure` | Write per-Loop runtime config overrides.                                     |
-| `agh__loop_pause`     | mutating                        | `compozy loop pause`     | Request a generation-boundary pause.                                         |
-| `agh__loop_resume`    | mutating                        | `compozy loop resume`    | Resume a paused or pause-requested run.                                      |
-| `agh__loop_approve`   | mutating · **capability-gated** | `compozy loop approve`   | Apply one human-gate decision.                                               |
-| `agh__loop_stop`      | destructive                     | `compozy loop stop`      | Stop one active run.                                                         |
-| `agh__loop_delete`    | destructive                     | `compozy loop delete`    | Delete a writable workspace definition.                                      |
-| `agh__goal_get`       | read · session-scoped           | `/goal status`           | Read the caller session's visible Goal, including terminal-until-clear.      |
-| `agh__goal_report`    | mutating · prompt-scoped        | —                        | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
-| `agh__loop_turns`     | read                            | `compozy loop turns`     | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
+| Native tool               | Mode                            | CLI                      | Purpose                                                                      |
+| ------------------------- | ------------------------------- | ------------------------ | ---------------------------------------------------------------------------- |
+| `compozy__loop_list`      | read                            | `compozy loop list`      | List Loop definitions in the workspace.                                      |
+| `compozy__loop_inspect`   | read                            | `compozy loop inspect`   | Read one definition: inputs, contract, start bindings, version.              |
+| `compozy__loop_validate`  | read                            | `compozy loop validate`  | Lint + compile a definition without saving.                                  |
+| `compozy__loop_status`    | read                            | `compozy loop status`    | Read one run's status with generation detail.                                |
+| `compozy__loop_runs`      | read                            | `compozy loop runs`      | List runs in the workspace.                                                  |
+| `compozy__loop_create`    | mutating                        | `compozy loop create`    | Create/fork, or CAS-publish when `expected_version` is set.                  |
+| `compozy__loop_run`       | mutating                        | `compozy loop run`       | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
+| `compozy__loop_configure` | mutating                        | `compozy loop configure` | Write per-Loop runtime config overrides.                                     |
+| `compozy__loop_pause`     | mutating                        | `compozy loop pause`     | Request a generation-boundary pause.                                         |
+| `compozy__loop_resume`    | mutating                        | `compozy loop resume`    | Resume a paused or pause-requested run.                                      |
+| `compozy__loop_approve`   | mutating · **capability-gated** | `compozy loop approve`   | Apply one human-gate decision.                                               |
+| `compozy__loop_stop`      | destructive                     | `compozy loop stop`      | Stop one active run.                                                         |
+| `compozy__loop_delete`    | destructive                     | `compozy loop delete`    | Delete a writable workspace definition.                                      |
+| `compozy__goal_get`       | read · session-scoped           | `/goal status`           | Read the caller session's visible Goal, including terminal-until-clear.      |
+| `compozy__goal_report`    | mutating · prompt-scoped        | —                        | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
+| `compozy__loop_turns`     | read                            | `compozy loop turns`     | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
 
-There is **no `agh__loop_edit` native tool**. Agents edit a definition through the authoring loop
-(validate → dry-run → `agh__loop_create` with `expected_version`) or by a filesystem write. The CLI
+There is **no `compozy__loop_edit` native tool**. Agents edit a definition through the authoring loop
+(validate → dry-run → `compozy__loop_create` with `expected_version`) or by a filesystem write. The CLI
 `compozy loop edit` is a `$EDITOR` convenience for operators and publishes through the same
 compare-and-swap path.
 
 ## Catalog Reads
 
-Use `compozy loop list --workspace <ref> -o json`, HTTP/UDS `GET /api/workspaces/{workspace_id}/loops`, or native `agh__loop_list`. Filters are name/contract-goal search (`--query` in CLI, `q` elsewhere), `kind` (`read_only` or `workspace`), exact category, exact latest-run status, name sort, cursor, and limit.
+Use `compozy loop list --workspace <ref> -o json`, HTTP/UDS `GET /api/workspaces/{workspace_id}/loops`, or native `compozy__loop_list`. Filters are name/contract-goal search (`--query` in CLI, `q` elsewhere), `kind` (`read_only` or `workspace`), exact category, exact latest-run status, name sort, cursor, and limit.
 
 The response is `loops`, exact self-filtered `facets` (`kinds`, `categories`, `statuses`), and counted `page` (`total`, normalized `limit`, `has_more`, `next_cursor`). Self-filtered means each facet omits its own active filter while respecting search and every other filter. Pages default to 50 and cap at 200.
 
 Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. AGH computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
 
-`compozy loop runs` / `agh__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
+`compozy loop runs` / `compozy__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
 
 ## The Authoring Loop
 
 Follow **inspect → validate → dry-run → publish (with `expected_version`) → run**. Every step before
 `run` is structured and spends no tokens.
 
-1. **inspect** — `agh__loop_inspect` returns the definition and its current `version`. Read the
+1. **inspect** — `compozy__loop_inspect` returns the definition and its current `version`. Read the
    version before you change anything.
-2. **validate** — `agh__loop_validate` lints and compiles a candidate without saving; it returns
+2. **validate** — `compozy__loop_validate` lints and compiles a candidate without saving; it returns
    per-node codes (`unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
    `fan_out_ceiling_exceeded`).
-3. **dry-run** — `agh__loop_run` with `dry: true` resolves inputs and returns the first generation's
+3. **dry-run** — `compozy__loop_run` with `dry: true` resolves inputs and returns the first generation's
    plan without creating a run or spending budget.
-4. **publish** — `agh__loop_create` with `expected_version` set to the version from step one (or
+4. **publish** — `compozy__loop_create` with `expected_version` set to the version from step one (or
    HTTP `PATCH /loops/:name`). This is compare-and-swap: a stale version is rejected `409` with the
    current version. Use PATCH/create-with-version for **all** programmatic editing — the filesystem
    write path is last-write-wins and unsafe for concurrent agents.
-5. **run** — `agh__loop_run`. Only now does the Loop spend tokens.
+5. **run** — `compozy__loop_run`. Only now does the Loop spend tokens.
 
-New Loops start as a fork (`agh__loop_create` with `fork_from_name`); there is no blank-canvas
+New Loops start as a fork (`compozy__loop_create` with `fork_from_name`); there is no blank-canvas
 authoring. Read-only sources — including the default `dev-cycle` Loops — must be forked before you
 adapt them.
 
@@ -113,13 +113,13 @@ The checkpoint-local approval scopes are narrow: turn exhaustion grants
 start new work; budget crossed before work grants `budget/work-and-settle` for one candidate turn
 plus closure; reseed grants `reseed/rotate-binding`; pause grants `plain-resume/reactivate`.
 
-`agh__goal_get` follows an active moved-binding alias and remains readable for terminal state until
-clear. `agh__goal_report` accepts `complete` or `blocked`; blocked requires evidence, evidence is
+`compozy__goal_get` follows an active moved-binding alias and remains readable for terminal state until
+clear. `compozy__goal_report` accepts `complete` or `blocked`; blocked requires evidence, evidence is
 limited to 16 KiB, and the daemon revalidates the current prompt/control/binding identity. It records
 a durable boundary intent, not immediate completion or proof of provider-side effect uniqueness.
 Retry of the same intent deduplicates; conflict or revoke fails with a stable reason.
 
-`agh__loop_turns` and `compozy loop turns --run <id> --after-seq <n>` read the run-wide monotonic audit;
+`compozy__loop_turns` and `compozy loop turns --run <id> --after-seq <n>` read the run-wide monotonic audit;
 optional node/item filters narrow one instance. `compozy loop runs --origin session
 --origin-session <id>` isolates conversational Runs. Turn result, reason, stop reason, verdict,
 evidence, usage, and end time remain nullable until durable evidence exists.
@@ -151,7 +151,7 @@ watch tick), `needs-approval` (parked on a human gate — a live pause, not term
 
 ## The Approve Capability Gate
 
-`agh__loop_approve` requires the `loops.approve` capability, and **an agent can never approve a run
+`compozy__loop_approve` requires the `loops.approve` capability, and **an agent can never approve a run
 it started**. The daemon compares the approver's identity against the run's starter: an agent
 session cannot approve its own run — the call is denied `ErrPermissionDenied` (reason
 `approval_self_denied`). A different agent, or an operator, can approve. Provide `run_id`, `gate_id`,
@@ -176,7 +176,7 @@ snake_case) so the same ID is valid in both surfaces.
 
 Node classes: `action` (open), `control` (closed), `source` (closed). Reserved **action** kinds are
 `goal`, `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
-(`agh__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `gate`, `sub-loop`.
+(`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `gate`, `sub-loop`.
 Source kinds: `input`, `file-import`, `watch-source`, `watch-events`. A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion.
 
@@ -198,7 +198,7 @@ hook does not fail a run.
 - `loop.gate.pre` — sync-eligible; a denial ends the run `blocked`.
 
 Every payload carries the loop context (`loop_run_id`, `workspace_id`, `loop_name`, `generation`,
-`node_id`, and more). Manage them with `agh__hooks_*`.
+`node_id`, and more). Manage them with `compozy__hooks_*`.
 
 ## Loop Run Event Stream
 
@@ -264,7 +264,7 @@ detail (`compozy loop runs show -o json`, HTTP/UDS parity) only while the Loop i
 
 ## Harvesting A Channel Decision
 
-To let agents converse and act on the result, post with an `agh__network_send` action carrying a
+To let agents converse and act on the result, post with an `compozy__network_send` action carrying a
 `harvest: { kind: channel_result, window, responder?, content_rule? }`. The retired `channel-post`
 kind does not exist. After the send, the node waits `window` for the designated result — a `say`
 with `intent: result` or a `trace` with `state: completed` — and exposes it as

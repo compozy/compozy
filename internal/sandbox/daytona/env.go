@@ -23,7 +23,7 @@ func remoteEnvMap(agentEnv []string, profileEnv map[string]string) map[string]st
 		if !ok || key == "" || isBlockedRemoteEnv(key) {
 			continue
 		}
-		if strings.HasPrefix(key, "AGH_") {
+		if strings.HasPrefix(key, "COMPOZY_") {
 			env[key] = value
 		}
 	}

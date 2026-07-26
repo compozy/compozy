@@ -15,7 +15,7 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 
 ## Required Inputs
 
-- **scenario-slug** (optional): a short kebab-case slug used to name the AGH_HOME directory and tmux socket. Defaults to `compozy-iso-<timestamp>`.
+- **scenario-slug** (optional): a short kebab-case slug used to name the COMPOZY_HOME directory and tmux socket. Defaults to `compozy-iso-<timestamp>`.
 
 ## Procedures
 
@@ -27,20 +27,20 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 
 *Done when:* the concurrent runtime/test branch and one unique scenario slug are explicit.
 
-**Step 2: Allocate AGH_HOME**
+**Step 2: Allocate COMPOZY_HOME**
 
 1. Run the bootstrap/mutating helper `python3 .agents/skills/agh/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<scenario-slug>" [--prefer-worktree]`. Pass `--prefer-worktree` only from an actual parallel worktree. The script:
-   - Creates a unique `AGH_HOME` directory under `${TMPDIR:-/tmp}/compozy-iso-<slug>-<random>/` OR uses the worktree-scoped `Compozy/_worktrees/<slug>/.compozy/` when invoked from a worktree.
+   - Creates a unique `COMPOZY_HOME` directory under `${TMPDIR:-/tmp}/compozy-iso-<slug>-<random>/` OR uses the worktree-scoped `Compozy/_worktrees/<slug>/.compozy/` when invoked from a worktree.
    - Picks a free TCP port on `127.0.0.1` for the daemon HTTP server.
-   - Creates a unique UDS path under `AGH_HOME`.
-   - Picks a unique tmux socket path under the AGH_HOME (e.g., `${AGH_HOME}/tmux-bridge.sock`).
-2. The script prints export statements, including `AGH_ISOLATION_ROOT`, suitable for `eval "$(...)"`.
+   - Creates a unique UDS path under `COMPOZY_HOME`.
+   - Picks a unique tmux socket path under the COMPOZY_HOME (e.g., `${COMPOZY_HOME}/tmux-bridge.sock`).
+2. The script prints export statements, including `COMPOZY_ISOLATION_ROOT`, suitable for `eval "$(...)"`.
 
 *Done when:* the allocator returns one non-default, owned root and unique HTTP/UDS/tmux addresses.
 
 **Step 3: Source the Envelope**
 
-1. Capture the exported variables: `AGH_ISOLATION_ROOT`, `AGH_HOME`, `AGH_HTTP_PORT`, `AGH_UDS_PATH`, `TMUX_BRIDGE_SOCKET`.
+1. Capture the exported variables: `COMPOZY_ISOLATION_ROOT`, `COMPOZY_HOME`, `COMPOZY_HTTP_PORT`, `COMPOZY_UDS_PATH`, `TMUX_BRIDGE_SOCKET`.
 2. For shells: `eval "$(python3 .agents/skills/agh/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<slug>" [--prefer-worktree])"`.
 3. For Make/CI invocations: pass the variables as overrides to the daemon start command.
 4. Confirm the daemon does NOT write to `~/.compozy/` or default port 23230.
@@ -49,10 +49,10 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 
 **Step 4: Verify Isolation Before Action**
 
-1. Confirm `AGH_HOME` is non-default and writable.
+1. Confirm `COMPOZY_HOME` is non-default and writable.
 2. Confirm the chosen ports are not already bound (re-pick if necessary).
 3. Confirm the tmux socket path is non-default and not held by another process.
-4. Print a one-line summary: `slug, AGH_HOME, http port, uds path, tmux socket`.
+4. Print a one-line summary: `slug, COMPOZY_HOME, http port, uds path, tmux socket`.
 
 *Done when:* every address is free immediately before launch and the summary identifies the owned root.
 
@@ -67,9 +67,9 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 **Step 6: Cleanup (processes ALWAYS, files optionally)**
 
 1. Process teardown is mandatory on every terminal path. Run the mutating teardown helper only for this run's envelope:
-   `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --root "$AGH_ISOLATION_ROOT"`
+   `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --root "$COMPOZY_ISOLATION_ROOT"`
 2. Confirm the targeted teardown reports `TEARDOWN_ALL_CLEAN=true`. Survivors are a blocking failure.
-3. The `AGH_HOME` directory is left in place for forensic inspection unless the caller explicitly requests `--purge` for a temporary envelope.
+3. The `COMPOZY_HOME` directory is left in place for forensic inspection unless the caller explicitly requests `--purge` for a temporary envelope.
 4. Never purge a worktree-scoped `.compozy`; it belongs to the user's checkout.
 5. Use `make qa-reap` or teardown `--all` only for an intentional machine-wide stale-lab recovery, never as normal cleanup while other runs may be active.
 
@@ -78,7 +78,7 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 ## Error Handling
 
 - **No free port available:** retry with a wider range. If still no luck, surface the busy ports and exit.
-- **AGH_HOME path collision:** the script uses random suffixes; collision is essentially impossible. If it happens, retry once.
+- **COMPOZY_HOME path collision:** the script uses random suffixes; collision is essentially impossible. If it happens, retry once.
 - **User invokes without concurrency signal but with `--force`:** apply isolation. Some users always want isolated runs.
 - **Worktree-scoped path lacks write permission:** fall back to TMPDIR-scoped path with a logged warning.
 - **Targeted teardown cannot prove ownership:** stop and report the root/PIDs; never widen normal cleanup to `--all`.

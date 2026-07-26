@@ -1,4 +1,4 @@
-const AGH_CODE_SUPPORTED_LANGUAGES = [
+const COMPOZY_CODE_SUPPORTED_LANGUAGES = [
   "bash",
   "css",
   "diff",
@@ -16,9 +16,9 @@ const AGH_CODE_SUPPORTED_LANGUAGES = [
   "yaml",
 ] as const;
 
-export type AghCodeLanguage = (typeof AGH_CODE_SUPPORTED_LANGUAGES)[number];
+export type AghCodeLanguage = (typeof COMPOZY_CODE_SUPPORTED_LANGUAGES)[number];
 
-const AGH_CODE_LANGUAGE_ALIASES: Record<string, AghCodeLanguage | ""> = {
+const COMPOZY_CODE_LANGUAGE_ALIASES: Record<string, AghCodeLanguage | ""> = {
   cjs: "javascript",
   js: "javascript",
   mjs: "javascript",
@@ -34,17 +34,17 @@ const AGH_CODE_LANGUAGE_ALIASES: Record<string, AghCodeLanguage | ""> = {
   zsh: "bash",
 };
 
-const AGH_CODE_LANGUAGE_SET = new Set<string>(AGH_CODE_SUPPORTED_LANGUAGES);
+const COMPOZY_CODE_LANGUAGE_SET = new Set<string>(COMPOZY_CODE_SUPPORTED_LANGUAGES);
 
-export const AGH_CODE_THEMES = {
+export const COMPOZY_CODE_THEMES = {
   light: "vitesse-light",
   dark: "vitesse-dark",
 } as const;
 
-export const AGH_CODE_DEFAULT_THEME = "dark";
+export const COMPOZY_CODE_DEFAULT_THEME = "dark";
 
-export type AghCodeThemeName = (typeof AGH_CODE_THEMES)[keyof typeof AGH_CODE_THEMES];
-export type CodeBlockResolvedTheme = keyof typeof AGH_CODE_THEMES;
+export type AghCodeThemeName = (typeof COMPOZY_CODE_THEMES)[keyof typeof COMPOZY_CODE_THEMES];
+export type CodeBlockResolvedTheme = keyof typeof COMPOZY_CODE_THEMES;
 export type CodeBlockThemeMode = CodeBlockResolvedTheme | "auto";
 
 export function normalizeAghCodeLanguage(language?: string | null): AghCodeLanguage | null {
@@ -55,16 +55,16 @@ export function normalizeAghCodeLanguage(language?: string | null): AghCodeLangu
       .replace(/^language-/, "") ?? "";
   if (!rawLanguage) return null;
 
-  const aliasedLanguage = AGH_CODE_LANGUAGE_ALIASES[rawLanguage];
+  const aliasedLanguage = COMPOZY_CODE_LANGUAGE_ALIASES[rawLanguage];
   if (aliasedLanguage !== undefined) {
     return aliasedLanguage === "" ? null : aliasedLanguage;
   }
 
-  return AGH_CODE_LANGUAGE_SET.has(rawLanguage) ? (rawLanguage as AghCodeLanguage) : null;
+  return COMPOZY_CODE_LANGUAGE_SET.has(rawLanguage) ? (rawLanguage as AghCodeLanguage) : null;
 }
 
 export function resolveAghCodeThemeName(theme: CodeBlockResolvedTheme): AghCodeThemeName {
-  return AGH_CODE_THEMES[theme];
+  return COMPOZY_CODE_THEMES[theme];
 }
 
-export { AGH_CODE_SUPPORTED_LANGUAGES };
+export { COMPOZY_CODE_SUPPORTED_LANGUAGES };

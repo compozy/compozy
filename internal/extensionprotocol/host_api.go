@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// HostAPIMethod identifies one extension -> AGH Host API request.
+// HostAPIMethod identifies one extension -> Compozy Host API request.
 type HostAPIMethod string
 
 const (

@@ -90,16 +90,16 @@ follow-up tasks.
 
 ## Which command owns what
 
-The autonomy surface is exposed both as the dedicated `agh__autonomy` tool family and as the
+The autonomy surface is exposed both as the dedicated `compozy__autonomy` tool family and as the
 parallel `agh task` CLI. Both routes call the same task service writers.
 
-| Surface                                                                                            | Use it for                                                                                      | Do not use it for                                             |
-| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `agh me` and `agh me context`                                                                      | Inspect the caller session, workspace, capabilities, active leases, and resolved participation. | Claiming or changing task-run state.                          |
-| `agh__task_run_claim_next` (CLI: `agh task next`)                                                  | Atomically claim the next eligible run for the current managed session.                         | Listing arbitrary tasks or announcing progress to peers.      |
-| `agh__task_run_heartbeat`, `agh__task_run_complete`, `agh__task_run_fail`, `agh__task_run_release` | Extend or finish the current session-bound claim by `run_id`.                                   | Conversation, review requests, or handoffs.                   |
-| Live Network tools or audited CLI                                                                  | Conversation for an explicitly participating session.                                           | Enrolling a Local execution or changing task status.          |
-| `agh spawn`                                                                                        | Create a narrowed child session with TTL and lineage.                                           | Starting a second coordinator or widening parent permissions. |
+| Surface                                                                                                            | Use it for                                                                                      | Do not use it for                                             |
+| ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `agh me` and `agh me context`                                                                                      | Inspect the caller session, workspace, capabilities, active leases, and resolved participation. | Claiming or changing task-run state.                          |
+| `compozy__task_run_claim_next` (CLI: `agh task next`)                                                              | Atomically claim the next eligible run for the current managed session.                         | Listing arbitrary tasks or announcing progress to peers.      |
+| `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, `compozy__task_run_release` | Extend or finish the current session-bound claim by `run_id`.                                   | Conversation, review requests, or handoffs.                   |
+| Live Network tools or audited CLI                                                                                  | Conversation for an explicitly participating session.                                           | Enrolling a Local execution or changing task status.          |
+| `agh spawn`                                                                                                        | Create a narrowed child session with TTL and lineage.                                           | Starting a second coordinator or widening parent permissions. |
 
 ## Manual and autonomous work coexist
 
@@ -125,7 +125,7 @@ The autonomy docs describe only the implemented local MVP. They do not promise:
 ## Related pages
 
 - [Task CLI Reference](/runtime/cli-reference/task) lists exact task commands and flags for the parallel CLI surface.
-- [Tool CLI Reference](/runtime/cli-reference/tool) documents the operator commands that inspect the registry and the `agh__autonomy` tool family.
+- [Tool CLI Reference](/runtime/cli-reference/tool) documents the operator commands that inspect the registry and the `compozy__autonomy` tool family.
 - [Sessions](/runtime/core/sessions/lifecycle) explains session types, state, stop behavior, and persistence.
 - [Network Channels](/runtime/core/network/channels-and-peers) explains channel and peer behavior.
 - [config.toml](/runtime/core/configuration/config-toml) documents `[roles.coordinator]` and `[task.orchestration]`.

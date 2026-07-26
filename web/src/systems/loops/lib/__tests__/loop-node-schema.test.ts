@@ -56,7 +56,12 @@ describe("loop node schema", () => {
   });
 
   it("Should render any non-reserved action kind as a generic ToolID form with editable kind", () => {
-    const raw: RawLoopNode = { id: "post", class: "action", kind: "agh__network_send", params: {} };
+    const raw: RawLoopNode = {
+      id: "post",
+      class: "action",
+      kind: "compozy__network_send",
+      params: {},
+    };
     const fields = buildNodeFields(raw);
     const kind = fields.find(f => "key" in f && f.key === "kind");
     expect(kind).toMatchObject({ type: "text", path: ["kind"], required: true });

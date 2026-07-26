@@ -2358,7 +2358,7 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 name = "rollback-ext"
 version = "0.1.0"
 description = "Invalid extension used to verify daemon install rollback."
-min_agh_version = "0.0.1"
+min_compozy_version = "0.0.1"
 
 [resources]
 agents = ["agents"]
@@ -3230,7 +3230,7 @@ func TestRunAbortsCleanlyOnInjectedSignalDuringBoot(t *testing.T) {
 	t.Logf("cleanup_events=%v", gotEvents)
 }
 
-const daemonGoleakHelperEnv = "AGH_DAEMON_GOLEAK_HELPER"
+const daemonGoleakHelperEnv = "COMPOZY_DAEMON_GOLEAK_HELPER"
 
 func TestDaemonGoleakHelperProcess(_ *testing.T) {
 	if os.Getenv(daemonGoleakHelperEnv) != "1" {
@@ -8736,9 +8736,9 @@ func (s portReportingServer) Port() int {
 }
 
 const (
-	daemonExtensionHelperEnvKey      = "AGH_TEST_DAEMON_EXTENSION_HELPER"
-	daemonExtensionHelperScenarioKey = "AGH_TEST_DAEMON_EXTENSION_SCENARIO"
-	daemonExtensionHelperMarkerKey   = "AGH_TEST_DAEMON_EXTENSION_MARKER"
+	daemonExtensionHelperEnvKey      = "COMPOZY_TEST_DAEMON_EXTENSION_HELPER"
+	daemonExtensionHelperScenarioKey = "COMPOZY_TEST_DAEMON_EXTENSION_SCENARIO"
+	daemonExtensionHelperMarkerKey   = "COMPOZY_TEST_DAEMON_EXTENSION_MARKER"
 )
 
 func TestDaemonExtensionHelperProcess(_ *testing.T) {
@@ -8948,7 +8948,7 @@ func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) s
 name = %q
 version = "0.2.1"
 description = "Daemon extension test fixture"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [resources]
 `, name)

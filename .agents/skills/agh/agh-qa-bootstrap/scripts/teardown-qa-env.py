@@ -8,7 +8,7 @@ bootstraps a lab MUST end with a teardown invocation (success OR failure paths):
 
 Tear down one bare worktree-isolation envelope without touching other labs:
 
-    python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --root "<AGH_ISOLATION_ROOT>"
+    python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --root "<COMPOZY_ISOLATION_ROOT>"
 
 Reap every discoverable lab on the machine (safe default set of roots):
 
@@ -20,7 +20,7 @@ Discovery roots for --all:
   - $TMPDIR/compozy-iso-* and /tmp/compozy-iso-*                         (worktree-isolation envelopes)
 
 Per lab the teardown:
-  1. Stops the daemon gracefully (`compozy daemon stop` against the lab AGH_HOME when a
+  1. Stops the daemon gracefully (`compozy daemon stop` against the lab COMPOZY_HOME when a
      repo binary exists, else SIGTERM -> SIGKILL on the PID recorded in daemon.lock /
      daemon.json). Graceful stop lets the daemon shut down its ACP agent subprocesses,
      MCP sidecars, and tmux bridge sessions.
@@ -235,11 +235,11 @@ def stop_daemon_gracefully(
         return
     result.stopped_daemon_pid = pid
     if dry_run:
-        result.notes.append(f"dry-run: would stop daemon pid {pid} (AGH_HOME={agh_home})")
+        result.notes.append(f"dry-run: would stop daemon pid {pid} (COMPOZY_HOME={agh_home})")
         return
     if agh_binary is not None:
         env = dict(os.environ)
-        env["AGH_HOME"] = str(agh_home)
+        env["COMPOZY_HOME"] = str(agh_home)
         try:
             subprocess.run(
                 [str(agh_binary), "daemon", "stop"],
@@ -409,7 +409,7 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
     purgeable: list[Path] = []
     workspace = env.get("WORKSPACE_PATH", manifest.get("workspace_path", ""))
     qa_output = env.get("QA_OUTPUT_PATH", manifest.get("qa_output_path", ""))
-    agh_home = Path(env["AGH_HOME"]).resolve() if env.get("AGH_HOME") else None
+    agh_home = Path(env["COMPOZY_HOME"]).resolve() if env.get("COMPOZY_HOME") else None
     provider_home = Path(paths["provider_home"]).resolve() if paths.get("provider_home") else None
     if workspace:
         roots.append(Path(workspace).resolve())
@@ -425,8 +425,8 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
     if provider_home is not None:
         roots.append(provider_home)
     http_port: int | None = None
-    if env.get("AGH_HTTP_PORT", "").strip().isdigit():
-        http_port = int(env["AGH_HTTP_PORT"].strip())
+    if env.get("COMPOZY_HTTP_PORT", "").strip().isdigit():
+        http_port = int(env["COMPOZY_HTTP_PORT"].strip())
     qa_root = Path(qa_output).resolve() / "qa" if qa_output else None
     return LabTarget(
         label=manifest.get("scenario_slug", manifest_path.parent.name),
@@ -434,7 +434,7 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
         roots=roots,
         agh_home=agh_home,
         tmux_socket=Path(env["TMUX_BRIDGE_SOCKET"]).resolve() if env.get("TMUX_BRIDGE_SOCKET") else None,
-        uds_path=Path(env["AGH_UDS_PATH"]).resolve() if env.get("AGH_UDS_PATH") else None,
+        uds_path=Path(env["COMPOZY_UDS_PATH"]).resolve() if env.get("COMPOZY_UDS_PATH") else None,
         http_port=http_port,
         qa_root=qa_root,
         purgeable_roots=purgeable,

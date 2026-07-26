@@ -1,7 +1,7 @@
 import * as React from "react";
 
 import {
-  AGH_CODE_DEFAULT_THEME,
+  COMPOZY_CODE_DEFAULT_THEME,
   normalizeAghCodeLanguage,
   resolveAghCodeThemeName,
   type CodeBlockResolvedTheme,
@@ -99,7 +99,7 @@ export function useCodeBlock({
 
 function useResolvedCodeTheme(themeMode: CodeBlockThemeMode): CodeBlockResolvedTheme {
   const [resolvedTheme, setResolvedTheme] = React.useState<CodeBlockResolvedTheme>(() =>
-    themeMode === "auto" ? AGH_CODE_DEFAULT_THEME : themeMode
+    themeMode === "auto" ? COMPOZY_CODE_DEFAULT_THEME : themeMode
   );
 
   React.useEffect(() => {
@@ -126,7 +126,7 @@ function useResolvedCodeTheme(themeMode: CodeBlockThemeMode): CodeBlockResolvedT
 }
 
 function resolveAutoCodeTheme(): CodeBlockResolvedTheme {
-  if (typeof document === "undefined") return AGH_CODE_DEFAULT_THEME;
+  if (typeof document === "undefined") return COMPOZY_CODE_DEFAULT_THEME;
   const root = document.documentElement;
   const body = document.body;
   return root.classList.contains("dark") || body?.classList.contains("dark") ? "dark" : "light";

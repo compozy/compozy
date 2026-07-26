@@ -75,7 +75,7 @@ func TestResourceSpecShouldProjectMetadataAndRejectInvalidDefinitions(t *testing
 		body := strings.Replace(
 			loopDefinitionYAML("tool-action-loop"),
 			"      kind: transform",
-			"      kind: agh__network_send",
+			"      kind: compozy__network_send",
 			1,
 		)
 		body = strings.Replace(

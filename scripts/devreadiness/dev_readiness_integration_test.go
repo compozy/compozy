@@ -202,7 +202,7 @@ func TestDevSupervisorReadiness(t *testing.T) {
 		writeExecutable(t, fakeBinDir, "go", `#!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" == "run" && "${2:-}" == "./scripts/air-state-dir" ]]; then
-  printf '%s\n' "$AGH_TEST_AIR_STATE_DIR"
+  printf '%s\n' "$COMPOZY_TEST_AIR_STATE_DIR"
   exit 0
 fi
 if [[ "${1:-}" == "run" && "${2:-}" == "./scripts/air-state-lock" ]]; then
@@ -224,9 +224,9 @@ if [[ "${1:-}" == "scripts/find-dev-port.mjs" ]]; then
   exit 0
 fi
 if [[ "${1:-}" == "run" ]]; then
-  printf '%s\n' 'vite-started' > "$AGH_TEST_VITE_STARTED_FIFO"
+  printf '%s\n' 'vite-started' > "$COMPOZY_TEST_VITE_STARTED_FIFO"
   trap 'exit 143' INT TERM
-  read -r _ < "$AGH_TEST_HOLD_FIFO"
+  read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
   exit 0
 fi
 printf 'unexpected bun command: %s\n' "$*" >&2
@@ -234,12 +234,12 @@ exit 2
 `)
 		writeExecutable(t, airInstallDir, "air", `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' 'air-started' > "$AGH_TEST_AIR_STARTED_FIFO"
-read -r _ < "$AGH_TEST_READY_GATE_FIFO"
-bash "$AGH_TEST_REPO_ROOT/scripts/dev-readiness.sh" ready \
-  "$AGH_AIR_READY_FIFO" "$AGH_AIR_DEV_RUN_ID" "$AGH_AIR_READY_MARKER" "fake-binary"
+printf '%s\n' 'air-started' > "$COMPOZY_TEST_AIR_STARTED_FIFO"
+read -r _ < "$COMPOZY_TEST_READY_GATE_FIFO"
+bash "$COMPOZY_TEST_REPO_ROOT/scripts/dev-readiness.sh" ready \
+  "$COMPOZY_AIR_READY_FIFO" "$COMPOZY_AIR_DEV_RUN_ID" "$COMPOZY_AIR_READY_MARKER" "fake-binary"
 trap 'exit 143' INT TERM
-read -r _ < "$AGH_TEST_HOLD_FIFO"
+read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
 `)
 
 		airStarted := readFIFOEvent(airStartedFIFO)
@@ -252,14 +252,14 @@ read -r _ < "$AGH_TEST_HOLD_FIFO"
 		command.Env = append(os.Environ(),
 			"PATH="+fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 			"AIR_VERSION=test-version",
-			"AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:2123",
-			"AGH_AIR_CACHE_DIR="+airCacheDir,
-			"AGH_TEST_AIR_STATE_DIR="+stateDir,
-			"AGH_TEST_AIR_STARTED_FIFO="+airStartedFIFO,
-			"AGH_TEST_VITE_STARTED_FIFO="+viteStartedFIFO,
-			"AGH_TEST_READY_GATE_FIFO="+readyGateFIFO,
-			"AGH_TEST_HOLD_FIFO="+holdFIFO,
-			"AGH_TEST_REPO_ROOT="+repoRoot,
+			"COMPOZY_WEB_API_PROXY_TARGET=http://127.0.0.1:2123",
+			"COMPOZY_AIR_CACHE_DIR="+airCacheDir,
+			"COMPOZY_TEST_AIR_STATE_DIR="+stateDir,
+			"COMPOZY_TEST_AIR_STARTED_FIFO="+airStartedFIFO,
+			"COMPOZY_TEST_VITE_STARTED_FIFO="+viteStartedFIFO,
+			"COMPOZY_TEST_READY_GATE_FIFO="+readyGateFIFO,
+			"COMPOZY_TEST_HOLD_FIFO="+holdFIFO,
+			"COMPOZY_TEST_REPO_ROOT="+repoRoot,
 		)
 		var commandOutput bytes.Buffer
 		command.Stdout = &commandOutput
@@ -394,11 +394,11 @@ func devDaemonCommand(
 	command := exec.CommandContext(ctx, "bash", filepath.Join(repoRoot, "scripts", "dev-daemon.sh"), binaryPath)
 	command.Dir = repoRoot
 	command.Env = append(os.Environ(),
-		"AGH_AIR_STATE_LOCK_HELD=1",
-		"AGH_AIR_STATE_DIR="+stateDir,
-		"AGH_AIR_DEV_RUN_ID="+runID,
-		"AGH_AIR_READY_FIFO="+fifoPath,
-		"AGH_AIR_READY_MARKER="+markerPath,
+		"COMPOZY_AIR_STATE_LOCK_HELD=1",
+		"COMPOZY_AIR_STATE_DIR="+stateDir,
+		"COMPOZY_AIR_DEV_RUN_ID="+runID,
+		"COMPOZY_AIR_READY_FIFO="+fifoPath,
+		"COMPOZY_AIR_READY_MARKER="+markerPath,
 		"FAKE_DAEMON_START_LOG="+startLog,
 	)
 	return command

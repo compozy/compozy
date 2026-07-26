@@ -38,7 +38,7 @@ type fileKeyProvider struct {
 	cached    []byte
 }
 
-// NewFileKeyProvider returns a non-interactive key provider backed by AGH_VAULT_KEY or a 0600 key file.
+// NewFileKeyProvider returns a non-interactive key provider backed by COMPOZY_VAULT_KEY or a 0600 key file.
 func NewFileKeyProvider(homeDir string, lookupEnv func(string) (string, bool)) KeyProvider {
 	if lookupEnv == nil {
 		lookupEnv = os.LookupEnv
@@ -54,10 +54,10 @@ func (p *fileKeyProvider) Key() ([]byte, error) {
 	if lookupEnv == nil {
 		lookupEnv = os.LookupEnv
 	}
-	if value, ok := lookupEnv("AGH_VAULT_KEY"); ok && strings.TrimSpace(value) != "" {
+	if value, ok := lookupEnv("COMPOZY_VAULT_KEY"); ok && strings.TrimSpace(value) != "" {
 		key, err := decodeKey(strings.TrimSpace(value))
 		if err != nil {
-			return nil, fmt.Errorf("vault: decode AGH_VAULT_KEY: %w", err)
+			return nil, fmt.Errorf("vault: decode COMPOZY_VAULT_KEY: %w", err)
 		}
 		return key, nil
 	}

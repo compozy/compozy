@@ -75,7 +75,7 @@ GitHub → https://bridge.example.com/github/acme-app
 ```
 
 Use `provider_config.webhook.listen_addr` as shown below, or set
-`AGH_BRIDGE_GITHUB_LISTEN_ADDR=127.0.0.1:18088` in the daemon environment. One provider process uses
+`COMPOZY_BRIDGE_GITHUB_LISTEN_ADDR=127.0.0.1:18088` in the daemon environment. One provider process uses
 one listener address. Multiple repositories can share a path only when each payload selects exactly
 one configured repository and the selected instance's secret verifies it.
 
@@ -273,16 +273,16 @@ Confirm the response appears on the intended issue or review thread and that the
 
 ## Configuration reference
 
-| Field                                  | Requirement / fallback          | Purpose                                                                                         |
-| -------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `mode`                                 | yes in docs                     | `pat` or `app`; explicit is preferred even when bindings allow inference.                       |
-| `repository.full_name`                 | yes, or owner + name            | Exact `owner/repository` owned by the instance.                                                 |
-| `repository.owner` / `repository.name` | alternative                     | Structured form of the same repository identity.                                                |
-| `installation_id`                      | App delivery                    | GitHub App installation used to mint installation tokens. May be learned from webhook metadata. |
-| `bot_login`                            | no                              | Self-comment suppression identity.                                                              |
-| `webhook.public_url`                   | yes for setup/verification      | Full public HTTPS webhook URL.                                                                  |
-| `webhook.listen_addr`                  | `AGH_BRIDGE_GITHUB_LISTEN_ADDR` | Local provider listener.                                                                        |
-| `webhook.path`                         | `/github`                       | Local path; shared paths remain repository-scoped.                                              |
+| Field                                  | Requirement / fallback              | Purpose                                                                                         |
+| -------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `mode`                                 | yes in docs                         | `pat` or `app`; explicit is preferred even when bindings allow inference.                       |
+| `repository.full_name`                 | yes, or owner + name                | Exact `owner/repository` owned by the instance.                                                 |
+| `repository.owner` / `repository.name` | alternative                         | Structured form of the same repository identity.                                                |
+| `installation_id`                      | App delivery                        | GitHub App installation used to mint installation tokens. May be learned from webhook metadata. |
+| `bot_login`                            | no                                  | Self-comment suppression identity.                                                              |
+| `webhook.public_url`                   | yes for setup/verification          | Full public HTTPS webhook URL.                                                                  |
+| `webhook.listen_addr`                  | `COMPOZY_BRIDGE_GITHUB_LISTEN_ADDR` | Local provider listener.                                                                        |
+| `webhook.path`                         | `/github`                           | Local path; shared paths remain repository-scoped.                                              |
 
 The GitHub API base URL is an operator-owned process setting. Instance config cannot redirect bound
 credentials to another host.

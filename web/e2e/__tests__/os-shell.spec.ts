@@ -1959,7 +1959,7 @@ async function routeWindowManagerStream(page: Page, initiallyBlocked: boolean) {
 async function runWindowManagerCLI(runtime: BrowserRuntime, args: string[]): Promise<void> {
   if (!runtime.paths) throw new Error("window-manager CLI E2E requires launch-mode runtime paths");
   await execFileAsync(runtime.paths.cliShim, [...args, "-o", "json"], {
-    env: { ...process.env, AGH_HOME: runtime.paths.homeDir, HOME: runtime.paths.homeDir },
+    env: { ...process.env, COMPOZY_HOME: runtime.paths.homeDir, HOME: runtime.paths.homeDir },
     maxBuffer: 10 * 1024 * 1024,
   });
 }
@@ -2252,7 +2252,7 @@ async function approveTaskFromCLI(runtime: BrowserRuntime, taskId: string): Prom
     runtime.paths.cliShim,
     ["task", "approve", taskId, "--idempotency-key", `os-shell-cli-${taskId}`, "-o", "json"],
     {
-      env: { ...process.env, AGH_HOME: runtime.paths.homeDir, HOME: runtime.paths.homeDir },
+      env: { ...process.env, COMPOZY_HOME: runtime.paths.homeDir, HOME: runtime.paths.homeDir },
       maxBuffer: 10 * 1024 * 1024,
     }
   );

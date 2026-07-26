@@ -86,7 +86,7 @@ func initializeClient(ctx context.Context, client *mcpclient.Client) error {
 		Params: mcpsdk.InitializeParams{
 			ProtocolVersion: mcpsdk.LATEST_PROTOCOL_VERSION,
 			ClientInfo: mcpsdk.Implementation{
-				Name:    "agh",
+				Name:    "compozy",
 				Version: "0.0.0",
 			},
 			Capabilities: mcpsdk.ClientCapabilities{},

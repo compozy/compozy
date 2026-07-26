@@ -20,7 +20,7 @@ import (
 
 func runtimeEnv(homePaths aghconfig.HomePaths, extra map[string]string) []string {
 	base := testutil.HermeticProcessEnv(os.Environ())
-	base = setEnvValue(base, "AGH_HOME", homePaths.HomeDir)
+	base = setEnvValue(base, "COMPOZY_HOME", homePaths.HomeDir)
 	base = setEnvValue(base, "HOME", homePaths.HomeDir)
 
 	keys := make([]string, 0, len(extra))
@@ -34,14 +34,14 @@ func runtimeEnv(homePaths aghconfig.HomePaths, extra map[string]string) []string
 		}
 		base = setEnvValue(base, key, extra[key])
 	}
-	base = setEnvValue(base, "AGH_HOME", homePaths.HomeDir)
+	base = setEnvValue(base, "COMPOZY_HOME", homePaths.HomeDir)
 	base = setEnvValue(base, "HOME", homePaths.HomeDir)
 	return base
 }
 
 func reservedRuntimeEnvKey(key string) bool {
 	switch strings.TrimSpace(key) {
-	case "AGH_HOME", "HOME":
+	case "COMPOZY_HOME", "HOME":
 		return true
 	default:
 		return false
@@ -63,7 +63,7 @@ func withRuntimeCLIEnv(
 		return nil, err
 	}
 	withPath := setEnvValue(env, "PATH", prependPath(filepath.Dir(shimPath), lookupEnvValue(env, "PATH")))
-	withPath = setEnvValue(withPath, "AGH_E2E_CLI_BIN", shimPath)
+	withPath = setEnvValue(withPath, "COMPOZY_E2E_CLI_BIN", shimPath)
 	withPath = setEnvValue(withPath, daemonBinaryEnvVar, trimmedBinaryPath)
 	return withPath, nil
 }

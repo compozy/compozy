@@ -1,9 +1,9 @@
 [
   {
-    "tool_id": "agh__agent_create",
+    "tool_id": "compozy__agent_create",
     "native_name": "agent_create",
     "toolsets": [
-      "agh__workspace"
+      "compozy__workspace"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -13,10 +13,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__agent_heartbeat_status",
+    "tool_id": "compozy__agent_heartbeat_status",
     "native_name": "agent_heartbeat_status",
     "toolsets": [
-      "agh__authored_context"
+      "compozy__authored_context"
     ],
     "risk": "read",
     "read_only": true,
@@ -26,10 +26,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__agent_heartbeat_wake",
+    "tool_id": "compozy__agent_heartbeat_wake",
     "native_name": "agent_heartbeat_wake",
     "toolsets": [
-      "agh__authored_context"
+      "compozy__authored_context"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -39,10 +39,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_jobs_create",
+    "tool_id": "compozy__automation_jobs_create",
     "native_name": "automation_jobs_create",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -52,10 +52,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_jobs_delete",
+    "tool_id": "compozy__automation_jobs_delete",
     "native_name": "automation_jobs_delete",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -65,10 +65,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_jobs_disable",
+    "tool_id": "compozy__automation_jobs_disable",
     "native_name": "automation_jobs_disable",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -78,10 +78,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_jobs_enable",
+    "tool_id": "compozy__automation_jobs_enable",
     "native_name": "automation_jobs_enable",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -91,10 +91,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_jobs_get",
+    "tool_id": "compozy__automation_jobs_get",
     "native_name": "automation_jobs_get",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "read",
     "read_only": true,
@@ -104,10 +104,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_jobs_history",
+    "tool_id": "compozy__automation_jobs_history",
     "native_name": "automation_jobs_history",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "read",
     "read_only": true,
@@ -117,10 +117,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_jobs_list",
+    "tool_id": "compozy__automation_jobs_list",
     "native_name": "automation_jobs_list",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "read",
     "read_only": true,
@@ -130,10 +130,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_jobs_trigger",
+    "tool_id": "compozy__automation_jobs_trigger",
     "native_name": "automation_jobs_trigger",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -143,10 +143,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_jobs_update",
+    "tool_id": "compozy__automation_jobs_update",
     "native_name": "automation_jobs_update",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -156,10 +156,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_runs_get",
+    "tool_id": "compozy__automation_runs_get",
     "native_name": "automation_runs_get",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "read",
     "read_only": true,
@@ -169,10 +169,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_runs_list",
+    "tool_id": "compozy__automation_runs_list",
     "native_name": "automation_runs_list",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "read",
     "read_only": true,
@@ -182,10 +182,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_suggestions_accept",
+    "tool_id": "compozy__automation_suggestions_accept",
     "native_name": "automation_suggestions_accept",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -195,10 +195,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_suggestions_dismiss",
+    "tool_id": "compozy__automation_suggestions_dismiss",
     "native_name": "automation_suggestions_dismiss",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -208,10 +208,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_suggestions_list",
+    "tool_id": "compozy__automation_suggestions_list",
     "native_name": "automation_suggestions_list",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "read",
     "read_only": true,
@@ -221,10 +221,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_triggers_create",
+    "tool_id": "compozy__automation_triggers_create",
     "native_name": "automation_triggers_create",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -234,10 +234,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_triggers_delete",
+    "tool_id": "compozy__automation_triggers_delete",
     "native_name": "automation_triggers_delete",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -247,10 +247,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_triggers_disable",
+    "tool_id": "compozy__automation_triggers_disable",
     "native_name": "automation_triggers_disable",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -260,10 +260,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_triggers_enable",
+    "tool_id": "compozy__automation_triggers_enable",
     "native_name": "automation_triggers_enable",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -273,10 +273,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_triggers_get",
+    "tool_id": "compozy__automation_triggers_get",
     "native_name": "automation_triggers_get",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "read",
     "read_only": true,
@@ -286,10 +286,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_triggers_history",
+    "tool_id": "compozy__automation_triggers_history",
     "native_name": "automation_triggers_history",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "read",
     "read_only": true,
@@ -299,10 +299,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_triggers_list",
+    "tool_id": "compozy__automation_triggers_list",
     "native_name": "automation_triggers_list",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "read",
     "read_only": true,
@@ -312,10 +312,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__automation_triggers_update",
+    "tool_id": "compozy__automation_triggers_update",
     "native_name": "automation_triggers_update",
     "toolsets": [
-      "agh__automation"
+      "compozy__automation"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -325,10 +325,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__bridges_list",
+    "tool_id": "compozy__bridges_list",
     "native_name": "bridges_list",
     "toolsets": [
-      "agh__bridges"
+      "compozy__bridges"
     ],
     "risk": "read",
     "read_only": true,
@@ -338,10 +338,10 @@
     "output_schema_digest": "3a9685ace940df52533c5cbc297c30e3510f6099cc721734162c3dc93c59cddd"
   },
   {
-    "tool_id": "agh__bridges_status",
+    "tool_id": "compozy__bridges_status",
     "native_name": "bridges_status",
     "toolsets": [
-      "agh__bridges"
+      "compozy__bridges"
     ],
     "risk": "read",
     "read_only": true,
@@ -351,10 +351,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__bundles_activate",
+    "tool_id": "compozy__bundles_activate",
     "native_name": "bundles_activate",
     "toolsets": [
-      "agh__bundles"
+      "compozy__bundles"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -367,10 +367,10 @@
     ]
   },
   {
-    "tool_id": "agh__bundles_deactivate",
+    "tool_id": "compozy__bundles_deactivate",
     "native_name": "bundles_deactivate",
     "toolsets": [
-      "agh__bundles"
+      "compozy__bundles"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -383,10 +383,10 @@
     ]
   },
   {
-    "tool_id": "agh__bundles_info",
+    "tool_id": "compozy__bundles_info",
     "native_name": "bundles_info",
     "toolsets": [
-      "agh__bundles"
+      "compozy__bundles"
     ],
     "risk": "read",
     "read_only": true,
@@ -399,10 +399,10 @@
     ]
   },
   {
-    "tool_id": "agh__bundles_list",
+    "tool_id": "compozy__bundles_list",
     "native_name": "bundles_list",
     "toolsets": [
-      "agh__bundles"
+      "compozy__bundles"
     ],
     "risk": "read",
     "read_only": true,
@@ -415,10 +415,10 @@
     ]
   },
   {
-    "tool_id": "agh__bundles_status",
+    "tool_id": "compozy__bundles_status",
     "native_name": "bundles_status",
     "toolsets": [
-      "agh__bundles"
+      "compozy__bundles"
     ],
     "risk": "read",
     "read_only": true,
@@ -431,10 +431,10 @@
     ]
   },
   {
-    "tool_id": "agh__clarify",
+    "tool_id": "compozy__clarify",
     "native_name": "clarify",
     "toolsets": [
-      "agh__clarify"
+      "compozy__clarify"
     ],
     "risk": "read",
     "read_only": true,
@@ -444,10 +444,10 @@
     "output_schema_digest": "64171711abe36c366e04ff318f6424d525ba2b1a53db625f6a73adc0f4753bf3"
   },
   {
-    "tool_id": "agh__config_diff",
+    "tool_id": "compozy__config_diff",
     "native_name": "config_diff",
     "toolsets": [
-      "agh__config"
+      "compozy__config"
     ],
     "risk": "read",
     "read_only": true,
@@ -457,10 +457,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__config_get",
+    "tool_id": "compozy__config_get",
     "native_name": "config_get",
     "toolsets": [
-      "agh__config"
+      "compozy__config"
     ],
     "risk": "read",
     "read_only": true,
@@ -470,10 +470,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__config_list",
+    "tool_id": "compozy__config_list",
     "native_name": "config_list",
     "toolsets": [
-      "agh__config"
+      "compozy__config"
     ],
     "risk": "read",
     "read_only": true,
@@ -483,10 +483,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__config_path",
+    "tool_id": "compozy__config_path",
     "native_name": "config_path",
     "toolsets": [
-      "agh__config"
+      "compozy__config"
     ],
     "risk": "read",
     "read_only": true,
@@ -496,10 +496,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__config_set",
+    "tool_id": "compozy__config_set",
     "native_name": "config_set",
     "toolsets": [
-      "agh__config"
+      "compozy__config"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -509,10 +509,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__config_show",
+    "tool_id": "compozy__config_show",
     "native_name": "config_show",
     "toolsets": [
-      "agh__config"
+      "compozy__config"
     ],
     "risk": "read",
     "read_only": true,
@@ -522,10 +522,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__config_unset",
+    "tool_id": "compozy__config_unset",
     "native_name": "config_unset",
     "toolsets": [
-      "agh__config"
+      "compozy__config"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -535,10 +535,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__desktop_clients",
+    "tool_id": "compozy__desktop_clients",
     "native_name": "desktop_clients",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "read",
     "read_only": true,
@@ -551,10 +551,10 @@
     ]
   },
   {
-    "tool_id": "agh__desktop_create",
+    "tool_id": "compozy__desktop_create",
     "native_name": "desktop_create",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -567,10 +567,10 @@
     ]
   },
   {
-    "tool_id": "agh__desktop_delete",
+    "tool_id": "compozy__desktop_delete",
     "native_name": "desktop_delete",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -583,10 +583,10 @@
     ]
   },
   {
-    "tool_id": "agh__desktop_list",
+    "tool_id": "compozy__desktop_list",
     "native_name": "desktop_list",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "read",
     "read_only": true,
@@ -599,10 +599,10 @@
     ]
   },
   {
-    "tool_id": "agh__desktop_reorder",
+    "tool_id": "compozy__desktop_reorder",
     "native_name": "desktop_reorder",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -615,10 +615,10 @@
     ]
   },
   {
-    "tool_id": "agh__desktop_switch",
+    "tool_id": "compozy__desktop_switch",
     "native_name": "desktop_switch",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -631,10 +631,10 @@
     ]
   },
   {
-    "tool_id": "agh__desktop_update",
+    "tool_id": "compozy__desktop_update",
     "native_name": "desktop_update",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -647,10 +647,10 @@
     ]
   },
   {
-    "tool_id": "agh__extensions_disable",
+    "tool_id": "compozy__extensions_disable",
     "native_name": "extensions_disable",
     "toolsets": [
-      "agh__extensions"
+      "compozy__extensions"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -660,10 +660,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__extensions_enable",
+    "tool_id": "compozy__extensions_enable",
     "native_name": "extensions_enable",
     "toolsets": [
-      "agh__extensions"
+      "compozy__extensions"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -673,10 +673,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__extensions_info",
+    "tool_id": "compozy__extensions_info",
     "native_name": "extensions_info",
     "toolsets": [
-      "agh__extensions"
+      "compozy__extensions"
     ],
     "risk": "read",
     "read_only": true,
@@ -686,10 +686,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__extensions_install",
+    "tool_id": "compozy__extensions_install",
     "native_name": "extensions_install",
     "toolsets": [
-      "agh__extensions"
+      "compozy__extensions"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -699,10 +699,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__extensions_list",
+    "tool_id": "compozy__extensions_list",
     "native_name": "extensions_list",
     "toolsets": [
-      "agh__extensions"
+      "compozy__extensions"
     ],
     "risk": "read",
     "read_only": true,
@@ -712,10 +712,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__extensions_remove",
+    "tool_id": "compozy__extensions_remove",
     "native_name": "extensions_remove",
     "toolsets": [
-      "agh__extensions"
+      "compozy__extensions"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -725,10 +725,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__extensions_update",
+    "tool_id": "compozy__extensions_update",
     "native_name": "extensions_update",
     "toolsets": [
-      "agh__extensions"
+      "compozy__extensions"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -738,10 +738,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__goal_get",
+    "tool_id": "compozy__goal_get",
     "native_name": "goal_get",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "read",
     "read_only": true,
@@ -751,10 +751,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__goal_report",
+    "tool_id": "compozy__goal_report",
     "native_name": "goal_report",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -764,10 +764,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__hooks_create",
+    "tool_id": "compozy__hooks_create",
     "native_name": "hooks_create",
     "toolsets": [
-      "agh__hooks"
+      "compozy__hooks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -777,10 +777,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__hooks_delete",
+    "tool_id": "compozy__hooks_delete",
     "native_name": "hooks_delete",
     "toolsets": [
-      "agh__hooks"
+      "compozy__hooks"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -790,10 +790,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__hooks_disable",
+    "tool_id": "compozy__hooks_disable",
     "native_name": "hooks_disable",
     "toolsets": [
-      "agh__hooks"
+      "compozy__hooks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -803,10 +803,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__hooks_enable",
+    "tool_id": "compozy__hooks_enable",
     "native_name": "hooks_enable",
     "toolsets": [
-      "agh__hooks"
+      "compozy__hooks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -816,10 +816,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__hooks_events",
+    "tool_id": "compozy__hooks_events",
     "native_name": "hooks_events",
     "toolsets": [
-      "agh__hooks"
+      "compozy__hooks"
     ],
     "risk": "read",
     "read_only": true,
@@ -829,10 +829,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__hooks_info",
+    "tool_id": "compozy__hooks_info",
     "native_name": "hooks_info",
     "toolsets": [
-      "agh__hooks"
+      "compozy__hooks"
     ],
     "risk": "read",
     "read_only": true,
@@ -842,10 +842,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__hooks_list",
+    "tool_id": "compozy__hooks_list",
     "native_name": "hooks_list",
     "toolsets": [
-      "agh__hooks"
+      "compozy__hooks"
     ],
     "risk": "read",
     "read_only": true,
@@ -855,10 +855,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__hooks_runs",
+    "tool_id": "compozy__hooks_runs",
     "native_name": "hooks_runs",
     "toolsets": [
-      "agh__hooks"
+      "compozy__hooks"
     ],
     "risk": "read",
     "read_only": true,
@@ -868,10 +868,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__hooks_update",
+    "tool_id": "compozy__hooks_update",
     "native_name": "hooks_update",
     "toolsets": [
-      "agh__hooks"
+      "compozy__hooks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -881,10 +881,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__layout_apply",
+    "tool_id": "compozy__layout_apply",
     "native_name": "layout_apply",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -897,10 +897,10 @@
     ]
   },
   {
-    "tool_id": "agh__layout_arrange",
+    "tool_id": "compozy__layout_arrange",
     "native_name": "layout_arrange",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -913,10 +913,10 @@
     ]
   },
   {
-    "tool_id": "agh__layout_balance",
+    "tool_id": "compozy__layout_balance",
     "native_name": "layout_balance",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -929,10 +929,10 @@
     ]
   },
   {
-    "tool_id": "agh__layout_export",
+    "tool_id": "compozy__layout_export",
     "native_name": "layout_export",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "read",
     "read_only": true,
@@ -945,10 +945,10 @@
     ]
   },
   {
-    "tool_id": "agh__layout_get",
+    "tool_id": "compozy__layout_get",
     "native_name": "layout_get",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "read",
     "read_only": true,
@@ -961,10 +961,10 @@
     ]
   },
   {
-    "tool_id": "agh__layout_preview",
+    "tool_id": "compozy__layout_preview",
     "native_name": "layout_preview",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "read",
     "read_only": true,
@@ -977,10 +977,10 @@
     ]
   },
   {
-    "tool_id": "agh__layout_redo",
+    "tool_id": "compozy__layout_redo",
     "native_name": "layout_redo",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -993,10 +993,10 @@
     ]
   },
   {
-    "tool_id": "agh__layout_resize",
+    "tool_id": "compozy__layout_resize",
     "native_name": "layout_resize",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1009,10 +1009,10 @@
     ]
   },
   {
-    "tool_id": "agh__layout_undo",
+    "tool_id": "compozy__layout_undo",
     "native_name": "layout_undo",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1025,10 +1025,10 @@
     ]
   },
   {
-    "tool_id": "agh__layout_validate",
+    "tool_id": "compozy__layout_validate",
     "native_name": "layout_validate",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "read",
     "read_only": true,
@@ -1041,10 +1041,10 @@
     ]
   },
   {
-    "tool_id": "agh__logs",
+    "tool_id": "compozy__logs",
     "native_name": "logs",
     "toolsets": [
-      "agh__observe"
+      "compozy__observe"
     ],
     "risk": "read",
     "read_only": true,
@@ -1054,10 +1054,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_approve",
+    "tool_id": "compozy__loop_approve",
     "native_name": "loop_approve",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1070,10 +1070,10 @@
     ]
   },
   {
-    "tool_id": "agh__loop_configure",
+    "tool_id": "compozy__loop_configure",
     "native_name": "loop_configure",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1083,10 +1083,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_create",
+    "tool_id": "compozy__loop_create",
     "native_name": "loop_create",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1096,10 +1096,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_delete",
+    "tool_id": "compozy__loop_delete",
     "native_name": "loop_delete",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -1109,10 +1109,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_inspect",
+    "tool_id": "compozy__loop_inspect",
     "native_name": "loop_inspect",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "read",
     "read_only": true,
@@ -1122,10 +1122,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_list",
+    "tool_id": "compozy__loop_list",
     "native_name": "loop_list",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "read",
     "read_only": true,
@@ -1135,10 +1135,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_pause",
+    "tool_id": "compozy__loop_pause",
     "native_name": "loop_pause",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1148,10 +1148,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_resume",
+    "tool_id": "compozy__loop_resume",
     "native_name": "loop_resume",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1161,10 +1161,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_run",
+    "tool_id": "compozy__loop_run",
     "native_name": "loop_run",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1174,10 +1174,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_runs",
+    "tool_id": "compozy__loop_runs",
     "native_name": "loop_runs",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "read",
     "read_only": true,
@@ -1187,10 +1187,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_status",
+    "tool_id": "compozy__loop_status",
     "native_name": "loop_status",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "read",
     "read_only": true,
@@ -1200,10 +1200,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_stop",
+    "tool_id": "compozy__loop_stop",
     "native_name": "loop_stop",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -1213,10 +1213,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_turns",
+    "tool_id": "compozy__loop_turns",
     "native_name": "loop_turns",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "read",
     "read_only": true,
@@ -1226,10 +1226,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__loop_validate",
+    "tool_id": "compozy__loop_validate",
     "native_name": "loop_validate",
     "toolsets": [
-      "agh__loops"
+      "compozy__loops"
     ],
     "risk": "read",
     "read_only": true,
@@ -1239,10 +1239,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__marketplace_search",
+    "tool_id": "compozy__marketplace_search",
     "native_name": "marketplace_search",
     "toolsets": [
-      "agh__marketplace"
+      "compozy__marketplace"
     ],
     "risk": "read",
     "read_only": true,
@@ -1252,10 +1252,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__mcp_auth_status",
+    "tool_id": "compozy__mcp_auth_status",
     "native_name": "mcp_auth_status",
     "toolsets": [
-      "agh__mcp_auth"
+      "compozy__mcp_auth"
     ],
     "risk": "read",
     "read_only": true,
@@ -1265,10 +1265,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__mcp_status",
+    "tool_id": "compozy__mcp_status",
     "native_name": "mcp_status",
     "toolsets": [
-      "agh__mcp"
+      "compozy__mcp"
     ],
     "risk": "read",
     "read_only": true,
@@ -1278,10 +1278,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_admin_history",
+    "tool_id": "compozy__memory_admin_history",
     "native_name": "memory_admin_history",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1291,10 +1291,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_daily_list",
+    "tool_id": "compozy__memory_daily_list",
     "native_name": "memory_daily_list",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1304,10 +1304,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_decisions_list",
+    "tool_id": "compozy__memory_decisions_list",
     "native_name": "memory_decisions_list",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1317,10 +1317,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_decisions_revert",
+    "tool_id": "compozy__memory_decisions_revert",
     "native_name": "memory_decisions_revert",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -1330,10 +1330,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_decisions_show",
+    "tool_id": "compozy__memory_decisions_show",
     "native_name": "memory_decisions_show",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1343,10 +1343,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_dream_list",
+    "tool_id": "compozy__memory_dream_list",
     "native_name": "memory_dream_list",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1356,10 +1356,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_dream_retry",
+    "tool_id": "compozy__memory_dream_retry",
     "native_name": "memory_dream_retry",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1369,10 +1369,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_dream_show",
+    "tool_id": "compozy__memory_dream_show",
     "native_name": "memory_dream_show",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1382,10 +1382,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_dream_status",
+    "tool_id": "compozy__memory_dream_status",
     "native_name": "memory_dream_status",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1395,10 +1395,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_dream_trigger",
+    "tool_id": "compozy__memory_dream_trigger",
     "native_name": "memory_dream_trigger",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1408,10 +1408,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_extractor_drain",
+    "tool_id": "compozy__memory_extractor_drain",
     "native_name": "memory_extractor_drain",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1421,10 +1421,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_extractor_failures",
+    "tool_id": "compozy__memory_extractor_failures",
     "native_name": "memory_extractor_failures",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1434,10 +1434,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_extractor_retry",
+    "tool_id": "compozy__memory_extractor_retry",
     "native_name": "memory_extractor_retry",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1447,10 +1447,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_extractor_status",
+    "tool_id": "compozy__memory_extractor_status",
     "native_name": "memory_extractor_status",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1460,10 +1460,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_health",
+    "tool_id": "compozy__memory_health",
     "native_name": "memory_health",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1473,10 +1473,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_list",
+    "tool_id": "compozy__memory_list",
     "native_name": "memory_list",
     "toolsets": [
-      "agh__memory"
+      "compozy__memory"
     ],
     "risk": "read",
     "read_only": true,
@@ -1486,10 +1486,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_note",
+    "tool_id": "compozy__memory_note",
     "native_name": "memory_note",
     "toolsets": [
-      "agh__memory"
+      "compozy__memory"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1499,10 +1499,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_promote",
+    "tool_id": "compozy__memory_promote",
     "native_name": "memory_promote",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1512,10 +1512,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_propose",
+    "tool_id": "compozy__memory_propose",
     "native_name": "memory_propose",
     "toolsets": [
-      "agh__memory"
+      "compozy__memory"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1525,10 +1525,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_provider_disable",
+    "tool_id": "compozy__memory_provider_disable",
     "native_name": "memory_provider_disable",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1538,10 +1538,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_provider_enable",
+    "tool_id": "compozy__memory_provider_enable",
     "native_name": "memory_provider_enable",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1551,10 +1551,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_provider_get",
+    "tool_id": "compozy__memory_provider_get",
     "native_name": "memory_provider_get",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1564,10 +1564,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_provider_list",
+    "tool_id": "compozy__memory_provider_list",
     "native_name": "memory_provider_list",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1577,10 +1577,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_provider_select",
+    "tool_id": "compozy__memory_provider_select",
     "native_name": "memory_provider_select",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1590,10 +1590,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_recall_trace",
+    "tool_id": "compozy__memory_recall_trace",
     "native_name": "memory_recall_trace",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1603,10 +1603,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_reindex",
+    "tool_id": "compozy__memory_reindex",
     "native_name": "memory_reindex",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1616,10 +1616,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_reload",
+    "tool_id": "compozy__memory_reload",
     "native_name": "memory_reload",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1629,10 +1629,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_reset",
+    "tool_id": "compozy__memory_reset",
     "native_name": "memory_reset",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -1642,10 +1642,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_scope_show",
+    "tool_id": "compozy__memory_scope_show",
     "native_name": "memory_scope_show",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1655,10 +1655,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_search",
+    "tool_id": "compozy__memory_search",
     "native_name": "memory_search",
     "toolsets": [
-      "agh__memory"
+      "compozy__memory"
     ],
     "risk": "read",
     "read_only": true,
@@ -1668,10 +1668,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_session_ledger",
+    "tool_id": "compozy__memory_session_ledger",
     "native_name": "memory_session_ledger",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "read",
     "read_only": true,
@@ -1681,10 +1681,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_session_replay",
+    "tool_id": "compozy__memory_session_replay",
     "native_name": "memory_session_replay",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1694,10 +1694,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_sessions_prune",
+    "tool_id": "compozy__memory_sessions_prune",
     "native_name": "memory_sessions_prune",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -1707,10 +1707,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_sessions_repair",
+    "tool_id": "compozy__memory_sessions_repair",
     "native_name": "memory_sessions_repair",
     "toolsets": [
-      "agh__memory_admin"
+      "compozy__memory_admin"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1720,10 +1720,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__memory_show",
+    "tool_id": "compozy__memory_show",
     "native_name": "memory_show",
     "toolsets": [
-      "agh__memory"
+      "compozy__memory"
     ],
     "risk": "read",
     "read_only": true,
@@ -1733,10 +1733,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_channel_create",
+    "tool_id": "compozy__network_channel_create",
     "native_name": "network_channel_create",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1746,10 +1746,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_channel_update",
+    "tool_id": "compozy__network_channel_update",
     "native_name": "network_channel_update",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1759,10 +1759,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_channels",
+    "tool_id": "compozy__network_channels",
     "native_name": "network_channels",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1772,10 +1772,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_direct_messages",
+    "tool_id": "compozy__network_direct_messages",
     "native_name": "network_direct_messages",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1785,10 +1785,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_direct_resolve",
+    "tool_id": "compozy__network_direct_resolve",
     "native_name": "network_direct_resolve",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1798,10 +1798,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_directs",
+    "tool_id": "compozy__network_directs",
     "native_name": "network_directs",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1811,10 +1811,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_inbox",
+    "tool_id": "compozy__network_inbox",
     "native_name": "network_inbox",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1824,10 +1824,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_mute",
+    "tool_id": "compozy__network_mute",
     "native_name": "network_mute",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1837,10 +1837,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_peers",
+    "tool_id": "compozy__network_peers",
     "native_name": "network_peers",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1850,10 +1850,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_send",
+    "tool_id": "compozy__network_send",
     "native_name": "network_send",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "open_world",
     "read_only": false,
@@ -1863,10 +1863,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_status",
+    "tool_id": "compozy__network_status",
     "native_name": "network_status",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1876,10 +1876,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_subscribe",
+    "tool_id": "compozy__network_subscribe",
     "native_name": "network_subscribe",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -1889,10 +1889,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_subscriptions",
+    "tool_id": "compozy__network_subscriptions",
     "native_name": "network_subscriptions",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1902,10 +1902,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_thread_messages",
+    "tool_id": "compozy__network_thread_messages",
     "native_name": "network_thread_messages",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1915,10 +1915,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_threads",
+    "tool_id": "compozy__network_threads",
     "native_name": "network_threads",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1928,10 +1928,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_unmute",
+    "tool_id": "compozy__network_unmute",
     "native_name": "network_unmute",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -1941,10 +1941,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_usage",
+    "tool_id": "compozy__network_usage",
     "native_name": "network_usage",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1954,10 +1954,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__network_work",
+    "tool_id": "compozy__network_work",
     "native_name": "network_work",
     "toolsets": [
-      "agh__coordination"
+      "compozy__coordination"
     ],
     "risk": "read",
     "read_only": true,
@@ -1967,10 +1967,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__observe_metrics",
+    "tool_id": "compozy__observe_metrics",
     "native_name": "observe_metrics",
     "toolsets": [
-      "agh__observe"
+      "compozy__observe"
     ],
     "risk": "read",
     "read_only": true,
@@ -1980,10 +1980,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__observe_search",
+    "tool_id": "compozy__observe_search",
     "native_name": "observe_search",
     "toolsets": [
-      "agh__observe"
+      "compozy__observe"
     ],
     "risk": "read",
     "read_only": true,
@@ -1993,10 +1993,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__provider_models_curate",
+    "tool_id": "compozy__provider_models_curate",
     "native_name": "provider_models_curate",
     "toolsets": [
-      "agh__provider_models"
+      "compozy__provider_models"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2009,10 +2009,10 @@
     ]
   },
   {
-    "tool_id": "agh__provider_models_list",
+    "tool_id": "compozy__provider_models_list",
     "native_name": "provider_models_list",
     "toolsets": [
-      "agh__provider_models"
+      "compozy__provider_models"
     ],
     "risk": "read",
     "read_only": true,
@@ -2022,10 +2022,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__provider_models_refresh",
+    "tool_id": "compozy__provider_models_refresh",
     "native_name": "provider_models_refresh",
     "toolsets": [
-      "agh__provider_models"
+      "compozy__provider_models"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2035,10 +2035,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__provider_models_status",
+    "tool_id": "compozy__provider_models_status",
     "native_name": "provider_models_status",
     "toolsets": [
-      "agh__provider_models"
+      "compozy__provider_models"
     ],
     "risk": "read",
     "read_only": true,
@@ -2048,10 +2048,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__resources_info",
+    "tool_id": "compozy__resources_info",
     "native_name": "resources_info",
     "toolsets": [
-      "agh__resources"
+      "compozy__resources"
     ],
     "risk": "read",
     "read_only": true,
@@ -2064,10 +2064,10 @@
     ]
   },
   {
-    "tool_id": "agh__resources_list",
+    "tool_id": "compozy__resources_list",
     "native_name": "resources_list",
     "toolsets": [
-      "agh__resources"
+      "compozy__resources"
     ],
     "risk": "read",
     "read_only": true,
@@ -2080,10 +2080,10 @@
     ]
   },
   {
-    "tool_id": "agh__resources_snapshot",
+    "tool_id": "compozy__resources_snapshot",
     "native_name": "resources_snapshot",
     "toolsets": [
-      "agh__resources"
+      "compozy__resources"
     ],
     "risk": "read",
     "read_only": true,
@@ -2096,10 +2096,10 @@
     ]
   },
   {
-    "tool_id": "agh__session_describe",
+    "tool_id": "compozy__session_describe",
     "native_name": "session_describe",
     "toolsets": [
-      "agh__sessions"
+      "compozy__sessions"
     ],
     "risk": "read",
     "read_only": true,
@@ -2109,10 +2109,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__session_events",
+    "tool_id": "compozy__session_events",
     "native_name": "session_events",
     "toolsets": [
-      "agh__sessions"
+      "compozy__sessions"
     ],
     "risk": "read",
     "read_only": true,
@@ -2122,11 +2122,11 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__session_health",
+    "tool_id": "compozy__session_health",
     "native_name": "session_health",
     "toolsets": [
-      "agh__authored_context",
-      "agh__sessions"
+      "compozy__authored_context",
+      "compozy__sessions"
     ],
     "risk": "read",
     "read_only": true,
@@ -2136,10 +2136,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__session_history",
+    "tool_id": "compozy__session_history",
     "native_name": "session_history",
     "toolsets": [
-      "agh__sessions"
+      "compozy__sessions"
     ],
     "risk": "read",
     "read_only": true,
@@ -2149,10 +2149,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__session_list",
+    "tool_id": "compozy__session_list",
     "native_name": "session_list",
     "toolsets": [
-      "agh__sessions"
+      "compozy__sessions"
     ],
     "risk": "read",
     "read_only": true,
@@ -2162,10 +2162,10 @@
     "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
   },
   {
-    "tool_id": "agh__session_status",
+    "tool_id": "compozy__session_status",
     "native_name": "session_status",
     "toolsets": [
-      "agh__sessions"
+      "compozy__sessions"
     ],
     "risk": "read",
     "read_only": true,
@@ -2175,10 +2175,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__skill_list",
+    "tool_id": "compozy__skill_list",
     "native_name": "skill_list",
     "toolsets": [
-      "agh__catalog"
+      "compozy__catalog"
     ],
     "risk": "read",
     "read_only": true,
@@ -2188,10 +2188,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__skill_search",
+    "tool_id": "compozy__skill_search",
     "native_name": "skill_search",
     "toolsets": [
-      "agh__catalog"
+      "compozy__catalog"
     ],
     "risk": "read",
     "read_only": true,
@@ -2201,10 +2201,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__skill_view",
+    "tool_id": "compozy__skill_view",
     "native_name": "skill_view",
     "toolsets": [
-      "agh__catalog"
+      "compozy__catalog"
     ],
     "risk": "read",
     "read_only": true,
@@ -2214,10 +2214,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_block",
+    "tool_id": "compozy__task_block",
     "native_name": "task_block",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2227,10 +2227,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_blocks",
+    "tool_id": "compozy__task_blocks",
     "native_name": "task_blocks",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "read",
     "read_only": true,
@@ -2240,10 +2240,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_cancel",
+    "tool_id": "compozy__task_cancel",
     "native_name": "task_cancel",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -2253,10 +2253,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_child_create",
+    "tool_id": "compozy__task_child_create",
     "native_name": "task_child_create",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2266,10 +2266,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_create",
+    "tool_id": "compozy__task_create",
     "native_name": "task_create",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2279,10 +2279,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_execution_profile_delete",
+    "tool_id": "compozy__task_execution_profile_delete",
     "native_name": "task_execution_profile_delete",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -2292,10 +2292,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_execution_profile_get",
+    "tool_id": "compozy__task_execution_profile_get",
     "native_name": "task_execution_profile_get",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "read",
     "read_only": true,
@@ -2305,10 +2305,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_execution_profile_set",
+    "tool_id": "compozy__task_execution_profile_set",
     "native_name": "task_execution_profile_set",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2318,10 +2318,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_fanout_runs",
+    "tool_id": "compozy__task_fanout_runs",
     "native_name": "task_fanout_runs",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2331,10 +2331,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_list",
+    "tool_id": "compozy__task_list",
     "native_name": "task_list",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "read",
     "read_only": true,
@@ -2344,10 +2344,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_notification_delete",
+    "tool_id": "compozy__task_notification_delete",
     "native_name": "task_notification_delete",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -2357,10 +2357,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_notification_list",
+    "tool_id": "compozy__task_notification_list",
     "native_name": "task_notification_list",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "read",
     "read_only": true,
@@ -2370,10 +2370,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_notification_show",
+    "tool_id": "compozy__task_notification_show",
     "native_name": "task_notification_show",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "read",
     "read_only": true,
@@ -2383,10 +2383,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_notification_subscribe",
+    "tool_id": "compozy__task_notification_subscribe",
     "native_name": "task_notification_subscribe",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2396,11 +2396,11 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_promote_from_thread",
+    "tool_id": "compozy__task_promote_from_thread",
     "native_name": "task_promote_from_thread",
     "toolsets": [
-      "agh__coordination",
-      "agh__tasks"
+      "compozy__coordination",
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2410,10 +2410,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_read",
+    "tool_id": "compozy__task_read",
     "native_name": "task_read",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "read",
     "read_only": true,
@@ -2423,10 +2423,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_recover",
+    "tool_id": "compozy__task_recover",
     "native_name": "task_recover",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2436,10 +2436,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_claim_next",
+    "tool_id": "compozy__task_run_claim_next",
     "native_name": "task_run_claim_next",
     "toolsets": [
-      "agh__autonomy"
+      "compozy__autonomy"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2449,10 +2449,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_complete",
+    "tool_id": "compozy__task_run_complete",
     "native_name": "task_run_complete",
     "toolsets": [
-      "agh__autonomy"
+      "compozy__autonomy"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2462,10 +2462,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_fail",
+    "tool_id": "compozy__task_run_fail",
     "native_name": "task_run_fail",
     "toolsets": [
-      "agh__autonomy"
+      "compozy__autonomy"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2475,10 +2475,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_heartbeat",
+    "tool_id": "compozy__task_run_heartbeat",
     "native_name": "task_run_heartbeat",
     "toolsets": [
-      "agh__autonomy"
+      "compozy__autonomy"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2488,10 +2488,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_list",
+    "tool_id": "compozy__task_run_list",
     "native_name": "task_run_list",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "read",
     "read_only": true,
@@ -2501,10 +2501,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_release",
+    "tool_id": "compozy__task_run_release",
     "native_name": "task_run_release",
     "toolsets": [
-      "agh__autonomy"
+      "compozy__autonomy"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2514,10 +2514,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_review_list",
+    "tool_id": "compozy__task_run_review_list",
     "native_name": "task_run_review_list",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "read",
     "read_only": true,
@@ -2527,10 +2527,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_review_request",
+    "tool_id": "compozy__task_run_review_request",
     "native_name": "task_run_review_request",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2540,10 +2540,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_review_show",
+    "tool_id": "compozy__task_run_review_show",
     "native_name": "task_run_review_show",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "read",
     "read_only": true,
@@ -2553,10 +2553,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_run_review_submit",
+    "tool_id": "compozy__task_run_review_submit",
     "native_name": "submit_run_review",
     "toolsets": [
-      "agh__autonomy"
+      "compozy__autonomy"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2566,10 +2566,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_unblock",
+    "tool_id": "compozy__task_unblock",
     "native_name": "task_unblock",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2579,10 +2579,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__task_update",
+    "tool_id": "compozy__task_update",
     "native_name": "task_update",
     "toolsets": [
-      "agh__tasks"
+      "compozy__tasks"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2592,10 +2592,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__tool_approvals_list",
+    "tool_id": "compozy__tool_approvals_list",
     "native_name": "tool_approvals_list",
     "toolsets": [
-      "agh__tool_approvals"
+      "compozy__tool_approvals"
     ],
     "risk": "read",
     "read_only": true,
@@ -2605,10 +2605,10 @@
     "output_schema_digest": "3d750b2dc16b309abb31cea95ce64c346c916c0b3487b4f26bcd6b9bf753b132"
   },
   {
-    "tool_id": "agh__tool_approvals_revoke",
+    "tool_id": "compozy__tool_approvals_revoke",
     "native_name": "tool_approvals_revoke",
     "toolsets": [
-      "agh__tool_approvals"
+      "compozy__tool_approvals"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -2618,10 +2618,10 @@
     "output_schema_digest": "776165c33f7f9f762cc0905864e8aa1dd3e54b5405201216633c71ac7fa785d1"
   },
   {
-    "tool_id": "agh__tool_approvals_set",
+    "tool_id": "compozy__tool_approvals_set",
     "native_name": "tool_approvals_set",
     "toolsets": [
-      "agh__tool_approvals"
+      "compozy__tool_approvals"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -2631,11 +2631,11 @@
     "output_schema_digest": "4ebe51593c78a5ca95b966ffada02c6db31c8208b830e052f6b20073e32ec083"
   },
   {
-    "tool_id": "agh__tool_artifact_read",
+    "tool_id": "compozy__tool_artifact_read",
     "native_name": "tool_artifact_read",
     "toolsets": [
-      "agh__bootstrap",
-      "agh__tool_artifacts"
+      "compozy__bootstrap",
+      "compozy__tool_artifacts"
     ],
     "risk": "read",
     "read_only": true,
@@ -2645,11 +2645,11 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__tool_info",
+    "tool_id": "compozy__tool_info",
     "native_name": "tool_info",
     "toolsets": [
-      "agh__bootstrap",
-      "agh__catalog"
+      "compozy__bootstrap",
+      "compozy__catalog"
     ],
     "risk": "read",
     "read_only": true,
@@ -2659,11 +2659,11 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__tool_list",
+    "tool_id": "compozy__tool_list",
     "native_name": "tool_list",
     "toolsets": [
-      "agh__bootstrap",
-      "agh__catalog"
+      "compozy__bootstrap",
+      "compozy__catalog"
     ],
     "risk": "read",
     "read_only": true,
@@ -2673,11 +2673,11 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__tool_search",
+    "tool_id": "compozy__tool_search",
     "native_name": "tool_search",
     "toolsets": [
-      "agh__bootstrap",
-      "agh__catalog"
+      "compozy__bootstrap",
+      "compozy__catalog"
     ],
     "risk": "read",
     "read_only": true,
@@ -2687,10 +2687,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__window_close",
+    "tool_id": "compozy__window_close",
     "native_name": "window_close",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "destructive",
     "read_only": false,
@@ -2703,10 +2703,10 @@
     ]
   },
   {
-    "tool_id": "agh__window_float",
+    "tool_id": "compozy__window_float",
     "native_name": "window_float",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2719,10 +2719,10 @@
     ]
   },
   {
-    "tool_id": "agh__window_focus",
+    "tool_id": "compozy__window_focus",
     "native_name": "window_focus",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2735,10 +2735,10 @@
     ]
   },
   {
-    "tool_id": "agh__window_list",
+    "tool_id": "compozy__window_list",
     "native_name": "window_list",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "read",
     "read_only": true,
@@ -2751,10 +2751,10 @@
     ]
   },
   {
-    "tool_id": "agh__window_move",
+    "tool_id": "compozy__window_move",
     "native_name": "window_move",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2767,10 +2767,10 @@
     ]
   },
   {
-    "tool_id": "agh__window_navigate",
+    "tool_id": "compozy__window_navigate",
     "native_name": "window_navigate",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2783,10 +2783,10 @@
     ]
   },
   {
-    "tool_id": "agh__window_open",
+    "tool_id": "compozy__window_open",
     "native_name": "window_open",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2799,10 +2799,10 @@
     ]
   },
   {
-    "tool_id": "agh__window_swap",
+    "tool_id": "compozy__window_swap",
     "native_name": "window_swap",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2815,10 +2815,10 @@
     ]
   },
   {
-    "tool_id": "agh__window_zoom",
+    "tool_id": "compozy__window_zoom",
     "native_name": "window_zoom",
     "toolsets": [
-      "agh__window_manager"
+      "compozy__window_manager"
     ],
     "risk": "mutating",
     "read_only": false,
@@ -2831,10 +2831,10 @@
     ]
   },
   {
-    "tool_id": "agh__workspace_describe",
+    "tool_id": "compozy__workspace_describe",
     "native_name": "workspace_describe",
     "toolsets": [
-      "agh__workspace"
+      "compozy__workspace"
     ],
     "risk": "read",
     "read_only": true,
@@ -2844,10 +2844,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__workspace_info",
+    "tool_id": "compozy__workspace_info",
     "native_name": "workspace_info",
     "toolsets": [
-      "agh__workspace"
+      "compozy__workspace"
     ],
     "risk": "read",
     "read_only": true,
@@ -2857,10 +2857,10 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "agh__workspace_list",
+    "tool_id": "compozy__workspace_list",
     "native_name": "workspace_list",
     "toolsets": [
-      "agh__workspace"
+      "compozy__workspace"
     ],
     "risk": "read",
     "read_only": true,

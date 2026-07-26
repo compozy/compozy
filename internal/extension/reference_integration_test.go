@@ -41,8 +41,8 @@ import (
 )
 
 const (
-	referenceACPHelperEnvKey     = "AGH_TEST_REFERENCE_ACP_HELPER"
-	referencePromptLogPathEnvKey = "AGH_TEST_REFERENCE_PROMPT_LOG_PATH"
+	referenceACPHelperEnvKey     = "COMPOZY_TEST_REFERENCE_ACP_HELPER"
+	referencePromptLogPathEnvKey = "COMPOZY_TEST_REFERENCE_PROMPT_LOG_PATH"
 )
 
 type referenceHandshakeMarker struct {
@@ -335,15 +335,15 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	t.Setenv(referencePromptLogPathEnvKey, harness.promptLogPath)
 	t.Setenv("GIN_MODE", "release")
 	gin.SetMode(gin.ReleaseMode)
-	t.Setenv("AGH_SECRET_GUARD_HANDSHAKE_PATH", harness.secretHandshakePath)
-	t.Setenv("AGH_SECRET_GUARD_HOST_CALL_PATH", harness.secretHostCallPath)
-	t.Setenv("AGH_SECRET_GUARD_STARTS_PATH", harness.secretStartsPath)
-	t.Setenv("AGH_SECRET_GUARD_CRASH_ONCE_PATH", "")
-	t.Setenv("AGH_SECRET_GUARD_SHUTDOWN_PATH", harness.secretShutdownPath)
-	t.Setenv("AGH_PROMPT_ENHANCER_HANDSHAKE_PATH", harness.promptHandshakePath)
-	t.Setenv("AGH_PROMPT_ENHANCER_HOST_CALL_PATH", harness.promptHostCallPath)
-	t.Setenv("AGH_PROMPT_ENHANCER_CAPABILITY_PATH", harness.promptCapabilityPath)
-	t.Setenv("AGH_PROMPT_ENHANCER_SHUTDOWN_PATH", harness.promptShutdownPath)
+	t.Setenv("COMPOZY_SECRET_GUARD_HANDSHAKE_PATH", harness.secretHandshakePath)
+	t.Setenv("COMPOZY_SECRET_GUARD_HOST_CALL_PATH", harness.secretHostCallPath)
+	t.Setenv("COMPOZY_SECRET_GUARD_STARTS_PATH", harness.secretStartsPath)
+	t.Setenv("COMPOZY_SECRET_GUARD_CRASH_ONCE_PATH", "")
+	t.Setenv("COMPOZY_SECRET_GUARD_SHUTDOWN_PATH", harness.secretShutdownPath)
+	t.Setenv("COMPOZY_PROMPT_ENHANCER_HANDSHAKE_PATH", harness.promptHandshakePath)
+	t.Setenv("COMPOZY_PROMPT_ENHANCER_HOST_CALL_PATH", harness.promptHostCallPath)
+	t.Setenv("COMPOZY_PROMPT_ENHANCER_CAPABILITY_PATH", harness.promptCapabilityPath)
+	t.Setenv("COMPOZY_PROMPT_ENHANCER_SHUTDOWN_PATH", harness.promptShutdownPath)
 
 	command := referenceACPHelperCommand(t)
 	cfg := referenceConfig(t, homePaths, command)
@@ -1072,7 +1072,7 @@ func referenceHomePaths(t *testing.T) aghconfig.HomePaths {
 	t.Helper()
 
 	homeDir := t.TempDir()
-	t.Setenv("AGH_HOME", homeDir)
+	t.Setenv("COMPOZY_HOME", homeDir)
 	t.Setenv("HOME", homeDir)
 
 	homePaths, err := aghconfig.ResolveHomePathsFrom(homeDir)

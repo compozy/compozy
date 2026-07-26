@@ -14,7 +14,7 @@ func TestFilteredDaemonEnvRemovesCredentialShapedVariables(t *testing.T) {
 		env := FilteredDaemonEnv([]string{
 			"PATH=/usr/bin",
 			"HOME=/home/agh",
-			"AGH_HOME=/tmp/agh",
+			"COMPOZY_HOME=/tmp/agh",
 			"PROVIDER_CODEX_HOME=/tmp/provider",
 			"OPENAI_API_KEY=sk-secret",
 			"GITHUB_TOKEN=ghp-secret",
@@ -37,7 +37,7 @@ func TestFilteredDaemonEnvRemovesCredentialShapedVariables(t *testing.T) {
 		for _, kept := range []string{
 			"PATH=/usr/bin",
 			"HOME=/home/agh",
-			"AGH_HOME=/tmp/agh",
+			"COMPOZY_HOME=/tmp/agh",
 			"PROVIDER_CODEX_HOME=/tmp/provider",
 		} {
 			if !containsEnvEntry(env, kept) {
@@ -90,15 +90,15 @@ func TestFilteredDaemonEnvRemovesCredentialShapedVariables(t *testing.T) {
 // not parallel: mutates process environment with t.Setenv.
 func TestLaunchSandboxFiltersFallbackEnvironment(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "sk-launch-secret")
-	t.Setenv("AGH_HOME", "/tmp/agh")
+	t.Setenv("COMPOZY_HOME", "/tmp/agh")
 
 	t.Run("Should filter inherited daemon secrets", func(t *testing.T) {
 		env := launchSandbox(nil)
 		if hasEnvPrefix(env, "OPENAI_API_KEY=") {
 			t.Fatalf("launchSandbox(nil) leaked OPENAI_API_KEY in %#v", env)
 		}
-		if !hasEnvPrefix(env, "AGH_HOME=/tmp/agh") {
-			t.Fatalf("launchSandbox(nil) missing AGH_HOME in %#v", env)
+		if !hasEnvPrefix(env, "COMPOZY_HOME=/tmp/agh") {
+			t.Fatalf("launchSandbox(nil) missing COMPOZY_HOME in %#v", env)
 		}
 	})
 }

@@ -12,21 +12,21 @@ Every execution resolves one immutable `resolved_network_participation` snapshot
 default for future coordinated runs only; it does not mutate the current run.
 
 Before using Network, inspect the current execution snapshot. Live sessions expose
-`AGH_SESSION_ID`, `AGH_SESSION_CHANNEL`, and `AGH_PEER_ID`. Local sessions do not expose channel or
+`COMPOZY_SESSION_ID`, `COMPOZY_SESSION_CHANNEL`, and `COMPOZY_PEER_ID`. Local sessions do not expose channel or
 peer variables and receive `not_participating` from coordination-only calls.
 
 ## Tool gating
 
 The coordination toolset is projected only to Live sessions, then narrowed by policy and
-capability gates. Resolve the exact descriptor with `agh__tool_info` before first use. Prefer the
+capability gates. Resolve the exact descriptor with `compozy__tool_info` before first use. Prefer the
 native tool when visible; otherwise use the audited CLI or HTTP/UDS surface with structured output.
 
 Stable coordination IDs include:
 
-- `agh__network_status`, `agh__network_channels`, and `agh__network_peers`
-- `agh__network_threads` and `agh__network_thread_messages`
-- `agh__network_directs`, `agh__network_direct_resolve`, and `agh__network_direct_messages`
-- `agh__network_work` and `agh__network_send`
+- `compozy__network_status`, `compozy__network_channels`, and `compozy__network_peers`
+- `compozy__network_threads` and `compozy__network_thread_messages`
+- `compozy__network_directs`, `compozy__network_direct_resolve`, and `compozy__network_direct_messages`
+- `compozy__network_work` and `compozy__network_send`
 - channel, subscription, and thread-promotion tools listed by the live registry
 
 Do not infer tool availability from daemon status. Do not access SQLite or internal runtime
@@ -69,10 +69,10 @@ release, recovery, and review verdicts.
 ```bash
 compozy network status -o json
 compozy network channels -o json
-compozy network peers "$AGH_SESSION_CHANNEL" -o json
-compozy network threads list --channel "$AGH_SESSION_CHANNEL" -o json
-compozy network threads messages --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db -o jsonl
-compozy network directs resolve --session "$AGH_SESSION_ID" --channel "$AGH_SESSION_CHANNEL" --peer reviewer.sess-xyz -o json
+compozy network peers "$COMPOZY_SESSION_CHANNEL" -o json
+compozy network threads list --channel "$COMPOZY_SESSION_CHANNEL" -o json
+compozy network threads messages --channel "$COMPOZY_SESSION_CHANNEL" --thread thread_launch_db -o jsonl
+compozy network directs resolve --session "$COMPOZY_SESSION_ID" --channel "$COMPOZY_SESSION_CHANNEL" --peer reviewer.sess-xyz -o json
 compozy network work lookup --work work_review_42 -o json
 compozy network usage -o json
 ```
@@ -81,8 +81,8 @@ Example addressed message:
 
 ```bash
 compozy network send \
-  --session "$AGH_SESSION_ID" \
-  --channel "$AGH_SESSION_CHANNEL" \
+  --session "$COMPOZY_SESSION_ID" \
+  --channel "$COMPOZY_SESSION_CHANNEL" \
   --surface thread \
   --thread thread_launch_brief \
   --to reviewer.sess-xyz \

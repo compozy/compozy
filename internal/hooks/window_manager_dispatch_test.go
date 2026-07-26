@@ -65,7 +65,7 @@ func TestDispatchWindowManagerHooksUseAsyncDurablePayloads(t *testing.T) {
 					got.CommandID != "layout.arrange" ||
 					got.Actor.Kind != "agent" ||
 					got.Actor.ID != "agent-a" ||
-					got.Origin != "native:agh__window_manager_layout_arrange" ||
+					got.Origin != "native:compozy__window_manager_layout_arrange" ||
 					len(got.Changes.WindowIDs) != 1 ||
 					got.Changes.WindowIDs[0] != "window-a" {
 					t.Fatalf("async window-manager payload = %#v", got)
@@ -94,7 +94,7 @@ func windowManagerDispatchTestPayload(event HookEvent) WindowManagerPayload {
 			ClientIDs:  []string{"client-a"},
 		},
 		Actor:  WindowManagerActor{Kind: "agent", ID: "agent-a"},
-		Origin: "native:agh__window_manager_layout_arrange",
+		Origin: "native:compozy__window_manager_layout_arrange",
 	}
 }
 

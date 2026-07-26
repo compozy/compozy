@@ -1,3 +1,3 @@
 package acp
 
-const testWrapperPIDFileEnvKey = "AGH_TEST_WRAPPER_PID_FILE"
+const testWrapperPIDFileEnvKey = "COMPOZY_TEST_WRAPPER_PID_FILE"

@@ -4,8 +4,8 @@ area: MS
 title: Commit one agent memory batch without intermediate state
 persona: Ada
 journey: J-11
-expected: An agent can submit ordered add, replace, and remove operations for one workspace memory document through agh__memory_propose. AGH rejects missing or ambiguous old_text without changing bytes, validates only the final configured body size, records one decision for a successful batch, keeps repeated prompt assembly byte-stable until a committed memory mutation, and recalls the committed fact in the next session.
-entry_points: hosted MCP agh__memory_propose; workspace Memory v2 files; memory decision history; next-session prompt recall
+expected: An agent can submit ordered add, replace, and remove operations for one workspace memory document through compozy__memory_propose. AGH rejects missing or ambiguous old_text without changing bytes, validates only the final configured body size, records one decision for a successful batch, keeps repeated prompt assembly byte-stable until a committed memory mutation, and recalls the committed fact in the next session.
+entry_points: hosted MCP compozy__memory_propose; workspace Memory v2 files; memory decision history; next-session prompt recall
 qa_status: untested
 bug_ids:
 fix_status:

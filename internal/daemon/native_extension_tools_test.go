@@ -572,7 +572,7 @@ func nativeExtensionTarGz(t *testing.T, version string) []byte {
 name = "tool-ext"
 version = %q
 description = "Native tool test extension"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [capabilities]
 provides = ["memory.backend"]
@@ -623,7 +623,7 @@ func writeNativeLocalExtensionFixture(t *testing.T, name string, version string)
 name = %q
 version = %q
 description = "Native local tool test extension"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [capabilities]
 provides = ["memory.backend"]

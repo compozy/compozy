@@ -23,7 +23,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolApprovalsSet,
 			Input: json.RawMessage(
-				`{"tool_id":"agh__approval_probe","decision":"allow","scope":"agent","agent_name":"codex"}`,
+				`{"tool_id":"compozy__approval_probe","decision":"allow","scope":"agent","agent_name":"codex"}`,
 			),
 		})
 		if err != nil {
@@ -40,7 +40,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolApprovalsSet,
 			Input: json.RawMessage(
-				`{"tool_id":"agh__approval_probe","decision":"reject","scope":"tool"}`,
+				`{"tool_id":"compozy__approval_probe","decision":"reject","scope":"tool"}`,
 			),
 		})
 		if err != nil {
@@ -62,12 +62,12 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 			materializedApprovalGrant("grant-a", toolspkg.ApprovalGrantKey{
 				WorkspaceID: "ws-a",
 				AgentName:   "codex",
-				ToolID:      "agh__approval_probe",
+				ToolID:      "compozy__approval_probe",
 				InputDigest: "sha256:abc",
 			}, toolspkg.ApprovalGrantAllow),
 			materializedApprovalGrant("grant-b", toolspkg.ApprovalGrantKey{
 				WorkspaceID: "ws-b",
-				ToolID:      "agh__approval_probe",
+				ToolID:      "compozy__approval_probe",
 			}, toolspkg.ApprovalGrantReject),
 		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -116,7 +116,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		_, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "ws-a"}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolApprovalsSet,
 			Input: json.RawMessage(
-				`{"workspace_id":"ws-b","tool_id":"agh__approval_probe","decision":"allow","scope":"tool"}`,
+				`{"workspace_id":"ws-b","tool_id":"compozy__approval_probe","decision":"allow","scope":"tool"}`,
 			),
 		})
 		if !errors.Is(err, toolspkg.ErrToolDenied) {

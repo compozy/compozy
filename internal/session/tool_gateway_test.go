@@ -40,7 +40,7 @@ func TestProviderNativeToolGatewayIntercept(t *testing.T) {
 				Mode:         hookspkg.HookModeSync,
 				ExecutorKind: hookspkg.HookExecutorNative,
 				Matcher: hookspkg.HookMatcher{
-					ToolID: "agh__write",
+					ToolID: "compozy__write",
 				},
 			}},
 			map[string]hookspkg.Executor{
@@ -50,8 +50,8 @@ func TestProviderNativeToolGatewayIntercept(t *testing.T) {
 						_ hookspkg.RegisteredHook,
 						payload hookspkg.ToolPreCallPayload,
 					) (hookspkg.ToolCallPatch, error) {
-						if payload.ToolID != "agh__write" {
-							t.Fatalf("payload.ToolID = %q, want agh__write", payload.ToolID)
+						if payload.ToolID != "compozy__write" {
+							t.Fatalf("payload.ToolID = %q, want compozy__write", payload.ToolID)
 						}
 						return hookspkg.ToolCallPatch{
 							ControlPatch: hookspkg.ControlPatch{
@@ -79,7 +79,7 @@ func TestProviderNativeToolGatewayIntercept(t *testing.T) {
 		}
 
 		_, err := gateway.Intercept(testutil.Context(t), acp.ToolExecutionRequest{
-			ToolID: "agh__write",
+			ToolID: "compozy__write",
 			Input: json.RawMessage(`{
 				"path": "/tmp/blocked.txt",
 				"content": "blocked"

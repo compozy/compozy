@@ -56,15 +56,15 @@ func sessionStartEnvForProvider(
 		return env
 	}
 
-	env = setSessionStartEnvValue(env, "AGH_SESSION_ID", strings.TrimSpace(session.ID))
-	env = setSessionStartEnvValue(env, "AGH_AGENT", strings.TrimSpace(session.AgentName))
-	env = setSessionStartEnvValue(env, "AGH_AGENT_NAME", strings.TrimSpace(session.AgentName))
-	env = unsetSessionStartEnvKeys(env, "AGH_SESSION_CHANNEL", "AGH_PEER_ID")
+	env = setSessionStartEnvValue(env, "COMPOZY_SESSION_ID", strings.TrimSpace(session.ID))
+	env = setSessionStartEnvValue(env, "COMPOZY_AGENT", strings.TrimSpace(session.AgentName))
+	env = setSessionStartEnvValue(env, "COMPOZY_AGENT_NAME", strings.TrimSpace(session.AgentName))
+	env = unsetSessionStartEnvKeys(env, "COMPOZY_SESSION_CHANNEL", "COMPOZY_PEER_ID")
 
 	if effort := strings.TrimSpace(session.ReasoningEffort); effort != "" {
-		env = setSessionStartEnvValue(env, "AGH_REASONING_EFFORT", effort)
+		env = setSessionStartEnvValue(env, "COMPOZY_REASONING_EFFORT", effort)
 	} else {
-		env = unsetSessionStartEnvKeys(env, "AGH_REASONING_EFFORT")
+		env = unsetSessionStartEnvKeys(env, "COMPOZY_REASONING_EFFORT")
 	}
 
 	if session.NetworkParticipation.Mode != participation.ModeLive {
@@ -72,8 +72,8 @@ func sessionStartEnvForProvider(
 	}
 	channel := strings.TrimSpace(session.NetworkParticipation.ChannelID)
 
-	env = setSessionStartEnvValue(env, "AGH_SESSION_CHANNEL", channel)
-	env = setSessionStartEnvValue(env, "AGH_PEER_ID", networkPeerID(session.AgentName, session.ID))
+	env = setSessionStartEnvValue(env, "COMPOZY_SESSION_CHANNEL", channel)
+	env = setSessionStartEnvValue(env, "COMPOZY_PEER_ID", networkPeerID(session.AgentName, session.ID))
 	return env
 }
 

@@ -21,7 +21,7 @@ import (
 func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -516,7 +516,7 @@ func TestDaemonMemoryReportIntervalDefaultsAndValidation(t *testing.T) {
 func TestLoadSandboxProfilesFromTOML(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -541,7 +541,7 @@ runtime_root = "/home/daytona/workspace"
 
 [sandboxes.daytona-dev.env]
 NODE_ENV = "development"
-AGH_PROFILE = "daytona"
+COMPOZY_PROFILE = "daytona"
 
 [sandboxes.daytona-dev.network]
 allow_public_ingress = false
@@ -920,7 +920,7 @@ func TestSandboxProfileValidationRejectsInvalidPersistence(t *testing.T) {
 func TestLoadWorkspaceOverridesGlobalValues(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -1198,7 +1198,7 @@ allow_active_hours_preferences = false
 func TestLoadMergesTopLevelMCPServersAcrossConfigAndJSONSidecars(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -1290,7 +1290,7 @@ command = "workspace-inline"
 func TestLoadSupportsRemoteMCPAuthFieldsInTOML(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -1572,7 +1572,7 @@ func validObservabilityConfigForTest() ObservabilityConfig {
 func TestLoadWorkspaceAddsValuesWithoutClobberingGlobal(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -1645,7 +1645,7 @@ func TestLoadWithoutWorkspaceRootIgnoresCurrentDirectoryWorkspaceFiles(t *testin
 	dotenvHome := filepath.Join(t.TempDir(), "dotenv-home")
 	cwd := t.TempDir()
 
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -1671,7 +1671,7 @@ port = 3030
 port = 9090
 `)
 
-	writeFile(t, filepath.Join(cwd, ".env"), "AGH_HOME="+dotenvHome+"\n")
+	writeFile(t, filepath.Join(cwd, ".env"), "COMPOZY_HOME="+dotenvHome+"\n")
 	writeFile(t, filepath.Join(cwd, DirName, ConfigName), `
 [http]
 port = 4242
@@ -1708,7 +1708,7 @@ func TestLoadWithWorkspaceRootUsesExplicitRootOnly(t *testing.T) {
 	otherWorkspace := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
 
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -1766,7 +1766,7 @@ ttl = "30m"
 func TestLoadRejectsUnknownConfigKeys(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -1871,7 +1871,7 @@ func TestLoadRejectsRemovedRoleConfigKeys(t *testing.T) {
 func TestLoadRejectsUnknownSkillsConfigKeys(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -2151,7 +2151,7 @@ func TestExtensionsConfigValidateResourcesConfig(t *testing.T) {
 func TestLoadRoundTripsExtensionsResourcePolicy(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -2322,7 +2322,7 @@ func TestDreamConfigValidateRejectsNonPositiveThresholds(t *testing.T) {
 func TestLoadRejectsNonPositiveSkillsPollInterval(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -2346,11 +2346,11 @@ poll_interval = "0s"
 	}
 }
 
-func TestLoadUsesDotEnvForAGHHome(t *testing.T) {
+func TestLoadUsesDotEnvForCompozyHome(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "dotenv-home")
 
-	writeFile(t, filepath.Join(workspaceRoot, ".env"), "AGH_HOME="+homeRoot+"\n")
+	writeFile(t, filepath.Join(workspaceRoot, ".env"), "COMPOZY_HOME="+homeRoot+"\n")
 
 	homePaths, err := ResolveHomePathsFrom(homeRoot)
 	if err != nil {
@@ -2374,12 +2374,12 @@ agent = "dotenv-agent"
 	}
 }
 
-func TestLoadUsesDotEnvForAGHHomeWithoutMutatingProcessEnv(t *testing.T) {
+func TestLoadUsesDotEnvForCompozyHomeWithoutMutatingProcessEnv(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "dotenv-home")
 
-	unsetEnvForTest(t, "AGH_HOME")
-	writeFile(t, filepath.Join(workspaceRoot, ".env"), "AGH_HOME="+homeRoot+"\n")
+	unsetEnvForTest(t, "COMPOZY_HOME")
+	writeFile(t, filepath.Join(workspaceRoot, ".env"), "COMPOZY_HOME="+homeRoot+"\n")
 
 	homePaths, err := ResolveHomePathsFrom(homeRoot)
 	if err != nil {
@@ -2400,13 +2400,13 @@ agent = "dotenv-agent"
 	if cfg.Defaults.Agent != "dotenv-agent" {
 		t.Fatalf("Load() Defaults.Agent = %q, want %q", cfg.Defaults.Agent, "dotenv-agent")
 	}
-	if _, ok := os.LookupEnv("AGH_HOME"); ok {
-		t.Fatal("Load() mutated process AGH_HOME, want workspace dotenv scoped to the current load only")
+	if _, ok := os.LookupEnv("COMPOZY_HOME"); ok {
+		t.Fatal("Load() mutated process COMPOZY_HOME, want workspace dotenv scoped to the current load only")
 	}
 }
 
 func TestLoadForHomeKeepsWebhookSecretRefsUnresolvedAcrossWorkspaceLoads(t *testing.T) {
-	const secretEnv = "AGH_CONFIG_TASK09_WEBHOOK_SECRET"
+	const secretEnv = "COMPOZY_CONFIG_TASK09_WEBHOOK_SECRET"
 
 	unsetEnvForTest(t, secretEnv)
 
@@ -2460,8 +2460,8 @@ func TestLoadWithoutDotEnvOptionIgnoresDotEnv(t *testing.T) {
 	envHome := filepath.Join(t.TempDir(), "dotenv-home")
 	overrideHome := filepath.Join(t.TempDir(), "override-home")
 
-	t.Setenv("AGH_HOME", overrideHome)
-	writeFile(t, filepath.Join(workspaceRoot, ".env"), "AGH_HOME="+envHome+"\n")
+	t.Setenv("COMPOZY_HOME", overrideHome)
+	writeFile(t, filepath.Join(workspaceRoot, ".env"), "COMPOZY_HOME="+envHome+"\n")
 
 	overridePaths, err := ResolveHomePathsFrom(overrideHome)
 	if err != nil {
@@ -2480,7 +2480,7 @@ func TestLoadWithoutDotEnvOptionIgnoresDotEnv(t *testing.T) {
 func TestLoadWithoutValidationReturnsMergedConfig(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -2508,7 +2508,7 @@ port = 0
 func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
@@ -2547,7 +2547,7 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 }
 
 func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
-	t.Setenv("AGH_HOME", "")
+	t.Setenv("COMPOZY_HOME", "")
 
 	cfg, err := defaultConfig()
 	if err != nil {
@@ -2582,7 +2582,7 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 func TestLoadRespectsExplicitNetworkDisable(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
+	t.Setenv("COMPOZY_HOME", homeRoot)
 
 	homePaths, err := ResolveHomePaths()
 	if err != nil {

@@ -281,7 +281,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 				if id != toolspkg.ToolIDToolInfo.String() {
 					t.Fatalf("InvokeTool id = %q, want %q", id, toolspkg.ToolIDToolInfo)
 				}
-				if got, want := string(request.Input), `{"tool_id":"agh__skill_view"}`; got != want {
+				if got, want := string(request.Input), `{"tool_id":"compozy__skill_view"}`; got != want {
 					t.Fatalf("InvokeTool input = %s, want %s", got, want)
 				}
 				if len(request.SensitiveInputFields) != 1 || request.SensitiveInputFields[0] != "token" {
@@ -307,7 +307,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
 			"--input",
-			`{"tool_id":"agh__skill_view"}`,
+			`{"tool_id":"compozy__skill_view"}`,
 			"--sensitive-input-field",
 			"token",
 			"-o",
@@ -331,12 +331,12 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		t.Parallel()
 
 		inputPath := filepath.Join(t.TempDir(), "input.json")
-		if err := os.WriteFile(inputPath, []byte("{\n  \"tool_id\": \"agh__skill_view\"\n}\n"), 0o600); err != nil {
+		if err := os.WriteFile(inputPath, []byte("{\n  \"tool_id\": \"compozy__skill_view\"\n}\n"), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(input) error = %v", err)
 		}
 		client := &stubClient{
 			invokeToolFn: func(_ context.Context, _ string, request ToolInvokeRequest) (ToolInvokeResponseRecord, error) {
-				if got, want := string(request.Input), `{"tool_id":"agh__skill_view"}`; got != want {
+				if got, want := string(request.Input), `{"tool_id":"compozy__skill_view"}`; got != want {
 					t.Fatalf("InvokeTool input = %s, want %s", got, want)
 				}
 				return sampleInvokeResponse(), nil
@@ -368,7 +368,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 
 		client := &stubClient{
 			invokeToolFn: func(_ context.Context, _ string, request ToolInvokeRequest) (ToolInvokeResponseRecord, error) {
-				if got, want := string(request.Input), `{"tool_id":"agh__skill_view"}`; got != want {
+				if got, want := string(request.Input), `{"tool_id":"compozy__skill_view"}`; got != want {
 					t.Fatalf("InvokeTool input = %s, want %s", got, want)
 				}
 				return sampleInvokeResponse(), nil
@@ -377,7 +377,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		stdout, _, err := executeRootCommandWithInput(
 			t,
 			newTestDeps(t, client),
-			`{"tool_id":"agh__skill_view"}`,
+			`{"tool_id":"compozy__skill_view"}`,
 			"tool",
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
@@ -399,7 +399,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 
 		client := &stubClient{
 			invokeToolFn: func(_ context.Context, _ string, request ToolInvokeRequest) (ToolInvokeResponseRecord, error) {
-				if got, want := string(request.Input), `{"tool_id":"agh__skill_view"}`; got != want {
+				if got, want := string(request.Input), `{"tool_id":"compozy__skill_view"}`; got != want {
 					t.Fatalf("InvokeTool input = %s, want %s", got, want)
 				}
 				return sampleInvokeResponse(), nil
@@ -408,7 +408,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		stdout, _, err := executeRootCommandWithInput(
 			t,
 			newTestDeps(t, client),
-			`{"tool_id":"agh__skill_view"}`,
+			`{"tool_id":"compozy__skill_view"}`,
 			"tool",
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
@@ -507,7 +507,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
 			"--input",
-			`{"tool_id":"agh__skill_view"}`,
+			`{"tool_id":"compozy__skill_view"}`,
 			"--input-file",
 			"input.json",
 			"-o",
@@ -868,7 +868,7 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("toolListBundle.human() error = %v", err)
 		}
-		if !strings.Contains(listHuman, "agh__skill_view") || !strings.Contains(listHuman, "mcp_auth_required") {
+		if !strings.Contains(listHuman, "compozy__skill_view") || !strings.Contains(listHuman, "mcp_auth_required") {
 			t.Fatalf("tool list human = %q, want tool ids and reasons", listHuman)
 		}
 		listToon, err := listBundle.toon()
@@ -1041,13 +1041,13 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		if got := strings.Join(
 			toolIDsToStrings([]toolspkg.ToolID{toolspkg.ToolIDSkillView}),
 			",",
-		); got != "agh__skill_view" {
+		); got != "compozy__skill_view" {
 			t.Fatalf("toolIDsToStrings() = %q, want skill view", got)
 		}
 		if got := strings.Join(
 			toolsetIDsToStrings([]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog}),
 			",",
-		); got != "agh__catalog" {
+		); got != "compozy__catalog" {
 			t.Fatalf("toolsetIDsToStrings() = %q, want catalog", got)
 		}
 		if got := formatBool(false); got != "false" {
@@ -1300,7 +1300,7 @@ func sampleToolsetsResponse() ToolsetsResponseRecord {
 	return ToolsetsResponseRecord{Toolsets: []ToolsetRecord{
 		{
 			ID:            toolspkg.ToolsetIDCatalog,
-			Tools:         []string{"agh__skill_*"},
+			Tools:         []string{"compozy__skill_*"},
 			Toolsets:      []toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap},
 			ExpandedTools: []toolspkg.ToolID{toolspkg.ToolIDToolList, toolspkg.ToolIDSkillView},
 			Status:        "expanded",
@@ -1321,7 +1321,7 @@ func sampleInvokeResponse() ToolInvokeResponseRecord {
 		Status:     "completed",
 		DurationMS: 4,
 		Result: toolspkg.ToolResult{
-			Preview:    "agh__skill_view",
+			Preview:    "compozy__skill_view",
 			Structured: json.RawMessage(`{"ok":true}`),
 			DurationMS: 4,
 		},

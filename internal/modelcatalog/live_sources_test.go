@@ -772,7 +772,7 @@ func TestLiveDiscoverySupportTypes(t *testing.T) {
 			ProviderID: "helper",
 			Command:    os.Args[0],
 			Args:       []string{"-test.run=TestLiveDiscoveryHelperProcess", "--", "ok"},
-			Env:        append(os.Environ(), "AGH_LIVE_DISCOVERY_HELPER=1"),
+			Env:        append(os.Environ(), "COMPOZY_LIVE_DISCOVERY_HELPER=1"),
 			Timeout:    time.Second,
 		})
 		if err != nil {
@@ -788,7 +788,7 @@ func TestLiveDiscoverySupportTypes(t *testing.T) {
 }
 
 func TestLiveDiscoveryHelperProcess(_ *testing.T) {
-	if os.Getenv("AGH_LIVE_DISCOVERY_HELPER") != "1" {
+	if os.Getenv("COMPOZY_LIVE_DISCOVERY_HELPER") != "1" {
 		return
 	}
 	fmt.Fprint(os.Stdout, `[{"id":"helper-model"}]`)

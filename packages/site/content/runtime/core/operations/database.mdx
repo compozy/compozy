@@ -17,21 +17,21 @@ directories.
 Set the home path used by the commands below:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
 ```
 
-| Path                                        | Purpose                                                                                                                                                                               |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$AGH_HOME/agh.db`                          | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
-| `$AGH_HOME/sessions/<session-id>/events.db` | Full event store for one AGH session.                                                                                                                                                 |
-| `$AGH_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                                           |
+| Path                                            | Purpose                                                                                                                                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/agh.db`                          | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one AGH session.                                                                                                                                                 |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                                           |
 
 The global database is an index and catalog. The per-session `events.db` files hold the detailed
 session timeline.
 
 <Mermaid
   chart={`flowchart TD
-  Home["$AGH_HOME"] --> Global["agh.db global catalog"]
+  Home["$COMPOZY_HOME"] --> Global["agh.db global catalog"]
   Home --> Sessions["sessions/"]
   Sessions --> One["<session-id>/"]
   One --> Events["events.db event stream"]
@@ -46,13 +46,13 @@ session timeline.
 Use this for scheduled maintenance windows and before upgrades:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
 backup="$HOME/agh-backups/$(date +%Y%m%d-%H%M%S)"
 
 agh daemon stop
 mkdir -p "$backup"
-cp -a "$AGH_HOME"/agh.db* "$backup"/
-cp -a "$AGH_HOME/sessions" "$backup"/sessions
+cp -a "$COMPOZY_HOME"/agh.db* "$backup"/
+cp -a "$COMPOZY_HOME/sessions" "$backup"/sessions
 agh daemon start
 ```
 
@@ -64,13 +64,13 @@ session metadata file.
 Use SQLite's backup command when you cannot stop the daemon:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
 backup="$HOME/agh-backups/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$backup/sessions"
 
-sqlite3 "$AGH_HOME/agh.db" ".backup '$backup/agh.db'"
+sqlite3 "$COMPOZY_HOME/agh.db" ".backup '$backup/agh.db'"
 
-find "$AGH_HOME/sessions" -mindepth 2 -maxdepth 2 -name events.db -type f -print0 |
+find "$COMPOZY_HOME/sessions" -mindepth 2 -maxdepth 2 -name events.db -type f -print0 |
 while IFS= read -r -d '' db; do
   session_dir="$(basename "$(dirname "$db")")"
   mkdir -p "$backup/sessions/$session_dir"
@@ -86,7 +86,7 @@ This reads each database through SQLite instead of copying the main file without
 Open the global database directly:
 
 ```bash
-sqlite3 "$AGH_HOME/agh.db"
+sqlite3 "$COMPOZY_HOME/agh.db"
 ```
 
 List recent sessions:
@@ -122,12 +122,12 @@ ordered event stream for one session.
 
 AGH versions each SQLite authority as an independent Goose migration stream:
 
-| Stream      | Database family                          | Version table                |
-| ----------- | ---------------------------------------- | ---------------------------- |
-| `global`    | `$AGH_HOME/agh.db` global runtime tables | `goose_db_version_global`    |
-| `memory`    | `$AGH_HOME/agh.db` memory catalog tables | `goose_db_version_memory`    |
-| `session`   | Per-session `events.db`                  | `goose_db_version_session`   |
-| `workspace` | Workspace-local `.agh/agh.db`            | `goose_db_version_workspace` |
+| Stream      | Database family                              | Version table                |
+| ----------- | -------------------------------------------- | ---------------------------- |
+| `global`    | `$COMPOZY_HOME/agh.db` global runtime tables | `goose_db_version_global`    |
+| `memory`    | `$COMPOZY_HOME/agh.db` memory catalog tables | `goose_db_version_memory`    |
+| `session`   | Per-session `events.db`                      | `goose_db_version_session`   |
+| `workspace` | Workspace-local `.agh/agh.db`                | `goose_db_version_workspace` |
 
 Before AGH runs pending SQL migrations, it rejects pre-Goose markers, validates the embedded
 `atlas.sum`, and refuses a recorded version newer than the binary. The runtime does not edit a
@@ -150,7 +150,7 @@ Set the session ID and query its event store:
 
 ```bash
 session_id="sess_1234"
-sqlite3 "$AGH_HOME/sessions/$session_id/events.db"
+sqlite3 "$COMPOZY_HOME/sessions/$session_id/events.db"
 ```
 
 Show recent events:
@@ -197,15 +197,15 @@ archive flow instead of deleting files in place.
    agh daemon stop
    ```
 
-3. Back up `AGH_HOME` using the cold backup steps above.
+3. Back up `COMPOZY_HOME` using the cold backup steps above.
 
 4. Move the old stopped session directory into an archive location:
 
    ```bash
-   export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+   export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
    session_id="sess_1234"
-   mkdir -p "$AGH_HOME/session-archive"
-   mv "$AGH_HOME/sessions/$session_id" "$AGH_HOME/session-archive/$session_id"
+   mkdir -p "$COMPOZY_HOME/session-archive"
+   mv "$COMPOZY_HOME/sessions/$session_id" "$COMPOZY_HOME/session-archive/$session_id"
    ```
 
 5. Start the daemon and confirm current sessions still list correctly:
@@ -228,10 +228,10 @@ repair, or replace any member of the database family automatically.
 If this happens:
 
 1. Stop the daemon and keep it stopped during recovery.
-2. Make a cold copy of the complete containing `AGH_HOME` or workspace `.agh` family, including every
+2. Make a cold copy of the complete containing `COMPOZY_HOME` or workspace `.agh` family, including every
    database and SQLite sidecar.
 3. Diagnose the copy. Do not run repair or migration writes against the original files.
-4. Restore a complete known-good family, or select a separate fresh `AGH_HOME` when discarding the
+4. Restore a complete known-good family, or select a separate fresh `COMPOZY_HOME` when discarding the
    retained state is acceptable.
 5. Start the daemon and run `agh doctor`.
 
@@ -242,4 +242,4 @@ family is recovery evidence, not a backup strategy.
 
 - [Daemon Operations](/runtime/core/operations/daemon) covers the runtime files that point to these databases.
 - [Session Events](/runtime/core/sessions/events) explains the session event stream stored in `events.db`.
-- [File Locations](/runtime/core/configuration/file-locations) lists the full `AGH_HOME` layout.
+- [File Locations](/runtime/core/configuration/file-locations) lists the full `COMPOZY_HOME` layout.

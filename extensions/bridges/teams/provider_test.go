@@ -64,7 +64,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			"delivery-progress-off",
 			1,
 			"call-off",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		ack, err := provider.handleBridgesProgress(
@@ -134,7 +134,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			"delivery-progress-failure",
 			1,
 			"call-failure",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		if _, err := provider.handleBridgesProgress(
@@ -180,7 +180,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			"delivery-progress-disabled",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		second := testTeamsProgressRequest(
@@ -188,7 +188,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			"delivery-progress-disabled",
 			2,
 			"call-2",
-			"agh__task_list",
+			"compozy__task_list",
 			"Reading tasks",
 		)
 		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
@@ -255,7 +255,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			"delivery-progress-on",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		second := testTeamsProgressRequest(
@@ -263,7 +263,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			"delivery-progress-on",
 			2,
 			"call-2",
-			"agh__task_list",
+			"compozy__task_list",
 			"Reading tasks",
 		)
 		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
@@ -361,7 +361,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			"delivery-progress-committed-flush",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		second := testTeamsProgressRequest(
@@ -369,7 +369,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			first.Event.DeliveryID,
 			2,
 			"call-2",
-			"agh__task_list",
+			"compozy__task_list",
 			"Reading tasks",
 		)
 		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
@@ -441,7 +441,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			"delivery-final-committed",
 			1,
 			"call-1",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		if _, err := provider.handleBridgesProgress(
@@ -513,7 +513,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			"delivery-progress-dm",
 			1,
 			"call-dm",
-			"agh__terminal",
+			"compozy__terminal",
 			"Inspecting",
 		)
 		request.Event.RoutingKey.GroupID = ""

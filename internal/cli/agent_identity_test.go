@@ -157,7 +157,7 @@ func TestAgentCommandErrorRendering(t *testing.T) {
 			t.Fatalf("payload.Error.ExitCode = %d, want %d", payload.Error.ExitCode, agentidentity.ExitIdentityRequired)
 		}
 		if !strings.Contains(payload.Error.Message, agentidentity.EnvSessionID+" is required") {
-			t.Fatalf("payload.Error.Message = %q, want AGH_SESSION_ID guidance", payload.Error.Message)
+			t.Fatalf("payload.Error.Message = %q, want COMPOZY_SESSION_ID guidance", payload.Error.Message)
 		}
 	})
 
@@ -218,7 +218,7 @@ func TestAgentCommandErrorRendering(t *testing.T) {
 		if strings.TrimSpace(stdout) != "" {
 			t.Fatalf("executeRootCommandWithExit() stdout = %q, want empty", stdout)
 		}
-		if !strings.Contains(stderr, "error: AGH_SESSION_ID is required") {
+		if !strings.Contains(stderr, "error: COMPOZY_SESSION_ID is required") {
 			t.Fatalf("executeRootCommandWithExit() stderr = %q, want human error prefix", stderr)
 		}
 	})

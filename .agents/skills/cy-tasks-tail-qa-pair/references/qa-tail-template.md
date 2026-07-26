@@ -34,7 +34,7 @@ Body content:
 - Frontmatter `type: qa-execution` (required by the loop phase detector).
 - `<critical>ALWAYS READ the in-scope docs/qa/scenarios/ files, open docs/qa/bugs/, and the cycle's charters in docs/qa/charters/ before executing.</critical>`
 - Activate `qa-execution` with `qa-docs-path=docs/qa`. For release-grade scope on the AGH runtime, also activate `real-scenario-qa` (playbook lab + operator kickoff + runtime observation).
-- Activate `agh-worktree-isolation` (unique `AGH_HOME` + ports + tmux socket) when concurrency is signaled.
+- Activate `agh-worktree-isolation` (unique `COMPOZY_HOME` + ports + tmux socket) when concurrency is signaled.
 - For UI features: drive Playwright via `browser-use:browser` with `agent-browser` fallback.
 - For CLI/API/agent-manageability features: exercise structured CLI output, HTTP/UDS routes, status/config discovery, deterministic errors, and compare persisted state.
 - Register every reproduced defect in `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first) and link it in the affected scenario files.
@@ -49,7 +49,7 @@ When `requires_e2e=true`:
 
 When `requires_cli_e2e=true` and `requires_e2e=false`:
 
-> Run `make test-e2e-runtime` and exercise the affected CLI verbs, HTTP/UDS routes, agent-operation paths, and config lifecycle end-to-end against a daemon-served runtime (unique `AGH_HOME`). Compare structured CLI output with HTTP/UDS responses for the same persisted state.
+> Run `make test-e2e-runtime` and exercise the affected CLI verbs, HTTP/UDS routes, agent-operation paths, and config lifecycle end-to-end against a daemon-served runtime (unique `COMPOZY_HOME`). Compare structured CLI output with HTTP/UDS responses for the same persisted state.
 
 When neither is true (rare backend-only):
 

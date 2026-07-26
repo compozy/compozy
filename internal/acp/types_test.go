@@ -35,7 +35,7 @@ func TestAgentEventToolPayloadPreservesValueSemantics(t *testing.T) {
 
 		input := json.RawMessage(`{"command":"original"}`)
 		event := (AgentEvent{Type: EventTypeToolCall}).WithToolDetail(
-			"agh__terminal",
+			"compozy__terminal",
 			input,
 			true,
 			"command failed",
@@ -48,9 +48,9 @@ func TestAgentEventToolPayloadPreservesValueSemantics(t *testing.T) {
 		input[2] = 'X'
 		returned := event.ToolInput()
 		returned[2] = 'Y'
-		copied = copied.WithTool("agh__read", json.RawMessage(`{"path":"README.md"}`), false)
+		copied = copied.WithTool("compozy__read", json.RawMessage(`{"path":"README.md"}`), false)
 
-		if got, want := event.ToolName(), "agh__terminal"; got != want {
+		if got, want := event.ToolName(), "compozy__terminal"; got != want {
 			t.Fatalf("original tool name = %q, want %q", got, want)
 		}
 		if got, want := string(event.ToolInput()), `{"command":"original"}`; got != want {
@@ -62,7 +62,7 @@ func TestAgentEventToolPayloadPreservesValueSemantics(t *testing.T) {
 		if got, want := event.ToolErrorDetail(), "command failed"; got != want {
 			t.Fatalf("original tool error detail = %q, want %q", got, want)
 		}
-		if got, want := copied.ToolName(), "agh__read"; got != want {
+		if got, want := copied.ToolName(), "compozy__read"; got != want {
 			t.Fatalf("copied tool name = %q, want %q", got, want)
 		}
 	})

@@ -66,9 +66,9 @@ export {
   FORMAT_TIME_FALLBACK,
 } from "./lib/format-time";
 export {
-  AGH_CODE_DEFAULT_THEME,
-  AGH_CODE_SUPPORTED_LANGUAGES,
-  AGH_CODE_THEMES,
+  COMPOZY_CODE_DEFAULT_THEME,
+  COMPOZY_CODE_SUPPORTED_LANGUAGES,
+  COMPOZY_CODE_THEMES,
   normalizeAghCodeLanguage,
   resolveAghCodeThemeName,
   type AghCodeLanguage,

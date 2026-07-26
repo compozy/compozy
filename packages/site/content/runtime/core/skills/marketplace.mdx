@@ -11,8 +11,8 @@ installed skills; use the discovery CLI or API when you need the remote catalog.
 CLI can perform its registry operations without requiring the daemon to be running.
 
 <OperatorNote>
-  Marketplace skills are installed into `$AGH_HOME/skills/`. AGH marks them as marketplace-sourced
-  by writing `.agh-meta.json` next to `SKILL.md`.
+  Marketplace skills are installed into `$COMPOZY_HOME/skills/`. AGH marks them as
+  marketplace-sourced by writing `.agh-meta.json` next to `SKILL.md`.
 </OperatorNote>
 
 ## Configure the Registry
@@ -75,11 +75,11 @@ Install behavior:
 
 1. AGH resolves the configured registry.
 2. It fetches marketplace detail for the slug.
-3. It downloads the archive into a temporary staging directory under `$AGH_HOME/skills/`.
+3. It downloads the archive into a temporary staging directory under `$COMPOZY_HOME/skills/`.
 4. It verifies the archive shape and scans content before install.
 5. It computes a deterministic directory hash.
 6. It writes `.agh-meta.json`.
-7. It moves the skill into `$AGH_HOME/skills/<parsed-skill-name>`.
+7. It moves the skill into `$COMPOZY_HOME/skills/<parsed-skill-name>`.
 
 Installed marketplace skills then load from the global registry. If the same skill name already
 exists in a lower source, the higher-precedence source wins according to the normal skill hierarchy.
@@ -109,7 +109,7 @@ The existing lifecycle routes remain under `/api/skills/marketplace`:
 
 | Operation | Endpoint                                | Behavior                                                                     |
 | --------- | --------------------------------------- | ---------------------------------------------------------------------------- |
-| Install   | `POST /api/skills/marketplace/install`  | Installs a remote skill into `$AGH_HOME/skills/`.                            |
+| Install   | `POST /api/skills/marketplace/install`  | Installs a remote skill into `$COMPOZY_HOME/skills/`.                        |
 | Update    | `POST /api/skills/marketplace/update`   | Checks or applies updates for one skill or all marketplace-installed skills. |
 | Remove    | `DELETE /api/skills/marketplace/{name}` | Removes one installed marketplace skill by local skill name.                 |
 

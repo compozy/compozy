@@ -1006,7 +1006,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		Args:      []string{"network", "status"},
 		Cwd:       new(proc.Cwd),
 		Env: []acpsdk.EnvVariable{
-			{Name: "AGH_HOME", Value: "/tmp/redirected"},
+			{Name: "COMPOZY_HOME", Value: "/tmp/redirected"},
 			{Name: "SAFE_NETWORK_OVERRIDE", Value: "blocked"},
 		},
 	})
@@ -1027,8 +1027,8 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	if got, ok := envValue(networkTerm.cmd.Env, "OPENAI_API_KEY"); ok {
 		t.Fatalf("network terminal OPENAI_API_KEY = %q, want filtered", got)
 	}
-	if got, ok := envValue(networkTerm.cmd.Env, "AGH_HOME"); ok {
-		t.Fatalf("network terminal AGH_HOME = %q, want request env ignored", got)
+	if got, ok := envValue(networkTerm.cmd.Env, "COMPOZY_HOME"); ok {
+		t.Fatalf("network terminal COMPOZY_HOME = %q, want request env ignored", got)
 	}
 	if got, ok := envValue(networkTerm.cmd.Env, "SAFE_NETWORK_OVERRIDE"); ok {
 		t.Fatalf("network terminal SAFE_NETWORK_OVERRIDE = %q, want request env ignored", got)

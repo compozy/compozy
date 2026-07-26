@@ -47,7 +47,7 @@ const (
 	agentDefName            = AgentDefinitionFileName
 )
 
-// HomePaths captures the filesystem layout for the AGH home directory.
+// HomePaths captures the filesystem layout for the Compozy home directory.
 type HomePaths struct {
 	HomeDir          string
 	ConfigFile       string
@@ -67,7 +67,7 @@ type HomePaths struct {
 	DaemonInfo       string
 }
 
-// ResolveHomeDir resolves the global AGH home directory, honoring AGH_HOME when present.
+// ResolveHomeDir resolves the global Compozy home directory, honoring COMPOZY_HOME when present.
 func ResolveHomeDir() (string, error) {
 	return resolveHomeDir(processEnvLookup)
 }
@@ -138,7 +138,7 @@ func fallbackOperatorHomeDir(homePaths HomePaths) (string, bool) {
 
 func resolveHomeDir(lookup envLookup) (string, error) {
 	if lookup != nil {
-		if override, ok := lookup("AGH_HOME"); ok && strings.TrimSpace(override) != "" {
+		if override, ok := lookup("COMPOZY_HOME"); ok && strings.TrimSpace(override) != "" {
 			return resolveAbsoluteDir(override)
 		}
 	}
@@ -151,13 +151,13 @@ func resolveHomeDir(lookup envLookup) (string, error) {
 	return filepath.Join(userHome, DirName), nil
 }
 
-// ResolveHomePaths resolves the canonical AGH home layout.
+// ResolveHomePaths resolves the canonical Compozy home layout.
 func ResolveHomePaths() (HomePaths, error) {
 	return resolveHomePaths(processEnvLookup)
 }
 
-// ResolveHomePathsForWorkspace resolves the canonical AGH home layout while
-// honoring AGH_HOME from the supplied workspace .env when the process env omits it.
+// ResolveHomePathsForWorkspace resolves the canonical Compozy home layout while
+// honoring COMPOZY_HOME from the supplied workspace .env when the process env omits it.
 func ResolveHomePathsForWorkspace(workspaceRoot string) (HomePaths, error) {
 	workspaceRoot, err := resolveWorkspaceRoot(workspaceRoot)
 	if err != nil {
@@ -183,7 +183,7 @@ func resolveHomePaths(lookup envLookup) (HomePaths, error) {
 	return ResolveHomePathsFrom(homeDir)
 }
 
-// ResolveHomePathsFrom resolves the canonical AGH home layout from an explicit directory.
+// ResolveHomePathsFrom resolves the canonical Compozy home layout from an explicit directory.
 func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 	root, err := resolveAbsoluteDir(homeDir)
 	if err != nil {
@@ -210,7 +210,7 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 	}, nil
 }
 
-// EnsureHomeLayout creates the directories required by the AGH home layout.
+// EnsureHomeLayout creates the directories required by the Compozy home layout.
 func EnsureHomeLayout(paths HomePaths) error {
 	for _, dir := range []string{
 		paths.HomeDir,

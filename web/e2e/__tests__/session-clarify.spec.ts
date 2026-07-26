@@ -20,7 +20,7 @@ import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 // is read-only (`RiskRead`, no interaction gate), so `approve-reads` does not open a permission prompt.
 const MOCK_AGENT = "mock-session-clarify";
 const FIXTURE_AGENT = "tool-approval-grants";
-const CLARIFY_TOOL = "agh__clarify";
+const CLARIFY_TOOL = "compozy__clarify";
 const CLARIFY_CHOICES = ["Staging", "Production"];
 const CHOSEN_INDEX = 1;
 

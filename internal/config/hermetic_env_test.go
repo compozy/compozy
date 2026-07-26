@@ -10,10 +10,10 @@ import (
 func TestHermeticEnvShieldsConfigAndHomeLoads(t *testing.T) {
 	t.Run("Should scrub operator environment before config and home resolution", func(t *testing.T) {
 		setConfigTestEnv(t, "OPENAI_API_KEY", "sk-operator")
-		setConfigTestEnv(t, "AGH_LOG_LEVEL", "debug")
+		setConfigTestEnv(t, "COMPOZY_LOG_LEVEL", "debug")
 
 		hermetic := testutil.ApplyHermeticEnv(t)
-		for _, key := range []string{"OPENAI_API_KEY", "AGH_LOG_LEVEL"} {
+		for _, key := range []string{"OPENAI_API_KEY", "COMPOZY_LOG_LEVEL"} {
 			if value, ok := os.LookupEnv(key); ok {
 				t.Fatalf("%s = %q, want scrubbed before config load", key, value)
 			}
@@ -24,7 +24,7 @@ func TestHermeticEnvShieldsConfigAndHomeLoads(t *testing.T) {
 			t.Fatalf("ResolveHomePaths() error = %v", err)
 		}
 		if got, want := homePaths.HomeDir, hermetic.HomeDir; got != want {
-			t.Fatalf("ResolveHomePaths() HomeDir = %q, want hermetic AGH_HOME %q", got, want)
+			t.Fatalf("ResolveHomePaths() HomeDir = %q, want hermetic COMPOZY_HOME %q", got, want)
 		}
 		if err := EnsureHomeLayout(homePaths); err != nil {
 			t.Fatalf("EnsureHomeLayout() error = %v", err)

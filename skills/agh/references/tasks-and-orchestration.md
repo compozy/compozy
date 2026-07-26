@@ -6,13 +6,13 @@ The daemon owns task state. Treat task.Service, persisted task/run records, sess
 
 Do not infer task ownership from a message. Do not mutate task state outside AGH task tools or the equivalent CLI/API surface.
 
-Task inspection, task pause/resume, forced run recovery, scheduler pause/resume/drain, and scheduler backlog are management surfaces. They are not currently exposed as native `agh__*` tools. Use CLI or HTTP/UDS with structured output when you need those controls.
+Task inspection, task pause/resume, forced run recovery, scheduler pause/resume/drain, and scheduler backlog are management surfaces. They are not currently exposed as native `compozy__*` tools. Use CLI or HTTP/UDS with structured output when you need those controls.
 
 ## Catalog And Inbox Reads
 
-Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `agh__task_list`. Filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, resolved participation channel, title/identifier search, sort (`recent` or `priority`), cursor, and limit. The participation filter is `--participation-channel` in the CLI and `participation_channel` in HTTP/UDS and native input. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace_id`/`search`.
+Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `compozy__task_list`. Filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, resolved participation channel, title/identifier search, sort (`recent` or `priority`), cursor, and limit. The participation filter is `--participation-channel` in the CLI and `participation_channel` in HTTP/UDS and native input. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace_id`/`search`.
 
-Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `agh__task_run_list` for run history. All three filter by status, attached session, resolved participation channel, and limit; filtering happens before the limit is applied.
+Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `compozy__task_run_list` for run history. All three filter by status, attached session, resolved participation channel, and limit; filtering happens before the limit is applied.
 
 The catalog returns lean `tasks`, exact fully filtered `facets.statuses/owners`, and counted `page` (`total`, normalized `limit`, `has_more`, `next_cursor`). Canonical status is derived before filtering. Pages default to 50, cap at 200, and sort by latest durable activity or by priority then activity. Opaque cursors bind normalized scope, workspace, filters, and sort, but not limit; use task get/inspect for dependency, pause/block, and other rich detail omitted from list rows.
 

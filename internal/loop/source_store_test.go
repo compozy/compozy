@@ -88,7 +88,7 @@ func TestSourceStoreShouldValidateWriteForkAndDelete(t *testing.T) {
 		body := strings.Replace(
 			loopDefinitionYAML("tool-action-write"),
 			"      kind: transform",
-			"      kind: agh__network_send",
+			"      kind: compozy__network_send",
 			1,
 		)
 		spec, path, err := loop.WriteDefinition(

@@ -41,7 +41,7 @@ const (
 	defaultPollInterval = 100 * time.Millisecond
 	maxStartAttempts    = 3
 	windowsGOOS         = "windows"
-	daemonBinaryEnvVar  = "AGH_TEST_DAEMON_BIN"
+	daemonBinaryEnvVar  = "COMPOZY_TEST_DAEMON_BIN"
 	runtimeManifestName = "runtime-manifest.json"
 )
 

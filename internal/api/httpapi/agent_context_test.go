@@ -117,7 +117,7 @@ func TestAgentContextHTTPIdentity(t *testing.T) {
 
 		var response contract.ErrorPayload
 		decodeJSONResponse(t, recorder, &response)
-		if !strings.Contains(response.Error, "AGH_SESSION_ID is required") {
+		if !strings.Contains(response.Error, "COMPOZY_SESSION_ID is required") {
 			t.Fatalf("error body = %#v, want missing session identity guidance", response)
 		}
 	})

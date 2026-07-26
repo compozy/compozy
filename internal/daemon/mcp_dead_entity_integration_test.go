@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	deadEntityMCPStatePathEnv    = "AGH_TEST_DEAD_ENTITY_MCP_STATE_PATH"
+	deadEntityMCPStatePathEnv    = "COMPOZY_TEST_DEAD_ENTITY_MCP_STATE_PATH"
 	deadEntityMCPStateReady      = "ready"
 	deadEntityMCPStateTerminated = "terminated"
 )

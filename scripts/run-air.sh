@@ -11,13 +11,13 @@ air_version=$1
 shift
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-cache_root=${AGH_AIR_CACHE_DIR:-$repo_root/.tmp/tools/air}
+cache_root=${COMPOZY_AIR_CACHE_DIR:-$repo_root/.tmp/tools/air}
 install_dir="$cache_root/$air_version"
 air_binary="$install_dir/air"
 
-if [[ -z ${AGH_AIR_DEV_RUN_ID:-} ]]; then
-  AGH_AIR_DEV_RUN_ID="run-air-$$-$(date +%s)"
-  export AGH_AIR_DEV_RUN_ID
+if [[ -z ${COMPOZY_AIR_DEV_RUN_ID:-} ]]; then
+  COMPOZY_AIR_DEV_RUN_ID="run-air-$$-$(date +%s)"
+  export COMPOZY_AIR_DEV_RUN_ID
 fi
 
 if [[ ! -x "$air_binary" ]]; then

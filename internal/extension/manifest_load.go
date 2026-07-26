@@ -58,13 +58,13 @@ func (m *Manifest) Validate() error {
 	if err := validateSemanticVersionField("version", m.Version); err != nil {
 		return err
 	}
-	if err := requireField("min_agh_version", m.MinAGHVersion); err != nil {
+	if err := requireField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
 		return err
 	}
-	if err := validateSemanticVersionField("min_agh_version", m.MinAGHVersion); err != nil {
+	if err := validateSemanticVersionField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
 		return err
 	}
-	if err := validateDaemonCompatibility(m.MinAGHVersion); err != nil {
+	if err := validateDaemonCompatibility(m.MinCompozyVersion); err != nil {
 		return err
 	}
 	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {

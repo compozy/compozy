@@ -50,7 +50,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		if strings.Contains(second, `name="qa-marker-skill"`) {
 			t.Fatalf("second prompt = %q, want compact marker without repeated skill entries", second)
 		}
-		if !strings.Contains(second, "resolve canonical `agh__skill_view` for full skill/resource instructions") {
+		if !strings.Contains(second, "resolve canonical `compozy__skill_view` for full skill/resource instructions") {
 			t.Fatalf("second prompt = %q, want compact harness-agnostic skill_view guidance", second)
 		}
 		if !strings.Contains(second, "use `compozy skill view <name>` as an operator fallback") {
@@ -187,7 +187,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			"metadata:",
 			"  agh:",
 			"    when:",
-			"      requires_tools: [agh__skill_view]",
+			"      requires_tools: [compozy__skill_view]",
 			"---",
 			"body",
 		}, "\n")
@@ -207,7 +207,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 				}
 				tools := make([]string, 0)
 				if toolAvailable.Load() {
-					tools = append(tools, "agh__skill_view")
+					tools = append(tools, "compozy__skill_view")
 				}
 				return skillspkg.ActivationContext{Platform: "linux", Tools: tools}, nil
 			}),

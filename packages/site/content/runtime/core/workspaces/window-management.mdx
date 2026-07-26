@@ -100,7 +100,7 @@ agh layout apply --workspace <workspace-id> --revision <revision> --file layout.
 Export omits history. Validate never writes. Apply validates the complete document, binds it to the
 requested workspace, preserves current routes for surviving window IDs, and replaces the topology
 atomically. Extensions and bundles can contribute
-declarative `window_layout` resources; discover them through `agh__resources_list`, then arrange by
+declarative `window_layout` resources; discover them through `compozy__resources_list`, then arrange by
 `resource_id`. The Settings layout editor lists and saves profiles through
 `/api/workspaces/{workspace_id}/window-manager/layout-profiles`. That projection contains global
 profiles plus profiles scoped to the selected workspace, and rejects cross-workspace writes.
@@ -115,8 +115,8 @@ constructing or editing this recovery state.
 
 ## Agent and transport access
 
-The lazy `agh__window_manager` toolset exposes 26 desktop, window, and layout tools with structured
-revisions, diagnostics, capability gates, and risk classifications. Resolve `agh__tool_info` before
+The lazy `compozy__window_manager` toolset exposes 26 desktop, window, and layout tools with structured
+revisions, diagnostics, capability gates, and risk classifications. Resolve `compozy__tool_info` before
 calling a tool. CLI fallbacks are grouped under [`agh desktop`](/runtime/cli-reference/desktop),
 [`agh window`](/runtime/cli-reference/window), and [`agh layout`](/runtime/cli-reference/layout).
 

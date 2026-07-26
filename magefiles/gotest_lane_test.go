@@ -147,45 +147,45 @@ func TestHermeticGoTestEnvFromBase(t *testing.T) {
 	t.Run("Should scrub ambient runtime-state vars and keep everything else", func(t *testing.T) {
 		t.Parallel()
 		base := []string{
-			"AGH_HOME=/tmp/stale-qa-lab/runtime",
-			"AGH_HTTP_PORT=54321",
-			"AGH_TEST_DAEMON_BIN=/tmp/daemon",
-			"AGH_LIVE_DISCOVERY_HELPER=/tmp/helper",
+			"COMPOZY_HOME=/tmp/stale-qa-lab/runtime",
+			"COMPOZY_HTTP_PORT=54321",
+			"COMPOZY_TEST_DAEMON_BIN=/tmp/daemon",
+			"COMPOZY_LIVE_DISCOVERY_HELPER=/tmp/helper",
 			"PROVIDER_HOME=/tmp/stale-provider",
 			"PATH=/usr/bin",
 		}
 		var log bytes.Buffer
 		got := hermeticGoTestEnvFromBase(base, nil, &log)
-		for _, banned := range []string{"AGH_HOME=/tmp/stale-qa-lab/runtime", "AGH_HTTP_PORT=54321", "PROVIDER_HOME=/tmp/stale-provider"} {
+		for _, banned := range []string{"COMPOZY_HOME=/tmp/stale-qa-lab/runtime", "COMPOZY_HTTP_PORT=54321", "PROVIDER_HOME=/tmp/stale-provider"} {
 			if slices.Contains(got, banned) {
 				t.Fatalf("hermeticGoTestEnvFromBase() kept ambient %q; env = %v", banned, got)
 			}
 		}
-		for _, kept := range []string{"AGH_TEST_DAEMON_BIN=/tmp/daemon", "AGH_LIVE_DISCOVERY_HELPER=/tmp/helper", "PATH=/usr/bin"} {
+		for _, kept := range []string{"COMPOZY_TEST_DAEMON_BIN=/tmp/daemon", "COMPOZY_LIVE_DISCOVERY_HELPER=/tmp/helper", "PATH=/usr/bin"} {
 			if !slices.Contains(got, kept) {
 				t.Fatalf("hermeticGoTestEnvFromBase() dropped %q; env = %v", kept, got)
 			}
 		}
-		if !bytes.Contains(log.Bytes(), []byte("AGH_HOME")) {
+		if !bytes.Contains(log.Bytes(), []byte("COMPOZY_HOME")) {
 			t.Fatalf("scrub note missing dropped var name; log = %q", log.String())
 		}
 	})
 
 	t.Run("Should let explicit lane overrides win over the scrub", func(t *testing.T) {
 		t.Parallel()
-		base := []string{"AGH_WEB_DIST_DIR=/tmp/stale-dist"}
+		base := []string{"COMPOZY_WEB_DIST_DIR=/tmp/stale-dist"}
 		got := hermeticGoTestEnvFromBase(
 			base,
-			map[string]string{"AGH_WEB_DIST_DIR": "/lane/dist", "CGO_ENABLED": "1"},
+			map[string]string{"COMPOZY_WEB_DIST_DIR": "/lane/dist", "CGO_ENABLED": "1"},
 			nil,
 		)
-		if !slices.Contains(got, "AGH_WEB_DIST_DIR=/lane/dist") {
+		if !slices.Contains(got, "COMPOZY_WEB_DIST_DIR=/lane/dist") {
 			t.Fatalf("lane override missing; env = %v", got)
 		}
 		if !slices.Contains(got, "CGO_ENABLED=1") {
 			t.Fatalf("added override missing; env = %v", got)
 		}
-		if slices.Contains(got, "AGH_WEB_DIST_DIR=/tmp/stale-dist") {
+		if slices.Contains(got, "COMPOZY_WEB_DIST_DIR=/tmp/stale-dist") {
 			t.Fatalf("stale ambient value survived; env = %v", got)
 		}
 	})

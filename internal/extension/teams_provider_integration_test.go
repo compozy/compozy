@@ -31,11 +31,11 @@ import (
 )
 
 const (
-	teamsProviderListenAddrEnv     = "AGH_BRIDGE_TEAMS_LISTEN_ADDR"
-	teamsProviderServiceURLEnv     = "AGH_BRIDGE_TEAMS_SERVICE_URL"
-	teamsProviderOpenIDMetadataEnv = "AGH_BRIDGE_TEAMS_OPENID_METADATA_URL"
-	teamsProviderTokenURLEnv       = "AGH_BRIDGE_TEAMS_TOKEN_URL"
-	teamsProviderLoopbackAuthEnv   = "AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
+	teamsProviderListenAddrEnv     = "COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR"
+	teamsProviderServiceURLEnv     = "COMPOZY_BRIDGE_TEAMS_SERVICE_URL"
+	teamsProviderOpenIDMetadataEnv = "COMPOZY_BRIDGE_TEAMS_OPENID_METADATA_URL"
+	teamsProviderTokenURLEnv       = "COMPOZY_BRIDGE_TEAMS_TOKEN_URL"
+	teamsProviderLoopbackAuthEnv   = "COMPOZY_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
 )
 
 var (

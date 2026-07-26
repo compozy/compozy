@@ -15,14 +15,14 @@ import (
 )
 
 const (
-	AdapterHandshakePathEnv = "AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH"
-	AdapterOwnershipPathEnv = "AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH"
-	AdapterStatePathEnv     = "AGH_BRIDGE_ADAPTER_STATE_PATH"
-	AdapterDeliveryPathEnv  = "AGH_BRIDGE_ADAPTER_DELIVERY_PATH"
-	AdapterIngestPathEnv    = "AGH_BRIDGE_ADAPTER_INGEST_PATH"
-	AdapterStartsPathEnv    = "AGH_BRIDGE_ADAPTER_STARTS_PATH"
-	AdapterShutdownPathEnv  = "AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH"
-	AdapterCrashOncePathEnv = "AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH"
+	AdapterHandshakePathEnv = "COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH"
+	AdapterOwnershipPathEnv = "COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH"
+	AdapterStatePathEnv     = "COMPOZY_BRIDGE_ADAPTER_STATE_PATH"
+	AdapterDeliveryPathEnv  = "COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH"
+	AdapterIngestPathEnv    = "COMPOZY_BRIDGE_ADAPTER_INGEST_PATH"
+	AdapterStartsPathEnv    = "COMPOZY_BRIDGE_ADAPTER_STARTS_PATH"
+	AdapterShutdownPathEnv  = "COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH"
+	AdapterCrashOncePathEnv = "COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH"
 )
 
 // InitializeMarker records the negotiated provider handshake for integration tests.

@@ -24,12 +24,12 @@ import (
 )
 
 const (
-	stdioHelperEnv            = "AGH_MCP_STDIO_HELPER"
-	stdioEnvHelperEnv         = "AGH_MCP_STDIO_ENV_HELPER"
-	stdioFailedHelperEnv      = "AGH_MCP_STDIO_FAILED_HELPER"
-	stdioParentSecretEnv      = "AGH_PARENT_SECRET_TOKEN"
-	stdioExplicitSecretEnv    = "AGH_EXPLICIT_SECRET_TOKEN"
-	stdioExplicitSecretSource = "AGH_EXPLICIT_SECRET_SOURCE"
+	stdioHelperEnv            = "COMPOZY_MCP_STDIO_HELPER"
+	stdioEnvHelperEnv         = "COMPOZY_MCP_STDIO_ENV_HELPER"
+	stdioFailedHelperEnv      = "COMPOZY_MCP_STDIO_FAILED_HELPER"
+	stdioParentSecretEnv      = "COMPOZY_PARENT_SECRET_TOKEN"
+	stdioExplicitSecretEnv    = "COMPOZY_EXPLICIT_SECRET_TOKEN"
+	stdioExplicitSecretSource = "COMPOZY_EXPLICIT_SECRET_SOURCE"
 )
 
 func TestMCPCallExecutor(t *testing.T) {

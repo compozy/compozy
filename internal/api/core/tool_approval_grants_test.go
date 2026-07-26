@@ -39,7 +39,7 @@ func TestToolApprovalGrantHandlers(t *testing.T) {
 			http.MethodPut,
 			"/tool-approval-grants?workspace_id=alpha",
 			strings.NewReader(`{
-				"tool_id":"agh__approval_probe",
+				"tool_id":"compozy__approval_probe",
 				"decision":"allow",
 				"scope":"agent",
 				"agent_name":"codex"
@@ -69,7 +69,7 @@ func TestToolApprovalGrantHandlers(t *testing.T) {
 			t.Context(),
 			http.MethodPut,
 			"/tool-approval-grants?workspace_id=alpha",
-			strings.NewReader(`{"tool_id":"agh__approval_probe","decision":"allow","scope":"input"}`),
+			strings.NewReader(`{"tool_id":"compozy__approval_probe","decision":"allow","scope":"input"}`),
 		)
 		request.Header.Set("Content-Type", "application/json")
 		response := httptest.NewRecorder()
@@ -214,7 +214,7 @@ func toolApprovalGrantHandlerFixture() toolspkg.ApprovalGrant {
 		ApprovalGrantKey: toolspkg.ApprovalGrantKey{
 			WorkspaceID: "registry-ws",
 			AgentName:   "codex",
-			ToolID:      "agh__approval_probe",
+			ToolID:      "compozy__approval_probe",
 			InputDigest: "sha256:abc",
 		},
 		Decision:   toolspkg.ApprovalGrantAllow,

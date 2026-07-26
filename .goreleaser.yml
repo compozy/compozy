@@ -78,7 +78,7 @@ brews:
       system "#{bin}/agh", "version"
     caveats: |
       AGH is distributed through the Compozy Homebrew tap. Use `brew upgrade compozy/compozy/agh`
-      for managed updates, or set AGH_MANAGED=homebrew in shell wrappers that need
+      for managed updates, or set COMPOZY_MANAGED=homebrew in shell wrappers that need
       managed lifecycle diagnostics from `agh update` and `agh uninstall`.
     repository:
       owner: compozy

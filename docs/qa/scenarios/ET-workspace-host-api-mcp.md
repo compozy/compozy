@@ -17,7 +17,7 @@ overlaps:
 ---
 
 Start an isolated daemon with two registered workspaces. From a third-party MCP client, spawn
-`agh mcp serve --workspace <workspace-a>` over stdio, list the advertised `agh_host__*` tools, create
+`agh mcp serve --workspace <workspace-a>` over stdio, list the advertised `compozy_host__*` tools, create
 one session and one task, and compare both with the native HTTP API. Confirm a relay bound to
 workspace B cannot list workspace A's session.
 
@@ -35,7 +35,7 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 
 - Third-party client transcript (tool list, session list, task create) with the native HTTP reads
   proving the effects.
-- Native-registry digest diff output (zero new `agh__*` IDs).
+- Native-registry digest diff output (zero new `compozy__*` IDs).
 - Rejected tokenless and wrong-token non-stdio connections, the successful exact-token connection,
   and the workspace-B isolation probe.
 

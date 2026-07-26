@@ -155,7 +155,7 @@ export const CodeBlockChild: Story = {
 };
 
 const LONG_PREVIEW =
-  'agh tool invoke agh__tool_info --input \'{"tool_id":"agh__skill_view","workspace_id":"ws-demo"}\' -o json';
+  'agh tool invoke compozy__tool_info --input \'{"tool_id":"compozy__skill_view","workspace_id":"ws-demo"}\' -o json';
 
 export const LongPreviewTruncates: Story = {
   args: {

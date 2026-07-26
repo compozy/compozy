@@ -182,7 +182,7 @@ func resolveWorkspaceInfoRef(deps commandDeps, args []string, workspaceFlag stri
 		}
 		return workspaceInfoRef{Ref: trimmed, Source: workspaceFlagKey}, nil
 	}
-	if trimmed := strings.TrimSpace(deps.getenv("AGH_WORKSPACE")); trimmed != "" {
+	if trimmed := strings.TrimSpace(deps.getenv("COMPOZY_WORKSPACE")); trimmed != "" {
 		return workspaceInfoRef{Ref: trimmed, Source: configEnvKey}, nil
 	}
 	cwd, err := currentWorkingDirectory(deps)
@@ -200,7 +200,7 @@ func resolveCLIWorkspaceRouteRef(
 ) (string, error) {
 	trimmed := strings.TrimSpace(workspaceRef)
 	if trimmed == "" {
-		trimmed = strings.TrimSpace(deps.getenv("AGH_WORKSPACE"))
+		trimmed = strings.TrimSpace(deps.getenv("COMPOZY_WORKSPACE"))
 	}
 	if trimmed == "" {
 		cwd, err := currentWorkingDirectory(deps)

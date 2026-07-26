@@ -41,7 +41,7 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 
 1. Pass `qa-docs-path=docs/qa` to `qa-report` and `qa-execution`; keep `QA_OUTPUT_PATH` as lab-side scratch evidence only.
 2. Launch providers, Web, browser, and config operations exactly from the manifest contract. Preserve operator home for `native_cli + home_policy=operator`; use isolated provider homes for bound-secret or brokered lanes.
-3. Export the manifest-derived `AGH_WEB_API_PROXY_TARGET` for Web QA and serialize config writes against one isolated home.
+3. Export the manifest-derived `COMPOZY_WEB_API_PROXY_TARGET` for Web QA and serialize config writes against one isolated home.
 4. Register every long-lived process immediately under `<QA_OUTPUT_PATH>/qa/pids/`.
 5. Require downstream QA to run the manifest's strict `AUDIT_COMMAND` before a behavior-first verdict.
 
@@ -49,7 +49,7 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 
 **Step 4: Preserve Continuation State**
 
-1. Report the manifest path, lab root, `AGH_HOME`, base URL, dated run-report path, and reuse status.
+1. Report the manifest path, lab root, `COMPOZY_HOME`, base URL, dated run-report path, and reuse status.
 2. For a continuing loop, append the exact machine-readable continuation block from the bootstrap contract.
 
 *Done when:* the next continuation can identify the same lab from one exact manifest without discovery or guessing.

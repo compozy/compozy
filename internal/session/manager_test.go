@@ -4515,7 +4515,7 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	})
 	hosted := &recordingHostedMCPLauncher{
 		server: aghconfig.MCPServer{
-			Name:      "agh-hosted-tools",
+			Name:      "compozy-hosted-tools",
 			Transport: aghconfig.MCPServerTransportStdio,
 			Command:   "/bin/compozy",
 			Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
@@ -4531,7 +4531,7 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("start MCPServers = %#v, want one hosted entry", got)
 	}
-	if got[0].Name != "agh-hosted-tools" || got[0].Command != "/bin/compozy" {
+	if got[0].Name != "compozy-hosted-tools" || got[0].Command != "/bin/compozy" {
 		t.Fatalf("hosted MCP server = %#v, want AGH hosted stdio entry", got[0])
 	}
 
@@ -4561,7 +4561,7 @@ func TestCreateOmitsMCPServersForVerdictOnlyRuntime(t *testing.T) {
 		h := newHarness(t)
 		hosted := &recordingHostedMCPLauncher{
 			server: aghconfig.MCPServer{
-				Name:      "agh-hosted-tools",
+				Name:      "compozy-hosted-tools",
 				Transport: aghconfig.MCPServerTransportStdio,
 				Command:   "/bin/compozy",
 			},
@@ -4613,7 +4613,7 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 	})
 	hosted := &recordingHostedMCPLauncher{
 		server: aghconfig.MCPServer{
-			Name:      "agh-hosted-tools",
+			Name:      "compozy-hosted-tools",
 			Transport: aghconfig.MCPServerTransportStdio,
 			Command:   "/bin/compozy",
 		},
@@ -5007,20 +5007,20 @@ func TestCreateWithChannelInjectsNetworkSessionEnv(t *testing.T) {
 	})
 
 	env := h.driver.startCalls[0].Env
-	if got, ok := lookupEnvValue(env, "AGH_SESSION_ID"); !ok || got != session.ID {
-		t.Fatalf("AGH_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
+	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_ID"); !ok || got != session.ID {
+		t.Fatalf("COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
 	}
-	if got, ok := lookupEnvValue(env, "AGH_AGENT"); !ok || got != "coder" {
-		t.Fatalf("AGH_AGENT = %q, %v, want %q", got, ok, "coder")
+	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT"); !ok || got != "coder" {
+		t.Fatalf("COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
 	}
-	if got, ok := lookupEnvValue(env, "AGH_AGENT_NAME"); !ok || got != "coder" {
-		t.Fatalf("AGH_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
+	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT_NAME"); !ok || got != "coder" {
+		t.Fatalf("COMPOZY_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
 	}
-	if got, ok := lookupEnvValue(env, "AGH_SESSION_CHANNEL"); !ok || got != "builders" {
-		t.Fatalf("AGH_SESSION_CHANNEL = %q, %v, want %q", got, ok, "builders")
+	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_CHANNEL"); !ok || got != "builders" {
+		t.Fatalf("COMPOZY_SESSION_CHANNEL = %q, %v, want %q", got, ok, "builders")
 	}
-	if got, ok := lookupEnvValue(env, "AGH_PEER_ID"); !ok || got != "coder."+session.ID {
-		t.Fatalf("AGH_PEER_ID = %q, %v, want %q", got, ok, "coder."+session.ID)
+	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); !ok || got != "coder."+session.ID {
+		t.Fatalf("COMPOZY_PEER_ID = %q, %v, want %q", got, ok, "coder."+session.ID)
 	}
 }
 
@@ -5041,20 +5041,20 @@ func TestCreateWithoutChannelOmitsNetworkChannelEnv(t *testing.T) {
 	})
 
 	env := h.driver.startCalls[0].Env
-	if got, ok := lookupEnvValue(env, "AGH_SESSION_ID"); !ok || got != session.ID {
-		t.Fatalf("AGH_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
+	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_ID"); !ok || got != session.ID {
+		t.Fatalf("COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
 	}
-	if got, ok := lookupEnvValue(env, "AGH_AGENT"); !ok || got != "coder" {
-		t.Fatalf("AGH_AGENT = %q, %v, want %q", got, ok, "coder")
+	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT"); !ok || got != "coder" {
+		t.Fatalf("COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
 	}
-	if got, ok := lookupEnvValue(env, "AGH_AGENT_NAME"); !ok || got != "coder" {
-		t.Fatalf("AGH_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
+	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT_NAME"); !ok || got != "coder" {
+		t.Fatalf("COMPOZY_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
 	}
-	if got, ok := lookupEnvValue(env, "AGH_SESSION_CHANNEL"); ok {
-		t.Fatalf("AGH_SESSION_CHANNEL = %q, want unset", got)
+	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_CHANNEL"); ok {
+		t.Fatalf("COMPOZY_SESSION_CHANNEL = %q, want unset", got)
 	}
-	if got, ok := lookupEnvValue(env, "AGH_PEER_ID"); ok {
-		t.Fatalf("AGH_PEER_ID = %q, want unset", got)
+	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); ok {
+		t.Fatalf("COMPOZY_PEER_ID = %q, want unset", got)
 	}
 }
 
@@ -5085,20 +5085,20 @@ func TestResumeWithChannelReinjectsNetworkSessionEnv(t *testing.T) {
 	})
 
 	env := h.driver.startCalls[1].Env
-	if got, ok := lookupEnvValue(env, "AGH_SESSION_ID"); !ok || got != resumed.ID {
-		t.Fatalf("AGH_SESSION_ID = %q, %v, want %q", got, ok, resumed.ID)
+	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_ID"); !ok || got != resumed.ID {
+		t.Fatalf("COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, resumed.ID)
 	}
-	if got, ok := lookupEnvValue(env, "AGH_AGENT"); !ok || got != "coder" {
-		t.Fatalf("AGH_AGENT = %q, %v, want %q", got, ok, "coder")
+	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT"); !ok || got != "coder" {
+		t.Fatalf("COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
 	}
-	if got, ok := lookupEnvValue(env, "AGH_AGENT_NAME"); !ok || got != "coder" {
-		t.Fatalf("AGH_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
+	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT_NAME"); !ok || got != "coder" {
+		t.Fatalf("COMPOZY_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
 	}
-	if got, ok := lookupEnvValue(env, "AGH_SESSION_CHANNEL"); !ok || got != "builders" {
-		t.Fatalf("AGH_SESSION_CHANNEL = %q, %v, want %q", got, ok, "builders")
+	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_CHANNEL"); !ok || got != "builders" {
+		t.Fatalf("COMPOZY_SESSION_CHANNEL = %q, %v, want %q", got, ok, "builders")
 	}
-	if got, ok := lookupEnvValue(env, "AGH_PEER_ID"); !ok || got != "coder."+resumed.ID {
-		t.Fatalf("AGH_PEER_ID = %q, %v, want %q", got, ok, "coder."+resumed.ID)
+	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); !ok || got != "coder."+resumed.ID {
+		t.Fatalf("COMPOZY_PEER_ID = %q, %v, want %q", got, ok, "coder."+resumed.ID)
 	}
 }
 

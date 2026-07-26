@@ -186,7 +186,7 @@ func githubProgressNoopRequest() bridgepkg.DeliveryRequest {
 		Operation: bridgepkg.DeliveryOperationPost,
 		Progress: &bridgepkg.ToolProgress{
 			ToolCallID: "tool-call-github-noop",
-			ToolID:     "agh__search",
+			ToolID:     "compozy__search",
 			Phase:      bridgepkg.ToolProgressPhaseStarted,
 			Label:      "Search",
 			Index:      1,

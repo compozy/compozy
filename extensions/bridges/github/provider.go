@@ -25,8 +25,8 @@ const (
 )
 
 const (
-	githubListenAddrEnv = "AGH_BRIDGE_GITHUB_LISTEN_ADDR"
-	githubAPIBaseEnv    = "AGH_BRIDGE_GITHUB_API_BASE_URL"
+	githubListenAddrEnv = "COMPOZY_BRIDGE_GITHUB_LISTEN_ADDR"
+	githubAPIBaseEnv    = "COMPOZY_BRIDGE_GITHUB_API_BASE_URL"
 
 	githubDefaultAPIBaseURL        = "https://api.github.com"
 	githubWebhookReadHeaderTimeout = 10 * time.Second

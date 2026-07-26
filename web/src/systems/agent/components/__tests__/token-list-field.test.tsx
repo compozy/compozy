@@ -14,14 +14,14 @@ describe("TokenListField", () => {
         onChange={onChange}
         placeholder="Add tool"
         testId="agent-create-tools"
-        values={["agh__skill_view"]}
+        values={["compozy__skill_view"]}
       />
     );
 
     const user = userEvent.setup();
     const input = screen.getByTestId("agent-create-tools-input");
     await user.type(input, "mcp__github__*{enter}");
-    expect(onChange).toHaveBeenCalledWith(["agh__skill_view", "mcp__github__*"]);
+    expect(onChange).toHaveBeenCalledWith(["compozy__skill_view", "mcp__github__*"]);
 
     onChange.mockClear();
     rerender(
@@ -31,14 +31,14 @@ describe("TokenListField", () => {
         onChange={onChange}
         placeholder="Add tool"
         testId="agent-create-tools"
-        values={["agh__skill_view", "mcp__github__*"]}
+        values={["compozy__skill_view", "mcp__github__*"]}
       />
     );
-    await user.type(input, "agh__skill_view{enter}");
-    expect(onChange).toHaveBeenCalledWith(["agh__skill_view", "mcp__github__*"]);
+    await user.type(input, "compozy__skill_view{enter}");
+    expect(onChange).toHaveBeenCalledWith(["compozy__skill_view", "mcp__github__*"]);
 
     onChange.mockClear();
     await user.click(screen.getByLabelText("Remove mcp__github__*"));
-    expect(onChange).toHaveBeenCalledWith(["agh__skill_view"]);
+    expect(onChange).toHaveBeenCalledWith(["compozy__skill_view"]);
   });
 });

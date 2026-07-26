@@ -30,8 +30,8 @@ function agent(overrides: Partial<AgentPayload> = {}): AgentPayload {
     model: undefined,
     command: undefined,
     skills: { disabled: ["release-notes"] },
-    tools: ["agh__task_view"],
-    deny_tools: ["agh__task_delete"],
+    tools: ["compozy__task_view"],
+    deny_tools: ["compozy__task_delete"],
     toolsets: [],
     mcp_servers: [],
     ...overrides,
@@ -248,8 +248,8 @@ describe("agent detail panels", () => {
     render(<AgentConfigurationTab agent={agent()} onEditSection={onEditSection} />);
     expect(screen.getByTestId("agent-config-runtime")).toHaveTextContent("Default");
     expect(screen.queryByText("Provider")).not.toBeInTheDocument();
-    expect(screen.getByTestId("agent-config-tools")).toHaveTextContent("agh__task_view");
-    expect(screen.getByTestId("agent-config-deny-tools")).toHaveTextContent("agh__task_delete");
+    expect(screen.getByTestId("agent-config-tools")).toHaveTextContent("compozy__task_view");
+    expect(screen.getByTestId("agent-config-deny-tools")).toHaveTextContent("compozy__task_delete");
     expect(screen.getByTestId("agent-mcp-empty")).toBeVisible();
     await user.click(screen.getByTestId("agent-config-edit-runtime"));
     await user.click(screen.getByTestId("agent-config-edit-access"));

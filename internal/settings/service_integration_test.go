@@ -23,7 +23,7 @@ import (
 	mcpsrv "github.com/mark3labs/mcp-go/server"
 )
 
-const settingsCatalogMCPHelperEnv = "AGH_SETTINGS_CATALOG_MCP_HELPER"
+const settingsCatalogMCPHelperEnv = "COMPOZY_SETTINGS_CATALOG_MCP_HELPER"
 
 func TestProviderOverlayDeleteRevealsBuiltinFallbackMetadataCorrectly(t *testing.T) {
 	ctx := context.Background()

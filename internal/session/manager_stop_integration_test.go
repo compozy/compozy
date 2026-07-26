@@ -31,9 +31,9 @@ import (
 )
 
 const (
-	testSessionStopHelperEnvKey   = "AGH_TEST_SESSION_STOP_HELPER"
-	testSessionStopWrapperEnvKey  = "AGH_TEST_SESSION_STOP_WRAPPER"
-	testSessionStopWrapperPIDFile = "AGH_TEST_SESSION_STOP_WRAPPER_PID_FILE"
+	testSessionStopHelperEnvKey   = "COMPOZY_TEST_SESSION_STOP_HELPER"
+	testSessionStopWrapperEnvKey  = "COMPOZY_TEST_SESSION_STOP_WRAPPER"
+	testSessionStopWrapperPIDFile = "COMPOZY_TEST_SESSION_STOP_WRAPPER_PID_FILE"
 )
 
 func TestSessionStopACPHelperProcess(t *testing.T) {

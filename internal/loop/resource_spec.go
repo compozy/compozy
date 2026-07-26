@@ -20,7 +20,7 @@ const (
 const (
 	// SourceMarketplace identifies marketplace extension-contributed loop definitions.
 	SourceMarketplace Source = "marketplace"
-	// SourceUser identifies user-owned global loop definitions under $AGH_HOME.
+	// SourceUser identifies user-owned global loop definitions under $COMPOZY_HOME.
 	SourceUser Source = "user"
 	// SourceAdditional identifies loop definitions discovered through additional workspace roots.
 	SourceAdditional Source = "additional"

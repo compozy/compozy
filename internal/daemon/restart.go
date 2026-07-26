@@ -15,7 +15,7 @@ import (
 
 const (
 	// RestartOperationEnvKey carries the restart operation id from the helper to the replacement daemon.
-	RestartOperationEnvKey = "AGH_INTERNAL_RESTART_OPERATION_ID"
+	RestartOperationEnvKey = "COMPOZY_INTERNAL_RESTART_OPERATION_ID"
 
 	defaultRestartPollInterval  = 100 * time.Millisecond
 	defaultRestartReleaseWait   = 15 * time.Second

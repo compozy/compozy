@@ -45,7 +45,7 @@ Trigger a gated consolidation check:
 
 ## Atomic Native Batches
 
-Use `agh__memory_propose` `operations` when one agent action must update several parts of the same
+Use `compozy__memory_propose` `operations` when one agent action must update several parts of the same
 Memory v2 document without publishing an intermediate state:
 
 ```json

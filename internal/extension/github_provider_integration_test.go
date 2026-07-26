@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	githubProviderListenAddrEnv = "AGH_BRIDGE_GITHUB_LISTEN_ADDR"
-	githubProviderAPIBaseEnv    = "AGH_BRIDGE_GITHUB_API_BASE_URL"
+	githubProviderListenAddrEnv = "COMPOZY_BRIDGE_GITHUB_LISTEN_ADDR"
+	githubProviderAPIBaseEnv    = "COMPOZY_BRIDGE_GITHUB_API_BASE_URL"
 	githubProviderWebhookSecret = "top-secret"
 )
 

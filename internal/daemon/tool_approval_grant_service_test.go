@@ -23,7 +23,7 @@ func TestToolApprovalGrantServiceEmitsCanonicalTransitions(t *testing.T) {
 			ApprovalGrantKey: toolspkg.ApprovalGrantKey{
 				WorkspaceID: "ws-1",
 				AgentName:   "codex",
-				ToolID:      "agh__approval_probe",
+				ToolID:      "compozy__approval_probe",
 				InputDigest: "sha256:abc",
 			},
 			Decision: toolspkg.ApprovalGrantAllow,

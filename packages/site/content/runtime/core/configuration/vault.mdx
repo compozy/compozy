@@ -176,8 +176,8 @@ Session pages include a Vault tab in the inspector. It shows only entries below
 
 ## Operational Notes
 
-`AGH_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, AGH creates
-`$AGH_HOME/vault.key` with `0600` permissions the first time the Vault needs to encrypt or decrypt a
+`COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, AGH creates
+`$COMPOZY_HOME/vault.key` with `0600` permissions the first time the Vault needs to encrypt or decrypt a
 secret.
 
 Deleting a Vault ref removes the stored value. It does not rewrite existing configuration that still

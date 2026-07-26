@@ -2,7 +2,7 @@
 
 AGH is a local-first runtime. Its default trust boundary is the operating-system account that runs
 the daemon, not an application-level tenant boundary. Treat every process with access to that
-account, `$AGH_HOME`, or the daemon socket as trusted operator software.
+account, `$COMPOZY_HOME`, or the daemon socket as trusted operator software.
 
 ## Report a vulnerability
 
@@ -22,9 +22,9 @@ fits your threat model.
 ## `agh mcp serve` authority
 
 `agh mcp serve` is a foreground relay to an already-running daemon. Every invocation requires a
-workspace and exposes an approved subset of the existing Host API as `agh_host__*` MCP tools. The
+workspace and exposes an approved subset of the existing Host API as `compozy_host__*` MCP tools. The
 relay binds session, task, network, memory, and resource operations to that workspace and rejects
-conflicting caller-supplied workspace values. It does not mint or change native `agh__*` tool IDs.
+conflicting caller-supplied workspace values. It does not mint or change native `compozy__*` tool IDs.
 
 The default stdio transport has no separate authentication step. The local process that spawns
 `agh mcp serve --workspace <workspace>` receives operator authority for the published Host API

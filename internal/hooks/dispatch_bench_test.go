@@ -82,10 +82,10 @@ func BenchmarkSubmitAsyncHookInputPreSubmit(b *testing.B) {
 
 func BenchmarkSubprocessProcessEnv(b *testing.B) {
 	env := map[string]string{
-		"AGH_AGENT":    "codex",
-		"AGH_MODEL":    "gpt-5.4",
-		"AGH_SESSION":  "session-bench",
-		"AGH_WORKROOT": "/tmp/workspace",
+		"COMPOZY_AGENT":    "codex",
+		"COMPOZY_MODEL":    "gpt-5.4",
+		"COMPOZY_SESSION":  "session-bench",
+		"COMPOZY_WORKROOT": "/tmp/workspace",
 	}
 
 	b.ReportAllocs()

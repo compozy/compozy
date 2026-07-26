@@ -126,7 +126,7 @@ describe("ToolApprovalGrantsSection", () => {
       id: "set-agent-wide",
       workspace_id: WS,
       agent_name: "claude-code",
-      tool_id: "agh__workspace_list",
+      tool_id: "compozy__workspace_list",
       decision: "allow" as const,
       input_digest: undefined,
     };
@@ -184,7 +184,7 @@ describe("ToolApprovalGrantsSection", () => {
     fireEvent.click(screen.getByTestId(`${TEST_ID}-set-open`));
     fireEvent.click(screen.getByTestId("tool-approval-grant-scope-tool"));
     fireEvent.change(screen.getByTestId("tool-approval-grant-tool-id"), {
-      target: { value: "agh__task_create" },
+      target: { value: "compozy__task_create" },
     });
     fireEvent.click(screen.getByTestId("tool-approval-grant-decision-reject"));
     fireEvent.click(screen.getByTestId("tool-approval-grant-set-confirm"));

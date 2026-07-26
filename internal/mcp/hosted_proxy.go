@@ -48,7 +48,7 @@ type HostedProxyOptions struct {
 	Version   string
 }
 
-// RunHostedProxy binds to the daemon and serves hosted AGH tools over MCP stdio.
+// RunHostedProxy binds to the daemon and serves hosted Compozy tools over MCP stdio.
 func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedProxyOptions) error {
 	if ctx == nil {
 		return errors.New("mcp: proxy context is required")
@@ -215,10 +215,10 @@ func hostedToolDescription(descriptor tools.Descriptor) string {
 	}
 
 	if id := strings.TrimSpace(descriptor.ID.String()); id != "" {
-		sections = append(sections, "AGH canonical tool ID: "+id)
+		sections = append(sections, "Compozy canonical tool ID: "+id)
 	}
 	if toolsets := hostedToolsetNames(descriptor.Toolsets); toolsets != "" {
-		sections = append(sections, "AGH toolsets: "+toolsets)
+		sections = append(sections, "Compozy toolsets: "+toolsets)
 	}
 	if tags := hostedDescriptionValues(descriptor.Tags); tags != "" {
 		sections = append(sections, "Tags: "+tags)

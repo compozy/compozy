@@ -359,7 +359,7 @@ func requireToolApprovalReason(t *testing.T, err error, want toolspkg.ReasonCode
 func toolApprovalTestView() toolspkg.ToolView {
 	return toolspkg.ToolView{
 		Descriptor: toolspkg.Descriptor{
-			ID:           "agh__approval_probe",
+			ID:           "compozy__approval_probe",
 			Backend:      toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "approval_probe"},
 			Description:  "approval probe",
 			InputSchema:  []byte(`{"type":"object"}`),

@@ -86,10 +86,10 @@ describe("provider model catalog docs", () => {
     expect(source).toContain("/api/model-catalog/providers/{provider_id}/models");
     expect(source).toContain("/api/model-catalog/models/refresh");
     expect(source).toContain("/api/model-catalog/sources/status");
-    expect(source).toContain("agh__provider_models");
-    expect(source).toContain("agh__provider_models_list");
-    expect(source).toContain("agh__provider_models_refresh");
-    expect(source).toContain("agh__provider_models_status");
+    expect(source).toContain("compozy__provider_models");
+    expect(source).toContain("compozy__provider_models_list");
+    expect(source).toContain("compozy__provider_models_refresh");
+    expect(source).toContain("compozy__provider_models_status");
   });
 
   it("documents the OpenAI-compatible /api/openai/v1/models projection", () => {

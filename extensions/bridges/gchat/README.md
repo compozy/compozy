@@ -48,7 +48,7 @@ compozy extension status gchat -o json
 
 Bind `credentials_json` to Google service-account credentials. `project_number` is optional and enables direct-webhook audience verification. Provider config selects `direct`, `pubsub`, or `hybrid` ingress and can configure webhook, certificate, batching, and direct-message policy settings.
 
-`AGH_BRIDGE_GCHAT_LISTEN_ADDR`, `AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL`, and `AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL` provide process-level listener and certificate overrides. `AGH_BRIDGE_GCHAT_API_BASE_URL` and `AGH_BRIDGE_GCHAT_TOKEN_URL` are operator-owned process overrides for credential-bearing destinations. Bridge config and `credentials_json.token_uri` cannot change those destinations.
+`COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR`, `COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL`, and `COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL` provide process-level listener and certificate overrides. `COMPOZY_BRIDGE_GCHAT_API_BASE_URL` and `COMPOZY_BRIDGE_GCHAT_TOKEN_URL` are operator-owned process overrides for credential-bearing destinations. Bridge config and `credentials_json.token_uri` cannot change those destinations.
 
 See the [Google Chat operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-gchat.mdx)
 for Cloud app setup, direct/Pub/Sub verification, route selection, real delivery testing, and

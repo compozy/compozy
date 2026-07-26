@@ -205,7 +205,7 @@ func TestIdentityErrorDiagnosticItem(t *testing.T) {
 			ErrIdentityRequired,
 			contract.CodeIdentityRequired,
 			"agent token=identity-secret is required",
-			"export AGH_SESSION_ID",
+			"export COMPOZY_SESSION_ID",
 		)
 		var identityErr *Error
 		if !errors.As(err, &identityErr) {
@@ -215,7 +215,7 @@ func TestIdentityErrorDiagnosticItem(t *testing.T) {
 		if item.Code != contract.CodeIdentityRequired {
 			t.Fatalf("DiagnosticItem.Code = %q, want %q", item.Code, contract.CodeIdentityRequired)
 		}
-		if item.SuggestedCommand != "export AGH_SESSION_ID" {
+		if item.SuggestedCommand != "export COMPOZY_SESSION_ID" {
 			t.Fatalf("DiagnosticItem.SuggestedCommand = %q, want action", item.SuggestedCommand)
 		}
 		if strings.Contains(item.Message, "identity-secret") {

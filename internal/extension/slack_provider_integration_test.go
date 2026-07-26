@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	slackProviderListenAddrEnv = "AGH_BRIDGE_SLACK_LISTEN_ADDR"
-	slackProviderAPIBaseEnv    = "AGH_BRIDGE_SLACK_API_BASE_URL"
+	slackProviderListenAddrEnv = "COMPOZY_BRIDGE_SLACK_LISTEN_ADDR"
+	slackProviderAPIBaseEnv    = "COMPOZY_BRIDGE_SLACK_API_BASE_URL"
 	slackSignatureVersion      = "v0"
 )
 

@@ -1003,7 +1003,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 						t.Fatalf("tool search request = %#v, want scoped search", request)
 					}
 					return newHTTPResponse(http.StatusOK, string(mustJSON(t, sampleToolsResponse()))), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/tools/agh__skill_view":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/tools/compozy__skill_view":
 					if req.URL.Query().Get("workspace_id") != "ws-1" {
 						t.Fatalf("tool info query = %s, want workspace_id=ws-1", req.URL.RawQuery)
 					}
@@ -1011,12 +1011,12 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 						http.StatusOK,
 						string(mustJSON(t, ToolResponseRecord{Tool: sampleToolsResponse().Tools[0]})),
 					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/tools/agh__tool_info/invoke":
+				case req.Method == http.MethodPost && req.URL.Path == "/api/tools/compozy__tool_info/invoke":
 					var request ToolInvokeRequest
 					if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
 						t.Fatalf("decode invoke body: %v", err)
 					}
-					if string(request.Input) != `{"tool_id":"agh__skill_view"}` ||
+					if string(request.Input) != `{"tool_id":"compozy__skill_view"}` ||
 						request.SessionID != "sess-1" ||
 						len(request.SensitiveInputFields) != 1 ||
 						request.SensitiveInputFields[0] != "token" {
@@ -1033,7 +1033,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 						t.Fatalf("toolsets query = %s, want agent_name=coder", req.URL.RawQuery)
 					}
 					return newHTTPResponse(http.StatusOK, string(mustJSON(t, sampleToolsetsResponse()))), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/toolsets/agh__catalog":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/toolsets/compozy__catalog":
 					if req.URL.Query().Get("session_id") != "sess-1" {
 						t.Fatalf("toolset info query = %s, want session_id=sess-1", req.URL.RawQuery)
 					}
@@ -1100,7 +1100,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 
 		response, err := client.InvokeTool(context.Background(), toolspkg.ToolIDToolInfo.String(), ToolInvokeRequest{
 			SessionID:            " sess-1 ",
-			Input:                json.RawMessage(`{"tool_id":"agh__skill_view"}`),
+			Input:                json.RawMessage(`{"tool_id":"compozy__skill_view"}`),
 			SensitiveInputFields: []string{" token "},
 		})
 		if err != nil {
@@ -1157,7 +1157,7 @@ func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 					strings.HasPrefix(req.URL.Path, "/api/toolsets"):
 					return newHTTPResponse(
 						http.StatusUnprocessableEntity,
-						`{"error":{"code":"tool_unavailable","message":"tool token=super-secret unavailable","tool_id":"agh__skill_view","reason_codes":["backend_unhealthy"],"layer":"registry","details":{"secret":"super-secret"}}}`,
+						`{"error":{"code":"tool_unavailable","message":"tool token=super-secret unavailable","tool_id":"compozy__skill_view","reason_codes":["backend_unhealthy"],"layer":"registry","details":{"secret":"super-secret"}}}`,
 					), nil
 				default:
 					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
@@ -3502,7 +3502,7 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 
 	toolResp := newHTTPResponse(
 		http.StatusAccepted,
-		`{"error":{"code":"tool_approval_required","message":"tool approval token=super-secret is required","tool_id":"agh__skill_view","reason_codes":["approval_token_missing"],"layer":"approval","details":{"approval_token":"approval-token-secret"}}}`,
+		`{"error":{"code":"tool_approval_required","message":"tool approval token=super-secret is required","tool_id":"compozy__skill_view","reason_codes":["approval_token_missing"],"layer":"approval","details":{"approval_token":"approval-token-secret"}}}`,
 	)
 	defer func() {
 		_ = toolResp.Body.Close()
@@ -4255,7 +4255,7 @@ func TestSharedContractJSONParity(t *testing.T) {
 		t.Fatalf("observe decode = %#v, want %#v", cliObserve, sharedObserve)
 	}
 
-	hookCatalogResponse := `{"hooks":[{"order":1,"name":"permission-guard","event":"tool.pre_call","source":"config","mode":"sync","priority":10,"executor_kind":"subprocess","matcher":{"tool_id":"agh__shell"},"metadata":{"origin":"config"}}]}`
+	hookCatalogResponse := `{"hooks":[{"order":1,"name":"permission-guard","event":"tool.pre_call","source":"config","mode":"sync","priority":10,"executor_kind":"subprocess","matcher":{"tool_id":"compozy__shell"},"metadata":{"origin":"config"}}]}`
 	var cliHookCatalog struct {
 		Hooks []HookCatalogRecord `json:"hooks"`
 	}

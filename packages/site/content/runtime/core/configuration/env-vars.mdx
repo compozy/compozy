@@ -8,21 +8,21 @@ subprocesses, and lets some extension providers use process-level overrides.
 
 ## Precedence
 
-| Source                        | Applies to                                  | Precedence                                                                                                                      |
-| ----------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Process environment           | All AGH commands and daemon startup.        | Base environment.                                                                                                               |
-| `<workspace>/.env`            | Config loads that include a workspace root. | Loaded before `$AGH_HOME` is resolved. Does not override variables already set by the process loader.                           |
-| `config.toml`                 | Runtime config values.                      | Used for AGH config. There is no `AGH_CONFIG` or `AGH_LOG_LEVEL` override today.                                                |
-| Managed session env injection | Agent subprocesses.                         | Starts from daemon environment, sets AGH session variables, sets `AGH_BIN`, and prepends the daemon binary directory to `PATH`. |
-| Hook subprocess env           | Hook subprocesses.                          | Starts from an allowlist of parent env vars, then applies hook `env` overrides.                                                 |
+| Source                        | Applies to                                  | Precedence                                                                                                                          |
+| ----------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Process environment           | All AGH commands and daemon startup.        | Base environment.                                                                                                                   |
+| `<workspace>/.env`            | Config loads that include a workspace root. | Loaded before `$COMPOZY_HOME` is resolved. Does not override variables already set by the process loader.                           |
+| `config.toml`                 | Runtime config values.                      | Used for AGH config. There is no `COMPOZY_CONFIG` or `COMPOZY_LOG_LEVEL` override today.                                            |
+| Managed session env injection | Agent subprocesses.                         | Starts from daemon environment, sets AGH session variables, sets `COMPOZY_BIN`, and prepends the daemon binary directory to `PATH`. |
+| Hook subprocess env           | Hook subprocesses.                          | Starts from an allowlist of parent env vars, then applies hook `env` overrides.                                                     |
 
 ## Core Variables AGH Reads
 
-| Variable                    | Type           | Default  | Valid values                                        | Description                                                                                                                                                     |
-| --------------------------- | -------------- | -------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AGH_HOME`                  | path           | `~/.agh` | Non-empty path.                                     | Overrides the global AGH home directory. If a workspace `.env` sets it, that value can affect config loading for that workspace before home paths are resolved. |
-| `AGH_DEV_VERIFY_BOUNDARIES` | boolean string | unset    | `1`, `true`, or `yes` enable boundary verification. | Development-only daemon boundary import verification toggle.                                                                                                    |
-| `GITHUB_TOKEN`              | token string   | unset    | Non-empty token.                                    | Used by the GitHub registry client for private repositories and higher rate limits.                                                                             |
+| Variable                        | Type           | Default  | Valid values                                        | Description                                                                                                                                                     |
+| ------------------------------- | -------------- | -------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COMPOZY_HOME`                  | path           | `~/.agh` | Non-empty path.                                     | Overrides the global AGH home directory. If a workspace `.env` sets it, that value can affect config loading for that workspace before home paths are resolved. |
+| `COMPOZY_DEV_VERIFY_BOUNDARIES` | boolean string | unset    | `1`, `true`, or `yes` enable boundary verification. | Development-only daemon boundary import verification toggle.                                                                                                    |
+| `GITHUB_TOKEN`                  | token string   | unset    | Non-empty token.                                    | Used by the GitHub registry client for private repositories and higher rate limits.                                                                             |
 
 ## Provider credential variables
 
@@ -51,8 +51,8 @@ the configured provider key.
 | `MISTRAL_API_KEY`    | `mistral`           | unset   | Provider-specific token. | Default AGH-managed credential target for the Mistral wrapper.                        |
 | `GROQ_API_KEY`       | `groq`              | unset   | Provider-specific token. | Default AGH-managed credential target for the Groq wrapper.                           |
 
-`AGH_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, AGH creates
-`$AGH_HOME/vault.key` with `0600` permissions the first time it needs to encrypt or decrypt a
+`COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, AGH creates
+`$COMPOZY_HOME/vault.key` with `0600` permissions the first time it needs to encrypt or decrypt a
 vault-backed secret.
 
 Use [Vault](/runtime/core/configuration/vault) for AGH-managed encrypted values that should be
@@ -65,9 +65,9 @@ Config-defined webhook triggers require `[[automation.triggers]].webhook_secret_
 for operator-managed environment variables or `vault:automation/...` for AGH-managed encrypted
 secrets.
 
-| Variable named by `env:` ref        | Type   | Default | Valid values                                          | Description                                                 |
-| ----------------------------------- | ------ | ------- | ----------------------------------------------------- | ----------------------------------------------------------- |
-| `AGH_DEPLOY_WEBHOOK_SECRET` example | string | none    | Must exist and be non-empty when the ref is resolved. | Secret used to validate config-defined automation webhooks. |
+| Variable named by `env:` ref            | Type   | Default | Valid values                                          | Description                                                 |
+| --------------------------------------- | ------ | ------- | ----------------------------------------------------- | ----------------------------------------------------------- |
+| `COMPOZY_DEPLOY_WEBHOOK_SECRET` example | string | none    | Must exist and be non-empty when the ref is resolved. | Secret used to validate config-defined automation webhooks. |
 
 Example:
 
@@ -79,11 +79,11 @@ agent = "release"
 prompt = "Handle deploy webhook {{ .Kind }}."
 event = "webhook"
 endpoint_slug = "deploy"
-webhook_secret_ref = "env:AGH_DEPLOY_WEBHOOK_SECRET"
+webhook_secret_ref = "env:COMPOZY_DEPLOY_WEBHOOK_SECRET"
 ```
 
 ```bash
-export AGH_DEPLOY_WEBHOOK_SECRET="replace-with-secret"
+export COMPOZY_DEPLOY_WEBHOOK_SECRET="replace-with-secret"
 ```
 
 ## Variables AGH Injects Into Agent Sessions
@@ -92,31 +92,31 @@ Managed ACP agent subprocesses start from the provider's `env_policy`. `filtered
 daemon environment after removing secret-shaped variables; `isolated` keeps only a fixed
 operational allowlist. AGH then applies these changes:
 
-| Variable                   | Type          | Default                                                              | Valid values                          | Description                                                                        |
-| -------------------------- | ------------- | -------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------- |
-| `AGH_SESSION_ID`           | string        | set for every managed session                                        | Session ID.                           | Injected into the agent process and read by `agh whoami`.                          |
-| `AGH_AGENT`                | string        | resolved agent name                                                  | Agent name.                           | Injected for agent identity metadata.                                              |
-| `AGH_AGENT_NAME`           | string        | resolved agent name                                                  | Agent name.                           | Injected for agent identity metadata.                                              |
-| `AGH_PROVIDER`             | string        | resolved provider id                                                 | Provider id.                          | Injected for provider-aware tools and diagnostics.                                 |
-| `AGH_PROVIDER_HARNESS`     | string        | resolved provider harness                                            | `acp`, `pi_acp`.                      | Injected for provider-aware tools and diagnostics.                                 |
-| `AGH_PROVIDER_AUTH_MODE`   | string        | resolved provider auth mode                                          | `native_cli`, `bound_secret`, `none`. | Identifies whether auth is native CLI, AGH-bound secret, or none.                  |
-| `AGH_PROVIDER_ENV_POLICY`  | string        | resolved provider env policy                                         | `filtered`, `isolated`.               | Identifies which daemon environment policy was used.                               |
-| `AGH_PROVIDER_HOME_POLICY` | string        | resolved provider home policy                                        | `operator`, `isolated`.               | Identifies whether the provider uses operator or isolated home state.              |
-| `AGH_MODEL`                | string        | resolved model                                                       | Provider model string.                | Injected for provider-aware tools and diagnostics.                                 |
-| `PROVIDER_HOME`            | path          | set only when `home_policy = "isolated"`                             | AGH-owned provider home.              | Points generic provider CLIs at `$AGH_HOME/providers/<provider>`.                  |
-| `HOME`                     | path          | provider home when isolated, otherwise parent.                       | Existing path.                        | Redirected to provider home only for isolated provider-home launches.              |
-| `XDG_CONFIG_HOME`          | path          | set only when provider home is isolated                              | Provider config directory.            | Generic config location under the isolated provider home.                          |
-| `XDG_DATA_HOME`            | path          | set only when provider home is isolated                              | Provider data directory.              | Generic data location under the isolated provider home.                            |
-| `XDG_CACHE_HOME`           | path          | set only when provider home is isolated                              | Provider cache directory.             | Generic cache location under the isolated provider home.                           |
-| `CLAUDE_CONFIG_DIR`        | path          | set only for isolated `claude` providers                             | Provider Claude config directory.     | Points Claude Code at isolated AGH-owned auth/config state.                        |
-| `CODEX_HOME`               | path          | set only for isolated `codex` providers                              | Provider Codex home directory.        | Points Codex at isolated AGH-owned auth/config state.                              |
-| `PROVIDER_CODEX_HOME`      | path          | set only for isolated `codex` providers                              | Provider Codex home directory.        | Mirrors `CODEX_HOME` for QA and provider-launch diagnostics.                       |
-| `OPENCODE_CONFIG_DIR`      | path          | set only for isolated `opencode` providers                           | Provider OpenCode config directory.   | Points OpenCode at isolated AGH-owned auth/config state.                           |
-| `PI_CODING_AGENT_DIR`      | path          | set for native Pi isolated home or Pi-backed `bound_secret` sessions | Pi auth/config directory.             | Points Pi at the isolated native auth store or bound-secret runtime config.        |
-| `AGH_SESSION_CHANNEL`      | string        | unset unless the execution resolved as Live                          | Immutable participation channel.      | Injected for Live sessions. Stale values are removed for Local sessions.           |
-| `AGH_PEER_ID`              | string        | unset unless the execution resolved as Live                          | `<agent-name>.<session-id>`           | Injected for Live sessions. Stale values are removed for Local sessions.           |
-| `AGH_BIN`                  | absolute path | current AGH executable                                               | Existing executable path.             | Injected into ACP provider subprocesses so agents can call the same AGH binary.    |
-| `PATH`                     | path list     | inherited or allowlisted                                             | Path list for the operating system.   | The directory containing `AGH_BIN` is prepended and duplicate entries are removed. |
+| Variable                       | Type          | Default                                                              | Valid values                          | Description                                                                            |
+| ------------------------------ | ------------- | -------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
+| `COMPOZY_SESSION_ID`           | string        | set for every managed session                                        | Session ID.                           | Injected into the agent process and read by `agh whoami`.                              |
+| `COMPOZY_AGENT`                | string        | resolved agent name                                                  | Agent name.                           | Injected for agent identity metadata.                                                  |
+| `COMPOZY_AGENT_NAME`           | string        | resolved agent name                                                  | Agent name.                           | Injected for agent identity metadata.                                                  |
+| `COMPOZY_PROVIDER`             | string        | resolved provider id                                                 | Provider id.                          | Injected for provider-aware tools and diagnostics.                                     |
+| `COMPOZY_PROVIDER_HARNESS`     | string        | resolved provider harness                                            | `acp`, `pi_acp`.                      | Injected for provider-aware tools and diagnostics.                                     |
+| `COMPOZY_PROVIDER_AUTH_MODE`   | string        | resolved provider auth mode                                          | `native_cli`, `bound_secret`, `none`. | Identifies whether auth is native CLI, AGH-bound secret, or none.                      |
+| `COMPOZY_PROVIDER_ENV_POLICY`  | string        | resolved provider env policy                                         | `filtered`, `isolated`.               | Identifies which daemon environment policy was used.                                   |
+| `COMPOZY_PROVIDER_HOME_POLICY` | string        | resolved provider home policy                                        | `operator`, `isolated`.               | Identifies whether the provider uses operator or isolated home state.                  |
+| `COMPOZY_MODEL`                | string        | resolved model                                                       | Provider model string.                | Injected for provider-aware tools and diagnostics.                                     |
+| `PROVIDER_HOME`                | path          | set only when `home_policy = "isolated"`                             | AGH-owned provider home.              | Points generic provider CLIs at `$COMPOZY_HOME/providers/<provider>`.                  |
+| `HOME`                         | path          | provider home when isolated, otherwise parent.                       | Existing path.                        | Redirected to provider home only for isolated provider-home launches.                  |
+| `XDG_CONFIG_HOME`              | path          | set only when provider home is isolated                              | Provider config directory.            | Generic config location under the isolated provider home.                              |
+| `XDG_DATA_HOME`                | path          | set only when provider home is isolated                              | Provider data directory.              | Generic data location under the isolated provider home.                                |
+| `XDG_CACHE_HOME`               | path          | set only when provider home is isolated                              | Provider cache directory.             | Generic cache location under the isolated provider home.                               |
+| `CLAUDE_CONFIG_DIR`            | path          | set only for isolated `claude` providers                             | Provider Claude config directory.     | Points Claude Code at isolated AGH-owned auth/config state.                            |
+| `CODEX_HOME`                   | path          | set only for isolated `codex` providers                              | Provider Codex home directory.        | Points Codex at isolated AGH-owned auth/config state.                                  |
+| `PROVIDER_CODEX_HOME`          | path          | set only for isolated `codex` providers                              | Provider Codex home directory.        | Mirrors `CODEX_HOME` for QA and provider-launch diagnostics.                           |
+| `OPENCODE_CONFIG_DIR`          | path          | set only for isolated `opencode` providers                           | Provider OpenCode config directory.   | Points OpenCode at isolated AGH-owned auth/config state.                               |
+| `PI_CODING_AGENT_DIR`          | path          | set for native Pi isolated home or Pi-backed `bound_secret` sessions | Pi auth/config directory.             | Points Pi at the isolated native auth store or bound-secret runtime config.            |
+| `COMPOZY_SESSION_CHANNEL`      | string        | unset unless the execution resolved as Live                          | Immutable participation channel.      | Injected for Live sessions. Stale values are removed for Local sessions.               |
+| `COMPOZY_PEER_ID`              | string        | unset unless the execution resolved as Live                          | `<agent-name>.<session-id>`           | Injected for Live sessions. Stale values are removed for Local sessions.               |
+| `COMPOZY_BIN`                  | absolute path | current AGH executable                                               | Existing executable path.             | Injected into ACP provider subprocesses so agents can call the same AGH binary.        |
+| `PATH`                         | path list     | inherited or allowlisted                                             | Path list for the operating system.   | The directory containing `COMPOZY_BIN` is prepended and duplicate entries are removed. |
 
 ## Hook Subprocess Environment
 
@@ -149,42 +149,42 @@ Explicit hook `env` values override inherited values with the same key.
 Bridge providers are extension runtimes, not `config.toml` sections. These environment variables
 act as process-level defaults or test hooks for provider binaries.
 
-| Variable                               | Provider    | Default                        | Valid values          | Description                                   |
-| -------------------------------------- | ----------- | ------------------------------ | --------------------- | --------------------------------------------- |
-| `AGH_BRIDGE_DISCORD_LISTEN_ADDR`       | Discord     | provider config value          | Host and port string. | Default Discord webhook listener address.     |
-| `AGH_BRIDGE_DISCORD_API_BASE_URL`      | Discord     | Discord API default            | URL.                  | Discord API base URL override.                |
-| `AGH_BRIDGE_GITHUB_LISTEN_ADDR`        | GitHub      | provider config value          | Host and port string. | Default GitHub webhook listener address.      |
-| `AGH_BRIDGE_GITHUB_API_BASE_URL`       | GitHub      | GitHub API default             | URL.                  | GitHub API base URL override.                 |
-| `AGH_BRIDGE_GCHAT_LISTEN_ADDR`         | Google Chat | provider config value          | Host and port string. | Default Google Chat webhook listener address. |
-| `AGH_BRIDGE_GCHAT_API_BASE_URL`        | Google Chat | Google Chat API default        | URL.                  | Google Chat API base URL override.            |
-| `AGH_BRIDGE_GCHAT_AUTH_URL`            | Google Chat | Google OAuth token URL         | URL.                  | Google Chat auth endpoint override.           |
-| `AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL`    | Google Chat | Google direct-message cert URL | URL.                  | Direct-message certificate URL override.      |
-| `AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL`    | Google Chat | Google Pub/Sub cert URL        | URL.                  | Pub/Sub certificate URL override.             |
-| `AGH_BRIDGE_LINEAR_LISTEN_ADDR`        | Linear      | provider config value          | Host and port string. | Default Linear webhook listener address.      |
-| `AGH_BRIDGE_LINEAR_API_BASE_URL`       | Linear      | Linear API default             | URL.                  | Linear API base URL override.                 |
-| `AGH_BRIDGE_LINEAR_TOKEN_URL`          | Linear      | Linear OAuth token URL         | URL.                  | Linear OAuth token endpoint override.         |
-| `AGH_BRIDGE_SLACK_LISTEN_ADDR`         | Slack       | provider config value          | Host and port string. | Default Slack webhook listener address.       |
-| `AGH_BRIDGE_SLACK_API_BASE_URL`        | Slack       | Slack API default              | URL.                  | Slack API base URL override.                  |
-| `AGH_BRIDGE_TEAMS_LISTEN_ADDR`         | Teams       | provider config value          | Host and port string. | Default Teams webhook listener address.       |
-| `AGH_BRIDGE_TEAMS_OPENID_METADATA_URL` | Teams       | Microsoft OpenID metadata URL  | URL.                  | Teams OpenID metadata endpoint override.      |
-| `AGH_BRIDGE_TEAMS_TOKEN_URL`           | Teams       | Microsoft OAuth token URL      | URL.                  | Teams OAuth token endpoint override.          |
-| `AGH_BRIDGE_TELEGRAM_LISTEN_ADDR`      | Telegram    | provider config value          | Host and port string. | Default Telegram webhook listener address.    |
-| `AGH_BRIDGE_TELEGRAM_API_BASE_URL`     | Telegram    | Telegram API default           | URL.                  | Telegram API base URL override.               |
-| `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR`      | WhatsApp    | provider config value          | Host and port string. | Default WhatsApp webhook listener address.    |
-| `AGH_BRIDGE_WHATSAPP_API_BASE_URL`     | WhatsApp    | WhatsApp API default           | URL.                  | WhatsApp API base URL override.               |
+| Variable                                   | Provider    | Default                        | Valid values          | Description                                   |
+| ------------------------------------------ | ----------- | ------------------------------ | --------------------- | --------------------------------------------- |
+| `COMPOZY_BRIDGE_DISCORD_LISTEN_ADDR`       | Discord     | provider config value          | Host and port string. | Default Discord webhook listener address.     |
+| `COMPOZY_BRIDGE_DISCORD_API_BASE_URL`      | Discord     | Discord API default            | URL.                  | Discord API base URL override.                |
+| `COMPOZY_BRIDGE_GITHUB_LISTEN_ADDR`        | GitHub      | provider config value          | Host and port string. | Default GitHub webhook listener address.      |
+| `COMPOZY_BRIDGE_GITHUB_API_BASE_URL`       | GitHub      | GitHub API default             | URL.                  | GitHub API base URL override.                 |
+| `COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR`         | Google Chat | provider config value          | Host and port string. | Default Google Chat webhook listener address. |
+| `COMPOZY_BRIDGE_GCHAT_API_BASE_URL`        | Google Chat | Google Chat API default        | URL.                  | Google Chat API base URL override.            |
+| `COMPOZY_BRIDGE_GCHAT_AUTH_URL`            | Google Chat | Google OAuth token URL         | URL.                  | Google Chat auth endpoint override.           |
+| `COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL`    | Google Chat | Google direct-message cert URL | URL.                  | Direct-message certificate URL override.      |
+| `COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL`    | Google Chat | Google Pub/Sub cert URL        | URL.                  | Pub/Sub certificate URL override.             |
+| `COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR`        | Linear      | provider config value          | Host and port string. | Default Linear webhook listener address.      |
+| `COMPOZY_BRIDGE_LINEAR_API_BASE_URL`       | Linear      | Linear API default             | URL.                  | Linear API base URL override.                 |
+| `COMPOZY_BRIDGE_LINEAR_TOKEN_URL`          | Linear      | Linear OAuth token URL         | URL.                  | Linear OAuth token endpoint override.         |
+| `COMPOZY_BRIDGE_SLACK_LISTEN_ADDR`         | Slack       | provider config value          | Host and port string. | Default Slack webhook listener address.       |
+| `COMPOZY_BRIDGE_SLACK_API_BASE_URL`        | Slack       | Slack API default              | URL.                  | Slack API base URL override.                  |
+| `COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR`         | Teams       | provider config value          | Host and port string. | Default Teams webhook listener address.       |
+| `COMPOZY_BRIDGE_TEAMS_OPENID_METADATA_URL` | Teams       | Microsoft OpenID metadata URL  | URL.                  | Teams OpenID metadata endpoint override.      |
+| `COMPOZY_BRIDGE_TEAMS_TOKEN_URL`           | Teams       | Microsoft OAuth token URL      | URL.                  | Teams OAuth token endpoint override.          |
+| `COMPOZY_BRIDGE_TELEGRAM_LISTEN_ADDR`      | Telegram    | provider config value          | Host and port string. | Default Telegram webhook listener address.    |
+| `COMPOZY_BRIDGE_TELEGRAM_API_BASE_URL`     | Telegram    | Telegram API default           | URL.                  | Telegram API base URL override.               |
+| `COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR`      | WhatsApp    | provider config value          | Host and port string. | Default WhatsApp webhook listener address.    |
+| `COMPOZY_BRIDGE_WHATSAPP_API_BASE_URL`     | WhatsApp    | WhatsApp API default           | URL.                  | WhatsApp API base URL override.               |
 
 Bridge adapter harness variables are read by bridge binaries for integration and lifecycle marker
 paths:
 
 ```text
-AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH
-AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH
-AGH_BRIDGE_ADAPTER_STATE_PATH
-AGH_BRIDGE_ADAPTER_DELIVERY_PATH
-AGH_BRIDGE_ADAPTER_INGEST_PATH
-AGH_BRIDGE_ADAPTER_STARTS_PATH
-AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH
-AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH
+COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH
+COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH
+COMPOZY_BRIDGE_ADAPTER_STATE_PATH
+COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH
+COMPOZY_BRIDGE_ADAPTER_INGEST_PATH
+COMPOZY_BRIDGE_ADAPTER_STARTS_PATH
+COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH
+COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH
 ```
 
 ## Not Supported As Environment Overrides
@@ -192,14 +192,14 @@ AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH
 These names are common guesses or appear in older task notes, but current AGH code does not read
 them as runtime configuration variables.
 
-| Variable           | Status                        | Use instead                                                                                          |
-| ------------------ | ----------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `AGH_CONFIG`       | Not read.                     | Put global config at `$AGH_HOME/config.toml` and workspace config at `<workspace>/.agh/config.toml`. |
-| `AGH_LOG_LEVEL`    | Not read.                     | Set `[log].level` in `config.toml`.                                                                  |
-| `VITE_AGH_API_URL` | Not read by AGH runtime code. | It is listed as a Turbo build cache input, not a daemon config variable.                             |
+| Variable               | Status                        | Use instead                                                                                              |
+| ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `COMPOZY_CONFIG`       | Not read.                     | Put global config at `$COMPOZY_HOME/config.toml` and workspace config at `<workspace>/.agh/config.toml`. |
+| `COMPOZY_LOG_LEVEL`    | Not read.                     | Set `[log].level` in `config.toml`.                                                                      |
+| `VITE_COMPOZY_API_URL` | Not read by AGH runtime code. | It is listed as a Turbo build cache input, not a daemon config variable.                                 |
 
 ## Related Pages
 
 - [config.toml](/runtime/core/configuration/config-toml) documents config fields that replace env overrides.
-- [File Locations](/runtime/core/configuration/file-locations) documents `$AGH_HOME` and workspace paths.
+- [File Locations](/runtime/core/configuration/file-locations) documents `$COMPOZY_HOME` and workspace paths.
 - [Bridge Overview](/runtime/core/bridges) explains bridge instances and provider runtime behavior.

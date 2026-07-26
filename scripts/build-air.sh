@@ -5,7 +5,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
-build_dir=${AGH_AIR_BUILD_DIR:-"$repo_root/.tmp/air"}
+build_dir=${COMPOZY_AIR_BUILD_DIR:-"$repo_root/.tmp/air"}
 binary="$build_dir/compozy"
 next_binary="$build_dir/compozy.next"
 

@@ -51,7 +51,7 @@ async function stopRegisteredDaemon(
       cwd: cleanup.repoRoot,
       env: {
         ...process.env,
-        AGH_HOME: cleanup.homeDir,
+        COMPOZY_HOME: cleanup.homeDir,
         HOME: cleanup.homeDir,
       },
       timeout: DAEMON_STOP_TIMEOUT_MS,

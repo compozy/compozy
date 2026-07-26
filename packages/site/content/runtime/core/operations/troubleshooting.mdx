@@ -7,8 +7,9 @@ Use this guide when an operational command fails or the daemon is not behaving a
 entry has symptoms, diagnosis, and a resolution path.
 
 <OperatorNote>
-  Start with `agh status`, `agh doctor`, and `$AGH_HOME/logs/agh.log`. Those three surfaces usually
-  tell you whether the failure is process discovery, runtime health, or a deeper startup problem.
+  Start with `agh status`, `agh doctor`, and `$COMPOZY_HOME/logs/agh.log`. Those three surfaces
+  usually tell you whether the failure is process discovery, runtime health, or a deeper startup
+  problem.
 </OperatorNote>
 
 ## Daemon reports "already running"
@@ -22,10 +23,10 @@ entry has symptoms, diagnosis, and a resolution path.
 Inspect the current discovery files:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
 agh status
-cat "$AGH_HOME/daemon.json"
-cat "$AGH_HOME/daemon.lock"
+cat "$COMPOZY_HOME/daemon.json"
+cat "$COMPOZY_HOME/daemon.lock"
 ```
 
 If the recorded PID is not alive, a new daemon start should acquire the lock, remove the stale socket
@@ -42,8 +43,8 @@ path, and clean up orphan child processes from the old daemon.
 Commands:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
-tail -n 120 "$AGH_HOME/logs/agh.log"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
+tail -n 120 "$COMPOZY_HOME/logs/agh.log"
 agh daemon start --foreground
 ```
 
@@ -55,11 +56,11 @@ agh daemon start
 
 ## AGH refuses an incompatible database
 
-| Field      | What to check                                                                                                                                                                                                                                                                                                                      |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | A daemon-global refusal stops boot and names `$AGH_HOME/agh.db`. A per-session refusal can instead appear after AGH is ready when `agh session history <id> -o json` or the HTTP/UDS session-history route opens that session's `events.db`.                                                                                       |
-| Diagnosis  | `legacy_database` means the file predates AGH's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global and memory streams, not every lazily opened per-session stream.                       |
-| Resolution | For `schema_ahead`, run a newer compatible AGH binary against the stopped, intact database family—the preferred state-preserving path. For `legacy_database`, cold-move the complete `AGH_HOME` or workspace `.agh` family and select a separate fresh home. Never edit a version table or move one database/sidecar in isolation. |
+| Field      | What to check                                                                                                                                                                                                                                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | A daemon-global refusal stops boot and names `$COMPOZY_HOME/agh.db`. A per-session refusal can instead appear after AGH is ready when `agh session history <id> -o json` or the HTTP/UDS session-history route opens that session's `events.db`.                                                                                       |
+| Diagnosis  | `legacy_database` means the file predates AGH's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global and memory streams, not every lazily opened per-session stream.                           |
+| Resolution | For `schema_ahead`, run a newer compatible AGH binary against the stopped, intact database family—the preferred state-preserving path. For `legacy_database`, cold-move the complete `COMPOZY_HOME` or workspace `.agh` family and select a separate fresh home. Never edit a version table or move one database/sidecar in isolation. |
 
 Stopped-daemon provider-auth, extension, and MCP-auth commands return the same refusal as one structured error
 document under `-o json`. Match `diagnostic.code` as `legacy_database` or `schema_ahead`; the diagnostic evidence
@@ -68,11 +69,11 @@ includes the direct-open surface and canonical offending path.
 When a fresh home is the chosen hard-cut path, stop AGH and preserve the complete old home first:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
 agh daemon stop
-legacy_home="${AGH_HOME}.pre-goose-$(date +%Y%m%d-%H%M%S)"
-mv "$AGH_HOME" "$legacy_home"
-mkdir -p "$AGH_HOME"
+legacy_home="${COMPOZY_HOME}.pre-goose-$(date +%Y%m%d-%H%M%S)"
+mv "$COMPOZY_HOME" "$legacy_home"
+mkdir -p "$COMPOZY_HOME"
 agh daemon start
 agh status -o json | jq '.daemon.schema_streams'
 ```
@@ -95,11 +96,11 @@ original home in place and use a newer compatible binary instead of this state-d
 Inspect the socket path:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
-socket="$AGH_HOME/daemon.sock"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
+socket="$COMPOZY_HOME/daemon.sock"
 
 agh status
-ls -ld "$AGH_HOME" "$(dirname "$socket")"
+ls -ld "$COMPOZY_HOME" "$(dirname "$socket")"
 ls -l "$socket"
 file "$socket"
 ```
@@ -111,7 +112,7 @@ mv "$socket" "$socket.stale"
 agh daemon start
 ```
 
-If the socket lives outside `AGH_HOME`, confirm the configured `[daemon].socket` path and parent
+If the socket lives outside `COMPOZY_HOME`, confirm the configured `[daemon].socket` path and parent
 directory ownership in [config.toml](/runtime/core/configuration/config-toml).
 
 ## HTTP UI or API is unavailable
@@ -145,7 +146,7 @@ Commands:
 ```bash
 agh agent info <agent-name>
 agh daemon start --foreground
-tail -n 120 "$AGH_HOME/logs/agh.log"
+tail -n 120 "$COMPOZY_HOME/logs/agh.log"
 command -v npx
 command -v codex
 command -v gemini
@@ -212,7 +213,7 @@ agh session repair <session-id>
 ```
 
 If resume still fails, check that the workspace directory, agent definition, and
-`$AGH_HOME/sessions/<session-id>/events.db` still exist.
+`$COMPOZY_HOME/sessions/<session-id>/events.db` still exist.
 
 ## Database is locked or corrupted
 
@@ -225,7 +226,7 @@ If resume still fails, check that the workspace directory, agent definition, and
 Commands:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
 agh daemon stop
 sqlite3 -readonly "/path/to/cold-backup/agh.db" "pragma integrity_check;"
 ```
@@ -233,23 +234,23 @@ sqlite3 -readonly "/path/to/cold-backup/agh.db" "pragma integrity_check;"
 AGH does not rename or recreate a database after classifying corruption. For cold backup, family
 preservation, and restore details, see [Database Operations](/runtime/core/operations/database).
 
-## Permission errors in AGH_HOME
+## Permission errors in COMPOZY_HOME
 
-| Field      | What to check                                                                                                                  |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Symptoms   | Startup logs show errors creating the home layout, lock file, log file, socket parent, or database directory.                  |
-| Diagnosis  | The daemon user does not own `AGH_HOME`, or a service manager starts AGH with a different home path than the CLI.              |
-| Resolution | Use one stable `AGH_HOME`, ensure the daemon user owns it, and run the CLI with the same `AGH_HOME` when managing that daemon. |
+| Field      | What to check                                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | Startup logs show errors creating the home layout, lock file, log file, socket parent, or database directory.                          |
+| Diagnosis  | The daemon user does not own `COMPOZY_HOME`, or a service manager starts AGH with a different home path than the CLI.                  |
+| Resolution | Use one stable `COMPOZY_HOME`, ensure the daemon user owns it, and run the CLI with the same `COMPOZY_HOME` when managing that daemon. |
 
 Commands:
 
 ```bash
-export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
-ls -ld "$AGH_HOME" "$AGH_HOME/logs" "$AGH_HOME/sessions"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
+ls -ld "$COMPOZY_HOME" "$COMPOZY_HOME/logs" "$COMPOZY_HOME/sessions"
 agh status
 ```
 
-For systemd or launchd installs, define `AGH_HOME` in the service environment and keep provider API
+For systemd or launchd installs, define `COMPOZY_HOME` in the service environment and keep provider API
 keys in the same environment.
 
 ## Related pages

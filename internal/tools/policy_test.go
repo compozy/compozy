@@ -12,7 +12,7 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 	ctx := context.Background()
 	externalRead := mcpDescriptor("mcp__github__search", "github", "search")
 	builtinWrite := validDescriptor()
-	builtinWrite.ID = "agh__task_update"
+	builtinWrite.ID = "compozy__task_update"
 	builtinWrite.ReadOnly = false
 	builtinWrite.Risk = RiskMutating
 
@@ -105,7 +105,7 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 	t.Run("Should apply ACP permission mode as ceiling above registry grants", func(t *testing.T) {
 		t.Parallel()
 
-		allowPattern, err := ParseToolPattern("agh__task_update")
+		allowPattern, err := ParseToolPattern("compozy__task_update")
 		if err != nil {
 			t.Fatalf("ParseToolPattern() error = %v", err)
 		}
@@ -134,9 +134,9 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 			SystemPermissionMode: PermissionModeApproveAll,
 			Session: SessionToolPolicy{
 				Enforced: true,
-				Tools:    []ToolID{"agh__skill_view"},
+				Tools:    []ToolID{"compozy__skill_view"},
 			},
-		}, ToolsetCatalog{}, []ToolID{builtinWrite.ID, "agh__skill_view"})
+		}, ToolsetCatalog{}, []ToolID{builtinWrite.ID, "compozy__skill_view"})
 		if err != nil {
 			t.Fatalf("NewEffectivePolicyEvaluator() error = %v", err)
 		}
@@ -157,7 +157,7 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDescriptor()
-		descriptor.ID = "agh__operator_debug"
+		descriptor.ID = "compozy__operator_debug"
 		descriptor.Visibility = VisibilityOperator
 		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
 			SystemPermissionMode: PermissionModeApproveAll,
@@ -183,7 +183,7 @@ func TestPolicyParsingValidationAndApprovalBranches(t *testing.T) {
 		t.Parallel()
 
 		mutating := validDescriptor()
-		mutating.ID = "agh__task_update"
+		mutating.ID = "compozy__task_update"
 		mutating.ReadOnly = false
 		mutating.Risk = RiskMutating
 		evaluator, err := NewEffectivePolicyEvaluator(DefaultPolicyInputs(), ToolsetCatalog{}, []ToolID{mutating.ID})
@@ -223,7 +223,7 @@ func TestPolicyParsingValidationAndApprovalBranches(t *testing.T) {
 		t.Parallel()
 
 		mutating := validDescriptor()
-		mutating.ID = "agh__task_update"
+		mutating.ID = "compozy__task_update"
 		mutating.ReadOnly = false
 		mutating.Risk = RiskMutating
 		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{

@@ -26,10 +26,10 @@ agent-workspace overrides.
 
 | Scope                 | Default location                          | Notes                                                                |
 | --------------------- | ----------------------------------------- | -------------------------------------------------------------------- |
-| `global`              | `$AGH_HOME/memory/`                       | Default `$AGH_HOME` is `~/.agh`.                                     |
+| `global`              | `$COMPOZY_HOME/memory/`                   | Default `$COMPOZY_HOME` is `~/.agh`.                                 |
 | `workspace`           | `<workspace>/.agh/memory/`                | Resolved by the workspace ID from `<workspace>/.agh/workspace.toml`. |
 | `agent` (`workspace`) | `<workspace>/.agh/agents/<agent>/memory/` | Default tier when `--scope agent` is selected.                       |
-| `agent` (`global`)    | `$AGH_HOME/agents/<agent>/memory/`        | Cross-workspace agent baseline.                                      |
+| `agent` (`global`)    | `$COMPOZY_HOME/agents/<agent>/memory/`    | Cross-workspace agent baseline.                                      |
 
 Typical layout:
 

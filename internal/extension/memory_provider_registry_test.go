@@ -117,11 +117,11 @@ func TestMemoryProviderRegistry(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		registry := NewMemoryProviderRegistry(WithMemoryProviderReservedTools("agh__memory_search"))
+		registry := NewMemoryProviderRegistry(WithMemoryProviderReservedTools("compozy__memory_search"))
 		err := registry.Register(ctx, MemoryProviderRegistration{
 			Name:      "custom",
 			Provider:  &stubMemoryProvider{},
-			ToolNames: []string{"AGH__MEMORY_SEARCH"},
+			ToolNames: []string{"COMPOZY__MEMORY_SEARCH"},
 		})
 		if !errors.Is(err, ErrMemoryProviderCollision) {
 			t.Fatalf("Register(tool collision) error = %v, want ErrMemoryProviderCollision", err)

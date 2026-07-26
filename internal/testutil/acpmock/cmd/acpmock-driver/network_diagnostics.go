@@ -27,7 +27,7 @@ func (a *mockAgent) writeSessionDiagnostics(
 
 func networkEnvironmentNames() []string {
 	names := make([]string, 0, 2)
-	for _, name := range []string{"AGH_SESSION_CHANNEL", "AGH_PEER_ID"} {
+	for _, name := range []string{"COMPOZY_SESSION_CHANNEL", "COMPOZY_PEER_ID"} {
 		if _, present := os.LookupEnv(name); present {
 			names = append(names, name)
 		}

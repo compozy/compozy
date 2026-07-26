@@ -281,15 +281,15 @@ func TestPromptStreamEncoderToolNameResolution(t *testing.T) {
 		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
 			Type:       acp.EventTypeToolCall,
 			ToolCallID: "tool-custom-1",
-			Title:      "agh__skill_view",
-			Raw:        json.RawMessage(`{"tool_input":{"tool_id":"agh__skill_view"}}`),
+			Title:      "compozy__skill_view",
+			Raw:        json.RawMessage(`{"tool_input":{"tool_id":"compozy__skill_view"}}`),
 		})
 
 		frames := promptToolFramesFromSSE(t, writer.String())
 		if len(frames) == 0 {
 			t.Fatal("expected at least one tool frame")
 		}
-		if got, want := frames[0].ToolName, "agh__skill_view"; got != want {
+		if got, want := frames[0].ToolName, "compozy__skill_view"; got != want {
 			t.Fatalf("tool frame toolName = %q, want %q", got, want)
 		}
 	})

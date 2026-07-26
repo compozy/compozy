@@ -1183,9 +1183,9 @@ async function agentTaskCLI<T>(
   const { stdout } = await execFileAsync(runtime.paths.cliShim, [...args, "-o", "json"], {
     env: {
       ...cliEnv(runtime.paths),
-      AGH_AGENT: agentName,
-      AGH_AGENT_NAME: agentName,
-      AGH_SESSION_ID: sessionID,
+      COMPOZY_AGENT: agentName,
+      COMPOZY_AGENT_NAME: agentName,
+      COMPOZY_SESSION_ID: sessionID,
     },
   });
   return {
@@ -1216,7 +1216,7 @@ function findRun(runs: TaskRun[], runID: string): TaskRun | undefined {
 function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    AGH_HOME: paths.homeDir,
+    COMPOZY_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)

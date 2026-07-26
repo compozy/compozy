@@ -607,7 +607,7 @@ func TestTriggerValidate(t *testing.T) {
 				FireLimit:        DefaultFireLimitConfig(),
 				Source:           JobSourceConfig,
 				EndpointSlug:     "deploy-review",
-				WebhookSecretRef: "env:AGH_TEST_WEBHOOK_SECRET",
+				WebhookSecretRef: "env:COMPOZY_TEST_WEBHOOK_SECRET",
 			},
 		},
 		{
@@ -652,7 +652,7 @@ func TestTriggerValidate(t *testing.T) {
 				Source:           JobSourceConfig,
 				EndpointSlug:     "deploy-review",
 				WebhookID:        "qa-webhook-id",
-				WebhookSecretRef: "env:AGH_TEST_WEBHOOK_SECRET",
+				WebhookSecretRef: "env:COMPOZY_TEST_WEBHOOK_SECRET",
 			},
 			wantErr: "webhook_id",
 		},

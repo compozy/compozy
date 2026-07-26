@@ -37,7 +37,7 @@ function WiderDecisionCanvas() {
       <ToolApprovalGrantSetDialog
         canSubmit
         draft={{
-          toolId: "agh__workspace_list",
+          toolId: "compozy__workspace_list",
           decision: "allow",
           scope: "agent",
           agentName: "claude-code",

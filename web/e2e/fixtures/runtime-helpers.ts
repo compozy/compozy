@@ -28,7 +28,7 @@ export interface RuntimeConfigInput {
 }
 
 export function resolveRuntimeMode(env: NodeJS.ProcessEnv = process.env): RuntimeMode {
-  const rawBaseURL = env.AGH_E2E_BASE_URL?.trim();
+  const rawBaseURL = env.COMPOZY_E2E_BASE_URL?.trim();
   if (rawBaseURL === undefined || rawBaseURL === "") {
     return { kind: "launch" };
   }
@@ -46,7 +46,7 @@ export function normalizeBaseURL(rawValue: string): string {
 
   if (baseURL.pathname !== "/" && baseURL.pathname !== "") {
     throw new Error(
-      `AGH_E2E_BASE_URL must point at the daemon root, received path ${baseURL.pathname}`
+      `COMPOZY_E2E_BASE_URL must point at the daemon root, received path ${baseURL.pathname}`
     );
   }
 
@@ -165,7 +165,7 @@ export function prependPath(prefix: string, currentPath: string | undefined): st
 export function buildLaunchRuntimeEnv(repoRoot: string, env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...env,
-    AGH_WEB_DIST_DIR: path.join(repoRoot, "web", "dist"),
+    COMPOZY_WEB_DIST_DIR: path.join(repoRoot, "web", "dist"),
   };
 }
 

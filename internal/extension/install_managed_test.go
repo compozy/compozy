@@ -409,7 +409,7 @@ func TestInstallLocalManagedNormalizesProvidedChecksum(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(sourceDir, "extension.toml"),
-		[]byte("name = \"checksum-ext\"\nversion = \"1.0.0\"\nmin_agh_version = \"0.1.0\"\n"),
+		[]byte("name = \"checksum-ext\"\nversion = \"1.0.0\"\nmin_compozy_version = \"0.1.0\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
@@ -452,7 +452,7 @@ func TestInstallLocalManagedRejectsExistingOrFailedInstall(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(existingSourceDir, "extension.toml"),
-		[]byte("name = \"existing-ext\"\nversion = \"1.0.0\"\nmin_agh_version = \"0.1.0\"\n"),
+		[]byte("name = \"existing-ext\"\nversion = \"1.0.0\"\nmin_compozy_version = \"0.1.0\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(existing extension.toml) error = %v", err)
@@ -473,7 +473,7 @@ func TestInstallLocalManagedRejectsExistingOrFailedInstall(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(failingSourceDir, "extension.toml"),
-		[]byte("name = \"failing-ext\"\nversion = \"1.0.0\"\nmin_agh_version = \"0.1.0\"\n"),
+		[]byte("name = \"failing-ext\"\nversion = \"1.0.0\"\nmin_compozy_version = \"0.1.0\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(failing extension.toml) error = %v", err)
@@ -607,7 +607,7 @@ func TestInstallLocalManagedWrapsPhaseErrors(t *testing.T) {
 		}
 		if err := os.WriteFile(
 			filepath.Join(sourceDir, "extension.toml"),
-			[]byte("name = \"wrapped-ext\"\nversion = \"1.0.0\"\nmin_agh_version = \"0.1.0\"\n"),
+			[]byte("name = \"wrapped-ext\"\nversion = \"1.0.0\"\nmin_compozy_version = \"0.1.0\"\n"),
 			0o644,
 		); err != nil {
 			t.Fatalf("os.WriteFile(extension.toml) error = %v", err)

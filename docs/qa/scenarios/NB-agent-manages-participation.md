@@ -5,8 +5,8 @@ title: Manage participation through structured agent surfaces
 persona: Ada
 journey: J-run-bounded-live-collaboration
 expected: CLI, HTTP, UDS, and native tools expose the same immutable mode, source, channel, finite bounds, consumption, and actual-or-unavailable usage; invalid or unauthorized requests return stable named diagnostics without partial execution state.
-entry_points: agh session/task/loop/network commands -o json; HTTP/UDS execution create/start and Network status/usage routes; agh__network_* and owner native tools; GET /api/agent/context
-qa_status: blocked-verify
+entry_points: agh session/task/loop/network commands -o json; HTTP/UDS execution create/start and Network status/usage routes; compozy__network_* and owner native tools; GET /api/agent/context
+qa_status: untested
 bug_ids: BUG-20260715-network-usage-workspace-name-empty;BUG-20260715-taskless-network-wake-run-unreadable
 fix_status: fixed
 retest_status: pass

@@ -29,7 +29,7 @@ definitions only.
 
 | Location                    | Scope                   | Applies when                                                 |
 | --------------------------- | ----------------------- | ------------------------------------------------------------ |
-| `$AGH_HOME/mcp.json`        | Global top-level MCP    | General runtime config loads. Defaults to `~/.agh/mcp.json`. |
+| `$COMPOZY_HOME/mcp.json`    | Global top-level MCP    | General runtime config loads. Defaults to `~/.agh/mcp.json`. |
 | `<workspace>/.agh/mcp.json` | Workspace top-level MCP | A workspace root is resolved for the command or session.     |
 | `<agent-dir>/mcp.json`      | Agent-local MCP         | Next to `AGENT.md`.                                          |
 | `<skill-dir>/mcp.json`      | Skill-local MCP         | Next to `SKILL.md`.                                          |
@@ -257,7 +257,7 @@ agh mcp auth status -o json
 agh mcp auth status linear --scope workspace --workspace <workspace-id> -o json
 ```
 
-Inside an AGH session, `agh__mcp_status` and `agh__mcp_auth_status` expose the corresponding
+Inside an AGH session, `compozy__mcp_status` and `compozy__mcp_auth_status` expose the corresponding
 redacted status. They do not return OAuth codes, tokens, PKCE verifiers, or secret values.
 
 The web repair action appears only for OAuth-capable HTTP/SSE servers that need their first login,
@@ -319,8 +319,8 @@ Re-read status and require `authenticated` plus `token_present=true`.
 Top-level configuration loads in this order:
 
 1. Built-in defaults.
-2. `$AGH_HOME/config.toml`.
-3. `$AGH_HOME/mcp.json`.
+2. `$COMPOZY_HOME/config.toml`.
+3. `$COMPOZY_HOME/mcp.json`.
 4. `<workspace>/.agh/config.toml`.
 5. `<workspace>/.agh/mcp.json`.
 

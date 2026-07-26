@@ -415,7 +415,7 @@ function validateToolPatternList(values: readonly string[], label: string): stri
     if (!isValidToolPattern(trimmed)) {
       return (
         label +
-        " entries must use canonical IDs such as agh__skill_view or namespace wildcards such as agh__task_*."
+        " entries must use canonical IDs such as compozy__skill_view or namespace wildcards such as compozy__task_*."
       );
     }
   }
@@ -427,7 +427,7 @@ function validateToolsetList(values: readonly string[]): string | null {
     const trimmed = value.trim();
     if (trimmed.length === 0) return "Toolset entries cannot be blank.";
     if (!isValidCanonicalRef(trimmed) || trimmed.includes("*")) {
-      return "Toolset entries must use canonical IDs such as agh__catalog.";
+      return "Toolset entries must use canonical IDs such as compozy__catalog.";
     }
   }
   return null;

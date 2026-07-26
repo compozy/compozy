@@ -63,7 +63,7 @@ const validDraft: AgentCreateDialogDraft = {
   permissions: "approve-reads",
   command: "",
   categoryPath: "operations/incident",
-  tools: ["agh__catalog"],
+  tools: ["compozy__catalog"],
   toolsets: [],
   denyTools: [],
   disabledSkills: [],
@@ -163,10 +163,15 @@ export const AdvancedTail: Story = {
   tags: ["play-fn"],
   render: () => <AgentCreateDialogHarness initialDraft={validDraft} initialMode="advanced" />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const tail = await canvas.findByTestId("agent-create-disabled-skills-input");
-    tail.scrollIntoView({ block: "end" });
-    await expect(canvas.getByTestId("agent-create-category-path")).toBeVisible();
+    const body = within(canvasElement.ownerDocument.body);
+    const tail = await body.findByTestId("agent-create-disabled-skills-input");
+    const scrollOwner = tail.closest('[data-slot="entity-dialog-body"]');
+    if (!(scrollOwner instanceof HTMLElement)) {
+      throw new Error("AgentCreateDialog story is missing its EntityDialogBody scroll owner");
+    }
+    scrollOwner.scrollTop = scrollOwner.scrollHeight;
+    await expect(body.getByTestId("agent-create-category-path")).toBeVisible();
+    await expect(tail).toBeVisible();
   },
 };
 

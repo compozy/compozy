@@ -28,7 +28,7 @@ test.use({
   runtimeOptions: {
     env: {
       ...process.env,
-      AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
+      COMPOZY_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
     },
     extensionsAllowUnverified: true,
     seed: {

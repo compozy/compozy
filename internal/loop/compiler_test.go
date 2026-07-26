@@ -16,7 +16,7 @@ func TestCompilerShouldCanonicalizeDefinitionNetworkParticipation(t *testing.T) 
 
 	def := validDefinition()
 	def.Start = []dsl.StartBinding{}
-	def.Graph.Nodes[2].Kind = "agh__network_send"
+	def.Graph.Nodes[2].Kind = "compozy__network_send"
 	mode := participation.ModeLive
 	strategy := participation.StrategyNamed
 	channel := " builders "
@@ -27,7 +27,7 @@ func TestCompilerShouldCanonicalizeDefinitionNetworkParticipation(t *testing.T) 
 	}
 
 	resolved, err := loop.NewCompiler(loop.WithCompilerToolSchemaSource(fakeToolSchemas{
-		"agh__network_send": {ToolID: "agh__network_send"},
+		"compozy__network_send": {ToolID: "compozy__network_send"},
 	})).Compile(def)
 	if err != nil {
 		t.Fatalf("Compile() error = %v", err)

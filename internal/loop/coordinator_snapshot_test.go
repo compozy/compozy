@@ -148,7 +148,7 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 	t.Run("Should round trip every execution manifest without consulting mutable registries", func(t *testing.T) {
 		t.Parallel()
 
-		const toolID = "agh__task_read"
+		const toolID = "compozy__task_read"
 		definition := pinnedSnapshotDefinition()
 		definition.Graph = dsl.Graph{
 			Nodes: []dsl.Node{

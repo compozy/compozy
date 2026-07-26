@@ -22,7 +22,7 @@ export default defineConfig({
     maxWorkers: "50%",
     setupFiles: ["./vitest.setup.tsx"],
     env: {
-      AGH_SITE_ROOT: siteRoot,
+      COMPOZY_SITE_ROOT: siteRoot,
     },
     globals: true,
     include: ["**/*.{test,spec}.{ts,tsx}"],

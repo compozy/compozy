@@ -20,7 +20,7 @@ test.use({
   runtimeOptions: {
     env: {
       ...process.env,
-      AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
+      COMPOZY_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
     },
   },
 });
@@ -360,7 +360,7 @@ function extractJSON(stdout: string): string {
 function cliEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    AGH_HOME: paths.homeDir,
+    COMPOZY_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)

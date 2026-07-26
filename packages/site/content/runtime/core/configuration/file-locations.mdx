@@ -4,78 +4,78 @@ description: All AGH global, workspace, agent, skill, database, log, socket, mem
 ---
 
 AGH uses one global home directory plus optional workspace-local `.agh/` directories. The global
-home defaults to `~/.agh` and can be changed with `AGH_HOME`.
+home defaults to `~/.agh` and can be changed with `COMPOZY_HOME`.
 
 ## Quick Reference
 
-| Path                                                          | Scope                  | Purpose                                                                                            |
-| ------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------- |
-| `$AGH_HOME`                                                   | Global                 | AGH home root. Defaults to `~/.agh`.                                                               |
-| `$AGH_HOME/config.toml`                                       | Global                 | Global runtime config.                                                                             |
-| `$AGH_HOME/mcp.json`                                          | Global                 | Global top-level MCP sidecar.                                                                      |
-| `$AGH_HOME/agh.db`                                            | Global                 | Global SQLite catalog.                                                                             |
-| `$AGH_HOME/daemon.sock`                                       | Global                 | Default Unix domain socket.                                                                        |
-| `$AGH_HOME/daemon.lock`                                       | Global                 | Daemon lock file.                                                                                  |
-| `$AGH_HOME/daemon.json`                                       | Global                 | Daemon discovery metadata.                                                                         |
-| `$AGH_HOME/logs/agh.log`                                      | Global                 | Structured daemon log file.                                                                        |
-| `$AGH_HOME/logs/network.audit`                                | Global                 | Append-only network audit file.                                                                    |
-| `$AGH_HOME/support-bundles/`                                  | Global                 | Daemon-created support bundle archives and operation downloads.                                    |
-| `$AGH_HOME/providers/<provider>/`                             | Provider               | Isolated provider home when `home_policy` is set.                                                  |
-| `$AGH_HOME/sessions/<session-id>/events.db`                   | Session (live)         | Per-session event database during the live session.                                                |
-| `$AGH_HOME/sessions/<session-id>/meta.json`                   | Session (live)         | Per-session metadata.                                                                              |
-| `$AGH_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` | Session (forensic)     | Read-only forensic JSONL ledger materialized after session stop.                                   |
-| `$AGH_HOME/sessions/_unbound/<session_id>/ledger.jsonl`       | Session (forensic)     | Forensic ledger for sessions without a resolved workspace_id.                                      |
-| `$AGH_HOME/agents/<name>/AGENT.md`                            | Global agent           | User-wide agent definition.                                                                        |
-| `$AGH_HOME/agents/<name>/skills/<skill>/SKILL.md`             | Global agent skill     | Agent-local skill overlay for the global agent.                                                    |
-| `$AGH_HOME/skills/<name>/SKILL.md`                            | Global skill           | User or marketplace skill definition.                                                              |
-| `<workspace>/.env`                                            | Workspace              | Optional dotenv file loaded before workspace config.                                               |
-| `<workspace>/.agh/config.toml`                                | Workspace              | Workspace config overlay.                                                                          |
-| `<workspace>/.agh/mcp.json`                                   | Workspace              | Workspace top-level MCP sidecar.                                                                   |
-| `<workspace>/.agh/workspace.toml`                             | Workspace identity     | Stable workspace ULID. Created on first daemon touch when `[memory.workspace] auto_create = true`. |
-| `<workspace>/.agh/agents/<name>/AGENT.md`                     | Workspace agent        | Workspace-local agent definition.                                                                  |
-| `<workspace>/.agh/agents/<name>/memory/`                      | Agent (workspace)      | Agent-workspace memory tier (deepest read precedence).                                             |
-| `<workspace>/.agh/agents/<name>/skills/<skill>/SKILL.md`      | Workspace agent skill  | Agent-local skill overlay for that workspace agent.                                                |
-| `<workspace>/.agh/skills/<name>/SKILL.md`                     | Workspace skill        | Workspace-local skill definition.                                                                  |
-| `<workspace>/.agh/memory/`                                    | Workspace memory       | Workspace-scoped memory files.                                                                     |
-| `$AGH_HOME/agents/<name>/memory/`                             | Agent (global)         | Agent-global memory tier (cross-workspace baseline).                                               |
-| `$AGH_HOME/memory/_inbox/`                                    | Memory extractor       | Extractor staging directory consumed by the controller.                                            |
-| `$AGH_HOME/memory/_system/`                                   | Memory machine-managed | Reserved namespace; never injected into prompts.                                                   |
+| Path                                                              | Scope                  | Purpose                                                                                            |
+| ----------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME`                                                   | Global                 | AGH home root. Defaults to `~/.agh`.                                                               |
+| `$COMPOZY_HOME/config.toml`                                       | Global                 | Global runtime config.                                                                             |
+| `$COMPOZY_HOME/mcp.json`                                          | Global                 | Global top-level MCP sidecar.                                                                      |
+| `$COMPOZY_HOME/agh.db`                                            | Global                 | Global SQLite catalog.                                                                             |
+| `$COMPOZY_HOME/daemon.sock`                                       | Global                 | Default Unix domain socket.                                                                        |
+| `$COMPOZY_HOME/daemon.lock`                                       | Global                 | Daemon lock file.                                                                                  |
+| `$COMPOZY_HOME/daemon.json`                                       | Global                 | Daemon discovery metadata.                                                                         |
+| `$COMPOZY_HOME/logs/agh.log`                                      | Global                 | Structured daemon log file.                                                                        |
+| `$COMPOZY_HOME/logs/network.audit`                                | Global                 | Append-only network audit file.                                                                    |
+| `$COMPOZY_HOME/support-bundles/`                                  | Global                 | Daemon-created support bundle archives and operation downloads.                                    |
+| `$COMPOZY_HOME/providers/<provider>/`                             | Provider               | Isolated provider home when `home_policy` is set.                                                  |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db`                   | Session (live)         | Per-session event database during the live session.                                                |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json`                   | Session (live)         | Per-session metadata.                                                                              |
+| `$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` | Session (forensic)     | Read-only forensic JSONL ledger materialized after session stop.                                   |
+| `$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl`       | Session (forensic)     | Forensic ledger for sessions without a resolved workspace_id.                                      |
+| `$COMPOZY_HOME/agents/<name>/AGENT.md`                            | Global agent           | User-wide agent definition.                                                                        |
+| `$COMPOZY_HOME/agents/<name>/skills/<skill>/SKILL.md`             | Global agent skill     | Agent-local skill overlay for the global agent.                                                    |
+| `$COMPOZY_HOME/skills/<name>/SKILL.md`                            | Global skill           | User or marketplace skill definition.                                                              |
+| `<workspace>/.env`                                                | Workspace              | Optional dotenv file loaded before workspace config.                                               |
+| `<workspace>/.agh/config.toml`                                    | Workspace              | Workspace config overlay.                                                                          |
+| `<workspace>/.agh/mcp.json`                                       | Workspace              | Workspace top-level MCP sidecar.                                                                   |
+| `<workspace>/.agh/workspace.toml`                                 | Workspace identity     | Stable workspace ULID. Created on first daemon touch when `[memory.workspace] auto_create = true`. |
+| `<workspace>/.agh/agents/<name>/AGENT.md`                         | Workspace agent        | Workspace-local agent definition.                                                                  |
+| `<workspace>/.agh/agents/<name>/memory/`                          | Agent (workspace)      | Agent-workspace memory tier (deepest read precedence).                                             |
+| `<workspace>/.agh/agents/<name>/skills/<skill>/SKILL.md`          | Workspace agent skill  | Agent-local skill overlay for that workspace agent.                                                |
+| `<workspace>/.agh/skills/<name>/SKILL.md`                         | Workspace skill        | Workspace-local skill definition.                                                                  |
+| `<workspace>/.agh/memory/`                                        | Workspace memory       | Workspace-scoped memory files.                                                                     |
+| `$COMPOZY_HOME/agents/<name>/memory/`                             | Agent (global)         | Agent-global memory tier (cross-workspace baseline).                                               |
+| `$COMPOZY_HOME/memory/_inbox/`                                    | Memory extractor       | Extractor staging directory consumed by the controller.                                            |
+| `$COMPOZY_HOME/memory/_system/`                                   | Memory machine-managed | Reserved namespace; never injected into prompts.                                                   |
 
 ## Global Home
 
-| Path                         | Created by home layout | Description                                                                   |
-| ---------------------------- | ---------------------- | ----------------------------------------------------------------------------- |
-| `$AGH_HOME`                  | yes                    | Home root. Defaults to `~/.agh`; `AGH_HOME` overrides it.                     |
-| `$AGH_HOME/config.toml`      | no                     | Global TOML config file.                                                      |
-| `$AGH_HOME/mcp.json`         | no                     | Global MCP sidecar loaded after global TOML by the general config loader.     |
-| `$AGH_HOME/agents/`          | yes                    | Global agent definitions.                                                     |
-| `$AGH_HOME/skills/`          | yes                    | Global user and marketplace skills.                                           |
-| `$AGH_HOME/memory/`          | yes                    | Default global memory directory. Can be overridden by `[memory].global_dir`.  |
-| `$AGH_HOME/providers/`       | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
-| `$AGH_HOME/sessions/`        | yes                    | Parent directory for per-session state.                                       |
-| `$AGH_HOME/logs/`            | yes                    | Parent directory for daemon logs and network audit output.                    |
-| `$AGH_HOME/extensions/`      | no                     | Managed installed extension root. Created when installing managed extensions. |
-| `$AGH_HOME/support-bundles/` | no                     | Created when the daemon builds or the CLI downloads a support bundle.         |
+| Path                             | Created by home layout | Description                                                                   |
+| -------------------------------- | ---------------------- | ----------------------------------------------------------------------------- |
+| `$COMPOZY_HOME`                  | yes                    | Home root. Defaults to `~/.agh`; `COMPOZY_HOME` overrides it.                 |
+| `$COMPOZY_HOME/config.toml`      | no                     | Global TOML config file.                                                      |
+| `$COMPOZY_HOME/mcp.json`         | no                     | Global MCP sidecar loaded after global TOML by the general config loader.     |
+| `$COMPOZY_HOME/agents/`          | yes                    | Global agent definitions.                                                     |
+| `$COMPOZY_HOME/skills/`          | yes                    | Global user and marketplace skills.                                           |
+| `$COMPOZY_HOME/memory/`          | yes                    | Default global memory directory. Can be overridden by `[memory].global_dir`.  |
+| `$COMPOZY_HOME/providers/`       | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
+| `$COMPOZY_HOME/sessions/`        | yes                    | Parent directory for per-session state.                                       |
+| `$COMPOZY_HOME/logs/`            | yes                    | Parent directory for daemon logs and network audit output.                    |
+| `$COMPOZY_HOME/extensions/`      | no                     | Managed installed extension root. Created when installing managed extensions. |
+| `$COMPOZY_HOME/support-bundles/` | no                     | Created when the daemon builds or the CLI downloads a support bundle.         |
 
 `EnsureHomeLayout` creates the root, `agents`, `skills`, `memory`, `sessions`, and `logs`
 directories. Individual files are created by the features that own them.
 
 ## Global Runtime Files
 
-| Path                           | Format             | Description                                                                                                                                                                                                 |
-| ------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$AGH_HOME/agh.db`             | SQLite             | Global catalog database for sessions, workspace registrations, observability summaries, extension records, automation state, and network records. SQLite may create `agh.db-wal` and `agh.db-shm` sidecars. |
-| `$AGH_HOME/daemon.sock`        | Unix domain socket | Default CLI and UDS API socket. `[daemon].socket` can point elsewhere.                                                                                                                                      |
-| `$AGH_HOME/daemon.lock`        | Lock file          | Daemon process lock.                                                                                                                                                                                        |
-| `$AGH_HOME/daemon.json`        | JSON               | Discovery file containing daemon PID, HTTP port, start time, and optional network diagnostics.                                                                                                              |
-| `$AGH_HOME/logs/agh.log`       | log file           | Structured daemon log file path from the home layout.                                                                                                                                                       |
-| `$AGH_HOME/logs/network.audit` | log file           | Append-only network audit file.                                                                                                                                                                             |
-| `$AGH_HOME/support-bundles/`   | directory          | Redacted support bundle archives created through `agh support bundle` or `POST /api/support/bundles`.                                                                                                       |
+| Path                               | Format             | Description                                                                                                                                                                                                 |
+| ---------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/agh.db`             | SQLite             | Global catalog database for sessions, workspace registrations, observability summaries, extension records, automation state, and network records. SQLite may create `agh.db-wal` and `agh.db-shm` sidecars. |
+| `$COMPOZY_HOME/daemon.sock`        | Unix domain socket | Default CLI and UDS API socket. `[daemon].socket` can point elsewhere.                                                                                                                                      |
+| `$COMPOZY_HOME/daemon.lock`        | Lock file          | Daemon process lock.                                                                                                                                                                                        |
+| `$COMPOZY_HOME/daemon.json`        | JSON               | Discovery file containing daemon PID, HTTP port, start time, and optional network diagnostics.                                                                                                              |
+| `$COMPOZY_HOME/logs/agh.log`       | log file           | Structured daemon log file path from the home layout.                                                                                                                                                       |
+| `$COMPOZY_HOME/logs/network.audit` | log file           | Append-only network audit file.                                                                                                                                                                             |
+| `$COMPOZY_HOME/support-bundles/`   | directory          | Redacted support bundle archives created through `agh support bundle` or `POST /api/support/bundles`.                                                                                                       |
 
 ## Provider Home Files
 
 When a provider sets `home_policy = "isolated"`, AGH creates a private provider home under
-`$AGH_HOME/providers/<provider>` with `0700` permissions. The launch environment points `HOME`,
+`$COMPOZY_HOME/providers/<provider>` with `0700` permissions. The launch environment points `HOME`,
 `PROVIDER_HOME`, XDG directories, and known provider-specific variables such as
 `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `OPENCODE_CONFIG_DIR` at that directory. AGH never copies
 credentials from the operator home into an isolated provider home.
@@ -85,10 +85,10 @@ their existing login/session state.
 
 ## Session Files
 
-Live sessions own a directory under `$AGH_HOME/sessions/<session-id>/`. After session stop, AGH
+Live sessions own a directory under `$COMPOZY_HOME/sessions/<session-id>/`. After session stop, AGH
 materializes a read-only forensic JSONL ledger under
-`$AGH_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl`. Unbound sessions (no resolved
-workspace) materialize under `$AGH_HOME/sessions/_unbound/<session_id>/`.
+`$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl`. Unbound sessions (no resolved
+workspace) materialize under `$COMPOZY_HOME/sessions/_unbound/<session_id>/`.
 
 ```text
 ~/.agh/sessions/<session-id>/
@@ -102,12 +102,12 @@ workspace) materialize under `$AGH_HOME/sessions/_unbound/<session_id>/`.
   ledger.jsonl
 ```
 
-| Path                                                          | Format | Description                                                                                             |
-| ------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
-| `$AGH_HOME/sessions/<session-id>/events.db`                   | SQLite | Per-session event store for ACP events, turns, token usage, permission decisions, and hook run history. |
-| `$AGH_HOME/sessions/<session-id>/meta.json`                   | JSON   | Quick metadata used by session listing and reconciliation paths.                                        |
-| `$AGH_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` | JSONL  | Forensic ledger materialized after session stop. Read-only and content-addressed; idempotent on rerun.  |
-| `$AGH_HOME/sessions/_unbound/<session_id>/ledger.jsonl`       | JSONL  | Forensic ledger for sessions without a resolved workspace_id.                                           |
+| Path                                                              | Format | Description                                                                                             |
+| ----------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db`                   | SQLite | Per-session event store for ACP events, turns, token usage, permission decisions, and hook run history. |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json`                   | JSON   | Quick metadata used by session listing and reconciliation paths.                                        |
+| `$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` | JSONL  | Forensic ledger materialized after session stop. Read-only and content-addressed; idempotent on rerun.  |
+| `$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl`       | JSONL  | Forensic ledger for sessions without a resolved workspace_id.                                           |
 
 The forensic ledger is never a memory scope, never queried by recall, and never accepted as a
 controller write target — it is operator-readable history only. After materialization, live
@@ -118,9 +118,9 @@ elapses.
 
 | Path                                                           | Scope                       | Description                                                                     |
 | -------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------- |
-| `$AGH_HOME/agents/<name>/AGENT.md`                             | Global                      | Agent available across workspaces.                                              |
-| `$AGH_HOME/agents/<name>/mcp.json`                             | Global agent                | Optional agent-local MCP sidecar.                                               |
-| `$AGH_HOME/agents/<name>/skills/<skill>/SKILL.md`              | Global agent skill          | Agent-local skill overlay used when this global agent wins resolution.          |
+| `$COMPOZY_HOME/agents/<name>/AGENT.md`                         | Global                      | Agent available across workspaces.                                              |
+| `$COMPOZY_HOME/agents/<name>/mcp.json`                         | Global agent                | Optional agent-local MCP sidecar.                                               |
+| `$COMPOZY_HOME/agents/<name>/skills/<skill>/SKILL.md`          | Global agent skill          | Agent-local skill overlay used when this global agent wins resolution.          |
 | `<workspace>/.agh/agents/<name>/AGENT.md`                      | Workspace                   | Agent available to sessions in that workspace.                                  |
 | `<workspace>/.agh/agents/<name>/mcp.json`                      | Workspace agent             | Optional agent-local MCP sidecar.                                               |
 | `<workspace>/.agh/agents/<name>/skills/<skill>/SKILL.md`       | Workspace agent skill       | Agent-local skill overlay used when this workspace agent wins resolution.       |
@@ -134,9 +134,9 @@ First name wins.
 
 | Path                                            | Scope                      | Description                                                             |
 | ----------------------------------------------- | -------------------------- | ----------------------------------------------------------------------- |
-| `$AGH_HOME/skills/<name>/SKILL.md`              | Global user or marketplace | User-wide or marketplace-installed skill.                               |
-| `$AGH_HOME/skills/<name>/mcp.json`              | Skill sidecar              | Optional skill MCP sidecar.                                             |
-| `$AGH_HOME/skills/<name>/.agh-meta.json`        | Marketplace sidecar        | Managed provenance metadata for marketplace skills.                     |
+| `$COMPOZY_HOME/skills/<name>/SKILL.md`          | Global user or marketplace | User-wide or marketplace-installed skill.                               |
+| `$COMPOZY_HOME/skills/<name>/mcp.json`          | Skill sidecar              | Optional skill MCP sidecar.                                             |
+| `$COMPOZY_HOME/skills/<name>/.agh-meta.json`    | Marketplace sidecar        | Managed provenance metadata for marketplace skills.                     |
 | `<workspace>/.agh/skills/<name>/SKILL.md`       | Workspace                  | Workspace-local skill.                                                  |
 | `<workspace>/.agh/skills/<name>/mcp.json`       | Workspace skill sidecar    | Optional skill MCP sidecar.                                             |
 | `<additional-root>/.agh/skills/<name>/SKILL.md` | Additional root            | Skill available when the workspace has that additional root registered. |
@@ -215,21 +215,21 @@ ad-hoc notes) and is **never** injected into prompts.
 
 | Path                                      | Memory tier               | Description                                                                                                        |
 | ----------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `$AGH_HOME/memory/`                       | Global                    | User-wide memory accessible from any workspace.                                                                    |
-| `$AGH_HOME/memory/_inbox/`                | Extractor staging         | Daemon-owned inbox where the extractor stages candidates before controller acceptance.                             |
-| `$AGH_HOME/memory/_system/`               | Reserved (per-scope)      | Hosts dreaming output, extractor failures, ad-hoc notes; never injected into prompts.                              |
-| `$AGH_HOME/agents/<agent>/memory/`        | Agent-global              | Cross-workspace agent baseline; deepest scope after agent-workspace.                                               |
+| `$COMPOZY_HOME/memory/`                   | Global                    | User-wide memory accessible from any workspace.                                                                    |
+| `$COMPOZY_HOME/memory/_inbox/`            | Extractor staging         | Daemon-owned inbox where the extractor stages candidates before controller acceptance.                             |
+| `$COMPOZY_HOME/memory/_system/`           | Reserved (per-scope)      | Hosts dreaming output, extractor failures, ad-hoc notes; never injected into prompts.                              |
+| `$COMPOZY_HOME/agents/<agent>/memory/`    | Agent-global              | Cross-workspace agent baseline; deepest scope after agent-workspace.                                               |
 | `<workspace>/.agh/memory/`                | Workspace                 | Workspace-private memory keyed by `workspace_id`.                                                                  |
 | `<workspace>/.agh/agents/<agent>/memory/` | Agent-workspace (default) | Workspace-private agent memory; the default tier for `--scope agent` writes.                                       |
 | `<workspace>/.agh/agh.db`                 | Per-workspace DB          | Workspace catalog DB plus the per-workspace `memory_events`, `memory_decisions`, and `memory_recall_signals` rows. |
-| `$AGH_HOME/agh.db`                        | Global DB                 | Global catalog DB plus global-scope memory tables and the workspace registration table.                            |
+| `$COMPOZY_HOME/agh.db`                    | Global DB                 | Global catalog DB plus global-scope memory tables and the workspace registration table.                            |
 
 ## Extension Files
 
-| Path                                          | Format              | Description                                                 |
-| --------------------------------------------- | ------------------- | ----------------------------------------------------------- |
-| `$AGH_HOME/extensions/<name>/`                | directory           | Managed installed extension root.                           |
-| `$AGH_HOME/extensions/.agh-extension-stage-*` | temporary directory | Staging directory used while installing managed extensions. |
+| Path                                              | Format              | Description                                                 |
+| ------------------------------------------------- | ------------------- | ----------------------------------------------------------- |
+| `$COMPOZY_HOME/extensions/<name>/`                | directory           | Managed installed extension root.                           |
+| `$COMPOZY_HOME/extensions/.agh-extension-stage-*` | temporary directory | Staging directory used while installing managed extensions. |
 
 Extension registry records are stored in the global database, not in a separate user-authored
 config file.
@@ -238,7 +238,7 @@ config file.
 
 | Setting                         | Affects                  | Notes                                                                                            |
 | ------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------ |
-| `AGH_HOME`                      | All global home paths.   | Resolved before global config is loaded. Workspace `.env` can set it for workspace config loads. |
+| `COMPOZY_HOME`                  | All global home paths.   | Resolved before global config is loaded. Workspace `.env` can set it for workspace config loads. |
 | `[daemon].socket`               | Daemon socket path.      | `~` is expanded. Daemon boot resolves the final socket path to an absolute path.                 |
 | `[memory].global_dir`           | Global memory directory. | `~` is expanded. Empty overlay values are ignored and keep the previous directory.               |
 | `[http].host` and `[http].port` | HTTP/SSE bind address.   | These are not file paths but affect browser/API endpoint locations.                              |
@@ -252,7 +252,7 @@ config file.
 | Unknown TOML key                 | Config load fails.                                                                                                                    |
 | Unknown JSON field in `mcp.json` | Sidecar parse fails.                                                                                                                  |
 | Daemon boot config               | Daemon startup uses the home config for boot settings. The general config loader applies MCP sidecars for session/runtime resolution. |
-| `~` expansion                    | Implemented for `daemon.socket` and `memory.global_dir`; home paths are resolved from `AGH_HOME` or OS user home.                     |
+| `~` expansion                    | Implemented for `daemon.socket` and `memory.global_dir`; home paths are resolved from `COMPOZY_HOME` or OS user home.                 |
 
 ## Related Pages
 

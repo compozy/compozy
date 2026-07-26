@@ -19,10 +19,10 @@ import (
 // sidecars on every CodegenCheck. When every build input is unchanged since the
 // last passing check on this machine, the stamp lets the check skip. Fresh
 // environments (CI) have no stamp and always run the full check;
-// AGH_DAYTONA_CHECK=full forces it locally.
+// COMPOZY_DAYTONA_CHECK=full forces it locally.
 
 const (
-	daytonaCheckModeEnvVar = "AGH_DAYTONA_CHECK"
+	daytonaCheckModeEnvVar = "COMPOZY_DAYTONA_CHECK"
 	daytonaStampFileName   = "daytona-check.stamp"
 	daytonaSidecarPkgPath  = "./internal/sandbox/daytona/cmd/compozy-daytona-sidecar"
 	repoModulePath         = "github.com/compozy/compozy"

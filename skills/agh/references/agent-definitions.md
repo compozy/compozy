@@ -14,9 +14,9 @@
 
 ## Files And Precedence
 
-AGH agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. User-authored global agents live under $AGH_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.compozy/agents/<name>/AGENT.md. Extension-provided agents participate as global candidates while keeping their extension-local AGENT.md as the effective authored definition.
+AGH agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. User-authored global agents live under $COMPOZY_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.compozy/agents/<name>/AGENT.md. Extension-provided agents participate as global candidates while keeping their extension-local AGENT.md as the effective authored definition.
 
-Runtime configuration starts from $AGH_HOME/config.toml, then workspace configuration can overlay it with <workspace>/.compozy/config.toml. Agent-local skills and MCP sidecars are resolved after the effective agent definition is chosen.
+Runtime configuration starts from $COMPOZY_HOME/config.toml, then workspace configuration can overlay it with <workspace>/.compozy/config.toml. Agent-local skills and MCP sidecars are resolved after the effective agent definition is chosen.
 
 Workspace definitions shadow same-name global definitions; AGH never merges them. Structured reads expose `origin`, `workspace_id`, `skills`, and `definition_digest`, so use the daemon result instead of guessing precedence from paths.
 
@@ -49,7 +49,7 @@ Do not use categories or slash strings for hierarchy. They are not runtime seman
 
 ## Tool Grants
 
-Do not add `agh__bootstrap` or `agh__catalog` only for discovery. Leaving `tools` and
+Do not add `compozy__bootstrap` or `compozy__catalog` only for discovery. Leaving `tools` and
 `toolsets` empty means the agent has no agent-local allowlist; hosted MCP then projects the full
 availability-gated callable catalog subject to runtime policy, denylists, session lineage, and
 approval gates.
@@ -113,12 +113,12 @@ providing the flag replaces `skills.disabled`; pass `--disable-skill ""` to clea
 
 `duplicate` copies the whole authored directory on the daemon side, including soul, heartbeat, MCP, and other sidecars, then applies explicit AGENT.md overrides. The target must not exist. `delete` removes the effective authored directory but preserves session and event history. Deleting a workspace winner can reveal a same-name global definition; inspect `unshadowed_origin` in the response.
 
-The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:name`, and `POST /api/agents/:name/duplicate`. No native update/delete/duplicate tool exists; use CLI or HTTP/UDS rather than inventing an `agh__agent_*` mutation.
+The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:name`, and `POST /api/agents/:name/duplicate`. No native update/delete/duplicate tool exists; use CLI or HTTP/UDS rather than inventing an `compozy__agent_*` mutation.
 
 ## Setup Workflow
 
-1. Set common defaults in $AGH_HOME/config.toml.
-2. Create $AGH_HOME/agents/<name>/AGENT.md or workspace-local equivalent.
+1. Set common defaults in $COMPOZY_HOME/config.toml.
+2. Create $COMPOZY_HOME/agents/<name>/AGENT.md or workspace-local equivalent.
 3. Keep frontmatter small and put behavior in the Markdown body.
 4. Add only the toolsets and MCP servers the agent actually needs.
 5. Reconcile desired config with runtime truth after config edits, using `compozy config reload -o json` when the daemon is running.

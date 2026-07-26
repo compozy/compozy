@@ -21,8 +21,8 @@ export interface SessionDebugEvent extends SessionDebugEventFields {
 
 declare global {
   interface Window {
-    __AGH_SESSION_DEBUG_COUNTERS__?: Partial<Record<SessionDebugEventName, number>>;
-    __AGH_SESSION_DEBUG_EVENTS__?: SessionDebugEvent[];
+    __COMPOZY_SESSION_DEBUG_COUNTERS__?: Partial<Record<SessionDebugEventName, number>>;
+    __COMPOZY_SESSION_DEBUG_EVENTS__?: SessionDebugEvent[];
   }
 }
 
@@ -34,8 +34,8 @@ function publishDebugState() {
   if (typeof window === "undefined") {
     return;
   }
-  window.__AGH_SESSION_DEBUG_COUNTERS__ = debugCounters;
-  window.__AGH_SESSION_DEBUG_EVENTS__ = debugEvents;
+  window.__COMPOZY_SESSION_DEBUG_COUNTERS__ = debugCounters;
+  window.__COMPOZY_SESSION_DEBUG_EVENTS__ = debugEvents;
 }
 
 export function formatSessionDebugError(error: unknown): string {

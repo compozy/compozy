@@ -32,7 +32,7 @@ func TestToolContractsMarshalCanonicalIDsAndStructuredErrors(t *testing.T) {
 				Visibility: tools.VisibilityModel,
 				Risk:       tools.RiskRead,
 				ReadOnly:   true,
-				Toolsets:   []tools.ToolsetID{"agh__catalog"},
+				Toolsets:   []tools.ToolsetID{"compozy__catalog"},
 			},
 			Availability: ToolAvailabilityPayload{
 				Registered: true,
@@ -53,7 +53,7 @@ func TestToolContractsMarshalCanonicalIDsAndStructuredErrors(t *testing.T) {
 			t.Fatalf("json.Marshal(ToolResponse) error = %v", err)
 		}
 		encoded := string(data)
-		if !strings.Contains(encoded, `"tool_id":"agh__skill_view"`) {
+		if !strings.Contains(encoded, `"tool_id":"compozy__skill_view"`) {
 			t.Fatalf("encoded payload missing canonical tool_id: %s", encoded)
 		}
 		if !strings.Contains(encoded, `"kind":"native_go"`) {

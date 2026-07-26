@@ -16,7 +16,7 @@ contract.
 Tool path:
 
 ```text
-agh__task_run_claim_next  { "wait": true, "lease_seconds": 300 }
+compozy__task_run_claim_next  { "wait": true, "lease_seconds": 300 }
 ```
 
 CLI path:
@@ -36,7 +36,7 @@ sets a lease deadline, and returns a synchronous claim response that includes:
 
 The raw bearer lease token is internal to AGH. Public CLI, HTTP, UDS, native-tool, web, stream,
 log, channel, and memory payloads use the calling session plus `run_id` and expose at most
-`claim_token_hash`. Tools belonging to the `agh__autonomy` toolset reject any input or response
+`claim_token_hash`. Tools belonging to the `compozy__autonomy` toolset reject any input or response
 field that would carry a raw claim token.
 
 ## Lease rules
@@ -65,7 +65,7 @@ Use heartbeat when work is still active and the session still owns the run.
 Tool path:
 
 ```text
-agh__task_run_heartbeat  { "run_id": "run-123", "lease_seconds": 300 }
+compozy__task_run_heartbeat  { "run_id": "run-123", "lease_seconds": 300 }
 ```
 
 CLI path:
@@ -84,7 +84,7 @@ Use `complete` for successful terminal state.
 Tool path:
 
 ```text
-agh__task_run_complete  { "run_id": "run-123", "result": { "summary": "tests passed" } }
+compozy__task_run_complete  { "run_id": "run-123", "result": { "summary": "tests passed" } }
 ```
 
 CLI path:
@@ -140,7 +140,7 @@ active lease before mutating the run.
 Tool path:
 
 ```text
-agh__task_run_fail  { "run_id": "run-123", "error": "tests failed", "metadata": { "command": "make test" } }
+compozy__task_run_fail  { "run_id": "run-123", "error": "tests failed", "metadata": { "command": "make test" } }
 ```
 
 CLI path:
@@ -162,7 +162,7 @@ the run terminal. The autonomy tool resolves the internal lease from the caller 
 Tool path:
 
 ```text
-agh__task_run_release  { "run_id": "run-123", "reason": "handoff" }
+compozy__task_run_release  { "run_id": "run-123", "reason": "handoff" }
 ```
 
 Release is also used by daemon-owned cleanup. For example, if a spawned child reaches TTL or its
@@ -283,8 +283,8 @@ mechanisms and surface only in the unified `blocked_reasons` read projection.
 Tool path:
 
 ```text
-agh__task_block    { "task_id": "task-123", "kind": "transient", "reason": "provider 503" }
-agh__task_unblock  { "task_id": "task-123", "block_id": "block-abc" }
+compozy__task_block    { "task_id": "task-123", "kind": "transient", "reason": "provider 503" }
+compozy__task_unblock  { "task_id": "task-123", "block_id": "block-abc" }
 ```
 
 CLI path:
@@ -333,7 +333,7 @@ receiving new claims until an operator or agent recovers it:
 Tool path:
 
 ```text
-agh__task_recover  { "task_id": "task-123", "note": "fixed the credential" }
+compozy__task_recover  { "task_id": "task-123", "note": "fixed the credential" }
 ```
 
 CLI path:
@@ -372,7 +372,7 @@ leaves the run `running` with its lease intact for a corrected resubmission, and
 blocks the completion.
 
 ```text
-agh__task_run_complete  { "run_id": "run-123", "result": { "summary": "spawned 2 children" }, "created_task_ids": ["task-456", "task-789"] }
+compozy__task_run_complete  { "run_id": "run-123", "result": { "summary": "spawned 2 children" }, "created_task_ids": ["task-456", "task-789"] }
 ```
 
 `created_task_ids` means "tasks I created this run" — do not list tasks created by other sessions.
@@ -456,9 +456,9 @@ Lease writers and the autonomy tool bridge return the same deterministic reason 
 
 ## Lease credentials and channels
 
-Never send raw lease credentials through `agh ch send`, `agh ch reply`, `agh__network_send`,
+Never send raw lease credentials through `agh ch send`, `agh ch reply`, `compozy__network_send`,
 network envelopes, logs, or memory. If another participant needs to know progress, send a
-coordination message. If a session needs to prove ownership, it calls one of the `agh__autonomy`
+coordination message. If a session needs to prove ownership, it calls one of the `compozy__autonomy`
 tools or the matching `agh task` command for the owned `run_id`; AGH resolves the internal lease
 server-side.
 
@@ -466,5 +466,5 @@ server-side.
 
 - [Coordination Channels](/runtime/core/autonomy/coordination-channels) explains channel metadata and message kinds.
 - [Task CLI Reference](/runtime/cli-reference/task) lists exact command flags for the parallel CLI surface.
-- [Tool CLI Reference](/runtime/cli-reference/tool) lists the operator commands for inspecting the registry, including the `agh__autonomy` family.
+- [Tool CLI Reference](/runtime/cli-reference/tool) lists the operator commands for inspecting the registry, including the `compozy__autonomy` family.
 - [Hooks](/runtime/core/hooks/event-catalog) lists task-run hook events.

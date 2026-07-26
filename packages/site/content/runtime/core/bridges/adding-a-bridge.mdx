@@ -177,7 +177,7 @@ Replace every `acme-chat` value and declare the exact slot contract:
 name = "acme-chat"
 version = "0.1.0"
 description = "Acme Chat bridge provider built on internal/bridgesdk"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [capabilities]
 provides = ["bridge.adapter"]
@@ -213,7 +213,7 @@ command = "./bin/acme-chat"
 args = ["serve"]
 
 [subprocess.env]
-AGH_BRIDGE_ACME_CHAT_LISTEN_ADDR = "{{env:AGH_BRIDGE_ACME_CHAT_LISTEN_ADDR}}"
+COMPOZY_BRIDGE_ACME_CHAT_LISTEN_ADDR = "{{env:COMPOZY_BRIDGE_ACME_CHAT_LISTEN_ADDR}}"
 
 [security]
 capabilities = ["bridge.read", "bridge.write"]

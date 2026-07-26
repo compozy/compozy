@@ -46,7 +46,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 	t.Run("Should resolve non reserved ToolID through RuntimeRegistry", func(t *testing.T) {
 		t.Parallel()
 
-		toolID := tools.ToolID("agh__task_read")
+		toolID := tools.ToolID("compozy__task_read")
 		registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{
 			toolID: {},
 		}}
@@ -67,7 +67,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 	t.Run("Should resolve an open action whose runtime schema matches the Run snapshot", func(t *testing.T) {
 		t.Parallel()
 
-		toolID := tools.ToolID("agh__task_read")
+		toolID := tools.ToolID("compozy__task_read")
 		registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{
 			toolID: {Descriptor: tools.Descriptor{
 				ID:                 toolID,
@@ -99,7 +99,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 	t.Run("Should reject an open action whose runtime schema drifted after Start", func(t *testing.T) {
 		t.Parallel()
 
-		toolID := tools.ToolID("agh__task_read")
+		toolID := tools.ToolID("compozy__task_read")
 		registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{
 			toolID: {Descriptor: tools.Descriptor{
 				ID:                 toolID,
@@ -138,7 +138,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{})
 
-		_, err := actions.Resolve(context.Background(), tools.Scope{}, "agh__missing")
+		_, err := actions.Resolve(context.Background(), tools.Scope{}, "compozy__missing")
 		if !errors.Is(err, loop.ErrActionUnknownKind) {
 			t.Fatalf("Resolve() error = %v, want ErrActionUnknownKind", err)
 		}
@@ -179,7 +179,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 	t.Run("Should execute RuntimeRegistry call and sync harvest structured output", func(t *testing.T) {
 		t.Parallel()
 
-		toolID := tools.ToolID("agh__task_read")
+		toolID := tools.ToolID("compozy__task_read")
 		registry := &fakeActionToolRegistry{
 			views: map[tools.ToolID]tools.ToolView{toolID: {}},
 			callResult: tools.ToolResult{
@@ -236,7 +236,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 	t.Run("Should async harvest through stable event range", func(t *testing.T) {
 		t.Parallel()
 
-		toolID := tools.ToolID("agh__agent_prompt")
+		toolID := tools.ToolID("compozy__agent_prompt")
 		reader := &fakeActionEventReader{
 			result: loop.ActionEventRangeResult{
 				Structured: json.RawMessage(`{"events":2}`),
@@ -281,7 +281,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 	t.Run("Should channel result harvest designated result or stall on silence", func(t *testing.T) {
 		t.Parallel()
 
-		toolID := tools.ToolID("agh__network_send")
+		toolID := tools.ToolID("compozy__network_send")
 		channel := &fakeChannelResultHarvester{
 			result: loop.ChannelResultHarvestResult{
 				Found:      true,
@@ -400,7 +400,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				"agent":         "planner",
 				"prompt":        "Summarize {{ .inputs.topic }}",
 				"model":         "gpt-5.4",
-				"allowed_tools": []string{"agh__task_read"},
+				"allowed_tools": []string{"compozy__task_read"},
 				"max_turns":     3,
 				"output_schema": map[string]any{"summary": "string"},
 			},

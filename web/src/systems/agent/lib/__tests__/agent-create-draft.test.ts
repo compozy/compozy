@@ -126,9 +126,9 @@ describe("duplicate draft mapping", () => {
     provider: "codex",
     prompt: "Own release readiness.",
     model: "gpt-5.4",
-    tools: ["agh__skill_view"],
-    toolsets: ["agh__catalog"],
-    deny_tools: ["agh__task_*"],
+    tools: ["compozy__skill_view"],
+    toolsets: ["compozy__catalog"],
+    deny_tools: ["compozy__task_*"],
     origin: "workspace",
     definition_digest: "d".repeat(64),
     category_path: ["Engineering", "Release"],
@@ -141,7 +141,7 @@ describe("duplicate draft mapping", () => {
     expect(draft.scope).toBe("workspace");
     expect(draft.provider).toBe("codex");
     expect(draft.model).toBe("gpt-5.4");
-    expect(draft.tools).toEqual(["agh__skill_view"]);
+    expect(draft.tools).toEqual(["compozy__skill_view"]);
     expect(draft.categoryPath).toBe("Engineering/Release");
     expect(draft.disabledSkills).toEqual(["copywriting"]);
   });

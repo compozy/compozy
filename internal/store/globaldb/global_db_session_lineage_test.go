@@ -62,7 +62,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 					MaxActivePerWorkspace: 3,
 				},
 				PermissionPolicy: store.SessionPermissionPolicy{
-					Tools:           []string{"agh__task_update", "agh__skill_view"},
+					Tools:           []string{"compozy__task_update", "compozy__skill_view"},
 					Skills:          []string{"go"},
 					MCPServers:      []string{"memory"},
 					WorkspacePaths:  []string{"/repo"},
@@ -122,8 +122,8 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 			t.Fatalf("spawn budget = %#v", lineage.SpawnBudget)
 		}
 		if got := lineage.PermissionPolicy.Tools; len(got) != 2 ||
-			got[0] != "agh__skill_view" ||
-			got[1] != "agh__task_update" {
+			got[0] != "compozy__skill_view" ||
+			got[1] != "compozy__task_update" {
 			t.Fatalf("policy tools = %#v, want stable policy atoms", got)
 		}
 

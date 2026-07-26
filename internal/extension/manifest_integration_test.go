@@ -18,7 +18,7 @@ func TestLoadManifestBridgeMetadataRoundTrip(t *testing.T) {
 	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
 name = "slack-bridge"
 version = "0.1.0"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [capabilities]
 provides = ["bridge.adapter"]

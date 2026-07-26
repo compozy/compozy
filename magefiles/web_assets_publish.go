@@ -89,7 +89,7 @@ func newWebAssetsGitCredentials(token string) (*webAssetsGitCredentials, error) 
 		"#!/bin/sh",
 		"case \"$1\" in",
 		"*Username*) printf '%s\\n' x-access-token ;;",
-		"*Password*) printf '%s\\n' \"$AGH_WEB_ASSETS_GIT_TOKEN\" ;;",
+		"*Password*) printf '%s\\n' \"$COMPOZY_WEB_ASSETS_GIT_TOKEN\" ;;",
 		"*) printf '\\n' ;;",
 		"esac",
 		"",
@@ -100,12 +100,12 @@ func newWebAssetsGitCredentials(token string) (*webAssetsGitCredentials, error) 
 	return &webAssetsGitCredentials{
 		dir: askpassDir,
 		env: map[string]string{
-			"AGH_WEB_ASSETS_GIT_TOKEN": token,
-			"GIT_ASKPASS":              askpassPath,
-			"GIT_CONFIG_COUNT":         "1",
-			"GIT_CONFIG_KEY_0":         "credential.helper",
-			"GIT_CONFIG_VALUE_0":       "",
-			"GIT_TERMINAL_PROMPT":      "0",
+			"COMPOZY_WEB_ASSETS_GIT_TOKEN": token,
+			"GIT_ASKPASS":                  askpassPath,
+			"GIT_CONFIG_COUNT":             "1",
+			"GIT_CONFIG_KEY_0":             "credential.helper",
+			"GIT_CONFIG_VALUE_0":           "",
+			"GIT_TERMINAL_PROMPT":          "0",
 		},
 	}, nil
 }

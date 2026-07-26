@@ -57,7 +57,7 @@ func (e *ManifestValidationError) Is(target error) bool {
 // Error returns the daemon-version compatibility message.
 func (e *ManifestCompatibilityError) Error() string {
 	return fmt.Sprintf(
-		"%s: current daemon version %q does not satisfy min_agh_version %q",
+		"%s: current daemon version %q does not satisfy min_compozy_version %q",
 		ErrManifestIncompatible,
 		e.CurrentVersion,
 		e.MinVersion,

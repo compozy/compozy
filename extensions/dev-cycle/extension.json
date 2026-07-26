@@ -3,7 +3,7 @@
         "name": "dev-cycle",
         "version": "0.1.0",
         "description": "First-party developer Loops for task delivery and CodeRabbit review remediation.",
-        "min_agh_version": "0.0.9"
+        "min_compozy_version": "0.0.9"
     },
     "capabilities": {
         "provides": ["tool.provider", "loop.watch_source"]

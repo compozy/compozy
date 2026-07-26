@@ -11,37 +11,37 @@ is wrong before it ever costs anything.
 <Workflow>
   <WorkflowStep title="Describe">
     Read the current definition — its declared inputs, contract, start bindings, and version.
-    `agh loop inspect --name <loop>`, `GET /loops/:name`, or `agh__loop_inspect`. This is where you
+    `agh loop inspect --name <loop>`, `GET /loops/:name`, or `compozy__loop_inspect`. This is where you
     learn the `version` you will need to publish safely.
   </WorkflowStep>
   <WorkflowStep title="Validate">
     Lint and compile a candidate definition **without saving it**. `agh loop validate --file
-    loop.yaml`, `POST /loops/:name/validate`, or `agh__loop_validate`. You get per-node errors with
+    loop.yaml`, `POST /loops/:name/validate`, or `compozy__loop_validate`. You get per-node errors with
     deterministic codes — `unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
     `fan_out_ceiling_exceeded`, and the rest. Nothing is persisted.
   </WorkflowStep>
   <WorkflowStep title="Dry-run">
     Resolve inputs and render the first generation's plan **without starting a run**. `agh loop run
-    --name <loop> --dry-run`, `POST /loops/:name/run?dry=true`, or `agh__loop_run` with `dry: true`.
+    --name <loop> --dry-run`, `POST /loops/:name/run?dry=true`, or `compozy__loop_run` with `dry: true`.
     It spends no budget, creates no run row, and returns a plan preview — resolved inputs, the
     generation-1 nodes, the contract, and the effective config.
   </WorkflowStep>
   <WorkflowStep title="Publish (compare-and-swap)">
     Persist the definition with `expected_version` set to the version you read in step one.
-    `PATCH /loops/:name` (or `agh__loop_create` with `expected_version`). Publish is atomic —
+    `PATCH /loops/:name` (or `compozy__loop_create` with `expected_version`). Publish is atomic —
     lint, compile, and save the **resolved** form the runtime consumes. If the stored version has
     moved since you read it, the write is rejected `409` with the current version, so two authors
     never silently clobber each other.
   </WorkflowStep>
   <WorkflowStep title="Run">
-    Start it — `agh loop run --name <loop>`, `POST /loops/:name/run`, or `agh__loop_run`. Now, and
+    Start it — `agh loop run --name <loop>`, `POST /loops/:name/run`, or `compozy__loop_run`. Now, and
     only now, the Loop spends tokens.
   </WorkflowStep>
 </Workflow>
 
 ## Two write paths
 
-A definition lives on the filesystem (`$AGH_HOME/loops`, a workspace's `.agh/loops`, plus
+A definition lives on the filesystem (`$COMPOZY_HOME/loops`, a workspace's `.agh/loops`, plus
 read-only extension resources such as `dev-cycle`). There are two ways to change one:
 
 - **HTTP `PATCH` / native tool** — the atomic, compare-and-swap path. `expected_version` guards it,
@@ -56,8 +56,8 @@ actor)`. The coordinator and executors hydrate only from that resolved projectio
 re-parse the author YAML mid-run — so a run's behavior is fixed at publish time.
 
 <OperatorNote label="There is no loop-edit tool">
-  Agents author Loops through the steps above — validate, dry-run, then `agh__loop_create` with
-  `expected_version` (or HTTP `PATCH`). There is no `agh__loop_edit` native tool. The CLI's `agh
+  Agents author Loops through the steps above — validate, dry-run, then `compozy__loop_create` with
+  `expected_version` (or HTTP `PATCH`). There is no `compozy__loop_edit` native tool. The CLI's `agh
   loop edit` is an operator convenience that opens the definition in `$EDITOR` and publishes it
   through the same compare-and-swap path.
 </OperatorNote>
@@ -72,13 +72,13 @@ is no parallel authoring path.
 
 ## Where each step lives
 
-| Step     | CLI                                             | HTTP                             | Native tool                             |
-| -------- | ----------------------------------------------- | -------------------------------- | --------------------------------------- |
-| Describe | `agh loop inspect`                              | `GET /loops/:name`               | `agh__loop_inspect`                     |
-| Validate | `agh loop validate`                             | `POST /loops/:name/validate`     | `agh__loop_validate`                    |
-| Dry-run  | `agh loop run --dry-run`                        | `POST /loops/:name/run?dry=true` | `agh__loop_run` (`dry: true`)           |
-| Publish  | `agh loop create --file … --expected-version …` | `PATCH /loops/:name`             | `agh__loop_create` (`expected_version`) |
-| Run      | `agh loop run`                                  | `POST /loops/:name/run`          | `agh__loop_run`                         |
+| Step     | CLI                                             | HTTP                             | Native tool                                 |
+| -------- | ----------------------------------------------- | -------------------------------- | ------------------------------------------- |
+| Describe | `agh loop inspect`                              | `GET /loops/:name`               | `compozy__loop_inspect`                     |
+| Validate | `agh loop validate`                             | `POST /loops/:name/validate`     | `compozy__loop_validate`                    |
+| Dry-run  | `agh loop run --dry-run`                        | `POST /loops/:name/run?dry=true` | `compozy__loop_run` (`dry: true`)           |
+| Publish  | `agh loop create --file … --expected-version …` | `PATCH /loops/:name`             | `compozy__loop_create` (`expected_version`) |
+| Run      | `agh loop run`                                  | `POST /loops/:name/run`          | `compozy__loop_run`                         |
 
 See the [CLI reference](/runtime/cli-reference/loop) and the
 [Loops API](/runtime/api-reference/loops) for exact flags and payloads.

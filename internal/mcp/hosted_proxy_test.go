@@ -26,7 +26,7 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 		`{"type":"object","required":["message"],"properties":{"message":{"type":"string"}}}`,
 	)
 	outputSchema := json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}}}`)
-	view := hostedToolView("agh__hosted_echo")
+	view := hostedToolView("compozy__hosted_echo")
 	view.Descriptor.InputSchema = inputSchema
 	view.Descriptor.OutputSchema = outputSchema
 
@@ -34,9 +34,9 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 	applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{view})
 
 	registered := mcpServer.ListTools()
-	tool, ok := registered["agh__hosted_echo"]
+	tool, ok := registered["compozy__hosted_echo"]
 	if !ok {
-		t.Fatalf("registered tools = %#v, want agh__hosted_echo", registered)
+		t.Fatalf("registered tools = %#v, want compozy__hosted_echo", registered)
 	}
 	if string(tool.Tool.RawInputSchema) != string(inputSchema) {
 		t.Fatalf("RawInputSchema = %s, want exact descriptor schema %s", tool.Tool.RawInputSchema, inputSchema)
@@ -52,18 +52,18 @@ func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
 	t.Run("Should set searchHint and omit alwaysLoad for non-search tools", func(t *testing.T) {
 		t.Parallel()
 
-		echo := hostedToolView("agh__hosted_echo")
+		echo := hostedToolView("compozy__hosted_echo")
 		echo.Descriptor.SearchHints = []string{"echo messages"}
 		mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
 		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{echo})
 
 		registered := mcpServer.ListTools()
-		echoTool, ok := registered["agh__hosted_echo"]
+		echoTool, ok := registered["compozy__hosted_echo"]
 		if !ok {
-			t.Fatalf("registered tools = %#v, want agh__hosted_echo", registered)
+			t.Fatalf("registered tools = %#v, want compozy__hosted_echo", registered)
 		}
 		echoHint := requireHostedToolMetaString(t, echoTool.Tool.Meta, "anthropic/searchHint")
-		if !strings.Contains(echoHint, "agh__hosted_echo") || !strings.Contains(echoHint, "echo messages") {
+		if !strings.Contains(echoHint, "compozy__hosted_echo") || !strings.Contains(echoHint, "echo messages") {
 			t.Fatalf("echo search hint = %q, want canonical ID and descriptor hint", echoHint)
 		}
 		if _, ok := echoTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; ok {
@@ -75,7 +75,7 @@ func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
 		t.Parallel()
 
 		search := hostedToolView(tools.ToolIDToolSearch)
-		search.Descriptor.SearchHints = []string{"find AGH native tools"}
+		search.Descriptor.SearchHints = []string{"find Compozy native tools"}
 		mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
 		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{search})
 
@@ -86,7 +86,7 @@ func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
 		}
 		searchHint := requireHostedToolMetaString(t, searchTool.Tool.Meta, "anthropic/searchHint")
 		if !strings.Contains(searchHint, tools.ToolIDToolSearch.String()) ||
-			!strings.Contains(searchHint, "find AGH native tools") {
+			!strings.Contains(searchHint, "find Compozy native tools") {
 			t.Fatalf("tool_search hint = %q, want canonical ID and descriptor hint", searchHint)
 		}
 		if got := searchTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; got != true {
@@ -98,8 +98,8 @@ func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
 func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
 	t.Parallel()
 
-	initial := hostedToolView("agh__hosted_echo")
-	updated := hostedToolView("agh__hosted_other")
+	initial := hostedToolView("compozy__hosted_echo")
+	updated := hostedToolView("compozy__hosted_other")
 	proxyClient := newHostedProxyClientStub(HostedBindResponse{
 		BindID: "bind-1",
 		Scope:  tools.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex"},
@@ -146,12 +146,12 @@ func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTools(initial) error = %v", err)
 	}
-	if got, want := sdkToolNames(list.Tools), []string{"agh__hosted_echo"}; !slices.Equal(got, want) {
+	if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_echo"}; !slices.Equal(got, want) {
 		t.Fatalf("initial tools = %#v, want %#v", got, want)
 	}
 
 	var call sdkmcp.CallToolRequest
-	call.Params.Name = "agh__hosted_echo"
+	call.Params.Name = "compozy__hosted_echo"
 	call.Params.Arguments = map[string]any{"message": "hello"}
 	call.Params.Meta = &sdkmcp.Meta{
 		AdditionalFields: map[string]any{"toolCallId": "call-1", "approvalToken": "ignored"},
@@ -164,7 +164,7 @@ func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
 		t.Fatalf("CallTool() result = %#v, want non-error result", result)
 	}
 	observedCall := proxyClient.lastCall(t)
-	if observedCall.BindID != "bind-1" || observedCall.ToolName != "agh__hosted_echo" ||
+	if observedCall.BindID != "bind-1" || observedCall.ToolName != "compozy__hosted_echo" ||
 		observedCall.ToolCallID != "call-1" {
 		t.Fatalf("hosted call request = %#v, want bind/tool/toolCallId propagated", observedCall)
 	}
@@ -178,7 +178,7 @@ func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTools(updated) error = %v", err)
 	}
-	if got, want := sdkToolNames(list.Tools), []string{"agh__hosted_other"}; !slices.Equal(got, want) {
+	if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_other"}; !slices.Equal(got, want) {
 		t.Fatalf("updated tools = %#v, want %#v", got, want)
 	}
 
@@ -200,7 +200,7 @@ func TestHostedProxyHelpers(t *testing.T) {
 	t.Run("Should build descriptions from title and descriptor text", func(t *testing.T) {
 		t.Parallel()
 
-		view := hostedToolView("agh__hosted_echo")
+		view := hostedToolView("compozy__hosted_echo")
 		view.Descriptor.DisplayTitle = "Echo"
 		view.Descriptor.Description = "Send text back"
 		view.Descriptor.Toolsets = []tools.ToolsetID{tools.ToolsetIDBootstrap}
@@ -209,8 +209,8 @@ func TestHostedProxyHelpers(t *testing.T) {
 		got := hostedToolDescription(view.Descriptor)
 		for _, want := range []string{
 			"Echo\n\nSend text back",
-			"AGH canonical tool ID: agh__hosted_echo",
-			"AGH toolsets: agh__bootstrap",
+			"Compozy canonical tool ID: compozy__hosted_echo",
+			"Compozy toolsets: compozy__bootstrap",
 			"Tags: catalog, echo",
 			"Search hints: send text back",
 			"Call the harness-returned tool reference.",
@@ -221,13 +221,13 @@ func TestHostedProxyHelpers(t *testing.T) {
 		}
 		view.Descriptor.Description = ""
 		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "Echo") ||
-			!strings.Contains(got, "AGH canonical tool ID: agh__hosted_echo") {
+			!strings.Contains(got, "Compozy canonical tool ID: compozy__hosted_echo") {
 			t.Fatalf("hostedToolDescription(title only) = %q, want title and canonical ID", got)
 		}
 		view.Descriptor.DisplayTitle = ""
 		view.Descriptor.Description = "fallback"
 		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "fallback") ||
-			!strings.Contains(got, "AGH canonical tool ID: agh__hosted_echo") {
+			!strings.Contains(got, "Compozy canonical tool ID: compozy__hosted_echo") {
 			t.Fatalf("hostedToolDescription(description only) = %q, want description and canonical ID", got)
 		}
 	})
@@ -302,7 +302,7 @@ func TestHostedProxyHelpers(t *testing.T) {
 
 		toolErr := tools.NewToolError(
 			tools.ErrorCodeApprovalRequired,
-			"agh__hosted_echo",
+			"compozy__hosted_echo",
 			"approval timed out",
 			tools.ErrToolApprovalRequired,
 			tools.ReasonApprovalTimedOut,
@@ -312,7 +312,7 @@ func TestHostedProxyHelpers(t *testing.T) {
 		}
 		codeOnlyErr := tools.NewToolError(
 			tools.ErrorCodeBackendFailed,
-			"agh__hosted_echo",
+			"compozy__hosted_echo",
 			"backend failed",
 			tools.ErrToolBackendFailed,
 		)

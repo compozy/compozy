@@ -1696,7 +1696,7 @@ func TestProgressAccumulatorFallsBackToToolIdentity(t *testing.T) {
 		if got, want := len(posts), 1; got != want {
 			t.Fatalf("Post calls = %d, want %d", got, want)
 		}
-		if got, want := posts[0].text, "🔧 agh__test_tool item-1"; got != want {
+		if got, want := posts[0].text, "🔧 compozy__test_tool item-1"; got != want {
 			t.Fatalf("Post text = %q, want %q", got, want)
 		}
 	})
@@ -2074,7 +2074,7 @@ func progressTestConfig() ProgressConfig {
 func progressTestEvent(index int, label string) bridgepkg.ToolProgress {
 	return bridgepkg.ToolProgress{
 		ToolCallID: fmt.Sprintf("call-%d", index),
-		ToolID:     "agh__test_tool",
+		ToolID:     "compozy__test_tool",
 		Phase:      bridgepkg.ToolProgressPhaseStarted,
 		Label:      label,
 		Preview:    fmt.Sprintf("item-%d", index),

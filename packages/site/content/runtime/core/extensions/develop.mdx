@@ -34,15 +34,15 @@ field in both places with conflicting values.
 name = "prompt-enhancer"
 version = "0.1.0"
 description = "Adds workspace context to assembled prompts"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 ```
 
-| Field             | Required | Notes                                                                     |
-| ----------------- | -------- | ------------------------------------------------------------------------- |
-| `name`            | yes      | Registry identity. Must match the installed registry row on daemon start. |
-| `version`         | yes      | Semantic version.                                                         |
-| `description`     | no       | Shown in extension metadata.                                              |
-| `min_agh_version` | yes      | Semantic version compared against the current daemon version.             |
+| Field                 | Required | Notes                                                                     |
+| --------------------- | -------- | ------------------------------------------------------------------------- |
+| `name`                | yes      | Registry identity. Must match the installed registry row on daemon start. |
+| `version`             | yes      | Semantic version.                                                         |
+| `description`         | no       | Shown in extension metadata.                                              |
+| `min_compozy_version` | yes      | Semantic version compared against the current daemon version.             |
 
 ## Network Participation Requirements
 
@@ -78,7 +78,7 @@ registers their resources.
 name = "review-pack"
 version = "0.1.0"
 description = "Review skills, hooks, and MCP helpers"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [resources]
 skills = ["skills"]
@@ -459,13 +459,13 @@ AGH exposes three native tools that run through the same managed services. They 
 agent-callable when policy permits, and they reuse the Host API authorization layer so a tool
 call and a JSON-RPC call resolve to the same grants.
 
-| Tool ID                       | Purpose                                                                               |
-| ----------------------------- | ------------------------------------------------------------------------------------- |
-| `agh__session_health`         | Read session health, attachability, and wake eligibility for one session.             |
-| `agh__agent_heartbeat_status` | Read Heartbeat policy and wake-state summary for an agent.                            |
-| `agh__agent_heartbeat_wake`   | Request one advisory wake for an eligible session; identical contract to manual wake. |
+| Tool ID                           | Purpose                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------- |
+| `compozy__session_health`         | Read session health, attachability, and wake eligibility for one session.             |
+| `compozy__agent_heartbeat_status` | Read Heartbeat policy and wake-state summary for an agent.                            |
+| `compozy__agent_heartbeat_wake`   | Request one advisory wake for an eligible session; identical contract to manual wake. |
 
-There is intentionally no `agh__agent_soul` tool — Soul read/validate/write/delete/history/
+There is intentionally no `compozy__agent_soul` tool — Soul read/validate/write/delete/history/
 rollback flows happen through the dedicated CLI, HTTP, UDS, or Host API surfaces, not through a
 native tool, because Soul does not need an in-prompt invocation surface.
 
@@ -496,7 +496,7 @@ persistent process handles JSON-RPC lifecycle and Host API calls.
 name = "prompt-enhancer"
 version = "0.1.0"
 description = "Adds workspace context to assembled prompts"
-min_agh_version = "0.5.0"
+min_compozy_version = "0.5.0"
 
 [capabilities]
 provides = ["prompt.provider"]
@@ -691,7 +691,7 @@ Stop and reload behavior:
 ## Development Checklist
 
 1. Decide whether the extension is resource-only or needs a subprocess.
-2. Write `extension.toml` with `name`, `version`, and `min_agh_version`.
+2. Write `extension.toml` with `name`, `version`, and `min_compozy_version`.
 3. Add resources under `resources.*` and keep paths inside the extension directory.
 4. If using Host API, declare both `actions.requires` and `security.capabilities`.
 5. If providing `bridge.adapter`, declare `[bridge] platform` and `display_name`.

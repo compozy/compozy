@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	testHelperEnvKey       = "AGH_TEST_SUBPROCESS_HELPER"
-	testScenarioEnvKey     = "AGH_TEST_SUBPROCESS_SCENARIO"
-	testShutdownMarkerEnv  = "AGH_TEST_SUBPROCESS_SHUTDOWN_MARKER"
+	testHelperEnvKey       = "COMPOZY_TEST_SUBPROCESS_HELPER"
+	testScenarioEnvKey     = "COMPOZY_TEST_SUBPROCESS_SCENARIO"
+	testShutdownMarkerEnv  = "COMPOZY_TEST_SUBPROCESS_SHUTDOWN_MARKER"
 	defaultProtocolVersion = "1"
 )
 

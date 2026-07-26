@@ -3,16 +3,15 @@ package extensionpkg
 import (
 	"encoding/json"
 	"errors"
-
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-
 	"github.com/compozy/compozy/internal/resources"
 )
 
 const (
 	manifestMustBeASemanticVersionValue = "must be a semantic version"
+	manifestMinCompozyVersionKey        = "min_compozy_version"
 	manifestNameKey                     = "name"
 	manifestNullKey                     = "null"
 	manifestResourcesPublishPath        = "resources.publish"
@@ -36,10 +35,12 @@ var (
 
 // Manifest describes one extension without executing any extension code.
 type Manifest struct {
-	Name                 string                      `toml:"name"                            json:"name"`
-	Version              string                      `toml:"version"                         json:"version"`
-	Description          string                      `toml:"description,omitempty"           json:"description,omitempty"`
-	MinAGHVersion        string                      `toml:"min_agh_version"                 json:"min_agh_version"`
+	Name        string `toml:"name"                  json:"name"`
+	Version     string `toml:"version"               json:"version"`
+	Description string `toml:"description,omitempty" json:"description,omitempty"`
+
+	MinCompozyVersion string `toml:"min_compozy_version" json:"min_compozy_version"`
+
 	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
 	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
 	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
@@ -198,11 +199,13 @@ type ToolBackendConfig struct {
 type Duration time.Duration
 
 type manifestDocument struct {
-	Extension            manifestCore                `toml:"extension"                       json:"extension"`
-	Name                 string                      `toml:"name"                            json:"name"`
-	Version              string                      `toml:"version"                         json:"version"`
-	Description          string                      `toml:"description,omitempty"           json:"description,omitempty"`
-	MinAGHVersion        string                      `toml:"min_agh_version"                 json:"min_agh_version"`
+	Extension   manifestCore `toml:"extension"             json:"extension"`
+	Name        string       `toml:"name"                  json:"name"`
+	Version     string       `toml:"version"               json:"version"`
+	Description string       `toml:"description,omitempty" json:"description,omitempty"`
+
+	MinCompozyVersion string `toml:"min_compozy_version" json:"min_compozy_version"`
+
 	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
 	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
 	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
@@ -214,9 +217,9 @@ type manifestDocument struct {
 }
 
 type manifestCore struct {
-	Name          string   `toml:"name"                   json:"name"`
-	Version       string   `toml:"version"                json:"version"`
-	Description   string   `toml:"description,omitempty"  json:"description,omitempty"`
-	MinAGHVersion string   `toml:"min_agh_version"        json:"min_agh_version"`
-	RequiresEnv   []string `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
+	Name              string   `toml:"name"                   json:"name"`
+	Version           string   `toml:"version"                json:"version"`
+	Description       string   `toml:"description,omitempty"  json:"description,omitempty"`
+	MinCompozyVersion string   `toml:"min_compozy_version"    json:"min_compozy_version"`
+	RequiresEnv       []string `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
 }

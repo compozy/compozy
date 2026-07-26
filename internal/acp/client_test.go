@@ -27,11 +27,11 @@ import (
 )
 
 const (
-	testHelperEnvKey      = "AGH_TEST_ACP_HELPER"
-	testHelperScenarioKey = "AGH_TEST_ACP_SCENARIO"
-	testHelperFileKey     = "AGH_TEST_ACP_FILE"
-	testHelperCaptureKey  = "AGH_TEST_ACP_CAPTURE_FILE"
-	testWrapperEnvKey     = "AGH_TEST_ACP_WRAPPER"
+	testHelperEnvKey      = "COMPOZY_TEST_ACP_HELPER"
+	testHelperScenarioKey = "COMPOZY_TEST_ACP_SCENARIO"
+	testHelperFileKey     = "COMPOZY_TEST_ACP_FILE"
+	testHelperCaptureKey  = "COMPOZY_TEST_ACP_CAPTURE_FILE"
+	testWrapperEnvKey     = "COMPOZY_TEST_ACP_WRAPPER"
 )
 
 func TestACPHelperProcess(_ *testing.T) {
@@ -739,14 +739,14 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	env := daemonMatchedEnv([]string{
 		"PATH=/should-be-ignored",
 		"FOO=bar",
-		"AGH_BIN=/should-be-replaced",
+		"COMPOZY_BIN=/should-be-replaced",
 		"PATH=/usr/local/bin" + string(os.PathListSeparator) + binDir + string(os.PathListSeparator) + "/usr/bin",
-		"AGH_BIN=/should-also-be-replaced",
+		"COMPOZY_BIN=/should-also-be-replaced",
 	})
 
-	gotAGHBin, ok := envValue(env, "AGH_BIN")
+	gotAGHBin, ok := envValue(env, "COMPOZY_BIN")
 	if !ok || gotAGHBin != executable {
-		t.Fatalf("daemonMatchedEnv() AGH_BIN = %q, %v, want %q", gotAGHBin, ok, executable)
+		t.Fatalf("daemonMatchedEnv() COMPOZY_BIN = %q, %v, want %q", gotAGHBin, ok, executable)
 	}
 
 	gotPath, ok := envValue(env, "PATH")
@@ -759,17 +759,22 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	}
 
 	pathCount := 0
-	aghBinCount := 0
+	compozyBinCount := 0
 	for _, variable := range env {
 		switch {
 		case strings.HasPrefix(variable, "PATH="):
 			pathCount++
-		case strings.HasPrefix(variable, "AGH_BIN="):
-			aghBinCount++
+		case strings.HasPrefix(variable, "COMPOZY_BIN="):
+			compozyBinCount++
 		}
 	}
-	if pathCount != 1 || aghBinCount != 1 {
-		t.Fatalf("daemonMatchedEnv() duplicate entries remain: PATH=%d AGH_BIN=%d env=%#v", pathCount, aghBinCount, env)
+	if pathCount != 1 || compozyBinCount != 1 {
+		t.Fatalf(
+			"daemonMatchedEnv() duplicate entries remain: PATH=%d COMPOZY_BIN=%d env=%#v",
+			pathCount,
+			compozyBinCount,
+			env,
+		)
 	}
 }
 
@@ -1574,11 +1579,11 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 			Env: helperEnvWithCapture("stream_updates", "", captureFile),
 			MCPServers: []aghconfig.MCPServer{
 				{
-					Name:      "agh-hosted-tools",
+					Name:      "compozy-hosted-tools",
 					Transport: aghconfig.MCPServerTransportStdio,
 					Command:   "/bin/compozy",
 					Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
-					Env:       map[string]string{"AGH_HOME": "/tmp/agh-home"},
+					Env:       map[string]string{"COMPOZY_HOME": "/tmp/agh-home"},
 				},
 				{
 					Name:      "remote-http",
@@ -1603,14 +1608,14 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 		if stdio == nil {
 			t.Fatalf("session/new mcpServers[0] = %#v, want stdio variant", request.MCPServers[0])
 		}
-		if stdio.Name != "agh-hosted-tools" || stdio.Command != "/bin/compozy" {
+		if stdio.Name != "compozy-hosted-tools" || stdio.Command != "/bin/compozy" {
 			t.Fatalf("hosted stdio entry = %#v, want hosted command", stdio)
 		}
 		if !slices.Equal(stdio.Args, []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"}) {
 			t.Fatalf("hosted stdio args = %#v, want tool mcp bind args", stdio.Args)
 		}
-		if got, want := len(stdio.Env), 1; got != want || stdio.Env[0].Name != "AGH_HOME" {
-			t.Fatalf("hosted stdio env = %#v, want AGH_HOME only", stdio.Env)
+		if got, want := len(stdio.Env), 1; got != want || stdio.Env[0].Name != "COMPOZY_HOME" {
+			t.Fatalf("hosted stdio env = %#v, want COMPOZY_HOME only", stdio.Env)
 		}
 	})
 }

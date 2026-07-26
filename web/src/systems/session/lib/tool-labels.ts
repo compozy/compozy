@@ -53,11 +53,11 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
 };
 
 /**
- * Icon per AGH native tool family (`agh__<family>_<verb>` → icon). Derived from
- * AGH's own `agh__*` tool taxonomy. Unmapped families fall through to the
+ * Icon per Compozy native tool family (`compozy__<family>_<verb>` → icon). Derived from
+ * Compozy's own `compozy__*` tool taxonomy. Unmapped families fall through to the
  * generic tool fallback.
  */
-const AGH_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
+const COMPOZY_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
   edit: FileEdit,
   memory: Brain,
   network: Radio,
@@ -73,22 +73,22 @@ const AGH_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
   catalog: LibraryBig,
 };
 
-const AGH_NATIVE_PREFIX = "agh__";
+const COMPOZY_NATIVE_PREFIX = "compozy__";
 const MCP_PREFIX = "mcp__";
 
 /**
- * Extract the family segment of an AGH native tool id (`agh__memory_note` →
+ * Extract the family segment of a Compozy native tool id (`compozy__memory_note` →
  * `memory`). Returns null for non-native ids or an empty family segment.
  */
-function aghNativeFamily(toolName: string): string | null {
-  if (!toolName.startsWith(AGH_NATIVE_PREFIX)) return null;
-  const family = toolName.slice(AGH_NATIVE_PREFIX.length).split("_", 1)[0] ?? "";
+function compozyNativeFamily(toolName: string): string | null {
+  if (!toolName.startsWith(COMPOZY_NATIVE_PREFIX)) return null;
+  const family = toolName.slice(COMPOZY_NATIVE_PREFIX.length).split("_", 1)[0] ?? "";
   return family.length > 0 ? family : null;
 }
 
 /**
  * Resolve a tool icon by name. Order: exact builtin map → MCP bridge tools →
- * AGH native tool family → semantic input fallbacks → generic tool glyph.
+ * Compozy native tool family → semantic input fallbacks → generic tool glyph.
  */
 export function getToolIcon(toolName: string, toolInput?: Record<string, unknown>): LucideIcon {
   const direct = TOOL_ICONS[toolName];
@@ -96,9 +96,9 @@ export function getToolIcon(toolName: string, toolInput?: Record<string, unknown
 
   if (toolName.startsWith(MCP_PREFIX)) return Plug;
 
-  const family = aghNativeFamily(toolName);
+  const family = compozyNativeFamily(toolName);
   if (family) {
-    const familyIcon = AGH_NATIVE_FAMILY_ICONS[family];
+    const familyIcon = COMPOZY_NATIVE_FAMILY_ICONS[family];
     if (familyIcon) return familyIcon;
   }
 

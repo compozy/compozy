@@ -5,7 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 /** The single stdio MCP server the daemon injects into every ACP session. */
-export const HOSTED_MCP_SERVER_NAME = "agh-hosted-tools";
+export const HOSTED_MCP_SERVER_NAME = "compozy-hosted-tools";
 
 export interface HostedMcpStdioDescriptor {
   command: string;
@@ -119,7 +119,7 @@ export async function connectHostedMcpClient(
     args: descriptor.args,
     env: { ...(process.env.PATH ? { PATH: process.env.PATH } : {}), ...descriptor.env },
   });
-  const client = new Client({ name: "agh-tool-approval-e2e", version: "1.0.0" });
+  const client = new Client({ name: "compozy-tool-approval-e2e", version: "1.0.0" });
   const close = async (): Promise<void> => {
     const pid = transport.pid;
     const errors: unknown[] = [];

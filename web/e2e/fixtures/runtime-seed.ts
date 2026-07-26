@@ -1967,7 +1967,7 @@ async function loadMockAgentRegistration(
 }
 
 async function ensureACPmockDriverBinary(repoRoot: string): Promise<string> {
-  const override = process.env.AGH_TEST_ACPMOCK_DRIVER_BIN?.trim();
+  const override = process.env.COMPOZY_TEST_ACPMOCK_DRIVER_BIN?.trim();
   if (override) {
     return path.isAbsolute(override) ? override : path.resolve(repoRoot, override);
   }
@@ -2197,17 +2197,17 @@ function createBridgeAdapterMarkerPaths(rootDir: string): BridgeAdapterMarkerPat
 }
 
 function patchBridgeExtensionManifest(manifest: string, markers: BridgeAdapterMarkerPaths): string {
-  let next = manifest.replace('min_agh_version = "0.5.0"', 'min_agh_version = "0.0.0"');
+  let next = manifest.replace('min_compozy_version = "0.5.0"', 'min_compozy_version = "0.0.0"');
   const values = {
-    AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH: markers.crashOnce,
-    AGH_BRIDGE_ADAPTER_DELIVERY_PATH: markers.delivery,
-    AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH: markers.handshake,
-    AGH_BRIDGE_ADAPTER_INGEST_PATH: markers.ingest,
-    AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH: markers.ownership,
-    AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH: markers.shutdown,
-    AGH_BRIDGE_ADAPTER_STARTS_PATH: markers.starts,
-    AGH_BRIDGE_ADAPTER_STATE_PATH: markers.state,
-    AGH_BRIDGE_ADAPTER_UPDATES_PATH: markers.updates,
+    COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH: markers.crashOnce,
+    COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH: markers.delivery,
+    COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH: markers.handshake,
+    COMPOZY_BRIDGE_ADAPTER_INGEST_PATH: markers.ingest,
+    COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH: markers.ownership,
+    COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH: markers.shutdown,
+    COMPOZY_BRIDGE_ADAPTER_STARTS_PATH: markers.starts,
+    COMPOZY_BRIDGE_ADAPTER_STATE_PATH: markers.state,
+    COMPOZY_BRIDGE_ADAPTER_UPDATES_PATH: markers.updates,
   } as const;
 
   for (const [envName, value] of Object.entries(values)) {

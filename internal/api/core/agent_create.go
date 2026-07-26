@@ -15,7 +15,7 @@ import (
 
 // CreateAgentFromRequest validates and persists one AGENT.md definition from a
 // shared create-agent request. It is the single authoring path reused by the
-// HTTP handler and the agh__agent_create native tool.
+// HTTP handler and the compozy__agent_create native tool.
 func CreateAgentFromRequest(
 	ctx context.Context,
 	req contract.CreateAgentRequest,

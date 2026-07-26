@@ -35,7 +35,7 @@ func TestLinterShouldValidateDefinitionNetworkParticipation(t *testing.T) {
 			name:        "Should reject explicit Local participation for a Network node",
 			request:     &participation.Request{Mode: &modeLocal},
 			wantCode:    loop.CodeLoopRequiresLive,
-			wantMessage: "agh__network_send",
+			wantMessage: "compozy__network_send",
 		},
 		{
 			name: "Should accept and canonicalize valid Live participation during compile",
@@ -63,9 +63,9 @@ func TestLinterShouldValidateDefinitionNetworkParticipation(t *testing.T) {
 
 			def := validDefinition()
 			def.NetworkParticipation = tc.request
-			def.Graph.Nodes[2].Kind = "agh__network_send"
+			def.Graph.Nodes[2].Kind = "compozy__network_send"
 			linter := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{
-				"agh__network_send": {ToolID: "agh__network_send"},
+				"compozy__network_send": {ToolID: "compozy__network_send"},
 			}))
 			errs := linter.Lint(def)
 			if tc.wantCode == "" {
@@ -236,7 +236,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			name: "Should reject channel result harvest on non network send actions",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "agent")
-				node.Kind = "agh__task_read"
+				node.Kind = "compozy__task_read"
 				node.Harvest = &dsl.HarvestSpec{Kind: "channel_result", Window: "5m"}
 			},
 			wantCodes: []string{loop.CodeInvalidHarvest},
@@ -245,7 +245,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			name: "Should reject channel result harvest without a positive window",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "agent")
-				node.Kind = "agh__network_send"
+				node.Kind = "compozy__network_send"
 				node.Harvest = &dsl.HarvestSpec{Kind: "channel_result", Window: "0s"}
 			},
 			wantCodes: []string{loop.CodeInvalidHarvest},
@@ -254,7 +254,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			name: "Should reject unsupported channel result content rules",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "agent")
-				node.Kind = "agh__network_send"
+				node.Kind = "compozy__network_send"
 				node.Harvest = &dsl.HarvestSpec{
 					Kind:        "channel_result",
 					Window:      "5m",
@@ -267,7 +267,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			name: "Should reject unknown harvest kinds on open actions",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "agent")
-				node.Kind = "agh__task_read"
+				node.Kind = "compozy__task_read"
 				node.Harvest = &dsl.HarvestSpec{Kind: "event_rang"}
 			},
 			wantCodes: []string{loop.CodeInvalidHarvest},
@@ -276,7 +276,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			name: "Should reject unresolved open action ToolIDs",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "agent")
-				node.Kind = "agh__missing_tool"
+				node.Kind = "compozy__missing_tool"
 			},
 			wantCodes: []string{loop.CodeUnknownActionKind},
 		},

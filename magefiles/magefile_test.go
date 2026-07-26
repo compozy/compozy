@@ -532,8 +532,8 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 		}
 		t.Cleanup(credentials.cleanup)
 
-		if got := credentials.env["AGH_WEB_ASSETS_GIT_TOKEN"]; got != "secret-token" {
-			t.Fatalf("AGH_WEB_ASSETS_GIT_TOKEN = %q, want secret token", got)
+		if got := credentials.env["COMPOZY_WEB_ASSETS_GIT_TOKEN"]; got != "secret-token" {
+			t.Fatalf("COMPOZY_WEB_ASSETS_GIT_TOKEN = %q, want secret token", got)
 		}
 		if got := credentials.env["GIT_TERMINAL_PROMPT"]; got != "0" {
 			t.Fatalf("GIT_TERMINAL_PROMPT = %q, want 0", got)

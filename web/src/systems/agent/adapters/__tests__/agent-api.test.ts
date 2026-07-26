@@ -202,7 +202,7 @@ describe("createAgent", () => {
       provider: "codex",
       prompt: "Own release readiness.",
       model: "gpt-5.4",
-      tools: ["agh__skill_view"],
+      tools: ["compozy__skill_view"],
     },
   };
 
@@ -212,7 +212,7 @@ describe("createAgent", () => {
       provider: "codex",
       model: "gpt-5.4",
       prompt: "Own release readiness.",
-      tools: ["agh__skill_view"],
+      tools: ["compozy__skill_view"],
     },
   };
 

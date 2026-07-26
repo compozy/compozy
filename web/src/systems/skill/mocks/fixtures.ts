@@ -70,8 +70,8 @@ export const skillFixtures: SkillPayload[] = [
         {
           gate: "requires_tools",
           code: "missing_tool",
-          missing: ["agh__browser_screenshot"],
-          message: "gate requires_tools unmet: agh__browser_screenshot",
+          missing: ["compozy__browser_screenshot"],
+          message: "gate requires_tools unmet: compozy__browser_screenshot",
         },
       ],
     },

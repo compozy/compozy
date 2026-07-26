@@ -7,7 +7,7 @@ description: Complete implemented AGENT.md schema, parser rules, provider exampl
 Current AGH agents live in AGH resource directories:
 
 ```text
-$AGH_HOME/agents/<agent-name>/AGENT.md
+$COMPOZY_HOME/agents/<agent-name>/AGENT.md
 <workspace>/.agh/agents/<agent-name>/AGENT.md
 <additional-root>/.agh/agents/<agent-name>/AGENT.md
 ```
@@ -42,10 +42,10 @@ The parser is strict. Unknown frontmatter fields fail loading.
 When `tools` and `toolsets` are empty, the agent definition does not add an allowlist. For a bare
 managed session, hosted MCP projects the full availability-gated callable catalog. Populate
 `tools` or `toolsets` only when the agent should be limited to that explicit surface. Discovery-only
-policies can still name `agh__bootstrap` or `agh__catalog`; AGH just no longer injects those
+policies can still name `compozy__bootstrap` or `compozy__catalog`; AGH just no longer injects those
 toolsets as a default cap for every bare hosted session. Agents should discover AGH-native runtime
-capabilities by resolving canonical `agh__tool_search`, inspect descriptors through canonical
-`agh__tool_info`, and invoke the harness-returned dedicated tool reference before shelling out to
+capabilities by resolving canonical `compozy__tool_search`, inspect descriptors through canonical
+`compozy__tool_info`, and invoke the harness-returned dedicated tool reference before shelling out to
 equivalent `agh ...` commands. Operator-only management examples include MCP OAuth login/logout,
 daemon lifecycle, raw secret writes, and trust-root config. These flows remain CLI/HTTP/UDS by
 design and are not promoted into the tool surface.
@@ -62,7 +62,7 @@ AGH loads visible agents from the workspace snapshot attached to a session.
 | ----- | ---------------- | -------------------------------------------------------------------- |
 | 1     | Workspace root   | `<workspace>/.agh/agents/<name>/AGENT.md`                            |
 | 2     | Additional roots | `<additional-root>/.agh/agents/<name>/AGENT.md`, in registered order |
-| 3     | Global home      | `$AGH_HOME/agents/<name>/AGENT.md`                                   |
+| 3     | Global home      | `$COMPOZY_HOME/agents/<name>/AGENT.md`                               |
 
 Discovery is first-wins. If two files define the same `name`, AGH keeps the first one found and
 does not merge lower-precedence definitions.
@@ -112,11 +112,11 @@ tools:
 
 # Optional. Set only when this agent should be limited to these toolsets.
 toolsets:
-  - "agh__coordination"
+  - "compozy__coordination"
 
 # Optional. Denies always narrow the allowed set.
 deny_tools:
-  - "agh__network_send"
+  - "compozy__network_send"
 
 # Optional. Defaults to [permissions].mode.
 permissions: approve-reads
@@ -212,13 +212,13 @@ Missing or unsupported live options fail loudly with `reasoning_option_missing` 
 
 ### `tools`
 
-| Attribute    | Value                                                                                                                                                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Type         | string array                                                                                                                                                                                                                   |
-| Default      | empty                                                                                                                                                                                                                          |
-| Required     | no                                                                                                                                                                                                                             |
-| Valid values | Exact canonical ToolIDs such as `agh__skill_view`, or namespace-prefix wildcards such as `agh__skill_*` and `mcp__github__*`. `*`, dotted names, hyphens, uppercase, suffix wildcards, and mid-segment wildcards are rejected. |
-| Description  | Optional agent tool allowlist grammar consumed by the registry policy layer. It does not raise authority above `[permissions].mode`. Empty leaves the hosted projection uncapped by the agent definition.                      |
+| Attribute    | Value                                                                                                                                                                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type         | string array                                                                                                                                                                                                                           |
+| Default      | empty                                                                                                                                                                                                                                  |
+| Required     | no                                                                                                                                                                                                                                     |
+| Valid values | Exact canonical ToolIDs such as `compozy__skill_view`, or namespace-prefix wildcards such as `compozy__skill_*` and `mcp__github__*`. `*`, dotted names, hyphens, uppercase, suffix wildcards, and mid-segment wildcards are rejected. |
+| Description  | Optional agent tool allowlist grammar consumed by the registry policy layer. It does not raise authority above `[permissions].mode`. Empty leaves the hosted projection uncapped by the agent definition.                              |
 
 ### `toolsets`
 
@@ -227,7 +227,7 @@ Missing or unsupported live options fail loudly with `reasoning_option_missing` 
 | Type         | string array                                                                                                                                                                                     |
 | Default      | empty                                                                                                                                                                                            |
 | Required     | no                                                                                                                                                                                               |
-| Valid values | Canonical ToolsetIDs such as `agh__bootstrap`, `agh__catalog`, or `linear__read`.                                                                                                                |
+| Valid values | Canonical ToolsetIDs such as `compozy__bootstrap`, `compozy__catalog`, or `linear__read`.                                                                                                        |
 | Description  | Optional named tool bundles allowed for the agent. Toolsets are separate from `tools`; do not place toolset IDs in `tools`. Empty leaves the hosted projection uncapped by the agent definition. |
 
 ### `deny_tools`

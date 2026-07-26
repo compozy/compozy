@@ -208,7 +208,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 			TurnID: "turn-progress-contract",
 			Tool: &ToolProgress{
 				ToolCallID: "call-contract",
-				ToolID:     "agh__terminal",
+				ToolID:     "compozy__terminal",
 				Phase:      ToolProgressPhaseStarted,
 			},
 		}, ProgressModeAll)
@@ -250,8 +250,8 @@ func TestBrokerProgressProjection(t *testing.T) {
 			toolID string
 			input  json.RawMessage
 		}{
-			{callID: "call-1", toolID: "agh__terminal", input: json.RawMessage(`{"command":"printf '%s' sk-progress-secret"}`)},
-			{callID: "call-2", toolID: "agh__task_list", input: json.RawMessage(`{"status":"open"}`)},
+			{callID: "call-1", toolID: "compozy__terminal", input: json.RawMessage(`{"command":"printf '%s' sk-progress-secret"}`)},
+			{callID: "call-2", toolID: "compozy__task_list", input: json.RawMessage(`{"status":"open"}`)},
 		} {
 			err := broker.ProjectEvent(ctx, registration.SessionID, DeliveryProjectionEvent{
 				Type:   "tool_call",
@@ -321,7 +321,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 			TurnID: offRegistration.TurnID,
 			Tool: &ToolProgress{
 				ToolCallID: "call-off",
-				ToolID:     "agh__terminal",
+				ToolID:     "compozy__terminal",
 				Phase:      ToolProgressPhaseStarted,
 			},
 		}); err != nil {
@@ -357,7 +357,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 			TurnID: registration.TurnID,
 			Tool: &ToolProgress{
 				ToolCallID: "call-progress-connector",
-				ToolID:     "agh__skill_search",
+				ToolID:     "compozy__skill_search",
 				Phase:      ToolProgressPhaseStarted,
 			},
 			ToolInput: json.RawMessage(`{"query":"deployment"}`),
@@ -721,9 +721,9 @@ func TestBrokerProgressProjection(t *testing.T) {
 			callID string
 			toolID string
 		}{
-			{callID: "call-new-1", toolID: "agh__terminal"},
-			{callID: "call-new-2", toolID: "agh__terminal"},
-			{callID: "call-new-3", toolID: "agh__task_list"},
+			{callID: "call-new-1", toolID: "compozy__terminal"},
+			{callID: "call-new-2", toolID: "compozy__terminal"},
+			{callID: "call-new-3", toolID: "compozy__task_list"},
 		} {
 			if err := broker.ProjectEvent(ctx, registration.SessionID, DeliveryProjectionEvent{
 				Type:   "tool_call",
@@ -741,10 +741,10 @@ func TestBrokerProgressProjection(t *testing.T) {
 		waitForCalls(t, transport, 2)
 		assertCallCountStable(t, transport, 2, 50*time.Millisecond)
 		calls := transport.snapshotCalls()
-		if got, want := calls[0].request.Event.Progress.ToolID, "agh__terminal"; got != want {
+		if got, want := calls[0].request.Event.Progress.ToolID, "compozy__terminal"; got != want {
 			t.Fatalf("first progress tool id = %q, want %q", got, want)
 		}
-		if got, want := calls[1].request.Event.Progress.ToolID, "agh__task_list"; got != want {
+		if got, want := calls[1].request.Event.Progress.ToolID, "compozy__task_list"; got != want {
 			t.Fatalf("second progress tool id = %q, want %q", got, want)
 		}
 	})
@@ -780,7 +780,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 				Timestamp: startedAt,
 				Tool: &ToolProgress{
 					ToolCallID: "call-new-terminal-1",
-					ToolID:     "agh__terminal",
+					ToolID:     "compozy__terminal",
 					Phase:      ToolProgressPhaseStarted,
 				},
 			},
@@ -799,7 +799,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 				Timestamp: startedAt.Add(32 * time.Second),
 				Tool: &ToolProgress{
 					ToolCallID: "call-new-terminal-2",
-					ToolID:     "agh__terminal",
+					ToolID:     "compozy__terminal",
 					Phase:      ToolProgressPhaseStarted,
 				},
 			},
@@ -877,7 +877,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 				TurnID: registration.TurnID,
 				Tool: &ToolProgress{
 					ToolCallID: "call-lifecycle",
-					ToolID:     "agh__terminal",
+					ToolID:     "compozy__terminal",
 					Phase:      ToolProgressPhaseStarted,
 				},
 			},
@@ -886,7 +886,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 				TurnID: registration.TurnID,
 				Tool: &ToolProgress{
 					ToolCallID: "call-lifecycle",
-					ToolID:     "agh__terminal",
+					ToolID:     "compozy__terminal",
 					Phase:      ToolProgressPhaseStarted,
 				},
 			},
@@ -943,7 +943,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 			TurnID: registration.TurnID,
 			Tool: &ToolProgress{
 				ToolCallID: "call-new-content-1",
-				ToolID:     "agh__terminal",
+				ToolID:     "compozy__terminal",
 				Phase:      ToolProgressPhaseStarted,
 			},
 		}
@@ -975,7 +975,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 			DeliveryEventTypeStart,
 			DeliveryEventTypeProgress,
 		}, []int64{1, 2, 3})
-		if got, want := calls[2].request.Event.Progress.ToolID, "agh__terminal"; got != want {
+		if got, want := calls[2].request.Event.Progress.ToolID, "compozy__terminal"; got != want {
 			t.Fatalf("second progress tool id = %q, want %q", got, want)
 		}
 	})
@@ -1009,7 +1009,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 				TurnID: registration.TurnID,
 				Tool: &ToolProgress{
 					ToolCallID: "call-progress-only",
-					ToolID:     "agh__terminal",
+					ToolID:     "compozy__terminal",
 					Phase:      ToolProgressPhaseStarted,
 				},
 			},
@@ -1113,7 +1113,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 				TurnID: registration.TurnID,
 				Tool: &ToolProgress{
 					ToolCallID: "call-after-terminal",
-					ToolID:     "agh__terminal",
+					ToolID:     "compozy__terminal",
 					Phase:      ToolProgressPhaseStarted,
 				},
 			},
@@ -1163,7 +1163,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 				TurnID: registration.TurnID,
 				Tool: &ToolProgress{
 					ToolCallID: "call-failed",
-					ToolID:     "agh__terminal",
+					ToolID:     "compozy__terminal",
 					Phase:      ToolProgressPhaseStarted,
 				},
 				ToolInput: json.RawMessage(`{"command":"false"}`),
@@ -1196,7 +1196,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 		if failed == nil || failed.Phase != ToolProgressPhaseFailed {
 			t.Fatalf("failed progress = %#v, want failed phase", failed)
 		}
-		if got, want := failed.ToolID, "agh__terminal"; got != want {
+		if got, want := failed.ToolID, "compozy__terminal"; got != want {
 			t.Fatalf("failed progress tool id = %q, want recovered %q", got, want)
 		}
 		if got, want := calls[2].request.Event.Content.Text, "answer"; got != want {
@@ -1234,7 +1234,7 @@ func TestBrokerProgressProjection(t *testing.T) {
 				TurnID: registration.TurnID,
 				Tool: &ToolProgress{
 					ToolCallID: "call-order",
-					ToolID:     "agh__task_list",
+					ToolID:     "compozy__task_list",
 					Phase:      ToolProgressPhaseStarted,
 				},
 			},

@@ -106,8 +106,8 @@ the pieces needed to run, inspect, extend, and coordinate agents locally.
 
 - A single Go binary with `agh install`, `agh daemon start`, `agh status`, and
   `agh daemon stop`.
-- A singleton daemon per `AGH_HOME`, protected by a lock file and discovered through
-  `$AGH_HOME/daemon.json`.
+- A singleton daemon per `COMPOZY_HOME`, protected by a lock file and discovered through
+  `$COMPOZY_HOME/daemon.json`.
 - Unix domain socket API for local CLI traffic, HTTP/SSE for browser and integration clients, and a
   web UI backed by the same daemon state.
 - Structured daemon logs, health snapshots, process status, version reporting, and SQLite-backed
@@ -163,7 +163,7 @@ the pieces needed to run, inspect, extend, and coordinate agents locally.
   additional-root, and workspace precedence.
 - Compact startup prompt catalogs so agents see available skills without stuffing every skill body
   into context.
-- `agh__skill_search` and `agh__skill_view` for agents, plus `agh skill search`, `install`,
+- `compozy__skill_search` and `compozy__skill_view` for agents, plus `agh skill search`, `install`,
   `list`, `view`, `update`, `remove`, and `create` for operators.
 - Skill-local resource files and MCP sidecars.
 - Marketplace provenance metadata, load-time verification, and configurable marketplace registry
@@ -359,9 +359,9 @@ That is why AGH keeps adding parallel surfaces:
 
 - sessions are available through `agh session`, `/api/sessions`, SSE streams, and the web UI
 - memory is available through `agh memory`, `/api/memory`, and agent-callable memory tools
-- skills are available through `agh skill` and `agh__skill_*`
-- automation is available through `agh automation`, `/api/automation`, and `agh__automation_*`
-- network is available through `agh network`, `/api/network`, and `agh__network_*`
+- skills are available through `agh skill` and `compozy__skill_*`
+- automation is available through `agh automation`, `/api/automation`, and `compozy__automation_*`
+- network is available through `agh network`, `/api/network`, and `compozy__network_*`
 - tasks are available through `agh task`, `/api/tasks`, `/api/task-runs`, and autonomy tools
 - configuration is inspectable and mutable through validated CLI/API paths instead of hand-edited
   state only

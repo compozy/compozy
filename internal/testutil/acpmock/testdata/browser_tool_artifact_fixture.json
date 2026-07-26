@@ -17,7 +17,7 @@
                         {
                             "kind": "tool_call",
                             "tool_call_id": "tool-artifact-e2e-009",
-                            "title": "agh__memory_recall",
+                            "title": "compozy__memory_recall",
                             "tool_kind": "read",
                             "raw_input": {
                                 "query": "release verification evidence"

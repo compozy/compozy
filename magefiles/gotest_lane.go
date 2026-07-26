@@ -19,9 +19,9 @@ import (
 // stale QA-lab shell exports cannot couple otherwise-isolated runs.
 
 const (
-	goTestPackageLimitEnvVar = "AGH_GO_TEST_P"
-	goTestShardIndexEnvVar   = "AGH_GO_TEST_SHARD_INDEX"
-	goTestShardTotalEnvVar   = "AGH_GO_TEST_SHARD_TOTAL"
+	goTestPackageLimitEnvVar = "COMPOZY_GO_TEST_P"
+	goTestShardIndexEnvVar   = "COMPOZY_GO_TEST_SHARD_INDEX"
+	goTestShardTotalEnvVar   = "COMPOZY_GO_TEST_SHARD_TOTAL"
 	goUnitTestParallelism    = 4
 )
 
@@ -35,19 +35,19 @@ type goTestShard struct {
 // must never inherit them ambiently; lanes that need one pass it as an
 // explicit override, which is applied after the scrub and therefore wins.
 var ambientRuntimeStateEnvVars = []string{
-	"AGH_HOME",
-	"AGH_CONFIG_HOME",
-	"AGH_HTTP_PORT",
-	"AGH_UDS_PATH",
-	"AGH_WEB_API_PROXY_TARGET",
-	"AGH_WEB_DIST_DIR",
+	"COMPOZY_HOME",
+	"COMPOZY_CONFIG_HOME",
+	"COMPOZY_HTTP_PORT",
+	"COMPOZY_UDS_PATH",
+	"COMPOZY_WEB_API_PROXY_TARGET",
+	"COMPOZY_WEB_DIST_DIR",
 	"TMUX_BRIDGE_SOCKET",
 	"PROVIDER_HOME",
 	"PROVIDER_CODEX_HOME",
 }
 
 // goUnitTestPackageLimit resolves the unit lane's `go test -p` cap. An
-// explicit AGH_GO_TEST_P wins; otherwise the package fan-out accounts for the
+// explicit COMPOZY_GO_TEST_P wins; otherwise the package fan-out accounts for the
 // per-package -parallel budget instead of multiplying it by the CPU count.
 func goUnitTestPackageLimit() string {
 	if raw := strings.TrimSpace(os.Getenv(goTestPackageLimitEnvVar)); raw != "" {

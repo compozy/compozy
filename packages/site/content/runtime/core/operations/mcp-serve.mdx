@@ -30,7 +30,7 @@ adapting the surrounding JSON shape to that client:
 ```
 
 `--workspace` accepts a workspace ID, name, or path. The daemon must already be running under the
-same `AGH_HOME` as the relay.
+same `COMPOZY_HOME` as the relay.
 
 Stdio does not add a bearer-token exchange. The local process that starts the command receives the
 published operator authority for the bound workspace. Stdout carries MCP protocol frames only;
@@ -41,7 +41,7 @@ diagnostics go to stderr.
 Use streamable HTTP when a local client cannot spawn a stdio server:
 
 ```bash
-export AGH_MCP_SERVE_TOKEN='replace-with-a-high-entropy-token'
+export COMPOZY_MCP_SERVE_TOKEN='replace-with-a-high-entropy-token'
 agh mcp serve \
   --workspace /absolute/path/to/workspace \
   --transport http \
@@ -52,15 +52,15 @@ Connect the MCP client to `http://127.0.0.1:3210/mcp` and send the token as
 `Authorization: Bearer <token>` on every request.
 
 HTTP startup fails if the listener is not loopback or if the token environment variable is empty.
-The default variable is `AGH_MCP_SERVE_TOKEN`; select another variable name with `--token-env`.
+The default variable is `COMPOZY_MCP_SERVE_TOKEN`; select another variable name with `--token-env`.
 There is intentionally no command-line token value or `config.toml` key, so the credential does not
 enter process arguments or persistent AGH configuration.
 
 ## Understand the published tools
 
 The relay derives schemas from the canonical Host API contracts and publishes tools in the separate
-`agh_host__<family>__<verb>` namespace. Examples include `agh_host__sessions__list` and
-`agh_host__tasks__create`. These are MCP façade names, not native `agh__*` tools.
+`compozy_host__<family>__<verb>` namespace. Examples include `compozy_host__sessions__list` and
+`compozy_host__tasks__create`. These are MCP façade names, not native `compozy__*` tools.
 
 The approved families are sessions, workspace-safe task operations, Network, memory, and resources.
 Target-only task mutations that cannot be bound safely from their request shape are excluded, as

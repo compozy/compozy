@@ -13,7 +13,7 @@ type AgentCreateScope string
 const (
 	// AgentCreateScopeWorkspace writes the agent under one workspace's .compozy directory.
 	AgentCreateScopeWorkspace AgentCreateScope = "workspace"
-	// AgentCreateScopeGlobal writes the agent under AGH_HOME.
+	// AgentCreateScopeGlobal writes the agent under COMPOZY_HOME.
 	AgentCreateScopeGlobal AgentCreateScope = "global"
 )
 

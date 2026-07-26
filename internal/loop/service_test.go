@@ -72,7 +72,7 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 				name:   "Should reject compozy network tools",
 				nodeID: "send-update",
 				mutateNode: func(node *dsl.Node) {
-					node.Kind = "agh__network_send"
+					node.Kind = "compozy__network_send"
 				},
 			},
 			{

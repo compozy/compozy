@@ -22,10 +22,11 @@ import (
 	aghconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/kballard/go-shellquote"
 )
 
-const e2eACPHelperEnvKey = "AGH_TEST_E2E_ACP_HELPER"
+const e2eACPHelperEnvKey = "COMPOZY_TEST_E2E_ACP_HELPER"
 
 type runtimeMigrationExpectation struct {
 	stream       string
@@ -35,7 +36,7 @@ type runtimeMigrationExpectation struct {
 
 func runtimeMigrationExpectations() []runtimeMigrationExpectation {
 	return []runtimeMigrationExpectation{
-		{stream: "global", version: 25, appliedCount: 25},
+		{stream: "global", version: 26, appliedCount: 26},
 		{stream: "memory", version: 1, appliedCount: 1},
 	}
 }
@@ -63,6 +64,28 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	databaseInfo, err := os.Stat(harness.HomePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("Stat(%q) error = %v", harness.HomePaths.DatabaseFile, err)
+	}
+	if databaseInfo.IsDir() {
+		t.Fatalf("database path %q is a directory, want file", harness.HomePaths.DatabaseFile)
+	}
+	if got, want := filepath.Base(harness.HomePaths.DatabaseFile), aghconfig.DatabaseName; got != want {
+		t.Fatalf("database filename = %q, want %q", got, want)
+	}
+
+	socketInfo, err := os.Stat(harness.Config.Daemon.Socket)
+	if err != nil {
+		t.Fatalf("Stat(%q) error = %v", harness.Config.Daemon.Socket, err)
+	}
+	if socketInfo.Mode()&os.ModeSocket == 0 {
+		t.Fatalf("socket path %q mode = %s, want Unix socket", harness.Config.Daemon.Socket, socketInfo.Mode())
+	}
+	if socketName := filepath.Base(harness.Config.Daemon.Socket); !strings.HasPrefix(socketName, "compozy-e2e-") {
+		t.Fatalf("socket filename = %q, want compozy-e2e-*", socketName)
+	}
 
 	var httpStatus aghcontract.StatusPayload
 	if err := harness.HTTPJSON(ctx, "GET", "/api/status", nil, &httpStatus); err != nil {
@@ -101,6 +124,24 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 			cliStatus.Daemon.SchemaStreams,
 			httpStatus.Daemon.SchemaStreams,
 		)
+	}
+
+	var loopTool aghcontract.ToolResponse
+	if err := harness.CLI.RunJSON(
+		ctx,
+		&loopTool,
+		"tool",
+		"info",
+		toolspkg.ToolIDLoopStatus.String(),
+		"--workspace",
+		harness.WorkspaceID,
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("CLI loop tool descriptor error = %v", err)
+	}
+	if got, want := loopTool.Tool.Descriptor.ToolID, toolspkg.ToolIDLoopStatus; got != want {
+		t.Fatalf("loop tool descriptor ID = %q, want %q", got, want)
 	}
 
 	if err := harness.Stop(ctx); err != nil {
@@ -241,7 +282,7 @@ func TestStartRuntimeHarnessRefusesLegacyDatabaseBeforeReadiness(t *testing.T) {
 		logText := string(logBytes)
 		if !strings.Contains(logText, store.ErrLegacyDatabase.Error()) ||
 			!strings.Contains(logText, canonicalPath) ||
-			!strings.Contains(logText, "complete AGH_HOME or workspace .compozy directory") {
+			!strings.Contains(logText, "complete COMPOZY_HOME or workspace .compozy directory") {
 			t.Fatalf("daemon process log = %q, want legacy sentinel, path, and whole-family remediation", logText)
 		}
 		if _, err := os.Stat(layout.HomePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {

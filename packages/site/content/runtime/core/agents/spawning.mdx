@@ -82,27 +82,27 @@ The subprocess environment starts from the provider's `env_policy`:
 
 AGH then applies these additions:
 
-| Variable                   | When set                                                         | Value                                                |
-| -------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
-| `AGH_SESSION_ID`           | every spawned session                                            | AGH session ID                                       |
-| `AGH_AGENT`                | every spawned session                                            | resolved agent name                                  |
-| `AGH_AGENT_NAME`           | every spawned session                                            | resolved agent name                                  |
-| `AGH_PROVIDER`             | every spawned session                                            | resolved provider id                                 |
-| `AGH_PROVIDER_HARNESS`     | every spawned session                                            | resolved provider harness, such as `acp` or `pi_acp` |
-| `AGH_PROVIDER_AUTH_MODE`   | every spawned session                                            | `native_cli`, `bound_secret`, or `none`              |
-| `AGH_PROVIDER_ENV_POLICY`  | every spawned session                                            | `filtered` or `isolated`                             |
-| `AGH_PROVIDER_HOME_POLICY` | every spawned session                                            | `operator` or `isolated`                             |
-| `AGH_MODEL`                | every spawned session with a resolved model                      | resolved model string                                |
-| `PROVIDER_HOME`            | when `home_policy = "isolated"`                                  | `$AGH_HOME/providers/<provider>`                     |
-| `HOME` and XDG homes       | when `home_policy = "isolated"`                                  | provider-owned home/config/data/cache directories    |
-| Provider-specific homes    | known isolated providers                                         | `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, or similar        |
-| `PI_CODING_AGENT_DIR`      | native Pi isolated home or Pi-backed `bound_secret` sessions     | Pi auth/config directory                             |
-| `AGH_SESSION_CHANNEL`      | sessions whose execution resolved as Live                        | immutable participation channel                      |
-| `AGH_PEER_ID`              | sessions whose execution resolved as Live                        | `<agentName>.<sessionID>`                            |
-| `AGH_BIN`                  | every spawned session when the daemon executable can be resolved | absolute path to the AGH binary                      |
+| Variable                       | When set                                                         | Value                                                |
+| ------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| `COMPOZY_SESSION_ID`           | every spawned session                                            | AGH session ID                                       |
+| `COMPOZY_AGENT`                | every spawned session                                            | resolved agent name                                  |
+| `COMPOZY_AGENT_NAME`           | every spawned session                                            | resolved agent name                                  |
+| `COMPOZY_PROVIDER`             | every spawned session                                            | resolved provider id                                 |
+| `COMPOZY_PROVIDER_HARNESS`     | every spawned session                                            | resolved provider harness, such as `acp` or `pi_acp` |
+| `COMPOZY_PROVIDER_AUTH_MODE`   | every spawned session                                            | `native_cli`, `bound_secret`, or `none`              |
+| `COMPOZY_PROVIDER_ENV_POLICY`  | every spawned session                                            | `filtered` or `isolated`                             |
+| `COMPOZY_PROVIDER_HOME_POLICY` | every spawned session                                            | `operator` or `isolated`                             |
+| `COMPOZY_MODEL`                | every spawned session with a resolved model                      | resolved model string                                |
+| `PROVIDER_HOME`                | when `home_policy = "isolated"`                                  | `$COMPOZY_HOME/providers/<provider>`                 |
+| `HOME` and XDG homes           | when `home_policy = "isolated"`                                  | provider-owned home/config/data/cache directories    |
+| Provider-specific homes        | known isolated providers                                         | `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, or similar        |
+| `PI_CODING_AGENT_DIR`          | native Pi isolated home or Pi-backed `bound_secret` sessions     | Pi auth/config directory                             |
+| `COMPOZY_SESSION_CHANNEL`      | sessions whose execution resolved as Live                        | immutable participation channel                      |
+| `COMPOZY_PEER_ID`              | sessions whose execution resolved as Live                        | `<agentName>.<sessionID>`                            |
+| `COMPOZY_BIN`                  | every spawned session when the daemon executable can be resolved | absolute path to the AGH binary                      |
 
 AGH also prepends the AGH binary directory to `PATH`, removing a duplicate entry if it already
-exists. Before setting Live participation values, stale `AGH_SESSION_CHANNEL` and `AGH_PEER_ID`
+exists. Before setting Live participation values, stale `COMPOZY_SESSION_CHANNEL` and `COMPOZY_PEER_ID`
 values are cleared from the inherited environment. Local executions receive neither variable.
 
 Provider API keys are injected only when `auth_mode = "bound_secret"` through provider
@@ -113,11 +113,11 @@ through settings. Required slots fail startup when the bound secret is missing.
 
 For `native_cli` providers, AGH does not require provider API-key environment variables. The
 provider command uses its own login/session store. The default `home_policy = "operator"` preserves
-existing CLI logins; `home_policy = "isolated"` creates a private provider home under `$AGH_HOME`
+existing CLI logins; `home_policy = "isolated"` creates a private provider home under `$COMPOZY_HOME`
 and starts with no copied credentials.
 
 For the direct native `pi` provider, AGH does not override Pi's operator auth directory. When
-`home_policy = "isolated"` is selected, AGH points Pi at `$AGH_HOME/providers/pi/.pi/agent` so
+`home_policy = "isolated"` is selected, AGH points Pi at `$COMPOZY_HOME/providers/pi/.pi/agent` so
 `agh provider auth login pi` and session launch use the same isolated auth store. Wrapped API-key
 providers that use `pi_acp` with `auth_mode = "bound_secret"` get session-local `settings.json`
 and `models.json`; AGH sets `PI_CODING_AGENT_DIR` to that per-session runtime config and injects

@@ -372,7 +372,7 @@ function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): st
 
 function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
   return {
-    AGH_HOME: paths.homeDir,
+    COMPOZY_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
   };

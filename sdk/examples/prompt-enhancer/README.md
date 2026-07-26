@@ -49,10 +49,10 @@ extension root.
 
 The persistent runtime reads these optional environment variables:
 
-- `AGH_PROMPT_ENHANCER_HANDSHAKE_PATH`: writes the initialize request/response as JSON.
-- `AGH_PROMPT_ENHANCER_HOST_CALL_PATH`: writes the result of the `sessions/list` probe as JSON.
-- `AGH_PROMPT_ENHANCER_CAPABILITY_PATH`: writes the typed error returned by the intentionally denied `sessions/create` call.
-- `AGH_PROMPT_ENHANCER_SHUTDOWN_PATH`: appends one line when the daemon sends `shutdown`.
+- `COMPOZY_PROMPT_ENHANCER_HANDSHAKE_PATH`: writes the initialize request/response as JSON.
+- `COMPOZY_PROMPT_ENHANCER_HOST_CALL_PATH`: writes the result of the `sessions/list` probe as JSON.
+- `COMPOZY_PROMPT_ENHANCER_CAPABILITY_PATH`: writes the typed error returned by the intentionally denied `sessions/create` call.
+- `COMPOZY_PROMPT_ENHANCER_SHUTDOWN_PATH`: appends one line when the daemon sends `shutdown`.
 
 ## Hook Behavior
 

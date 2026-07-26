@@ -74,7 +74,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	sampleRaw := json.RawMessage(`{"key":"value"}`)
 	allowOnce := "allow-once"
 	reason := "blocked"
-	toolID := "agh__grep"
+	toolID := "compozy__grep"
 	toolName := "grep"
 	strategy := "summarize"
 	text := "patched"
@@ -582,7 +582,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		TurnContext:    sampleTurn,
 		ToolCallRef: ToolCallRef{
 			ToolCallID: "tool-1",
-			ToolID:     "agh__grep",
+			ToolID:     "compozy__grep",
 			ReadOnly:   true,
 		},
 		ToolInput: sampleRaw,
@@ -593,7 +593,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		TurnContext:    sampleTurn,
 		ToolCallRef: ToolCallRef{
 			ToolCallID: "tool-1",
-			ToolID:     "agh__grep",
+			ToolID:     "compozy__grep",
 			ReadOnly:   true,
 		},
 		Title:      "grep result",
@@ -606,7 +606,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		TurnContext:    sampleTurn,
 		ToolCallRef: ToolCallRef{
 			ToolCallID: "tool-1",
-			ToolID:     "agh__grep",
+			ToolID:     "compozy__grep",
 			ReadOnly:   true,
 		},
 		Title:     "grep error",

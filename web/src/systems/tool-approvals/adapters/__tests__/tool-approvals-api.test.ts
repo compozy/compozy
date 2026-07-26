@@ -58,7 +58,7 @@ describe("setToolApprovalGrant", () => {
     mockJsonResponse({ grant });
 
     const result = await setToolApprovalGrant(WS, {
-      tool_id: "agh__config_set",
+      tool_id: "compozy__config_set",
       decision: "allow",
       scope: "agent",
       agent_name: "claude-code",
@@ -69,7 +69,7 @@ describe("setToolApprovalGrant", () => {
       method: "PUT",
       path: `/api/tool-approval-grants?workspace_id=${WS}`,
       body: {
-        tool_id: "agh__config_set",
+        tool_id: "compozy__config_set",
         decision: "allow",
         scope: "agent",
         agent_name: "claude-code",
@@ -82,7 +82,7 @@ describe("setToolApprovalGrant", () => {
 
     await expect(
       setToolApprovalGrant(WS, {
-        tool_id: "agh__config_set",
+        tool_id: "compozy__config_set",
         decision: "allow",
         scope: "tool",
       })

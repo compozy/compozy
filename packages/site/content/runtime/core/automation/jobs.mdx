@@ -95,7 +95,7 @@ curl -sS -X POST http://localhost:2123/api/automation/jobs \
   }'
 ```
 
-Agents can send the same payload through `agh__automation_jobs_create`; HTTP and UDS expose the
+Agents can send the same payload through `compozy__automation_jobs_create`; HTTP and UDS expose the
 same request contract. The `agh automation jobs create|update` flags currently author Agent
 targets. The CLI can still list, inspect, enable, disable, trigger, and delete Loop-target jobs
 created through a native tool or transport API.
@@ -109,7 +109,7 @@ job, including update payloads and resource-applied definitions. It classifies d
 or `service` lifecycle commands targeting AGH.
 
 The rejection names one stable class: `agh_daemon`, `process_signal`, or `service_manager`. The
-same error reaches CLI, HTTP/UDS, and `agh__automation_jobs_create|update`. There is no bypass.
+same error reaches CLI, HTTP/UDS, and `compozy__automation_jobs_create|update`. There is no bypass.
 Remove the daemon lifecycle command and retry the write. Human-readable fields remain ordinary
 prose, so a job name such as `Review agh daemon restart behavior` is valid.
 

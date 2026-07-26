@@ -23,8 +23,8 @@ func TestMain(m *testing.M) {
 }
 
 func runExtensionTests(m *testing.M) (code int) {
-	if os.Getenv("AGH_TEST_EXTENSION_HELPER") == "1" ||
-		os.Getenv("AGH_TEST_REFERENCE_ACP_HELPER") == "1" {
+	if os.Getenv("COMPOZY_TEST_EXTENSION_HELPER") == "1" ||
+		os.Getenv("COMPOZY_TEST_REFERENCE_ACP_HELPER") == "1" {
 		return m.Run()
 	}
 	globalSeed, err := storeseed.NewGlobal(context.Background())

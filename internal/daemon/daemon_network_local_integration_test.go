@@ -145,7 +145,7 @@ func assertLocalSessionHasNoNetworkTools(
 		t.Fatalf("UDS list Local session tools error = %v", err)
 	}
 	for _, tool := range response.Tools {
-		if strings.HasPrefix(tool.Descriptor.ToolID.String(), "agh__network_") {
+		if strings.HasPrefix(tool.Descriptor.ToolID.String(), "compozy__network_") {
 			t.Fatalf("Local session tools include Network tool %q", tool.Descriptor.ToolID)
 		}
 	}
@@ -172,8 +172,8 @@ func assertLocalACPDiagnosticsHaveNoNetworkContext(
 		for _, fragment := range []string{
 			"# AGH Network",
 			"# AGH Network Response Register",
-			"AGH_SESSION_CHANNEL",
-			"AGH_PEER_ID",
+			"COMPOZY_SESSION_CHANNEL",
+			"COMPOZY_PEER_ID",
 		} {
 			if strings.Contains(record.Prompt, fragment) {
 				t.Fatalf("Local ACP prompt contains Network fragment %q: %q", fragment, record.Prompt)

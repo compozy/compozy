@@ -160,12 +160,12 @@ describe("authored context runtime docs", () => {
       "agent.heartbeat.wake.before",
       "agent.heartbeat.wake.after",
       "session.health.update.after",
-      "agh__session_health",
-      "agh__agent_heartbeat_status",
-      "agh__agent_heartbeat_wake",
+      "compozy__session_health",
+      "compozy__agent_heartbeat_status",
+      "compozy__agent_heartbeat_wake",
     ]);
     // No native tool for Soul exists today.
-    expect(develop).not.toContain("agh__agent_soul ");
+    expect(develop).not.toContain("compozy__agent_soul ");
   });
 
   it("documents AGH Network greet as independent from authored context", () => {

@@ -59,7 +59,7 @@ func TestDiscordProgressFullTurnDelivery(t *testing.T) {
 				int64(index+2),
 				bridgepkg.ToolProgress{
 					ToolCallID: "tool-call-" + strings.ToLower(label),
-					ToolID:     "agh__" + strings.ToLower(label),
+					ToolID:     "compozy__" + strings.ToLower(label),
 					Phase:      bridgepkg.ToolProgressPhaseStarted,
 					Label:      label,
 					Emoji:      "🔎",
@@ -155,7 +155,7 @@ func TestDiscordProgressFullTurnDelivery(t *testing.T) {
 			1,
 			bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-cleanup",
-				ToolID:     "agh__search",
+				ToolID:     "compozy__search",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Search",
 				Index:      1,
@@ -210,7 +210,7 @@ func TestDiscordProgressUsesRuneMessageLength(t *testing.T) {
 			1,
 			bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-runes",
-				ToolID:     "agh__search",
+				ToolID:     "compozy__search",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      label,
 				Index:      1,
@@ -265,7 +265,7 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 		session := &bridgesdk.Session{}
 		request := testDiscordProgressRequest("delivery-provider-retry", 1, bridgepkg.ToolProgress{
 			ToolCallID: "tool-call-retry",
-			ToolID:     "agh__search",
+			ToolID:     "compozy__search",
 			Phase:      bridgepkg.ToolProgressPhaseStarted,
 			Label:      "Search",
 			Index:      1,
@@ -333,7 +333,7 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			session,
 			testDiscordProgressRequest("delivery-async", 1, bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-a",
-				ToolID:     "agh__search",
+				ToolID:     "compozy__search",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Search",
 				Index:      1,
@@ -347,7 +347,7 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			session,
 			testDiscordProgressRequest("delivery-async", 2, bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-b",
-				ToolID:     "agh__read",
+				ToolID:     "compozy__read",
 				Phase:      bridgepkg.ToolProgressPhaseCompleted,
 				Label:      "Read",
 				Index:      2,
@@ -413,7 +413,7 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			session,
 			testDiscordProgressRequest("delivery-flush", 1, bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-a",
-				ToolID:     "agh__search",
+				ToolID:     "compozy__search",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Search",
 				Index:      1,
@@ -427,7 +427,7 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			session,
 			testDiscordProgressRequest("delivery-flush", 2, bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-b",
-				ToolID:     "agh__read",
+				ToolID:     "compozy__read",
 				Phase:      bridgepkg.ToolProgressPhaseCompleted,
 				Label:      "Read",
 				Index:      2,
@@ -492,7 +492,7 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			session,
 			testDiscordProgressRequest("delivery-stop", 1, bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-a",
-				ToolID:     "agh__search",
+				ToolID:     "compozy__search",
 				Phase:      bridgepkg.ToolProgressPhaseStarted,
 				Label:      "Search",
 				Index:      1,
@@ -506,7 +506,7 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			session,
 			testDiscordProgressRequest("delivery-stop", 2, bridgepkg.ToolProgress{
 				ToolCallID: "tool-call-b",
-				ToolID:     "agh__read",
+				ToolID:     "compozy__read",
 				Phase:      bridgepkg.ToolProgressPhaseCompleted,
 				Label:      "Read",
 				Index:      2,
