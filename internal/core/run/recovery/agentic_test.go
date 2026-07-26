@@ -74,6 +74,7 @@ func TestAgenticRemediationBuildsNonRecursiveRecoveryRunConfig(t *testing.T) {
 				Timeout:       2 * time.Minute,
 				IDE:           model.IDEClaude,
 				Model:         "failed-model",
+				Speed:         kinds.SpeedFast,
 			},
 			Recovery: workspace.AgentRecoveryConfig{
 				IDE:             strPtr(model.IDECodex),
@@ -105,10 +106,71 @@ func TestAgenticRemediationBuildsNonRecursiveRecoveryRunConfig(t *testing.T) {
 		if captured.IDE != model.IDECodex || captured.Model != "gpt-5.5" || captured.ReasoningEffort != "high" {
 			t.Fatalf("unexpected recovery runtime: %#v", captured)
 		}
+		if captured.Speed != kinds.SpeedFast {
+			t.Fatalf("Speed = %q, want inherited %q", captured.Speed, kinds.SpeedFast)
+		}
 		if captured.SystemPrompt == "" {
 			t.Fatal("expected recovery system prompt")
 		}
 	})
+}
+
+func TestBuildRecoveryRuntimeConfigPreservesRequestedSpeed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		failedSpeed kinds.Speed
+		wantSpeed   kinds.Speed
+	}{
+		{
+			name:        "Should preserve normal speed through recovery overrides",
+			failedSpeed: kinds.SpeedNormal,
+			wantSpeed:   kinds.SpeedNormal,
+		},
+		{
+			name:        "Should preserve fast speed through recovery overrides",
+			failedSpeed: kinds.SpeedFast,
+			wantSpeed:   kinds.SpeedFast,
+		},
+		{
+			name:      "Should default omitted legacy speed to normal",
+			wantSpeed: kinds.SpeedNormal,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := buildRecoveryRuntimeConfig(RemediationInput{
+				Outcome: RunOutcome{RunID: "failed-run"},
+				FailedConfig: &model.RuntimeConfig{
+					WorkspaceRoot:   "/repo",
+					IDE:             model.IDEClaude,
+					Model:           "failed-model",
+					ReasoningEffort: "low",
+					Speed:           tt.failedSpeed,
+				},
+				Recovery: workspace.AgentRecoveryConfig{
+					IDE:             strPtr(model.IDECodex),
+					Model:           strPtr("recovery-model"),
+					ReasoningEffort: strPtr("high"),
+				},
+			}, "recover safely")
+
+			if cfg.Speed != tt.wantSpeed {
+				t.Fatalf("Speed = %q, want inherited %q", cfg.Speed, tt.wantSpeed)
+			}
+			if cfg.IDE != model.IDECodex ||
+				cfg.Model != "recovery-model" ||
+				cfg.ReasoningEffort != "high" {
+				t.Fatalf("recovery overrides = %s/%s/%s, want codex/recovery-model/high",
+					cfg.IDE, cfg.Model, cfg.ReasoningEffort)
+			}
+		})
+	}
 }
 
 func TestAgenticRemediationSystemPromptContainsGuidanceAndFailureContext(t *testing.T) {
@@ -246,6 +308,7 @@ func TestAgenticRemediationIntegrationRunsDeterministicAgentAndWritesAudit(t *te
 
 		runArtifacts := model.NewRunArtifactsForRunsDir(t.TempDir(), "failed-run")
 		var capturedPrompt string
+		var capturedSpeed kinds.Speed
 		restore := acpshared.SwapNewAgentClientForTest(
 			func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
 				return &recoveryFakeACPClient{
@@ -254,6 +317,7 @@ func TestAgenticRemediationIntegrationRunsDeterministicAgentAndWritesAudit(t *te
 						req agent.SessionRequest,
 					) (agent.SessionStart, error) {
 						capturedPrompt = string(req.Prompt)
+						capturedSpeed = req.Speed
 						if err := os.WriteFile(
 							filepath.Join(workspaceRoot, "fixed.txt"),
 							[]byte("fixed\n"),
@@ -301,6 +365,7 @@ func TestAgenticRemediationIntegrationRunsDeterministicAgentAndWritesAudit(t *te
 				WorkspaceRoot: workspaceRoot,
 				IDE:           model.IDECodex,
 				Model:         "gpt-5.5",
+				Speed:         kinds.SpeedFast,
 				AccessMode:    model.AccessModeDefault,
 				Timeout:       time.Minute,
 			},
@@ -310,6 +375,9 @@ func TestAgenticRemediationIntegrationRunsDeterministicAgentAndWritesAudit(t *te
 		}
 		if verdict.Decision != VerdictFixed || !equalStrings(verdict.ChangedFiles, []string{"fixed.txt"}) {
 			t.Fatalf("unexpected verdict: %#v", verdict)
+		}
+		if capturedSpeed != kinds.SpeedFast {
+			t.Fatalf("atomic recovery setup speed = %q, want %q", capturedSpeed, kinds.SpeedFast)
 		}
 		if !strings.Contains(capturedPrompt, "Do not delete failing tests.") ||
 			!strings.Contains(capturedPrompt, "missing fixed.txt") {

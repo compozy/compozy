@@ -10,9 +10,13 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/compozy/compozy/internal/core/agent"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	execpkg "github.com/compozy/compozy/internal/core/run/exec"
+	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
+	"github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestAgenticConflictResolutionScenarios(t *testing.T) {
@@ -47,6 +51,10 @@ func TestAgenticConflictResolutionScenarios(t *testing.T) {
 	t.Run(
 		"Should build the runtime config with the selected agent settings",
 		runAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection,
+	)
+	t.Run(
+		"Should preserve requested speed across every resolver attempt",
+		runAgenticConflictResolutionPreservesSpeedAcrossAttempts,
 	)
 	t.Run(
 		"Should tolerate conflicted symlink-to-directory paths",
@@ -351,6 +359,51 @@ func runAgenticConflictResolutionBoundsAttemptsAtThree(t *testing.T) {
 	}
 }
 
+func runAgenticConflictResolutionPreservesSpeedAcrossAttempts(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeResolverTestFile(t, root, "story.txt", "resolved\n")
+	runner := &fakeConflictCommandRunner{statuses: []string{"UU story.txt\n"}}
+	captured := make([]model.RuntimeConfig, 0, workspace.MaxRecoveryAttempts)
+	resolver := NewAgenticConflictResolution(
+		WithConflictCommandRunner(runner),
+		WithConflictPreparedPromptExecutor(func(
+			_ context.Context,
+			cfg *model.RuntimeConfig,
+			_ string,
+			_ *reusableagents.ExecutionContext,
+			_ execpkg.SessionMCPBuilder,
+		) (execpkg.PreparedPromptResult, error) {
+			captured = append(captured, *cfg)
+			return execpkg.PreparedPromptResult{RunID: "resolver-run"}, nil
+		}),
+		WithConflictSkillFS(minimalGitRebaseSkillFS()),
+	)
+
+	got, err := resolver.Resolve(context.Background(), ConflictInput{
+		IntegrationWorktree: root,
+		Conflicts:           ConflictSet{Files: []string{"story.txt"}},
+		Task:                TaskSpec{ID: "task_02", Number: 2},
+		MaxAttempts:         workspace.MaxRecoveryAttempts,
+		Speed:               kinds.SpeedFast,
+	})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if got.Attempts != workspace.MaxRecoveryAttempts {
+		t.Fatalf("attempts = %d, want %d", got.Attempts, workspace.MaxRecoveryAttempts)
+	}
+	if len(captured) != workspace.MaxRecoveryAttempts {
+		t.Fatalf("captured runtime configs = %d, want %d", len(captured), workspace.MaxRecoveryAttempts)
+	}
+	for idx := range captured {
+		if captured[idx].Speed != kinds.SpeedFast {
+			t.Fatalf("attempt %d speed = %q, want %q", idx+1, captured[idx].Speed, kinds.SpeedFast)
+		}
+	}
+}
+
 func runAgenticConflictResolutionClampsStartingAttemptToBoundedMax(t *testing.T) {
 	t.Parallel()
 
@@ -446,6 +499,7 @@ func runAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection(t *testin
 		IDE:                 "claude",
 		Model:               "sonnet",
 		ReasoningEffort:     "high",
+		Speed:               kinds.SpeedFast,
 	}); err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
@@ -458,11 +512,61 @@ func runAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection(t *testin
 	if captured.IDE != "claude" || captured.Model != "sonnet" || captured.ReasoningEffort != "high" {
 		t.Fatalf("agent selection = %s/%s/%s", captured.IDE, captured.Model, captured.ReasoningEffort)
 	}
+	if captured.Speed != kinds.SpeedFast {
+		t.Fatalf("Speed = %q, want inherited %q", captured.Speed, kinds.SpeedFast)
+	}
 	if captured.ParentRunID != "parallel-run" {
 		t.Fatalf("ParentRunID = %q, want parallel-run", captured.ParentRunID)
 	}
 	if !strings.Contains(captured.SystemPrompt, "name: git-rebase") {
 		t.Fatalf("SystemPrompt missing embedded skill: %q", captured.SystemPrompt)
+	}
+}
+
+func TestBuildConflictRuntimeConfigDefaultsLegacySpeed(t *testing.T) {
+	t.Parallel()
+
+	cfg := buildConflictRuntimeConfig(ConflictInput{
+		IntegrationWorktree: "/repo",
+	}, "resolve safely")
+
+	if cfg.Speed != kinds.SpeedNormal {
+		t.Fatalf("Speed = %q, want legacy default %q", cfg.Speed, kinds.SpeedNormal)
+	}
+}
+
+func TestConflictResolverInputPreservesParentSpeed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		speed kinds.Speed
+	}{
+		{name: "Should preserve normal", speed: kinds.SpeedNormal},
+		{name: "Should preserve fast", speed: kinds.SpeedFast},
+		{name: "Should preserve an omitted legacy value"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := conflictResolverInput(
+				ParallelPlan{
+					RunID:           "parallel-run",
+					IntegrationPath: "/repo-integration",
+					Speed:           tt.speed,
+				},
+				TaskSpec{ID: "task_02", Number: 2},
+				ConflictSet{Files: []string{"story.txt"}},
+				"task 02: resolve",
+			)
+
+			if input.Speed != tt.speed {
+				t.Fatalf("Speed = %q, want exact parent value %q", input.Speed, tt.speed)
+			}
+		})
 	}
 }
 
@@ -610,4 +714,133 @@ func errorAtIndex(errs []error, idx int) error {
 
 func nilContextForTest() context.Context {
 	return nil
+}
+
+type conflictAtomicClient struct {
+	requests    []agent.SessionRequest
+	resolutions []kinds.SpeedResolution
+}
+
+func (c *conflictAtomicClient) CreateSession(
+	_ context.Context,
+	req agent.SessionRequest,
+) (agent.SessionStart, error) {
+	resolution := kinds.SpeedResolution{
+		Requested: req.Speed,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+	c.requests = append(c.requests, req)
+	c.resolutions = append(c.resolutions, resolution)
+	session := newConflictAtomicSession("conflict-session")
+	return agent.SessionStart{Session: session, Speed: resolution}, nil
+}
+
+func (*conflictAtomicClient) ResumeSession(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{}, errors.New("resume not supported in conflict fake")
+}
+
+func (*conflictAtomicClient) CancelSession(context.Context, string) error {
+	return nil
+}
+
+func (*conflictAtomicClient) PromptSession(
+	context.Context,
+	agent.PromptSessionRequest,
+) (agent.Session, error) {
+	return nil, errors.New("prompt not supported in conflict fake")
+}
+
+func (*conflictAtomicClient) SupportsLoadSession() bool {
+	return false
+}
+
+func (*conflictAtomicClient) Close() error {
+	return nil
+}
+
+func (*conflictAtomicClient) Kill() error {
+	return nil
+}
+
+var _ agent.Client = (*conflictAtomicClient)(nil)
+
+type conflictAtomicSession struct {
+	id      string
+	updates chan model.SessionUpdate
+	done    chan struct{}
+}
+
+func newConflictAtomicSession(id string) *conflictAtomicSession {
+	session := &conflictAtomicSession{
+		id:      id,
+		updates: make(chan model.SessionUpdate, 1),
+		done:    make(chan struct{}),
+	}
+	session.updates <- model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Status: model.StatusRunning,
+		Blocks: []model.ContentBlock{{
+			Type: model.BlockText,
+			Data: []byte(`{"type":"text","text":"resolved"}`),
+		}},
+	}
+	go func() {
+		close(session.updates)
+		close(session.done)
+	}()
+	return session
+}
+
+func (s *conflictAtomicSession) ID() string {
+	return s.id
+}
+
+func (s *conflictAtomicSession) Identity() agent.SessionIdentity {
+	return agent.SessionIdentity{ACPSessionID: s.id}
+}
+
+func (s *conflictAtomicSession) Updates() <-chan model.SessionUpdate {
+	return s.updates
+}
+
+func (s *conflictAtomicSession) Done() <-chan struct{} {
+	return s.done
+}
+
+func (*conflictAtomicSession) Err() error {
+	return nil
+}
+
+func (*conflictAtomicSession) SlowPublishes() uint64 {
+	return 0
+}
+
+func (*conflictAtomicSession) DroppedUpdates() uint64 {
+	return 0
+}
+
+var _ agent.Session = (*conflictAtomicSession)(nil)
+
+func installConflictRuntimeProbeStub(t *testing.T, command string) {
+	t.Helper()
+	binDir := t.TempDir()
+	scriptPath := filepath.Join(binDir, command)
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write runtime probe stub: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func swapConflictAtomicClient(t *testing.T, client agent.Client) {
+	t.Helper()
+	restore := acpshared.SwapNewAgentClientForTest(
+		func(context.Context, agent.ClientConfig) (agent.Client, error) {
+			return client, nil
+		},
+	)
+	t.Cleanup(restore)
 }

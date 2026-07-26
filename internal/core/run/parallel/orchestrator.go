@@ -164,6 +164,7 @@ type Plan struct {
 	Tasks             []TaskSpec
 	Config            workspace.ParallelTasksConfig
 	Recovery          workspace.AgentRecoveryConfig
+	Speed             kinds.Speed
 }
 
 // ParallelPlan preserves the task-specified public API name.

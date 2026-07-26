@@ -663,6 +663,7 @@ func (m *RunManager) runTaskMultiParallelTasks(active *activeRun, prepared *prep
 		Tasks:             prepared.parallelTasks.tasks,
 		Config:            prepared.parallelTasks.config,
 		Recovery:          prepared.items[0].recovery,
+		Speed:             prepared.items[0].runtimeCfg.Speed,
 	})
 	if err != nil {
 		return err

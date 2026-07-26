@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	execpkg "github.com/compozy/compozy/internal/core/run/exec"
 	"github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/compozy/compozy/skills"
 )
 
@@ -66,6 +67,7 @@ type ConflictInput struct {
 	IDE                 string
 	Model               string
 	ReasoningEffort     string
+	Speed               kinds.Speed
 	ValidationCommand   []string
 }
 
@@ -260,6 +262,7 @@ func buildConflictRuntimeConfig(in ConflictInput, systemPrompt string) model.Run
 		Persist:            true,
 		DaemonOwned:        true,
 		ParentRunID:        strings.TrimSpace(in.ParentRunID),
+		Speed:              in.Speed,
 		SystemPrompt:       systemPrompt,
 		Recursive:          false,
 		PromptText:         "",
@@ -649,6 +652,7 @@ func conflictResolverInput(
 		IDE:                 stringPtrValue(resolver.IDE),
 		Model:               stringPtrValue(resolver.Model),
 		ReasoningEffort:     stringPtrValue(resolver.ReasoningEffort),
+		Speed:               plan.Speed,
 		ValidationCommand:   cloneValidationCommandPointer(resolver.ValidationCommand),
 	}
 }

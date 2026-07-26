@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -84,6 +86,67 @@ func TestParallelExecutionOrchestratorScenarios(t *testing.T) {
 		runParallelExecutionOrchestratorEmitsRolledBackEvent,
 	)
 	t.Run("Should keep the noop event emitter inert", runNoopEventEmitterIsInert)
+}
+
+func TestParallelExecutionOrchestratorConflictSpeedIntegration(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "integration")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("create integration worktree: %v", err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	installConflictRuntimeProbeStub(t, "codex-acp")
+	writeResolverTestFile(t, root, "story.txt", "resolved\n")
+
+	client := &conflictAtomicClient{}
+	swapConflictAtomicClient(t, client)
+
+	plan := testParallelPlan(t, []model.TaskEntry{
+		testTaskEntry("task_01"),
+		testTaskEntry("task_02"),
+	}, 2)
+	plan.IntegrationPath = root
+	plan.Speed = kinds.SpeedFast
+	worktrees := newFakeWorktreeLifecycle()
+	worktrees.squashResults = []ConflictSet{
+		{Clean: true},
+		{Clean: false, Files: []string{"story.txt"}},
+	}
+	resolver := NewAgenticConflictResolution(
+		WithConflictCommandRunner(&fakeConflictCommandRunner{statuses: []string{" M story.txt\n"}}),
+		WithConflictSkillFS(minimalGitRebaseSkillFS()),
+	)
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+
+	outcome, err := NewParallelExecutionOrchestrator(
+		worktrees,
+		launcher,
+		WithConflictResolver(resolver),
+	).Run(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if outcome.Status != ParallelOutcomeCompleted {
+		t.Fatalf("outcome status = %q, want %q", outcome.Status, ParallelOutcomeCompleted)
+	}
+	if len(client.requests) != 1 || len(client.resolutions) != 1 {
+		t.Fatalf("atomic conflict sessions = requests:%d resolutions:%d, want 1/1",
+			len(client.requests), len(client.resolutions))
+	}
+	if client.requests[0].Speed != kinds.SpeedFast {
+		t.Fatalf("atomic conflict setup speed = %q, want %q",
+			client.requests[0].Speed, kinds.SpeedFast)
+	}
+	wantResolution := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+	if client.resolutions[0] != wantResolution {
+		t.Fatalf("fresh conflict resolution = %#v, want %#v",
+			client.resolutions[0], wantResolution)
+	}
 }
 
 func runParallelFSMModelsRequiredHappyPathTransitions(t *testing.T) {
@@ -517,6 +580,7 @@ func runParallelExecutionOrchestratorResolvesConflictAndCommitsSquash(t *testing
 		testTaskEntry("task_01"),
 		testTaskEntry("task_02"),
 	}, 2)
+	plan.Speed = kinds.SpeedFast
 	worktrees := newFakeWorktreeLifecycle()
 	worktrees.squashResults = []ConflictSet{
 		{Clean: true},
@@ -545,6 +609,9 @@ func runParallelExecutionOrchestratorResolvesConflictAndCommitsSquash(t *testing
 	}
 	if got := resolver.inputs[0].Conflicts.Files; !reflect.DeepEqual(got, []string{"story.txt"}) {
 		t.Fatalf("resolver conflict files = %#v, want story.txt", got)
+	}
+	if got := resolver.inputs[0].Speed; got != kinds.SpeedFast {
+		t.Fatalf("resolver speed = %q, want parent plan speed %q", got, kinds.SpeedFast)
 	}
 	if got := worktrees.integrationCommitCount(); got != 1 {
 		t.Fatalf("integration commits = %d, want 1", got)
