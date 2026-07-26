@@ -1442,6 +1442,136 @@ func TestRunManagerStartExecRunOpenRunScopeFailureMarksResumedRowFailed(t *testi
 	})
 }
 
+func TestRunManagerPreparationSpeedPrecedence(t *testing.T) {
+	projectCfg := workspacecfg.ProjectConfig{
+		Defaults: workspacecfg.DefaultsConfig{
+			Speed: stringPtr(string(kinds.SpeedFast)),
+		},
+		Exec: workspacecfg.ExecConfig{
+			RuntimeOverrides: workspacecfg.RuntimeOverrides{
+				Speed: stringPtr(string(kinds.SpeedNormal)),
+			},
+		},
+	}
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		loadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+			return projectCfg, nil
+		},
+	})
+
+	t.Run("task and review preserve configured speed when omitted", func(t *testing.T) {
+		_, _, taskCfg, _, _, _, err := env.manager.prepareTaskStart(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.TaskRunRequest{PresentationMode: defaultPresentationMode},
+		)
+		if err != nil {
+			t.Fatalf("prepareTaskStart() error = %v", err)
+		}
+		assertRuntimeSpeed(t, taskCfg, kinds.SpeedFast, false)
+
+		env.createReviewRound(t, 1)
+		_, _, reviewCfg, _, _, err := env.manager.prepareReviewStart(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			1,
+			apicore.ReviewRunRequest{PresentationMode: defaultPresentationMode},
+		)
+		if err != nil {
+			t.Fatalf("prepareReviewStart() error = %v", err)
+		}
+		assertRuntimeSpeed(t, reviewCfg, kinds.SpeedFast, false)
+	})
+
+	t.Run("task and review apply explicit speed last", func(t *testing.T) {
+		explicitNormal := rawJSON(t, `{"speed":"normal"}`)
+		_, _, taskCfg, _, _, _, err := env.manager.prepareTaskStart(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.TaskRunRequest{
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: explicitNormal,
+			},
+		)
+		if err != nil {
+			t.Fatalf("prepareTaskStart() error = %v", err)
+		}
+		assertRuntimeSpeed(t, taskCfg, kinds.SpeedNormal, true)
+
+		_, _, reviewCfg, _, _, err := env.manager.prepareReviewStart(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			1,
+			apicore.ReviewRunRequest{
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: explicitNormal,
+			},
+		)
+		if err != nil {
+			t.Fatalf("prepareReviewStart() error = %v", err)
+		}
+		assertRuntimeSpeed(t, reviewCfg, kinds.SpeedNormal, true)
+	})
+
+	t.Run("exec applies command config persisted intent and explicit override in order", func(t *testing.T) {
+		_, configuredCfg, _, _, err := env.manager.prepareExecStart(
+			context.Background(),
+			apicore.ExecRequest{
+				WorkspacePath:    env.workspaceRoot,
+				Prompt:           "configured speed",
+				PresentationMode: defaultPresentationMode,
+			},
+		)
+		if err != nil {
+			t.Fatalf("prepareExecStart(configured) error = %v", err)
+		}
+		assertRuntimeSpeed(t, configuredCfg, kinds.SpeedNormal, false)
+
+		const runID = "exec-speed-precedence"
+		writePersistedExecRunWithSpeed(
+			t,
+			env.workspaceRoot,
+			runID,
+			kinds.SpeedFast,
+			time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC),
+		)
+		_, persistedCfg, _, _, err := env.manager.prepareExecStart(
+			context.Background(),
+			apicore.ExecRequest{
+				WorkspacePath:    env.workspaceRoot,
+				Prompt:           "persisted speed",
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"exec-speed-precedence"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("prepareExecStart(persisted) error = %v", err)
+		}
+		assertRuntimeSpeed(t, persistedCfg, kinds.SpeedFast, false)
+
+		_, explicitCfg, _, _, err := env.manager.prepareExecStart(
+			context.Background(),
+			apicore.ExecRequest{
+				WorkspacePath:    env.workspaceRoot,
+				Prompt:           "explicit speed",
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(
+					t,
+					`{"run_id":"exec-speed-precedence","speed":"normal"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("prepareExecStart(explicit) error = %v", err)
+		}
+		assertRuntimeSpeed(t, explicitCfg, kinds.SpeedNormal, true)
+	})
+}
+
 func TestRunManagerStartRunSyncFailureMarksRunFailed(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 
@@ -1894,6 +2024,7 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			Model:                  stringPtr("gpt-5"),
 			OutputFormat:           stringPtr(string(model.OutputFormatJSON)),
 			ReasoningEffort:        stringPtr("high"),
+			Speed:                  stringPtr(string(kinds.SpeedNormal)),
 			AccessMode:             stringPtr(model.AccessModeDefault),
 			Timeout:                stringPtr("2m"),
 			TailLines:              intPtr(20),
@@ -1936,6 +2067,7 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			},
 			OutputFormat:               stringPtr(string(model.OutputFormatText)),
 			ReasoningEffort:            stringPtr("medium"),
+			Speed:                      speedPtr(kinds.SpeedFast),
 			AccessMode:                 stringPtr(model.AccessModeFull),
 			Timeout:                    stringPtr("4m"),
 			TailLines:                  intPtr(30),
@@ -1971,6 +2103,9 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		if !cfg.ExplicitRuntime.Model || !cfg.ExplicitRuntime.ReasoningEffort || !cfg.ExplicitRuntime.AccessMode {
 			t.Fatalf("explicit runtime flags were not preserved: %#v", cfg.ExplicitRuntime)
 		}
+		if cfg.Speed != kinds.SpeedFast || !cfg.ExplicitRuntime.Speed {
+			t.Fatalf("speed override = %q / %#v, want fast and explicit", cfg.Speed, cfg.ExplicitRuntime)
+		}
 		if cfg.Concurrent != 8 || cfg.BatchSize != 9 || !cfg.IncludeResolved {
 			t.Fatalf("review batching application failed: %#v", cfg)
 		}
@@ -1983,6 +2118,20 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		if len(cfg.TaskRuntimeRules) != 1 || cfg.TaskRuntimeRules[0].Type == nil ||
 			*cfg.TaskRuntimeRules[0].Type != "backend" {
 			t.Fatalf("task runtime rules = %#v, want cloned backend rule", cfg.TaskRuntimeRules)
+		}
+	})
+
+	t.Run("Should strictly decode speed and reject unknown runtime keys", func(t *testing.T) {
+		overrides, err := parseRuntimeOverrides(rawJSON(t, `{"speed":"normal"}`))
+		if err != nil {
+			t.Fatalf("parseRuntimeOverrides(speed) error = %v", err)
+		}
+		if overrides.Speed == nil || *overrides.Speed != kinds.SpeedNormal {
+			t.Fatalf("speed = %#v, want normal", overrides.Speed)
+		}
+
+		if _, err := parseRuntimeOverrides(rawJSON(t, `{"speed":"fast","unknown_speed":true}`)); err == nil {
+			t.Fatal("parseRuntimeOverrides(unknown key) error = nil, want non-nil")
 		}
 	})
 
@@ -2923,6 +3072,26 @@ func rawJSON(t *testing.T, value string) json.RawMessage {
 	return json.RawMessage(value)
 }
 
+func speedPtr(value kinds.Speed) *kinds.Speed {
+	return &value
+}
+
+func assertRuntimeSpeed(t *testing.T, cfg *model.RuntimeConfig, want kinds.Speed, wantExplicit bool) {
+	t.Helper()
+	if cfg == nil {
+		t.Fatal("runtime config = nil")
+	}
+	if cfg.Speed != want || cfg.ExplicitRuntime.Speed != wantExplicit {
+		t.Fatalf(
+			"runtime speed = %q, explicit = %t; want %q, explicit = %t",
+			cfg.Speed,
+			cfg.ExplicitRuntime.Speed,
+			want,
+			wantExplicit,
+		)
+	}
+}
+
 func writePersistedExecRun(t *testing.T, workspaceRoot string, runID string, createdAt time.Time) {
 	t.Helper()
 
@@ -2947,6 +3116,34 @@ func writePersistedExecRun(t *testing.T, workspaceRoot string, runID string, cre
 	payload, err := json.Marshal(record)
 	if err != nil {
 		t.Fatalf("json.Marshal(PersistedExecRun) error = %v", err)
+	}
+	if err := os.WriteFile(runArtifacts.RunMetaPath, payload, 0o644); err != nil {
+		t.Fatalf("write persisted exec run metadata: %v", err)
+	}
+}
+
+func writePersistedExecRunWithSpeed(
+	t *testing.T,
+	workspaceRoot string,
+	runID string,
+	speed kinds.Speed,
+	createdAt time.Time,
+) {
+	t.Helper()
+	writePersistedExecRun(t, workspaceRoot, runID, createdAt)
+
+	record, err := runpkg.LoadPersistedExecRun(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("LoadPersistedExecRun(%q) error = %v", runID, err)
+	}
+	record.Speed = speed
+	payload, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("json.Marshal(PersistedExecRun) error = %v", err)
+	}
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("ResolvePersistedRunArtifacts(%q) error = %v", runID, err)
 	}
 	if err := os.WriteFile(runArtifacts.RunMetaPath, payload, 0o644); err != nil {
 		t.Fatalf("write persisted exec run metadata: %v", err)

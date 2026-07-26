@@ -1154,6 +1154,10 @@ func decodeTaskRunOverrides(t *testing.T, raw json.RawMessage) daemonRuntimeOver
 	return payload
 }
 
+func speedPtr(value kinds.Speed) *kinds.Speed {
+	return &value
+}
+
 func TestBuildTaskRunRuntimeOverridesParallelTasks(t *testing.T) {
 	t.Parallel()
 
@@ -3581,6 +3585,68 @@ func TestBuildTaskRunRuntimeOverridesIncludesOnlyExplicitFlags(t *testing.T) {
 	}
 	if overrides.AutoCommit != nil || overrides.Model != nil || overrides.Timeout != nil {
 		t.Fatalf("expected unset flags to remain absent, got %#v", overrides)
+	}
+}
+
+func TestBuildTaskRunRuntimeOverridesPreservesExplicitSpeed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		speed     string
+		wantSpeed *kinds.Speed
+	}{
+		{
+			name:      "omitted speed leaves the payload empty",
+			wantSpeed: nil,
+		},
+		{
+			name:      "explicit normal remains present",
+			speed:     string(kinds.SpeedNormal),
+			wantSpeed: speedPtr(kinds.SpeedNormal),
+		},
+		{
+			name:      "explicit fast remains present",
+			speed:     string(kinds.SpeedFast),
+			wantSpeed: speedPtr(kinds.SpeedFast),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+			cmd := newTaskRunFlagCommandForTest(t, state)
+			if tt.speed != "" {
+				if err := cmd.Flags().Set("speed", tt.speed); err != nil {
+					t.Fatalf("set --speed: %v", err)
+				}
+			}
+			state.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+
+			raw, err := state.buildTaskRunRuntimeOverrides(cmd)
+			if err != nil {
+				t.Fatalf("buildTaskRunRuntimeOverrides() error = %v", err)
+			}
+			if tt.wantSpeed == nil {
+				if raw != nil {
+					t.Fatalf("runtime overrides = %s, want nil", raw)
+				}
+				return
+			}
+
+			overrides := decodeTaskRunOverrides(t, raw)
+			if overrides.Speed == nil || *overrides.Speed != *tt.wantSpeed {
+				t.Fatalf("speed = %#v, want %q", overrides.Speed, *tt.wantSpeed)
+			}
+			if overrides.ExplicitRuntime == nil || !overrides.ExplicitRuntime.Speed {
+				t.Fatalf("explicit runtime = %#v, want speed true", overrides.ExplicitRuntime)
+			}
+			if !strings.Contains(string(raw), `"speed":"`+string(*tt.wantSpeed)+`"`) {
+				t.Fatalf("runtime override JSON = %s, want exact speed key", raw)
+			}
+		})
 	}
 }
 

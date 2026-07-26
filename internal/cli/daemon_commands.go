@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/daemon"
 	daemonlogger "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/version"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
 )
 
@@ -112,6 +113,7 @@ type daemonRuntimeOverrides struct {
 	AddDirs                    *[]string                         `json:"add_dirs,omitempty"`
 	TailLines                  *int                              `json:"tail_lines,omitempty"`
 	ReasoningEffort            *string                           `json:"reasoning_effort,omitempty"`
+	Speed                      *kinds.Speed                      `json:"speed,omitempty"`
 	AccessMode                 *string                           `json:"access_mode,omitempty"`
 	Timeout                    *string                           `json:"timeout,omitempty"`
 	MaxRetries                 *int                              `json:"max_retries,omitempty"`
@@ -1487,6 +1489,10 @@ func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.Ra
 	set(commandFlagChanged(cmd, "reasoning-effort"), func() {
 		overrides.ReasoningEffort = stringPointer(s.reasoningEffort)
 	})
+	set(commandFlagChanged(cmd, "speed"), func() {
+		speed := kinds.Speed(s.speed)
+		overrides.Speed = &speed
+	})
 	set(commandFlagChanged(cmd, "access-mode"), func() { overrides.AccessMode = stringPointer(s.accessMode) })
 	set(commandFlagChanged(cmd, "timeout"), func() { overrides.Timeout = stringPointer(s.timeout) })
 	set(commandFlagChanged(cmd, "max-retries"), func() { overrides.MaxRetries = intPointer(s.maxRetries) })
@@ -1520,6 +1526,10 @@ func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.Ra
 	}
 	if parallelTasks != nil {
 		overrides.ParallelTasks = parallelTasks
+		hasOverrides = true
+	}
+	if s.explicitRuntime.Speed {
+		overrides.ExplicitRuntime = &model.ExplicitRuntimeFlags{Speed: true}
 		hasOverrides = true
 	}
 

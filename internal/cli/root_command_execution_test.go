@@ -1020,6 +1020,8 @@ default_attach_mode = "detach"
 		"demo",
 		"--dry-run",
 		"--include-completed",
+		"--speed",
+		"fast",
 	)
 	if err != nil {
 		t.Fatalf("execute tasks run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
@@ -1055,6 +1057,12 @@ default_attach_mode = "detach"
 	}
 	if overrides.IncludeCompleted == nil || !*overrides.IncludeCompleted {
 		t.Fatalf("expected include-completed override in request, got %#v", overrides)
+	}
+	if overrides.Speed == nil || *overrides.Speed != kinds.SpeedFast {
+		t.Fatalf("expected fast speed override in request, got %#v", overrides)
+	}
+	if overrides.ExplicitRuntime == nil || !overrides.ExplicitRuntime.Speed {
+		t.Fatalf("expected explicit speed marker in request, got %#v", overrides)
 	}
 }
 

@@ -162,6 +162,7 @@ type runtimeOverrideInput struct {
 	ExplicitRuntime            *model.ExplicitRuntimeFlags       `json:"explicit_runtime"`
 	OutputFormat               *string                           `json:"output_format"`
 	ReasoningEffort            *string                           `json:"reasoning_effort"`
+	Speed                      *kinds.Speed                      `json:"speed"`
 	AccessMode                 *string                           `json:"access_mode"`
 	Timeout                    *string                           `json:"timeout"`
 	TailLines                  *int                              `json:"tail_lines"`
@@ -2852,6 +2853,7 @@ func applyRuntimeOverridesFromProject(
 	applyOptionalString(&cfg.Model, overrides.Model)
 	applyOptionalOutputFormat(cfg, overrides.OutputFormat)
 	applyOptionalString(&cfg.ReasoningEffort, overrides.ReasoningEffort)
+	applyOptionalSpeed(cfg, overrides.Speed)
 	applyOptionalString(&cfg.AccessMode, overrides.AccessMode)
 	if err := applyOptionalDuration(cfg, overrides.Timeout); err != nil {
 		return overrideValueError(scope, "timeout", err)
@@ -2967,6 +2969,10 @@ func applyRuntimeOverrideInput(cfg *model.RuntimeConfig, overrides runtimeOverri
 		return overrideValueError("runtime_overrides", "timeout", err)
 	}
 	applyRuntimeOverrideScalars(cfg, overrides)
+	if overrides.Speed != nil {
+		cfg.Speed = *overrides.Speed
+		cfg.ExplicitRuntime.Speed = true
+	}
 	return nil
 }
 
@@ -3081,6 +3087,13 @@ func applyOptionalOutputFormat(cfg *model.RuntimeConfig, value *string) {
 		return
 	}
 	cfg.OutputFormat = model.OutputFormat(strings.TrimSpace(*value))
+}
+
+func applyOptionalSpeed(cfg *model.RuntimeConfig, value *string) {
+	if cfg == nil || value == nil {
+		return
+	}
+	cfg.Speed = kinds.Speed(strings.TrimSpace(*value))
 }
 
 func applyOptionalDuration(cfg *model.RuntimeConfig, value *string) error {

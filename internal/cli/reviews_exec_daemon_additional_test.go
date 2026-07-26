@@ -355,6 +355,8 @@ func TestReviewsFixCommandResolvesLatestRoundAndBuildsDaemonRequest(t *testing.T
 		"gpt-5.5",
 		"--reasoning-effort",
 		"high",
+		"--speed",
+		"normal",
 		"--access-mode",
 		"default",
 		"--timeout",
@@ -413,6 +415,12 @@ func TestReviewsFixCommandResolvesLatestRoundAndBuildsDaemonRequest(t *testing.T
 	}
 	if overrides.ReasoningEffort == nil || *overrides.ReasoningEffort != "high" {
 		t.Fatalf("expected reasoning-effort override, got %#v", overrides)
+	}
+	if overrides.Speed == nil || *overrides.Speed != kinds.SpeedNormal {
+		t.Fatalf("expected normal speed override, got %#v", overrides)
+	}
+	if overrides.ExplicitRuntime == nil || !overrides.ExplicitRuntime.Speed {
+		t.Fatalf("expected explicit speed marker, got %#v", overrides)
 	}
 	if overrides.AccessMode == nil || *overrides.AccessMode != "default" {
 		t.Fatalf("expected access-mode override, got %#v", overrides)
@@ -1810,6 +1818,8 @@ func TestExecCommandUsesDaemonLifecycleAcrossFormats(t *testing.T) {
 			"--persist",
 			"--extensions",
 			"--dry-run",
+			"--speed",
+			"fast",
 		)
 		if err != nil {
 			t.Fatalf("execute exec json mode: %v\noutput:\n%s", err, output)
@@ -1852,6 +1862,12 @@ func TestExecCommandUsesDaemonLifecycleAcrossFormats(t *testing.T) {
 		}
 		if overrides.DryRun == nil || !*overrides.DryRun {
 			t.Fatalf("expected dry-run override, got %#v", overrides)
+		}
+		if overrides.Speed == nil || *overrides.Speed != kinds.SpeedFast {
+			t.Fatalf("expected fast speed override, got %#v", overrides)
+		}
+		if overrides.ExplicitRuntime == nil || !overrides.ExplicitRuntime.Speed {
+			t.Fatalf("expected explicit speed marker, got %#v", overrides)
 		}
 	})
 

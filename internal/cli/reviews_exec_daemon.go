@@ -670,6 +670,10 @@ func (s *commandState) buildReviewRunRuntimeOverrides(
 	set(commandFlagChanged(cmd, "reasoning-effort"), func() {
 		overrides.ReasoningEffort = stringPointer(s.reasoningEffort)
 	})
+	set(commandFlagChanged(cmd, "speed"), func() {
+		speed := kinds.Speed(s.speed)
+		overrides.Speed = &speed
+	})
 	set(commandFlagChanged(cmd, "access-mode"), func() { overrides.AccessMode = stringPointer(s.accessMode) })
 	set(commandFlagChanged(cmd, "timeout"), func() { overrides.Timeout = stringPointer(s.timeout) })
 	set(commandFlagChanged(cmd, "max-retries"), func() { overrides.MaxRetries = intPointer(s.maxRetries) })
@@ -746,6 +750,10 @@ func (s *commandState) buildExecRuntimeOverrides(cmd *cobra.Command) (json.RawMe
 	set(commandFlagChanged(cmd, "reasoning-effort"), func() {
 		overrides.ReasoningEffort = stringPointer(s.reasoningEffort)
 	})
+	set(commandFlagChanged(cmd, "speed"), func() {
+		speed := kinds.Speed(s.speed)
+		overrides.Speed = &speed
+	})
 	set(commandFlagChanged(cmd, "access-mode"), func() { overrides.AccessMode = stringPointer(s.accessMode) })
 	set(commandFlagChanged(cmd, "timeout"), func() { overrides.Timeout = stringPointer(s.timeout) })
 	set(commandFlagChanged(cmd, "max-retries"), func() { overrides.MaxRetries = intPointer(s.maxRetries) })
@@ -781,7 +789,7 @@ func (s *commandState) buildExecRuntimeOverrides(cmd *cobra.Command) (json.RawMe
 }
 
 func explicitRuntimeOverridesPayload(flags model.ExplicitRuntimeFlags) *model.ExplicitRuntimeFlags {
-	if !flags.IDE && !flags.Model && !flags.ReasoningEffort && !flags.AccessMode {
+	if !flags.IDE && !flags.Model && !flags.ReasoningEffort && !flags.Speed && !flags.AccessMode {
 		return nil
 	}
 	explicit := flags
