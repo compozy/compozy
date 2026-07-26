@@ -15,6 +15,7 @@ import (
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
 )
 
@@ -55,6 +56,7 @@ type runtimeConfig struct {
 	addDirs                                 []string
 	tailLines                               int
 	reasoningEffort                         string
+	speed                                   string
 	accessMode                              string
 	explicitRuntime                         model.ExplicitRuntimeFlags
 	configuredTaskRuntimeRules              []model.TaskRuntimeRule
@@ -248,6 +250,12 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		"Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh).",
 	)
 	cmd.Flags().StringVar(
+		&state.speed,
+		"speed",
+		string(kinds.SpeedNormal),
+		"Runtime speed preference: normal or fast",
+	)
+	cmd.Flags().StringVar(
 		&state.accessMode,
 		"access-mode",
 		core.AccessModeFull,
@@ -355,6 +363,10 @@ func (s *commandState) buildConfig() (core.Config, error) {
 	if err := workspace.ValidateAgentRecoveryConfig("CLI recovery config", recoveryCfg); err != nil {
 		return core.Config{}, err
 	}
+	speed, err := parseRuntimeSpeed(s.speed, s.explicitRuntime.Speed)
+	if err != nil {
+		return core.Config{}, err
+	}
 
 	return core.Config{
 		WorkspaceRoot: s.workspaceRoot,
@@ -376,6 +388,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		AddDirs:          core.NormalizeAddDirs(s.addDirs),
 		TailLines:        s.tailLines,
 		ReasoningEffort:  s.reasoningEffort,
+		Speed:            speed,
 		AccessMode:       s.accessMode,
 		ExplicitRuntime:  s.explicitRuntime,
 		TaskRuntimeRules: s.taskRuntimeRules(),
@@ -555,6 +568,7 @@ func (s *commandState) applyPersistedExecConfig(cmd *cobra.Command, cfg *core.Co
 	cfg.IDE = core.IDE(record.IDE)
 	cfg.Model = record.Model
 	cfg.ReasoningEffort = record.ReasoningEffort
+	cfg.Speed = record.Speed
 	cfg.AccessMode = record.AccessMode
 	cfg.AddDirs = core.NormalizeAddDirs(record.AddDirs)
 	return nil
@@ -565,7 +579,26 @@ func captureExplicitRuntimeFlags(cmd *cobra.Command) model.ExplicitRuntimeFlags 
 		IDE:             commandFlagChanged(cmd, "ide"),
 		Model:           commandFlagChanged(cmd, "model"),
 		ReasoningEffort: commandFlagChanged(cmd, "reasoning-effort"),
+		Speed:           commandFlagChanged(cmd, "speed"),
 		AccessMode:      commandFlagChanged(cmd, "access-mode"),
+	}
+}
+
+func parseRuntimeSpeed(value string, explicit bool) (kinds.Speed, error) {
+	speed := kinds.Speed(value)
+	if speed == "" && !explicit {
+		return "", nil
+	}
+	switch speed {
+	case kinds.SpeedNormal, kinds.SpeedFast:
+		return speed, nil
+	default:
+		return "", fmt.Errorf(
+			"invalid --speed value %q: must be %q or %q",
+			value,
+			kinds.SpeedNormal,
+			kinds.SpeedFast,
+		)
 	}
 }
 
@@ -597,6 +630,9 @@ func (s *commandState) assertPersistedExecCompatibility(
 			record.RunID,
 			record.ReasoningEffort,
 		)
+	}
+	if cmd.Flags().Changed("speed") && cfg.Speed != record.Speed {
+		return fmt.Errorf("--run-id %q must continue with persisted --speed %q", record.RunID, record.Speed)
 	}
 	if cmd.Flags().Changed("access-mode") && cfg.AccessMode != record.AccessMode {
 		return fmt.Errorf("--run-id %q must continue with persisted --access-mode %q", record.RunID, record.AccessMode)

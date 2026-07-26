@@ -15,7 +15,9 @@ import (
 
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
+	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/setup"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
 )
 
@@ -893,7 +895,7 @@ func TestCaptureExplicitRuntimeFlagsUsesCobraChangedSemantics(t *testing.T) {
 	cmd := newTestCommand(state)
 
 	unset := captureExplicitRuntimeFlags(cmd)
-	if unset.Model || unset.IDE || unset.ReasoningEffort || unset.AccessMode {
+	if unset.Model || unset.IDE || unset.ReasoningEffort || unset.Speed || unset.AccessMode {
 		t.Fatalf("expected no runtime flags to be marked explicit when unset, got %#v", unset)
 	}
 
@@ -903,6 +905,9 @@ func TestCaptureExplicitRuntimeFlagsUsesCobraChangedSemantics(t *testing.T) {
 	if err := cmd.Flags().Set("access-mode", core.AccessModeFull); err != nil {
 		t.Fatalf("set access-mode flag: %v", err)
 	}
+	if err := cmd.Flags().Set("speed", string(kinds.SpeedNormal)); err != nil {
+		t.Fatalf("set speed flag: %v", err)
+	}
 
 	explicit := captureExplicitRuntimeFlags(cmd)
 	if !explicit.Model {
@@ -911,9 +916,156 @@ func TestCaptureExplicitRuntimeFlagsUsesCobraChangedSemantics(t *testing.T) {
 	if !explicit.AccessMode {
 		t.Fatalf("expected access-mode flag set to its default value to still count as explicit, got %#v", explicit)
 	}
+	if !explicit.Speed {
+		t.Fatalf("expected speed set to its normal default to still count as explicit, got %#v", explicit)
+	}
 	if explicit.IDE || explicit.ReasoningEffort {
 		t.Fatalf("expected only changed flags to be explicit, got %#v", explicit)
 	}
+}
+
+func TestSupportedExecutionCommandsExposeSpeedFlag(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{name: "exec", cmd: newExecCommandWithDefaults(defaultCommandStateDefaults())},
+		{name: "task run", cmd: newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())},
+		{name: "review fix", cmd: newReviewsFixCommandWithDefaults(defaultCommandStateDefaults())},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			flag := tc.cmd.Flags().Lookup("speed")
+			if flag == nil {
+				t.Fatal("expected --speed to be registered")
+			}
+			if flag.DefValue != string(kinds.SpeedNormal) {
+				t.Fatalf("--speed default = %q, want %q", flag.DefValue, kinds.SpeedNormal)
+			}
+		})
+	}
+}
+
+func TestTaskAndReviewSpeedParsingBuildsExplicitRuntimeConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		kind commandKind
+		mode core.Mode
+	}{
+		{kind: commandKindTasksRun, mode: core.ModePRDTasks},
+		{kind: commandKindFixReviews, mode: core.ModePRReview},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(string(tc.kind), func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(tc.kind, tc.mode)
+			cmd := newTestCommand(state)
+			if err := cmd.ParseFlags([]string{"--speed", string(kinds.SpeedFast)}); err != nil {
+				t.Fatalf("parse --speed: %v", err)
+			}
+			state.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+
+			cfg, err := state.buildConfig()
+			if err != nil {
+				t.Fatalf("buildConfig: %v", err)
+			}
+			runtimeCfg := cfg.RuntimeConfig()
+			if runtimeCfg.Speed != kinds.SpeedFast {
+				t.Fatalf("runtime speed = %q, want %q", runtimeCfg.Speed, kinds.SpeedFast)
+			}
+			if !runtimeCfg.ExplicitRuntime.Speed {
+				t.Fatalf("expected explicit speed in runtime config, got %#v", runtimeCfg.ExplicitRuntime)
+			}
+		})
+	}
+}
+
+func TestBuildConfigRejectsInvalidSpeed(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		speed    string
+		explicit bool
+	}{
+		{name: "unknown value", speed: "turbo"},
+		{name: "explicit empty value", explicit: true},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindExec, core.ModeExec)
+			state.speed = tc.speed
+			state.explicitRuntime.Speed = tc.explicit
+
+			_, err := state.buildConfig()
+			if err == nil || !strings.Contains(err.Error(), "invalid --speed value") {
+				t.Fatalf("buildConfig() error = %v, want invalid speed error", err)
+			}
+		})
+	}
+}
+
+func TestPersistedExecSpeedCompatibilityUsesExplicitFlagSemantics(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		flagValue *kinds.Speed
+		cfgSpeed  kinds.Speed
+		wantErr   bool
+	}{
+		{name: "omitted accepts configured mismatch", cfgSpeed: kinds.SpeedNormal},
+		{name: "matching explicit accepted", flagValue: speedPointer(kinds.SpeedFast), cfgSpeed: kinds.SpeedFast},
+		{
+			name:      "conflicting explicit rejected",
+			flagValue: speedPointer(kinds.SpeedNormal),
+			cfgSpeed:  kinds.SpeedNormal,
+			wantErr:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindExec, core.ModeExec)
+			cmd := newTestCommand(state)
+			if tc.flagValue != nil {
+				if err := cmd.Flags().Set("speed", string(*tc.flagValue)); err != nil {
+					t.Fatalf("set speed: %v", err)
+				}
+			}
+			err := state.assertPersistedExecCompatibility(cmd, core.Config{
+				Speed: tc.cfgSpeed,
+			}, coreRun.PersistedExecRun{
+				RunID: "exec-speed",
+				Speed: kinds.SpeedFast,
+			})
+			if tc.wantErr && (err == nil || !strings.Contains(err.Error(), `persisted --speed "fast"`)) {
+				t.Fatalf("compatibility error = %v, want persisted speed conflict", err)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("compatibility error = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func speedPointer(value kinds.Speed) *kinds.Speed {
+	return &value
 }
 
 func TestAddCommonFlagsUseOptInRetryDefaults(t *testing.T) {

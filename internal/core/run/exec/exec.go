@@ -45,6 +45,7 @@ type PersistedExecRun struct {
 	IDE                  string      `json:"ide"`
 	Model                string      `json:"model"`
 	ReasoningEffort      string      `json:"reasoning_effort"`
+	Speed                kinds.Speed `json:"speed,omitempty"`
 	AccessMode           string      `json:"access_mode"`
 	AddDirs              []string    `json:"add_dirs,omitempty"`
 	CreatedAt            time.Time   `json:"created_at"`
@@ -191,6 +192,9 @@ func LoadPersistedExecRun(workspaceRoot, runID string) (PersistedExecRun, error)
 	}
 	if strings.TrimSpace(record.RunID) == "" {
 		record.RunID = runArtifacts.RunID
+	}
+	if record.Speed == "" {
+		record.Speed = kinds.SpeedNormal
 	}
 	if record.EventsPath == "" {
 		record.EventsPath = runArtifacts.EventsPath
@@ -710,6 +714,7 @@ func newPersistedExecRunRecord(
 		IDE:             cfg.IDE,
 		Model:           resolvedModel,
 		ReasoningEffort: cfg.ReasoningEffort,
+		Speed:           runtimeSpeedOrDefault(cfg.Speed),
 		AccessMode:      cfg.AccessMode,
 		AddDirs:         append([]string(nil), cfg.AddDirs...),
 		CreatedAt:       time.Now().UTC(),
@@ -875,6 +880,7 @@ func (s *execRunState) refreshRuntimeConfig(cfg *model.RuntimeConfig) {
 	s.record.IDE = cfg.IDE
 	s.record.Model = resolvedExecModel(cfg)
 	s.record.ReasoningEffort = cfg.ReasoningEffort
+	s.record.Speed = runtimeSpeedOrDefault(cfg.Speed)
 	s.record.AccessMode = cfg.AccessMode
 	s.record.AddDirs = append([]string(nil), cfg.AddDirs...)
 }
@@ -1399,6 +1405,7 @@ func validateExecResumeCompatibility(cfg *model.RuntimeConfig, record PersistedE
 	if cfg.IDE != record.IDE ||
 		resolvedExecModel(cfg) != record.Model ||
 		cfg.ReasoningEffort != record.ReasoningEffort ||
+		runtimeSpeedOrDefault(cfg.Speed) != runtimeSpeedOrDefault(record.Speed) ||
 		cfg.AccessMode != record.AccessMode ||
 		!equalStringSlices(cfg.AddDirs, record.AddDirs) {
 		return fmt.Errorf("run-id %q must continue with the persisted exec runtime configuration", record.RunID)
@@ -1407,6 +1414,13 @@ func validateExecResumeCompatibility(cfg *model.RuntimeConfig, record PersistedE
 		return fmt.Errorf("run-id %q cannot be resumed because it has no persisted ACP session id", record.RunID)
 	}
 	return nil
+}
+
+func runtimeSpeedOrDefault(speed kinds.Speed) kinds.Speed {
+	if speed == "" {
+		return kinds.SpeedNormal
+	}
+	return speed
 }
 
 func renderAssistantOutput(snapshot SessionViewSnapshot) string {

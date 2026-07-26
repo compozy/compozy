@@ -42,6 +42,7 @@ Flags:
       --recovery-reasoning string        Reasoning effort for the recovery agent (low, medium, high, xhigh) (default "medium")
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
       --run-id string                    Resume a previously persisted exec session by run id
+      --speed string                     Runtime speed preference: normal or fast (default "normal")
       --tail-lines int                   Maximum number of log lines to retain in UI per job (0 = full history)
       --timeout string                   Activity timeout duration (e.g., 5m, 30s). Job canceled if no output received within this period. (default "10m")
       --tui                              Open the interactive TUI instead of using headless stdout output

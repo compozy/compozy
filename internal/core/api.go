@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/run"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 // ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.
@@ -114,6 +115,7 @@ type Config struct {
 	AddDirs                    []string
 	TailLines                  int
 	ReasoningEffort            string
+	Speed                      kinds.Speed
 	AccessMode                 string
 	AgentName                  string
 	ExplicitRuntime            model.ExplicitRuntimeFlags
@@ -362,6 +364,7 @@ func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 		AddDirs:                    NormalizeAddDirs(cfg.AddDirs),
 		TailLines:                  cfg.TailLines,
 		ReasoningEffort:            cfg.ReasoningEffort,
+		Speed:                      cfg.Speed,
 		AccessMode:                 cfg.AccessMode,
 		AgentName:                  cfg.AgentName,
 		ExplicitRuntime:            cfg.ExplicitRuntime,

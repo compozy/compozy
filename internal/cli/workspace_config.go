@@ -114,6 +114,7 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 	applyConfig(cmd, "reasoning-effort", cfg.Defaults.ReasoningEffort, func(val string) {
 		s.reasoningEffort = val
 	})
+	applyConfig(cmd, "speed", cfg.Defaults.Speed, func(val string) { s.speed = val })
 	applyConfig(cmd, "access-mode", cfg.Defaults.AccessMode, func(val string) { s.accessMode = val })
 	applyConfig(cmd, "timeout", cfg.Defaults.Timeout, func(val string) { s.timeout = val })
 	applyConfig(cmd, "tail-lines", cfg.Defaults.TailLines, func(val int) { s.tailLines = val })
@@ -158,6 +159,7 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 		applyConfig(cmd, "reasoning-effort", cfg.Exec.ReasoningEffort, func(val string) {
 			s.reasoningEffort = val
 		})
+		applyConfig(cmd, "speed", cfg.Exec.Speed, func(val string) { s.speed = val })
 		applyConfig(cmd, "access-mode", cfg.Exec.AccessMode, func(val string) { s.accessMode = val })
 		applyConfig(cmd, "timeout", cfg.Exec.Timeout, func(val string) { s.timeout = val })
 		applyConfig(cmd, "tail-lines", cfg.Exec.TailLines, func(val int) { s.tailLines = val })

@@ -2952,6 +2952,7 @@ func applyPersistedExecRuntimeDefaults(
 	cfg.IDE = record.IDE
 	cfg.Model = record.Model
 	cfg.ReasoningEffort = record.ReasoningEffort
+	cfg.Speed = record.Speed
 	cfg.AccessMode = record.AccessMode
 	cfg.AddDirs = corepkg.NormalizeAddDirs(record.AddDirs)
 	return nil

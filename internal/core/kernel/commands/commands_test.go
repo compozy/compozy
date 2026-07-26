@@ -6,6 +6,7 @@ import (
 
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestRunStartFromConfigMapsLegacyRuntimeConfig(t *testing.T) {
@@ -304,6 +305,9 @@ func TestRuntimeConfigNormalizesAddDirsAndAppliesDefaults(t *testing.T) {
 	if runtimeCfg.Timeout != model.DefaultActivityTimeout {
 		t.Fatalf("unexpected timeout default: %s", runtimeCfg.Timeout)
 	}
+	if runtimeCfg.Speed != kinds.SpeedNormal {
+		t.Fatalf("unexpected speed default: %q", runtimeCfg.Speed)
+	}
 	if len(runtimeCfg.AddDirs) != 2 || runtimeCfg.AddDirs[0] != "docs" || runtimeCfg.AddDirs[1] != "src" {
 		t.Fatalf("unexpected add dirs: %#v", runtimeCfg.AddDirs)
 	}
@@ -371,6 +375,9 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 	}
 	if got.ReasoningEffort != want.ReasoningEffort {
 		t.Fatalf("unexpected reasoning effort: %q", got.ReasoningEffort)
+	}
+	if got.Speed != want.Speed {
+		t.Fatalf("unexpected speed: %q", got.Speed)
 	}
 	if got.AccessMode != want.AccessMode {
 		t.Fatalf("unexpected access mode: %q", got.AccessMode)
@@ -447,6 +454,7 @@ func testCoreConfig() core.Config {
 		BatchSize:                  1,
 		IDE:                        core.IDECodex,
 		Model:                      "gpt-5.5",
+		Speed:                      kinds.SpeedFast,
 		AddDirs:                    []string{"docs", "src"},
 		TailLines:                  25,
 		ReasoningEffort:            "high",

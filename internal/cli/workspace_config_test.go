@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/modelprovider"
 	"github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
 )
 
@@ -1253,6 +1254,64 @@ func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
 	if cfg.Timeout.String() != "2m0s" || cfg.MaxRetries != 2 || cfg.RetryBackoffMultiplier != 2.0 {
 		t.Fatalf("unexpected retry config: %#v", cfg)
 	}
+}
+
+func TestApplyProjectConfigSpeedPrecedence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("exec override wins over defaults", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindExec, core.ModeExec)
+		cmd := newTestCommand(state)
+		state.applyProjectConfig(cmd, workspace.ProjectConfig{
+			Defaults: workspace.DefaultsConfig(workspace.RuntimeOverrides{
+				Speed: stringPointer(string(kinds.SpeedFast)),
+			}),
+			Exec: workspace.ExecConfig{
+				RuntimeOverrides: workspace.RuntimeOverrides{
+					Speed: stringPointer(string(kinds.SpeedNormal)),
+				},
+			},
+		})
+
+		cfg, err := state.buildConfig()
+		if err != nil {
+			t.Fatalf("buildConfig: %v", err)
+		}
+		if cfg.Speed != kinds.SpeedNormal {
+			t.Fatalf("speed = %q, want exec override %q", cfg.Speed, kinds.SpeedNormal)
+		}
+	})
+
+	t.Run("explicit flag wins over exec override and defaults", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindExec, core.ModeExec)
+		cmd := newTestCommand(state)
+		if err := cmd.Flags().Set("speed", string(kinds.SpeedFast)); err != nil {
+			t.Fatalf("set speed: %v", err)
+		}
+		state.applyProjectConfig(cmd, workspace.ProjectConfig{
+			Defaults: workspace.DefaultsConfig(workspace.RuntimeOverrides{
+				Speed: stringPointer(string(kinds.SpeedNormal)),
+			}),
+			Exec: workspace.ExecConfig{
+				RuntimeOverrides: workspace.RuntimeOverrides{
+					Speed: stringPointer(string(kinds.SpeedNormal)),
+				},
+			},
+		})
+		state.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+
+		cfg, err := state.buildConfig()
+		if err != nil {
+			t.Fatalf("buildConfig: %v", err)
+		}
+		if cfg.Speed != kinds.SpeedFast || !cfg.ExplicitRuntime.Speed {
+			t.Fatalf("unexpected explicit speed config: %#v", cfg)
+		}
+	})
 }
 
 func writeCLIWorkspaceConfig(t *testing.T, workspaceRoot, content string) {

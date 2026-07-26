@@ -55,6 +55,7 @@ Flags:
   -r, --recursive                        Recursively discover task_NNN.md files in subdirectories. Skips dot-, underscore-prefixed, reviews-*, adrs, and memory directories. Note: DB sync and extension Host API still operate on the slug root only.
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
       --skip-validation                  Skip task metadata preflight; use only when tasks were validated separately
+      --speed string                     Runtime speed preference: normal or fast (default "normal")
       --stream                           Force textual stream attach mode
       --tail-lines int                   Maximum number of log lines to retain in UI per job (0 = full history)
       --task-runtime task-runtime        Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.5 or id=task_01,reasoning-effort=xhigh

@@ -15,6 +15,7 @@ import (
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestExecutePreparedPromptValidatesInputs(t *testing.T) {
@@ -81,6 +82,9 @@ func TestPersistedExecRunOmitsRuntimeOnlyRecoveryAttempt(t *testing.T) {
 		}
 		if strings.Contains(string(payload), "recovery") {
 			t.Fatalf("persisted exec run should omit runtime-only recovery marker: %s", string(payload))
+		}
+		if !strings.Contains(string(payload), `"speed":"normal"`) {
+			t.Fatalf("persisted exec run should retain default requested speed: %s", string(payload))
 		}
 	})
 }
@@ -599,6 +603,9 @@ func TestLoadPersistedExecRunDefaultsPathsAndResumeValidation(t *testing.T) {
 	if loaded.TurnsDir != runArtifacts.TurnsDir {
 		t.Fatalf("expected default turns dir %q, got %q", runArtifacts.TurnsDir, loaded.TurnsDir)
 	}
+	if loaded.Speed != kinds.SpeedNormal {
+		t.Fatalf("legacy persisted speed = %q, want %q", loaded.Speed, kinds.SpeedNormal)
+	}
 
 	err = validateExecResumeCompatibility(&model.RuntimeConfig{
 		RunID:           "exec-123",
@@ -606,6 +613,7 @@ func TestLoadPersistedExecRunDefaultsPathsAndResumeValidation(t *testing.T) {
 		IDE:             model.IDECodex,
 		Model:           "gpt-5.5",
 		ReasoningEffort: "medium",
+		Speed:           kinds.SpeedNormal,
 		AccessMode:      "workspace-write",
 	}, loaded)
 	if err != nil {
@@ -620,6 +628,19 @@ func TestLoadPersistedExecRunDefaultsPathsAndResumeValidation(t *testing.T) {
 	}, loaded)
 	if err == nil || !strings.Contains(err.Error(), "belongs to workspace") {
 		t.Fatalf("expected workspace mismatch error, got %v", err)
+	}
+
+	err = validateExecResumeCompatibility(&model.RuntimeConfig{
+		RunID:           "exec-123",
+		WorkspaceRoot:   tmpDir,
+		IDE:             model.IDECodex,
+		Model:           "gpt-5.5",
+		ReasoningEffort: "medium",
+		Speed:           kinds.SpeedFast,
+		AccessMode:      "workspace-write",
+	}, loaded)
+	if err == nil || !strings.Contains(err.Error(), "persisted exec runtime configuration") {
+		t.Fatalf("expected core speed mismatch error, got %v", err)
 	}
 }
 

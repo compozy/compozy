@@ -366,7 +366,10 @@ func TestExecCommandExecutePersistCreatesTurnArtifacts(t *testing.T) {
 func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	prepareInProcessCLIDaemonHome(t)
-	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	writeCLIWorkspaceConfig(t, workspaceRoot, `
+[exec]
+speed = "normal"
+`)
 	withWorkingDir(t, workspaceRoot)
 	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
 	if err != nil {
@@ -383,6 +386,7 @@ func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 		IDE:             model.IDECodex,
 		Model:           "gpt-5-codex",
 		ReasoningEffort: "high",
+		Speed:           kinds.SpeedFast,
 		AccessMode:      model.AccessModeDefault,
 		AddDirs:         []string{filepath.Join(workspaceRoot, "docs")},
 		CreatedAt:       time.Now().UTC(),
@@ -408,6 +412,70 @@ func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 	}
 	if stderr != "" {
 		t.Fatalf("expected no stderr for resumed dry-run exec, got %q", stderr)
+	}
+	record, err := coreRun.LoadPersistedExecRun(resolvedWorkspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("load resumed exec record: %v", err)
+	}
+	if record.Speed != kinds.SpeedFast {
+		t.Fatalf("resumed persisted speed = %q, want %q", record.Speed, kinds.SpeedFast)
+	}
+}
+
+func TestExecCommandRejectsConflictingExplicitResumeSpeedBeforeSubmission(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	prepareInProcessCLIDaemonHome(t)
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) error = %v", workspaceRoot, err)
+	}
+
+	runID := "exec-resume-speed-conflict"
+	writePersistedExecRunForCLI(t, workspaceRoot, coreRun.PersistedExecRun{
+		Version:         1,
+		Mode:            model.ModeExec,
+		RunID:           runID,
+		Status:          execStatusSucceeded,
+		WorkspaceRoot:   resolvedWorkspaceRoot,
+		IDE:             model.IDECodex,
+		Model:           "gpt-5-codex",
+		ReasoningEffort: "high",
+		Speed:           kinds.SpeedFast,
+		AccessMode:      model.AccessModeDefault,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+		TurnCount:       1,
+		ACPSessionID:    "sess-existing",
+	})
+
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--dry-run",
+		"--run-id",
+		runID,
+		"--speed",
+		string(kinds.SpeedNormal),
+		"Resume this conversation",
+	)
+	if err == nil || !strings.Contains(err.Error(), `persisted --speed "fast"`) {
+		t.Fatalf("execute conflicting resume error = %v, want persisted speed conflict", err)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout before daemon submission, got %q", stdout)
+	}
+	if !strings.Contains(stderr, `persisted --speed "fast"`) {
+		t.Fatalf("expected persisted speed conflict on stderr, got %q", stderr)
+	}
+	record, loadErr := coreRun.LoadPersistedExecRun(resolvedWorkspaceRoot, runID)
+	if loadErr != nil {
+		t.Fatalf("load persisted exec record: %v", loadErr)
+	}
+	if record.TurnCount != 1 || record.Speed != kinds.SpeedFast {
+		t.Fatalf("conflicting resume mutated persisted record: %#v", record)
 	}
 }
 
