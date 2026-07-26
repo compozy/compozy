@@ -7,7 +7,7 @@ import {
   AlertTitle,
   formatDuration as formatCanonicalDuration,
   Pill,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
 import {

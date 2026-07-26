@@ -1,6 +1,6 @@
 import type { ComponentType, Dispatch, SetStateAction } from "react";
 
-import { Switch, cn } from "@agh/ui";
+import { Switch, cn } from "@compozy/ui";
 
 import type { WindowManagerConfig, WindowManagerDragModifier } from "@/systems/os";
 

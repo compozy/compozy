@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { CheckCircle2, FilePenLine, Pause, Play, RefreshCw, X } from "lucide-react";
 
-import { Button, Spinner } from "@agh/ui";
+import { Button, Spinner } from "@compozy/ui";
 
 import type { GoalControlAction } from "@/systems/loops";
 import type { GoalComposerAffordance, GoalStatusChipProps } from "./goal-status-types";

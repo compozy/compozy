@@ -1,24 +1,24 @@
 ---
-title: "agh ch reply"
+title: "compozy ch reply"
 description: "Reply to a received coordination message"
 ---
 
-## agh ch reply
+## compozy ch reply
 
 Reply to a received coordination message
 
 ```
-agh ch reply [flags]
+compozy ch reply [flags]
 ```
 
 ### Examples
 
 ```
   # Reply to one received coordination message
-  agh ch reply --to-message msg-123 --body '{"answer":"ready for review"}'
+  compozy ch reply --to-message msg-123 --body '{"answer":"ready for review"}'
 
   # Add explicit correlation metadata when replying from outside an inherited delivery
-  agh ch reply \
+  compozy ch reply \
     --to-message msg-123 \
     --task-id task-123 \
     --run-id run-123 \
@@ -52,7 +52,7 @@ agh ch reply [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -62,5 +62,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh ch reply -o json
+compozy ch reply -o json
 ```

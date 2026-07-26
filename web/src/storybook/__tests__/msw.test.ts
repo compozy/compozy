@@ -1,5 +1,5 @@
 import { HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -18,7 +18,7 @@ function handlerSignature(handler: { info: { method: unknown; path: unknown } })
 describe("storybook msw helpers", () => {
   it("creates grouped story overrides without requiring untouched domains to be repeated", () => {
     const bridgesOverride = [
-      aghApiMock.get("/api/bridges", () =>
+      compozyApiMock.get("/api/bridges", () =>
         HttpResponse.json({
           bridge_health: {},
           bridges: [],
@@ -58,7 +58,7 @@ describe("storybook msw helpers", () => {
 
   it("preserves untouched handlers inside an overridden group while replacing matching endpoints", () => {
     const bridgesOverride = [
-      aghApiMock.get("/api/bridges", () =>
+      compozyApiMock.get("/api/bridges", () =>
         HttpResponse.json({
           bridge_health: {},
           bridges: [],
@@ -87,7 +87,7 @@ describe("storybook msw helpers", () => {
 
   it("Should keep concrete catalog routes ahead of param overrides that would shadow them", () => {
     const nameOverride = [
-      aghApiMock.get("/api/agents/{name}", () =>
+      compozyApiMock.get("/api/agents/{name}", () =>
         HttpResponse.json({
           agent: {
             name: "fraud-ops-agent",

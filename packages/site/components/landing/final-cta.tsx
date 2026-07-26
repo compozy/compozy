@@ -1,5 +1,5 @@
 import { baseOptions } from "@/lib/layout.shared";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 import { Star } from "lucide-react";
 import { CtaButton } from "./primitives/cta-button";
 import { SectionFrame } from "./primitives/section-frame";
@@ -11,7 +11,7 @@ export function FinalCta() {
         <div>
           <Eyebrow className="text-accent">Ship it</Eyebrow>
           <h2 className="mt-4 max-w-[18ch] text-site-cta-title leading-none font-normal tracking-tight text-fg">
-            Install AGH. Run a session. Join the network.
+            Install CompozyOS. Run a session. Join the network.
           </h2>
           <p className="mt-5 max-w-[52ch] text-sm leading-7 text-muted">
             One binary. No infrastructure. Alpha runtime included.
@@ -24,7 +24,7 @@ export function FinalCta() {
             variant="primary"
             className="w-full justify-center sm:w-auto"
           >
-            Install AGH
+            Install CompozyOS
           </CtaButton>
           <CtaButton href="/protocol" variant="ghost" className="w-full justify-center sm:w-auto">
             Read compozy-network/v0 spec

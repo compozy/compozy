@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	promptContextOpen  = "<agh-situation-context>"
-	promptContextClose = "</agh-situation-context>"
+	promptContextOpen  = "<compozy-situation-context>"
+	promptContextClose = "</compozy-situation-context>"
 )
 
 type renderedSection struct {

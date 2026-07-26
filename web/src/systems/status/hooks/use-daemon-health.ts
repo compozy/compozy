@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ConnectionStatus } from "@agh/ui";
+import type { ConnectionStatus } from "@compozy/ui";
 
 import { statusOptions } from "../lib/query-options";
 import type { HealthPayload, StatusPayload } from "../types";

@@ -9,7 +9,7 @@ import {
   Empty,
   EntityDialogHeader,
   dialogShellClass,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   TASK_DESCRIPTION,

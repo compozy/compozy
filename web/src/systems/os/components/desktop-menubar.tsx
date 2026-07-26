@@ -1,4 +1,4 @@
-import { Popover, PopoverContent, PopoverTrigger } from "@agh/ui";
+import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
 import type { WorkspacePayload } from "@/systems/workspace";
 
@@ -43,7 +43,7 @@ function workspaceMonogram(name: string): string {
 const UNBOUND_WORKSPACE = { name: "No workspace", monogram: "··" } as const;
 
 /**
- * The wired menubar: the AGH system menu, the workspace switcher, the static
+ * The wired menubar: the CompozyOS system menu, the workspace switcher, the static
  * Session / Go / Window / Help set, the bell aggregator, the ⌘K chip, and the
  * settings cog. All actions are runtime-backed — no menu item renders without a
  * working mechanism, and none is hidden when its predicate fails (SD-007).

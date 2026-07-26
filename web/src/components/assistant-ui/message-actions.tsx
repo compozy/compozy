@@ -5,7 +5,7 @@ import {
   formatMessageTimestamp,
   formatMessageTimestampFull,
 } from "@/systems/session/lib/format-timestamp";
-import { Button, CopyIconButton } from "@agh/ui";
+import { Button, CopyIconButton } from "@compozy/ui";
 import { useSessionComposerPrefill } from "./hooks/use-session-composer-prefill";
 import { deriveMessageActions } from "./message-actions.logic";
 

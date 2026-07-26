@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { Components } from "streamdown";
 
-import { normalizeAghCodeLanguage } from "../../lib/code-theme";
+import { normalizeCompozyCodeLanguage } from "../../lib/code-theme";
 import { cn } from "../../lib/utils";
 import { CodeBlock } from "./code-block";
 import { Markdown } from "./markdown";
@@ -39,7 +39,7 @@ function StreamMarkdownCode({
   const isBlock = dataBlock !== undefined || rawLanguage !== "" || code.includes("\n");
 
   if (isBlock) {
-    const normalizedLanguage = normalizeAghCodeLanguage(rawLanguage);
+    const normalizedLanguage = normalizeCompozyCodeLanguage(rawLanguage);
     return (
       <CodeBlock
         code={code}

@@ -1,4 +1,4 @@
-import { CodeBlock, CopyIconButton, ToolCallRow, type ToolCallStatus } from "@agh/ui";
+import { CodeBlock, CopyIconButton, ToolCallRow, type ToolCallStatus } from "@compozy/ui";
 
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
 import {
@@ -69,7 +69,7 @@ function progressLabelFor(
 }
 
 /**
- * Chat-thread tool surface composing `<ToolCallRow>` from `@agh/ui`. Maps the
+ * Chat-thread tool surface composing `<ToolCallRow>` from `@compozy/ui`. Maps the
  * legacy `UIMessage.toolResult / toolError / toolName` shape onto the compound
  * `<ToolCallRow.Input>` + `<ToolCallRow.Output>` slots and drives one row-state
  * language via `deriveToolRowStatus`: pending / running / failed / success /

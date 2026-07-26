@@ -16,9 +16,9 @@ const COMPOZY_CODE_SUPPORTED_LANGUAGES = [
   "yaml",
 ] as const;
 
-export type AghCodeLanguage = (typeof COMPOZY_CODE_SUPPORTED_LANGUAGES)[number];
+export type CompozyCodeLanguage = (typeof COMPOZY_CODE_SUPPORTED_LANGUAGES)[number];
 
-const COMPOZY_CODE_LANGUAGE_ALIASES: Record<string, AghCodeLanguage | ""> = {
+const COMPOZY_CODE_LANGUAGE_ALIASES: Record<string, CompozyCodeLanguage | ""> = {
   cjs: "javascript",
   js: "javascript",
   mjs: "javascript",
@@ -43,11 +43,11 @@ export const COMPOZY_CODE_THEMES = {
 
 export const COMPOZY_CODE_DEFAULT_THEME = "dark";
 
-export type AghCodeThemeName = (typeof COMPOZY_CODE_THEMES)[keyof typeof COMPOZY_CODE_THEMES];
+export type CompozyCodeThemeName = (typeof COMPOZY_CODE_THEMES)[keyof typeof COMPOZY_CODE_THEMES];
 export type CodeBlockResolvedTheme = keyof typeof COMPOZY_CODE_THEMES;
 export type CodeBlockThemeMode = CodeBlockResolvedTheme | "auto";
 
-export function normalizeAghCodeLanguage(language?: string | null): AghCodeLanguage | null {
+export function normalizeCompozyCodeLanguage(language?: string | null): CompozyCodeLanguage | null {
   const rawLanguage =
     language
       ?.trim()
@@ -60,10 +60,10 @@ export function normalizeAghCodeLanguage(language?: string | null): AghCodeLangu
     return aliasedLanguage === "" ? null : aliasedLanguage;
   }
 
-  return COMPOZY_CODE_LANGUAGE_SET.has(rawLanguage) ? (rawLanguage as AghCodeLanguage) : null;
+  return COMPOZY_CODE_LANGUAGE_SET.has(rawLanguage) ? (rawLanguage as CompozyCodeLanguage) : null;
 }
 
-export function resolveAghCodeThemeName(theme: CodeBlockResolvedTheme): AghCodeThemeName {
+export function resolveCompozyCodeThemeName(theme: CodeBlockResolvedTheme): CompozyCodeThemeName {
   return COMPOZY_CODE_THEMES[theme];
 }
 

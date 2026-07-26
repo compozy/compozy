@@ -57,7 +57,7 @@ func customizeNetworkSendRequestSchema(schema *openapi3.Schema) {
 	if body != nil {
 		*body = *openapi3.NewObjectSchema().WithAdditionalProperties(openapi3.NewSchema())
 		body.Description = "Kind-specific object. say requires a non-empty text field; " +
-			"other kinds follow the AGH Network message body rules."
+			"other kinds follow the Compozy Network message body rules."
 	}
 }
 

@@ -53,7 +53,7 @@ const (
 func newAgentCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   agentAgentKey,
-		Short: "Inspect AGH agent definitions",
+		Short: "Inspect Compozy agent definitions",
 	}
 
 	cmd.AddCommand(newAgentCreateCommand(deps))

@@ -1,4 +1,4 @@
-import { Field, FieldDescription, FieldLabel, Textarea } from "@agh/ui";
+import { Field, FieldDescription, FieldLabel, Textarea } from "@compozy/ui";
 
 import type { EditableLoopContractField } from "../../lib/loop-editor-definition";
 import type { LoopContract } from "../../types";

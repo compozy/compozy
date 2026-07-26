@@ -7,37 +7,37 @@ describe("Logo", () => {
   it("renders the full logo variant by default", () => {
     render(<Logo data-testid="logo" />);
 
-    const logo = screen.getByRole("img", { name: "AGH" });
+    const logo = screen.getByRole("img", { name: "Compozy" });
     expect(logo).toHaveAttribute("data-slot", "logo");
     expect(logo).toHaveAttribute("data-variant", "logo");
-    expect(logo).toHaveAttribute("viewBox", "0 0 972 386");
-    expect(logo.querySelector('g[transform="translate(0 30.64)"]')).not.toBeNull();
-    expect(logo.querySelector('g[transform="translate(429 0)"]')).not.toBeNull();
+    expect(logo).toHaveAttribute("viewBox", "0 0 1153 355");
+    expect(logo.querySelector("g")).not.toBeNull();
+    expect(logo.querySelector('g[transform="translate(430 100)"]')).not.toBeNull();
   });
 
   it("renders the symbol variant with the square symbol viewBox", () => {
-    const { container } = render(<Logo variant="symbol" label="AGH symbol" />);
+    const { container } = render(<Logo variant="symbol" label="Compozy symbol" />);
 
-    const logo = screen.getByRole("img", { name: "AGH symbol" });
+    const logo = screen.getByRole("img", { name: "Compozy symbol" });
     expect(logo).toHaveAttribute("data-variant", "symbol");
     expect(logo).toHaveAttribute("viewBox", "0 0 355 355");
     expect(container.querySelector('rect[fill="#E8572A"]')).not.toBeNull();
   });
 
   it("renders the lettering variant with the lettering viewBox", () => {
-    render(<Logo variant="lettering" label="AGH lettering" />);
+    render(<Logo variant="lettering" label="Compozy lettering" />);
 
-    const logo = screen.getByRole("img", { name: "AGH lettering" });
+    const logo = screen.getByRole("img", { name: "Compozy lettering" });
     expect(logo).toHaveAttribute("data-variant", "lettering");
-    expect(logo).toHaveAttribute("viewBox", "0 0 543 362");
-    expect(logo.querySelector('path[fill="white"]')).not.toBeNull();
+    expect(logo).toHaveAttribute("viewBox", "0 0 723 156");
+    expect(logo.querySelector('path[fill="currentColor"]')).not.toBeNull();
     expect(logo.querySelector("rect")).toBeNull();
   });
 
   it("uses an explicit aria-label when provided", () => {
-    render(<Logo aria-label="AGH home" />);
+    render(<Logo aria-label="Compozy home" />);
 
-    expect(screen.getByRole("img", { name: "AGH home" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Compozy home" })).toBeInTheDocument();
   });
 
   it("can render as decorative artwork", () => {

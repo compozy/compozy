@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
  * contrast for every ring-over-surface × adjacent-surface pair. It fails on the
  * pre-fix value (1px, `--color-line-strong` ≈ 1.38:1) and passes on 2px/50%-white.
  *
- * Ownership: this is a design-token contract, so it lives at the `@agh/ui` token
+ * Ownership: this is a design-token contract, so it lives at the `@compozy/ui` token
  * layer — not as a per-component or marketplace-local CSS assertion (which would
  * freeze the wrong ownership layer).
  */

@@ -47,8 +47,8 @@ function isRuntimeSystemBannerPart(part: Record<string, unknown>): boolean {
   }
   return (
     stringField(part.data, "type") === "system" &&
-    (stringField(part.data, "title") === "AGH Runtime Agent" ||
-      stringField(part.data, "tool_name") === "AGH Runtime Agent")
+    (stringField(part.data, "title") === "CompozyOS Runtime Agent" ||
+      stringField(part.data, "tool_name") === "CompozyOS Runtime Agent")
   );
 }
 

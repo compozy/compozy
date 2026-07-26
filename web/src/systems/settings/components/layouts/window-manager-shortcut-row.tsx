@@ -1,6 +1,6 @@
 import { RotateCcw } from "lucide-react";
 
-import { Button, Kbd, KbdGroup, cn } from "@agh/ui";
+import { Button, Kbd, KbdGroup, cn } from "@compozy/ui";
 
 import type { ResolvedWindowManagerAction, WindowPlacementId } from "@/systems/os";
 

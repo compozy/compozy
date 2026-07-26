@@ -185,7 +185,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			"name: tool-gated",
 			"description: Needs the canonical skill tool.",
 			"metadata:",
-			"  agh:",
+			"  compozy:",
 			"    when:",
 			"      requires_tools: [compozy__skill_view]",
 			"---",

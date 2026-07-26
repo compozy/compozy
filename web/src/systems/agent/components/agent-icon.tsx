@@ -1,4 +1,4 @@
-import { KindIcon, type KindIconProps } from "@agh/ui";
+import { KindIcon, type KindIconProps } from "@compozy/ui";
 
 import { providerIconMap } from "./provider-icon-map";
 

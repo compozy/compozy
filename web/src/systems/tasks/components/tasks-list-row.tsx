@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ListChecks } from "lucide-react";
 import * as React from "react";
 
-import { ListingRow, MonoId } from "@agh/ui";
+import { ListingRow, MonoId } from "@compozy/ui";
 
 import { formatRelativeTime, taskShortId } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";

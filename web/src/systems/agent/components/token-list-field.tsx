@@ -11,7 +11,7 @@ import {
   InputGroupButton,
   InputGroupInput,
   Pill,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { appendAgentCreateTokens, removeAgentCreateToken } from "../lib/agent-create-draft";
 

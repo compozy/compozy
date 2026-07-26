@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import type {
   SettingsMutationResult,
@@ -94,45 +94,51 @@ function mcpAuthTarget(request: Request, serverName: string) {
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/settings/general", () => HttpResponse.json(settingsGeneralSectionFixture)),
-  aghApiMock.patch("/api/settings/general", () =>
+  compozyApiMock.get("/api/settings/general", () =>
+    HttpResponse.json(settingsGeneralSectionFixture)
+  ),
+  compozyApiMock.patch("/api/settings/general", () =>
     HttpResponse.json(mutationResult("general", true))
   ),
-  aghApiMock.get("/api/settings/update", () => HttpResponse.json(settingsUpdateStatusFixture)),
+  compozyApiMock.get("/api/settings/update", () => HttpResponse.json(settingsUpdateStatusFixture)),
 
-  aghApiMock.get("/api/settings/memory", () => HttpResponse.json(settingsMemorySectionFixture)),
-  aghApiMock.patch("/api/settings/memory", () => HttpResponse.json(mutationResult("memory"))),
+  compozyApiMock.get("/api/settings/memory", () => HttpResponse.json(settingsMemorySectionFixture)),
+  compozyApiMock.patch("/api/settings/memory", () => HttpResponse.json(mutationResult("memory"))),
 
-  aghApiMock.get("/api/roles", () => HttpResponse.json(rolesStatusFixture)),
-  aghApiMock.get("/api/settings/roles", () => HttpResponse.json(settingsRolesSectionFixture)),
-  aghApiMock.patch("/api/settings/roles", () => HttpResponse.json(mutationResult("roles"))),
+  compozyApiMock.get("/api/roles", () => HttpResponse.json(rolesStatusFixture)),
+  compozyApiMock.get("/api/settings/roles", () => HttpResponse.json(settingsRolesSectionFixture)),
+  compozyApiMock.patch("/api/settings/roles", () => HttpResponse.json(mutationResult("roles"))),
 
-  aghApiMock.get("/api/settings/skills", () => HttpResponse.json(settingsSkillsSectionFixture)),
-  aghApiMock.patch("/api/settings/skills", () => HttpResponse.json(mutationResult("skills", true))),
+  compozyApiMock.get("/api/settings/skills", () => HttpResponse.json(settingsSkillsSectionFixture)),
+  compozyApiMock.patch("/api/settings/skills", () =>
+    HttpResponse.json(mutationResult("skills", true))
+  ),
 
-  aghApiMock.get("/api/settings/automation", () =>
+  compozyApiMock.get("/api/settings/automation", () =>
     HttpResponse.json(settingsAutomationSectionFixture)
   ),
-  aghApiMock.patch("/api/settings/automation", () =>
+  compozyApiMock.patch("/api/settings/automation", () =>
     HttpResponse.json(mutationResult("automation", true))
   ),
 
-  aghApiMock.get("/api/settings/network", () => HttpResponse.json(settingsNetworkSectionFixture)),
-  aghApiMock.patch("/api/settings/network", () =>
+  compozyApiMock.get("/api/settings/network", () =>
+    HttpResponse.json(settingsNetworkSectionFixture)
+  ),
+  compozyApiMock.patch("/api/settings/network", () =>
     HttpResponse.json(mutationResult("network", true))
   ),
 
-  aghApiMock.get("/api/settings/window-manager", () =>
+  compozyApiMock.get("/api/settings/window-manager", () =>
     HttpResponse.json(settingsWindowManagerSectionFixture)
   ),
-  aghApiMock.patch("/api/settings/window-manager", () =>
+  compozyApiMock.patch("/api/settings/window-manager", () =>
     HttpResponse.json(mutationResult("window-manager"))
   ),
 
-  aghApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>
+  compozyApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>
     HttpResponse.json(layoutDocumentForWorkspace(String(params.workspace_id)))
   ),
-  aghApiMock.put("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>
+  compozyApiMock.put("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>
     HttpResponse.json({
       snapshot: {
         ...settingsWindowManagerSnapshotFixture,
@@ -144,14 +150,16 @@ export const handlers: HttpHandler[] = [
       diagnostics: [],
     })
   ),
-  aghApiMock.post("/api/workspaces/{workspace_id}/window-manager/layout/validate", ({ params }) =>
-    HttpResponse.json({
-      workspace_id: String(params.workspace_id),
-      valid: true,
-      diagnostics: [],
-    })
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/window-manager/layout/validate",
+    ({ params }) =>
+      HttpResponse.json({
+        workspace_id: String(params.workspace_id),
+        valid: true,
+        diagnostics: [],
+      })
   ),
-  aghApiMock.post("/api/workspaces/{workspace_id}/window-manager/preview", ({ params }) =>
+  compozyApiMock.post("/api/workspaces/{workspace_id}/window-manager/preview", ({ params }) =>
     HttpResponse.json({
       snapshot: {
         ...settingsWindowManagerSnapshotFixture,
@@ -167,42 +175,45 @@ export const handlers: HttpHandler[] = [
       diagnostics: [],
     })
   ),
-  aghApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout-profiles", ({ params }) => {
-    const workspaceId = String(params.workspace_id);
-    return HttpResponse.json({
-      records: [layoutResourceFor(workspaceId, windowManagerLayoutResourceFixture.id)],
-    });
-  }),
-  aghApiMock.put(
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/window-manager/layout-profiles",
+    ({ params }) => {
+      const workspaceId = String(params.workspace_id);
+      return HttpResponse.json({
+        records: [layoutResourceFor(workspaceId, windowManagerLayoutResourceFixture.id)],
+      });
+    }
+  ),
+  compozyApiMock.put(
     "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}",
     ({ params }) =>
       HttpResponse.json({
         record: layoutResourceFor(String(params.workspace_id), String(params.profile_id)),
       })
   ),
-  aghApiMock.delete(
+  compozyApiMock.delete(
     "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}",
     () => new HttpResponse(null, { status: 204 })
   ),
 
-  aghApiMock.get("/api/settings/observability", () =>
+  compozyApiMock.get("/api/settings/observability", () =>
     HttpResponse.json(settingsObservabilitySectionFixture)
   ),
-  aghApiMock.patch("/api/settings/observability", () =>
+  compozyApiMock.patch("/api/settings/observability", () =>
     HttpResponse.json(mutationResult("observability"))
   ),
 
-  aghApiMock.get("/api/settings/hooks-extensions", () =>
+  compozyApiMock.get("/api/settings/hooks-extensions", () =>
     HttpResponse.json(settingsHooksExtensionsSectionFixture)
   ),
-  aghApiMock.patch("/api/settings/hooks-extensions", () =>
+  compozyApiMock.patch("/api/settings/hooks-extensions", () =>
     HttpResponse.json(mutationResult("hooks-extensions", true))
   ),
 
-  aghApiMock.get("/api/notifications/presets", () =>
+  compozyApiMock.get("/api/notifications/presets", () =>
     HttpResponse.json(settingsNotificationPresetCollectionFixture)
   ),
-  aghApiMock.post("/api/notifications/presets", async ({ request }) => {
+  compozyApiMock.post("/api/notifications/presets", async ({ request }) => {
     const body = (await request.json()) as {
       name?: string;
       events?: string[];
@@ -230,7 +241,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  aghApiMock.put("/api/notifications/presets/{name}", async ({ params, request }) => {
+  compozyApiMock.put("/api/notifications/presets/{name}", async ({ params, request }) => {
     const name = String(params.name);
     const body = (await request.json()) as { enabled?: boolean };
     const existing = settingsNotificationPresetCollectionFixture.presets.find(
@@ -245,15 +256,15 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.delete(
+  compozyApiMock.delete(
     "/api/notifications/presets/{name}",
     () => new HttpResponse(null, { status: 204 })
   ),
 
-  aghApiMock.get("/api/settings/providers", () =>
+  compozyApiMock.get("/api/settings/providers", () =>
     HttpResponse.json(settingsProvidersCollectionFixture)
   ),
-  aghApiMock.get("/api/settings/providers/{name}", ({ params }) => {
+  compozyApiMock.get("/api/settings/providers/{name}", ({ params }) => {
     const name = String(params.name);
     const provider = settingsProviderFixtures.find(entry => entry.name === name);
 
@@ -263,17 +274,17 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ provider });
   }),
-  aghApiMock.put("/api/settings/providers/{name}", () =>
+  compozyApiMock.put("/api/settings/providers/{name}", () =>
     HttpResponse.json(mutationResult("providers", true))
   ),
-  aghApiMock.delete("/api/settings/providers/{name}", () =>
+  compozyApiMock.delete("/api/settings/providers/{name}", () =>
     HttpResponse.json(mutationResult("providers", true))
   ),
 
-  aghApiMock.get("/api/settings/sandboxes", () =>
+  compozyApiMock.get("/api/settings/sandboxes", () =>
     HttpResponse.json(settingsSandboxesCollectionFixture)
   ),
-  aghApiMock.get("/api/settings/sandboxes/{name}", ({ params }) => {
+  compozyApiMock.get("/api/settings/sandboxes/{name}", ({ params }) => {
     const name = String(params.name);
     const sandbox = settingsSandboxFixtures.find(entry => entry.name === name);
 
@@ -283,22 +294,24 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ sandbox });
   }),
-  aghApiMock.put("/api/settings/sandboxes/{name}", () =>
+  compozyApiMock.put("/api/settings/sandboxes/{name}", () =>
     HttpResponse.json(mutationResult("sandboxes", true))
   ),
-  aghApiMock.delete("/api/settings/sandboxes/{name}", () =>
+  compozyApiMock.delete("/api/settings/sandboxes/{name}", () =>
     HttpResponse.json(mutationResult("sandboxes", true))
   ),
 
-  aghApiMock.get("/api/settings/hooks", () => HttpResponse.json(settingsHooksCollectionFixture)),
-  aghApiMock.put("/api/settings/hooks/{name}", () =>
+  compozyApiMock.get("/api/settings/hooks", () =>
+    HttpResponse.json(settingsHooksCollectionFixture)
+  ),
+  compozyApiMock.put("/api/settings/hooks/{name}", () =>
     HttpResponse.json(mutationResult("hooks-extensions", true))
   ),
-  aghApiMock.delete("/api/settings/hooks/{name}", () =>
+  compozyApiMock.delete("/api/settings/hooks/{name}", () =>
     HttpResponse.json(mutationResult("hooks-extensions", true))
   ),
 
-  aghApiMock.get("/api/settings/mcp-servers", ({ request }) => {
+  compozyApiMock.get("/api/settings/mcp-servers", ({ request }) => {
     const url = new URL(request.url);
     const scope = url.searchParams.get("scope");
     const workspaceId = url.searchParams.get("workspace_id");
@@ -314,22 +327,22 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(settingsMCPServersCollectionFixture);
   }),
-  aghApiMock.put("/api/settings/mcp-servers/{name}", () =>
+  compozyApiMock.put("/api/settings/mcp-servers/{name}", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))
   ),
-  aghApiMock.delete("/api/settings/mcp-servers/{name}", () =>
+  compozyApiMock.delete("/api/settings/mcp-servers/{name}", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))
   ),
-  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
+  compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
     HttpResponse.json(mcpAuthBeginFixture)
   ),
-  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", ({ request, params }) =>
+  compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", ({ request, params }) =>
     HttpResponse.json({
       ...mcpAuthStatusAuthenticatedFixture,
       ...mcpAuthTarget(request, String(params.name)),
     })
   ),
-  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/logout", ({ request, params }) =>
+  compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/logout", ({ request, params }) =>
     HttpResponse.json({
       ...mcpAuthStatusAuthenticatedFixture,
       ...mcpAuthTarget(request, String(params.name)),
@@ -339,15 +352,17 @@ export const handlers: HttpHandler[] = [
     })
   ),
 
-  aghApiMock.get("/api/settings/apply", ({ request }) =>
+  compozyApiMock.get("/api/settings/apply", ({ request }) =>
     HttpResponse.json(applyRecordsForUrl(request))
   ),
-  aghApiMock.post("/api/settings/reload", () => HttpResponse.json(settingsReloadBlockedFixture)),
+  compozyApiMock.post("/api/settings/reload", () =>
+    HttpResponse.json(settingsReloadBlockedFixture)
+  ),
 
-  aghApiMock.post("/api/settings/actions/restart", () =>
+  compozyApiMock.post("/api/settings/actions/restart", () =>
     HttpResponse.json(settingsRestartResponseFixture, { status: 202 })
   ),
-  aghApiMock.get("/api/settings/actions/restart/{operation_id}", () =>
+  compozyApiMock.get("/api/settings/actions/restart/{operation_id}", () =>
     HttpResponse.json(settingsRestartStatusFixture)
   ),
 ];

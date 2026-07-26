@@ -1,10 +1,10 @@
 ---
 title: How to Use These Docs
-description: Choose the right AGH Runtime docs path for learning, operating, extending, and integrating with the daemon.
+description: Choose the right Compozy Runtime docs path for learning, operating, extending, and integrating with the daemon.
 icon: Compass
 ---
 
-AGH has several surfaces because the runtime has several jobs: it runs agent sessions, preserves
+Compozy has several surfaces because the runtime has several jobs: it runs agent sessions, preserves
 history, manages workspace context, exposes a daemon API, and lets agents and extensions manage
 runtime state. You do not need to understand all of that before starting.
 
@@ -14,10 +14,10 @@ Use this page to pick the shortest path for the work in front of you.
 
 | Goal                                       | Start here                                               | What you should have after reading                                              |
 | ------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Try AGH for the first time                 | [Quick Start](/runtime/core/getting-started/quick-start) | One daemon, one workspace, one durable session.                                 |
-| Understand what AGH is                     | [Runtime Overview](/runtime)                             | The operating model and when AGH is the right fit.                              |
+| Try Compozy for the first time             | [Quick Start](/runtime/core/getting-started/quick-start) | One daemon, one workspace, one durable session.                                 |
+| Understand what Compozy is                 | [Runtime Overview](/runtime)                             | The operating model and when Compozy is the right fit.                          |
 | Solve an operational problem               | [Guides](/runtime/guides)                                | A decision path or debugging flow.                                              |
-| See AGH in a realistic scenario            | [Use Cases](/runtime/use-cases)                          | Concrete commands, checkpoints, and failure paths.                              |
+| See Compozy in a realistic scenario        | [Use Cases](/runtime/use-cases)                          | Concrete commands, checkpoints, and failure paths.                              |
 | Learn the runtime model                    | [Runtime Overview](/runtime)                             | Mental models for sessions, agents, memory, network, resources, and extensions. |
 | Look up an exact CLI flag                  | [CLI Reference](/runtime/cli-reference)                  | Generated command syntax and options.                                           |
 | Integrate with the daemon over HTTP or UDS | [API Reference](/runtime/api-reference)                  | Route families, stream surfaces, and caveats.                                   |
@@ -25,21 +25,21 @@ Use this page to pick the shortest path for the work in front of you.
 
 ## Recommended reading paths
 
-### I am new to AGH
+### I am new to Compozy
 
 1. [Runtime Overview](/runtime)
 2. [Quick Start](/runtime/core/getting-started/quick-start)
 3. [Review a Change](/runtime/use-cases/review-a-change)
 4. [Debug a Failed Session](/runtime/guides/debug-a-failed-session)
 
-### I operate AGH day to day
+### I operate Compozy day to day
 
 1. [Choose an Operator Surface](/runtime/guides/choose-an-operator-surface)
 2. [Session Lifecycle](/runtime/core/sessions/lifecycle)
 3. [Operations](/runtime/core/operations)
 4. [CLI Reference](/runtime/cli-reference)
 
-### I am integrating or extending AGH
+### I am integrating or extending Compozy
 
 1. [Desired-State Resources](/runtime/core/resources)
 2. [Tools](/runtime/core/tools)
@@ -63,7 +63,7 @@ Use this page to pick the shortest path for the work in front of you.
 | Core Concepts | Understanding the model behind a feature.              | Copy-paste-only command runs.                           |
 | CLI Reference | Flags, syntax, output formats, and generated commands. | Product explanation.                                    |
 | API Reference | Route families and streaming surfaces.                 | Complete generated schema coverage for every route yet. |
-| Protocol      | Interoperability outside AGH Runtime.                  | Operating the local daemon day to day.                  |
+| Protocol      | Interoperability outside Compozy Runtime.              | Operating the local daemon day to day.                  |
 
 ## When docs disagree
 
@@ -72,7 +72,7 @@ Runtime truth wins:
 1. Generated CLI reference wins for command names and flags.
 2. Implemented code and generated contracts win for API behavior.
 3. Core concept pages explain intent, but should not override generated references.
-4. Protocol pages define wire contracts for interoperable runtimes, not necessarily every AGH
+4. Protocol pages define wire contracts for interoperable runtimes, not necessarily every Compozy
    Runtime feature.
 
 If a guide gives a command that fails, check the generated CLI page for that command and treat the

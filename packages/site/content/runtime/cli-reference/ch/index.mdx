@@ -1,9 +1,9 @@
 ---
-title: "agh ch"
+title: "compozy ch"
 description: "Use agent-facing coordination channels"
 ---
 
-## agh ch
+## compozy ch
 
 Use agent-facing coordination channels
 
@@ -11,10 +11,10 @@ Use agent-facing coordination channels
 
 ```
   # List channels visible to this session
-  agh ch list
+  compozy ch list
 
   # Wait for task-run coordination messages
-  agh ch recv coord-run-123 --wait -o jsonl
+  compozy ch recv coord-run-123 --wait -o jsonl
 ```
 
 ### Options
@@ -32,7 +32,7 @@ Use agent-facing coordination channels
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -42,14 +42,14 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh ch list -o json
+compozy ch list -o json
 ```
 
 ## Subcommands
 
-| Command                                         | Description                                                     |
-| ----------------------------------------------- | --------------------------------------------------------------- |
-| [agh ch list](/runtime/cli-reference/ch/list)   | List coordination channels visible to the current agent session |
-| [agh ch recv](/runtime/cli-reference/ch/recv)   | Receive queued coordination messages for a channel              |
-| [agh ch reply](/runtime/cli-reference/ch/reply) | Reply to a received coordination message                        |
-| [agh ch send](/runtime/cli-reference/ch/send)   | Send one task-run coordination message                          |
+| Command                                             | Description                                                     |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| [compozy ch list](/runtime/cli-reference/ch/list)   | List coordination channels visible to the current agent session |
+| [compozy ch recv](/runtime/cli-reference/ch/recv)   | Receive queued coordination messages for a channel              |
+| [compozy ch reply](/runtime/cli-reference/ch/reply) | Reply to a received coordination message                        |
+| [compozy ch send](/runtime/cli-reference/ch/send)   | Send one task-run coordination message                          |

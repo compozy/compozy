@@ -3,7 +3,7 @@ title: Window Management
 description: Persistent virtual desktops, semantic window placement, revision-safe layouts, connected clients, and recovery.
 ---
 
-AGH stores one authoritative window topology per workspace. Persistent virtual desktops own tiled
+Compozy stores one authoritative window topology per workspace. Persistent virtual desktops own tiled
 groups and floating windows; clients project that same normalized topology into their own viewport.
 The daemon, not the browser, validates membership, layout trees, weights, history, and revisions.
 
@@ -29,7 +29,7 @@ history, or emit extension hooks.
 Read the current topology before changing it:
 
 ```bash
-agh layout get --workspace <workspace-id> -o json
+compozy layout get --workspace <workspace-id> -o json
 ```
 
 Every durable CLI mutation requires `--revision`. A successful command advances the workspace
@@ -38,14 +38,14 @@ one history entry; route navigation does not enter or clear layout history. Prev
 rejection, and no-op paths write nothing.
 
 ```bash
-agh desktop create --workspace <workspace-id> --revision <revision> --name Build
-agh window open --workspace <workspace-id> --revision <revision> --app tasks \
+compozy desktop create --workspace <workspace-id> --revision <revision> --name Build
+compozy window open --workspace <workspace-id> --revision <revision> --app tasks \
   --pathname /tasks --search-json '{}'
-agh window navigate --workspace <workspace-id> --revision <revision> --id <window-id> \
+compozy window navigate --workspace <workspace-id> --revision <revision> --id <window-id> \
   --pathname /tasks/<task-id> --search-json '{"tab":"runs"}'
-agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
+compozy window move --workspace <workspace-id> --revision <revision> --id <window-id> \
   --desktop <desktop-id> --target <window-id> --placement right
-agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
+compozy window move --workspace <workspace-id> --revision <revision> --id <window-id> \
   --desktop <desktop-id> --group
 ```
 
@@ -55,7 +55,7 @@ Do not replay stale geometry blindly.
 Window `placement` is structural (`tiled`, `stacked`, or `floating`). Its separate durable `route`
 contains an internal absolute pathname and canonical JSON-object search state, so detail/filter state
 resumes after reload or daemon restart and converges in peer clients. Add `--client` to
-`agh window navigate` only when the same operation should also activate and focus that explicit client.
+`compozy window navigate` only when the same operation should also activate and focus that explicit client.
 
 ## Tiling behavior
 
@@ -73,11 +73,11 @@ Both behavior and thresholds are validated under `[window_manager]` in `config.t
 ## Persistent desktops
 
 ```bash
-agh desktop list --workspace <workspace-id> -o json
-agh desktop clients register --workspace <workspace-id> --client <stable-client-id>
-agh desktop switch --workspace <workspace-id> --revision <revision> \
+compozy desktop list --workspace <workspace-id> -o json
+compozy desktop clients register --workspace <workspace-id> --client <stable-client-id>
+compozy desktop switch --workspace <workspace-id> --revision <revision> \
   --client <stable-client-id> --id <desktop-id>
-agh desktop delete --workspace <workspace-id> --revision <revision> --id <desktop-id> \
+compozy desktop delete --workspace <workspace-id> --revision <revision> --id <desktop-id> \
   --destination <desktop-id>
 ```
 
@@ -92,9 +92,9 @@ Semantic commands are the normal control surface. A validated layout document is
 escape hatch:
 
 ```bash
-agh layout export --workspace <workspace-id> -o json > layout.json
-agh layout validate --workspace <workspace-id> --file layout.json -o json
-agh layout apply --workspace <workspace-id> --revision <revision> --file layout.json -o json
+compozy layout export --workspace <workspace-id> -o json > layout.json
+compozy layout validate --workspace <workspace-id> --file layout.json -o json
+compozy layout apply --workspace <workspace-id> --revision <revision> --file layout.json -o json
 ```
 
 Export omits history. Validate never writes. Apply validates the complete document, binds it to the
@@ -109,7 +109,7 @@ Resources cannot execute code or receive pointer events.
 A tiled return anchor in an exported document carries `return_anchor.source_group`, the daemon's
 validated deep capture of its source group. For Zoom, an unchanged source residue lets unzoom restore
 the exact group and node identities, order, weights, placement, and active stack member. If the source
-changed in the meantime, AGH preserves those edits and uses the structural anchor fallback. Preserve
+changed in the meantime, Compozy preserves those edits and uses the structural anchor fallback. Preserve
 `source_group` during raw document round trips; use the semantic Zoom operation instead of
 constructing or editing this recovery state.
 
@@ -117,8 +117,8 @@ constructing or editing this recovery state.
 
 The lazy `compozy__window_manager` toolset exposes 26 desktop, window, and layout tools with structured
 revisions, diagnostics, capability gates, and risk classifications. Resolve `compozy__tool_info` before
-calling a tool. CLI fallbacks are grouped under [`agh desktop`](/runtime/cli-reference/desktop),
-[`agh window`](/runtime/cli-reference/window), and [`agh layout`](/runtime/cli-reference/layout).
+calling a tool. CLI fallbacks are grouped under [`compozy desktop`](/runtime/cli-reference/desktop),
+[`compozy window`](/runtime/cli-reference/window), and [`compozy layout`](/runtime/cli-reference/layout).
 
 HTTP and UDS expose identical routes below
 `/api/workspaces/{workspace_id}/window-manager`; see the
@@ -129,7 +129,7 @@ workspace-revision topology events; an unbound stream receives topology only. Af
 eviction, reconnect and replace local state from the next fence. After a daemon restart, register the
 same stable client ID again before reconnecting.
 
-Use `agh layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl` for the bound
+Use `compozy layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl` for the bound
 CLI stream. Omit `--client` when only topology revisions are needed.
 
 Committed operations emit exactly `window_manager.layout.applied`,

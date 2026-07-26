@@ -1,4 +1,4 @@
-import { Section } from "@agh/ui";
+import { Section } from "@compozy/ui";
 
 import { successRateLabel } from "../../lib/loop-catalog";
 import type { LoopAggregate30d } from "../../types";

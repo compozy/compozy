@@ -1,7 +1,7 @@
 import { Check, Copy, KeyRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { Button, Eyebrow, Input, Pill, Sheet, SheetContent, Time } from "@agh/ui";
+import { Button, Eyebrow, Input, Pill, Sheet, SheetContent, Time } from "@compozy/ui";
 
 import { vaultNamespaceTone } from "../lib/vault-tones";
 import { vaultSecretTitle } from "../lib/vault-secret-title";

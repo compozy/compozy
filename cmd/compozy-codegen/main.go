@@ -56,7 +56,7 @@ func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkCon
 
 	switch args[0] {
 	case "openapi":
-		return writeOpenAPI(openapiPath)
+		return writeOpenAPI(ctx, openapiPath)
 	case "sdk-contracts":
 		return writeSDKContracts(ctx, sdkContractsPath)
 	case "loop-enums":
@@ -86,8 +86,8 @@ func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkCon
 	}
 }
 
-func writeOpenAPI(path string) error {
-	content, err := marshalOpenAPI()
+func writeOpenAPI(ctx context.Context, path string) error {
+	content, err := generateFormattedOpenAPI(ctx, path)
 	if err != nil {
 		return fmt.Errorf("write openapi to %q: %w", path, err)
 	}
@@ -119,7 +119,9 @@ func writeAll(
 		ctx,
 		openapiPath,
 		sdkContractsPath,
-		marshalOpenAPI,
+		func() ([]byte, error) {
+			return generateFormattedOpenAPI(ctx, openapiPath)
+		},
 		generateFormattedSDKContracts,
 		publishGeneratedFile,
 	); err != nil {
@@ -267,6 +269,14 @@ func marshalOpenAPI() ([]byte, error) {
 	return data, nil
 }
 
+func generateFormattedOpenAPI(ctx context.Context, path string) ([]byte, error) {
+	content, err := marshalOpenAPI()
+	if err != nil {
+		return nil, err
+	}
+	return formatWithOxfmt(ctx, path, content, "json")
+}
+
 func checkFile(path string, want []byte) error {
 	got, err := os.ReadFile(path)
 	if err != nil {
@@ -350,6 +360,15 @@ func loopEnumsPathFor(openapiPath string) string {
 }
 
 func formatTypeScript(ctx context.Context, path string, content []byte) ([]byte, error) {
+	return formatWithOxfmt(ctx, path, content, "typescript")
+}
+
+func formatWithOxfmt(
+	ctx context.Context,
+	path string,
+	content []byte,
+	artifactKind string,
+) ([]byte, error) {
 	argv := jsbin.Argv(".", "oxfmt", "--stdin-filepath", path)
 	//nolint:gosec // argv[0] comes from jsbin.Argv with a constant tool name: workspace shim or bunx fallback.
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
@@ -363,9 +382,9 @@ func formatTypeScript(ctx context.Context, path string, content []byte) ([]byte,
 	if err := cmd.Run(); err != nil {
 		detail := strings.TrimSpace(stderr.String())
 		if detail == "" {
-			return nil, fmt.Errorf("format typescript %q with oxfmt: %w", path, err)
+			return nil, fmt.Errorf("format %s %q with oxfmt: %w", artifactKind, path, err)
 		}
-		return nil, fmt.Errorf("format typescript %q with oxfmt: %w: %s", path, err, detail)
+		return nil, fmt.Errorf("format %s %q with oxfmt: %w: %s", artifactKind, path, err, detail)
 	}
 	return stdout.Bytes(), nil
 }

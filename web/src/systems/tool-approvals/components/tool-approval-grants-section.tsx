@@ -1,6 +1,6 @@
 import { Plus, Shield, Trash2 } from "lucide-react";
 
-import { Button, ConfirmDialog, DataSurface, Section } from "@agh/ui";
+import { Button, ConfirmDialog, DataSurface, Section } from "@compozy/ui";
 
 import { useToolApprovalGrantsPanel } from "../hooks/use-tool-approval-grants-panel";
 import { ToolApprovalGrantSetDialog } from "./tool-approval-grant-set-dialog";
@@ -22,7 +22,7 @@ export function ToolApprovalGrantsSection() {
     <Section
       divided
       label="Remembered decisions"
-      note="Native-tool approvals AGH remembers for this workspace"
+      note="Native-tool approvals CompozyOS remembers for this workspace"
       count={state === "ready" ? total : undefined}
       data-testid={`${TEST_ID}-section`}
       right={
@@ -94,7 +94,7 @@ export function ToolApprovalGrantsSection() {
         contentProps={{ "data-testid": `${TEST_ID}-revoke` }}
         description={
           target
-            ? `AGH will forget this remembered approval for "${target.tool_id}" in this workspace. The next matching tool call will prompt for approval again.`
+            ? `CompozyOS will forget this remembered approval for "${target.tool_id}" in this workspace. The next matching tool call will prompt for approval again.`
             : null
         }
         error={revoke.error}

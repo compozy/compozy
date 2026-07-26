@@ -19,8 +19,8 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
 }));
 
-vi.mock("@agh/ui", async () => ({
-  ...(await vi.importActual("@agh/ui")),
+vi.mock("@compozy/ui", async () => ({
+  ...(await vi.importActual("@compozy/ui")),
   ScrollArea: ({ children, className }: { children: React.ReactNode; className?: string }) => (
     <div className={className} data-slot="scroll-area-viewport">
       {children}

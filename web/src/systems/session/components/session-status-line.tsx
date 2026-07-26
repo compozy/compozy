@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { cn, Pill, type PillTone } from "@agh/ui";
+import { cn, Pill, type PillTone } from "@compozy/ui";
 
 import type { SessionBadge, SessionPayload, SessionState } from "../types";
 

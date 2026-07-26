@@ -1,20 +1,20 @@
 ---
-title: "agh agent soul validate"
+title: "compozy agent soul validate"
 description: "Validate a proposed Soul body or the current SOUL.md"
 ---
 
-## agh agent soul validate
+## compozy agent soul validate
 
 Validate a proposed Soul body or the current SOUL.md
 
 ```
-agh agent soul validate <agent> [flags]
+compozy agent soul validate <agent> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent soul validate coder --file SOUL.md --workspace checkout-api --json
+  compozy agent soul validate coder --file SOUL.md --workspace checkout-api --json
 ```
 
 ### Options
@@ -35,7 +35,7 @@ agh agent soul validate <agent> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -45,5 +45,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent soul validate <agent> -o json
+compozy agent soul validate <agent> -o json
 ```

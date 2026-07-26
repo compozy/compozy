@@ -1,4 +1,4 @@
-import { Eyebrow, cn } from "@agh/ui";
+import { Eyebrow, cn } from "@compozy/ui";
 import { isValidElement, type ComponentProps, type ReactNode } from "react";
 
 function textFromNode(node: ReactNode): string {

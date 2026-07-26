@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { dialogShellClass, UIProvider } from "@agh/ui";
+import { dialogShellClass, UIProvider } from "@compozy/ui";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";

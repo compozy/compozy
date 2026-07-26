@@ -1,4 +1,4 @@
-import { Section } from "@agh/ui";
+import { Section } from "@compozy/ui";
 
 import { MonoTag } from "../mono-tag";
 

@@ -1,4 +1,4 @@
-import { CatalogCard, cn, Pill } from "@agh/ui";
+import { CatalogCard, cn, Pill } from "@compozy/ui";
 
 import { providerListingView } from "../lib/provider-listing-view";
 import type { SettingsProviderEntry } from "../types";

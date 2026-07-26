@@ -89,7 +89,7 @@ function listCLIReferenceDocs(dir: string): string[] {
 function generatedCLICommands(): Set<string> {
   const commands = new Set<string>();
   for (const doc of listCLIReferenceDocs(cliReferenceRoot)) {
-    const match = doc.match(/^## (agh(?: [^\n]+)?)/m);
+    const match = doc.match(/^## (compozy(?: [^\n]+)?)/m);
     if (match?.[1]) {
       commands.add(match[1].trim());
     }
@@ -112,7 +112,7 @@ function extractManualAghCommandPrefixes(line: string, generatedCommands: Set<st
     .filter(Boolean);
 
   for (let index = 0; index < tokens.length; index += 1) {
-    if (tokens[index] !== "agh") {
+    if (tokens[index] !== "compozy") {
       continue;
     }
 
@@ -148,11 +148,11 @@ function manualAghCommandViolations(): string[] {
 }
 
 describe("manual site CLI examples", () => {
-  it("labels manual shell examples that contain agh commands", () => {
+  it("labels manual shell examples that contain compozy commands", () => {
     const shellLanguages = new Set(["bash", "sh", "shell"]);
     const violations = listManualDocs(contentRoot).flatMap(doc =>
       extractCodeBlocks(doc)
-        .filter(block => /^\s*(?:[$>]\s*)?agh(?:\s|$)/m.test(block.body))
+        .filter(block => /^\s*(?:[$>]\s*)?compozy(?:\s|$)/m.test(block.body))
         .filter(block => !shellLanguages.has(block.language))
         .map(block => `${doc.path}: ${block.language || "<unlabeled>"}`)
     );
@@ -170,14 +170,14 @@ describe("manual site CLI examples", () => {
     expect(stalePatternViolations(/\bagh spawn\b[\s\S]{0,240}--prompt(?!-overlay)\b/)).toEqual([]);
   });
 
-  it("does not execute the replaced agh memory verbs in any documented shell block", () => {
+  it("does not execute the replaced compozy memory verbs in any documented shell block", () => {
     const violations = listManualDocs(contentRoot).flatMap(doc =>
       extractBashBlocks(doc).flatMap(block =>
         block
           .replaceAll("\\\n", " ")
           .split("\n")
           .map(line => line.replace(/^[\s$>]+/, ""))
-          .filter(line => /^agh memory (read|consolidate)\b/.test(line))
+          .filter(line => /^compozy memory (read|consolidate)\b/.test(line))
           .map(line => `${doc.path}: ${line.trim()}`)
       )
     );
@@ -186,7 +186,7 @@ describe("manual site CLI examples", () => {
   });
 
   it("uses the implemented flag shape for network send examples", () => {
-    const violations = commandBlocks("agh network send")
+    const violations = commandBlocks("compozy network send")
       .filter(({ block }) => {
         const normalized = block.replaceAll("\\\n", " ");
         return (
@@ -212,7 +212,7 @@ describe("manual site CLI examples", () => {
       /--kind\s+direct\b/,
       /--kind\s+request\b/,
     ];
-    const violations = commandBlocks("agh network send").flatMap(({ path, block }) => {
+    const violations = commandBlocks("compozy network send").flatMap(({ path, block }) => {
       const normalized = block.replaceAll("\\\n", " ");
       return removed
         .filter(pattern => pattern.test(normalized))
@@ -274,7 +274,7 @@ describe("manual site CLI examples", () => {
   });
 
   it("uses the implemented flag shape for network inbox examples", () => {
-    const violations = commandBlocks("agh network inbox")
+    const violations = commandBlocks("compozy network inbox")
       .filter(({ block }) => !block.includes("--session "))
       .map(({ path }) => path);
 
@@ -282,7 +282,7 @@ describe("manual site CLI examples", () => {
   });
 
   it("keeps manual spawn examples explicit about bounded child session TTL", () => {
-    const violations = commandBlocks("agh spawn")
+    const violations = commandBlocks("compozy spawn")
       .filter(({ block }) => !block.includes("--ttl-seconds "))
       .map(({ path }) => path);
 

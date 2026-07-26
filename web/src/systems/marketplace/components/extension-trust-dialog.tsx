@@ -10,7 +10,7 @@ import {
   DialogTitle,
   Pill,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { MarketplaceListing } from "../types";
 

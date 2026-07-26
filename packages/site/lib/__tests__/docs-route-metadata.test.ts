@@ -23,20 +23,20 @@ const mockedDocs = vi.hoisted(() => {
       slugs: [],
       url: "/runtime",
       title: "Runtime Overview",
-      description: "Understand AGH Runtime and choose the right operator path.",
+      description: "Understand Compozy Runtime and choose the right operator path.",
     },
     {
       slugs: ["how-to-use-these-docs"],
       url: "/runtime/how-to-use-these-docs",
       title: "How to Use These Docs",
-      description: "Choose the right AGH Runtime docs path for your goal.",
+      description: "Choose the right Compozy Runtime docs path for your goal.",
     },
   ];
   const protocolPages = [
     {
       slugs: [],
       url: "/protocol",
-      title: "AGH Network Protocol",
+      title: "Compozy Network Protocol",
       description: "Understand the public compozy-network/v0 protocol surface.",
     },
     {
@@ -94,7 +94,7 @@ describe("docs route metadata", () => {
       expect(metadata.alternates?.canonical, page.url).toBe(`${page.url}/`);
       expect(metadata.openGraph?.title, page.url).toBe(page.title);
       expect(metadata.openGraph?.description, page.url).toBe(page.description);
-      expect(metadata.openGraph?.url, page.url).toBe(`https://agh.network${page.url}/`);
+      expect(metadata.openGraph?.url, page.url).toBe(`https://compozy.com${page.url}/`);
       expect(metadata.twitter?.title, page.url).toBe(page.title);
       expect(metadata.twitter?.description, page.url).toBe(page.description);
     }
@@ -109,7 +109,7 @@ describe("docs route metadata", () => {
       expect(metadata.alternates?.canonical, page.url).toBe(`${page.url}/`);
       expect(metadata.openGraph?.title, page.url).toBe(page.title);
       expect(metadata.openGraph?.description, page.url).toBe(page.description);
-      expect(metadata.openGraph?.url, page.url).toBe(`https://agh.network${page.url}/`);
+      expect(metadata.openGraph?.url, page.url).toBe(`https://compozy.com${page.url}/`);
       expect(metadata.twitter?.title, page.url).toBe(page.title);
       expect(metadata.twitter?.description, page.url).toBe(page.description);
     }

@@ -56,7 +56,7 @@ import { AutonomyKernelSection } from "../autonomy-kernel-section";
 import { InstallSection } from "../install-section";
 import { Comparison } from "../comparison";
 import { FinalCta } from "../final-cta";
-import { Pill } from "@agh/ui";
+import { Pill } from "@compozy/ui";
 
 import { KIND_MEANING, type NetworkKind } from "../primitives/network-kinds";
 
@@ -80,7 +80,7 @@ describe("Hero", () => {
     expect(screen.getByText("An open workplace for AI agents.")).toBeDefined();
     expect(
       screen.getByText(
-        "AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts."
+        "CompozyOS runs the agent CLIs you already use as durable sessions, with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts."
       )
     ).toBeDefined();
     expect(screen.getByText(/find each other/)).toBeDefined();
@@ -233,7 +233,7 @@ describe("RuntimeSection", () => {
       resolveImageAsset(
         screen
           .getByAltText(
-            "AGH daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
+            "CompozyOS daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
           )
           .getAttribute("src")
       )
@@ -263,7 +263,7 @@ describe("SandboxSection", () => {
   it("renders the sandbox lifecycle diagram labels", () => {
     render(<SandboxSection />);
 
-    expect(screen.getByLabelText("AGH sandbox lifecycle diagram")).toBeDefined();
+    expect(screen.getByLabelText("CompozyOS sandbox lifecycle diagram")).toBeDefined();
     expect(screen.getByText("sandbox_id")).toBeDefined();
     expect(screen.getByText("sandbox_ref")).toBeDefined();
     expect(screen.getByText("sandbox.exec")).toBeDefined();
@@ -374,7 +374,7 @@ describe("InstallSection", () => {
     expect(screen.getByRole("tab", { name: "npm" })).toBeDefined();
     expect(screen.getByRole("tab", { name: "Go" })).toBeDefined();
     expect(screen.getByText("brew install compozy/compozy/agh")).toBeDefined();
-    expect(screen.getByText("Bootstrap your AGH home")).toBeDefined();
+    expect(screen.getByText("Bootstrap your CompozyOS home")).toBeDefined();
     expect(screen.getByText("Start the daemon")).toBeDefined();
     expect(screen.getByText("Launch a real session")).toBeDefined();
   });
@@ -417,7 +417,7 @@ describe("Comparison", () => {
   it("renders the four named approaches and the agent support column", () => {
     render(<Comparison />);
     expect(screen.getByText("Other tools stop at the runtime boundary.")).toBeDefined();
-    for (const name of ["Letta", "LangGraph / CrewAI", "OpenAI Assistants / Devin", "AGH"]) {
+    for (const name of ["Letta", "LangGraph / CrewAI", "OpenAI Assistants / Devin", "CompozyOS"]) {
       expect(screen.getByText(name)).toBeDefined();
     }
     expect(screen.getByText("None, single agent")).toBeDefined();
@@ -449,7 +449,7 @@ describe("MemoryDreamSection", () => {
       resolveImageAsset(
         screen
           .getByAltText(
-            "AGH memory interface diagram showing scoped Markdown files, memory indexing, and dream consolidation into durable memory."
+            "CompozyOS memory interface diagram showing scoped Markdown files, memory indexing, and dream consolidation into durable memory."
           )
           .getAttribute("src")
       )
@@ -465,7 +465,7 @@ describe("AutonomyKernelSection", () => {
       resolveImageAsset(
         screen
           .getByAltText(
-            "AGH autonomy storyboard, task_runs queue, an agent claiming a run with a claim_token and heartbeat, and lease recovery on daemon restart."
+            "CompozyOS autonomy storyboard, task_runs queue, an agent claiming a run with a claim_token and heartbeat, and lease recovery on daemon restart."
           )
           .getAttribute("src")
       )
@@ -488,8 +488,8 @@ describe("AutonomyKernelSection", () => {
 describe("FinalCta", () => {
   it("renders the final CTAs and drops the old hedge copy", () => {
     render(<FinalCta />);
-    expect(screen.getByText("Install AGH. Run a session. Join the network.")).toBeDefined();
-    const install = screen.getByText("Install AGH");
+    expect(screen.getByText("Install CompozyOS. Run a session. Join the network.")).toBeDefined();
+    const install = screen.getByText("Install CompozyOS");
     expect(install.closest("a")?.getAttribute("href")).toBe(
       "/runtime/core/getting-started/installation"
     );

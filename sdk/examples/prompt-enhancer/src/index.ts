@@ -9,7 +9,7 @@ import {
   type ExtensionOptions,
   type PromptPatch,
   type ShutdownRequest,
-} from "@agh/extension-sdk";
+} from "@compozy/extension-sdk";
 
 const handshakePath = process.env.COMPOZY_PROMPT_ENHANCER_HANDSHAKE_PATH?.trim() ?? "";
 const hostCallPath = process.env.COMPOZY_PROMPT_ENHANCER_HOST_CALL_PATH?.trim() ?? "";

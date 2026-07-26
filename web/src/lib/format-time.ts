@@ -1,9 +1,9 @@
 /**
  * Time formatters consumed by Tasks/Bridges/Knowledge/Settings runtime surfaces.
  *
- * The canonical implementation lives in `@agh/ui` (`packages/ui/src/lib/format-time.ts`)
+ * The canonical implementation lives in `@compozy/ui` (`packages/ui/src/lib/format-time.ts`)
  * because the `<Time>` primitive must consume them without crossing the
- * `@agh/ui` → `web/` package boundary. This module is a thin re-export so
+ * `@compozy/ui` → `web/` package boundary. This module is a thin re-export so
  * runtime callsites can keep their `@/lib/format-time` import path.
  *
  * `formatUptimeSeconds` is web-owned (daemon health + extension runtime rails).
@@ -13,7 +13,7 @@ export {
   formatAbsoluteTime,
   formatDuration,
   formatRelativeTime,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 const SECOND = 1;
 const MINUTE = 60 * SECOND;

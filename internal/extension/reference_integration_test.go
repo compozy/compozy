@@ -969,7 +969,7 @@ func buildReferenceArtifacts(t *testing.T, repoRoot string) {
 		"./sdk/examples/clarify-tool/bin/clarify-tool",
 		"./sdk/examples/clarify-tool",
 	)
-	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@agh/extension-sdk")
+	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@compozy/extension-sdk")
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@agh/example-prompt-enhancer")
 }
 

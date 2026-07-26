@@ -2,7 +2,7 @@ import { Webhook } from "lucide-react";
 import { useState } from "react";
 
 import { SettingsGroup, type SettingsHookEntry } from "@/systems/settings";
-import { Empty, Pill, PillGroup, SearchInput, Spinner, Switch } from "@agh/ui";
+import { Empty, Pill, PillGroup, SearchInput, Spinner, Switch } from "@compozy/ui";
 
 interface HooksSectionProps {
   hooks: SettingsHookEntry[];
@@ -53,7 +53,7 @@ export function HooksSection({
         <Empty
           icon={Webhook}
           title="No hooks registered"
-          description="Add a hook declaration to ~/.agh/config.toml or a workspace overlay to register one."
+          description="Add a hook declaration to ~/.compozy/config.toml or a workspace overlay to register one."
           data-testid="settings-page-hooks-empty"
         />
       ) : (

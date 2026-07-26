@@ -138,7 +138,7 @@ export interface ChangedFileEntry {
 // Per-turn audit summary of the files an assistant turn modified (Edit/Write).
 // Rendered once at the tail of a settled editing turn as a collapsed
 // "Edited N files +a/-d" card that expands to the per-file list — display-only
-// (AGH exposes no checkpoint/Undo semantics).
+// (CompozyOS exposes no checkpoint/Undo semantics).
 export interface SessionChangedFilesRow extends SessionBaseRow {
   kind: "changed-files";
   /** Distinct modified files in first-touch order; same path edited twice is one entry. */
@@ -462,7 +462,7 @@ function changedFilesEqual(
   });
 }
 
-// AGH tool inputs arrive complete (not token-streamed), so a tool's meaningful
+// CompozyOS tool inputs arrive complete (not token-streamed), so a tool's meaningful
 // change is always accompanied by a status/state/error transition. Comparing
 // those primitives — not the re-parsed `args`/`result` object references — keeps
 // settled entries stable across the hook's per-message re-parse.

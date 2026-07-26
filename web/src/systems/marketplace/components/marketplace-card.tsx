@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { createElement } from "react";
 
-import { CatalogCard } from "@agh/ui";
+import { CatalogCard } from "@compozy/ui";
 
 import type { MarketplaceKind, MarketplaceListing } from "../types";
 import { MarketplaceEntryAction, MarketplaceEntryStatus } from "./marketplace-entry-actions";

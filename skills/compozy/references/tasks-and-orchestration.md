@@ -2,9 +2,9 @@
 
 ## Authority Model
 
-The daemon owns task state. Treat task.Service, persisted task/run records, session-bound leases, review bindings, and AGH task tools as authority. Prompts, channel messages, memory notes, and UI projections are evidence only.
+The daemon owns task state. Treat task.Service, persisted task/run records, session-bound leases, review bindings, and Compozy task tools as authority. Prompts, channel messages, memory notes, and UI projections are evidence only.
 
-Do not infer task ownership from a message. Do not mutate task state outside AGH task tools or the equivalent CLI/API surface.
+Do not infer task ownership from a message. Do not mutate task state outside Compozy task tools or the equivalent CLI/API surface.
 
 Task inspection, task pause/resume, forced run recovery, scheduler pause/resume/drain, and scheduler backlog are management surfaces. They are not currently exposed as native `compozy__*` tools. Use CLI or HTTP/UDS with structured output when you need those controls.
 
@@ -48,14 +48,14 @@ When the scheduler's convergence backstop cannot get a claimable run picked up, 
 Declare _why_ a task cannot proceed with a typed block instead of leaving it silently stuck. Kinds are `needs_input` (waiting on a human or agent), `capability` (missing a skill, tool, or credential), and `transient` (a recoverable external failure, optionally self-expiring). Dependency waits, pending approval, and pause are not block kinds; they surface only in the read-only `blocked_reasons` projection on task read payloads.
 
 - `compozy task block <task-id> --kind <kind> --reason <reason> [--details <json>] [--expires-in <dur>] -o json` opens a block. `compozy task blocks <task-id> [--all] -o json` lists open (or all) blocks. `compozy task unblock <task-id> --block <block-id> [--note <note>] -o json` clears one block.
-- To block a task you are actively running, pass `--run-id <run-id> --as-agent` so AGH resolves your active lease token server-side, records the block, and releases the lease in one atomic transaction. The run returns to `queued` with no attempt consumed.
+- To block a task you are actively running, pass `--run-id <run-id> --as-agent` so Compozy resolves your active lease token server-side, records the block, and releases the lease in one atomic transaction. The run returns to `queued` with no attempt consumed.
 - Clearing the last blocking cause returns the task to `ready`. If the task opted into auto-enqueue, block-clear, transient-expiry, and approval-granted each enqueue the next run automatically through the same conservative one-open-run path as dependency completion.
 
-An automation that keeps clearing a block a worker keeps re-declaring is a thrash loop. AGH counts same-kind re-blocks per task and, at `[autonomy].block_recurrence_limit` (default 2; 0 disables), escalates the task to a first-class `needs_attention` status that is excluded from claim selection. The counter resets only on successful task completion. `compozy task recover <task-id> [--note <note>] -o json` clears the escalation, records the actor, and re-admits an opted-in task to the claimable set. Recovering a non-escalated task is rejected as an invalid status transition. Do not loop clearing a block that immediately re-blocks — fix the underlying cause or hand the task to an operator.
+An automation that keeps clearing a block a worker keeps re-declaring is a thrash loop. Compozy counts same-kind re-blocks per task and, at `[autonomy].block_recurrence_limit` (default 2; 0 disables), escalates the task to a first-class `needs_attention` status that is excluded from claim selection. The counter resets only on successful task completion. `compozy task recover <task-id> [--note <note>] -o json` clears the escalation, records the actor, and re-admits an opted-in task to the claimable set. Recovering a non-escalated task is rejected as an invalid status transition. Do not loop clearing a block that immediately re-blocks — fix the underlying cause or hand the task to an operator.
 
-When an agent session creates a task, AGH wakes that creator session on the child's terminal, blocked, and `needs_attention` transitions by default, delivering a synthetic queued turn (never an interrupt). This is the delegation feedback path — prefer it over polling. Opt a task out at create time with `compozy task create … --no-wake-creator`. Wake fires at most once per transition, is suppressed for a dead creator session and for a self-wake, and never carries a raw claim token; it is meaningful only for agent-created tasks.
+When an agent session creates a task, Compozy wakes that creator session on the child's terminal, blocked, and `needs_attention` transitions by default, delivering a synthetic queued turn (never an interrupt). This is the delegation feedback path — prefer it over polling. Opt a task out at create time with `compozy task create … --no-wake-creator`. Wake fires at most once per transition, is suppressed for a dead creator session and for a self-wake, and never carries a raw claim token; it is meaningful only for agent-created tasks.
 
-When you complete a run that created child tasks, list exactly the task ids you created this run in the completion's `created_task_ids`. AGH verifies each id (exists, same workspace, created by your session) before the terminal write; a phantom or cross-session id rejects the completion and leaves your run running with its lease intact so you can correct the claim and complete again. Never claim tasks created by another session, and never fabricate task ids in the result prose — an advisory scan flags task-id-shaped tokens absent from the store.
+When you complete a run that created child tasks, list exactly the task ids you created this run in the completion's `created_task_ids`. Compozy verifies each id (exists, same workspace, created by your session) before the terminal write; a phantom or cross-session id rejects the completion and leaves your run running with its lease intact so you can correct the claim and complete again. Never claim tasks created by another session, and never fabricate task ids in the result prose — an advisory scan flags task-id-shaped tokens absent from the store.
 
 A parent task stays nonterminal while any direct child is not completed. The successful completion of the final direct child completes the parent exactly once and settles an eligible parent run parked in `needs_attention`; repeated or concurrent child completion delivery does not create another parent transition or wake. Failed or canceled children do not satisfy successful parent rollup, so recover or resolve those children according to their existing terminal-state contract.
 
@@ -80,7 +80,7 @@ Use this guidance only inside a daemon-managed coordinator session.
 3. Inspect ambiguous task/run ids with `compozy task inspect <id> -o json` before routing.
 4. Break the objective into bounded worker prompts with acceptance criteria.
 5. Create child tasks only when durable task intent is needed. Creation alone is not execution.
-6. When the objective requires work to begin now, start each executable task through the task start path so AGH enqueues a run and can route matching worker agents.
+6. When the objective requires work to begin now, start each executable task through the task start path so Compozy enqueues a run and can route matching worker agents.
 7. Spawn or route only within daemon permissions and configured execution profile.
 8. Watch persisted task/run state rather than chat activity.
 9. Pause a task or scheduler only for real operational gating, then record the reason and planned resume condition.
@@ -94,8 +94,8 @@ When one task should run as several scoped sibling assignments, use the designat
     compozy task fan-out <task-id> --designation "Inspect data path" --designation "Validate UI and docs" -o json
 
 Fan-out is bounded by `task.orchestration.designated_run_max`, and every sibling assignment must
-carry a non-empty designation and idempotency identity before AGH enqueues any run. Each sibling run
-gets a shared `designation_group_id` and one assignment brief. If the task came from an AGH Network
+carry a non-empty designation and idempotency identity before Compozy enqueues any run. Each sibling run
+gets a shared `designation_group_id` and one assignment brief. If the task came from a Compozy Network
 thread, terminal run state is summarized back to the origin thread by `compozy.runtime`; do not manually
 duplicate raw worker logs into the thread. Read aggregated designation results from task detail JSON
 (`compozy task get <id> -o json`, field `designation_rollups`).
@@ -113,7 +113,7 @@ Use this guidance only inside a worker session with an active task claim or whil
 3. Use `compozy task inspect <run-id> -o json` when lease or run health is ambiguous.
 4. Claim work with the session-bound path such as compozy task next --wait -o json when prompted by the runtime.
 5. Keep lease/heartbeat requirements current through daemon-provided tools.
-6. Complete, fail, or release only through session-bound AGH task authority.
+6. Complete, fail, or release only through session-bound Compozy task authority.
 7. Include changed files, verification commands, and residual risks in the run summary.
 
 When a run includes a designation, follow only your own `designation.brief`; do not merge sibling

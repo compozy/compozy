@@ -15,7 +15,7 @@ import {
   Spinner,
   cn,
   providerKindIconRegistry,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   AGENT_SETTINGS_SECTIONS,

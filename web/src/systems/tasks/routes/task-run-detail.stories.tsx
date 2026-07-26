@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storyAgentNames, storyPeople, storySessionIds } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -37,7 +37,7 @@ export const Running: Story = {
     ...appRouteParameters("/tasks/task_001/runs/run_001"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/task-runs/{id}", () => {
+        compozyApiMock.get("/api/task-runs/{id}", () => {
           const now = Date.now();
           return HttpResponse.json({
             run: buildTaskRunDetailFixture({
@@ -64,7 +64,7 @@ export const Completed: Story = {
     ...appRouteParameters("/tasks/task_001/runs/run_001"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/task-runs/{id}", () =>
+        compozyApiMock.get("/api/task-runs/{id}", () =>
           HttpResponse.json({
             run: buildTaskRunDetailFixture({
               run: {
@@ -100,7 +100,7 @@ export const Failed: Story = {
     ...appRouteParameters("/tasks/task_001/runs/run_001"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/task-runs/{id}", () =>
+        compozyApiMock.get("/api/task-runs/{id}", () =>
           HttpResponse.json({
             run: buildTaskRunDetailFixture({
               run: {
@@ -136,7 +136,7 @@ export const NoSession: Story = {
     ...appRouteParameters("/tasks/task_001/runs/run_001"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/task-runs/{id}", () =>
+        compozyApiMock.get("/api/task-runs/{id}", () =>
           HttpResponse.json({
             run: buildTaskRunDetailFixture({
               run: {
@@ -169,7 +169,7 @@ export const Loading: Story = {
     ...appRouteParameters("/tasks/task_001/runs/run_001"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/task-runs/{id}", async () => {
+        compozyApiMock.get("/api/task-runs/{id}", async () => {
           await delay("infinite");
           return HttpResponse.json({ run: taskRunDetailFixture });
         }),
@@ -188,7 +188,7 @@ export const NotFound: Story = {
     ...appRouteParameters("/tasks/task_001/runs/run_missing"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/task-runs/{id}", ({ params }) =>
+        compozyApiMock.get("/api/task-runs/{id}", ({ params }) =>
           HttpResponse.json({ error: `Task run not found: ${String(params.id)}` }, { status: 404 })
         ),
       ],

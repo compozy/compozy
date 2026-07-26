@@ -1,4 +1,4 @@
-import { Button, Pill, Spinner } from "@agh/ui";
+import { Button, Pill, Spinner } from "@compozy/ui";
 
 import type { WindowManagerLayoutEditorModel } from "../../hooks/use-window-manager-layout-editor";
 

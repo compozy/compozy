@@ -9,7 +9,7 @@ import {
   SkeletonRows,
   Spinner,
   type ListingViewMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetCard } from "./agent-fleet-card";

@@ -1,21 +1,21 @@
 ---
-title: "agh toolsets info"
+title: "compozy toolsets info"
 description: "Show one registry toolset expansion"
 ---
 
-## agh toolsets info
+## compozy toolsets info
 
 Show one registry toolset expansion
 
 ```
-agh toolsets info <toolset_id> [flags]
+compozy toolsets info <toolset_id> [flags]
 ```
 
 ### Examples
 
 ```
   # Show one toolset and expanded tool ids
-  agh toolsets info compozy__catalog -o json
+  compozy toolsets info compozy__catalog -o json
 ```
 
 ### Options
@@ -36,7 +36,7 @@ agh toolsets info <toolset_id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -46,5 +46,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh toolsets info <toolset_id> -o json
+compozy toolsets info <toolset_id> -o json
 ```

@@ -2,7 +2,7 @@
 name: invalid-hook-command
 description: Skill with missing hook command
 metadata:
-  agh:
+  compozy:
     hooks:
       - event: session.post_create
         args:

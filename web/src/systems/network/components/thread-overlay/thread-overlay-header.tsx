@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowUpRight, ListTodo, X } from "lucide-react";
 
-import { Button, Eyebrow, MonoId, Pill } from "@agh/ui";
+import { Button, Eyebrow, MonoId, Pill } from "@compozy/ui";
 
 import { usePromoteNetworkThreadTask } from "../../hooks/use-network-actions";
 import type { NetworkThreadDetail, NetworkThreadTaskLink } from "../../types";

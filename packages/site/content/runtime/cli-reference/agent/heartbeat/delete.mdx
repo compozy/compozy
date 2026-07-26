@@ -1,20 +1,20 @@
 ---
-title: "agh agent heartbeat delete"
+title: "compozy agent heartbeat delete"
 description: "Delete HEARTBEAT.md through managed authoring"
 ---
 
-## agh agent heartbeat delete
+## compozy agent heartbeat delete
 
 Delete HEARTBEAT.md through managed authoring
 
 ```
-agh agent heartbeat delete <agent> [flags]
+compozy agent heartbeat delete <agent> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent heartbeat delete coder --expected-digest sha256:old --json
+  compozy agent heartbeat delete coder --expected-digest sha256:old --json
 ```
 
 ### Options
@@ -35,7 +35,7 @@ agh agent heartbeat delete <agent> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -45,5 +45,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent heartbeat delete <agent> -o json
+compozy agent heartbeat delete <agent> -o json
 ```

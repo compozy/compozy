@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -52,7 +52,7 @@ export const Empty: Story = {
     ...appRouteParameters("/triggers"),
     ...storybookMswParameters({
       automation: [
-        aghApiMock.get("/api/automation/triggers", () =>
+        compozyApiMock.get("/api/automation/triggers", () =>
           HttpResponse.json({
             page: { has_more: false, limit: 50, total: 0 },
             triggers: [],
@@ -70,7 +70,7 @@ export const TriggersError: Story = {
     ...appRouteParameters("/triggers"),
     ...storybookMswParameters({
       automation: [
-        aghApiMock.get("/api/automation/triggers", () =>
+        compozyApiMock.get("/api/automation/triggers", () =>
           HttpResponse.json({ error: "triggers unavailable" }, { status: 500 })
         ),
       ],
@@ -102,7 +102,7 @@ export const Loading: Story = {
     ...appRouteParameters("/triggers"),
     ...storybookMswParameters({
       automation: [
-        aghApiMock.get("/api/automation/triggers", async () => {
+        compozyApiMock.get("/api/automation/triggers", async () => {
           await delay("infinite");
           return HttpResponse.json({
             page: { has_more: false, limit: 50, total: 0 },

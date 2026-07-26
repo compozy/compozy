@@ -1,6 +1,6 @@
 import { HttpResponse, type HttpHandler } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { toolApprovalGrantsResponseFixture } from "./fixtures";
 
@@ -11,13 +11,13 @@ import { toolApprovalGrantsResponseFixture } from "./fixtures";
  * behavioral set/revoke flows use stateful stores in component tests.
  */
 export const handlers: HttpHandler[] = [
-  aghApiMock.put("/api/tool-approval-grants", () =>
+  compozyApiMock.put("/api/tool-approval-grants", () =>
     HttpResponse.json({ grant: toolApprovalGrantsResponseFixture.grants[0]! })
   ),
-  aghApiMock.get("/api/tool-approval-grants", () =>
+  compozyApiMock.get("/api/tool-approval-grants", () =>
     HttpResponse.json(toolApprovalGrantsResponseFixture)
   ),
-  aghApiMock.delete("/api/tool-approval-grants/{id}", ({ params }) => {
+  compozyApiMock.delete("/api/tool-approval-grants/{id}", ({ params }) => {
     const id = String(params.id);
     const exists = toolApprovalGrantsResponseFixture.grants.some(grant => grant.id === id);
     if (!exists) {

@@ -23,7 +23,7 @@ func providerOperations() []OperationSpec {
 			Summary:     "Get one provider and declared auth status",
 			Tags:        []string{specProvidersKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters:  []ParameterSpec{pathParam("provider_id", "AGH provider id")},
+			Parameters:  []ParameterSpec{pathParam("provider_id", "Compozy provider id")},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.ProviderSummaryPayload{}},
 				{Status: 404, Description: specProviderNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -37,7 +37,7 @@ func providerOperations() []OperationSpec {
 			Summary:     "Run a non-interactive provider auth status probe",
 			Tags:        []string{specProvidersKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters:  []ParameterSpec{pathParam("provider_id", "AGH provider id")},
+			Parameters:  []ParameterSpec{pathParam("provider_id", "Compozy provider id")},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.ProviderAuthProbeResponse{}},
 				{Status: 404, Description: specProviderNotFoundDescription, Body: contract.ErrorPayload{}},

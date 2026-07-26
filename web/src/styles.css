@@ -2,13 +2,13 @@
 /* Inter Variable with opsz+wght — matches OpenDesign rsms Inter optical sizing. */
 @import "@fontsource-variable/inter/opsz.css";
 @import "@fontsource-variable/jetbrains-mono";
-@import "@agh/ui/tokens.css";
+@import "@compozy/ui/tokens.css";
 @import "shadcn/tailwind.css";
 
 /*
  * Tailwind v4 scans relative to this stylesheet and ignores external workspace
  * packages by default. Register shared UI sources so embedded builds emit the
- * utility classes used by @agh/ui primitives such as Button.
+ * utility classes used by @compozy/ui primitives such as Button.
  */
 @source "../../packages/ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/streamdown/dist/*.js";
@@ -40,7 +40,7 @@
   }
 }
 
-/* Reduced motion is owned globally by `@agh/ui` tokens-runtime.css, which collapses
+/* Reduced motion is owned globally by `@compozy/ui` tokens-runtime.css, which collapses
    every animation/transition duration — this class adds no local override. */
 .onboarding-setup-pane-in {
   animation: onboarding-setup-pane-in var(--duration-shell-slow) var(--ease-out) both;

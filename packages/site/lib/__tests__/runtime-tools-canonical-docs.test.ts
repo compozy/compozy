@@ -142,8 +142,8 @@ describe("tool-first canonical surface docs", () => {
       "`compozy__mcp_auth_status`",
       "operator flows available through CLI, HTTP, and UDS",
       "omitted from callable discovery",
-      "agh mcp auth login",
-      "agh mcp auth logout",
+      "compozy mcp auth login",
+      "compozy mcp auth logout",
     ]);
   });
 
@@ -168,9 +168,9 @@ describe("tool-first canonical surface docs", () => {
       "operator CLI",
     ]);
     expectIncludesAll(bundled, [
-      "`agh`",
+      "`compozy`",
       "references/native-tools.md",
-      "AGH-native tools",
+      "Compozy-native tools",
       "compozy__tool_search",
     ]);
   });

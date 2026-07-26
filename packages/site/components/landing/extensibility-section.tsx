@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 import { ArrowUpRight, BookOpen, Box, FileCode2, Plug, Sparkles, Timer } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -103,9 +103,9 @@ export function ExtensibilitySection() {
           </h3>
           <p>
             A hook is a TOML block in your config. Everything the daemon loads is inspectable with{" "}
-            <code className="font-mono text-fg">agh skill view</code>,{" "}
-            <code className="font-mono text-fg">agh hooks list</code>, and{" "}
-            <code className="font-mono text-fg">agh extension list</code>.
+            <code className="font-mono text-fg">compozy skill view</code>,{" "}
+            <code className="font-mono text-fg">compozy hooks list</code>, and{" "}
+            <code className="font-mono text-fg">compozy extension list</code>.
           </p>
           <Eyebrow className="mt-4 text-subtle">Contract on disk, not a plugin API.</Eyebrow>
         </div>

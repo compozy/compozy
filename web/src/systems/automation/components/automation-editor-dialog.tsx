@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { CalendarClock, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Dialog, DialogContent, EntityDialogHeader, dialogShellClass } from "@agh/ui";
+import { Dialog, DialogContent, EntityDialogHeader, dialogShellClass } from "@compozy/ui";
 
 import type { AutomationDialogHandle } from "../lib/dialog-handle";
 import type { WorkspaceOption } from "../lib/trigger-preview";

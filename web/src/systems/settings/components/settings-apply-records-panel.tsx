@@ -1,8 +1,17 @@
 import { AlertCircle, CheckCircle2, RefreshCw, RotateCw } from "lucide-react";
 
 import type { ConfigApplyRecord, SettingsApplyResponse } from "@/systems/settings/types";
-import { Alert, AlertDescription, Button, Empty, Pill, Section, Skeleton, Spinner } from "@agh/ui";
-import type { PillTone } from "@agh/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Empty,
+  Pill,
+  Section,
+  Skeleton,
+  Spinner,
+} from "@compozy/ui";
+import type { PillTone } from "@compozy/ui";
 
 interface SettingsApplyRecordsPanelProps {
   records: ConfigApplyRecord[];

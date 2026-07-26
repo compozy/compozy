@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, Eyebrow } from "@agh/ui";
+import { cn, Eyebrow } from "@compozy/ui";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { TocItem } from "./toc-utils";

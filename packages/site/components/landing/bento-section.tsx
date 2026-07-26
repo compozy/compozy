@@ -12,7 +12,7 @@ export function BentoSection() {
   return (
     <section
       id="runtime-map"
-      aria-label="AGH runtime map"
+      aria-label="CompozyOS runtime map"
       className="scroll-mt-24 border-y border-line bg-rail px-4 py-6 sm:px-5 md:py-10 lg:px-5 lg:py-24"
     >
       <div
@@ -38,7 +38,7 @@ function RuntimeCard() {
       <div className="absolute inset-x-0 bottom-0 top-[0%] pointer-events-none">
         <Image
           src="/images/bento-illustrations/runtime-v2.png"
-          alt="AGH runtime device showing durable agent sessions and status indicators."
+          alt="CompozyOS runtime device showing durable agent sessions and status indicators."
           fill
           priority
           decoding="async"
@@ -77,7 +77,7 @@ function NetworkCard() {
       <div className="absolute inset-0 pointer-events-none">
         <Image
           src="/images/bento-illustrations/network-v2.png"
-          alt="AGH network diagram showing discovery, delegation, receipt, and peers."
+          alt="CompozyOS network diagram showing discovery, delegation, receipt, and peers."
           fill
           priority
           decoding="async"
@@ -115,7 +115,7 @@ function BridgesCard() {
       <div className="absolute inset-0 pointer-events-none">
         <Image
           src="/images/bento-illustrations/bridges-v2.png"
-          alt="Bridge events from Slack, Discord, and Telegram entering an AGH device."
+          alt="Bridge events from Slack, Discord, and Telegram entering an CompozyOS device."
           fill
           decoding="async"
           sizes="(min-width: 1024px) 33vw, 100vw"
@@ -152,7 +152,7 @@ function MemoryCard() {
       <div className="absolute inset-x-0 bottom-0 top-[18%] pointer-events-none">
         <Image
           src="/images/bento-illustrations/memory-v2.png"
-          alt="Skill document carrying deployment intent into AGH memory."
+          alt="Skill document carrying deployment intent into CompozyOS memory."
           fill
           decoding="async"
           sizes="(min-width: 1024px) 33vw, 100vw"
@@ -189,7 +189,7 @@ function ExtensibilityCard() {
       <div className="absolute inset-0 -bottom-30 pointer-events-none">
         <Image
           src="/images/bento-illustrations/extensibility-v2.png"
-          alt="AGH daemon device with five pluggable extension cartridges — hooks, skills, tools, automation, extensions — snapping into the runtime."
+          alt="CompozyOS daemon device with five pluggable extension cartridges — hooks, skills, tools, automation, extensions — snapping into the runtime."
           fill
           decoding="async"
           sizes="(min-width: 1024px) 33vw, 100vw"

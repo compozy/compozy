@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -45,7 +45,7 @@ export const Empty: Story = {
     ...appRouteParameters("/tasks"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/tasks", () =>
+        compozyApiMock.get("/api/tasks", () =>
           HttpResponse.json({
             facets: { owners: [], statuses: [] },
             page: { has_more: false, limit: 50, total: 0 },
@@ -113,7 +113,7 @@ export const Loading: Story = {
     ...appRouteParameters("/tasks"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/tasks", async () => {
+        compozyApiMock.get("/api/tasks", async () => {
           await delay("infinite");
           return HttpResponse.json({
             facets: { owners: [], statuses: [] },
@@ -136,7 +136,7 @@ export const Error: Story = {
     ...appRouteParameters("/tasks"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/observe/tasks/dashboard", () =>
+        compozyApiMock.get("/api/observe/tasks/dashboard", () =>
           HttpResponse.json({ error: "Dashboard unavailable" }, { status: 500 })
         ),
       ],

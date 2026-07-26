@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-import { formatDuration } from "@agh/ui";
+import { formatDuration } from "@compozy/ui";
 
 let clockNow = Date.now();
 let clockTimer: number | null = null;

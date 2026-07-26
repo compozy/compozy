@@ -1,7 +1,7 @@
 import { Search } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { SheetDescription, SheetHeader, SheetTitle } from "@agh/ui";
+import { SheetDescription, SheetHeader, SheetTitle } from "@compozy/ui";
 
 export function TaskOperatorSheetHeader({
   description,

@@ -1,9 +1,9 @@
 ---
 title: Build an In-Tree Bridge Provider
-description: Prove the reference adapter, then design, implement, verify, and document a trusted bridge.adapter extension inside the AGH repository.
+description: Prove the reference adapter, then design, implement, verify, and document a trusted bridge.adapter extension inside the Compozy repository.
 ---
 
-This guide is for contributors adding a provider under `extensions/bridges/<provider>` to the AGH
+This guide is for contributors adding a provider under `extensions/bridges/<provider>` to the Compozy
 repository. It starts with a working reference adapter, then follows one provider from contract
 decisions to manifest, ingress, delivery, conformance, and operator proof.
 
@@ -15,8 +15,8 @@ copy these `internal/` imports into another module or present this tutorial as a
 
 ## Prerequisites
 
-- Run every command from the AGH repository root.
-- Have Go and the current `agh` binary available.
+- Run every command from the Compozy repository root.
+- Have Go and the current `compozy` binary available.
 - Start the daemon before the install/create/verify checkpoints.
 - Create or choose a workspace with a default agent for inbound testing.
 - Use a fake provider HTTP server or a dedicated provider test account; committed tests must not need
@@ -69,35 +69,35 @@ production.
 <Mermaid
   chart={`flowchart LR
 Platform[External platform] -->|authenticated webhook or poll| Provider[bridge.adapter subprocess]
-Provider -->|bridges/messages/ingest| Host[AGH Host API]
+Provider -->|bridges/messages/ingest| Host[Compozy Host API]
 Host --> Router[Workspace route + session]
 Router --> Agent[ACP agent]
 Agent --> Broker[Ordered delivery broker]
 Broker -->|bridges/deliver| Provider
 Provider -->|provider API| Platform
-Daemon[AGH extension manager] <-->|initialize / health / shutdown over JSON-RPC stdio| Provider`}
-  caption="The provider owns platform protocol truth; AGH owns workspace routing, sessions, persistence, and ordered delivery."
+Daemon[Compozy extension manager] <-->|initialize / health / shutdown over JSON-RPC stdio| Provider`}
+  caption="The provider owns platform protocol truth; Compozy owns workspace routing, sessions, persistence, and ordered delivery."
 />
 
 The boundary is deliberate. The daemon never needs to learn a provider's signature scheme or REST
-API, and the provider never owns AGH sessions or workspace routing.
+API, and the provider never owns Compozy sessions or workspace routing.
 
 ## Decide the contract before writing code
 
 Write down these decisions first:
 
-| Decision            | Questions to answer                                                                                                   |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Provider identity   | What lowercase key will be used for directory, extension name, platform, runtime, and schema?                         |
-| Inbound transport   | Webhook, polling, subscription, or hybrid? What owns each listener/task and its shutdown?                             |
-| Callback contract   | What is the external acknowledgement deadline? When does the provider retry? When has AGH durably accepted the event? |
-| Authentication      | Which exact bytes are signed? Which header/token/JWT claims are required? What is the replay window?                  |
-| Secret slots        | Which credentials are always required? Which are conditional on an auth or ingress mode?                              |
-| Route identity      | Which provider IDs become `peer_id`, `group_id`, and `thread_id`? How are replies and edits represented?              |
-| Delivery capability | Can the platform create, edit, delete, reply, type, react, and resume? What is the message-length unit?               |
-| Mutation completion | Which observation proves a remote mutation committed, and which required result must be materialized locally?         |
-| Verification        | Which identity/configuration checks can run while disabled? Can AGH register the webhook remotely?                    |
-| Data scope          | Is each new datum global, workspace, session, or agent scoped? How is `workspace_id` preserved?                       |
+| Decision            | Questions to answer                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Provider identity   | What lowercase key will be used for directory, extension name, platform, runtime, and schema?                             |
+| Inbound transport   | Webhook, polling, subscription, or hybrid? What owns each listener/task and its shutdown?                                 |
+| Callback contract   | What is the external acknowledgement deadline? When does the provider retry? When has Compozy durably accepted the event? |
+| Authentication      | Which exact bytes are signed? Which header/token/JWT claims are required? What is the replay window?                      |
+| Secret slots        | Which credentials are always required? Which are conditional on an auth or ingress mode?                                  |
+| Route identity      | Which provider IDs become `peer_id`, `group_id`, and `thread_id`? How are replies and edits represented?                  |
+| Delivery capability | Can the platform create, edit, delete, reply, type, react, and resume? What is the message-length unit?                   |
+| Mutation completion | Which observation proves a remote mutation committed, and which required result must be materialized locally?             |
+| Verification        | Which identity/configuration checks can run while disabled? Can Compozy register the webhook remotely?                    |
+| Data scope          | Is each new datum global, workspace, session, or agent scoped? How is `workspace_id` preserved?                           |
 
 Required slots must be required in every mode. A mode-specific credential stays optional in the
 manifest and becomes a conditional requirement in runtime validation and setup documentation.
@@ -197,7 +197,7 @@ description = "Acme Chat webhook signing secret"
 required = true
 
 [bridge.config_schema]
-schema = "agh.bridge.acme-chat"
+schema = "compozy.bridge.acme-chat"
 version = "1"
 
 [actions]
@@ -563,7 +563,7 @@ explicitly. Do not classify it as transient, fabricate an ID, or issue a second 
 
 The bridgesdk runtime converts `CommittedMutationError` into the semantic
 `committed_result_unavailable` acknowledgement. The broker writes a terminal error checkpoint and
-does not redeliver the text mutation. For progress, AGH drops only the indeterminate progress bubble
+does not redeliver the text mutation. For progress, Compozy drops only the indeterminate progress bubble
 and allows later final text to continue.
 
 ### Expose discoverable targets
@@ -576,8 +576,8 @@ optional qualifier, and last-seen timestamp. Do not use a display name as the ca
 the result through:
 
 ```bash
-agh bridge targets "$BRIDGE_ID" --query launch -o json
-agh bridge resolve "$BRIDGE_ID" "launch room" -o json
+compozy bridge targets "$BRIDGE_ID" --query launch -o json
+compozy bridge resolve "$BRIDGE_ID" "launch room" -o json
 ```
 
 Ambiguous names must remain ambiguous. Never select the first match silently just to make
@@ -644,12 +644,12 @@ go build \
   -o ./extensions/bridges/acme-chat/bin/acme-chat \
   ./extensions/bridges/acme-chat
 
-agh extension install \
+compozy extension install \
   ./extensions/bridges/acme-chat \
   --allow-unverified \
   --yes \
   -o json
-agh extension status acme-chat -o json
+compozy extension status acme-chat -o json
 ```
 
 Create a disabled workspace bridge:
@@ -657,7 +657,7 @@ Create a disabled workspace bridge:
 ```bash
 WORKSPACE_ID=ws_8f33a913d23c4fd1
 
-agh bridge create \
+compozy bridge create \
   --scope workspace \
   --workspace-id "$WORKSPACE_ID" \
   --platform acme-chat \
@@ -684,17 +684,17 @@ Copy the returned ID, then bind the two manifest slots:
 ```bash
 BRIDGE_ID=brg_123
 
-printf '%s' "$ACME_CHAT_BOT_TOKEN" | agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
+printf '%s' "$ACME_CHAT_BOT_TOKEN" | compozy bridge secret-bindings put "$BRIDGE_ID" bot_token \
   --secret-ref "vault:bridges/$BRIDGE_ID/bot_token" \
   --kind token \
   --secret-value-stdin
 
-printf '%s' "$ACME_CHAT_WEBHOOK_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
+printf '%s' "$ACME_CHAT_WEBHOOK_SECRET" | compozy bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
   --secret-ref "vault:bridges/$BRIDGE_ID/webhook_secret" \
   --kind secret \
   --secret-value-stdin
 
-agh bridge secret-bindings list "$BRIDGE_ID" -o json
+compozy bridge secret-bindings list "$BRIDGE_ID" -o json
 ```
 
 The list output must contain redacted binding metadata, not plaintext. The generic CLI accepts
@@ -704,7 +704,7 @@ values. Document the safer input appropriate for the provider's credential forma
 Verify before enablement:
 
 ```bash
-agh bridge verify "$BRIDGE_ID" --json
+compozy bridge verify "$BRIDGE_ID" --json
 ```
 
 At the initial scaffold checkpoint, `provider.identity` is explicitly `skipped`. Replace it with a
@@ -713,14 +713,14 @@ bounded provider identity probe before calling the provider complete.
 Enable the bridge, send one signed event through your fake platform, and inspect the public state:
 
 ```bash
-agh bridge enable "$BRIDGE_ID"
-agh bridge get "$BRIDGE_ID" -o json
-agh bridge routes "$BRIDGE_ID" -o json
-agh bridge targets "$BRIDGE_ID" -o json
+compozy bridge enable "$BRIDGE_ID"
+compozy bridge get "$BRIDGE_ID" -o json
+compozy bridge routes "$BRIDGE_ID" -o json
+compozy bridge targets "$BRIDGE_ID" -o json
 
-agh bridge send-test "$BRIDGE_ID" \
+compozy bridge send-test "$BRIDGE_ID" \
   --peer-id "$ACME_CHAT_PEER_ID" \
-  --message "AGH bridge provider smoke test" \
+  --message "Compozy bridge provider smoke test" \
   --json
 ```
 
@@ -771,10 +771,10 @@ go test -race ./internal/extension \
   enable/send-test, configuration reference, limits, security, and troubleshooting.
 - Add a provider README with build/install, runtime config, transport, delivery behavior, and explicit
   unsupported operations.
-- Update the bundled AGH skill with the provider's agent-manageable CLI/HTTP/UDS path.
+- Update the bundled Compozy skill with the provider's agent-manageable CLI/HTTP/UDS path.
 - Flag the new user-visible journey as `untested` in `docs/qa/state.csv`.
 - If shared contracts change, co-ship OpenAPI, generated SDK/Web types, CLI/API references, mocks,
-  native descriptors, and the canonical AGH skill.
+  native descriptors, and the canonical Compozy skill.
 
 The provider catalog and secret slots are manifest-driven. The current Web setup experience still
 has provider-specific presentation metadata for in-tree providers; an unknown provider falls back to
@@ -782,12 +782,12 @@ a generic profile. Audit `web/src/systems/bridges/lib/bridge-setup.ts` and eithe
 metadata or document the generic boundary. The manifest alone does not produce a full guided Web
 setup today.
 
-Record the AGH Impact Audit in the implementation task:
+Record the Compozy Impact Audit in the implementation task:
 
 - native tools and descriptors;
 - extensibility, hooks, public SDKs, bundles, and marketplace policy;
 - workspace ID propagation across CLI/HTTP/UDS/core/store/Web/events;
-- official `skills/agh/` behavior;
+- official `skills/compozy/` behavior;
 - Web routes/components and documentation;
 - provider configuration lifecycle and trusted process environment.
 
@@ -806,7 +806,7 @@ management path.
 | Cleanup on failure, cancellation, removal, and shutdown     | Race-enabled lifecycle/failure-path cases                      |
 | Workspace and instance isolation                            | Exact cross-workspace/instance integration case                |
 | Setup names, exact slots, and public navigation             | Bridge docs conformance plus focused site MDX/typecheck        |
-| Agent-manageable operation                                  | CLI/HTTP/UDS examples and official AGH skill audit             |
+| Agent-manageable operation                                  | CLI/HTTP/UDS examples and official Compozy skill audit         |
 | First real behavior                                         | Signed fake inbound event + route + fake-provider `send-test`  |
 
 Invalid auth/config must produce actionable state without leaking values. Unsupported provider
@@ -815,19 +815,19 @@ provider-console configuration without reading Go code.
 
 ## Author troubleshooting
 
-| Symptom                                      | Likely cause and next check                                                                                                       |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Provider is absent from the catalog          | Validate `extension.toml`, identity consistency, install/enable state, and `bridge.adapter` capability.                           |
-| First `go build -o` fails with no directory  | Create `extensions/bridges/<provider>/bin` first; the directory is ignored and absent in a fresh checkout.                        |
-| Initialize rejects methods or grants         | Compare manifest actions, runtime registration, extension name/version, and handshake purpose with an in-tree provider.           |
-| `agh bridge verify` says response is invalid | Return at least one unique valid check. Empty checks, bad statuses, or skipped/fail records without remediation are invalid.      |
-| Verify opens a listener or Host API is nil   | Control handlers must use `Session.Cache()` only; service initialization and Host API grants are intentionally absent.            |
-| Instance remains `auth_required`             | Required or conditional slot names do not match the manifest/runtime mode, or the provider probe rejected the credential.         |
-| Webhook returns unauthorized                 | Preserve raw body bytes; select one owned instance first; then verify its exact signature/token/JWT and replay boundary.          |
-| Ingest works globally but not in a workspace | Copy `scope` and `workspace_id` from the managed instance and validate the envelope before ingest.                                |
-| `send-test` cannot find a destination        | Implement/fix target snapshots or use the managed-instance fallback; inspect `targets`, `resolve`, and a route from real inbound. |
-| Shutdown hangs                               | A listener, goroutine, timer, batcher, poller, or dispatcher was created outside lifecycle ownership or not closed on failure.    |
-| Web setup shows generic/unknown guidance     | The provider is discovered, but in-tree Web presentation metadata was not audited/co-shipped.                                     |
+| Symptom                                          | Likely cause and next check                                                                                                       |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Provider is absent from the catalog              | Validate `extension.toml`, identity consistency, install/enable state, and `bridge.adapter` capability.                           |
+| First `go build -o` fails with no directory      | Create `extensions/bridges/<provider>/bin` first; the directory is ignored and absent in a fresh checkout.                        |
+| Initialize rejects methods or grants             | Compare manifest actions, runtime registration, extension name/version, and handshake purpose with an in-tree provider.           |
+| `compozy bridge verify` says response is invalid | Return at least one unique valid check. Empty checks, bad statuses, or skipped/fail records without remediation are invalid.      |
+| Verify opens a listener or Host API is nil       | Control handlers must use `Session.Cache()` only; service initialization and Host API grants are intentionally absent.            |
+| Instance remains `auth_required`                 | Required or conditional slot names do not match the manifest/runtime mode, or the provider probe rejected the credential.         |
+| Webhook returns unauthorized                     | Preserve raw body bytes; select one owned instance first; then verify its exact signature/token/JWT and replay boundary.          |
+| Ingest works globally but not in a workspace     | Copy `scope` and `workspace_id` from the managed instance and validate the envelope before ingest.                                |
+| `send-test` cannot find a destination            | Implement/fix target snapshots or use the managed-instance fallback; inspect `targets`, `resolve`, and a route from real inbound. |
+| Shutdown hangs                                   | A listener, goroutine, timer, batcher, poller, or dispatcher was created outside lifecycle ownership or not closed on failure.    |
+| Web setup shows generic/unknown guidance         | The provider is discovered, but in-tree Web presentation metadata was not audited/co-shipped.                                     |
 
 ## Grep before review
 
@@ -838,7 +838,7 @@ DISPLAY='Acme Chat'
 rg -n "$PROVIDER|$DISPLAY" \
   "extensions/bridges/$PROVIDER" \
   packages/site/content/runtime/core/bridges \
-  skills/agh docs/qa/state.csv
+  skills/compozy docs/qa/state.csv
 
 rg -n 'bridge\.adapter|bridge\.secret_slots|bridge\.config_schema|bridges/deliver' \
   "extensions/bridges/$PROVIDER"

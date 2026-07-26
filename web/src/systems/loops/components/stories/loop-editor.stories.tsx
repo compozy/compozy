@@ -3,7 +3,7 @@ import { HttpResponse } from "msw";
 import type { ComponentProps } from "react";
 import { userEvent, within } from "storybook/test";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { StorySurface, StoryTopbarHost } from "@/storybook/story-layout";
 
 import { LoopEditor } from "../editor/loop-editor";
@@ -85,7 +85,7 @@ function editorHandlers(detail: LoopDetail) {
   // The override getLoop must win, but keep the loop handlers (validate lints the posted
   // definition) so the auto-validate still surfaces the fan_out_ceiling_exceeded issue.
   return [
-    aghApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", () =>
+    compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", () =>
       HttpResponse.json({ loop: detail })
     ),
     ...loopHandlers,

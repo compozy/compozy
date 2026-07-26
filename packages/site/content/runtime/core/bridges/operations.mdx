@@ -14,12 +14,12 @@ Start with structured output:
 ```bash
 BRIDGE_ID=brg_123
 
-agh bridge get "$BRIDGE_ID" -o json
-agh bridge verify "$BRIDGE_ID" --json
-agh doctor --only bridge --json
-agh bridge secret-bindings list "$BRIDGE_ID" -o json
-agh bridge routes "$BRIDGE_ID" -o json
-agh bridge targets "$BRIDGE_ID" -o json
+compozy bridge get "$BRIDGE_ID" -o json
+compozy bridge verify "$BRIDGE_ID" --json
+compozy doctor --only bridge --json
+compozy bridge secret-bindings list "$BRIDGE_ID" -o json
+compozy bridge routes "$BRIDGE_ID" -o json
+compozy bridge targets "$BRIDGE_ID" -o json
 ```
 
 A healthy bridge has five independent proofs:
@@ -101,7 +101,7 @@ optionally constrained by a workspace filter.
 Correlate a changing snapshot with structured runtime logs:
 
 ```bash
-agh logs --follow --provider slack --since 10m -o jsonl
+compozy logs --follow --provider slack --since 10m -o jsonl
 ```
 
 Keep the daemon HTTP/SSE endpoint on its trusted local boundary. External monitoring should reach it
@@ -112,7 +112,7 @@ through an authenticated operator channel, not through the public provider webho
 When the root cause is not already obvious:
 
 1. Disable the bridge if continued ingest or delivery could create duplicates or expose wrong data.
-2. Save `agh bridge get`, `verify`, and `doctor --only bridge` output.
+2. Save `compozy bridge get`, `verify`, and `doctor --only bridge` output.
 3. List bindings and confirm the required slot names exist without requesting plaintext.
 4. Inspect the public URL, local listener address, and path as one topology.
 5. Correct one provider-console, configuration, or credential boundary.
@@ -125,12 +125,12 @@ When the root cause is not already obvious:
 The commands are:
 
 ```bash
-agh bridge disable "$BRIDGE_ID"
+compozy bridge disable "$BRIDGE_ID"
 # Apply the root fix.
-agh bridge restart "$BRIDGE_ID"
-agh bridge verify "$BRIDGE_ID" --json
-agh bridge enable "$BRIDGE_ID"
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge restart "$BRIDGE_ID"
+compozy bridge verify "$BRIDGE_ID" --json
+compozy bridge enable "$BRIDGE_ID"
+compozy bridge get "$BRIDGE_ID" -o json
 ```
 
 If `restart` is not meaningful while the instance is disabled in your repair sequence, enable it
@@ -139,12 +139,12 @@ the resulting state and real provider behavior, not the command name used to rel
 
 ## Rotate a credential
 
-Plan the provider and AGH changes as one operation. Avoid a window where a live bridge accepts
+Plan the provider and Compozy changes as one operation. Avoid a window where a live bridge accepts
 events signed with a value different from its bound secret.
 
 1. Disable the bridge.
 2. Create the replacement credential in the provider console.
-3. Update the AGH binding.
+3. Update the Compozy binding.
 4. Update the provider-side webhook/signature secret when the credential is shared across both sides.
 5. Restart or enable the bridge so the provider receives fresh launch material.
 6. Verify identity/configuration and public reachability.
@@ -152,15 +152,15 @@ events signed with a value different from its bound secret.
 8. Revoke the old credential.
 
 ```bash
-agh bridge disable "$BRIDGE_ID"
+compozy bridge disable "$BRIDGE_ID"
 
-printf '%s' "$NEW_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" <slot> \
+printf '%s' "$NEW_SECRET" | compozy bridge secret-bindings put "$BRIDGE_ID" <slot> \
   --secret-ref "vault:bridges/$BRIDGE_ID/<slot>" \
   --kind <kind> \
   --secret-value-stdin
 
-agh bridge enable "$BRIDGE_ID"
-agh bridge verify "$BRIDGE_ID" --json
+compozy bridge enable "$BRIDGE_ID"
+compozy bridge verify "$BRIDGE_ID" --json
 ```
 
 <OperatorNote>
@@ -178,13 +178,13 @@ command.
 ### Remove a retired binding
 
 Delete a binding only after the provider no longer accepts the credential it references. Deleting
-the AGH record does not revoke a token, signing secret, or application grant at the provider.
+the Compozy record does not revoke a token, signing secret, or application grant at the provider.
 
 ```bash
-agh bridge disable "$BRIDGE_ID"
-agh bridge secret-bindings list "$BRIDGE_ID" -o json
-agh bridge secret-bindings delete "$BRIDGE_ID" <binding-name> -o json
-agh bridge secret-bindings list "$BRIDGE_ID" -o json
+compozy bridge disable "$BRIDGE_ID"
+compozy bridge secret-bindings list "$BRIDGE_ID" -o json
+compozy bridge secret-bindings delete "$BRIDGE_ID" <binding-name> -o json
+compozy bridge secret-bindings list "$BRIDGE_ID" -o json
 ```
 
 If the binding is required by the provider manifest, leave the bridge disabled until a replacement
@@ -256,12 +256,12 @@ COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR=127.0.0.1:18089
 ```
 
 The systemd unit in [Daemon Operations](/runtime/core/operations/daemon#run-under-systemd) reads
-`/etc/agh/agh.env`. After changing it, reload the service and confirm the listener before changing a
+`/etc/compozy/compozy.env`. After changing it, reload the service and confirm the listener before changing a
 provider console:
 
 ```bash
-sudo systemctl restart agh
-sudo systemctl status agh
+sudo systemctl restart compozy
+sudo systemctl status compozy
 sudo ss -ltnp | grep -E ':(18081|18082|18083|18085|18086|18087|18088|18089)\\b'
 
 PUBLIC_CALLBACK_URL=https://bridge.example.com/slack/support
@@ -272,7 +272,7 @@ Set `PUBLIC_CALLBACK_URL` to the exact `provider_config.webhook.public_url`, not
 path. A provider-authentication `401`/`403` or method rejection proves that request reached the
 adapter. A `404` can come from either the proxy or an unmatched adapter path and is not sufficient
 evidence; a `502`, `503`, or timeout points to DNS, TLS, proxy, listener, or service ownership. The
-authoritative check remains `agh bridge verify "$BRIDGE_ID" --json`, followed by one signed inbound
+authoritative check remains `compozy bridge verify "$BRIDGE_ID" --json`, followed by one signed inbound
 event and a route-derived `send-test`.
 
 The proxy must preserve:
@@ -284,7 +284,7 @@ The proxy must preserve:
 - provider signature or authorization headers.
 
 Do not use `handle_path` or another prefix-stripping rule unless the bridge's configured local path
-is changed to match. Do not expose the AGH daemon API on port `2123` as a substitute for a provider
+is changed to match. Do not expose the Compozy daemon API on port `2123` as a substitute for a provider
 listener. They are separate surfaces.
 
 ### Change an existing URL
@@ -296,9 +296,9 @@ listener. They are separate surfaces.
 5. Restart/enable and verify.
 
 ```bash
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge get "$BRIDGE_ID" -o json
 
-agh bridge update "$BRIDGE_ID" \
+compozy bridge update "$BRIDGE_ID" \
   --provider-config '{
     "webhook": {
       "public_url": "https://new.example.com/telegram/support",
@@ -316,7 +316,7 @@ manifest or update Events API, interactivity, and slash-command URLs together.
 
 ## Upgrade or roll back a locally built provider
 
-The eight in-tree providers are installed from local directories. `agh extension update` only
+The eight in-tree providers are installed from local directories. `compozy extension update` only
 updates marketplace extensions that have registry slug metadata, so it is not the upgrade path for
 these providers. A local replacement is a planned outage: disable every bridge instance owned by
 the extension, remove the managed copy, and install a prebuilt replacement.
@@ -333,8 +333,8 @@ versions. Build both with the same Go toolchain and target environment used by t
 
 ```bash
 PROVIDER=slack
-CANDIDATE_ROOT=/srv/agh/source-candidate
-ROLLBACK_ROOT=/srv/agh/source-known-good
+CANDIDATE_ROOT=/srv/compozy/source-candidate
+ROLLBACK_ROOT=/srv/compozy/source-known-good
 
 (
   cd "$CANDIDATE_ROOT"
@@ -356,10 +356,10 @@ ROLLBACK_ROOT=/srv/agh/source-known-good
 Capture the installed package evidence and inventory every bridge that names the exact extension:
 
 ```bash
-agh extension status "$PROVIDER" -o json
-agh extension provenance "$PROVIDER" -o json
+compozy extension status "$PROVIDER" -o json
+compozy extension provenance "$PROVIDER" -o json
 
-agh bridge list --scope all --q "$PROVIDER" --limit 200 -o json | \
+compozy bridge list --scope all --q "$PROVIDER" --limit 200 -o json | \
   jq --arg provider "$PROVIDER" '{
     bridges: [.bridges[] | select(.extension_name == $provider)],
     page
@@ -379,19 +379,19 @@ can own multiple bridge instances, so leaving one enabled makes the replacement 
 ```bash
 BRIDGE_ID=brg_123
 
-agh bridge disable "$BRIDGE_ID" -o json
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge disable "$BRIDGE_ID" -o json
+compozy bridge get "$BRIDGE_ID" -o json
 
 # Repeat the two commands for every bridge whose extension_name equals $PROVIDER.
-agh extension disable "$PROVIDER" -o json
-agh extension remove "$PROVIDER" -o json
-agh extension install \
+compozy extension disable "$PROVIDER" -o json
+compozy extension remove "$PROVIDER" -o json
+compozy extension install \
   "$CANDIDATE_ROOT/extensions/bridges/$PROVIDER" \
   --allow-unverified \
   --yes \
   -o json
 
-agh extension status "$PROVIDER" -o json
+compozy extension status "$PROVIDER" -o json
 curl -sS http://127.0.0.1:2123/api/bridges/providers | \
   jq --arg provider "$PROVIDER" \
     '.providers[] | select(.extension_name == $provider)'
@@ -405,13 +405,13 @@ Enable one bridge as a canary. A successful process start is not enough: prove c
 transport, routing, and delivery before enabling the remaining instances one at a time.
 
 ```bash
-agh bridge enable "$BRIDGE_ID" -o json
-agh bridge verify "$BRIDGE_ID" --json
-agh bridge routes "$BRIDGE_ID" -o json
+compozy bridge enable "$BRIDGE_ID" -o json
+compozy bridge verify "$BRIDGE_ID" --json
+compozy bridge routes "$BRIDGE_ID" -o json
 
 # Use the peer/group/thread identifiers saved from the real inbound route.
-agh bridge send-test "$BRIDGE_ID" \
-  --message "AGH provider upgrade check" \
+compozy bridge send-test "$BRIDGE_ID" \
+  --message "Compozy provider upgrade check" \
   --group-id "<route-group-id>" \
   --json
 ```
@@ -430,18 +430,18 @@ the full canary proof:
 
 ```bash
 # Disable every bridge owned by $PROVIDER before replacing the process.
-agh bridge disable "$BRIDGE_ID" -o json
-agh extension disable "$PROVIDER" -o json
-agh extension remove "$PROVIDER" -o json
-agh extension install \
+compozy bridge disable "$BRIDGE_ID" -o json
+compozy extension disable "$PROVIDER" -o json
+compozy extension remove "$PROVIDER" -o json
+compozy extension install \
   "$ROLLBACK_ROOT/extensions/bridges/$PROVIDER" \
   --allow-unverified \
   --yes \
   -o json
 
-agh extension status "$PROVIDER" -o json
-agh bridge enable "$BRIDGE_ID" -o json
-agh bridge verify "$BRIDGE_ID" --json
+compozy extension status "$PROVIDER" -o json
+compozy bridge enable "$BRIDGE_ID" -o json
+compozy bridge verify "$BRIDGE_ID" --json
 ```
 
 If the candidate changed a bridge's `provider_config`, restore the complete saved object before
@@ -469,7 +469,7 @@ Progress is presentation-only and does not enter the transcript. Change it indep
 provider's final-text path:
 
 ```bash
-agh bridge update "$BRIDGE_ID" \
+compozy bridge update "$BRIDGE_ID" \
   --delivery-progress new \
   --delivery-progress-grouping accumulate \
   --delivery-progress-typing=true \
@@ -479,7 +479,7 @@ agh bridge update "$BRIDGE_ID" \
 To stop all provider-side progress calls:
 
 ```bash
-agh bridge update "$BRIDGE_ID" \
+compozy bridge update "$BRIDGE_ID" \
   --delivery-progress off \
   --delivery-progress-typing=false \
   --delivery-progress-reactions=false
@@ -494,9 +494,9 @@ Use the typed progress flags for progress-only changes. Use `--delivery-defaults
 must replace the complete target-default object, including provider-owned string fields:
 
 ```bash
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge get "$BRIDGE_ID" -o json
 
-agh bridge update "$BRIDGE_ID" \
+compozy bridge update "$BRIDGE_ID" \
   --delivery-defaults '{
     "mode": "reply",
     "group_id": "-1001234567890",
@@ -516,12 +516,12 @@ every field that should survive. The common fields are `mode`, `peer_id`, `group
 and `progress`; additional provider-owned defaults must be strings. Pass `null` to clear the object:
 
 ```bash
-agh bridge update "$BRIDGE_ID" --delivery-defaults null -o json
+compozy bridge update "$BRIDGE_ID" --delivery-defaults null -o json
 ```
 
-When raw defaults and typed `--delivery-progress*` flags appear in the same update, AGH applies the
+When raw defaults and typed `--delivery-progress*` flags appear in the same update, Compozy applies the
 typed progress changes to the supplied object before validation. Confirm the canonical stored result
-with `agh bridge get`.
+with `compozy bridge get`.
 
 ## Inspect routing before changing it
 
@@ -529,9 +529,9 @@ Routes are workspace-scoped runtime state. Inspect them before changing `include
 `include_group`, or `include_thread`:
 
 ```bash
-agh bridge routes "$BRIDGE_ID" -o json
-agh bridge targets "$BRIDGE_ID" --query launch --limit 25 -o json
-agh bridge resolve "$BRIDGE_ID" "launch room" -o json
+compozy bridge routes "$BRIDGE_ID" -o json
+compozy bridge targets "$BRIDGE_ID" --query launch --limit 25 -o json
+compozy bridge resolve "$BRIDGE_ID" "launch room" -o json
 ```
 
 `--query` filters by display name, qualifier, or route. `--limit` bounds the number of discovered
@@ -539,7 +539,7 @@ targets returned and rejects negative values; it is a response cap, not a cursor
 agent-operated calls so target discovery cannot produce unbounded context, then use `resolve` to
 prove the intended name without sending.
 
-Resolver ambiguity is returned as structured diagnostics; AGH does not silently choose a target.
+Resolver ambiguity is returned as structured diagnostics; Compozy does not silently choose a target.
 Provider guides name the identity units to use for real delivery.
 
 Changing route dimensions changes how future inbound identities select sessions. Treat that as a
@@ -559,16 +559,16 @@ thread fields. Copy that row's `routing_key_hash` rather than assuming the bridg
 BRIDGE_ID=brg_123
 ROUTING_KEY_HASH='<routing-key-hash>'
 
-agh bridge routes "$BRIDGE_ID" -o json
+compozy bridge routes "$BRIDGE_ID" -o json
 
 SESSION_ID=$( \
-  agh bridge routes "$BRIDGE_ID" -o json | \
+  compozy bridge routes "$BRIDGE_ID" -o json | \
     jq -er --arg hash "$ROUTING_KEY_HASH" \
       '.[] | select(.routing_key_hash == $hash) | .session_id'
 )
 
-agh session stop "$SESSION_ID" -o json
-agh session events "$SESSION_ID" --last 20 -o json
+compozy session stop "$SESSION_ID" -o json
+compozy session events "$SESSION_ID" --last 20 -o json
 ```
 
 Send one new supported event from the same platform conversation. Do not replay the old webhook or
@@ -577,7 +577,7 @@ route hash is unchanged and its session ID is new:
 
 ```bash
 NEW_SESSION_ID=$( \
-  agh bridge routes "$BRIDGE_ID" -o json | \
+  compozy bridge routes "$BRIDGE_ID" -o json | \
     jq -er --arg hash "$ROUTING_KEY_HASH" \
       '.[] | select(.routing_key_hash == $hash) | .session_id'
 )
@@ -587,11 +587,11 @@ printf 'Route %s moved from %s to %s\n' \
   "$ROUTING_KEY_HASH" "$SESSION_ID" "$NEW_SESSION_ID"
 
 # The stopped session remains available as historical evidence.
-agh session events "$SESSION_ID" --last 20 -o json
+compozy session events "$SESSION_ID" --last 20 -o json
 ```
 
 This creates a fresh session transcript for the route; it does not erase workspace-scoped memory or
-change the workspace default agent. Use `agh session stop`, not `agh session remove`, when preserving
+change the workspace default agent. Use `compozy session stop`, not `compozy session remove`, when preserving
 the prior session is part of the recovery goal. See [Bridge conversations](./conversations) for the
 route, session, and history boundaries.
 
@@ -599,20 +599,20 @@ route, session, and history boundaries.
 
 These controls solve different problems:
 
-- `agh bridge disable <id>` stops the provider instance from accepting bridge work.
+- `compozy bridge disable <id>` stops the provider instance from accepting bridge work.
 - `notification_suppress` skips common notification deliveries while leaving the bridge lifecycle
   available for other supported work.
 
 Suppress planned notification noise:
 
 ```bash
-agh bridge update "$BRIDGE_ID" --notification-suppress=true
+compozy bridge update "$BRIDGE_ID" --notification-suppress=true
 ```
 
 Restore it explicitly:
 
 ```bash
-agh bridge update "$BRIDGE_ID" --notification-suppress=false
+compozy bridge update "$BRIDGE_ID" --notification-suppress=false
 ```
 
 Suppression is not a security containment control. Disable the bridge when inbound or outbound
@@ -642,7 +642,7 @@ Use this order:
 set -euo pipefail
 
 BRIDGE_ID=brg_123
-EXTENSION_NAME=$(agh bridge get "$BRIDGE_ID" -o json | jq -er '.extension_name')
+EXTENSION_NAME=$(compozy bridge get "$BRIDGE_ID" -o json | jq -er '.extension_name')
 
 list_owned_bridges() {
   local cursor=""
@@ -651,9 +651,9 @@ list_owned_bridges() {
 
   while :; do
     if [[ -n "$cursor" ]]; then
-      page=$(agh bridge list "${args[@]}" --cursor "$cursor")
+      page=$(compozy bridge list "${args[@]}" --cursor "$cursor")
     else
-      page=$(agh bridge list "${args[@]}")
+      page=$(compozy bridge list "${args[@]}")
     fi
 
     printf '%s\n' "$page" |
@@ -669,23 +669,23 @@ list_owned_bridges() {
 # Save this complete, exact-match inventory before changing desired state.
 list_owned_bridges | jq -s .
 
-agh bridge disable "$BRIDGE_ID"
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge disable "$BRIDGE_ID"
+compozy bridge get "$BRIDGE_ID" -o json
 
 # Wait for delivery_backlog=0, then revoke the provider-side app, webhook, and credentials.
-agh bridge secret-bindings list "$BRIDGE_ID" -o json
+compozy bridge secret-bindings list "$BRIDGE_ID" -o json
 
 RESOURCE_VERSION=$( \
-  agh resource get bridge.instance "$BRIDGE_ID" -o json | jq -er '.record.version'
+  compozy resource get bridge.instance "$BRIDGE_ID" -o json | jq -er '.record.version'
 )
-agh resource delete bridge.instance "$BRIDGE_ID" \
+compozy resource delete bridge.instance "$BRIDGE_ID" \
   --expected-version "$RESOURCE_VERSION" \
   -o json
 
 # Re-read every page and prove zero exact owners immediately before extension mutation.
 list_owned_bridges | jq -s -e 'length == 0'
-agh extension disable "$EXTENSION_NAME" -o json
-agh extension remove "$EXTENSION_NAME" -o json
+compozy extension disable "$EXTENSION_NAME" -o json
+compozy extension remove "$EXTENSION_NAME" -o json
 ```
 
 `--q` only narrows the candidate set; the exact `extension_name` predicate proves ownership. The
@@ -703,11 +703,11 @@ provider-side revocation rather than deleting the resource.
 
 `committed_result_unavailable` means a provider mutation may have crossed its commit boundary and a
 commit cannot be ruled out. The adapter could not reliably read or validate the response or obtain the
-required remote message ID. For broker-managed response delivery, AGH terminalizes the delivery
+required remote message ID. For broker-managed response delivery, Compozy terminalizes the delivery
 without replay and records a delivery failure. It does not invent an ID or assume that the remote
 message is absent.
 
-When this occurs during `agh bridge send-test`, structured output reports
+When this occurs during `compozy bridge send-test`, structured output reports
 `status: "committed_result_unavailable"`, omits `remote_message_id`, and includes a redacted
 `error.message`. `send-test` is a synchronous control probe, not a broker-managed response delivery,
 so it does not create a durable delivery-ledger row or broker failure metric. Do not treat the
@@ -718,7 +718,7 @@ Do not resend the content first. Inspect both sides before taking another mutati
 1. Preserve the originating evidence. For broker delivery, capture the bridge, route,
    `delivery_failures_total`, `last_error`, and `last_error_at`. For `send-test`, save its status,
    delivery ID, target, and redacted error instead; broker health does not record that direct probe.
-2. Read provider-specific AGH logs around `last_error_at` for broker delivery, or around the saved
+2. Read provider-specific Compozy logs around `last_error_at` for broker delivery, or around the saved
    command timestamp and delivery ID for `send-test`, without exposing bound secrets.
 3. Inspect the exact remote conversation identified by the route. Search around the same timestamp
    for the expected post, edit, reaction, comment, or activity.
@@ -728,8 +728,8 @@ Do not resend the content first. Inspect both sides before taking another mutati
    revive or replay the terminalized delivery ID.
 
 ```bash
-agh bridge get "$BRIDGE_ID" -o json
-agh bridge routes "$BRIDGE_ID" -o json
+compozy bridge get "$BRIDGE_ID" -o json
+compozy bridge routes "$BRIDGE_ID" -o json
 
 curl -sS "http://127.0.0.1:2123/api/bridges/$BRIDGE_ID" | \
   jq '.health | {
@@ -740,24 +740,24 @@ curl -sS "http://127.0.0.1:2123/api/bridges/$BRIDGE_ID" | \
     delivery_dropped_by_reason
   }'
 
-PROVIDER=$(agh bridge get "$BRIDGE_ID" -o json | jq -er '.platform')
-agh logs --provider "$PROVIDER" --since 10m -o jsonl
+PROVIDER=$(compozy bridge get "$BRIDGE_ID" -o json | jq -er '.platform')
+compozy logs --provider "$PROVIDER" --since 10m -o jsonl
 ```
 
 For an indeterminate progress mutation, health can instead show the
-`progress_delivery_indeterminate` drop reason. AGH discards that progress update, but final text can
+`progress_delivery_indeterminate` drop reason. Compozy discards that progress update, but final text can
 still be delivered. Check for a final message before attempting any manual follow-up.
 
 ## Recover after a daemon restart
 
-AGH persists sent and acknowledged sequence checkpoints for in-flight bridge delivery, not streamed
+Compozy persists sent and acknowledged sequence checkpoints for in-flight bridge delivery, not streamed
 response or progress text. Before each durable provider mutation, it records a write-ahead send
 intent. Startup reconciliation therefore has two explicit paths before new registrations are
 admitted:
 
 - If the sent sequence is ahead of the acknowledged sequence, the prior mutation may already exist at
-  the provider. AGH closes the delivery locally as indeterminate and makes no provider call.
-- If there is no unmatched intent, AGH records a new intent and posts one visible terminal error with
+  the provider. Compozy closes the delivery locally as indeterminate and makes no provider call.
+- If there is no unmatched intent, Compozy records a new intent and posts one visible terminal error with
   the standard session-stopped message. It never reconstructs or replays the partial answer.
 
 The first path is commit ambiguity, not proof that the provider mutated anything. The daemon may have

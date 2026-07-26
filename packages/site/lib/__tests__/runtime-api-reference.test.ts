@@ -7,7 +7,7 @@ import { API_SECTIONS } from "../runtime-navigation";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SITE_ROOT = resolve(HERE, "..", "..");
 const REPO_ROOT = resolve(SITE_ROOT, "../..");
-const OPENAPI_PATH = resolve(REPO_ROOT, "openapi/agh.json");
+const OPENAPI_PATH = resolve(REPO_ROOT, "openapi/compozy.json");
 const API_REF_DIR = resolve(SITE_ROOT, "content/runtime/api-reference");
 
 type OpenAPIDocument = {

@@ -3,7 +3,7 @@ title: Safe Spawn
 description: How agent-initiated child sessions are bounded by lineage, TTL, caps, workspace inheritance, and permission narrowing.
 ---
 
-`agh spawn` lets a managed session ask the daemon to create a child agent session. Spawn is the
+`compozy spawn` lets a managed session ask the daemon to create a child agent session. Spawn is the
 delegation surface for the autonomy MVP, but it is safe by default: the daemon owns lineage, TTL,
 caps, workspace inheritance, permission narrowing, and cleanup.
 
@@ -11,7 +11,7 @@ caps, workspace inheritance, permission narrowing, and cleanup.
 
 | Constraint              | Behavior                                                                                                                      |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Valid parent identity   | The caller must be an AGH-managed session resolved from daemon-issued identity.                                               |
+| Valid parent identity   | The caller must be an Compozy-managed session resolved from daemon-issued identity.                                           |
 | TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                                       |
 | Depth cap               | The MVP default max spawn depth is `1`.                                                                                       |
 | Child cap               | The MVP default max children per parent is `5`.                                                                               |
@@ -26,13 +26,13 @@ The daemon rejects invalid spawn requests. It does not silently narrow a child r
 ## Spawning a worker
 
 ```bash
-agh spawn --agent reviewer --ttl-seconds 1800
+compozy spawn --agent reviewer --ttl-seconds 1800
 ```
 
 Add narrowed permissions and a role when the parent has those atoms:
 
 ```bash
-agh spawn \
+compozy spawn \
   --agent reviewer \
   --role reviewer \
   --ttl-seconds 1800 \
@@ -61,7 +61,7 @@ or claim task work by itself.
 ## Cleanup and active leases
 
 The reaper wins over active leases. If TTL expiry or parent-stop cleanup terminates a spawned
-session, AGH first releases active task-run leases owned by that session with a structured reason,
+session, Compozy first releases active task-run leases owned by that session with a structured reason,
 then stops the child. Stale child claim tokens cannot complete or heartbeat recovered work.
 
 ## Hooks

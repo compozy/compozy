@@ -51,7 +51,7 @@ describe("runtime autonomy docs", () => {
       "Task creation alone does not start a coordinator",
       "Role changes are classified `live`",
       "Global `$COMPOZY_HOME/config.toml` values",
-      "workspace's `.agh/config.toml` overlays them",
+      "workspace's `.compozy/config.toml` overlays them",
       "builtin `coordinator`",
     ]);
     expectExcludesAll(config, ["[autonomy.coordinator]", "default_ttl ="]);
@@ -63,11 +63,11 @@ describe("runtime autonomy docs", () => {
 
     expectIncludesAll(leases, [
       "`claim_token_hash`",
-      "The raw bearer lease token is internal to AGH",
+      "The raw bearer lease token is internal to Compozy",
       "the calling session plus `run_id`",
       "One active lease per session",
       "Stale holders fail",
-      "Never send raw lease credentials through `agh ch send`",
+      "Never send raw lease credentials through `compozy ch send`",
     ]);
     expectIncludesAll(channels, [
       "There is no channel bound to every run",
@@ -115,9 +115,9 @@ describe("runtime autonomy docs", () => {
       "Worker runtime selection",
       "config.ResolveSessionAgentWithRuntime",
       "Manage a profile from the CLI",
-      "agh task profile inspect",
-      "agh task profile update",
-      "agh task profile delete",
+      "compozy task profile inspect",
+      "compozy task profile update",
+      "compozy task profile delete",
       "Manage a profile through HTTP and UDS",
       "/api/tasks/{id}/execution-profile",
       "Update is a full replace, not a patch",
@@ -133,7 +133,7 @@ describe("runtime autonomy docs", () => {
       "View JSON",
       "form-first",
       "Config lifecycle",
-      "agh config set",
+      "compozy config set",
       "compozy__config_*",
       "Authority boundary",
     ]);
@@ -151,7 +151,7 @@ describe("runtime autonomy docs", () => {
       'lifecycle="restart-required"',
       "Profile validation runs in `task.Service` when a profile is created or updated",
       "Workspace overlays may tighten or relax",
-      "agh config set",
+      "compozy config set",
       "compozy__config_*",
     ]);
   });
@@ -202,10 +202,10 @@ describe("runtime review-gate docs", () => {
       "review_rejected",
       "TaskContextBundle.ReviewContinuation",
       "Manage reviews from the CLI",
-      "agh task review request",
-      "agh task review list",
-      "agh task review show",
-      "agh task review submit",
+      "compozy task review request",
+      "compozy task review list",
+      "compozy task review show",
+      "compozy task review submit",
       "Manage reviews through HTTP and UDS",
       "/api/task-runs/{id}/reviews",
       "/api/tasks/{id}/reviews",
@@ -236,7 +236,7 @@ describe("runtime review-gate docs", () => {
       "task.run_review_timeout",
       "task.run_review_invalid_output",
       "task.run_review_retry_enqueued",
-      "AGH skill expectations",
+      "Compozy skill expectations",
       "Config lifecycle",
       "[task.orchestration.review]",
     ]);
@@ -304,10 +304,10 @@ describe("runtime notification cursor docs", () => {
       "Bridge notification envelope",
       "delivery_id",
       "Manage subscriptions from the CLI",
-      "agh task notification subscribe",
-      "agh task notification list",
-      "agh task notification show",
-      "agh task notification delete",
+      "compozy task notification subscribe",
+      "compozy task notification list",
+      "compozy task notification show",
+      "compozy task notification delete",
       "Manage subscriptions with native tools",
       "compozy__task_notification_subscribe",
       "compozy__task_notification_list",
@@ -340,12 +340,12 @@ describe("runtime notification cursor docs", () => {
   });
 });
 
-describe("bundled AGH skill docs", () => {
-  it("describes the AGH skill as instructional only and lists contextual references", () => {
+describe("bundled Compozy skill docs", () => {
+  it("describes the Compozy skill as instructional only and lists contextual references", () => {
     const bundled = readRuntimeDoc("core/skills/bundled.mdx");
 
     expectIncludesAll(bundled, [
-      "`agh`",
+      "`compozy`",
       "references/tools-and-skills.md",
       "references/native-tools.md",
       "references/tasks-and-orchestration.md",

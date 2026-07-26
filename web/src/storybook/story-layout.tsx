@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Topbar, TopbarSlotProvider } from "@agh/ui";
+import { Topbar, TopbarSlotProvider } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 import { AuthorMeta } from "@/components/blog/author-meta";
 import { ContinueReading } from "@/components/blog/continue-reading";
 import { DateStamp } from "@/components/blog/date-stamp";

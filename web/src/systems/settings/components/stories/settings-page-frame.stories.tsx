@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Input } from "@agh/ui";
+import { Input } from "@compozy/ui";
 
 import { PanelSurface } from "@/storybook/story-layout";
 

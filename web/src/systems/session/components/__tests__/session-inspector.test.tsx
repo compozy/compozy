@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DETAIL_INSPECTOR_INLINE_BREAKPOINT } from "@agh/ui";
+import { DETAIL_INSPECTOR_INLINE_BREAKPOINT } from "@compozy/ui";
 
 import { SessionLedgerUnavailableError } from "../../adapters/session-api";
 import type { SessionLedgerResponse } from "../../types";

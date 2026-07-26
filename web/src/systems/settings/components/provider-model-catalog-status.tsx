@@ -11,7 +11,7 @@ import {
   Pill,
   Spinner,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   modelRefreshStateTone,

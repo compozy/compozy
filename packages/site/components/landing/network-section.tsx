@@ -7,13 +7,13 @@ import { NETWORK_KIND_COUNT } from "./primitives/network-kinds";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
-const NETWORK_CODE = `agh network status
-agh network peers builders
-agh network directs resolve \\
+const NETWORK_CODE = `compozy network status
+compozy network peers builders
+compozy network directs resolve \\
   --session <session-id> \\
   --channel builders \\
   --peer reviewer.session-19
-agh network send \\
+compozy network send \\
   --session <session-id> \\
   --channel builders \\
   --surface direct \\
@@ -22,14 +22,14 @@ agh network send \\
   --kind say \\
   --work work_review_pr_482 \\
   --body '{"text":"Review PR #482","intent":"request"}'
-agh network inbox --session <session-id>`;
+compozy network inbox --session <session-id>`;
 
 export function NetworkSection() {
   return (
     <SectionFrame background="deep" padY="xl" ariaLabel="compozy-network/v0 protocol">
       <SectionHeader
         align="center"
-        eyebrow="AGH Network , the differentiator"
+        eyebrow="Compozy Network , the differentiator"
         size="lg"
         title={
           <>
@@ -68,7 +68,7 @@ export function NetworkSection() {
           description={
             <>
               <code className="font-mono text-fg">
-                agh network status | peers | channels | threads | directs | work | send | inbox
+                compozy network status | peers | channels | threads | directs | work | send | inbox
               </code>{" "}
               are implemented runtime commands, not narrative-only examples.
             </>
@@ -92,9 +92,10 @@ export function NetworkSection() {
       <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_minmax(0,480px)] lg:items-center">
         <div className="max-w-[60ch] text-sm leading-relaxed text-muted">
           <p>
-            AGH Network separates durable conversation from model activation. Local executions stay
-            disconnected by default; explicitly Live executions can coordinate inside finite wake,
-            depth, token, and wall-time bounds while tasks remain the authority for executable work.
+            Compozy Network separates durable conversation from model activation. Local executions
+            stay disconnected by default; explicitly Live executions can coordinate inside finite
+            wake, depth, token, and wall-time bounds while tasks remain the authority for executable
+            work.
           </p>
           <Link
             href="/protocol"
@@ -104,7 +105,7 @@ export function NetworkSection() {
             <ArrowUpRight aria-hidden className="size-4" />
           </Link>
         </div>
-        <LandingCodeBlock code={NETWORK_CODE} caption="agh network" shell />
+        <LandingCodeBlock code={NETWORK_CODE} caption="compozy network" shell />
       </div>
     </SectionFrame>
   );

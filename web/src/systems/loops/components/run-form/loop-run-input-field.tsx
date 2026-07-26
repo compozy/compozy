@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Input, Switch } from "@agh/ui";
+import { Input, Switch } from "@compozy/ui";
 
 import type { LoopInputSchemaField } from "../../types";
 import { MonoTag } from "../mono-tag";

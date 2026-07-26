@@ -1,24 +1,24 @@
 ---
-title: "agh session list"
+title: "compozy session list"
 description: "List sessions"
 ---
 
-## agh session list
+## compozy session list
 
 List sessions
 
 ```
-agh session list [flags]
+compozy session list [flags]
 ```
 
 ### Examples
 
 ```
   # List active sessions
-  agh session list
+  compozy session list
 
   # Page all sessions for one agent in a workspace
-  agh session list --all --workspace checkout-api --agent reviewer --limit 25
+  compozy session list --all --workspace checkout-api --agent reviewer --limit 25
 ```
 
 ### Options
@@ -47,7 +47,7 @@ agh session list [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -57,5 +57,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session list -o json
+compozy session list -o json
 ```

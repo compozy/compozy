@@ -1,4 +1,4 @@
-import { Eyebrow, cn } from "@agh/ui";
+import { Eyebrow, cn } from "@compozy/ui";
 import { BlogAvatar } from "./avatar";
 
 export interface AuthorMetaProps {

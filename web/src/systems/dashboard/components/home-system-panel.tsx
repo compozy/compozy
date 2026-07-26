@@ -8,7 +8,7 @@ import {
   MetadataTile,
   Panel,
   Pill,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { HomeSystemModel } from "../hooks/use-home-system";
 

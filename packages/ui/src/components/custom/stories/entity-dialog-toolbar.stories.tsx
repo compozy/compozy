@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box, Globe } from "lucide-react";
 
-import { EntityDialogToolbar, PillGroup } from "@agh/ui";
+import { EntityDialogToolbar, PillGroup } from "@compozy/ui";
 
 const meta: Meta<typeof EntityDialogToolbar> = {
   title: "components/custom/EntityDialogToolbar",

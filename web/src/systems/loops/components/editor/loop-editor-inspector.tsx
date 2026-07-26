@@ -1,4 +1,4 @@
-import { Empty } from "@agh/ui";
+import { Empty } from "@compozy/ui";
 import { MousePointerClick } from "lucide-react";
 
 import type { EditorEdge, EditorNode } from "../../lib/codec";

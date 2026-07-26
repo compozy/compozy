@@ -11,7 +11,7 @@ import {
   MonoId,
   Pill,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 export interface SessionResumeFailureProps {
   sessionId: string;

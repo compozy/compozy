@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 
-import { Collapsible, CollapsibleContent } from "@agh/ui";
+import { Collapsible, CollapsibleContent } from "@compozy/ui";
 
 import type { RolesRuntimeOptions } from "../hooks/use-roles-runtime-options";
 import type { RoleRuntimeValue } from "../lib/roles-config";

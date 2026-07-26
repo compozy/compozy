@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -45,7 +45,7 @@ export const Empty: Story = {
     ...appRouteParameters("/bridges"),
     ...storybookMswParameters({
       bridges: [
-        aghApiMock.get("/api/bridges", () =>
+        compozyApiMock.get("/api/bridges", () =>
           HttpResponse.json({
             bridge_health: {},
             bridges: [],
@@ -118,7 +118,7 @@ export const Loading: Story = {
     ...appRouteParameters("/bridges"),
     ...storybookMswParameters({
       bridges: [
-        aghApiMock.get("/api/bridges", async () => {
+        compozyApiMock.get("/api/bridges", async () => {
           await delay("infinite");
           return HttpResponse.json({
             bridge_health: {},

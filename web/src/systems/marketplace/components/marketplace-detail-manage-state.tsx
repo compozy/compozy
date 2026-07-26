@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, Section, Spinner } from "@agh/ui";
+import { Button, Section, Spinner } from "@compozy/ui";
 
 interface MarketplaceDetailManageStateProps {
   error?: Error | null;

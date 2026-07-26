@@ -1,4 +1,4 @@
-import { toast } from "@agh/ui";
+import { toast } from "@compozy/ui";
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { useActiveWorkspace } from "@/systems/workspace";

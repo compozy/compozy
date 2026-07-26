@@ -1,24 +1,24 @@
 ---
-title: "agh skill view"
+title: "compozy skill view"
 description: "Read a skill or one of its resource files"
 ---
 
-## agh skill view
+## compozy skill view
 
 Read a skill or one of its resource files
 
 ```
-agh skill view <name> [flags]
+compozy skill view <name> [flags]
 ```
 
 ### Examples
 
 ```
   # Render a skill as the XML block injected into agents
-  agh skill view code-review
+  compozy skill view code-review
 
   # Read a resource file inside a skill directory
-  agh skill view code-review --file references/checklist.md
+  compozy skill view code-review --file references/checklist.md
 ```
 
 ### Options
@@ -39,7 +39,7 @@ agh skill view <name> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -49,5 +49,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh skill view <name> -o json
+compozy skill view <name> -o json
 ```

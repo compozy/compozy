@@ -1,15 +1,15 @@
 ---
 title: Database Operations
-description: Back up, inspect, and clean up AGH's SQLite databases.
+description: Back up, inspect, and clean up Compozy's SQLite databases.
 ---
 
-Use this guide when you need to back up AGH state, inspect stored sessions, or retire old session
+Use this guide when you need to back up Compozy state, inspect stored sessions, or retire old session
 directories.
 
 <OperatorNote>
-  AGH uses SQLite in WAL mode. A live filesystem copy must include the database file and its `-wal`
-  and `-shm` sidecar files, or use SQLite's backup command. The simplest safe backup is a cold
-  backup while the daemon is stopped.
+  Compozy uses SQLite in WAL mode. A live filesystem copy must include the database file and its
+  `-wal` and `-shm` sidecar files, or use SQLite's backup command. The simplest safe backup is a
+  cold backup while the daemon is stopped.
 </OperatorNote>
 
 ## Find the databases
@@ -17,13 +17,13 @@ directories.
 Set the home path used by the commands below:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
 ```
 
 | Path                                            | Purpose                                                                                                                                                                               |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME/agh.db`                          | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
-| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one AGH session.                                                                                                                                                 |
+| `$COMPOZY_HOME/compozy.db`                      | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one Compozy session.                                                                                                                                             |
 | `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                                           |
 
 The global database is an index and catalog. The per-session `events.db` files hold the detailed
@@ -31,14 +31,14 @@ session timeline.
 
 <Mermaid
   chart={`flowchart TD
-  Home["$COMPOZY_HOME"] --> Global["agh.db global catalog"]
+  Home["$COMPOZY_HOME"] --> Global["compozy.db global catalog"]
   Home --> Sessions["sessions/"]
   Sessions --> One["<session-id>/"]
   One --> Events["events.db event stream"]
   One --> Meta["meta.json session metadata"]
   Global --> Summary["session rows and summaries"]
   Events --> Replay["events, token usage, hook runs"]`}
-  caption="AGH separates global catalog state from per-session event history."
+  caption="Compozy separates global catalog state from per-session event history."
 />
 
 ## Back up while the daemon is stopped
@@ -46,14 +46,14 @@ session timeline.
 Use this for scheduled maintenance windows and before upgrades:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
-backup="$HOME/agh-backups/$(date +%Y%m%d-%H%M%S)"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+backup="$HOME/compozy-backups/$(date +%Y%m%d-%H%M%S)"
 
-agh daemon stop
+compozy daemon stop
 mkdir -p "$backup"
-cp -a "$COMPOZY_HOME"/agh.db* "$backup"/
+cp -a "$COMPOZY_HOME"/compozy.db* "$backup"/
 cp -a "$COMPOZY_HOME/sessions" "$backup"/sessions
-agh daemon start
+compozy daemon start
 ```
 
 This captures the global database, any WAL sidecars, every per-session event database, and each
@@ -64,11 +64,11 @@ session metadata file.
 Use SQLite's backup command when you cannot stop the daemon:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
-backup="$HOME/agh-backups/$(date +%Y%m%d-%H%M%S)"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+backup="$HOME/compozy-backups/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$backup/sessions"
 
-sqlite3 "$COMPOZY_HOME/agh.db" ".backup '$backup/agh.db'"
+sqlite3 "$COMPOZY_HOME/compozy.db" ".backup '$backup/compozy.db'"
 
 find "$COMPOZY_HOME/sessions" -mindepth 2 -maxdepth 2 -name events.db -type f -print0 |
 while IFS= read -r -d '' db; do
@@ -86,7 +86,7 @@ This reads each database through SQLite instead of copying the main file without
 Open the global database directly:
 
 ```bash
-sqlite3 "$COMPOZY_HOME/agh.db"
+sqlite3 "$COMPOZY_HOME/compozy.db"
 ```
 
 List recent sessions:
@@ -120,16 +120,16 @@ ordered event stream for one session.
 
 ## Schema migration discipline
 
-AGH versions each SQLite authority as an independent Goose migration stream:
+Compozy versions each SQLite authority as an independent Goose migration stream:
 
-| Stream      | Database family                              | Version table                |
-| ----------- | -------------------------------------------- | ---------------------------- |
-| `global`    | `$COMPOZY_HOME/agh.db` global runtime tables | `goose_db_version_global`    |
-| `memory`    | `$COMPOZY_HOME/agh.db` memory catalog tables | `goose_db_version_memory`    |
-| `session`   | Per-session `events.db`                      | `goose_db_version_session`   |
-| `workspace` | Workspace-local `.agh/agh.db`                | `goose_db_version_workspace` |
+| Stream      | Database family                                  | Version table                |
+| ----------- | ------------------------------------------------ | ---------------------------- |
+| `global`    | `$COMPOZY_HOME/compozy.db` global runtime tables | `goose_db_version_global`    |
+| `memory`    | `$COMPOZY_HOME/compozy.db` memory catalog tables | `goose_db_version_memory`    |
+| `session`   | Per-session `events.db`                          | `goose_db_version_session`   |
+| `workspace` | Workspace-local `.compozy/compozy.db`            | `goose_db_version_workspace` |
 
-Before AGH runs pending SQL migrations, it rejects pre-Goose markers, validates the embedded
+Before Compozy runs pending SQL migrations, it rejects pre-Goose markers, validates the embedded
 `atlas.sum`, and refuses a recorded version newer than the binary. The runtime does not edit a
 version table to repair drift and does not read an incompatible database as a fallback.
 
@@ -137,7 +137,7 @@ For the daemon-global streams, inspect the applied version, migration count, and
 without opening SQLite directly:
 
 ```bash
-agh status -o json | jq '.daemon.schema_streams'
+compozy status -o json | jq '.daemon.schema_streams'
 ```
 
 Contributors add schema changes as numbered SQL migrations, refresh `atlas.sum` through the codegen
@@ -182,19 +182,19 @@ limit 20;
 
 ## Clean up old session directories
 
-AGH does not currently expose a prune command for old session directories. Use a conservative
+Compozy does not currently expose a prune command for old session directories. Use a conservative
 archive flow instead of deleting files in place.
 
 1. List stopped sessions:
 
    ```bash
-   agh session list --all
+   compozy session list --all
    ```
 
 2. Stop the daemon:
 
    ```bash
-   agh daemon stop
+   compozy daemon stop
    ```
 
 3. Back up `COMPOZY_HOME` using the cold backup steps above.
@@ -202,7 +202,7 @@ archive flow instead of deleting files in place.
 4. Move the old stopped session directory into an archive location:
 
    ```bash
-   export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
+   export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
    session_id="sess_1234"
    mkdir -p "$COMPOZY_HOME/session-archive"
    mv "$COMPOZY_HOME/sessions/$session_id" "$COMPOZY_HOME/session-archive/$session_id"
@@ -211,29 +211,29 @@ archive flow instead of deleting files in place.
 5. Start the daemon and confirm current sessions still list correctly:
 
    ```bash
-   agh daemon start
-   agh session list --all
+   compozy daemon start
+   compozy session list --all
    ```
 
-At boot, AGH reconciles the global catalog with the session directories on disk. Sessions missing
-from disk are marked `orphaned` in the global catalog; AGH does not physically purge the global
+At boot, Compozy reconciles the global catalog with the session directories on disk. Sessions missing
+from disk are marked `orphaned` in the global catalog; Compozy does not physically purge the global
 session row.
 
 ## Handle corrupt database files
 
-When AGH classifies a SQLite database as corrupt, it stops the open and reports the database path.
-AGH leaves the database and its `-wal` and `-shm` sidecars unchanged. It does not rename, remove,
+When Compozy classifies a SQLite database as corrupt, it stops the open and reports the database path.
+Compozy leaves the database and its `-wal` and `-shm` sidecars unchanged. It does not rename, remove,
 repair, or replace any member of the database family automatically.
 
 If this happens:
 
 1. Stop the daemon and keep it stopped during recovery.
-2. Make a cold copy of the complete containing `COMPOZY_HOME` or workspace `.agh` family, including every
+2. Make a cold copy of the complete containing `COMPOZY_HOME` or workspace `.compozy` family, including every
    database and SQLite sidecar.
 3. Diagnose the copy. Do not run repair or migration writes against the original files.
 4. Restore a complete known-good family, or select a separate fresh `COMPOZY_HOME` when discarding the
    retained state is acceptable.
-5. Start the daemon and run `agh doctor`.
+5. Start the daemon and run `compozy doctor`.
 
 Do not restore only the `.db` file while retaining sidecars from another point in time. The original
 family is recovery evidence, not a backup strategy.

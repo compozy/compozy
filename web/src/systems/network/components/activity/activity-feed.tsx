@@ -2,7 +2,7 @@ import { ActivitySquare, AtSign, MessagesSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { Button, Empty, Skeleton, SkeletonRows } from "@agh/ui";
+import { Button, Empty, Skeleton, SkeletonRows } from "@compozy/ui";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkDirectRoomSummary, NetworkThreadSummary } from "../../types";

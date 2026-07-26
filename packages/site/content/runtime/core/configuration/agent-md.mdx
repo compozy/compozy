@@ -3,13 +3,13 @@ title: AGENT.md
 description: Complete implemented AGENT.md schema, parser rules, provider examples, MCP sidecars, and RFC drift.
 ---
 
-`AGENT.md` defines an AGH agent: structured frontmatter plus a required Markdown prompt body.
-Current AGH agents live in AGH resource directories:
+`AGENT.md` defines an Compozy agent: structured frontmatter plus a required Markdown prompt body.
+Current Compozy agents live in Compozy resource directories:
 
 ```text
 $COMPOZY_HOME/agents/<agent-name>/AGENT.md
-<workspace>/.agh/agents/<agent-name>/AGENT.md
-<additional-root>/.agh/agents/<agent-name>/AGENT.md
+<workspace>/.compozy/agents/<agent-name>/AGENT.md
+<additional-root>/.compozy/agents/<agent-name>/AGENT.md
 ```
 
 The parser is strict. Unknown frontmatter fields fail loading.
@@ -42,37 +42,37 @@ The parser is strict. Unknown frontmatter fields fail loading.
 When `tools` and `toolsets` are empty, the agent definition does not add an allowlist. For a bare
 managed session, hosted MCP projects the full availability-gated callable catalog. Populate
 `tools` or `toolsets` only when the agent should be limited to that explicit surface. Discovery-only
-policies can still name `compozy__bootstrap` or `compozy__catalog`; AGH just no longer injects those
-toolsets as a default cap for every bare hosted session. Agents should discover AGH-native runtime
+policies can still name `compozy__bootstrap` or `compozy__catalog`; Compozy just no longer injects those
+toolsets as a default cap for every bare hosted session. Agents should discover Compozy-native runtime
 capabilities by resolving canonical `compozy__tool_search`, inspect descriptors through canonical
 `compozy__tool_info`, and invoke the harness-returned dedicated tool reference before shelling out to
-equivalent `agh ...` commands. Operator-only management examples include MCP OAuth login/logout,
+equivalent `compozy ...` commands. Operator-only management examples include MCP OAuth login/logout,
 daemon lifecycle, raw secret writes, and trust-root config. These flows remain CLI/HTTP/UDS by
 design and are not promoted into the tool surface.
 
-AGH also adds a daemon-owned runtime envelope around the agent body at session startup. The envelope
-states that the session is running inside AGH, carries session/workspace facts, and is not something
+Compozy also adds a daemon-owned runtime envelope around the agent body at session startup. The envelope
+states that the session is running inside Compozy, carries session/workspace facts, and is not something
 agent authors need to repeat in every `AGENT.md`.
 
 ## Discovery And Precedence
 
-AGH loads visible agents from the workspace snapshot attached to a session.
+Compozy loads visible agents from the workspace snapshot attached to a session.
 
-| Order | Source           | Path                                                                 |
-| ----- | ---------------- | -------------------------------------------------------------------- |
-| 1     | Workspace root   | `<workspace>/.agh/agents/<name>/AGENT.md`                            |
-| 2     | Additional roots | `<additional-root>/.agh/agents/<name>/AGENT.md`, in registered order |
-| 3     | Global home      | `$COMPOZY_HOME/agents/<name>/AGENT.md`                               |
+| Order | Source           | Path                                                                     |
+| ----- | ---------------- | ------------------------------------------------------------------------ |
+| 1     | Workspace root   | `<workspace>/.compozy/agents/<name>/AGENT.md`                            |
+| 2     | Additional roots | `<additional-root>/.compozy/agents/<name>/AGENT.md`, in registered order |
+| 3     | Global home      | `$COMPOZY_HOME/agents/<name>/AGENT.md`                                   |
 
-Discovery is first-wins. If two files define the same `name`, AGH keeps the first one found and
+Discovery is first-wins. If two files define the same `name`, Compozy keeps the first one found and
 does not merge lower-precedence definitions.
 
 ## Reserved Builtin Names
 
-`coordinator` and `dreaming-curator` are virtual, AGH-owned role identities. They have embedded
+`coordinator` and `dreaming-curator` are virtual, Compozy-owned role identities. They have embedded
 prompts, resolve without authored directories, and never appear in public agent catalogs. Creating,
 updating, renaming, duplicating, or bundle-materializing either name fails with
-`agent_name_reserved`; AGH does not create or modify an authored directory.
+`agent_name_reserved`; Compozy does not create or modify an authored directory.
 
 `general` is different: it is the normal managed public agent created by installation and remains
 editable. Other authored agents may be selected through `[roles.<role>].agent`; doing so changes the
@@ -83,7 +83,7 @@ route to that agent and does not modify a builtin prompt.
 | Rule                  | Behavior                                                                                              |
 | --------------------- | ----------------------------------------------------------------------------------------------------- |
 | Frontmatter delimiter | The file must start with `---` and include a closing `---`.                                           |
-| Frontmatter language  | YAML is parsed first. If YAML fails, AGH tries TOML frontmatter.                                      |
+| Frontmatter language  | YAML is parsed first. If YAML fails, Compozy tries TOML frontmatter.                                  |
 | Unknown fields        | Unknown YAML or TOML fields are errors.                                                               |
 | Body                  | The Markdown body after frontmatter is trimmed. Empty body fails with `agent prompt is required`.     |
 | Name match            | `LoadAgentDef(name)` requires the parsed `name` to match the requested directory/name.                |
@@ -192,7 +192,7 @@ Put blocking findings first and cite the relevant file or symbol.
 | Description  | Agent-specific model metadata.                               |
 
 The exact model ID is applied through the active ACP model option after session creation/load. An
-unadvertised ID fails with `model_unavailable`; AGH never aliases it or falls back to the provider
+unadvertised ID fails with `model_unavailable`; Compozy never aliases it or falls back to the provider
 default.
 
 ### `reasoning_effort`
@@ -205,7 +205,7 @@ default.
 | Valid values | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`                                  |
 | Description  | Agent default used only when session creation does not provide an explicit effort override. |
 
-At session start, AGH applies model first, refreshes the advertised ACP options, then applies the
+At session start, Compozy applies model first, refreshes the advertised ACP options, then applies the
 effort before the first prompt. Explicit `none` is sent when advertised; empty sends no effort RPC.
 Missing or unsupported live options fail loudly with `reasoning_option_missing` or
 `reasoning_effort_unsupported`.
@@ -269,7 +269,7 @@ skills:
     - deploy-production
 ```
 
-`skills.disabled` does not add new roots and does not create an agent-only skill mode. AGH resolves
+`skills.disabled` does not add new roots and does not create an agent-only skill mode. Compozy resolves
 the normal bundled -> marketplace -> user -> additional -> workspace set, overlays the winning
 agent's `skills/` directory, then disables any logical skill names listed here for that agent.
 This is separate from the global skills settings field `disabled_skills`; use `AGENT.md`
@@ -296,7 +296,7 @@ category_path:
 
 This field does not affect provider selection, permissions, tools, scheduling, skill resolution,
 hooks, memory, or ACP startup. It is not a multi-tag list; it is one ordered path. Root-level agents
-omit the field or use an empty array. AGH rejects `categories: [...]` and `category_path:
+omit the field or use an empty array. Compozy rejects `categories: [...]` and `category_path:
 "Marketing/Sales"` because the runtime has one canonical array shape and no compatibility aliases.
 
 ### `mcp_servers`
@@ -319,7 +319,7 @@ omit the field or use an empty array. AGH rejects `categories: [...]` and `categ
 ### `hooks`
 
 Agent hook declarations use the same fields as `[[hooks.declarations]]` in `config.toml`. When a
-hook matcher includes `agent_name`, it must match this agent's `name`; AGH then scopes the hook to
+hook matcher includes `agent_name`, it must match this agent's `name`; Compozy then scopes the hook to
 this agent.
 
 | Field           | Type         | Default                                             | Valid values                                                          | Description                                       |
@@ -460,7 +460,7 @@ Place `mcp.json` next to `AGENT.md` when MCP definitions are generated or easier
 JSON.
 
 ```text
-~/.agh/agents/reviewer/
+~/.compozy/agents/reviewer/
   AGENT.md
   mcp.json
 ```
@@ -525,7 +525,7 @@ The current runtime diverges from the broader RFC 001 draft in these ways:
 | `memory.auto_consolidate` | Agent-scoped memory consolidation.    | Rejected.        |
 | `categories`              | Ambiguous multi-tag grouping.         | Rejected.        |
 
-RFC examples also use permission values such as `plan`. Current AGH uses `deny-all`,
+RFC examples also use permission values such as `plan`. Current Compozy uses `deny-all`,
 `approve-reads`, and `approve-all`.
 
 ## Common Errors

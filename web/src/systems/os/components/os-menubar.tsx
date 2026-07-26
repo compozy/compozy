@@ -1,11 +1,11 @@
 import { Bell, ChevronsUpDown, Settings } from "lucide-react";
 
-import { Icon, Logo, Menubar, MenubarTrigger } from "@agh/ui";
+import { Icon, Logo, Menubar, MenubarTrigger } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
 /**
- * The desktop menubar: AGH mark, workspace chip, app menus, the approvals bell,
+ * The desktop menubar: CompozyOS mark, workspace chip, app menus, the approvals bell,
  * the ⌘K palette chip, and Settings. Glass shell chrome (the sanctioned
  * carve-out).
  *
@@ -28,7 +28,7 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   status?: React.ReactNode;
   onCommandClick?: () => void;
   onSettingsClick?: () => void;
-  /** Renders the AGH mark inside its system-menu owner (shell wiring). */
+  /** Renders the CompozyOS mark inside its system-menu owner (shell wiring). */
   logoMenu?: (trigger: React.ReactNode) => React.ReactNode;
   /** Renders the workspace chip inside its menu owner (shell wiring). */
   workspaceMenu?: (trigger: React.ReactNode) => React.ReactNode;
@@ -125,7 +125,7 @@ export function OsMenuBar({
     <>
       <MenuControl
         data-slot="os-menubar-logo"
-        aria-label="AGH"
+        aria-label="CompozyOS"
         className="grid size-7 place-items-center rounded-menubar-control p-0"
         menu={logoMenu}
       >

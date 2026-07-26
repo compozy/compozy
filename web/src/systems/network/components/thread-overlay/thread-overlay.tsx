@@ -1,4 +1,4 @@
-import { ScrollArea } from "@agh/ui";
+import { ScrollArea } from "@compozy/ui";
 
 import { DetailComposer } from "../composer/detail-composer";
 import { ConversationError } from "../empty-states/conversation-error";

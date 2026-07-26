@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 const mockInvalidate = vi.fn();
 const mockReset = vi.fn();
 
-vi.mock("@agh/ui", async () => {
-  const actual = await vi.importActual<typeof import("@agh/ui")>("@agh/ui");
+vi.mock("@compozy/ui", async () => {
+  const actual = await vi.importActual<typeof import("@compozy/ui")>("@compozy/ui");
   return {
     ...actual,
     Toaster: () => <div data-testid="toaster" />,

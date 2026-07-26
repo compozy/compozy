@@ -6,7 +6,7 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
-import { Toaster } from "@agh/ui";
+import { Toaster } from "@compozy/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
 import {
   sessionKeys,

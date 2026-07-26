@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import { agentCatalogMockResponse, agentFixtures } from "@/systems/agent/mocks";
 import {
@@ -34,7 +34,7 @@ const fleetStoryAgents = agentFixtures.map((agent, index) => ({
 }));
 
 const loadedAgentHandlers = [
-  aghApiMock.get("/api/agents/catalog", ({ request }) =>
+  compozyApiMock.get("/api/agents/catalog", ({ request }) =>
     HttpResponse.json(
       agentCatalogMockResponse(request, fleetStoryAgents, {
         activeAgents: [fleetStoryAgents[0]!.name],
@@ -84,7 +84,7 @@ export const Loading: Story = {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/catalog", async ({ request }) => {
+        compozyApiMock.get("/api/agents/catalog", async ({ request }) => {
           await delay("infinite");
           return HttpResponse.json(agentCatalogMockResponse(request, []));
         }),
@@ -100,7 +100,7 @@ export const FirstRunEmpty: Story = {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/catalog", ({ request }) =>
+        compozyApiMock.get("/api/agents/catalog", ({ request }) =>
           HttpResponse.json(agentCatalogMockResponse(request, []))
         ),
       ],
@@ -124,7 +124,7 @@ export const AgentsError: Story = {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/catalog", () =>
+        compozyApiMock.get("/api/agents/catalog", () =>
           HttpResponse.json({ error: "agents unavailable" }, { status: 500 })
         ),
       ],
@@ -139,7 +139,7 @@ export const SessionsPartial: Story = {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/catalog", ({ request }) =>
+        compozyApiMock.get("/api/agents/catalog", ({ request }) =>
           HttpResponse.json(
             agentCatalogMockResponse(request, fleetStoryAgents, { sessionsAvailable: false })
           )
@@ -157,7 +157,7 @@ export const LongNameCategory: Story = {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/catalog", ({ request }) =>
+        compozyApiMock.get("/api/agents/catalog", ({ request }) =>
           HttpResponse.json(
             agentCatalogMockResponse(request, [
               {
@@ -187,7 +187,7 @@ export const InvalidAgent: Story = {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/catalog", ({ request }) =>
+        compozyApiMock.get("/api/agents/catalog", ({ request }) =>
           HttpResponse.json(
             agentCatalogMockResponse(request, [
               {

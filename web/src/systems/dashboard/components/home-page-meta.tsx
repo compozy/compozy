@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 export interface HomePageMetaProps extends ComponentProps<"div"> {
   workspaceName: string | null;

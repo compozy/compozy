@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { useForceFailDialog } from "../hooks/use-force-fail-dialog";
 

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import { Button, useTopbarSlot } from "@agh/ui";
+import { Button, useTopbarSlot } from "@compozy/ui";
 
 import { OsWindowFrame } from "../os-window-frame";
 import { buildDeskItems, DesktopShell } from "./_desktop";

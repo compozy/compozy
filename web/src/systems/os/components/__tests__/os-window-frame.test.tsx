@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { useTopbarSlot } from "@agh/ui";
+import { useTopbarSlot } from "@compozy/ui";
 
 import { OsWindowFrame } from "../os-window-frame";
 import type { OsTrafficLightAction } from "../os-traffic-lights";

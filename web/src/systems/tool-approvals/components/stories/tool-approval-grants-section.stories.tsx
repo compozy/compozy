@@ -3,7 +3,7 @@ import { delay, HttpResponse } from "msw";
 import { fn } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { StorybookWorkspaceSetup } from "@/storybook/route-story-meta";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
 import {
@@ -79,7 +79,7 @@ export const Empty: Story = {
   args: {},
   parameters: storybookMswParameters({
     "tool-approvals": [
-      aghApiMock.get("/api/tool-approval-grants", () =>
+      compozyApiMock.get("/api/tool-approval-grants", () =>
         HttpResponse.json(emptyToolApprovalGrantsResponseFixture)
       ),
     ],
@@ -91,7 +91,7 @@ export const LoadError: Story = {
   args: {},
   parameters: storybookMswParameters({
     "tool-approvals": [
-      aghApiMock.get("/api/tool-approval-grants", () =>
+      compozyApiMock.get("/api/tool-approval-grants", () =>
         HttpResponse.json({ error: "daemon unavailable" }, { status: 503 })
       ),
     ],
@@ -103,7 +103,7 @@ export const Loading: Story = {
   args: {},
   parameters: storybookMswParameters({
     "tool-approvals": [
-      aghApiMock.get("/api/tool-approval-grants", async () => {
+      compozyApiMock.get("/api/tool-approval-grants", async () => {
         await delay("infinite");
         return HttpResponse.json(toolApprovalGrantsResponseFixture);
       }),

@@ -10,7 +10,7 @@ import {
   LaneTabs,
   SearchInput,
   type LaneTabsItem,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useChannelToolbar } from "../../hooks/use-channel-toolbar";
 import type { NetworkChannel, NetworkChannelSummary } from "../../types";

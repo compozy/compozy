@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { ListingToolbar, type ListingViewMode } from "@agh/ui";
+import { ListingToolbar, type ListingViewMode } from "@compozy/ui";
 
 import { StorySurface } from "@/storybook/story-layout";
 

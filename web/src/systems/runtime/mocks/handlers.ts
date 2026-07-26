@@ -1,7 +1,7 @@
 import type { HttpHandler } from "msw";
 import { HttpResponse } from "msw";
 
-import { aghApiMock, type AghApiOkJsonResponseFor } from "@/storybook/openapi-msw";
+import { compozyApiMock, type CompozyApiOkJsonResponseFor } from "@/storybook/openapi-msw";
 
 const encoder = new TextEncoder();
 
@@ -51,10 +51,13 @@ const runtimeProvidersFixture = {
       name: "gemini",
     },
   ],
-} satisfies AghApiOkJsonResponseFor<"get", "/api/providers">;
+} satisfies CompozyApiOkJsonResponseFor<"get", "/api/providers">;
 
 const directoryHome = "/Users/pedronauck";
-const directoryEntriesByPath = new Map<string, AghApiOkJsonResponseFor<"get", "/api/fs/browse">>([
+const directoryEntriesByPath = new Map<
+  string,
+  CompozyApiOkJsonResponseFor<"get", "/api/fs/browse">
+>([
   [
     directoryHome,
     {
@@ -100,7 +103,7 @@ function parentPath(path: string): string | undefined {
 
 function directoryBrowseFixtureFor(
   request: Request
-): AghApiOkJsonResponseFor<"get", "/api/fs/browse"> {
+): CompozyApiOkJsonResponseFor<"get", "/api/fs/browse"> {
   const url = new URL(request.url);
   const requestedPath = url.searchParams.get("path")?.trim() || directoryHome;
   const fixture = directoryEntriesByPath.get(requestedPath);
@@ -135,11 +138,11 @@ function createRuntimeLogStreamResponse(): Response {
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/providers", () => HttpResponse.json(runtimeProvidersFixture)),
-  aghApiMock.get("/api/fs/browse", ({ request }) =>
+  compozyApiMock.get("/api/providers", () => HttpResponse.json(runtimeProvidersFixture)),
+  compozyApiMock.get("/api/fs/browse", ({ request }) =>
     HttpResponse.json(directoryBrowseFixtureFor(request))
   ),
-  aghApiMock.get("/api/logs/stream", ({ response }) =>
+  compozyApiMock.get("/api/logs/stream", ({ response }) =>
     response.untyped(createRuntimeLogStreamResponse())
   ),
 ];

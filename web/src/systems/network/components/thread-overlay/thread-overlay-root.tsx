@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import type { NetworkConversationMessage } from "../../types";
 import type { HoverToolbarHandlers } from "../timeline/hover-toolbar";

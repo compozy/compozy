@@ -100,7 +100,7 @@ function releaseVerificationPostureBody(): string {
   return [
     "## Verification posture",
     "",
-    "This generated release entry names the release gates and artifact guarantees that the AGH release workflow owns:",
+    "This generated release entry names the release gates and artifact guarantees that the Compozy release workflow owns:",
     "",
     "- Repository gate: `make verify` covers codegen drift, Bun lint/typecheck/test/build, Go fmt/lint/test/build, and import boundaries.",
     "- Release PR dry-run: `pr-release dry-run`, `make test-e2e-nightly`, and `make test-integration` run before the release commit is merged.",

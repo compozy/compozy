@@ -14,7 +14,7 @@ import {
   Section,
   TopbarOverflowIcon,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { LoopBindingRow } from "../../lib/loop-bindings";
 import type { LoopGraph } from "../../lib/loop-graph";

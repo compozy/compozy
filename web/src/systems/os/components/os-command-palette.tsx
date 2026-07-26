@@ -28,7 +28,7 @@ import {
   CommandItem,
   CommandList,
   CommandShortcut,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useOsCommandPalette } from "../hooks/use-os-command-palette";
 import { OS_APPS } from "../lib/app-registry";

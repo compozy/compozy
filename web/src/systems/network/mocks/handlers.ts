@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
   createNetworkChannelFixture,
@@ -63,9 +63,11 @@ function readTaskPriority(record: Record<string, unknown> | null) {
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/network/status", () => HttpResponse.json({ network: networkStatusFixture })),
+  compozyApiMock.get("/api/network/status", () =>
+    HttpResponse.json({ network: networkStatusFixture })
+  ),
   ...coordinationHandlers,
-  aghApiMock.get("/api/workspaces/{workspace_id}/network/usage", () =>
+  compozyApiMock.get("/api/workspaces/{workspace_id}/network/usage", () =>
     HttpResponse.json({
       workspace_id: "ws-fixture",
       details: [],
@@ -80,10 +82,10 @@ export const handlers: HttpHandler[] = [
       },
     })
   ),
-  aghApiMock.get("/api/workspaces/{workspace_id}/network/channels", () =>
+  compozyApiMock.get("/api/workspaces/{workspace_id}/network/channels", () =>
     HttpResponse.json(networkChannelsFixture)
   ),
-  aghApiMock.get("/api/workspaces/{workspace_id}/network/channels/{channel}", ({ params }) => {
+  compozyApiMock.get("/api/workspaces/{workspace_id}/network/channels/{channel}", ({ params }) => {
     const channel = String(params.channel);
 
     if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
@@ -97,7 +99,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.patch(
+  compozyApiMock.patch(
     "/api/workspaces/{workspace_id}/network/channels/{channel}",
     async ({ params, request }) => {
       const channel = String(params.channel);
@@ -121,7 +123,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.get(
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
     ({ params }) =>
       HttpResponse.json({
@@ -138,7 +140,7 @@ export const handlers: HttpHandler[] = [
         ],
       })
   ),
-  aghApiMock.put(
+  compozyApiMock.put(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
     async ({ params, request }) => {
       const body = readRecord(await request.json());
@@ -162,11 +164,11 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.delete(
+  compozyApiMock.delete(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{session_id}",
     () => new HttpResponse(null, { status: 204 })
   ),
-  aghApiMock.get(
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/threads",
     ({ params }) => {
       const channel = String(params.channel);
@@ -185,7 +187,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.get(
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}",
     ({ params }) => {
       const channel = String(params.channel);
@@ -205,7 +207,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.post(
+  compozyApiMock.post(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task",
     async ({ params, request }) => {
       const channel = String(params.channel);
@@ -239,7 +241,7 @@ export const handlers: HttpHandler[] = [
             created_by: { kind: "network_peer", ref: "peer_northstar_launch_control" },
             description:
               readOptionalString(body, "description") ??
-              "Task promoted from an AGH Network thread.",
+              "Task promoted from a Compozy Network thread.",
             id: taskId,
             latest_event_seq: 1,
             resolved_network_participation: null,
@@ -257,7 +259,7 @@ export const handlers: HttpHandler[] = [
       );
     }
   ),
-  aghApiMock.get(
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/messages",
     ({ params }) => {
       const channel = String(params.channel);
@@ -278,7 +280,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.get(
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/directs",
     ({ params }) => {
       const channel = String(params.channel);
@@ -297,7 +299,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.post(
+  compozyApiMock.post(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/resolve",
     async ({ params, request }) => {
       const channel = String(params.channel);
@@ -324,7 +326,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.get(
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}",
     ({ params }) => {
       const channel = String(params.channel);
@@ -343,7 +345,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.get(
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}/messages",
     ({ params }) => {
       const channel = String(params.channel);
@@ -364,7 +366,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.get("/api/workspaces/{workspace_id}/network/work/{work_id}", ({ params }) => {
+  compozyApiMock.get("/api/workspaces/{workspace_id}/network/work/{work_id}", ({ params }) => {
     const workId = String(params.work_id);
     return HttpResponse.json({
       work: {
@@ -373,7 +375,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/network/peers", ({ request }) => {
+  compozyApiMock.get("/api/workspaces/{workspace_id}/network/peers", ({ request }) => {
     const channel = new URL(request.url).searchParams.get("channel");
     const peers = channel
       ? networkPeersFixture.filter(peer => peer.channel === channel)
@@ -381,7 +383,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ peers });
   }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/network/peers/{peer_id}", ({ params }) => {
+  compozyApiMock.get("/api/workspaces/{workspace_id}/network/peers/{peer_id}", ({ params }) => {
     const peerId = String(params.peer_id);
     const peerSummary = networkPeersFixture.find(peer => peer.peer_id === peerId);
 
@@ -407,7 +409,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/workspaces/{workspace_id}/network/channels", async ({ request }) => {
+  compozyApiMock.post("/api/workspaces/{workspace_id}/network/channels", async ({ request }) => {
     const body = (await request.json()) as {
       agent_names?: string[];
       channel?: string;
@@ -439,7 +441,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  aghApiMock.post("/api/workspaces/{workspace_id}/network/send", async ({ request }) => {
+  compozyApiMock.post("/api/workspaces/{workspace_id}/network/send", async ({ request }) => {
     const body = readRecord(await request.json());
     const sessionId = readRequiredString(body, "session_id");
     const channel = readRequiredString(body, "channel");

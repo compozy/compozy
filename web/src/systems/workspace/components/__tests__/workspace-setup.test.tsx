@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@agh/ui";
+import { UIProvider } from "@compozy/ui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { primaryAgentFixture } from "@/systems/agent/mocks";
@@ -173,7 +173,7 @@ describe("WorkspaceOnboarding", () => {
     expect(screen.getByTestId("workspace-onboarding")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Start AGH with a real workspace, not an empty shell.",
+        name: "Start CompozyOS with a real workspace, not an empty shell.",
       })
     ).toBeInTheDocument();
     expect(screen.getByTestId("workspace-setup-global-card")).toBeInTheDocument();

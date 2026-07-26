@@ -259,7 +259,7 @@ async function main(): Promise<void> {
     frontmatter: (title, description) => {
       const frontmatter: Record<string, unknown> = {
         title,
-        description: description ?? `AGH ${title} HTTP endpoints.`,
+        description: description ?? `Compozy ${title} HTTP endpoints.`,
         full: true,
         _generated: "fumadocs-openapi",
       };

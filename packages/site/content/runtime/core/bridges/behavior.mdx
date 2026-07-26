@@ -11,7 +11,7 @@ feature offered by the external platform.
 
 | Provider        | Accepted inbound use                                                              | Route shapes                                                                      | Outbound text                                                                     | Tool progress                                                          |
 | --------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Slack           | Messages, app mentions, reactions, `/agh` prompts, and interactive actions        | Channel as `group`, or DM as `peer`; normal message replies can preserve a thread | Create, edit, and delete; mrkdwn; 40,000 UTF-16 units                             | `new + accumulate` by default; editable status, typing, and reactions  |
+| Slack           | Messages, app mentions, reactions, `/compozy` prompts, and interactive actions    | Channel as `group`, or DM as `peer`; normal message replies can preserve a thread | Create, edit, and delete; mrkdwn; 40,000 UTF-16 units                             | `new + accumulate` by default; editable status, typing, and reactions  |
 | Telegram        | Messages, edited messages, channel posts, and edited channel posts                | Private `peer`, ordinary `group`, or forum `group + thread`                       | Create, edit, and delete; MarkdownV2 with plain-text fallback; 4,096 UTF-16 units | `new + accumulate` by default; editable status, typing, and reactions  |
 | Discord         | Message create, reaction add/remove, application commands, and message components | DM `peer`, guild `group`, or guild `group + thread`                               | Create, edit, and delete; 2,000 Unicode code points                               | `new + accumulate` by default; editable status, typing, and reactions  |
 | WhatsApp        | Direct text, image, document, audio, video, sticker, and location messages        | Direct-message `peer` only                                                        | Create text only; 4,096 Unicode code points                                       | Off by default; append-only when enabled, with no typing or reactions  |
@@ -36,17 +36,17 @@ and unsupported events.
 | Common in-chat administration          | Not supported. Use CLI, HTTP/UDS, or Web management surfaces.                                                          |
 | Direct-message admission               | Controlled by `dm_policy` on chat providers; see [Control bridge access](/runtime/core/bridges/access).                |
 | Group/channel admission                | Controlled by platform installation/permissions, provider validation, and route-specific instances—not by `dm_policy`. |
-| Session reset                          | Stop the route's AGH session; the next accepted event creates a replacement.                                           |
+| Session reset                          | Stop the route's Compozy session; the next accepted event creates a replacement.                                       |
 
 ## Read “supported” precisely
 
-- A platform may expose features that its AGH provider does not ingest. For example, the Discord
+- A platform may expose features that its Compozy provider does not ingest. For example, the Discord
   HTTP provider does not open a Gateway connection and does not ingest ordinary `MESSAGE_UPDATE`.
 - A provider can acknowledge an unsupported or irrelevant webhook without creating a route. An HTTP
-  success from the platform boundary is not proof that an AGH prompt was admitted.
+  success from the platform boundary is not proof that an Compozy prompt was admitted.
 - A progress acknowledgement can be intentionally side-effect-free. GitHub and Linear do this so
   tool status does not create issue noise.
-- Provider-native IDs, routes, and reply references remain the authority. AGH does not fabricate a
+- Provider-native IDs, routes, and reply references remain the authority. Compozy does not fabricate a
   remote ID or silently choose an ambiguous target.
 
 Continue with the provider's [setup guide](/runtime/core/bridges/setup) for executable configuration,

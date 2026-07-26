@@ -21,7 +21,7 @@ import {
   Section,
   Spinner,
   type PillTone,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type {
   BridgeSetupChecklistItem,

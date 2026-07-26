@@ -598,7 +598,7 @@ export function buildTaskInspectFixture(overrides: Partial<TaskInspectView> = {}
         category: "task",
         title: "Run heartbeat is stale",
         message: "The claimed run has not reported a heartbeat inside the expected window.",
-        suggested_command: 'agh task release run_001 --reason "stale heartbeat"',
+        suggested_command: 'compozy task release run_001 --reason "stale heartbeat"',
         data_freshness: "live",
         evidence: {
           run_id: "run_001",

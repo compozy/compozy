@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { AlertTriangle } from "lucide-react";
 
-import { cn, DataSurface, Skeleton } from "@agh/ui";
+import { cn, DataSurface, Skeleton } from "@compozy/ui";
 
 import { useHomeDashboard } from "../hooks/use-home-dashboard";
 import { HomeActivityFeed } from "./home-activity-feed";

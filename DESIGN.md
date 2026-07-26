@@ -5,7 +5,7 @@
 # by scripts/sync-design-md.mjs.
 # Do not edit by hand. Run make codegen to refresh.
 spec_version: 1
-name: AGH
+name: Compozy
 tokens:
   runtime:
     colors:
@@ -353,9 +353,9 @@ tokens:
       doc-toc-width: "14rem"
 ---
 
-# Design System: AGH
+# Design System: Compozy
 
-AGH uses one visual language across the runtime UI, the shared UI kit, and the
+Compozy uses one visual language across the runtime UI, the shared UI kit, and the
 marketing/docs site. The token source of truth is
 `packages/ui/src/tokens.css`. This document explains why the system is shaped
 this way, which semantic contracts components must preserve, and which
@@ -369,7 +369,7 @@ generated token regions by hand. Change the CSS source, then run
 
 ## 1. Visual theme and atmosphere
 
-AGH is an agent operating system for everyone who works with AI agents — not
+Compozy is an agent operating system for everyone who works with AI agents — not
 an expert-only console. The product should feel quiet, calm, and intentional:
 a warm near-black canvas, restrained text, flat depth, and a single action
 accent. It is not a marketing-gradient system, not a generic SaaS blue-gray
@@ -972,7 +972,7 @@ Site classes are intentionally narrow:
 - `.site-home` gates landing-only display typography.
 - `.site-doc-body` owns docs prose rhythm and MDX article width.
 - `.site-bento-overlay-*` fades illustration assets into the warm-dark ramp.
-- `.agh-mermaid` owns Mermaid diagram theming for docs.
+- `.compozy-mermaid` owns Mermaid diagram theming for docs.
 
 Site stale-token fixes are tracked by the generator's `--audit-site` mode.
 That audit reports drift in `packages/site/app/global.css` but does not rewrite

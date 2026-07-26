@@ -1,6 +1,6 @@
 import { KeyRound } from "lucide-react";
 
-import { Alert, AlertDescription, FormSection, RequiredMark, SecretField } from "@agh/ui";
+import { Alert, AlertDescription, FormSection, RequiredMark, SecretField } from "@compozy/ui";
 
 import { describeBridgeSecretSlot } from "../lib/bridge-formatters";
 import type { BridgeProviderSecretSlot } from "../types";

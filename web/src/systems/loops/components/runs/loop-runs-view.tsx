@@ -1,6 +1,6 @@
 import { Activity } from "lucide-react";
 
-import { Empty } from "@agh/ui";
+import { Empty } from "@compozy/ui";
 
 import { buildOutcomeSegments, buildRunKpis, partitionRuns } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";

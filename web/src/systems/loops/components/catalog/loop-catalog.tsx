@@ -1,6 +1,6 @@
 import { Repeat2 } from "lucide-react";
 
-import { Button, Empty, Eyebrow, type ListingViewMode } from "@agh/ui";
+import { Button, Empty, Eyebrow, type ListingViewMode } from "@compozy/ui";
 
 import type { LoopCatalogFilter } from "../../lib/loop-catalog";
 import { groupLoopCatalog } from "../../lib/loop-catalog";

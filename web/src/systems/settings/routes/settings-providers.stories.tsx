@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { useEffect } from "react";
 import { expect, screen, userEvent, within } from "storybook/test";
 
@@ -55,7 +55,7 @@ export const Dirty: Story = {
 
 /**
  * Empty catalog branch before any provider overlays have been defined --
- * exercises the @agh/ui Empty primitive for the zero-providers state.
+ * exercises the @compozy/ui Empty primitive for the zero-providers state.
  */
 export const Empty: Story = {
   args: {},
@@ -63,7 +63,7 @@ export const Empty: Story = {
     ...appRouteParameters("/settings/providers"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/providers", () =>
+        compozyApiMock.get("/api/settings/providers", () =>
           HttpResponse.json({ ...settingsProvidersCollectionFixture, providers: [] })
         ),
       ],
@@ -124,7 +124,7 @@ export const Loading: Story = {
     ...appRouteParameters("/settings/providers"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/providers", async () => {
+        compozyApiMock.get("/api/settings/providers", async () => {
           await delay("infinite");
           return HttpResponse.json({ ...settingsProvidersCollectionFixture, providers: [] });
         }),
@@ -143,7 +143,7 @@ export const Error: Story = {
     ...appRouteParameters("/settings/providers"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/providers", () =>
+        compozyApiMock.get("/api/settings/providers", () =>
           HttpResponse.json({ error: "Failed to load providers" }, { status: 500 })
         ),
       ],

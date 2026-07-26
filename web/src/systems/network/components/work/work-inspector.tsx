@@ -1,4 +1,4 @@
-import { Empty, Eyebrow } from "@agh/ui";
+import { Empty, Eyebrow } from "@compozy/ui";
 import { Activity } from "lucide-react";
 
 import { cn } from "@/lib/utils";

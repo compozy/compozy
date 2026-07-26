@@ -1,5 +1,5 @@
 import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
-import { Input, Switch } from "@agh/ui";
+import { Input, Switch } from "@compozy/ui";
 import {
   type DraftSectionProps,
   type ValidatedSectionProps,
@@ -35,7 +35,7 @@ export function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
             className="w-72 font-mono"
             data-testid={`${TEST_PREFIX}-global-dir-input`}
             value={draft.global_dir ?? ""}
-            placeholder="~/.agh/memory"
+            placeholder="~/.compozy/memory"
             onChange={event =>
               setDraft(prev => {
                 const current = prev ?? draft;

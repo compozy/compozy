@@ -1,6 +1,6 @@
 import { Lock } from "lucide-react";
 
-import { Dialog, DialogContent, DialogTitle, Icon, Logo, Pill, cn } from "@agh/ui";
+import { Dialog, DialogContent, DialogTitle, Icon, Logo, Pill, cn } from "@compozy/ui";
 
 import type { OnboardingWizardApi } from "../hooks/use-onboarding-wizard";
 import { useSetupBodyHeight } from "../hooks/use-setup-body-height";
@@ -65,7 +65,7 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
         <header className="flex h-setup-head flex-none items-center gap-2.5 border-b border-line pr-3.5 pl-4">
           <Logo variant="symbol" decorative className="size-5" />
           <DialogTitle className="text-modal-title font-semibold tracking-modal-title text-fg-strong">
-            Set up AGH
+            Set up CompozyOS
           </DialogTitle>
           <span aria-hidden="true" className="min-w-2 flex-1" />
           <Pill

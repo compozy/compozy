@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
 import { expect, userEvent, within } from "storybook/test";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -34,7 +34,7 @@ export const MCPVaultSelector: Story = {
     ...appRouteParameters("/marketplace/mcps"),
     ...storybookMswParameters({
       vault: [
-        aghApiMock.get("/api/vault/secrets", () =>
+        compozyApiMock.get("/api/vault/secrets", () =>
           HttpResponse.json({
             secrets: [
               {
@@ -69,7 +69,7 @@ export const MCPVaultCreate: Story = {
   parameters: {
     ...appRouteParameters("/marketplace/mcps"),
     ...storybookMswParameters({
-      vault: [aghApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] }))],
+      vault: [compozyApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] }))],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -110,7 +110,7 @@ export const BundleConflict: Story = {
     ...appRouteParameters("/marketplace/bundles"),
     ...storybookMswParameters({
       marketplace: [
-        aghApiMock.post("/api/bundles/preview", () =>
+        compozyApiMock.post("/api/bundles/preview", () =>
           HttpResponse.json(
             { error: "Activation conflicts with the existing dependency-review channel" },
             { status: 409 }

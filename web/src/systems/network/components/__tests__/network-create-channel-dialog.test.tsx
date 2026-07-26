@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { dialogShellClass, OverlayContainerContext, UIProvider } from "@agh/ui";
+import { dialogShellClass, OverlayContainerContext, UIProvider } from "@compozy/ui";
 import { agentFixtures } from "@/systems/agent/mocks";
 
 import { createNetworkChannelDraft } from "../../lib/network-formatters";

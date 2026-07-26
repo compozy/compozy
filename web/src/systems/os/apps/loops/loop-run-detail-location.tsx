@@ -3,7 +3,7 @@ import { Activity, AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
 
-import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@agh/ui";
+import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 import { useLoopRunPage } from "./use-loop-run-page";
 import {
   LoopRunControls,

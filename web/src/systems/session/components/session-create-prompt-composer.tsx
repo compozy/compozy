@@ -1,7 +1,7 @@
 import { SendHorizontal } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, type RefObject } from "react";
 
-import { Button, cn, Kbd, Spinner, Textarea } from "@agh/ui";
+import { Button, cn, Kbd, Spinner, Textarea } from "@compozy/ui";
 
 export interface SessionCreatePromptComposerProps {
   value: string;

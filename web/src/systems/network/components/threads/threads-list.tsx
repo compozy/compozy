@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { Button, ListingRow, Pill, Skeleton, SkeletonRows } from "@agh/ui";
+import { Button, ListingRow, Pill, Skeleton, SkeletonRows } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

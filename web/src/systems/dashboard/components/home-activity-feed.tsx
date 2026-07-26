@@ -11,7 +11,7 @@ import {
   Pill,
   Section,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { homeActivityTone, isQuietActivityEvent } from "../lib/activity-classes";
 import type { HomeActivityEvent, HomeSurfaceStatus } from "../types";

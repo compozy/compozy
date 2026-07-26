@@ -1,4 +1,4 @@
-import { Button, Time } from "@agh/ui";
+import { Button, Time } from "@compozy/ui";
 
 import { taskHighestAttemptOrdinal } from "../lib/task-command-state";
 import { computeElapsed } from "../lib/task-formatters";

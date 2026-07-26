@@ -3,15 +3,15 @@ import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { LandingCodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
-const MEMORY_CODE = `agh memory write \\
+const MEMORY_CODE = `compozy memory write \\
   --name "Conversation language" \\
   --type user \\
   --description "Pedro prefers BR-PT in conversation" \\
   --content @personal-notes.md
-agh memory search "BR-PT"
-agh memory dream trigger`;
+compozy memory search "BR-PT"
+compozy memory dream trigger`;
 
 const STEPS = [
   {
@@ -24,13 +24,13 @@ const STEPS = [
     eyebrow: "Dream consolidation",
     title: "Time → Sessions → Lock cascade",
     description:
-      "Default gates: 24h, 3 touched sessions, file-lock. When all three pass, AGH spawns an ephemeral session that synthesizes recent activity into durable facts. No surprise compute.",
+      "Default gates: 24h, 3 touched sessions, file-lock. When all three pass, CompozyOS spawns an ephemeral session that synthesizes recent activity into durable facts. No surprise compute.",
   },
   {
     eyebrow: "Agent-managed",
     title: "Same surface for you and the agent",
     description:
-      "agh memory write | search | dream trigger works from CLI, HTTP, and UDS. Operators inspect the same files agents write; no privileged path.",
+      "compozy memory write | search | dream trigger works from CLI, HTTP, and UDS. Operators inspect the same files agents write; no privileged path.",
   },
 ];
 
@@ -54,8 +54,8 @@ export function MemoryDreamSection() {
             <p className="mt-4 max-w-[50ch] text-sm leading-relaxed text-muted">
               Memory is not a vector database. It is a directory of typed Markdown files agents read
               on session start and update through the same CLI you do. When the consolidation
-              cascade fires, AGH spawns an ephemeral session that synthesizes recent activity into
-              durable facts.
+              cascade fires, CompozyOS spawns an ephemeral session that synthesizes recent activity
+              into durable facts.
             </p>
             <Link
               href="/runtime"
@@ -68,7 +68,7 @@ export function MemoryDreamSection() {
           <div className="mt-12 hidden lg:block">
             <Image
               src="/images/runtime/memory-dream-landing-v1.png"
-              alt="AGH memory interface diagram showing scoped Markdown files, memory indexing, and dream consolidation into durable memory."
+              alt="CompozyOS memory interface diagram showing scoped Markdown files, memory indexing, and dream consolidation into durable memory."
               width={800}
               height={640}
               decoding="async"
@@ -101,7 +101,7 @@ export function MemoryDreamSection() {
           </ol>
 
           <div className="mt-10">
-            <LandingCodeBlock code={MEMORY_CODE} caption="agh memory" shell />
+            <LandingCodeBlock code={MEMORY_CODE} caption="compozy memory" shell />
           </div>
         </div>
       </div>

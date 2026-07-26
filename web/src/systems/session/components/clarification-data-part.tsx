@@ -1,7 +1,7 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
-import { Alert, AlertActions, AlertDescription, AlertTitle, Button, Spinner } from "@agh/ui";
+import { Alert, AlertActions, AlertDescription, AlertTitle, Button, Spinner } from "@compozy/ui";
 
 import { ClarificationNotAnswerableError, SessionApiError } from "../adapters/session-api";
 import {

@@ -1,13 +1,13 @@
-import type { AghApiOkJsonResponseFor } from "@/storybook/openapi-msw";
+import type { CompozyApiOkJsonResponseFor } from "@/storybook/openapi-msw";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import type { SettingsWindowManagerSection } from "@/systems/settings";
 
-type WindowManagerSnapshotWire = AghApiOkJsonResponseFor<
+type WindowManagerSnapshotWire = CompozyApiOkJsonResponseFor<
   "get",
   "/api/workspaces/{workspace_id}/window-manager"
 >;
 
-type WindowManagerResourceRecord = AghApiOkJsonResponseFor<
+type WindowManagerResourceRecord = CompozyApiOkJsonResponseFor<
   "get",
   "/api/workspaces/{workspace_id}/window-manager/layout-profiles"
 >["records"][number];
@@ -32,7 +32,7 @@ type WindowManagerLayoutResourceFixture = Omit<WindowManagerResourceRecord, "spe
   spec: WindowManagerLayoutProfileWire;
 };
 
-type WindowManagerLayoutDocumentWire = AghApiOkJsonResponseFor<
+type WindowManagerLayoutDocumentWire = CompozyApiOkJsonResponseFor<
   "get",
   "/api/workspaces/{workspace_id}/window-manager/layout"
 >;

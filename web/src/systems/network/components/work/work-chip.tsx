@@ -1,4 +1,4 @@
-import { Pill, type PillTone } from "@agh/ui";
+import { Pill, type PillTone } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

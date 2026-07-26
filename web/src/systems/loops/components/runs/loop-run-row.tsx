@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { formatRelativeTime } from "@agh/ui";
+import { formatRelativeTime } from "@compozy/ui";
 
 import { formatRunInputs, loopBudgetBar, runGenerationLabel } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";

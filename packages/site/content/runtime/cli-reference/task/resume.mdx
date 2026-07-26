@@ -1,21 +1,21 @@
 ---
-title: "agh task resume"
+title: "compozy task resume"
 description: "Resume new runs for one paused task"
 ---
 
-## agh task resume
+## compozy task resume
 
 Resume new runs for one paused task
 
 ```
-agh task resume <task-id> [flags]
+compozy task resume <task-id> [flags]
 ```
 
 ### Examples
 
 ```
   # Re-enable scheduler claims for a task
-  agh task resume task-123
+  compozy task resume task-123
 ```
 
 ### Options
@@ -34,7 +34,7 @@ agh task resume <task-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -44,5 +44,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task resume <task-id> -o json
+compozy task resume <task-id> -o json
 ```

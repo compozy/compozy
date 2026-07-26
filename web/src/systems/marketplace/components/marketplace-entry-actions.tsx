@@ -6,7 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
   buttonVariants,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { MarketplaceListing } from "../types";
 

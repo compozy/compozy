@@ -5,7 +5,7 @@ import { PanelSurface } from "@/storybook/story-layout";
 import { networkThreadMessagesFixture } from "@/systems/network/mocks";
 import type { NetworkConversationMessage } from "@/systems/network/types";
 
-import { KindChip } from "@agh/ui";
+import { KindChip } from "@compozy/ui";
 import { ConversationError } from "../empty-states/conversation-error";
 import { DatePill } from "../timeline/date-pill";
 import { HoverToolbar } from "../timeline/hover-toolbar";

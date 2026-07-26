@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import { useLayoutSeam } from "../hooks/use-layout-seam";
 import type { LayoutProjection, ProjectedSeam } from "../lib/window-manager-types";

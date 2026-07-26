@@ -9,7 +9,7 @@ import {
   Input,
   SecretField,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { ModalSettingsFieldRow, SettingsEditorDialog } from "@/systems/settings";
 

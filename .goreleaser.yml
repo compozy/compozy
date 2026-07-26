@@ -8,8 +8,8 @@ project_name: agh
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
   license: "MIT"
-  homepage: "https://agh.network"
-  description: "AGH — Artificial General Hivemind"
+  homepage: "https://compozy.com"
+  description: "Compozy — agent operating system"
   maintainers:
     - "AGH Team"
 
@@ -71,8 +71,8 @@ brews:
     ids:
       - agh-archive
     directory: Formula
-    homepage: "https://agh.network"
-    description: "AGH — Artificial General Hivemind"
+    homepage: "https://compozy.com"
+    description: "Compozy — agent operating system"
     license: "MIT"
     test: |
       system "#{bin}/agh", "version"
@@ -94,9 +94,9 @@ nfpms:
       - agh
     if: '{{ eq .Os "linux" }}'
     vendor: AGH
-    homepage: "https://agh.network"
+    homepage: "https://compozy.com"
     maintainer: "AGH Team"
-    description: "AGH — Artificial General Hivemind"
+    description: "Compozy — agent operating system"
     license: "MIT"
     bindir: /usr/bin
     section: utils
@@ -109,13 +109,13 @@ npms:
   - name: "@compozy/agh"
     ids:
       - agh-archive
-    description: "AGH — Artificial General Hivemind"
+    description: "Compozy — agent operating system"
     repository: "git+https://github.com/compozy/agh.git"
     bugs: "https://github.com/compozy/agh/issues"
     access: public
     format: tar.gz
     license: "MIT"
-    homepage: "https://agh.network"
+    homepage: "https://compozy.com"
 
 checksum:
   name_template: "checksums.txt"

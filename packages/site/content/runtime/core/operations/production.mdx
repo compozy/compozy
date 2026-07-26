@@ -1,33 +1,33 @@
 ---
 title: Production Checklist
-description: Prepare AGH for persistent unattended operation with clear pass and fail checks.
+description: Prepare Compozy for persistent unattended operation with clear pass and fail checks.
 ---
 
-Use this checklist before running AGH as a persistent daemon for real work. It is written for local
+Use this checklist before running Compozy as a persistent daemon for real work. It is written for local
 or self-managed production-like environments where one service user owns one `COMPOZY_HOME`.
 
 <OperatorNote>
-  Run AGH under a service manager with `agh daemon start --foreground`. The default detached command
-  is convenient for interactive use, but foreground mode gives systemd or launchd direct ownership
-  of the daemon process.
+  Run Compozy under a service manager with `compozy daemon start --foreground`. The default detached
+  command is convenient for interactive use, but foreground mode gives systemd or launchd direct
+  ownership of the daemon process.
 </OperatorNote>
 
 ## 1. Pin the daemon identity and home
 
-| Check            | Pass condition                                                                                             |
-| ---------------- | ---------------------------------------------------------------------------------------------------------- |
-| Service user     | A dedicated OS user owns the daemon process.                                                               |
-| Home directory   | `COMPOZY_HOME` is explicit, stable, and owned by the service user.                                         |
-| CLI operations   | Operators use the same `COMPOZY_HOME` when running `agh status`, `agh session list`, and related commands. |
-| File permissions | The home directory is not world-writable; socket access is limited to the daemon user.                     |
+| Check            | Pass condition                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Service user     | A dedicated OS user owns the daemon process.                                                                       |
+| Home directory   | `COMPOZY_HOME` is explicit, stable, and owned by the service user.                                                 |
+| CLI operations   | Operators use the same `COMPOZY_HOME` when running `compozy status`, `compozy session list`, and related commands. |
+| File permissions | The home directory is not world-writable; socket access is limited to the daemon user.                             |
 
 Example:
 
 ```bash
-sudo install -d -o agh -g agh -m 0750 /var/lib/agh
+sudo install -d -o compozy -g compozy -m 0750 /var/lib/compozy
 ```
 
-AGH creates its standard subdirectories with normal directory permissions, and the live UDS socket is
+Compozy creates its standard subdirectories with normal directory permissions, and the live UDS socket is
 chmodded to `0600`.
 
 ## 2. Harden configuration
@@ -35,18 +35,18 @@ chmodded to `0600`.
 Review the home config that the daemon loads:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
 sed -n '1,220p' "$COMPOZY_HOME/config.toml"
 ```
 
-After changing it, run `agh daemon start --foreground` during a maintenance window or in a staging
+After changing it, run `compozy daemon start --foreground` during a maintenance window or in a staging
 `COMPOZY_HOME` to surface config validation errors directly.
 
 Use explicit daemon and HTTP settings:
 
 ```toml
 [daemon]
-socket = "/var/lib/agh/daemon.sock"
+socket = "/var/lib/compozy/daemon.sock"
 
 [http]
 host = "localhost"
@@ -65,7 +65,7 @@ max_concurrent_agents = 20
 
 | Check         | Pass condition                                                                                                                        |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| HTTP bind     | `[http].host` is `localhost` unless AGH is intentionally protected by a reverse proxy or host firewall.                               |
+| HTTP bind     | `[http].host` is `localhost` unless Compozy is intentionally protected by a reverse proxy or host firewall.                           |
 | UDS path      | `[daemon].socket` is inside a directory owned by the daemon user.                                                                     |
 | Log level     | `[log].level` is `info` or `warn` for unattended operation; use `debug` only for short investigations.                                |
 | Limits        | Agent concurrency limits and host resource expectations match the host capacity.                                                      |
@@ -75,7 +75,7 @@ max_concurrent_agents = 20
 
 The service manager should:
 
-- start `agh daemon start --foreground`
+- start `compozy daemon start --foreground`
 - send `SIGTERM` during stop
 - restart on unexpected failure
 - provide the provider environment used by `bound_secret` providers and run under the user whose
@@ -86,7 +86,7 @@ For concrete service files, see [Daemon Operations](/runtime/core/operations/dae
 
 ## 4. Configure log retention
 
-AGH writes structured logs to `$COMPOZY_HOME/logs/agh.log`. Detached daemon startup also appends child
+Compozy writes structured logs to `$COMPOZY_HOME/logs/compozy.log`. Detached daemon startup also appends child
 stdout and stderr there. The daemon rotates this file directly from the LogSink configured under
 `[log]`; no external `logrotate` rule is required for the default file.
 
@@ -101,7 +101,7 @@ compress_backups = false
 
 | Check        | Pass condition                                                                                      |
 | ------------ | --------------------------------------------------------------------------------------------------- |
-| Retention    | `max_size_mb * (max_backups + 1)` fits the filesystem budget for the AGH home.                      |
+| Retention    | `max_size_mb * (max_backups + 1)` fits the filesystem budget for the Compozy home.                  |
 | Access       | Only operators who need runtime logs can read `$COMPOZY_HOME/logs/` and downloaded support bundles. |
 | Error review | Recent `error` lines are reviewed during incident response and before upgrades.                     |
 
@@ -110,8 +110,8 @@ compress_backups = false
 Use both runtime status and doctor diagnostics:
 
 ```bash
-agh status --output json
-agh doctor --output json
+compozy status --output json
+compozy doctor --output json
 ```
 
 If HTTP is available locally:
@@ -135,7 +135,7 @@ Alert on:
 
 Back up at least:
 
-- `$COMPOZY_HOME/agh.db` and SQLite sidecars
+- `$COMPOZY_HOME/compozy.db` and SQLite sidecars
 - `$COMPOZY_HOME/sessions/`
 - `$COMPOZY_HOME/config.toml`
 - `$COMPOZY_HOME/agents/`
@@ -155,7 +155,7 @@ stopped, use SQLite `.backup` instead of copying only the main database files.
 
 ## 7. Reserve host resources
 
-AGH starts real ACP-compatible agent CLIs as child processes. Size the host for the agent binaries
+Compozy starts real ACP-compatible agent CLIs as child processes. Size the host for the agent binaries
 you run, not only the daemon.
 
 | Check            | Pass condition                                                                                  |
@@ -164,7 +164,7 @@ you run, not only the daemon.
 | File descriptors | The service limit is high enough for concurrent sessions, sockets, logs, and SQLite handles.    |
 | Process count    | The service user can run the daemon plus expected agent child processes.                        |
 | PATH             | Provider commands such as `npx`, `codex`, or `gemini` are available to the service environment. |
-| Shutdown         | The service manager gives AGH time to stop sessions and close databases before killing it.      |
+| Shutdown         | The service manager gives Compozy time to stop sessions and close databases before killing it.  |
 
 For systemd, set resource limits in the service file when needed:
 
@@ -180,17 +180,17 @@ Restart=on-failure
 Use this flow for binary upgrades:
 
 ```bash
-export COMPOZY_HOME=/var/lib/agh
+export COMPOZY_HOME=/var/lib/compozy
 
-agh status
-agh daemon stop
+compozy status
+compozy daemon stop
 
 # Back up COMPOZY_HOME here.
-# Install the new agh binary here.
+# Install the new compozy binary here.
 
-agh daemon start
-agh status
-agh doctor
+compozy daemon start
+compozy status
+compozy doctor
 ```
 
 Do not rely on old daemon state after replacing the binary. Stop, back up, replace, start, and then
@@ -200,11 +200,11 @@ confirm status and health.
 
 | Area             | Ready when                                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------------------------- |
-| Daemon lifecycle | `agh daemon start`, `agh status`, and `agh daemon stop` work under the service manager.                 |
+| Daemon lifecycle | `compozy daemon start`, `compozy status`, and `compozy daemon stop` work under the service manager.     |
 | Socket           | The CLI can reach the configured UDS socket as the intended operator user.                              |
 | HTTP             | HTTP is bound only where intended and health endpoints are reachable.                                   |
 | Logs             | Logs rotate and recent errors are actionable.                                                           |
-| Databases        | Backups include `agh.db`, per-session `events.db` files, metadata, and sidecars.                        |
+| Databases        | Backups include `compozy.db`, per-session `events.db` files, metadata, and sidecars.                    |
 | Sessions         | Test session creation, stop, list, and resume work with the production service environment.             |
 | Recovery         | Operators know how to restore a backup into a separate `COMPOZY_HOME` before touching production state. |
 

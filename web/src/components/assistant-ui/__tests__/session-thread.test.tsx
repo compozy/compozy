@@ -950,7 +950,7 @@ describe("SessionThread transcript states", () => {
         parts: [
           {
             type: "data-agh-event",
-            data: { type: "system", title: "AGH Runtime Agent" },
+            data: { type: "system", title: "CompozyOS Runtime Agent" },
           },
           {
             type: "text",
@@ -965,7 +965,7 @@ describe("SessionThread transcript states", () => {
         parts: [
           {
             type: "data-agh-event",
-            data: { type: "system", title: "AGH Runtime Agent" },
+            data: { type: "system", title: "CompozyOS Runtime Agent" },
           },
           {
             type: "text",

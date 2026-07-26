@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -39,7 +39,7 @@ export const Default: Story = {
     ...appRouteParameters("/settings/memory"),
     ...storybookMswParameters({
       daemon: [
-        aghApiMock.get("/api/onboarding", () =>
+        compozyApiMock.get("/api/onboarding", () =>
           HttpResponse.json({ onboarding: { completed: true } })
         ),
       ],
@@ -60,7 +60,7 @@ export const Dirty: Story = {
       <StorybookWorkspaceSetup />
       <StorybookFieldDirtySetup
         testId="settings-page-memory-global-dir-input"
-        value="~/.agh/memory-dirty"
+        value="~/.compozy/memory-dirty"
       />
     </>
   ),
@@ -105,7 +105,7 @@ export const Loading: Story = {
     ...appRouteParameters("/settings/memory"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/memory", async () => {
+        compozyApiMock.get("/api/settings/memory", async () => {
           await delay("infinite");
           return HttpResponse.json(settingsMemorySectionFixture);
         }),
@@ -124,7 +124,7 @@ export const Error: Story = {
     ...appRouteParameters("/settings/memory"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/memory", () =>
+        compozyApiMock.get("/api/settings/memory", () =>
           HttpResponse.json({ error: "Failed to load memory settings" }, { status: 500 })
         ),
       ],

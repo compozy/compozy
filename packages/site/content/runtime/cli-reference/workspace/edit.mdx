@@ -1,24 +1,24 @@
 ---
-title: "agh workspace edit"
+title: "compozy workspace edit"
 description: "Edit a registered workspace"
 ---
 
-## agh workspace edit
+## compozy workspace edit
 
 Edit a registered workspace
 
 ```
-agh workspace edit <name-or-id> [flags]
+compozy workspace edit <name-or-id> [flags]
 ```
 
 ### Examples
 
 ```
   # Rename a workspace
-  agh workspace edit checkout-api --name checkout
+  compozy workspace edit checkout-api --name checkout
 
   # Clear the workspace default agent
-  agh workspace edit checkout-api --default-agent ""
+  compozy workspace edit checkout-api --default-agent ""
 ```
 
 ### Options
@@ -41,7 +41,7 @@ agh workspace edit <name-or-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -51,5 +51,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh workspace edit <name-or-id> -o json
+compozy workspace edit <name-or-id> -o json
 ```

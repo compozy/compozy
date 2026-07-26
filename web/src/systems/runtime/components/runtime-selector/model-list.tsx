@@ -1,6 +1,6 @@
 import { Plus, Star } from "lucide-react";
 
-import { cn, Kbd, SkeletonRows } from "@agh/ui";
+import { cn, Kbd, SkeletonRows } from "@compozy/ui";
 
 import { ModelRow } from "./model-row";
 import type {

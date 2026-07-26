@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { FilterFieldConfig } from "@agh/ui";
+import type { FilterFieldConfig } from "@compozy/ui";
 
 import type { LoopCatalogFilter } from "../loop-catalog";
 import {

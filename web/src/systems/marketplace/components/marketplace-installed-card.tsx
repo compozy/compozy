@@ -13,7 +13,7 @@ import {
   Pill,
   Spinner,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { createElement, useState } from "react";
 
 import { deriveMCPManagementFilter } from "@/systems/settings";

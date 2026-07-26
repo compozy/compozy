@@ -1,27 +1,27 @@
 ---
-title: "agh agent info"
+title: "compozy agent info"
 description: "Show one agent definition"
 ---
 
-## agh agent info
+## compozy agent info
 
 Show one agent definition
 
 ```
-agh agent info <name> [flags]
+compozy agent info <name> [flags]
 ```
 
 ### Examples
 
 ```
   # Inspect the default bootstrap agent
-  agh agent info general
+  compozy agent info general
 
   # Inspect a workspace-local agent
-  agh agent info reviewer --workspace ~/dev/ai/acme-startup
+  compozy agent info reviewer --workspace ~/dev/ai/acme-startup
 
   # Inspect an agent definition as JSON
-  agh agent info reviewer -o json
+  compozy agent info reviewer -o json
 ```
 
 ### Options
@@ -40,7 +40,7 @@ agh agent info <name> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -50,5 +50,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent info <name> -o json
+compozy agent info <name> -o json
 ```

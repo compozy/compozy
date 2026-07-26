@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ListChecks, Plus } from "lucide-react";
 
-import { BlockLoading, Button, Empty, RouteNav, useTopbarSlot } from "@agh/ui";
+import { BlockLoading, Button, Empty, RouteNav, useTopbarSlot } from "@compozy/ui";
 
 import {
   DEFAULT_TASK_TEMPLATE_ID,

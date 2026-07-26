@@ -1,4 +1,4 @@
-import { Field, FieldLabel, Textarea } from "@agh/ui";
+import { Field, FieldLabel, Textarea } from "@compozy/ui";
 
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 

@@ -1,4 +1,4 @@
-import { Pill } from "@agh/ui";
+import { Pill } from "@compozy/ui";
 
 import { formatAgentOriginLabel, formatCategoryMetaSegment } from "../lib/agent-fleet-projection";
 import type { AgentPayload } from "../types";

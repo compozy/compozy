@@ -8,7 +8,7 @@ import {
   SettingsLiveChip,
   type SettingsHooksExtensionsSection,
 } from "@/systems/settings";
-import { Input, Switch } from "@agh/ui";
+import { Input, Switch } from "@compozy/ui";
 
 type PolicyConfig = SettingsHooksExtensionsSection["config"];
 

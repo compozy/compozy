@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import type { EntityMode } from "@agh/ui";
+import type { EntityMode } from "@compozy/ui";
 
 import type { SettingsSandboxEntry } from "@/systems/settings";
 

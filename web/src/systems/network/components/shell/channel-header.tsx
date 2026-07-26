@@ -1,4 +1,4 @@
-import { Pill, Time } from "@agh/ui";
+import { Pill, Time } from "@compozy/ui";
 
 import { useChannelMembers } from "../../hooks/use-channel-members";
 import type { NetworkChannel, NetworkChannelSummary } from "../../types";

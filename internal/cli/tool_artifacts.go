@@ -33,10 +33,10 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
 		Use:   "read <artifact_uri>",
 		Short: "Read one workspace-scoped artifact page",
 		Example: `  # Emit one page as structured JSON
-  compozy tool artifact read agh://tool-artifacts/art_<sha256> --workspace ws-1 -o json
+  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 -o json
 
   # Decode page bytes directly to stdout
-  compozy tool artifact read agh://tool-artifacts/art_<sha256> --workspace ws-1 --offset 65536`,
+  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 --offset 65536`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uri := strings.TrimSpace(args[0])

@@ -17,7 +17,7 @@ import {
   ImmutableIdentity,
   Input,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { MemoryType } from "@/systems/knowledge/types";
 

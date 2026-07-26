@@ -1,49 +1,49 @@
 ---
 title: Quick Start
-description: Start the AGH daemon, create a real session for the current repository, follow live events, stop it, and resume it.
+description: Start the Compozy daemon, create a real session for the current repository, follow live events, stop it, and resume it.
 ---
 
-This tutorial takes you from a bootstrapped AGH install to one durable session you can inspect,
+This tutorial takes you from a bootstrapped Compozy install to one durable session you can inspect,
 stop, and resume. It is intentionally repository-aware: you will create the session from the
-project you actually want AGH to manage.
+project you actually want Compozy to manage.
 
 **Before you begin:** Complete [Installation](/runtime/core/getting-started/installation), make
 sure your selected provider is authenticated, and `cd` into a repository you want the session to
-use. For native ACP providers, use the provider's own login command before starting AGH. For
+use. For native ACP providers, use the provider's own login command before starting Compozy. For
 API-key providers, make sure the configured `env:` or `vault:` credential is available to the
 daemon.
 
 ## 1. Start the daemon
 
 ```bash
-agh daemon start
+compozy daemon start
 ```
 
 If you want to watch the daemon logs in the current terminal instead of detaching, use:
 
 ```bash
-agh daemon start --foreground
+compozy daemon start --foreground
 ```
 
 Verify that the daemon is available:
 
 ```bash
-agh status
+compozy status
 ```
 
 ## 2. Register the current repository as a workspace
 
-AGH can use the current directory directly, but registering the workspace gives you a stable name
+Compozy can use the current directory directly, but registering the workspace gives you a stable name
 you can reuse in later commands.
 
 ```bash
-agh workspace add "$PWD" --name current
+compozy workspace add "$PWD" --name current
 ```
 
 Confirm the registration:
 
 ```bash
-agh workspace info current
+compozy workspace info current
 ```
 
 ## 3. Create your first session
@@ -51,13 +51,13 @@ agh workspace info current
 Create a session for the workspace you just registered:
 
 ```bash
-agh session new --workspace current --agent general --name first-run
+compozy session new --workspace current --agent general --name first-run
 ```
 
 If you prefer not to register a workspace first, use:
 
 ```bash
-agh session new --cwd "$PWD" --agent general
+compozy session new --cwd "$PWD" --agent general
 ```
 
 The key point is explicit workspace context. That keeps the first session tied to the repository
@@ -68,13 +68,13 @@ you expect, instead of relying on an implicit working directory.
 List sessions and note the ID:
 
 ```bash
-agh session list
+compozy session list
 ```
 
 For scripts or copy-paste into later commands, JSON is often easier:
 
 ```bash
-agh session list -o json
+compozy session list -o json
 ```
 
 The examples below use `sess_1234` as a placeholder for your real session ID.
@@ -84,19 +84,19 @@ The examples below use `sess_1234` as a placeholder for your real session ID.
 Use a prompt that makes the workspace matter:
 
 ```bash
-agh session prompt sess_1234 "Summarize the top-level structure of this repository and tell me what I should read first."
+compozy session prompt sess_1234 "Summarize the top-level structure of this repository and tell me what I should read first."
 ```
 
-AGH records the prompt, the agent response, tool calls, permission decisions, and usage events in
+Compozy records the prompt, the agent response, tool calls, permission decisions, and usage events in
 the per-session event store.
 
 ## 6. Follow the live event stream
 
 ```bash
-agh session events sess_1234 --follow
+compozy session events sess_1234 --follow
 ```
 
-This is the fastest way to see what AGH means by a durable session: every important step appears as
+This is the fastest way to see what Compozy means by a durable session: every important step appears as
 an event instead of disappearing into one terminal transcript.
 
 When you are done following, press `Ctrl+C`.
@@ -104,29 +104,29 @@ When you are done following, press `Ctrl+C`.
 ## 7. Stop the session
 
 ```bash
-agh session stop sess_1234
+compozy session stop sess_1234
 ```
 
-The session keeps its history in `~/.agh/sessions/sess_1234/events.db`. Stopping ends live work; it
+The session keeps its history in `~/.compozy/sessions/sess_1234/events.db`. Stopping ends live work; it
 does not delete the durable record.
 
 ## 8. Resume the same session
 
 ```bash
-agh session resume sess_1234
+compozy session resume sess_1234
 ```
 
 Then inspect the stored history:
 
 ```bash
-agh session history sess_1234
+compozy session history sess_1234
 ```
 
-This is the core AGH promise in one loop: the session is durable, inspectable, and resumable.
+This is the core Compozy promise in one loop: the session is durable, inspectable, and resumable.
 
 ## What You Just Proved
 
-You verified that AGH can:
+You verified that Compozy can:
 
 1. run a local daemon
 2. attach work to one explicit repository
@@ -140,4 +140,4 @@ You verified that AGH can:
   workspace-scoped `AGENT.md`.
 - [Web UI](/runtime/core/getting-started/web-ui) shows how to inspect the same daemon state in the
   browser.
-- [Session Lifecycle](/runtime/core/sessions/lifecycle) explains what AGH is storing and why.
+- [Session Lifecycle](/runtime/core/sessions/lifecycle) explains what Compozy is storing and why.

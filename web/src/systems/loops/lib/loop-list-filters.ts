@@ -1,4 +1,4 @@
-import type { Filter, FilterFieldsConfig } from "@agh/ui";
+import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 
 import type { LoopRunStatus } from "../types";
 import {

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { Button, Eyebrow, Skeleton, Spinner } from "@agh/ui";
+import { Button, Eyebrow, Skeleton, Spinner } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import type {
@@ -56,7 +56,7 @@ function SkeletonUserRow() {
 
 /**
  * Lightweight message skeleton shown while the transcript fetch is in flight. Built
- * from the `@agh/ui` `Skeleton` primitive (`animate-shimmer` over neutral surfaces) so
+ * from the `@compozy/ui` `Skeleton` primitive (`animate-shimmer` over neutral surfaces) so
  * a loading session is never mistaken for an empty one.
  */
 function ThreadMessageSkeleton() {
@@ -103,8 +103,8 @@ function ThreadStarting({ agentName }: { agentName: string }) {
         <Spinner className="size-5 text-info" aria-hidden="true" />
         <Eyebrow className="mt-3 text-info">Starting session</Eyebrow>
         <p className="mt-2 text-small-body text-muted">
-          The session is saved. AGH is preparing {agentName} and will enable the composer when the
-          runtime is active.
+          The session is saved. CompozyOS is preparing {agentName} and will enable the composer when
+          the runtime is active.
         </p>
       </div>
     </div>

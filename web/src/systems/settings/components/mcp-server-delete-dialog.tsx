@@ -1,7 +1,7 @@
 import { Trash2 } from "lucide-react";
 
 import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "../types";
-import { ConfirmDialog, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { ConfirmDialog, NativeSelect, NativeSelectOption } from "@compozy/ui";
 
 import { mcpTargetLabel } from "./mcp-server-labels";
 import { SettingsSourceBadge } from "./settings-source-badge";

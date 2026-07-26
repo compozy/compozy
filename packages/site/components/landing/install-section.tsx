@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, type KeyboardEvent } from "react";
-import { buttonVariants } from "@agh/ui";
-import { cn } from "@agh/ui/lib/utils";
+import { buttonVariants } from "@compozy/ui";
+import { cn } from "@compozy/ui/lib/utils";
 import { LandingCodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
@@ -20,7 +20,7 @@ const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[
     id: "npm",
     label: "npm",
     command: "npm install -g @compozy/agh",
-    note: "Managed updates · Node package · downloads the AGH release archive",
+    note: "Managed updates · Node package · downloads the CompozyOS release archive",
   },
   {
     id: "go",
@@ -33,23 +33,23 @@ const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[
 const STEPS = [
   {
     step: "01",
-    title: "Bootstrap your AGH home",
+    title: "Bootstrap your CompozyOS home",
     description:
-      "Create ~/.agh/config.toml and the default general agent before you start the daemon.",
-    code: "agh install",
+      "Create ~/.compozy/config.toml and the default general agent before you start the daemon.",
+    code: "compozy install",
   },
   {
     step: "02",
     title: "Start the daemon",
     description: "One local process, detached by default, exposing CLI, HTTP/SSE, and the web UI.",
-    code: "agh daemon start",
+    code: "compozy daemon start",
   },
   {
     step: "03",
     title: "Launch a real session",
     description:
-      "Create the session from the repository you want AGH to manage so workspace resolution is explicit.",
-    code: 'agh workspace add "$PWD" --name current\nagh session new --workspace current --agent general',
+      "Create the session from the repository you want CompozyOS to manage so workspace resolution is explicit.",
+    code: 'compozy workspace add "$PWD" --name current\ncompozy session new --workspace current --agent general',
   },
 ];
 

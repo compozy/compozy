@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle, Eyebrow, Pill, Section } from "@agh/ui";
+import { Card, CardContent, CardHeader, CardTitle, Eyebrow, Pill, Section } from "@compozy/ui";
 
 import { SectionLink } from "./design-system-showcase-section-link";
 import { sectionById } from "./design-system-showcase-sections";

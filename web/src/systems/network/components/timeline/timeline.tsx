@@ -1,6 +1,6 @@
 import { Fragment, useLayoutEffect, useRef } from "react";
 
-import { Button, Skeleton, SkeletonRows } from "@agh/ui";
+import { Button, Skeleton, SkeletonRows } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

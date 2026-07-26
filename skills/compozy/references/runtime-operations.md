@@ -2,9 +2,9 @@
 
 ## Operating Model
 
-AGH is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, network rooms, memory, skills, and extension resources.
+Compozy is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, network rooms, memory, skills, and extension resources.
 
-Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public AGH surfaces with structured output.
+Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public Compozy surfaces with structured output.
 
 ## Daemon Drain
 
@@ -14,7 +14,7 @@ Confirm drain through `.daemon.status == "draining"` in `compozy status -o json`
 
 ## Session Lifecycle
 
-AGH sessions are daemon-owned runtimes. Common states:
+Compozy sessions are daemon-owned runtimes. Common states:
 
 - starting - the daemon accepted the session and is booting the provider.
 - active - the provider is connected and ready for prompts.
@@ -35,7 +35,7 @@ The event store and materialized transcript are the durable source of truth for 
 
 Treat `transcript_marker.file_mutation_unverified` as a required verification signal: one or more persisted `edit` mutations failed without a later successful mutation for the same path in that turn. Inspect the bounded paths and verify them before trusting completion claims; the marker is advisory and does not replace filesystem inspection.
 
-When the daemon reactivates a stopped runtime, it first tries the provider's ACP `session/load`. If that method is unsupported or the saved provider session is missing, AGH starts a fresh provider session and prepends a pruned projection of this session's persisted transcript to the next accepted prompt. The fallback appends a durable `session_recovered` marker summarized as `Context rebuilt from log.` It never issues an autonomous prompt, crosses a session or workspace boundary, or rewrites the authored message. A successful provider load adds no replay or recovery marker.
+When the daemon reactivates a stopped runtime, it first tries the provider's ACP `session/load`. If that method is unsupported or the saved provider session is missing, Compozy starts a fresh provider session and prepends a pruned projection of this session's persisted transcript to the next accepted prompt. The fallback appends a durable `session_recovered` marker summarized as `Context rebuilt from log.` It never issues an autonomous prompt, crosses a session or workspace boundary, or rewrites the authored message. A successful provider load adds no replay or recovery marker.
 
 Pressure compaction preserves complete prior turns in the workspace checkpoint before marking their
 event rows archived. Archived rows remain visible to `compozy session events` and `compozy session history`,
@@ -83,17 +83,17 @@ the durable session stops with a failure. Use `--no-wait` when a controller need
 API until it becomes `active` or durably `stopped` with `failure.kind=startup_failure`.
 
 Use `--prompt` with non-whitespace text to atomically create a session and stage its first user turn.
-AGH persists the `starting` session and the trimmed prompt before returning, then dispatches the
+Compozy persists the `starting` session and the trimmed prompt before returning, then dispatches the
 prompt once after the selected provider, model, and reasoning effort become active. Empty or
 whitespace-only values keep create-only behavior. `--no-wait --prompt` returns the durable `starting`
 record with the prompt still queued. A startup failure retains that prompt for an explicit resume;
 deleting the session removes it. Do not send the same prompt again after create.
 
-If an AGH-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
+If a Compozy-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
 
 ## Background Roles
 
-AGH routes six daemon-owned background responsibilities through the closed `[roles]` roster:
+Compozy routes six daemon-owned background responsibilities through the closed `[roles]` roster:
 `coordinator`, `dream`, `checkpoint_summary`, `memory_extractor`, `auto_title`, and
 `memory_controller`. Inspect the effective global or workspace projection with structured output:
 
@@ -116,7 +116,7 @@ live `compozy__config_set` descriptor. Role writes are Live desired state at glo
 and affect later invocations without restarting the daemon. Use `config.toml` or the Settings Roles
 API/UI for the ordered `fallback_chain`, which is an array of route tables and replaces as a whole in
 a workspace overlay. A fallback may advance only at the owning invocation's pre-acceptance boundary;
-an accepted ACP session is never silently rerouted. Immediately before each fallback attempt, AGH
+an accepted ACP session is never silently rerouted. Immediately before each fallback attempt, Compozy
 emits `role.fallback.used`; the event records that the route was tried, not that it succeeded.
 
 Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, and
@@ -135,7 +135,7 @@ owns subscription billing; `unknown` has no amount because rates or aggregate pr
 incompatible. Never treat `included` as a confirmed account balance or add `actual` and `estimated`.
 Sources are `agent_reported`, `catalog_config`, `models_dev`, `builtin`, or `none`.
 Configured model input, output, cache-read, cache-write, and reasoning rates affect subsequent
-estimates only; AGH does not reprice stored token statistics after a catalog or config change. Every
+estimates only; Compozy does not reprice stored token statistics after a catalog or config change. Every
 nonzero bucket requires its own finite, non-negative rate. Never infer a cache rate from input or a
 reasoning rate from output.
 
@@ -212,7 +212,7 @@ An empty bridge `dm_policy` normalizes to permissive `open`. The current create/
 
 Credential-bearing API, OAuth, and service destinations are operator-owned adapter environment, not instance configuration. `provider_config` rejects `api_base_url`, `oauth_token_url`, `service_url`, `openid_metadata_url`, and `token_url`; use the provider's `COMPOZY_BRIDGE_*` process variables for trusted overrides. Provider clients use `bridgesdk.CredentialedHTTPClient`, returning the original `3xx` for classification without forwarding credentials or replaying mutation bodies. `webhook.public_url` must be public HTTPS, and verification blocks internal/special-use addresses, proxying, and redirects before reachability is attempted. Bridge reads expose the validated callback as optional `webhook_public_url`; clients use that projection for setup readiness instead of re-parsing `provider_config`.
 
-Terminal replies are split provider-side on natural boundaries with `(N/M)` markers. AGH measures Slack at 40,000 UTF-16 code units, Telegram at 4,096 UTF-16 code units, Discord at 2,000 Unicode code points, Teams at 28,000 Unicode code points, Google Chat at 32,000 UTF-8 bytes, and WhatsApp at 4,096 Unicode code points. Every multi-chunk delivery acknowledges its last remote message. Edit-capable providers keep an oversized non-terminal response in one mutable preview and materialize its continuations only on the terminal update. Slack converts common Markdown to mrkdwn; Telegram sends escaped MarkdownV2 and retries a typed parse rejection as plain text.
+Terminal replies are split provider-side on natural boundaries with `(N/M)` markers. Compozy measures Slack at 40,000 UTF-16 code units, Telegram at 4,096 UTF-16 code units, Discord at 2,000 Unicode code points, Teams at 28,000 Unicode code points, Google Chat at 32,000 UTF-8 bytes, and WhatsApp at 4,096 Unicode code points. Every multi-chunk delivery acknowledges its last remote message. Edit-capable providers keep an oversized non-terminal response in one mutable preview and materialize its continuations only on the terminal update. Slack converts common Markdown to mrkdwn; Telegram sends escaped MarkdownV2 and retries a typed parse rejection as plain text.
 
 Configure the typed `delivery_defaults.progress` block with `tool_progress` (`off`, `new`, `all`, or `verbose`), `grouping` (`accumulate` or `separate`), `typing`, and `reactions`. Slack, Telegram, and Discord default to `new` plus `accumulate` with typing and reactions enabled; other platforms default to `off` plus `accumulate` with both affordances disabled unless the instance overrides them. `new` deduplicates consecutive starts but still emits completed and failed phases.
 
@@ -227,9 +227,9 @@ The CLI exposes the same fields on `bridge create` and `bridge update`:
 
 Use structured output to inspect the saved resource after mutation. An adapter that has not registered a progress handler acknowledges these events without a provider-side effect; final answer delivery remains independent. Progress previews are daemon-rendered and redacted before they cross the extension boundary.
 
-Supported Slack and Telegram message edits reach the agent as a typed `edit` prompt block. Slack, Telegram, and Google Chat replies include quoted parent text and author only when an embedded snapshot or the bounded workspace/instance/conversation cache has it; a miss stays empty and never triggers a provider fetch. At startup, AGH reconciles durable in-flight delivery checkpoints before accepting new prompt or registration side effects. The ledger contains routing, sent/acknowledged sequence, remote-message, terminal, and aggregate-metric state—not streamed response or progress text. A sequence sent but not acknowledged is terminalized locally as indeterminate with no provider replay. An unfinished row without an unmatched send intent gets one write-ahead terminal error post, including on append-only providers or when its old remote anchor no longer exists.
+Supported Slack and Telegram message edits reach the agent as a typed `edit` prompt block. Slack, Telegram, and Google Chat replies include quoted parent text and author only when an embedded snapshot or the bounded workspace/instance/conversation cache has it; a miss stays empty and never triggers a provider fetch. At startup, Compozy reconciles durable in-flight delivery checkpoints before accepting new prompt or registration side effects. The ledger contains routing, sent/acknowledged sequence, remote-message, terminal, and aggregate-metric state—not streamed response or progress text. A sequence sent but not acknowledged is terminalized locally as indeterminate with no provider replay. An unfinished row without an unmatched send intent gets one write-ahead terminal error post, including on append-only providers or when its old remote anchor no longer exists.
 
-A bridge route reuses its active AGH session. If that session is busy, ingress retries admission locally up to three times within roughly five seconds; it does not automatically queue, interrupt, or steer the turn. Stop the route's `session_id` with `compozy session stop` when the next accepted provider event must start a clean session; the old transcript remains history and the route rebinds to a replacement.
+A bridge route reuses its active Compozy session. If that session is busy, ingress retries admission locally up to three times within roughly five seconds; it does not automatically queue, interrupt, or steer the turn. Stop the route's `session_id` with `compozy session stop` when the next accepted provider event must start a clean session; the old transcript remains history and the route rebinds to a replacement.
 
 Distinguish restart recovery from a remotely committed mutation whose required result was unavailable. After a provider accepts a mutation but its response or required ID cannot be materialized, adapters return `CommittedMutationError`; bridgesdk emits `committed_result_unavailable`, and the broker records a terminal error without replay or a fabricated remote ID. `compozy bridge send-test --json` reports that status, omits `remote_message_id`, and returns a redacted error; it is a direct control probe, so branch on `status` rather than command success and do not expect a broker ledger row or health-failure metric. Inspect the provider conversation before any manual resend because the remote artifact may already exist. An indeterminate progress mutation drops only that progress bubble; later final text remains eligible.
 
@@ -258,7 +258,7 @@ Inspect `.subprocess_health` in `compozy status -o json` and run
 default `daemon.subprocess_health_escalation_threshold = 3`, three consecutive failed checks—or an
 unexpected ACP process exit—move the exact linked nonterminal task run to `needs_attention` once.
 Terminal runs stay terminal. After repairing the provider or command, use
-`compozy task run recover <run-id> --reason <reason> -o json`; AGH never restarts the subprocess
+`compozy task run recover <run-id> --reason <reason> -o json`; Compozy never restarts the subprocess
 automatically. Set the threshold to `0` and restart to keep diagnostics without task mutation.
 
 For workspace-scoped MCP servers and bridges, `compozy doctor -o json` also reports durable dead-runtime
@@ -269,7 +269,7 @@ Doctor is read-only and never consumes that recovery attempt. There is no manual
 surface: use the diagnostic to repair the underlying command, configuration, permission, or
 authentication problem, then let the next due runtime access recover automatically.
 
-For `legacy_database`, stop AGH, cold-move the complete containing `COMPOZY_HOME` or workspace `.compozy` family, and select a separate fresh home. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible AGH binary against the stopped, intact family—the state-preserving recovery. Use a fresh home only if discarding that state is acceptable. If AGH reports SQLite corruption, stop it and cold-copy the complete containing family before inspection. AGH leaves the named database and its `-wal` and `-shm` sidecars unchanged instead of quarantining or recreating them; diagnose a copy, then restore a complete known-good family or select a fresh home only when discarding the retained state is acceptable. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `compozy doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents. Its `runtime.memory` item reports the latest daemon-owned heap, goroutine, uptime, and resident-memory snapshot. Treat `resident_memory_kind=peak` as a high-water mark, not current use. When `enabled=false`, set `daemon.memory_report_interval` above zero and restart the daemon; there is no native doctor tool.
+For `legacy_database`, stop Compozy, cold-move the complete containing `COMPOZY_HOME` or workspace `.compozy` family, and select a separate fresh home. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible Compozy binary against the stopped, intact family—the state-preserving recovery. Use a fresh home only if discarding that state is acceptable. If Compozy reports SQLite corruption, stop it and cold-copy the complete containing family before inspection. Compozy leaves the named database and its `-wal` and `-shm` sidecars unchanged instead of quarantining or recreating them; diagnose a copy, then restore a complete known-good family or select a fresh home only when discarding the retained state is acceptable. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `compozy doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents. Its `runtime.memory` item reports the latest daemon-owned heap, goroutine, uptime, and resident-memory snapshot. Treat `resident_memory_kind=peak` as a high-water mark, not current use. When `enabled=false`, set `daemon.memory_report_interval` above zero and restart the daemon; there is no native doctor tool.
 
 `compozy logs --follow -o jsonl` streams redacted runtime logs over SSE. Use filters such as `--session`, `--workspace`, `--run`, `--actor kind:id`, `--provider`, `--component`, `--outcome`, and `--error-only` before broad log reads.
 
@@ -284,8 +284,8 @@ structural rather than heuristic candidates.
 
 ## Runtime Boundaries
 
-AGH must remain agent-manageable. Any runtime capability that affects state should have a deterministic CLI, HTTP/UDS, or tool path with machine-readable output. UI-only management is incomplete.
+Compozy must remain agent-manageable. Any runtime capability that affects state should have a deterministic CLI, HTTP/UDS, or tool path with machine-readable output. UI-only management is incomplete.
 
-Management flows involving daemon lifecycle, raw secrets, OAuth, trust roots, provider bootstrap, destructive repair, and cross-session terminal-state mutation stay on operator surfaces unless AGH explicitly exposes a scoped tool for them.
+Management flows involving daemon lifecycle, raw secrets, OAuth, trust roots, provider bootstrap, destructive repair, and cross-session terminal-state mutation stay on operator surfaces unless Compozy explicitly exposes a scoped tool for them.
 
 Marketplace catalog configuration is global-only because its projection and refresh service are global. `compozy__config_set` and `compozy__config_unset` may change `marketplace.catalog.ttl` and `marketplace.catalog.timeout` at global scope; each mutation runs the daemon settings apply lifecycle and returns the real `applied`, `apply_record_id`, `active_generation`, `next_action`, and reconciliation diagnostics. `marketplace.catalog.base_url` is a trust root and remains operator-only through global `compozy config set`. Workspace overlays and workspace-scoped writes are rejected.

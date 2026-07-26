@@ -1,5 +1,5 @@
-import type { operations as aghOperations } from "@/generated/agh-openapi";
-import type { operations as daemonOperations } from "@/generated/compozy-openapi";
+import type { operations as daemonOperations } from "@/generated/compozy-daemon-openapi";
+import type { operations as compozyOperations } from "@/generated/compozy-openapi";
 
 type OperationResponses<Operation> = Operation extends { responses: infer Responses }
   ? Responses
@@ -55,15 +55,15 @@ type OperationPathFor<Operations, Id extends keyof Operations> = OperationPathPa
   Operations[Id]
 >;
 
-export type OperationId = keyof aghOperations;
+export type OperationId = keyof compozyOperations;
 
 export type OperationResponse<
   Id extends OperationId,
-  Status extends keyof OperationResponses<aghOperations[Id]>,
-> = OperationResponseFor<aghOperations, Id, Status>;
+  Status extends keyof OperationResponses<compozyOperations[Id]>,
+> = OperationResponseFor<compozyOperations, Id, Status>;
 
 export type OperationRequestBody<Id extends OperationId> = OperationRequestBodyFor<
-  aghOperations,
+  compozyOperations,
   Id
 >;
 
@@ -85,9 +85,9 @@ export function isReasoningEffort(value: string): value is ReasoningEffort {
   return Object.hasOwn(reasoningEffortMembership, value);
 }
 
-export type OperationQuery<Id extends OperationId> = OperationQueryFor<aghOperations, Id>;
+export type OperationQuery<Id extends OperationId> = OperationQueryFor<compozyOperations, Id>;
 
-export type OperationPath<Id extends OperationId> = OperationPathFor<aghOperations, Id>;
+export type OperationPath<Id extends OperationId> = OperationPathFor<compozyOperations, Id>;
 
 export type DaemonOperationId = keyof daemonOperations;
 

@@ -74,16 +74,16 @@ describe("HomeHeader", () => {
     };
   });
 
-  it("renders the shared full AGH logo in the home link", () => {
+  it("renders the shared full Compozy logo in the home link", () => {
     render(<HomeHeader />);
 
-    const link = screen.getByRole("link", { name: "AGH home" });
+    const link = screen.getByRole("link", { name: "Compozy home" });
     const logo = link.querySelector('[data-slot="logo"]');
 
     expect(link.getAttribute("href")).toBe("/");
     expect(logo).not.toBeNull();
     expect(logo?.getAttribute("data-variant")).toBe("logo");
-    expect(logo?.getAttribute("viewBox")).toBe("0 0 972 386");
+    expect(logo?.getAttribute("viewBox")).toBe("0 0 1153 355");
     expect(logo?.getAttribute("aria-hidden")).toBe("true");
   });
 
@@ -95,7 +95,7 @@ describe("HomeHeader", () => {
     const expectedLinks = [
       { href: "/", label: "Home" },
       { href: "/runtime", label: "Runtime" },
-      { href: "/protocol", label: "AGH Network" },
+      { href: "/protocol", label: "Compozy Network" },
       { href: "/blog", label: "Blog" },
       { href: "/changelog", label: "Changelog" },
     ];
@@ -109,7 +109,7 @@ describe("HomeHeader", () => {
       }
     }
 
-    for (const link of screen.getAllByRole("link", { name: "AGH Network" })) {
+    for (const link of screen.getAllByRole("link", { name: "Compozy Network" })) {
       expect(link.getAttribute("class")).toContain("text-fg");
       expect(link.getAttribute("class")).toContain("bg-elevated");
       expect(link.getAttribute("aria-current")).toBe("location");
@@ -138,7 +138,7 @@ describe("HomeHeader", () => {
     expect(screen.getByRole("searchbox", { name: "Search docs" })).toBeDefined();
     expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(1);
 
-    const githubLink = screen.getByRole("link", { name: "AGH on GitHub" });
+    const githubLink = screen.getByRole("link", { name: "Compozy on GitHub" });
     expect(githubLink.getAttribute("href")).toBe("https://github.com/compozy");
     expect(githubLink.getAttribute("target")).toBe("_blank");
     expect(githubLink.getAttribute("rel")).toContain("noopener");

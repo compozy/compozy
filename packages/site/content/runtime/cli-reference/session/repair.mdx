@@ -1,24 +1,24 @@
 ---
-title: "agh session repair"
+title: "compozy session repair"
 description: "Inspect and repair an interrupted session transcript"
 ---
 
-## agh session repair
+## compozy session repair
 
 Inspect and repair an interrupted session transcript
 
 ```
-agh session repair <id> [flags]
+compozy session repair <id> [flags]
 ```
 
 ### Examples
 
 ```
   # Report the repair actions without writing new events
-  agh session repair sess_1234 --dry-run
+  compozy session repair sess_1234 --dry-run
 
   # Force repair for a stopped session whose stop reason is not crash or error
-  agh session repair sess_1234 --force
+  compozy session repair sess_1234 --force
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh session repair <id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session repair <id> -o json
+compozy session repair <id> -o json
 ```

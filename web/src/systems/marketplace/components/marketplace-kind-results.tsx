@@ -1,6 +1,6 @@
 import { AlertCircle, SearchX } from "lucide-react";
 
-import { Button, Empty, Spinner } from "@agh/ui";
+import { Button, Empty, Spinner } from "@compozy/ui";
 
 import { MarketplaceCard } from "./marketplace-card";
 import { MarketplaceGridSkeleton } from "./marketplace-grid";

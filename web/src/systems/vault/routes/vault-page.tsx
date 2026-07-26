@@ -11,7 +11,7 @@ import {
   ListingToolbar,
   Skeleton,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useVaultPage, type VaultLastAction, type VaultRouteSearch } from "../hooks/use-vault-page";
 import { VaultEditor } from "../components/vault-editor";

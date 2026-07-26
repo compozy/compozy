@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { EntityMode } from "@agh/ui";
+import type { EntityMode } from "@compozy/ui";
 
 import type { RuntimeProviderOption } from "@/systems/runtime";
 

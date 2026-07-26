@@ -1,24 +1,24 @@
 ---
-title: "agh session events"
+title: "compozy session events"
 description: "Read session events"
 ---
 
-## agh session events
+## compozy session events
 
 Read session events
 
 ```
-agh session events <id> [flags]
+compozy session events <id> [flags]
 ```
 
 ### Examples
 
 ```
   # Read the latest stored events
-  agh session events sess_1234 --last 20
+  compozy session events sess_1234 --last 20
 
   # Follow new events until interrupted
-  agh session events sess_1234 --follow
+  compozy session events sess_1234 --follow
 ```
 
 ### Options
@@ -41,7 +41,7 @@ agh session events <id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -51,5 +51,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session events <id> -o json
+compozy session events <id> -o json
 ```

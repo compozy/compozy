@@ -1,4 +1,4 @@
-import { cn, Eyebrow, Pill, PillDot, type PillTone } from "@agh/ui";
+import { cn, Eyebrow, Pill, PillDot, type PillTone } from "@compozy/ui";
 
 import type { SessionGoalSnapshot } from "./goal-status-types";
 

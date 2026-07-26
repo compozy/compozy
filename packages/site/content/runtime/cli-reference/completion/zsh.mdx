@@ -1,9 +1,9 @@
 ---
-title: "agh completion zsh"
+title: "compozy completion zsh"
 description: "Generate the autocompletion script for zsh"
 ---
 
-## agh completion zsh
+## compozy completion zsh
 
 Generate the autocompletion script for zsh
 
@@ -22,7 +22,7 @@ echo "autoload -U compinit; compinit" >> ~/.zshrc
 To load completions in your current shell session:
 
 ```
-source <(agh completion zsh)
+source <(compozy completion zsh)
 
 ```
 
@@ -31,21 +31,21 @@ To load completions for every new session, execute once:
 #### Linux:
 
 ```
-agh completion zsh > "${fpath[1]}/_agh"
+compozy completion zsh > "${fpath[1]}/_compozy"
 
 ```
 
 #### macOS:
 
 ```
-agh completion zsh > $(brew --prefix)/share/zsh/site-functions/_agh
+compozy completion zsh > $(brew --prefix)/share/zsh/site-functions/_compozy
 
 ```
 
 You will need to start a new shell for this setup to take effect.
 
 ```
-agh completion zsh [flags]
+compozy completion zsh [flags]
 ```
 
 ### Options
@@ -64,7 +64,7 @@ agh completion zsh [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -74,5 +74,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh completion zsh > "${fpath[1]}/_agh" -o json
+compozy completion zsh > "${fpath[1]}/_compozy" -o json
 ```

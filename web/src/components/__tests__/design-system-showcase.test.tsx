@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
-import { UIProvider } from "@agh/ui";
+import { UIProvider } from "@compozy/ui";
 
 import { DesignSystemShowcase } from "@/components/design-system-showcase";
 import { SECTIONS } from "@/components/design-system-showcase-sections";
@@ -20,7 +20,7 @@ describe("DesignSystemShowcase", () => {
     it("renders the page header, filter toolbar, and search input", () => {
       renderShowcase();
       expect(screen.getByTestId("design-system-showcase")).toBeInTheDocument();
-      expect(screen.getByText("AGH design system")).toBeInTheDocument();
+      expect(screen.getByText("CompozyOS design system")).toBeInTheDocument();
       expect(screen.getByRole("toolbar", { name: /showcase filters/i })).toBeInTheDocument();
       expect(screen.getByPlaceholderText(/search primitives/i)).toBeInTheDocument();
     });

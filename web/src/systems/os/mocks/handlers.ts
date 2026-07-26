@@ -1,6 +1,6 @@
 import { HttpResponse, type HttpHandler } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { windowManagerClientFixture, windowManagerSnapshotFixture } from "./fixtures";
 
@@ -45,10 +45,10 @@ function windowManagerError(
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/workspaces/{workspace_id}/window-manager", () =>
+  compozyApiMock.get("/api/workspaces/{workspace_id}/window-manager", () =>
     HttpResponse.json(windowManagerSnapshotFixture)
   ),
-  aghApiMock.post(
+  compozyApiMock.post(
     "/api/workspaces/{workspace_id}/window-manager/clients",
     async ({ params, request }) => {
       const workspaceId = String(params.workspace_id);
@@ -69,7 +69,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.post(
+  compozyApiMock.post(
     "/api/workspaces/{workspace_id}/window-manager/commands",
     async ({ params, request }) => {
       const workspaceId = String(params.workspace_id);

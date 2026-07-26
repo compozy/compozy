@@ -1,20 +1,20 @@
 ---
-title: "agh agent soul inspect"
+title: "compozy agent soul inspect"
 description: "Inspect one agent's resolved Soul"
 ---
 
-## agh agent soul inspect
+## compozy agent soul inspect
 
 Inspect one agent's resolved Soul
 
 ```
-agh agent soul inspect <agent> [flags]
+compozy agent soul inspect <agent> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent soul inspect coder --workspace checkout-api --json
+  compozy agent soul inspect coder --workspace checkout-api --json
 ```
 
 ### Options
@@ -33,7 +33,7 @@ agh agent soul inspect <agent> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -43,5 +43,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent soul inspect <agent> -o json
+compozy agent soul inspect <agent> -o json
 ```

@@ -1,4 +1,9 @@
-import { formatDuration, type OwnerAvatarProps, type PillTone, type RunCardStatus } from "@agh/ui";
+import {
+  formatDuration,
+  type OwnerAvatarProps,
+  type PillTone,
+  type RunCardStatus,
+} from "@compozy/ui";
 
 import {
   RUN_STATUS_TONE,

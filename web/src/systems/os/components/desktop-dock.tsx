@@ -1,7 +1,7 @@
 import { useDesktopDock } from "../hooks/use-desktop-dock";
 import type { ReactNode } from "react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { OsDockZone } from "./os-dock";

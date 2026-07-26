@@ -4,7 +4,7 @@ import type { KeyboardEvent } from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 import { SessionComposerQueuedPrompts, type QueuedPrompt } from "./session-composer-queued-prompts";
 import type { SessionComposerState } from "./hooks/use-session-composer-state";
 import {

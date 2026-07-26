@@ -77,8 +77,8 @@ follow the openclaw lowercase dotted/dashed convention.
 | `bridge.auth.surface`                       | Provider authentication failure transitions the instance to `auth_required` and surfaces a clean user-visible reason; no flooded retry loop.             | `internal/bridges/lifecycle.go:86-96`; `internal/bridges/types.go:123-124`                                                                                                                                                                                                            |
 | `bridge.secret-redaction`                   | Bridge secret slot values (`bot_token`, `signing_secret`, `driverToken`) NEVER appear in logs/SSE/responses. Standing token-redaction discipline applies. | `internal/CLAUDE.md` Security Invariants; `extensions/bridges/slack/provider.go:837,915`                                                                                                                                                                                              |
 | `bridge.signature.verify`                   | Slack bridge rejects webhooks with invalid signing-secret HMAC and missing/expired timestamps; Discord verifies ed25519; Telegram verifies bot-token-derived secret-token header. | `extensions/bridges/slack/provider.go:1094`; `internal/extension/discord_provider_integration_test.go:34-170`                                                                                                                                                                          |
-| `bridge.sdk.contract`                       | Any extension authored against `@agh/extension-sdk` claiming `tool.provider` MUST register `provide_tools` + `tools/call`. Capability declared but methods missing → initialize fails. | `sdk/typescript/src/extension.ts:42-49`; `sdk/typescript/src/integration.test.ts`                                                                                                                                                                                                     |
-| `bridge.sdk.scaffold`                       | `npx @agh/create-extension <name> -t <template>` produces a buildable extension whose smoke run boots through `Extension.start()`.                       | `sdk/create-extension/src/index.ts:30-80`; templates `tool-provider/`, `go-tool-provider/`, `hook-subprocess/`, `memory-backend/`                                                                                                                                                     |
+| `bridge.sdk.contract`                       | Any extension authored against `@compozy/extension-sdk` claiming `tool.provider` MUST register `provide_tools` + `tools/call`. Capability declared but methods missing → initialize fails. | `sdk/typescript/src/extension.ts:42-49`; `sdk/typescript/src/integration.test.ts`                                                                                                                                                                                                     |
+| `bridge.sdk.scaffold`                       | `npx @compozy/create-extension <name> -t <template>` produces a buildable extension whose smoke run boots through `Extension.start()`.                       | `sdk/create-extension/src/index.ts:30-80`; templates `tool-provider/`, `go-tool-provider/`, `hook-subprocess/`, `memory-backend/`                                                                                                                                                     |
 | `cli.extension.machine-readable`            | `agh extension list -o json` and `agh extension status <name> -o json` parity between local-registry path and HTTP/UDS path; payloads identical for the same instance. | `internal/cli/extension.go:73-85,220-233,235-260`                                                                                                                                                                                                                                     |
 
 ## 3. Operating model
@@ -665,7 +665,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: ext-10-sdk-tool-roundtrip
-title: A TS extension authored via @agh/create-extension scaffold registers a tool; daemon picks it up; agent invokes it; output round-trips
+title: A TS extension authored via @compozy/create-extension scaffold registers a tool; daemon picks it up; agent invokes it; output round-trips
 theme: extensions.sdk
 coverage:
   primary:
@@ -679,7 +679,7 @@ live: false
 provider: real-claude-code
 preconditions:
   - `bun` (or `npm`) installed.
-  - SDK packages (`@agh/extension-sdk`, `@agh/create-extension`) built
+  - SDK packages (`@compozy/extension-sdk`, `@compozy/create-extension`) built
     locally via `make bun-typecheck` or sourced from `dist/`.
 code_refs:
   - /Users/pedronauck/Dev/compozy/agh/sdk/create-extension/src/index.ts:30-80

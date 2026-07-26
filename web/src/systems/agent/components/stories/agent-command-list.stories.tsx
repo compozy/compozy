@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import { Command, CommandInput } from "@agh/ui";
+import { Command, CommandInput } from "@compozy/ui";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 import { agentFixtures } from "@/systems/agent/mocks";

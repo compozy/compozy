@@ -1,27 +1,27 @@
 ---
-title: "agh task fail"
+title: "compozy task fail"
 description: "Fail task runs through a session-bound lease or operator override"
 ---
 
-## agh task fail
+## compozy task fail
 
 Fail task runs through a session-bound lease or operator override
 
 ```
-agh task fail <run-id> [run-id...] [flags]
+compozy task fail <run-id> [run-id...] [flags]
 ```
 
 ### Examples
 
 ```
   # Fail the current session's claimed run
-  agh task fail run-123 --error "provider returned invalid JSON"
+  compozy task fail run-123 --error "provider returned invalid JSON"
 
   # Force fail one run
-  agh task fail run-123 --reason "operator recovery"
+  compozy task fail run-123 --reason "operator recovery"
 
   # Force fail multiple runs with shared audit evidence
-  agh task fail run-123 run-456 \
+  compozy task fail run-123 run-456 \
     --reason "provider credentials revoked" \
     --metadata '{"incident":"INC-42"}'
 ```
@@ -44,7 +44,7 @@ agh task fail <run-id> [run-id...] [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -54,5 +54,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task fail <run-id> [run-id...] -o json
+compozy task fail <run-id> [run-id...] -o json
 ```

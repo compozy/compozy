@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   TopbarOverflowIcon,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { AutomationJob, AutomationTrigger } from "../types";
 

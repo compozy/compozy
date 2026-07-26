@@ -1,6 +1,6 @@
 import { Shield, Trash2 } from "lucide-react";
 
-import { Button, ListingRow, MonoId, Pill, Time } from "@agh/ui";
+import { Button, ListingRow, MonoId, Pill, Time } from "@compozy/ui";
 
 import { toolApprovalDecisionTone } from "../lib/decision-tone";
 import type { ToolApprovalGrant } from "../types";

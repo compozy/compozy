@@ -1,6 +1,6 @@
 import { CheckCircle2, Info, Play } from "lucide-react";
 
-import { Button, Eyebrow, Section } from "@agh/ui";
+import { Button, Eyebrow, Section } from "@compozy/ui";
 import { NetworkParticipationFields } from "@/systems/network";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";

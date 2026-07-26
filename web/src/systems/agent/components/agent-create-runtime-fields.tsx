@@ -1,6 +1,15 @@
 import type { ComponentProps } from "react";
 
-import { Button, cn, Field, FieldError, FieldHeader, FieldLabel, HelpTip, Input } from "@agh/ui";
+import {
+  Button,
+  cn,
+  Field,
+  FieldError,
+  FieldHeader,
+  FieldLabel,
+  HelpTip,
+  Input,
+} from "@compozy/ui";
 
 import {
   RuntimeSelector,

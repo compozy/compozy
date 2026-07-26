@@ -4,13 +4,13 @@ import Link from "next/link";
 import { LandingCodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
-const AUTONOMY_CODE = `agh task create
-agh task list --status queued
-agh task next --wait                # claimed by an idle agent
-agh task heartbeat <run-id>         # held by claim_token
-agh task complete <run-id>`;
+const AUTONOMY_CODE = `compozy task create
+compozy task list --status queued
+compozy task next --wait                # claimed by an idle agent
+compozy task heartbeat <run-id>         # held by claim_token
+compozy task complete <run-id>`;
 
 export function AutonomyKernelSection() {
   return (
@@ -18,21 +18,21 @@ export function AutonomyKernelSection() {
       background="deep"
       padY="lg"
       className="border-b border-line"
-      ariaLabel="AGH autonomy kernel"
+      ariaLabel="CompozyOS autonomy kernel"
     >
       <SectionHeader
         align="start"
         eyebrow="Autonomy"
         size="lg"
         title="A real autonomy kernel, not a fork-and-pray loop."
-        description="AGH owns the loop. Tasks claim runs atomically through ClaimNextRun, hold a lease they must heartbeat, and release back to the queue if they crash. One queue. Shared between humans and agents. Claim tokens never logged in raw form."
+        description="CompozyOS owns the loop. Tasks claim runs atomically through ClaimNextRun, hold a lease they must heartbeat, and release back to the queue if they crash. One queue. Shared between humans and agents. Claim tokens never logged in raw form."
       />
 
       {/* Wide landscape storyboard — three-act lifecycle: ONE QUEUE → TOKEN-FENCED → LEASE RECOVERY. */}
       <figure className="mt-12">
         <Image
           src="/images/runtime/autonomy-overview-storyboard-v1.png"
-          alt="AGH autonomy storyboard, task_runs queue, an agent claiming a run with a claim_token and heartbeat, and lease recovery on daemon restart."
+          alt="CompozyOS autonomy storyboard, task_runs queue, an agent claiming a run with a claim_token and heartbeat, and lease recovery on daemon restart."
           width={1440}
           height={760}
           decoding="async"
@@ -56,7 +56,7 @@ export function AutonomyKernelSection() {
               event ledger; raw values never leave the daemon.
             </p>
           </div>
-          <LandingCodeBlock code={AUTONOMY_CODE} caption="agh task" shell />
+          <LandingCodeBlock code={AUTONOMY_CODE} caption="compozy task" shell />
         </div>
 
         <ul className="flex min-w-0 flex-col divide-y divide-line border-y border-line">
@@ -76,8 +76,9 @@ export function AutonomyKernelSection() {
               Operators and agents hit task_runs.
             </h4>
             <p className="mt-2 text-sm leading-relaxed text-muted">
-              <code className="font-mono text-fg">agh task create</code> (you) and the coordinator
-              agent (them) write to the same SQLite table. Same primitives, same audit trail.
+              <code className="font-mono text-fg">compozy task create</code> (you) and the
+              coordinator agent (them) write to the same SQLite table. Same primitives, same audit
+              trail.
             </p>
           </li>
           <li className="py-6">

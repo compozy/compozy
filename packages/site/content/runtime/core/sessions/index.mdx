@@ -1,13 +1,13 @@
 ---
 title: Sessions
-description: The durable runtime unit AGH creates, attaches, audits, and governs.
+description: The durable runtime unit Compozy creates, attaches, audits, and governs.
 ---
 
-A session is the unit AGH actually manages. It binds one agent subprocess to a workspace,
-permission policy, event store, and attach record under one stable AGH session ID.
+A session is the unit Compozy actually manages. It binds one agent subprocess to a workspace,
+permission policy, event store, and attach record under one stable Compozy session ID.
 
 Live session events are written to `events.db` while the session runs. After the session stops,
-AGH materializes a read-only forensic JSONL ledger at
+Compozy materializes a read-only forensic JSONL ledger at
 `$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` (or
 `$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl` when no workspace is resolved). The ledger
 is content-addressed and idempotent on rerun, never accepted as a memory scope, and never read by
@@ -29,7 +29,7 @@ the daemon or database itself, use Operations after you identify the affected se
 
 ## Browse the session catalog
 
-`agh session list -o json` returns a counted page owned by the daemon. Filter by workspace, exact
+`compozy session list -o json` returns a counted page owned by the daemon. Filter by workspace, exact
 agent, state, or session type; filter by resumability or a text query; choose `recent` or
 `last_activity` ordering; and add `--include-health` only when the caller needs the metadata-only
 health projection. For example, `--type user --state active --sort last_activity` returns active
@@ -39,7 +39,7 @@ operator-created sessions ordered by their latest runtime activity. The response
 
 Use `--cursor` to continue with the same filters and sort. A cursor from another workspace or query
 is rejected instead of crossing catalog boundaries. See the generated
-[`agh session list`](/runtime/cli-reference/session/list) reference for every flag.
+[`compozy session list`](/runtime/cli-reference/session/list) reference for every flag.
 
 Browser clients can subscribe once to `GET /api/sessions/catalog-stream`. Each
 `session_catalog_changed` event identifies an `upserted` or `deleted` session and includes its
@@ -50,12 +50,12 @@ event must invalidate only keys owned by its `workspace_id`.
 The reading order follows the lifecycle. Start with lifecycle for state names and stop
 classification, move to events when you need the durable record, then use resume attach and
 permissions for the two most common operator questions: "can I re-enter this live session?" and
-"why did AGH ask before acting?"
+"why did Compozy ask before acting?"
 
 <figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--line) bg-(--canvas-soft) p-2">
   <img
     src="/images/runtime/sessions-overview-storyboard-v1.png"
-    alt="Hand-drawn Sessions poster showing the AGH session lifecycle across create, active, stop, attach, replay, permissions, and audit."
+    alt="Hand-drawn Sessions poster showing the Compozy session lifecycle across create, active, stop, attach, replay, permissions, and audit."
     loading="eager"
     decoding="async"
     className="h-auto w-full rounded-md"
@@ -69,7 +69,7 @@ permissions for the two most common operator questions: "can I re-enter this liv
     href="/runtime/core/sessions/lifecycle"
     label="Lifecycle"
     title="Create, activate, stop, and classify sessions"
-    description="Use this page for the state machine, stop behavior, timeout boundaries, and what AGH persists across the session lifetime."
+    description="Use this page for the state machine, stop behavior, timeout boundaries, and what Compozy persists across the session lifetime."
     meta="State model"
   />
   <RouteRow

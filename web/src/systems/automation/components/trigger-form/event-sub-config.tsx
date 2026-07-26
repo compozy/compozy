@@ -1,4 +1,4 @@
-import { Field, FieldLabel, Input } from "@agh/ui";
+import { Field, FieldLabel, Input } from "@compozy/ui";
 
 import type { EventFamily } from "../../lib/trigger-catalog";
 import type { SubConfigValues } from "../../lib/trigger-sub-config";

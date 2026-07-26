@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   deriveSkillCapabilities,

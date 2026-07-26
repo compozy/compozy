@@ -183,7 +183,7 @@ func TestSkillListCommandReturnsVisibleSkillsAndEnabledState(t *testing.T) {
 		t.Fatal("user skill enabled = false, want true")
 	}
 
-	bundledItem := findSkillListItem(t, payload, "agh")
+	bundledItem := findSkillListItem(t, payload, "compozy")
 	if bundledItem.Source != "bundled" {
 		t.Fatalf("bundled source = %q, want bundled", bundledItem.Source)
 	}
@@ -403,18 +403,18 @@ func TestSkillViewCommandReadsBundledSkillFileAndRejectsBundledTraversal(t *test
 		env.deps,
 		"skill",
 		"view",
-		"agh",
+		"compozy",
 		"--file",
 		skillMarkdownFileName,
 	)
 	if err != nil {
 		t.Fatalf("skill view bundled --file error = %v", err)
 	}
-	if !strings.Contains(stdout, "name: agh") {
+	if !strings.Contains(stdout, "name: compozy") {
 		t.Fatalf("bundled skill file output = %q, want raw SKILL.md content", stdout)
 	}
 
-	_, _, err = executeRootCommand(t, env.deps, "skill", "view", "agh", "--file", "../secret.txt")
+	_, _, err = executeRootCommand(t, env.deps, "skill", "view", "compozy", "--file", "../secret.txt")
 	if err == nil {
 		t.Fatal("bundled traversal error = nil, want validation failure")
 	}
@@ -955,11 +955,11 @@ func TestSkillRemoveCommandRefusesBundledSkill(t *testing.T) {
 
 	env := newSkillTestEnv(t, nil)
 
-	_, _, err := executeRootCommand(t, env.deps, "skill", "remove", "agh")
+	_, _, err := executeRootCommand(t, env.deps, "skill", "remove", "compozy")
 	if err == nil {
 		t.Fatal("skill remove bundled error = nil, want failure")
 	}
-	if !strings.Contains(err.Error(), `skill "agh" is not a marketplace-installed skill`) {
+	if !strings.Contains(err.Error(), `skill "compozy" is not a marketplace-installed skill`) {
 		t.Fatalf("skill remove bundled error = %v, want marketplace refusal", err)
 	}
 }
@@ -2183,7 +2183,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 		t.Fatalf("loadSkillCommandContext() error = %v", err)
 	}
 
-	bundledSkill, err := findSkillByName(ctx.skills, "agh")
+	bundledSkill, err := findSkillByName(ctx.skills, "compozy")
 	if err != nil {
 		t.Fatalf("findSkillByName(bundled) error = %v", err)
 	}

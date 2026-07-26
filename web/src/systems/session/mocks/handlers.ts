@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import {
   buildLiveNetworkParticipationFixture,
   buildLocalNetworkParticipationFixture,
@@ -19,7 +19,7 @@ import type { CreateSessionParams } from "../types";
 const sessionById = new Map(sessionFixtures.map(session => [session.id, session]));
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/sessions", ({ request }) => {
+  compozyApiMock.get("/api/sessions", ({ request }) => {
     const url = new URL(request.url);
     const workspace = url.searchParams.get("workspace")?.trim();
     const agent = url.searchParams.get("agent")?.trim();
@@ -46,7 +46,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.get("/api/sessions/{session_id}", ({ params }) => {
+  compozyApiMock.get("/api/sessions/{session_id}", ({ params }) => {
     const id = String(params.session_id);
     const session = sessionById.get(id);
 
@@ -56,7 +56,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ session });
   }),
-  aghApiMock.post("/api/sessions", async ({ request }) => {
+  compozyApiMock.post("/api/sessions", async ({ request }) => {
     // Use the adapter's generated request contract rather than a mirrored DTO.
     const body: CreateSessionParams = await request.json();
 
@@ -98,7 +98,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) => {
+  compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) => {
     const id = String(params.session_id);
     const session = sessionById.get(id);
 
@@ -108,7 +108,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ session });
   }),
-  aghApiMock.delete("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) => {
+  compozyApiMock.delete("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) => {
     const id = String(params.session_id);
 
     if (!sessionById.has(id)) {
@@ -117,29 +117,32 @@ export const handlers: HttpHandler[] = [
 
     return new HttpResponse(null, { status: 204 });
   }),
-  aghApiMock.post("/api/workspaces/{workspace_id}/sessions/{session_id}/attach", ({ params }) => {
-    const id = String(params.session_id);
-    const session = sessionById.get(id);
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
+    ({ params }) => {
+      const id = String(params.session_id);
+      const session = sessionById.get(id);
 
-    if (!session) {
-      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      if (!session) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+
+      return HttpResponse.json({
+        session: {
+          ...session,
+          attached_to: "web:storybook",
+          attach_expires_at: "2026-04-17T18:12:00Z",
+        },
+        attach: {
+          session_id: id,
+          attached_to: "web:storybook",
+          attach_expires_at: "2026-04-17T18:12:00Z",
+          attached_at: "2026-04-17T18:11:00Z",
+        },
+      });
     }
-
-    return HttpResponse.json({
-      session: {
-        ...session,
-        attached_to: "web:storybook",
-        attach_expires_at: "2026-04-17T18:12:00Z",
-      },
-      attach: {
-        session_id: id,
-        attached_to: "web:storybook",
-        attach_expires_at: "2026-04-17T18:12:00Z",
-        attached_at: "2026-04-17T18:11:00Z",
-      },
-    });
-  }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/recap", ({ params }) => {
+  ),
+  compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/recap", ({ params }) => {
     const id = String(params.session_id);
     const session = sessionById.get(id);
 
@@ -164,7 +167,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post(
+  compozyApiMock.post(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
     ({ params, request }) => {
       const id = String(params.session_id);
@@ -189,25 +192,31 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  aghApiMock.post("/api/workspaces/{workspace_id}/sessions/{session_id}/approve", ({ params }) => {
-    const id = String(params.session_id);
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
+    ({ params }) => {
+      const id = String(params.session_id);
 
-    if (!sessionById.has(id)) {
-      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      if (!sessionById.has(id)) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+
+      return HttpResponse.json(sessionApprovalFixture);
     }
+  ),
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
+    ({ params }) => {
+      const id = String(params.session_id);
 
-    return HttpResponse.json(sessionApprovalFixture);
-  }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/events", ({ params }) => {
-    const id = String(params.session_id);
+      if (!sessionById.has(id)) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
 
-    if (!sessionById.has(id)) {
-      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      return HttpResponse.json({ events: sessionEventsFixture });
     }
-
-    return HttpResponse.json({ events: sessionEventsFixture });
-  }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/goal", ({ params }) => {
+  ),
+  compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/goal", ({ params }) => {
     const id = String(params.session_id);
 
     if (!sessionById.has(id)) {
@@ -216,16 +225,19 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ goal: null });
   }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/history", ({ params }) => {
-    const id = String(params.session_id);
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
+    ({ params }) => {
+      const id = String(params.session_id);
 
-    if (!sessionById.has(id)) {
-      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      if (!sessionById.has(id)) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+
+      return HttpResponse.json({ history: sessionHistoryFixture });
     }
-
-    return HttpResponse.json({ history: sessionHistoryFixture });
-  }),
-  aghApiMock.get(
+  ),
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
     ({ params }) => {
       const id = String(params.session_id);

@@ -1,7 +1,7 @@
 import { ChevronUp, Folder, FolderPlus, House, Plus, Spline } from "lucide-react";
 import type { ComponentProps } from "react";
 
-import { Button, Spinner, cn } from "@agh/ui";
+import { Button, Spinner, cn } from "@compozy/ui";
 
 import type { FSEntry } from "../types";
 

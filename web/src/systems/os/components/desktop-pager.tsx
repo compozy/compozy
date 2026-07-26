@@ -2,7 +2,7 @@ import { Ellipsis } from "lucide-react";
 import { useRef, useState } from "react";
 import type * as React from "react";
 
-import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from "@agh/ui";
+import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from "@compozy/ui";
 
 export interface DesktopPagerItem {
   id: string;

@@ -1,4 +1,4 @@
-import { Skeleton, SkeletonRows } from "@agh/ui";
+import { Skeleton, SkeletonRows } from "@compozy/ui";
 
 import { DaemonDown } from "../components/empty-states/daemon-down";
 import { NetworkEmpty } from "../components/empty-states/network-empty";

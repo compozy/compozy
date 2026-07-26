@@ -1,7 +1,7 @@
 import { Play } from "lucide-react";
 import type { ComponentProps } from "react";
 
-import { Button, cn } from "@agh/ui";
+import { Button, cn } from "@compozy/ui";
 
 interface LoopRunButtonProps extends ComponentProps<typeof Button> {
   loopName: string;

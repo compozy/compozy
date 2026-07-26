@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Switch } from "@agh/ui";
+import { Switch } from "@compozy/ui";
 
 import { MonoTag } from "../mono-tag";
 

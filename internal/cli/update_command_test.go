@@ -36,7 +36,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 						LatestVersion:  "v1.1.0",
 						Available:      true,
 						Status:         aghupdate.StatusAvailable,
-						Message:        "A newer stable AGH release is available.",
+						Message:        "A newer stable Compozy release is available.",
 					}, &aghupdate.Release{Version: "v1.1.0"}, nil
 				},
 				applyFn: func(_ context.Context, release *aghupdate.Release) (aghupdate.AppliedBinary, error) {
@@ -137,7 +137,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 						LatestVersion:  "v1.1.0",
 						Available:      true,
 						Status:         aghupdate.StatusAvailable,
-						Message:        "A newer stable AGH release is available.",
+						Message:        "A newer stable Compozy release is available.",
 					}, &aghupdate.Release{Version: "v1.1.0"}, nil
 				},
 				applyFn: func(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error) {
@@ -201,7 +201,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 						LatestVersion:  "v1.1.0",
 						Available:      false,
 						Status:         aghupdate.StatusCurrent,
-						Message:        "AGH is already on the latest stable release.",
+						Message:        "Compozy is already on the latest stable release.",
 					}, &aghupdate.Release{Version: "v1.1.0"}, nil
 				},
 				applyFn: func(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error) {

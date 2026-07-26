@@ -1,4 +1,4 @@
-import { Button, cn, Pill } from "@agh/ui";
+import { Button, cn, Pill } from "@compozy/ui";
 import { Pencil, Plug } from "lucide-react";
 
 import { composeMCPRowStatus } from "../lib/mcp-status-view-model";

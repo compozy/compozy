@@ -238,7 +238,7 @@ export const slackBridgeManifestFixture: SlackBridgeManifestResponse = {
     },
     display_information: {
       background_color: "#E8572A",
-      description: "AGH bridge for Launch room dispatch",
+      description: "CompozyOS bridge for Launch room dispatch",
       name: "Launch room dispatch",
     },
     features: {
@@ -249,7 +249,7 @@ export const slackBridgeManifestFixture: SlackBridgeManifestResponse = {
       slash_commands: [
         {
           command: "/agh",
-          description: "Send a command to AGH",
+          description: "Send a command to CompozyOS",
           should_escape: false,
           url: "https://bridge.example.test/slack/launch-room",
           usage_hint: "<command>",

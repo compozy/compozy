@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
-import { Field, FieldHeader, FieldLabel, HelpTip, Input, RequiredMark } from "@agh/ui";
+import { Field, FieldHeader, FieldLabel, HelpTip, Input, RequiredMark } from "@compozy/ui";
 
 const meta: Meta<typeof HelpTip> = {
   title: "components/custom/HelpTip",

@@ -1,6 +1,6 @@
 "use client";
 
-import { COMPOZY_CODE_THEMES } from "@agh/ui/lib/code-theme";
+import { COMPOZY_CODE_THEMES } from "@compozy/ui/lib/code-theme";
 import { defaultShikiFactory } from "fumadocs-core/highlight/shiki/full";
 import { createOpenAPIPage } from "fumadocs-openapi/ui";
 

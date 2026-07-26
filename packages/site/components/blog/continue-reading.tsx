@@ -1,5 +1,5 @@
 import type { Post } from "#site/content";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 import { ArrowUpRight, Clock } from "lucide-react";
 import Link from "next/link";
 import { BulletDivider } from "./divider";

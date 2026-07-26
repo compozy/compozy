@@ -1,6 +1,6 @@
 import { Network as NetworkIcon } from "lucide-react";
 
-import { useTopbarSlot } from "@agh/ui";
+import { useTopbarSlot } from "@compozy/ui";
 
 import { NetworkHeadStatus } from "../components/shell/network-head-status";
 import {

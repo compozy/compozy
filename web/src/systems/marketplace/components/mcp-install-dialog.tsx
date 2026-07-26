@@ -20,7 +20,7 @@ import {
   RadioCard,
   SecretField,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { MarketplaceEntryResponse, MCPInstallRequest, MCPInstallResponse } from "../types";
 import { bindingValuePresent, type MCPEnvField, type MCPFieldBinding } from "./mcp-install-model";
@@ -81,7 +81,7 @@ function MCPInstallDialog({
               <DialogTitle>Install {entry.name}</DialogTitle>
               <DialogDescription id="mcp-install-description">
                 {remote
-                  ? "AGH writes the configuration, then opens authorization when required."
+                  ? "CompozyOS writes the configuration, then opens authorization when required."
                   : "Choose a scope and provide the configuration required by this server."}
               </DialogDescription>
             </div>

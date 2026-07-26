@@ -1,4 +1,4 @@
-import { Eyebrow, PropertyRow } from "@agh/ui";
+import { Eyebrow, PropertyRow } from "@compozy/ui";
 
 import type { LayoutSelection } from "../../hooks/use-layout-canvas-selection";
 import { overlappingGroupIds } from "../../lib/window-manager-layout-canvas";

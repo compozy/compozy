@@ -1,4 +1,4 @@
-import { cn, CopyIconButton } from "@agh/ui";
+import { cn, CopyIconButton } from "@compozy/ui";
 
 import type { CurlLine } from "../../../lib/trigger-preview";
 import { PreviewCard } from "./preview-card";

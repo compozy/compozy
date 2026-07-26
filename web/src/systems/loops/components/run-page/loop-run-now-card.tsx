@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { formatRelativeTime, LiveBadge } from "@agh/ui";
+import { formatRelativeTime, LiveBadge } from "@compozy/ui";
 
 import type { LoopStoryNow } from "../../lib/loop-run-story";
 import type { LoopRunRecord } from "../../types";

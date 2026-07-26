@@ -12,8 +12,8 @@ Confirm every item before committing the bundle.
 ## Generated
 
 - [ ] `make codegen` ran with no errors.
-- [ ] `openapi/agh.json` diff is committed alongside source.
-- [ ] `web/src/generated/agh-openapi.d.ts` diff is committed alongside source.
+- [ ] `openapi/compozy.json` diff is committed alongside source.
+- [ ] `web/src/generated/compozy-openapi.d.ts` diff is committed alongside source.
 - [ ] If JSON-RPC: Go→TS extension types regenerated.
 - [ ] `make codegen-check` passes (no drift).
 

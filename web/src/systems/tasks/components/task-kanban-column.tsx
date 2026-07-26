@@ -1,13 +1,13 @@
 import { Plus } from "lucide-react";
 import * as React from "react";
 
-import { Button, StatusDot, type StatusDotTone } from "@agh/ui";
+import { Button, StatusDot, type StatusDotTone } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
 import type { TaskKanbanColumn as TaskKanbanColumnDef } from "../lib/task-grouping";
 
-import type { PillTone } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
 
 export interface TaskKanbanColumnProps {
   column: TaskKanbanColumnDef;

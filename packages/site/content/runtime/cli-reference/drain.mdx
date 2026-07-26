@@ -1,14 +1,14 @@
 ---
-title: "agh drain"
+title: "compozy drain"
 description: "Stop admitting new work while in-flight work completes"
 ---
 
-## agh drain
+## compozy drain
 
 Stop admitting new work while in-flight work completes
 
 ```
-agh drain [flags]
+compozy drain [flags]
 ```
 
 ### Options
@@ -26,7 +26,7 @@ agh drain [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -36,5 +36,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh drain -o json
+compozy drain -o json
 ```

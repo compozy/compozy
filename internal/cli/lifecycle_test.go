@@ -79,7 +79,7 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 					Available:      true,
 					Status:         aghupdate.StatusDeferred,
 					Recommendation: "Use `brew upgrade compozy/compozy/agh`.",
-					Message:        "AGH is managed by an external package manager; no local update was performed.",
+					Message:        "Compozy is managed by an external package manager; no local update was performed.",
 				}, &aghupdate.Release{Version: "v1.1.0"}, nil
 			},
 		}, nil
@@ -128,12 +128,12 @@ func TestManagedRecommendationReportsNPMCommands(t *testing.T) {
 	t.Run("Should report npm lifecycle commands for npm-managed installs", func(t *testing.T) {
 		t.Parallel()
 
-		update := managedRecommendation("npm", "update AGH")
+		update := managedRecommendation("npm", "update Compozy")
 		if !strings.Contains(update, "npm update -g @compozy/agh") {
 			t.Fatalf("managedRecommendation(update) = %q, want npm update command", update)
 		}
 
-		uninstall := managedRecommendation("nodejs", "uninstall AGH")
+		uninstall := managedRecommendation("nodejs", "uninstall Compozy")
 		if !strings.Contains(uninstall, "npm uninstall -g @compozy/agh") {
 			t.Fatalf("managedRecommendation(uninstall) = %q, want npm uninstall command", uninstall)
 		}
@@ -226,7 +226,7 @@ func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) 
 					LatestVersion:  "v1.1.0",
 					Available:      true,
 					Status:         aghupdate.StatusAvailable,
-					Message:        "A newer stable AGH release is available.",
+					Message:        "A newer stable Compozy release is available.",
 				}, &aghupdate.Release{Version: "v1.1.0"}, nil
 			},
 		}, nil
@@ -273,7 +273,7 @@ func TestUpdateAppliesReleaseAndRestartsDaemonWhenRunning(t *testing.T) {
 					LatestVersion:  "v1.1.0",
 					Available:      true,
 					Status:         aghupdate.StatusAvailable,
-					Message:        "A newer stable AGH release is available.",
+					Message:        "A newer stable Compozy release is available.",
 				}, &aghupdate.Release{Version: "v1.1.0"}, nil
 			},
 			applyFn: func(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error) {

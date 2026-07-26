@@ -7,7 +7,7 @@ import {
   type PillTone,
   QueueHealthSparkline,
   type QueueHealthSparklineBucket,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { formatDurationMs } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";

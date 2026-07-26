@@ -1,6 +1,6 @@
 import { AlertTriangle, Check } from "lucide-react";
 
-import { cn, Pill } from "@agh/ui";
+import { cn, Pill } from "@compozy/ui";
 
 import type { JsonRow, MatchState } from "../../../lib/trigger-preview";
 import { PreviewCard } from "./preview-card";

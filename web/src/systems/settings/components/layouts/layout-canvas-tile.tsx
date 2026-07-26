@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { ProjectedStack, ProjectedWindow } from "@/systems/os";
 

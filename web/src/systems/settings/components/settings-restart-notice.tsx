@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
-import { Button, cn, Spinner } from "@agh/ui";
+import { Button, cn, Spinner } from "@compozy/ui";
 
 import {
   settingsRestartPresentation,

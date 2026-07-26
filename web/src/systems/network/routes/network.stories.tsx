@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storyDefaultWorkspaceId, storyHeroNetworkChannel } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -81,10 +81,10 @@ export const EmptyChannels: Story = {
     ...appRouteParameters("/network"),
     ...storybookMswParameters({
       network: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/network/channels", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/network/channels", () =>
           HttpResponse.json({ channels: [] })
         ),
-        aghApiMock.get("/api/workspaces/{workspace_id}/network/peers", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/network/peers", () =>
           HttpResponse.json({ peers: [] })
         ),
       ],
@@ -102,7 +102,7 @@ export const Disabled: Story = {
     ...appRouteParameters("/network"),
     ...storybookMswParameters({
       network: [
-        aghApiMock.get("/api/network/status", () =>
+        compozyApiMock.get("/api/network/status", () =>
           HttpResponse.json({
             network: {
               ...storybookNetworkStatus,
@@ -128,7 +128,7 @@ export const Loading: Story = {
     ...appRouteParameters("/network"),
     ...storybookMswParameters({
       network: [
-        aghApiMock.get("/api/network/status", async () => {
+        compozyApiMock.get("/api/network/status", async () => {
           await delay("infinite");
           return HttpResponse.json({ network: storybookNetworkStatus });
         }),

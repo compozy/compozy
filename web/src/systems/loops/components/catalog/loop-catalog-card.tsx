@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Repeat2 } from "lucide-react";
 
-import { CatalogCard, Pill } from "@agh/ui";
+import { CatalogCard, Pill } from "@compozy/ui";
 
 import { loopCategory, loopSourceLabel } from "../../lib/loop-catalog";
 import type { LoopCatalogEntry } from "../../types";

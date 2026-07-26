@@ -1,7 +1,7 @@
 import { render as rtlRender, type RenderResult } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 
-import { Topbar, TopbarSlotProvider, useTopbarSlotValue } from "@agh/ui";
+import { Topbar, TopbarSlotProvider, useTopbarSlotValue } from "@compozy/ui";
 
 interface RenderWithTopbarResult extends RenderResult {
   rerender: (ui: ReactNode) => void;

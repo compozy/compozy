@@ -1,24 +1,24 @@
 ---
-title: "agh me"
-description: "Inspect the current AGH-managed agent session"
+title: "compozy me"
+description: "Inspect the current Compozy-managed agent session"
 ---
 
-## agh me
+## compozy me
 
-Inspect the current AGH-managed agent session
+Inspect the current Compozy-managed agent session
 
 ```
-agh me [flags]
+compozy me [flags]
 ```
 
 ### Examples
 
 ```
   # Show the current managed session identity
-  agh me
+  compozy me
 
   # Print machine-readable caller state
-  agh me -o json
+  compozy me -o json
 ```
 
 ### Options
@@ -36,7 +36,7 @@ agh me [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -46,11 +46,11 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh me -o json
+compozy me -o json
 ```
 
 ## Subcommands
 
-| Command                                             | Description                                                         |
-| --------------------------------------------------- | ------------------------------------------------------------------- |
-| [agh me context](/runtime/cli-reference/me/context) | Inspect the bounded situation context for the current agent session |
+| Command                                                 | Description                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------- |
+| [compozy me context](/runtime/cli-reference/me/context) | Inspect the bounded situation context for the current agent session |

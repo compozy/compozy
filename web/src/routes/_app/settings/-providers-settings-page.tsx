@@ -9,7 +9,7 @@ import {
   ConfirmDialog,
   Empty,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useCreateProviderFocusRestore } from "@/hooks/routes/use-create-provider-focus-restore";
 import {

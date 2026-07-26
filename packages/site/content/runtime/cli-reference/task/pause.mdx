@@ -1,21 +1,21 @@
 ---
-title: "agh task pause"
+title: "compozy task pause"
 description: "Pause new runs for one task"
 ---
 
-## agh task pause
+## compozy task pause
 
 Pause new runs for one task
 
 ```
-agh task pause <task-id> [flags]
+compozy task pause <task-id> [flags]
 ```
 
 ### Examples
 
 ```
   # Pause a noisy task while current claims finish
-  agh task pause task-123 --reason "provider incident"
+  compozy task pause task-123 --reason "provider incident"
 ```
 
 ### Options
@@ -35,7 +35,7 @@ agh task pause <task-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -45,5 +45,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task pause <task-id> -o json
+compozy task pause <task-id> -o json
 ```

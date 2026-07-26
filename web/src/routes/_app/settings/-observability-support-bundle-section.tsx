@@ -1,7 +1,7 @@
 import { Download, ExternalLink } from "lucide-react";
 import { useState } from "react";
 
-import { Button, Eyebrow, Pill, Spinner } from "@agh/ui";
+import { Button, Eyebrow, Pill, Spinner } from "@compozy/ui";
 import {
   SettingsFieldRow,
   SettingsGroup,

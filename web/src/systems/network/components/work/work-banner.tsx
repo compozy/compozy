@@ -1,7 +1,7 @@
 import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
 import { toast } from "sonner";
 
-import { Alert, AlertActions, AlertDescription, Button } from "@agh/ui";
+import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

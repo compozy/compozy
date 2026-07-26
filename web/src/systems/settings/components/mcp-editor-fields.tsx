@@ -1,4 +1,4 @@
-import { Eyebrow, Input, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Eyebrow, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
 import type { ReactNode } from "react";
 
 import type { SettingsMCPServerTarget } from "../types";

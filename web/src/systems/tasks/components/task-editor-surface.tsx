@@ -9,7 +9,7 @@ import {
   EntityModeToolbar,
   FormSection,
   type EntityMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   NetworkParticipationFields,

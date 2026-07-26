@@ -1,4 +1,4 @@
-import { providerKindIconRegistry } from "@agh/ui";
+import { providerKindIconRegistry } from "@compozy/ui";
 
 const providerIconMap = providerKindIconRegistry;
 

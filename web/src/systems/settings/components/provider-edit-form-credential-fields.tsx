@@ -1,7 +1,7 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 
-import { Button, Eyebrow, Input, RequiredMark, SecretField, Switch } from "@agh/ui";
+import { Button, Eyebrow, Input, RequiredMark, SecretField, Switch } from "@compozy/ui";
 
 import {
   addProviderCredentialSlot,
@@ -27,7 +27,7 @@ type CredentialPresence = { present: boolean; secretRef: string };
 /**
  * Credential slots for `auth_mode = bound_secret`.
  *
- * Only a `vault:` ref can hold a value AGH writes; an `env:` ref is read from
+ * Only a `vault:` ref can hold a value CompozyOS writes; an `env:` ref is read from
  * the operator environment at launch, so no write control is offered for it.
  * On edit the stored value is never read back — presence comes from
  * `entry.credentials[].present` and replacing it is an explicit rotation.
@@ -187,7 +187,7 @@ function CredentialSlotBlock({
           />
         }
         data-testid={`${testId}-secret-ref`}
-        description="Bound credential source. Use env: to read the operator environment, vault: to store the value in AGH."
+        description="Bound credential source. Use env: to read the operator environment, vault: to store the value in CompozyOS."
         label={
           <>
             Secret ref
@@ -202,7 +202,7 @@ function CredentialSlotBlock({
           description={
             present
               ? "The stored value is never revealed. Rotate only when replacing it."
-              : "Stored in the AGH vault under this ref. It is never displayed again."
+              : "Stored in the CompozyOS vault under this ref. It is never displayed again."
           }
           editing={isEditing}
           id={`${testId}-value`}
@@ -220,8 +220,8 @@ function CredentialSlotBlock({
         />
       ) : (
         <p className="text-form-hint text-subtle" data-testid={`${testId}-value-unavailable`}>
-          Set a value only when the ref is managed by the AGH vault. This ref resolves at launch
-          from outside AGH.
+          Set a value only when the ref is managed by the CompozyOS vault. This ref resolves at
+          launch from outside CompozyOS.
         </p>
       )}
 

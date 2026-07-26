@@ -1,4 +1,4 @@
-import type { EntityMode } from "@agh/ui";
+import type { EntityMode } from "@compozy/ui";
 
 import type { ProviderDraft, SettingsProviderEntry } from "../types";
 import { ProviderAuthFields } from "./provider-edit-form-auth-fields";

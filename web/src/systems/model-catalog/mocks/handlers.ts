@@ -1,7 +1,7 @@
 import type { HttpHandler } from "msw";
 import { HttpResponse } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import type { ProviderModelPayload } from "../types";
 
@@ -71,10 +71,10 @@ export const modelCatalogAllModelsFixture: ProviderModelPayload[] = [
 ];
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/model-catalog/models", () =>
+  compozyApiMock.get("/api/model-catalog/models", () =>
     HttpResponse.json({ models: modelCatalogAllModelsFixture })
   ),
-  aghApiMock.post("/api/model-catalog/models/refresh", () =>
+  compozyApiMock.post("/api/model-catalog/models/refresh", () =>
     HttpResponse.json({
       sources: [
         {
@@ -91,13 +91,13 @@ export const handlers: HttpHandler[] = [
       ],
     })
   ),
-  aghApiMock.get("/api/model-catalog/providers/{provider_id}/models", ({ params }) => {
+  compozyApiMock.get("/api/model-catalog/providers/{provider_id}/models", ({ params }) => {
     const providerId = String(params.provider_id);
     return HttpResponse.json({
       models: modelCatalogAllModelsFixture.filter(row => row.provider_id === providerId),
     });
   }),
-  aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", ({ params }) =>
+  compozyApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", ({ params }) =>
     HttpResponse.json({
       sources: [
         {
@@ -116,7 +116,7 @@ export const handlers: HttpHandler[] = [
       ],
     })
   ),
-  aghApiMock.post("/api/model-catalog/providers/{provider_id}/models/refresh", ({ params }) =>
+  compozyApiMock.post("/api/model-catalog/providers/{provider_id}/models/refresh", ({ params }) =>
     HttpResponse.json({
       sources: [
         {

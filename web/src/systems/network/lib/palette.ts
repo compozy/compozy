@@ -1,7 +1,7 @@
 // Identity palette for `MessageAvatar`. The 8 slots map onto the canonical
 // `--color-avatar-{agent,human,system}-*-{bg,fg}` tokens declared in
 // `packages/ui/src/tokens.css` (the same tokens consumed by `<OwnerAvatar>`
-// via `colorsFor()` from `@agh/ui`). Network avatars do not have a known
+// via `colorsFor()` from `@compozy/ui`). Network avatars do not have a known
 // kind at every callsite, so we keep the seed-indexed table here; retunes
 // still flow through tokens.css.
 export const NETWORK_IDENTITY_PALETTE: ReadonlyArray<readonly [string, string]> = [

@@ -1,24 +1,24 @@
 ---
-title: "agh memory write"
+title: "compozy memory write"
 description: "Create a Memory v2 entry through the controller"
 ---
 
-## agh memory write
+## compozy memory write
 
 Create a Memory v2 entry through the controller
 
 ```
-agh memory write --type <type> --name <name> --content <@file|text> [flags]
+compozy memory write --type <type> --name <name> --content <@file|text> [flags]
 ```
 
 ### Examples
 
 ```
   # Write workspace-scoped project memory from a file
-  agh memory write --scope workspace --type project --name "Runtime docs" --content @runtime.md
+  compozy memory write --scope workspace --type project --name "Runtime docs" --content @runtime.md
 
   # Write agent-global feedback
-  agh memory write --scope agent --agent reviewer --agent-tier global \
+  compozy memory write --scope agent --agent reviewer --agent-tier global \
     --type feedback --name "Review tone" --content @feedback.md
 ```
 
@@ -46,7 +46,7 @@ agh memory write --type <type> --name <name> --content <@file|text> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -56,5 +56,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh memory write --type <type> --name <name> --content <@file|text> -o json
+compozy memory write --type <type> --name <name> --content <@file|text> -o json
 ```

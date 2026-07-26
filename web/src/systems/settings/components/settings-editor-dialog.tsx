@@ -12,7 +12,7 @@ import {
   EntityDialogHeader,
   dialogShellClass,
   type DialogShellSize,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 type EditorMode = "create" | "edit";
 

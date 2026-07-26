@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 export interface BlogAvatarProps {
   initial: string;

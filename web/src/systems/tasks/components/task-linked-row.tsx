@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { cn, OwnerAvatar, Time } from "@agh/ui";
+import { cn, OwnerAvatar, Time } from "@compozy/ui";
 
 import { ownerAvatarKindFor, taskOwnerLabel } from "../lib/task-formatters";
 import type { TaskChildSummary } from "../types";

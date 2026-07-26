@@ -1,4 +1,4 @@
-import { Pill, Section } from "@agh/ui";
+import { Pill, Section } from "@compozy/ui";
 
 import { formatAbsentOverride } from "../lib/agent-absent-value";
 import type { AgentPayload } from "../types";

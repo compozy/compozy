@@ -6,7 +6,7 @@ import {
   MetadataListValue,
   PillGroup,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

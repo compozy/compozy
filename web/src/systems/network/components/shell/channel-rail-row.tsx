@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Hash, Star } from "lucide-react";
 
-import { Item, ItemContent, ItemMedia, ItemTitle } from "@agh/ui";
+import { Item, ItemContent, ItemMedia, ItemTitle } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";

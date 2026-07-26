@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { UIProvider } from "@agh/ui";
+import { UIProvider } from "@compozy/ui";
 import { describe, expect, it, vi } from "vitest";
 
 import { DirectoryBrowser } from "../directory-browser";

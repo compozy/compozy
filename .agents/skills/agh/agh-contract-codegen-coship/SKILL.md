@@ -16,7 +16,7 @@ Ship one atomic wire-contract bundle. This file owns the sequence;
 1. Inspect the staged or about-to-be-edited files. Triggers (any one match):
    - `internal/api/contract/**.go`
    - `internal/api/spec/**.go`
-   - `openapi/agh.json`
+   - `openapi/compozy.json`
    - `openapi/compozy-daemon.json`
    - `web/src/generated/**`
    - a public handler's request, response, status, authentication, or error shape changes even before a contract file is edited
@@ -34,7 +34,7 @@ Ship one atomic wire-contract bundle. This file owns the sequence;
 
 **Step 3: Run Codegen Locally**
 
-1. Execute `make codegen` from the repo root. This regenerates `openapi/agh.json` and `web/src/generated/agh-openapi.d.ts`.
+1. Execute `make codegen` from the repo root. This regenerates `openapi/compozy.json` and `web/src/generated/compozy-openapi.d.ts`.
 2. If the contract is a JSON-RPC extension shape (not REST), the Go→TS generator also runs through `make codegen` (see `internal/codegen/openapits/generate.go`).
 3. Inspect the generated diff. Generated files MUST commit alongside source.
 
@@ -43,7 +43,7 @@ Ship one atomic wire-contract bundle. This file owns the sequence;
 **Step 4: Update Web Consumers**
 
 1. For each affected `web/src/systems/<system>/`:
-   - Open `types.ts`. Remove DTOs that simply mirror the regenerated TypeScript types — import from `@/generated/agh-openapi` or the local re-export instead.
+   - Open `types.ts`. Remove DTOs that simply mirror the regenerated TypeScript types — import from `@/generated/compozy-openapi` or the local re-export instead.
    - Open `adapters/`. Update the typed wrappers if the request/response shape changed.
    - Open `query-keys.ts` and `query-options.ts` if response shape affects keys.
    - Open `hooks/`. Update query/mutation hook return types and rollback logic.

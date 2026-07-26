@@ -250,7 +250,7 @@ func (s *LiveProviderSource) Priority() int {
 	return PriorityProviderLive
 }
 
-// ProviderIDs returns the single AGH provider id this source owns.
+// ProviderIDs returns the single Compozy provider id this source owns.
 func (s *LiveProviderSource) ProviderIDs() []string {
 	return []string{s.providerID}
 }

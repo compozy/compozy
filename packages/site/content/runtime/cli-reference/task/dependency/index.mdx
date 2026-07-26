@@ -1,14 +1,14 @@
 ---
-title: "agh task dependency"
+title: "compozy task dependency"
 description: "Manage task dependencies"
 ---
 
-## agh task dependency
+## compozy task dependency
 
 Manage task dependencies
 
 ```
-agh task dependency [flags]
+compozy task dependency [flags]
 ```
 
 ### Options
@@ -26,7 +26,7 @@ agh task dependency [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -36,12 +36,12 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task dependency -o json
+compozy task dependency -o json
 ```
 
 ## Subcommands
 
-| Command                                                                     | Description                          |
-| --------------------------------------------------------------------------- | ------------------------------------ |
-| [agh task dependency add](/runtime/cli-reference/task/dependency/add)       | Add a dependency edge to a task      |
-| [agh task dependency remove](/runtime/cli-reference/task/dependency/remove) | Remove a dependency edge from a task |
+| Command                                                                         | Description                          |
+| ------------------------------------------------------------------------------- | ------------------------------------ |
+| [compozy task dependency add](/runtime/cli-reference/task/dependency/add)       | Add a dependency edge to a task      |
+| [compozy task dependency remove](/runtime/cli-reference/task/dependency/remove) | Remove a dependency edge from a task |

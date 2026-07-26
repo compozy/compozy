@@ -1,9 +1,9 @@
 ---
 title: Toolsets
-description: How AGH groups registry tools into named exposure sets for discovery, policy, and session startup.
+description: How Compozy groups registry tools into named exposure sets for discovery, policy, and session startup.
 ---
 
-Toolsets group related tools so AGH can expose a coherent operating surface without forcing every
+Toolsets group related tools so Compozy can expose a coherent operating surface without forcing every
 agent or operator to reason about hundreds of individual tool IDs first.
 
 Use toolsets when you need to understand why a session can see one family of tools, why a tool is
@@ -18,16 +18,16 @@ A toolset is a named bundle of registry tools with expansion diagnostics.
 List known toolsets:
 
 ```bash
-agh toolsets list -o json
+compozy toolsets list -o json
 ```
 
 Inspect one expansion:
 
 ```bash
-agh toolsets info compozy__catalog -o json
+compozy toolsets info compozy__catalog -o json
 ```
 
-What happened: AGH resolved the toolset through the registry and returned the expanded tool IDs plus
+What happened: Compozy resolved the toolset through the registry and returned the expanded tool IDs plus
 diagnostics. Use diagnostics when an expected tool is missing or unavailable in the current scope.
 
 ## Bootstrap and catalog shape
@@ -53,8 +53,8 @@ the returned tool reference. `compozy__tool_list` shows the currently callable p
 
 ## Operational toolsets
 
-AGH groups runtime capabilities by owning subsystem. These toolsets are canonical IDs that can be
-granted through agent definitions or inspected through `agh toolsets info`.
+Compozy groups runtime capabilities by owning subsystem. These toolsets are canonical IDs that can be
+granted through agent definitions or inspected through `compozy toolsets info`.
 
 | Toolset                    | Includes                                                                        |
 | -------------------------- | ------------------------------------------------------------------------------- |

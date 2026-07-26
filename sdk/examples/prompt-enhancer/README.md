@@ -4,7 +4,7 @@
 
 It demonstrates:
 
-- a persistent runtime built with `@agh/extension-sdk`
+- a persistent runtime built with `@compozy/extension-sdk`
 - a `prompt.post_assemble` hook that injects workspace context
 - Host API usage through the SDK
 - end-to-end capability denial handling when an extension attempts an ungranted write method
@@ -29,8 +29,8 @@ The build emits `dist/index.js`, which is used by both the persistent subprocess
 
 ## Managed-install boundary
 
-This example uses `@agh/extension-sdk` through the repository's `workspace:*` dependency. Its
-`node_modules/@agh/extension-sdk` entry resolves outside this extension root, and the built
+This example uses `@compozy/extension-sdk` through the repository's `workspace:*` dependency. Its
+`node_modules/@compozy/extension-sdk` entry resolves outside this extension root, and the built
 JavaScript keeps that runtime import. AGH's managed installer intentionally rejects dependency
 symlinks that escape the source package.
 

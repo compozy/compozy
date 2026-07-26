@@ -7,7 +7,7 @@ import {
   NativeSelect,
   NativeSelectOption,
   RadioCard,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { MCPDraft, MCPDraftErrors, MCPTransport } from "../lib/mcp-editor-model";
 import { withTransport } from "../lib/mcp-editor-model";

@@ -605,7 +605,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       home_policy: "operator",
       state: "missing_credential",
       code: "provider_credential_unresolved",
-      message: 'Required AGH-managed provider credential "OPENROUTER_API_KEY" is unresolved.',
+      message: 'Required CompozyOS-managed provider credential "OPENROUTER_API_KEY" is unresolved.',
     },
     credentials: [
       {

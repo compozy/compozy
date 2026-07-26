@@ -1,7 +1,7 @@
 /**
  * Curated catalog of runtime events a trigger can listen for.
  *
- * Every entry maps to a real `ActivationEnvelope` the AGH runtime emits
+ * Every entry maps to a real `ActivationEnvelope` the CompozyOS runtime emits
  * (`internal/automation/trigger.go`). `fields` and `sample.data` mirror the
  * exact `data.*` keys each builder populates, so the prompt variable bar,
  * filter key options, and live preview stay truthful. The catalog is the single

@@ -29,7 +29,7 @@
                                 "truncated": true,
                                 "artifacts": [
                                     {
-                                        "uri": "agh://tool-artifacts/art_c82d7447711d610d6c0d8fd52b8c8ee99f051a81e62f51bf052eaad467fca444",
+                                        "uri": "compozy://tool-artifacts/art_c82d7447711d610d6c0d8fd52b8c8ee99f051a81e62f51bf052eaad467fca444",
                                         "name": "tool-result.json",
                                         "mime_type": "application/vnd.agh.tool-result+json",
                                         "bytes": 140084,

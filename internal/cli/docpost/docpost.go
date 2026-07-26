@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	docpostAghKey       = "compozy"
-	docpostAghMDXPath   = "compozy.mdx"
-	docpostIndexKey     = "index"
-	docpostIndexMDXPath = "index.mdx"
-	docpostMetaJSONPath = "meta.json"
+	docpostCompozyKey     = "compozy"
+	docpostCompozyMDXPath = "compozy.mdx"
+	docpostIndexKey       = "index"
+	docpostIndexMDXPath   = "index.mdx"
+	docpostMetaJSONPath   = "meta.json"
 )
 
 // linkBasePath is the URL prefix the site router mounts the CLI reference at.
@@ -141,7 +141,7 @@ func isManagedOutputDir(dstDir string) (bool, error) {
 			hasEditorialIndex = true
 		case docpostMetaJSONPath:
 			hasEditorialMeta = true
-		case docpostAghMDXPath:
+		case docpostCompozyMDXPath:
 			hasGeneratedRoot = true
 		default:
 			if strings.HasSuffix(entry.Name(), ".mdx") {
@@ -229,7 +229,7 @@ func readInput(ctx context.Context, srcDir string, entry fs.DirEntry) (input, bo
 }
 
 func commandSegments(fileName string, base string) ([]string, error) {
-	if base == docpostAghKey {
+	if base == docpostCompozyKey {
 		return nil, nil
 	}
 	if !strings.HasPrefix(base, "compozy_") {

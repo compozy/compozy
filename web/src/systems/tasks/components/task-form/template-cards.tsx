@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { Pill, RadioCard } from "@agh/ui";
+import { Pill, RadioCard } from "@compozy/ui";
 
 import {
   SIMPLE_TASK_TEMPLATE_IDS,

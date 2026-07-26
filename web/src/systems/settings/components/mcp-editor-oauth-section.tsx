@@ -1,4 +1,4 @@
-import { FormSection, Input, RadioCard } from "@agh/ui";
+import { FormSection, Input, RadioCard } from "@compozy/ui";
 
 import type { MCPDraftErrors, MCPOAuthDiscovery, MCPOAuthDraft } from "../lib/mcp-editor-model";
 

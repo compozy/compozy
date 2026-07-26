@@ -86,7 +86,7 @@ func getSettingsUpdateOperationSpec() OperationSpec {
 		Method:      httpMethodGet,
 		Path:        "/api/settings/update",
 		OperationID: "getSettingsUpdate",
-		Summary:     "Read the current AGH software update status",
+		Summary:     "Read the current CompozyOS software update status",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{

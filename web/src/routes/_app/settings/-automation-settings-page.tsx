@@ -17,7 +17,7 @@ import {
   useSettingsTopbar,
   type SettingsAutomationSection,
 } from "@/systems/settings";
-import { Button, Eyebrow, Input, Spinner, Switch, Time } from "@agh/ui";
+import { Button, Eyebrow, Input, Spinner, Switch, Time } from "@compozy/ui";
 
 type AutomationConfig = SettingsAutomationSection["config"];
 type AutomationRuntime = SettingsAutomationSection["runtime"];

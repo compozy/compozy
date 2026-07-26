@@ -9,7 +9,7 @@ import {
   SkeletonRows,
   buttonVariants,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { type LoopsRouteSearch, useLoopsCatalog } from "./use-loops-catalog";
 import { LoopCatalog, LoopCatalogFilters, type LoopStatusFilter } from "@/systems/loops";
 

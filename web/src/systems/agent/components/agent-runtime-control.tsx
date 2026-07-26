@@ -1,4 +1,4 @@
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 
 import { RuntimeSelector } from "@/systems/runtime";
 

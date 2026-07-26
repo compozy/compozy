@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ListChecks } from "lucide-react";
 import { useState } from "react";
 
-import { UIProvider, useTopbarSlot } from "@agh/ui";
+import { UIProvider, useTopbarSlot } from "@compozy/ui";
 import { OsWindowFrame } from "@/systems/os/components";
 
 import { TasksListSurface } from "../tasks-list-surface";

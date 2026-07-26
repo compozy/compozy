@@ -8,7 +8,7 @@ import {
   DialogTitle,
   Eyebrow,
   Kbd,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useDesktop } from "../hooks/use-desktop";
 import { useOsShell } from "../hooks/use-os-shell";

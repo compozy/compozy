@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { sessionFixtures } from "@/systems/session/mocks";
 
@@ -244,11 +244,11 @@ function heartbeatRevision(
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/agents", () => HttpResponse.json({ agents: agentsState })),
-  aghApiMock.get("/api/agents/catalog", ({ request }) =>
+  compozyApiMock.get("/api/agents", () => HttpResponse.json({ agents: agentsState })),
+  compozyApiMock.get("/api/agents/catalog", ({ request }) =>
     HttpResponse.json(agentCatalogMockResponse(request))
   ),
-  aghApiMock.get("/api/agents/{name}", ({ params }) => {
+  compozyApiMock.get("/api/agents/{name}", ({ params }) => {
     const name = String(params.name);
     const agent = agentByName(name);
     if (!agent) {
@@ -256,7 +256,7 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json({ agent });
   }),
-  aghApiMock.put("/api/agents/{name}", async ({ params, request }) => {
+  compozyApiMock.put("/api/agents/{name}", async ({ params, request }) => {
     const name = String(params.name);
     const body = (await request.json()) as {
       expected_digest: string;
@@ -279,7 +279,7 @@ export const handlers: HttpHandler[] = [
     agentsState = agentsState.map(agent => (agent.name === name ? updated : agent));
     return HttpResponse.json({ agent: updated });
   }),
-  aghApiMock.delete("/api/agents/{name}", ({ params }) => {
+  compozyApiMock.delete("/api/agents/{name}", ({ params }) => {
     const name = String(params.name);
     const existing = agentByName(name);
     if (!existing) {
@@ -294,7 +294,7 @@ export const handlers: HttpHandler[] = [
       ...unshadowed,
     });
   }),
-  aghApiMock.post("/api/agents/{name}/duplicate", async ({ params, request }) => {
+  compozyApiMock.post("/api/agents/{name}/duplicate", async ({ params, request }) => {
     const sourceName = String(params.name);
     const source = agentByName(sourceName);
     if (!source) {
@@ -325,14 +325,14 @@ export const handlers: HttpHandler[] = [
     agentsState = [...agentsState, copy];
     return HttpResponse.json({ agent: copy }, { status: 201 });
   }),
-  aghApiMock.get("/api/agents/{name}/soul", ({ params }) => {
+  compozyApiMock.get("/api/agents/{name}/soul", ({ params }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
     }
     return HttpResponse.json(buildSoulPayload(name, soulBodies.get(name)));
   }),
-  aghApiMock.put("/api/agents/{name}/soul", async ({ params, request }) => {
+  compozyApiMock.put("/api/agents/{name}/soul", async ({ params, request }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
@@ -351,7 +351,7 @@ export const handlers: HttpHandler[] = [
       revision: soulRevision(name, "put", digest),
     });
   }),
-  aghApiMock.delete("/api/agents/{name}/soul", async ({ params, request }) => {
+  compozyApiMock.delete("/api/agents/{name}/soul", async ({ params, request }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
@@ -368,7 +368,7 @@ export const handlers: HttpHandler[] = [
       revision: soulRevision(name, "delete"),
     });
   }),
-  aghApiMock.post("/api/agents/{name}/soul/validate", async ({ params, request }) => {
+  compozyApiMock.post("/api/agents/{name}/soul/validate", async ({ params, request }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
@@ -387,14 +387,14 @@ export const handlers: HttpHandler[] = [
       diagnostics: [],
     });
   }),
-  aghApiMock.get("/api/agents/{name}/soul/history", ({ params }) => {
+  compozyApiMock.get("/api/agents/{name}/soul/history", ({ params }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
     }
     return HttpResponse.json({ revisions: [] });
   }),
-  aghApiMock.post("/api/agents/{name}/soul/rollback", async ({ params }) => {
+  compozyApiMock.post("/api/agents/{name}/soul/rollback", async ({ params }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
@@ -409,14 +409,14 @@ export const handlers: HttpHandler[] = [
       revision: soulRevision(name, "rollback", stored.digest),
     });
   }),
-  aghApiMock.get("/api/agents/{name}/heartbeat", ({ params }) => {
+  compozyApiMock.get("/api/agents/{name}/heartbeat", ({ params }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
     }
     return HttpResponse.json(buildHeartbeatPayload(name, heartbeatBodies.get(name)));
   }),
-  aghApiMock.put("/api/agents/{name}/heartbeat", async ({ params, request }) => {
+  compozyApiMock.put("/api/agents/{name}/heartbeat", async ({ params, request }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
@@ -438,7 +438,7 @@ export const handlers: HttpHandler[] = [
       revision: heartbeatRevision(name, "write", digest),
     });
   }),
-  aghApiMock.delete("/api/agents/{name}/heartbeat", async ({ params, request }) => {
+  compozyApiMock.delete("/api/agents/{name}/heartbeat", async ({ params, request }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
@@ -459,7 +459,7 @@ export const handlers: HttpHandler[] = [
       revision: heartbeatRevision(name, "delete"),
     });
   }),
-  aghApiMock.post("/api/agents/{name}/heartbeat/validate", async ({ params, request }) => {
+  compozyApiMock.post("/api/agents/{name}/heartbeat/validate", async ({ params, request }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
@@ -479,14 +479,14 @@ export const handlers: HttpHandler[] = [
       diagnostics: [],
     });
   }),
-  aghApiMock.get("/api/agents/{name}/heartbeat/history", ({ params }) => {
+  compozyApiMock.get("/api/agents/{name}/heartbeat/history", ({ params }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
     }
     return HttpResponse.json({ revisions: [] });
   }),
-  aghApiMock.post("/api/agents/{name}/heartbeat/rollback", async ({ params }) => {
+  compozyApiMock.post("/api/agents/{name}/heartbeat/rollback", async ({ params }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
@@ -501,7 +501,7 @@ export const handlers: HttpHandler[] = [
       revision: heartbeatRevision(name, "rollback", stored.digest),
     });
   }),
-  aghApiMock.get("/api/agents/{name}/heartbeat/status", ({ params }) => {
+  compozyApiMock.get("/api/agents/{name}/heartbeat/status", ({ params }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
@@ -517,7 +517,7 @@ export const handlers: HttpHandler[] = [
       preferences: { min_interval: "30m", context: {} },
     });
   }),
-  aghApiMock.post("/api/agents/{name}/heartbeat/wake", async ({ params, request }) => {
+  compozyApiMock.post("/api/agents/{name}/heartbeat/wake", async ({ params, request }) => {
     const name = String(params.name);
     if (!agentByName(name)) {
       return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });

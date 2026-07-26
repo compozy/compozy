@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import { useOptionCardSlot } from "../hooks/use-option-card-slot";
 

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -46,7 +46,7 @@ export const Degraded: Story = {
     ...appRouteParameters("/"),
     ...storybookMswParameters({
       daemon: [
-        aghApiMock.get("/api/status", () =>
+        compozyApiMock.get("/api/status", () =>
           HttpResponse.json({
             ...statusFixture,
             health: { ...statusFixture.health, status: "degraded" },
@@ -74,7 +74,7 @@ export const Disconnected: Story = {
     ...appRouteParameters("/"),
     ...storybookMswParameters({
       daemon: [
-        aghApiMock.get("/api/status", () =>
+        compozyApiMock.get("/api/status", () =>
           HttpResponse.json({ error: "daemon offline" }, { status: 503 })
         ),
       ],
@@ -92,19 +92,19 @@ export const Loading: Story = {
     ...appRouteParameters("/"),
     ...storybookMswParameters({
       daemon: [
-        aghApiMock.get("/api/status", async () => {
+        compozyApiMock.get("/api/status", async () => {
           await delay("infinite");
           return HttpResponse.json(statusFixture);
         }),
       ],
       workspace: [
-        aghApiMock.get("/api/workspaces", async () => {
+        compozyApiMock.get("/api/workspaces", async () => {
           await delay("infinite");
           return HttpResponse.json({ workspaces: [] });
         }),
       ],
       agent: [
-        aghApiMock.get("/api/agents", async () => {
+        compozyApiMock.get("/api/agents", async () => {
           await delay("infinite");
           return HttpResponse.json({ agents: [] });
         }),
@@ -123,7 +123,7 @@ export const Error: Story = {
     ...appRouteParameters("/"),
     ...storybookMswParameters({
       workspace: [
-        aghApiMock.get("/api/workspaces", () =>
+        compozyApiMock.get("/api/workspaces", () =>
           HttpResponse.json({ error: "workspaces unavailable" }, { status: 500 })
         ),
       ],
@@ -141,11 +141,13 @@ export const Onboarding: Story = {
     ...appRouteParameters("/"),
     ...storybookMswParameters({
       onboarding: [
-        aghApiMock.get("/api/onboarding", () =>
+        compozyApiMock.get("/api/onboarding", () =>
           HttpResponse.json({ onboarding: { completed: false } })
         ),
       ],
-      workspace: [aghApiMock.get("/api/workspaces", () => HttpResponse.json({ workspaces: [] }))],
+      workspace: [
+        compozyApiMock.get("/api/workspaces", () => HttpResponse.json({ workspaces: [] })),
+      ],
     }),
   },
 };

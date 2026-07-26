@@ -1,6 +1,6 @@
 import { Plug } from "lucide-react";
 
-import { FormSection } from "@agh/ui";
+import { FormSection } from "@compozy/ui";
 
 import type { AgentPayload } from "../types";
 import { AgentMcpServersPanel } from "./agent-mcp-servers-panel";

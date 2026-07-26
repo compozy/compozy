@@ -18,7 +18,7 @@ import {
   FormSection,
   Input,
   Pill,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { AgentCommandSelect } from "@/systems/agent";
 

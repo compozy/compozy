@@ -1,4 +1,4 @@
-import { MetadataTile, Sheet, SheetContent, Time } from "@agh/ui";
+import { MetadataTile, Sheet, SheetContent, Time } from "@compozy/ui";
 
 import type { TaskRunDetailView, TaskRunInspectView } from "../types";
 import { TaskOperatorSheetHeader } from "./task-operator-sheet-header";

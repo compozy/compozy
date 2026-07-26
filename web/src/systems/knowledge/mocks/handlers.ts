@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
   memoryDecisionsFixture,
@@ -291,7 +291,7 @@ function matchesDecisionSelector(decision: MemoryDecision, selector: MemorySelec
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/memory", ({ request }) => {
+  compozyApiMock.get("/api/memory", ({ request }) => {
     const query = readListRequest(new URL(request.url));
     if (!query.ok) {
       return HttpResponse.json(
@@ -301,7 +301,7 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json(listMemories(query.value));
   }),
-  aghApiMock.get("/api/memory/decisions", ({ request }) => {
+  compozyApiMock.get("/api/memory/decisions", ({ request }) => {
     const query = readDecisionRequest(new URL(request.url));
     if (!query.ok) {
       return HttpResponse.json(
@@ -311,7 +311,7 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json(listMemoryDecisions(query.value));
   }),
-  aghApiMock.get("/api/memory/{filename}", ({ params }) => {
+  compozyApiMock.get("/api/memory/{filename}", ({ params }) => {
     const filename = decodeURIComponent(String(params.filename));
     const memory = memoryReadFixtures[filename];
     if (!memory) {
@@ -322,9 +322,11 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json(memory);
   }),
-  aghApiMock.post("/api/memory", () => HttpResponse.json(memoryWriteFixture)),
-  aghApiMock.patch("/api/memory/{filename}", () => HttpResponse.json(memoryEditFixture)),
-  aghApiMock.delete("/api/memory/{filename}", () => HttpResponse.json(memoryDeleteFixture)),
-  aghApiMock.post("/api/memory/search", () => HttpResponse.json(memorySearchFixture)),
-  aghApiMock.post("/api/memory/dreams/trigger", () => HttpResponse.json(memoryDreamTriggerFixture)),
+  compozyApiMock.post("/api/memory", () => HttpResponse.json(memoryWriteFixture)),
+  compozyApiMock.patch("/api/memory/{filename}", () => HttpResponse.json(memoryEditFixture)),
+  compozyApiMock.delete("/api/memory/{filename}", () => HttpResponse.json(memoryDeleteFixture)),
+  compozyApiMock.post("/api/memory/search", () => HttpResponse.json(memorySearchFixture)),
+  compozyApiMock.post("/api/memory/dreams/trigger", () =>
+    HttpResponse.json(memoryDreamTriggerFixture)
+  ),
 ];

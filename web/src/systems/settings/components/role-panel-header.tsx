@@ -1,6 +1,6 @@
 import { ChevronRight, TriangleAlert } from "lucide-react";
 
-import { cn, CollapsibleTrigger, Switch } from "@agh/ui";
+import { cn, CollapsibleTrigger, Switch } from "@compozy/ui";
 
 import type { RoleViewModel } from "../lib/roles-view-model";
 import { RoleStatusBadges } from "./role-status-badges";

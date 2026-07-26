@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
 
-import { CodeBlock } from "@agh/ui";
+import { CodeBlock } from "@compozy/ui";
 
 import type { UIMessage } from "../../types";
 import { GenericContent } from "./generic-content";

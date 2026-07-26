@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 export interface SettingsGroupProps {
   title?: ReactNode;

@@ -1,9 +1,9 @@
 ---
 title: Dream
-description: How AGH gates dreaming runs, scores recall signals, promotes durable memory through the controller, and persists dreaming artifacts under `_system/`.
+description: How Compozy gates dreaming runs, scores recall signals, promotes durable memory through the controller, and persists dreaming artifacts under `_system/`.
 ---
 
-Dreaming is AGH's background promotion loop. A dream session reviews recall-validated signal,
+Dreaming is Compozy's background promotion loop. A dream session reviews recall-validated signal,
 proposes durable curated memory through the **same controller** every other write uses, and writes
 forensic artifacts under `_system/dreaming/`.
 
@@ -18,19 +18,19 @@ believed were useful — facts referenced repeatedly during recall — into dura
 ## Operator Term
 
 In Slice 1 the operator-facing verb is **dream trigger**. The previous "consolidation" surface is
-gone. Use `agh memory dream trigger` and `POST /api/memory/dreams/trigger`. There is no
-`agh memory consolidate`, no `POST /api/memory/consolidate` route, and no `--consolidate` flag.
+gone. Use `compozy memory dream trigger` and `POST /api/memory/dreams/trigger`. There is no
+`compozy memory consolidate`, no `POST /api/memory/consolidate` route, and no `--consolidate` flag.
 
 ## What Triggers A Dream
 
 Dreaming is enabled by default when memory is enabled.
 
-| Trigger path      | Behavior                                                                                             |
-| ----------------- | ---------------------------------------------------------------------------------------------------- |
-| Background ticker | The daemon evaluates gates on `memory.dream.check_interval` (default 30m).                           |
-| Session stop hook | When a non-dream session stops in a known workspace, AGH queues a dream check for that workspace_id. |
-| Manual command    | `agh memory dream trigger` evaluates gates for the resolved workspace.                               |
-| HTTP / UDS API    | `POST /api/memory/dreams/trigger` accepts an optional workspace selector.                            |
+| Trigger path      | Behavior                                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| Background ticker | The daemon evaluates gates on `memory.dream.check_interval` (default 30m).                               |
+| Session stop hook | When a non-dream session stops in a known workspace, Compozy queues a dream check for that workspace_id. |
+| Manual command    | `compozy memory dream trigger` evaluates gates for the resolved workspace.                               |
+| HTTP / UDS API    | `POST /api/memory/dreams/trigger` accepts an optional workspace selector.                                |
 
 A trigger always re-evaluates gates. If the gates do not pass, the response is successful and
 reports the gate that blocked the run.
@@ -39,12 +39,12 @@ reports the gate that blocked the run.
 
 Gates run in this order (cheaper first, observable each step):
 
-| Gate     | Default                                                                            | Behavior                                                                                         |
-| -------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Time     | `min_hours = 24`                                                                   | Last successful run must be at least `min_hours` ago.                                            |
-| Sessions | `min_sessions = 3`                                                                 | At least `min_sessions` completed sessions since the last successful run.                        |
-| Lock     | one active runner                                                                  | Acquires the per-workspace dreaming lock; existing runners block re-entry.                       |
-| Signal   | `gates.min_unpromoted = 5`, `gates.min_recall_count = 2`, `gates.min_score = 0.75` | Inside the lock, AGH counts unpromoted candidates with sufficient recall hits and minimum score. |
+| Gate     | Default                                                                            | Behavior                                                                                             |
+| -------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Time     | `min_hours = 24`                                                                   | Last successful run must be at least `min_hours` ago.                                                |
+| Sessions | `min_sessions = 3`                                                                 | At least `min_sessions` completed sessions since the last successful run.                            |
+| Lock     | one active runner                                                                  | Acquires the per-workspace dreaming lock; existing runners block re-entry.                           |
+| Signal   | `gates.min_unpromoted = 5`, `gates.min_recall_count = 2`, `gates.min_score = 0.75` | Inside the lock, Compozy counts unpromoted candidates with sufficient recall hits and minimum score. |
 
 `Time` and `Sessions` are evaluated outside the lock. `Signal` is evaluated **after** the lock is
 acquired so anti-thrash stamps update even when no candidates qualify.
@@ -86,16 +86,16 @@ Runtime->>Lock: Release (anti-thrash stamp)`}
 caption="Dream output is not injected directly into curated memory. Promotions are real controller decisions; the synthesis report is forensic-only under `\_system/dreaming/`."
 />
 
-The dream agent runs as an ordinary AGH session of type `dream`. It is special in two ways:
+The dream agent runs as an ordinary Compozy session of type `dream`. It is special in two ways:
 
-- AGH starts it with `approve-all` permissions for the dreaming workspace context.
-- AGH layers the dream role overlay and the versioned output-contract frame selected by
+- Compozy starts it with `approve-all` permissions for the dreaming workspace context.
+- Compozy layers the dream role overlay and the versioned output-contract frame selected by
   `memory.dream.prompt_version` on top of the selected agent's prompt.
 
 Dream-session routing lives under `[roles.dream]`. An empty `agent` selects the virtual builtin
 **`dreaming-curator`** identity; a non-empty value routes the session to that authored agent. The
-builtin contributes AGH's embedded curator prompt. A routed catalog agent contributes its own
-`AGENT.md` body instead; AGH still applies the role overlay and contract frame. The builtin name is
+builtin contributes Compozy's embedded curator prompt. A routed catalog agent contributes its own
+`AGENT.md` body instead; Compozy still applies the role overlay and contract frame. The builtin name is
 reserved from authoring and does not appear in public agent catalogs.
 
 ## What Lands Where
@@ -109,8 +109,8 @@ reserved from authoring and does not appear in public agent catalogs.
 | Failed run                               | `memory.dream.run.failed` event plus `<scope>/memory/_system/dream/failures/<run-id>.md` DLQ entry. |
 
 `_system/dreaming/` and `_system/dream/failures/` are structurally excluded from prompt injection
-and from default recall. Operators browse them with `agh memory dream show <date>` and
-`agh memory dream retry <run-id>`.
+and from default recall. Operators browse them with `compozy memory dream show <date>` and
+`compozy memory dream retry <run-id>`.
 
 ## Configuration
 
@@ -160,7 +160,7 @@ sessions keep their bound route.
 ## Manual Trigger
 
 ```bash
-agh memory dream trigger
+compozy memory dream trigger
 ```
 
 ```bash

@@ -2,7 +2,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 
-import { Toaster, TooltipProvider, UIProvider } from "@agh/ui";
+import { Toaster, TooltipProvider, UIProvider } from "@compozy/ui";
 
 import type { TopbarRouteContext } from "@/types/topbar";
 import { routeTree } from "./routeTree.gen";

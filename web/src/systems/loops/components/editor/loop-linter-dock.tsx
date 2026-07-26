@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertCircle, AlertTriangle, Check, ChevronDown, Search } from "lucide-react";
 
-import { cn, Eyebrow, Spinner } from "@agh/ui";
+import { cn, Eyebrow, Spinner } from "@compozy/ui";
 
 import { withOccurrenceKeys } from "@/lib/occurrence-keys";
 

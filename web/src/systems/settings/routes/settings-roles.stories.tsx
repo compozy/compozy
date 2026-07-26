@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -63,7 +63,7 @@ export const Diagnostics: Story = {
     ...appRouteParameters("/settings/roles"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/roles", () => HttpResponse.json(rolesStatusWithDiagnosticFixture)),
+        compozyApiMock.get("/api/roles", () => HttpResponse.json(rolesStatusWithDiagnosticFixture)),
       ],
     }),
   },
@@ -81,7 +81,7 @@ export const FallbackEditor: Story = {
     ...appRouteParameters("/settings/roles"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/roles", () =>
+        compozyApiMock.get("/api/settings/roles", () =>
           HttpResponse.json({
             ...settingsRolesSectionFixture,
             config: {
@@ -110,7 +110,7 @@ export const Loading: Story = {
     ...appRouteParameters("/settings/roles"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/roles", async () => {
+        compozyApiMock.get("/api/roles", async () => {
           await delay("infinite");
           return HttpResponse.json(rolesStatusFixture);
         }),
@@ -127,7 +127,7 @@ export const Error: Story = {
     ...appRouteParameters("/settings/roles"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/roles", () =>
+        compozyApiMock.get("/api/roles", () =>
           HttpResponse.json({ error: "Failed to load roles" }, { status: 500 })
         ),
       ],

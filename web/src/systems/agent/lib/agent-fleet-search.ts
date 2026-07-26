@@ -1,4 +1,4 @@
-import type { ListingViewMode } from "@agh/ui";
+import type { ListingViewMode } from "@compozy/ui";
 
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
 

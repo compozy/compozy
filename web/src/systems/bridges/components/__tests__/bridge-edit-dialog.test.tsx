@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { EntityMode } from "@agh/ui";
+import type { EntityMode } from "@compozy/ui";
 
 import { BridgeEditDialog } from "@/systems/bridges/components/bridge-edit-dialog";
 import type {

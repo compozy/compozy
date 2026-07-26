@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { useState } from "react";
 import { fn } from "storybook/test";
 
@@ -21,7 +21,7 @@ const openrouter = settingsProviderFixtures.find(entry => entry.name === "openro
 
 /**
  * Vault-bound twin of the OpenRouter fixture: only a `vault:` ref can hold a
- * value AGH wrote, so rotation is reachable only from this shape.
+ * value CompozyOS wrote, so rotation is reachable only from this shape.
  */
 const openrouterVaultBound = {
   ...openrouter,
@@ -50,7 +50,7 @@ const openrouterVaultBound = {
 };
 
 const freshHandlers = [
-  aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
+  compozyApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
     HttpResponse.json({
       sources: [
         {
@@ -66,7 +66,7 @@ const freshHandlers = [
       ],
     })
   ),
-  aghApiMock.post("/api/model-catalog/providers/{provider_id}/models/refresh", () =>
+  compozyApiMock.post("/api/model-catalog/providers/{provider_id}/models/refresh", () =>
     HttpResponse.json({
       sources: [
         {

@@ -15,7 +15,7 @@ import {
   LaneTabs,
   Pill,
   type EntityMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { getProviderStateView } from "../lib/provider-state";
 import type { ProviderDraft, SettingsProviderEntry } from "../types";
@@ -271,7 +271,7 @@ function headerDescription(mode: DetailMode, provider: SettingsProviderEntry | n
     return (
       <>
         An ACP provider overlay — <b className="font-medium text-muted">who owns authentication</b>{" "}
-        decides which credential controls AGH may manage.
+        decides which credential controls CompozyOS may manage.
       </>
     );
   }

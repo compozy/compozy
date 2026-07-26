@@ -5,7 +5,7 @@ import {
   type ExecuteHookParams,
   type ExtensionOptions,
   type PromptPatch,
-} from "@agh/extension-sdk";
+} from "@compozy/extension-sdk";
 
 export function createExtension(options: ExtensionOptions = {}): Extension {
   const extension = new Extension(

@@ -11,7 +11,7 @@ import {
   EntityDialogFooter,
   EntityDialogHeader,
   FormSection,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useLoopConfigure } from "../../hooks/use-loop-configure";
 import type { LoopConfig, LoopDetail, LoopEffectiveConfig } from "../../types";

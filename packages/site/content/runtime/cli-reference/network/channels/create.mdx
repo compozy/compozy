@@ -1,21 +1,21 @@
 ---
-title: "agh network channels create"
+title: "compozy network channels create"
 description: "Create a runtime channel and start one session per selected agent"
 ---
 
-## agh network channels create
+## compozy network channels create
 
 Create a runtime channel and start one session per selected agent
 
 ```
-agh network channels create [channel] [flags]
+compozy network channels create [channel] [flags]
 ```
 
 ### Examples
 
 ```
   # Create a launch channel with two local agents
-  agh network --workspace ~/dev/ad8 channels create ad8_launch \
+  compozy network --workspace ~/dev/ad8 channels create ad8_launch \
     --purpose "Coordinate launch work" \
     --agent site_copywriter \
     --agent growth_marketer \
@@ -43,7 +43,7 @@ agh network channels create [channel] [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -53,5 +53,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh network channels create [channel] -o json
+compozy network channels create [channel] -o json
 ```

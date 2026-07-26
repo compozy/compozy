@@ -1,7 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useState, type ComponentPropsWithoutRef } from "react";
 
-import { Button, cn, ConfirmDialog, MonoId, Time } from "@agh/ui";
+import { Button, cn, ConfirmDialog, MonoId, Time } from "@compozy/ui";
 
 import type {
   TaskBridgeNotificationSubscription,

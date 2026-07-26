@@ -2,7 +2,7 @@ import { Code2, GitFork, LayoutGrid, Maximize, Save, Share2, ZoomIn, ZoomOut } f
 import { useReactFlow, useViewport } from "@xyflow/react";
 import type { ReactNode } from "react";
 
-import { Button, PillGroup, type PillGroupItem } from "@agh/ui";
+import { Button, PillGroup, type PillGroupItem } from "@compozy/ui";
 
 import type { LoopEditorView } from "../../hooks/use-loop-editor-state";
 import type { LoopSource } from "../../types";

@@ -14,7 +14,7 @@ const headersPath = resolve(publicRoot, "_headers");
 const installPagePath = resolve(siteRoot, "content/runtime/core/getting-started/installation.mdx");
 const launchPostPath = resolve(
   siteRoot,
-  "content/blog/posts/introducing-agh-the-first-agent-network-protocol.mdx"
+  "content/blog/posts/introducing-compozy-the-first-agent-network-protocol.mdx"
 );
 const landingInstallPath = resolve(siteRoot, "components/landing/install-section.tsx");
 const readmePath = resolve(siteRoot, "../../README.md");
@@ -22,10 +22,10 @@ const readmePath = resolve(siteRoot, "../../README.md");
 const homebrewInstallCommand = "brew install compozy/compozy/agh";
 const npmInstallCommand = "npm install -g @compozy/agh";
 const goInstallCommand = "go install github.com/compozy/agh@latest";
-const verifiedInstallerCommand = "curl -fsSL https://agh.network/install.sh | sh";
-const sourceInstallCommand = "go build -o ./bin/agh .";
-const workspaceAddCommand = 'agh workspace add "$PWD" --name current';
-const firstSessionCommand = "agh session new --workspace current --agent general";
+const verifiedInstallerCommand = "curl -fsSL https://compozy.com/install.sh | sh";
+const sourceInstallCommand = "go build -o ./bin/compozy .";
+const workspaceAddCommand = 'compozy workspace add "$PWD" --name current';
+const firstSessionCommand = "compozy session new --workspace current --agent general";
 const retiredPackageInstallCommands = [
   "brew install --cask pedronauck/agh/agh",
   "pedronauck/agh/agh",
@@ -477,7 +477,7 @@ describe("public install contract", () => {
 
     expect(installPage).toContain(verifiedInstallerCommand);
     expect(installPage).toContain(sourceInstallCommand);
-    expect(launchPost).toContain("agh install");
+    expect(launchPost).toContain("compozy install");
     for (const retiredCommand of retiredPackageInstallCommands) {
       expect(readme).not.toContain(retiredCommand);
       expect(landingInstall).not.toContain(retiredCommand);

@@ -1,24 +1,24 @@
 ---
-title: "agh vault put"
+title: "compozy vault put"
 description: "Store one write-only vault secret from stdin"
 ---
 
-## agh vault put
+## compozy vault put
 
 Store one write-only vault secret from stdin
 
 ```
-agh vault put <ref> [flags]
+compozy vault put <ref> [flags]
 ```
 
 ### Examples
 
 ```
   # Store a session vault secret
-  printf "%s" "$TOKEN" | agh vault put vault:sessions/sess_123/github-token --kind token --value-stdin
+  printf "%s" "$TOKEN" | compozy vault put vault:sessions/sess_123/github-token --kind token --value-stdin
 
   # Rotate a value without changing its existing kind metadata
-  printf "%s" "$TOKEN" | agh vault put vault:sessions/sess_123/github-token --value-stdin
+  printf "%s" "$TOKEN" | compozy vault put vault:sessions/sess_123/github-token --value-stdin
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh vault put <ref> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh vault put <ref> -o json
+compozy vault put <ref> -o json
 ```

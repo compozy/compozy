@@ -1,24 +1,24 @@
 ---
-title: "agh session resume"
+title: "compozy session resume"
 description: "Attach to a resumable session"
 ---
 
-## agh session resume
+## compozy session resume
 
 Attach to a resumable session
 
 ```
-agh session resume [id] [flags]
+compozy session resume [id] [flags]
 ```
 
 ### Examples
 
 ```
   # Attach to a resumable session by ID
-  agh session resume sess_1234
+  compozy session resume sess_1234
 
   # Attach to the latest eligible session in a workspace
-  agh session resume --latest --workspace checkout-api
+  compozy session resume --latest --workspace checkout-api
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh session resume [id] [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session resume [id] -o json
+compozy session resume [id] -o json
 ```

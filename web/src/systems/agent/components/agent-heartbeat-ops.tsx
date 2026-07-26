@@ -5,7 +5,7 @@ import {
   NativeSelect,
   NativeSelectOption,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { AgentHeartbeatStatusPayload, WakeAgentHeartbeatResponse } from "../types";
 import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";

@@ -1,9 +1,9 @@
 ---
-title: "agh network send"
+title: "compozy network send"
 description: "Send one envelope through the daemon-owned network runtime"
 ---
 
-## agh network send
+## compozy network send
 
 Send one envelope through the daemon-owned network runtime
 
@@ -14,13 +14,13 @@ Send one envelope through the daemon-owned network runtime.
 For surface=thread, choose an ID matching `^thread_[a-z0-9][a-z0-9_-]{2,95}$`. The first valid send opens a new public thread; later sends reuse that ID. For surface=direct, resolve the room first and reuse its direct_id.
 
 ```
-agh network send [flags]
+compozy network send [flags]
 ```
 
 ### Examples
 
 ```
-  agh network send --workspace ws_example --session sess_example --channel launch-war-room \
+  compozy network send --workspace ws_example --session sess_example --channel launch-war-room \
     --surface thread --thread thread_launch_brief --kind say --body '{"text":"Launch status"}'
 ```
 
@@ -56,7 +56,7 @@ agh network send [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -66,5 +66,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh network send -o json
+compozy network send -o json
 ```

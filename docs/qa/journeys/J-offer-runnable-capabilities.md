@@ -34,9 +34,9 @@ journey:
   value_statement: "An agent is never offered a skill it cannot run, an operator can always see why something is inactive, and a dead sidecar heals itself instead of being hammered."
   personas: [Ada, Dora]
   entry_points:
-    - url: "SKILL.md metadata.agh.when; agent startup/current-turn catalogs"
+    - url: "SKILL.md metadata.compozy.when; agent startup/current-turn catalogs"
       origin: direct
-    - url: "CLI: agh skill list|inspect; agh status; agh doctor --only mcp"
+    - url: "CLI: compozy skill list|inspect; compozy status; compozy doctor --only mcp"
       origin: direct
     - url: "HTTP/UDS: GET /api/skills; GET /api/settings/mcp-servers; web /skills and /mcp"
       origin: in-app-nav
@@ -46,7 +46,7 @@ journey:
       expected_observable: "The skill is absent from the advertised set and agent prompt; list surfaces show inactive with the exact unmet gate; unknown when.* keys fail parsing"
     - step: 2
       verb: "Satisfy the gate"
-      expected_observable: "The next catalog projection activates the skill without restarting AGH; administrative enabled state stayed independent throughout"
+      expected_observable: "The next catalog projection activates the skill without restarting CompozyOS; administrative enabled state stayed independent throughout"
     - step: 3
       verb: "Drive a sidecar to confirmed-permanent failure"
       expected_observable: "Only the affected workspace marks it dead; probing drops to the low-frequency lane; tool availability shows unavailable-with-reason; transient timeouts never mark dead"

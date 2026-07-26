@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { toast } from "@agh/ui";
+import { toast } from "@compozy/ui";
 
 import { buildCheckDescriptors, type LoopConfigCheckDescriptor } from "../lib/loop-config-checks";
 import {

@@ -24,7 +24,7 @@ Before using words such as today, supported, live, complete, or shipping, verify
 
 ## Design Authority
 
-packages/ui/src/tokens.css is the runtime token source. DESIGN.md is generated and carries design-system specification and rationale. Do not invent colors, radii, spacing, typography, motion, or shadows for AGH surfaces.
+packages/ui/src/tokens.css is the runtime token source. DESIGN.md is generated and carries design-system specification and rationale. Do not invent colors, radii, spacing, typography, motion, or shadows for Compozy surfaces.
 
 Do not hand-edit generated DESIGN.md token regions. Run `make codegen` when changing runtime tokens, site theme tokens, or generated design inputs; `make codegen-check` detects drift.
 
@@ -38,11 +38,11 @@ Generated site/runtime artifacts include the config lifecycle matrix at `package
 
 ## Vocabulary
 
-Use canonical AGH terms:
+Use canonical Compozy terms:
 
-- capability, not recipe, workflow, procedure, or playbook for current AGH behavior
+- capability, not recipe, workflow, procedure, or playbook for current Compozy behavior
 - AGENT.md for agent definitions
-- AGH Network for the protocol surface
+- Compozy Network for the protocol surface
 - skill for reusable instruction bundles
 
 Do not rename product concepts without updating code, docs, specs, task artifacts, and tests together.

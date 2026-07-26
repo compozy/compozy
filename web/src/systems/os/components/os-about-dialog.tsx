@@ -6,7 +6,7 @@ import {
   DialogTitle,
   Logo,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useDaemonStatus, useStatus } from "@/systems/status";
 
@@ -56,7 +56,7 @@ export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
         <DialogHeader variant="ruled" className="flex-row items-center gap-3">
           <Logo variant="symbol" decorative className="size-6" />
           <div className="flex min-w-0 flex-col gap-1">
-            <DialogTitle>AGH</DialogTitle>
+            <DialogTitle>CompozyOS</DialogTitle>
             <DialogDescription>The agent operating system running this desktop.</DialogDescription>
           </div>
         </DialogHeader>

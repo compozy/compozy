@@ -1,21 +1,21 @@
 ---
-title: "agh task run recover"
+title: "compozy task run recover"
 description: "Recover one needs_attention task run"
 ---
 
-## agh task run recover
+## compozy task run recover
 
 Recover one needs_attention task run
 
 ```
-agh task run recover <run-id> [flags]
+compozy task run recover <run-id> [flags]
 ```
 
 ### Examples
 
 ```
   # Re-enqueue one run stuck in needs_attention
-  agh task run recover run-123 --reason "operator recovery"
+  compozy task run recover run-123 --reason "operator recovery"
 ```
 
 ### Options
@@ -35,7 +35,7 @@ agh task run recover <run-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -45,5 +45,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task run recover <run-id> -o json
+compozy task run recover <run-id> -o json
 ```

@@ -610,7 +610,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(skill_list) error = %v", err)
 		}
-		requireNativeStructuredContains(t, listResult, []byte(`"agh"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"compozy"`))
 
 		searchResult, err := registry.Call(
 			t.Context(),
@@ -623,22 +623,22 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(skill_search) error = %v", err)
 		}
-		requireNativeStructuredContains(t, searchResult, []byte(`"agh"`))
+		requireNativeStructuredContains(t, searchResult, []byte(`"compozy"`))
 
 		viewResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSkillView,
-				Input:  json.RawMessage(`{"name":"agh","file":"references/memory.md"}`),
+				Input:  json.RawMessage(`{"name":"compozy","file":"references/memory.md"}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(skill_view) error = %v", err)
 		}
-		skill, ok := skillRegistry.Get("agh")
+		skill, ok := skillRegistry.Get("compozy")
 		if !ok {
-			t.Fatal("Registry.Get(agh) found = false, want true")
+			t.Fatal("Registry.Get(compozy) found = false, want true")
 		}
 		expectedContent, err := skillRegistry.LoadResource(t.Context(), skill, "references/memory.md")
 		if err != nil {

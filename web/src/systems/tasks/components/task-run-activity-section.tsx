@@ -1,4 +1,4 @@
-import { LiveBadge, Section, Skeleton } from "@agh/ui";
+import { LiveBadge, Section, Skeleton } from "@compozy/ui";
 
 import { taskRunTimelineItems } from "../lib/task-run-presentation";
 import type { TaskTimelineItem } from "../types";

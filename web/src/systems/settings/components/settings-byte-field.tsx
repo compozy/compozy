@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Input, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
 
 export type SettingsByteUnit = "GB" | "MB" | "KB";
 

@@ -1,6 +1,6 @@
 import { ArrowUpRight, Rss } from "lucide-react";
 import Link from "next/link";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 export function SubscribeRail() {
   return (

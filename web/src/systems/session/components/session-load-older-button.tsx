@@ -1,4 +1,4 @@
-import { Button, Spinner } from "@agh/ui";
+import { Button, Spinner } from "@compozy/ui";
 
 export function SessionLoadOlderButton({
   isLoading,

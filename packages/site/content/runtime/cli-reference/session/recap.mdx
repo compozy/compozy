@@ -1,21 +1,21 @@
 ---
-title: "agh session recap"
+title: "compozy session recap"
 description: "Show deterministic session recap"
 ---
 
-## agh session recap
+## compozy session recap
 
 Show deterministic session recap
 
 ```
-agh session recap <id> [flags]
+compozy session recap <id> [flags]
 ```
 
 ### Examples
 
 ```
   # Show a bounded recap for one session
-  agh session recap sess_1234 --limit 20
+  compozy session recap sess_1234 --limit 20
 ```
 
 ### Options
@@ -34,7 +34,7 @@ agh session recap <id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -44,5 +44,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session recap <id> -o json
+compozy session recap <id> -o json
 ```

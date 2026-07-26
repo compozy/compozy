@@ -12,7 +12,7 @@ import {
   Input,
   RequiredMark,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 

@@ -1,4 +1,4 @@
-import { Eyebrow, JsonViewer } from "@agh/ui";
+import { Eyebrow, JsonViewer } from "@compozy/ui";
 
 import type { LoopTargetProjection } from "../lib/automation-target";
 

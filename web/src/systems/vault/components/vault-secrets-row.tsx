@@ -1,6 +1,6 @@
 import { KeyRound, Trash2 } from "lucide-react";
 
-import { Button, ListingRow, Pill, Time } from "@agh/ui";
+import { Button, ListingRow, Pill, Time } from "@compozy/ui";
 
 import { vaultNamespaceTone } from "../lib/vault-tones";
 import type { VaultSecret } from "../types";

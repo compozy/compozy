@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-import { Field, FieldDescription, FieldLabel, Textarea } from "@agh/ui";
+import { Field, FieldDescription, FieldLabel, Textarea } from "@compozy/ui";
 
 import { VariableBar } from "./variable-bar";
 

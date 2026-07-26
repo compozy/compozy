@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
   cn,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type {
   DesktopOverviewItem,

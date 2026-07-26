@@ -1,24 +1,24 @@
 ---
-title: "agh memory list"
+title: "compozy memory list"
 description: "List Memory v2 entries"
 ---
 
-## agh memory list
+## compozy memory list
 
 List Memory v2 entries
 
 ```
-agh memory list [flags]
+compozy memory list [flags]
 ```
 
 ### Examples
 
 ```
   # List the newest global and current-workspace memories
-  agh memory list
+  compozy memory list
 
   # Walk agent-workspace memories by normalized name
-  agh memory list --scope agent --agent reviewer --agent-tier workspace --sort name --limit 50
+  compozy memory list --scope agent --agent reviewer --agent-tier workspace --sort name --limit 50
 ```
 
 ### Options
@@ -45,7 +45,7 @@ agh memory list [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -55,5 +55,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh memory list -o json
+compozy memory list -o json
 ```

@@ -1,4 +1,4 @@
-import { Section } from "@agh/ui";
+import { Section } from "@compozy/ui";
 
 import type { LoopInputSchema } from "../../types";
 import { MonoTag } from "../mono-tag";

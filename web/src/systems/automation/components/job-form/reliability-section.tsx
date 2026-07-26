@@ -6,7 +6,7 @@ import {
   Input,
   PillGroup,
   type PillGroupItem,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { AutomationCatchUpPolicy, AutomationFireLimit, AutomationRetry } from "../../types";
 import {

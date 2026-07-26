@@ -2,7 +2,7 @@ import type { SettingsMCPServerTarget } from "../types";
 
 export function mcpTargetLabel(target: SettingsMCPServerTarget): string {
   if (target === "auto") return "auto (highest precedence)";
-  if (target === "config") return "config (.agh/config.toml)";
+  if (target === "config") return "config (.compozy/config.toml)";
   return "sidecar (mcp.json)";
 }
 

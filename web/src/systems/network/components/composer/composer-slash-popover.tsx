@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 
-import { Command, CommandEmpty, CommandItem, CommandList, CommandShortcut } from "@agh/ui";
+import { Command, CommandEmpty, CommandItem, CommandList, CommandShortcut } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { filterSlashCommandEntries, type SlashCommandEntry } from "./composer-slash-popover.logic";

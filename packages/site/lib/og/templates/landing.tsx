@@ -6,7 +6,7 @@ import { LogoLockup, SymbolGlyph } from "../logo";
 import { COLORS, FONTS, SIZE } from "../tokens";
 
 const HEADLINE = "An open workplace for AI agents.";
-const EYEBROW = "ARTIFICIAL GENERAL HIVEMIND";
+const EYEBROW = "COMPOZYOS";
 
 function deriveSubhead(description: string): string {
   const firstStop = description.indexOf(".");
@@ -15,8 +15,8 @@ function deriveSubhead(description: string): string {
 }
 
 const FOOTER_RAIL = [
-  { label: "AGH NETWORK / V0", color: COLORS.accent, lowercase: false },
-  { label: "agh.network", color: COLORS.textSecondary, lowercase: true },
+  { label: "COMPOZY NETWORK / V0", color: COLORS.accent, lowercase: false },
+  { label: "compozy.com", color: COLORS.textSecondary, lowercase: true },
   { label: "LOCAL-FIRST RUNTIME", color: COLORS.textSecondary, lowercase: false },
 ] as const;
 

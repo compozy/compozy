@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import {
   useLayoutGroupFrameDrag,

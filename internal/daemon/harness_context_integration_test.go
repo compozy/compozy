@@ -144,19 +144,19 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("startup IncludeSections = %#v, want runtime identity section", startupResolved.Policy.IncludeSections)
 	}
 
-	networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
+	networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
 	}
 	networkSkill = strings.TrimSpace(networkSkill)
-	toolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledToolsReference)
+	toolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledToolsReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledToolsReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledToolsReference, err)
 	}
 	toolsGuide = strings.TrimSpace(toolsGuide)
-	nativeToolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledNativeToolsReference)
+	nativeToolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNativeToolsReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNativeToolsReference, err)
 	}
 	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
 	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "# AGH Network Response Register") {
@@ -185,9 +185,9 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("start system prompt advertised gated skill %q", gatedSkillName)
 	}
 	// The startup prompt embeds the bundled tools guide, which documents the
-	// "<agh-situation-context>" open tag in prose; count the closing tag so the
+	// "<compozy-situation-context>" open tag in prose; count the closing tag so the
 	// assertion measures rendered sections, not documentation mentions.
-	if got := strings.Count(driver.startCalls[0].SystemPrompt, "</agh-situation-context>"); got != 1 {
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, "</compozy-situation-context>"); got != 1 {
 		t.Fatalf("situation context section occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, aghRuntimeEnvelopeStart); got != 1 {
@@ -208,7 +208,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		aghRuntimeEnvelopeStart,
 		"# AGH Runtime",
 		"canonical registry IDs",
-		"<agh-situation-context>",
+		"<compozy-situation-context>",
 		"# Persistent Memory",
 		"<agh_checkpoint_summary>",
 		"The prior session selected cobalt.",
@@ -257,13 +257,13 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<current-available-skills>") {
 		t.Fatalf("user prompt message = %q, want current skills augmentation", got)
 	}
-	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<agh-situation-context>") {
+	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<compozy-situation-context>") {
 		t.Fatalf("user prompt message = %q, want situation context augmentation", got)
 	}
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, `"channel_id":"coord-run-1"`) {
 		t.Fatalf("user prompt message = %q, want resolved task participation channel", got)
 	}
-	if got := strings.Count(driver.promptCalls[0].Message, "<agh-situation-context>"); got != 1 {
+	if got := strings.Count(driver.promptCalls[0].Message, "<compozy-situation-context>"); got != 1 {
 		t.Fatalf("user prompt situation context occurrences = %d, want 1", got)
 	}
 	if got := driver.promptCalls[0].Message; strings.Contains(got, gatedCatalogEntry) {
@@ -406,19 +406,19 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 		)
 	}
 
-	networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
+	networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
 	}
 	networkSkill = strings.TrimSpace(networkSkill)
-	toolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledToolsReference)
+	toolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledToolsReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledToolsReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledToolsReference, err)
 	}
 	toolsGuide = strings.TrimSpace(toolsGuide)
-	nativeToolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledNativeToolsReference)
+	nativeToolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNativeToolsReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNativeToolsReference, err)
 	}
 	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
 	if got := strings.Count(driver.startCalls[1].SystemPrompt, "# AGH Network Response Register"); got != 1 {
@@ -467,22 +467,22 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 		_ = manager.Stop(testutil.Context(t), created.ID)
 	})
 
-	networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
+	networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
 	}
 	networkSkill = strings.TrimSpace(networkSkill)
 	if strings.Contains(driver.startCalls[0].SystemPrompt, networkSkill) {
 		t.Fatalf("start system prompt unexpectedly contains bundled network skill")
 	}
-	toolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledToolsReference)
+	toolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledToolsReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledToolsReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledToolsReference, err)
 	}
 	toolsGuide = strings.TrimSpace(toolsGuide)
-	nativeToolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledNativeToolsReference)
+	nativeToolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNativeToolsReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNativeToolsReference, err)
 	}
 	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
 	if !strings.Contains(driver.startCalls[0].SystemPrompt, toolsGuide) {
@@ -497,7 +497,7 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 		aghRuntimeEnvelopeStart,
 		"# AGH Runtime",
 		"canonical registry IDs",
-		"<agh-situation-context>",
+		"<compozy-situation-context>",
 		"# Persistent Memory",
 		"You are a coding assistant.",
 		"<available-skills>",

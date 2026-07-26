@@ -17,7 +17,7 @@ import {
   SkeletonRows,
   SplitPane,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { useKnowledgePage } from "./use-knowledge-page";
 
 export function KnowledgeLocation() {

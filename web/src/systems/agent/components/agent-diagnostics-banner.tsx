@@ -1,6 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@agh/ui";
+import { Alert, AlertDescription, AlertTitle } from "@compozy/ui";
 
 import type { AgentPayload } from "../types";
 

@@ -8,7 +8,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { taskPriorityPresentation } from "../lib/task-properties-presentation";
 import type { TaskPriority } from "../types";

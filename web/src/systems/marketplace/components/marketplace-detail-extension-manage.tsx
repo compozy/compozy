@@ -12,7 +12,7 @@ import {
   Pill,
   Section,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   ExtensionProvenanceDialog,

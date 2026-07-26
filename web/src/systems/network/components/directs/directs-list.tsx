@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { Button, ListingRow, Skeleton, SkeletonRows } from "@agh/ui";
+import { Button, ListingRow, Skeleton, SkeletonRows } from "@compozy/ui";
 
 import type { ChannelMember, ChannelMemberRole } from "../../hooks/use-channel-members";
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";

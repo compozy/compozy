@@ -22,7 +22,7 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
     permissions: ["sessions.read", "telemetry.write"],
     registry_tier: "verified",
     slug: "agh/otel-bridge",
-    source_url: "https://registry.agh.network/agh/otel-bridge",
+    source_url: "https://compozy.com/registry/compozy/otel-bridge",
   },
   "slack-notify": {
     allow_unverified: true,
@@ -35,7 +35,7 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
     permissions: ["sessions.read", "network.egress"],
     registry_tier: "community",
     slug: "community/slack-notify",
-    source_url: "https://registry.agh.network/community/slack-notify",
+    source_url: "https://compozy.com/registry/community/slack-notify",
     warnings: [trustWarning],
   },
 };

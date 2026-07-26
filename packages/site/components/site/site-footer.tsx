@@ -1,5 +1,5 @@
-import { Eyebrow, Logo, cn } from "@agh/ui";
-import { GithubLogo } from "@agh/ui/logos";
+import { Eyebrow, Logo, cn } from "@compozy/ui";
+import { GithubLogo } from "@compozy/ui/logos";
 import Link from "next/link";
 
 import { SectionFrame } from "@/components/landing/primitives/section-frame";
@@ -51,7 +51,7 @@ export function SiteFooter() {
       <SectionFrame padY="lg">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-12 lg:grid-cols-12">
           <div className="flex flex-col gap-5 md:col-span-2 lg:col-span-5">
-            <Link href="/" aria-label="AGH home" className="inline-flex w-fit">
+            <Link href="/" aria-label="Compozy home" className="inline-flex w-fit">
               <Logo variant="logo" decorative className="h-8 w-auto" />
             </Link>
             <p className="max-w-[44ch] text-sm leading-relaxed text-muted">
@@ -61,7 +61,7 @@ export function SiteFooter() {
               href={siteConfig.githubUrl}
               target="_blank"
               rel="noreferrer noopener"
-              aria-label="AGH on GitHub"
+              aria-label="Compozy on GitHub"
               className={cn(
                 "inline-flex size-9 items-center justify-center rounded-full border border-line text-muted transition-colors",
                 "hover:border-muted hover:text-fg",

@@ -27,11 +27,11 @@ describe("LandingCodeBlock", () => {
       configurable: true,
     });
 
-    render(<LandingCodeBlock code="agh daemon start" />);
+    render(<LandingCodeBlock code="compozy daemon start" />);
 
     await clickCopyButton();
 
-    expect(writeText).toHaveBeenCalledWith("agh daemon start");
+    expect(writeText).toHaveBeenCalledWith("compozy daemon start");
     expect(screen.getByRole("button", { name: "Copied" })).toBeDefined();
 
     await act(async () => {
@@ -47,7 +47,7 @@ describe("LandingCodeBlock", () => {
       configurable: true,
     });
 
-    render(<LandingCodeBlock code="agh daemon start" />);
+    render(<LandingCodeBlock code="compozy daemon start" />);
 
     await clickCopyButton();
 

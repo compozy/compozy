@@ -1,4 +1,4 @@
-import { Eyebrow, Field, FieldDescription, FieldLabel, Input, Textarea } from "@agh/ui";
+import { Eyebrow, Field, FieldDescription, FieldLabel, Input, Textarea } from "@compozy/ui";
 
 interface ContractSectionProps {
   title: string;

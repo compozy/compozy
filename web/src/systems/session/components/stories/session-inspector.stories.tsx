@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 
 import { PanelSurface } from "@/storybook/story-layout";
 import type { VaultSecret } from "@/systems/vault/types";

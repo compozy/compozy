@@ -12,7 +12,7 @@ import {
   Input,
   Pill,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { DirectoryBrowser } from "@/systems/onboarding";
 

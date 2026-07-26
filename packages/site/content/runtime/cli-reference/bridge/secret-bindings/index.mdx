@@ -1,14 +1,14 @@
 ---
-title: "agh bridge secret-bindings"
+title: "compozy bridge secret-bindings"
 description: "Manage bridge secret bindings"
 ---
 
-## agh bridge secret-bindings
+## compozy bridge secret-bindings
 
 Manage bridge secret bindings
 
 ```
-agh bridge secret-bindings [flags]
+compozy bridge secret-bindings [flags]
 ```
 
 ### Options
@@ -26,7 +26,7 @@ agh bridge secret-bindings [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -36,13 +36,13 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh bridge secret-bindings -o json
+compozy bridge secret-bindings -o json
 ```
 
 ## Subcommands
 
-| Command                                                                                   | Description                                  |
-| ----------------------------------------------------------------------------------------- | -------------------------------------------- |
-| [agh bridge secret-bindings delete](/runtime/cli-reference/bridge/secret-bindings/delete) | Delete one bridge secret binding             |
-| [agh bridge secret-bindings list](/runtime/cli-reference/bridge/secret-bindings/list)     | List secret bindings for one bridge instance |
-| [agh bridge secret-bindings put](/runtime/cli-reference/bridge/secret-bindings/put)       | Create or update one bridge secret binding   |
+| Command                                                                                       | Description                                  |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| [compozy bridge secret-bindings delete](/runtime/cli-reference/bridge/secret-bindings/delete) | Delete one bridge secret binding             |
+| [compozy bridge secret-bindings list](/runtime/cli-reference/bridge/secret-bindings/list)     | List secret bindings for one bridge instance |
+| [compozy bridge secret-bindings put](/runtime/cli-reference/bridge/secret-bindings/put)       | Create or update one bridge secret binding   |

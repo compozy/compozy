@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { Rnd } from "react-rnd";
 
-import { OverlayContainerContext, Spinner } from "@agh/ui";
+import { OverlayContainerContext, Spinner } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

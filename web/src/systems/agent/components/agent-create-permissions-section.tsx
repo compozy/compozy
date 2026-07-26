@@ -1,7 +1,7 @@
 import { Eye, Lock, ShieldCheck, Zap } from "lucide-react";
 import type { ComponentType } from "react";
 
-import { Alert, AlertDescription, Field, FormSection, Pill, RadioCard } from "@agh/ui";
+import { Alert, AlertDescription, Field, FormSection, Pill, RadioCard } from "@compozy/ui";
 
 import {
   AGENT_CREATE_PERMISSION_OPTIONS,
@@ -21,7 +21,7 @@ interface PermissionPresentation {
 const PERMISSION_PRESENTATION: Record<AgentCreatePermissionChoice, PermissionPresentation> = {
   "": {
     title: "Follow the runtime",
-    description: "AGH sends no permission policy; the runtime decides the approval posture.",
+    description: "CompozyOS sends no permission policy; the runtime decides the approval posture.",
     badge: "Runtime default",
     icon: ShieldCheck,
     consequence: "The definition omits permissions — the runtime's own default applies.",

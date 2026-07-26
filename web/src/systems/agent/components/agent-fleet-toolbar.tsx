@@ -8,7 +8,7 @@ import {
   SearchInput,
   type Filter,
   type ListingViewMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   agentFleetFiltersToChips,

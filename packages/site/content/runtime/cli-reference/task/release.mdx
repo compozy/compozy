@@ -1,24 +1,24 @@
 ---
-title: "agh task release"
+title: "compozy task release"
 description: "Force release claimed task runs back to the queue"
 ---
 
-## agh task release
+## compozy task release
 
 Force release claimed task runs back to the queue
 
 ```
-agh task release <run-id> [run-id...] [flags]
+compozy task release <run-id> [run-id...] [flags]
 ```
 
 ### Examples
 
 ```
   # Release a claim without completing the run
-  agh task release run-123
+  compozy task release run-123
 
   # Release multiple claims with shared audit evidence
-  agh task release run-123 run-456 --reason handoff
+  compozy task release run-123 run-456 --reason handoff
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh task release <run-id> [run-id...] [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task release <run-id> [run-id...] -o json
+compozy task release <run-id> [run-id...] -o json
 ```

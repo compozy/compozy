@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AgentFleetToolbar } from "../agent-fleet-toolbar";
 
-vi.mock("@agh/ui", async importOriginal => {
-  const actual = await importOriginal<typeof import("@agh/ui")>();
+vi.mock("@compozy/ui", async importOriginal => {
+  const actual = await importOriginal<typeof import("@compozy/ui")>();
   return {
     ...actual,
     FiltersWithSearch: ({

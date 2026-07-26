@@ -1,6 +1,6 @@
 import { Bot, Repeat2 } from "lucide-react";
 
-import { CodeBlock, Eyebrow, KindChip, Pill, Section } from "@agh/ui";
+import { CodeBlock, Eyebrow, KindChip, Pill, Section } from "@compozy/ui";
 
 import { automationTriggerToDraft } from "../lib/automation-drafts";
 import { describeFireLimit, describeRetry } from "../lib/automation-formatters";

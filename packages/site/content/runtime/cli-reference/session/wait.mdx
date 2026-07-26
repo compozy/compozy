@@ -1,21 +1,21 @@
 ---
-title: "agh session wait"
+title: "compozy session wait"
 description: "Block until a session stops"
 ---
 
-## agh session wait
+## compozy session wait
 
 Block until a session stops
 
 ```
-agh session wait <id> [flags]
+compozy session wait <id> [flags]
 ```
 
 ### Examples
 
 ```
   # Block until a session emits its stopped event
-  agh session wait sess_1234
+  compozy session wait sess_1234
 ```
 
 ### Options
@@ -33,7 +33,7 @@ agh session wait <id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -43,5 +43,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session wait <id> -o json
+compozy session wait <id> -o json
 ```

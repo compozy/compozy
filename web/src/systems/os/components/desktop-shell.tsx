@@ -1,6 +1,6 @@
 import { Outlet } from "@tanstack/react-router";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import { AgentCreateDialog, AgentCreateHostProvider, useAgents } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";

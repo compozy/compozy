@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { buttonVariants, cn, Eyebrow, MonoId, Pill, PillDot, type PillTone } from "@agh/ui";
+import { buttonVariants, cn, Eyebrow, MonoId, Pill, PillDot, type PillTone } from "@compozy/ui";
 
 import { GoalControls } from "./goal-status-controls";
 import { GoalContextMeter, GoalTurnMeter } from "./goal-status-meters";

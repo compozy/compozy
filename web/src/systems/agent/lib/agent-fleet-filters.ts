@@ -1,4 +1,4 @@
-import type { Filter, FilterFieldsConfig } from "@agh/ui";
+import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 
 import type { AgentFleetStatus } from "./fleet-signals";
 import type { AgentsFleetSearch } from "./agent-fleet-search";

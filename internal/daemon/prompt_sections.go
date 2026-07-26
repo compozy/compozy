@@ -16,7 +16,7 @@ const (
 )
 
 const (
-	bundledAghSkillName         = "agh"
+	bundledCompozySkillName     = "compozy"
 	bundledNetworkReference     = "references/network.md"
 	bundledToolsReference       = "references/tools-and-skills.md"
 	bundledNativeToolsReference = "references/native-tools.md"
@@ -159,7 +159,7 @@ func defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget
 			Budget:         startupToolsSectionBudget,
 			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
 			Provider: bundledReferencesPromptSectionProvider(
-				bundledAghSkillName,
+				bundledCompozySkillName,
 				bundledToolsReference,
 				bundledNativeToolsReference,
 			),

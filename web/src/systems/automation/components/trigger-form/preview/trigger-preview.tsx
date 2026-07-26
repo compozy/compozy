@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 
-import { cn, Eyebrow } from "@agh/ui";
+import { cn, Eyebrow } from "@compozy/ui";
 
 import type { TriggerPreviewModel } from "../../../lib/trigger-preview";
 import { AutomationRequestPayload } from "../../automation-request-payload";

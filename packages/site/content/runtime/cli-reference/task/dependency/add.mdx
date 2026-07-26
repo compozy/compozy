@@ -1,14 +1,14 @@
 ---
-title: "agh task dependency add"
+title: "compozy task dependency add"
 description: "Add a dependency edge to a task"
 ---
 
-## agh task dependency add
+## compozy task dependency add
 
 Add a dependency edge to a task
 
 ```
-agh task dependency add <task-id> [flags]
+compozy task dependency add <task-id> [flags]
 ```
 
 ### Options
@@ -28,7 +28,7 @@ agh task dependency add <task-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -38,5 +38,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task dependency add <task-id> -o json
+compozy task dependency add <task-id> -o json
 ```

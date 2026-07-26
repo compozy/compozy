@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { CatalogCard, KindIcon, Pill, providerKindIconRegistry } from "@agh/ui";
+import { CatalogCard, KindIcon, Pill, providerKindIconRegistry } from "@compozy/ui";
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";

@@ -53,7 +53,7 @@ test("registers the MSW worker and fails unknown local API requests in web Story
 
     await page.goto(storyURL, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("design-system-showcase")).toBeVisible();
-    await expect(page.getByText("AGH design system")).toBeVisible();
+    await expect(page.getByText("CompozyOS design system")).toBeVisible();
 
     await expect
       .poll(() => browserConsole.find(entry => entry.includes("[MSW]")), {

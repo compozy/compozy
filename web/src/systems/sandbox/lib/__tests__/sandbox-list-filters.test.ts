@@ -2,7 +2,7 @@
 // Invariant: URL-backed backend and persistence filters round-trip through the
 // chip bar, with cleared or invalid chips restoring the unfiltered state.
 // Boundary IN: sandbox filter state <-> chip projection/application.
-// Boundary OUT: URL persistence (useSandboxPage) and @agh/ui Filters rendering.
+// Boundary OUT: URL persistence (useSandboxPage) and @compozy/ui Filters rendering.
 import { describe, expect, it, vi } from "vitest";
 
 import {

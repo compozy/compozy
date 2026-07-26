@@ -11,7 +11,7 @@ const tempDirs: string[] = [];
 const goCommandTimeoutMs = 20_000;
 const goTemplateTestTimeoutMs = 30_000;
 
-describe("@agh/create-extension", () => {
+describe("@compozy/create-extension", () => {
   afterEach(async () => {
     await Promise.all(tempDirs.map(async dir => await rm(dir, { recursive: true, force: true })));
     tempDirs.length = 0;
@@ -58,7 +58,7 @@ describe("@agh/create-extension", () => {
     const source = await readFile(path.join(projectDir, "src/index.ts"), "utf8");
 
     expect(packageJSON).toContain('"name": "my-memory"');
-    expect(packageJSON).toContain('"@agh/extension-sdk": "file:../sdk/typescript"');
+    expect(packageJSON).toContain('"@compozy/extension-sdk": "file:../sdk/typescript"');
     expect(extensionManifest).toContain('name = "my-memory"');
     expect(source).toContain('name: "my-memory"');
   });

@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	mcpFriendlyVerbMetadataKey = "agh/friendly_verb"
-	mcpPreviewMetadataKey      = "agh/preview"
+	mcpFriendlyVerbMetadataKey = "compozy/friendly_verb"
+	mcpPreviewMetadataKey      = "compozy/preview"
 )
 
 func (e *CallExecutor) descriptorFromTool(

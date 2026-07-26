@@ -4,7 +4,7 @@ import {
   SettingsGroup,
   SettingsNumberInput,
 } from "@/systems/settings";
-import { Input, Switch } from "@agh/ui";
+import { Input, Switch } from "@compozy/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
 export function RecallSection(props: ValidatedSectionProps) {

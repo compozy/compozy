@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import { formatNetworkPresenceLabel } from "../../lib/network-formatters";
 import type { NetworkPresence } from "../../types";

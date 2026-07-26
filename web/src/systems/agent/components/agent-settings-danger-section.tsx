@@ -1,6 +1,6 @@
 import { AlertTriangle, Trash2 } from "lucide-react";
 
-import { Button, FormSection } from "@agh/ui";
+import { Button, FormSection } from "@compozy/ui";
 
 import type { AgentPayload } from "../types";
 

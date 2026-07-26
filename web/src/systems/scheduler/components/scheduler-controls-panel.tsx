@@ -15,7 +15,7 @@ import {
   Skeleton,
   Textarea,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { SchedulerBacklog, SchedulerStatus } from "../types";
 import { SchedulerBacklogPanel } from "./scheduler-backlog-panel";

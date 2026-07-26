@@ -11,7 +11,7 @@ import {
   NativeSelectOption,
   Switch,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { SandboxDraft, SandboxEnvPair } from "../lib/sandbox-profile-draft";
 

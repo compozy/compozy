@@ -1,24 +1,24 @@
 ---
-title: "agh memory search"
+title: "compozy memory search"
 description: "Search deterministic Memory v2 recall"
 ---
 
-## agh memory search
+## compozy memory search
 
 Search deterministic Memory v2 recall
 
 ```
-agh memory search <query> [flags]
+compozy memory search <query> [flags]
 ```
 
 ### Examples
 
 ```
   # Search global and current-workspace memories
-  agh memory search "auth sessions"
+  compozy memory search "auth sessions"
 
   # Search agent memory with system entries included
-  agh memory search "review tone" --scope agent --agent reviewer --agent-tier global --include-system
+  compozy memory search "review tone" --scope agent --agent reviewer --agent-tier global --include-system
 ```
 
 ### Options
@@ -42,7 +42,7 @@ agh memory search <query> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -52,5 +52,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh memory search <query> -o json
+compozy memory search <query> -o json
 ```

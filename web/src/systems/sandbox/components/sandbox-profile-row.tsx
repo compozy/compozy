@@ -1,6 +1,6 @@
 import { Boxes, Pencil, Trash2 } from "lucide-react";
 
-import { Button, ListingRow, Pill } from "@agh/ui";
+import { Button, ListingRow, Pill } from "@compozy/ui";
 
 import { SettingsSourceBadge, type SettingsSandboxEntry } from "@/systems/settings";
 import {

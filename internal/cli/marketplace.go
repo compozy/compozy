@@ -21,7 +21,7 @@ const (
 func newMarketplaceCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   marketplaceSkillSource,
-		Short: "Discover installable AGH capabilities",
+		Short: "Discover installable Compozy capabilities",
 	}
 	cmd.AddCommand(newMarketplaceSearchCommand(deps))
 	cmd.AddCommand(newMarketplaceInfoCommand(deps))

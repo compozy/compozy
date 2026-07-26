@@ -15,8 +15,8 @@ export interface RenderDocsOGInput {
 }
 
 const TREE_LABELS: Record<DocsTree, { eyebrow: string; chip: string }> = {
-  runtime: { eyebrow: "AGH RUNTIME", chip: "RUNTIME" },
-  protocol: { eyebrow: "AGH NETWORK PROTOCOL", chip: "PROTOCOL" },
+  runtime: { eyebrow: "COMPOZYOS RUNTIME", chip: "RUNTIME" },
+  protocol: { eyebrow: "COMPOZY NETWORK PROTOCOL", chip: "PROTOCOL" },
 };
 
 const canvasStyle: CSSProperties = {
@@ -130,7 +130,7 @@ export async function renderDocsOG({
             letterSpacing: "0.04em",
           }}
         >
-          agh.network
+          compozy.com
         </div>
         <div
           style={{

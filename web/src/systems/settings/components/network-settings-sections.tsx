@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Link } from "@tanstack/react-router";
 
-import { Switch } from "@agh/ui";
+import { Switch } from "@compozy/ui";
 
 import type { SettingsNetworkSection } from "../types";
 import { NetworkLiveSettingsSections } from "./network-live-settings-sections";

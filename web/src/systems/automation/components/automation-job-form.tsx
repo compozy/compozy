@@ -14,7 +14,7 @@ import {
   Input,
   PillGroup,
   type PillGroupItem,
-} from "@agh/ui";
+} from "@compozy/ui";
 import type { AgentPayload } from "@/systems/agent";
 import { ScopeSelector } from "@/systems/workspace";
 import { LoopTargetFields } from "@/systems/loops";

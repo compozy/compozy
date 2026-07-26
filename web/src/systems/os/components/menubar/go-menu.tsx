@@ -7,7 +7,7 @@ import {
   MenubarSeparator,
   MenubarShortcut,
   MenubarTrigger,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { dockApps } from "../../lib/app-registry";
 import type { OsAppId } from "../../lib/os-types";

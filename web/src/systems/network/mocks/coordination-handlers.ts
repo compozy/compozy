@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import type { OperationResponse } from "@/lib/api-contract";
 
 type CoordinationPayload = OperationResponse<"getNetworkCoordination", 200>["coordination"];
@@ -126,21 +126,24 @@ function mutateCoordination(
 }
 
 export const coordinationHandlers: HttpHandler[] = [
-  aghApiMock.get("/api/workspaces/{workspace_id}/network-coordination", ({ params, request }) => {
-    const workspaceId = String(params.workspace_id);
-    const ref = refFromRequest(request);
-    return HttpResponse.json({
-      coordination: coordinationPayload(workspaceId, ref, currentState(workspaceId, ref)),
-    });
-  }),
-  aghApiMock.put(
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/network-coordination",
+    ({ params, request }) => {
+      const workspaceId = String(params.workspace_id);
+      const ref = refFromRequest(request);
+      return HttpResponse.json({
+        coordination: coordinationPayload(workspaceId, ref, currentState(workspaceId, ref)),
+      });
+    }
+  ),
+  compozyApiMock.put(
     "/api/workspaces/{workspace_id}/network-coordination",
     async ({ params, request }) => {
       const body = (await request.json()) as CoordinationMutationBody;
       return mutateCoordination(String(params.workspace_id), refFromBody(body), body);
     }
   ),
-  aghApiMock.put(
+  compozyApiMock.put(
     "/api/workspaces/{workspace_id}/network-coordination/invitation",
     async ({ params, request }) => {
       const body = (await request.json()) as CoordinationMutationBody;

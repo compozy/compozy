@@ -1,4 +1,4 @@
-import { Alert, AlertDescription, AlertTitle, Button, CodeBlock, Spinner } from "@agh/ui";
+import { Alert, AlertDescription, AlertTitle, Button, CodeBlock, Spinner } from "@compozy/ui";
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 

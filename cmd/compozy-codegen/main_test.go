@@ -46,7 +46,7 @@ func TestRunWithPaths(t *testing.T) {
 	t.Run("ShouldWriteAndCheckOpenAPIAtProvidedPath", func(t *testing.T) {
 		t.Parallel()
 
-		openapiPath := filepath.Join(t.TempDir(), "generated", "agh.json")
+		openapiPath := filepath.Join(t.TempDir(), "generated", "compozy.json")
 
 		if err := runWithPaths(
 			context.Background(),
@@ -115,7 +115,7 @@ func TestRunWithPaths(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
-		openapiPath := filepath.Join(dir, "openapi", "agh.json")
+		openapiPath := filepath.Join(dir, "openapi", "compozy.json")
 		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "src", "generated", "contracts.ts")
 
 		if err := runWithPaths(context.Background(), []string{"all"}, openapiPath, sdkContractsPath); err != nil {
@@ -133,7 +133,7 @@ func TestRunWithPaths(t *testing.T) {
 			t.Fatalf("runWithPaths(check) error = %v, want ErrStaleGeneratedFile for stale openapi", err)
 		}
 
-		if err := writeOpenAPI(openapiPath); err != nil {
+		if err := writeOpenAPI(context.Background(), openapiPath); err != nil {
 			t.Fatalf("writeOpenAPI(%q) error = %v", openapiPath, err)
 		}
 		if err := os.WriteFile(sdkContractsPath, []byte("export type Broken = true;\n"), 0o644); err != nil {
@@ -345,8 +345,8 @@ func TestWriteOpenAPI(t *testing.T) {
 	t.Run("ShouldWriteTheGeneratedDocument", func(t *testing.T) {
 		t.Parallel()
 
-		path := filepath.Join(t.TempDir(), "openapi", "agh.json")
-		if err := writeOpenAPI(path); err != nil {
+		path := filepath.Join(t.TempDir(), "openapi", "compozy.json")
+		if err := writeOpenAPI(context.Background(), path); err != nil {
 			t.Fatalf("writeOpenAPI() error = %v", err)
 		}
 
@@ -362,7 +362,7 @@ func TestWriteOpenAPI(t *testing.T) {
 	t.Run("ShouldPropagateWriteErrors", func(t *testing.T) {
 		t.Parallel()
 
-		err := writeOpenAPI(t.TempDir())
+		err := writeOpenAPI(context.Background(), t.TempDir())
 		if err == nil {
 			t.Fatal("writeOpenAPI() error = nil, want non-nil")
 		}
@@ -426,7 +426,7 @@ func TestWriteAll(t *testing.T) {
 
 		errSDKGeneration := errors.New("sdk generation failed")
 		dir := t.TempDir()
-		openapiPath := filepath.Join(dir, "openapi", "agh.json")
+		openapiPath := filepath.Join(dir, "openapi", "compozy.json")
 		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "src", "generated", "contracts.ts")
 		originalOpenAPI := []byte("{\"seed\":\"openapi\"}\n")
 		originalSDK := []byte("export type Seed = \"sdk\";\n")
@@ -482,7 +482,7 @@ func TestWriteAll(t *testing.T) {
 
 		errSDKPublish := errors.New("sdk publish failed")
 		dir := t.TempDir()
-		openapiPath := filepath.Join(dir, "openapi", "agh.json")
+		openapiPath := filepath.Join(dir, "openapi", "compozy.json")
 		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "src", "generated", "contracts.ts")
 		originalOpenAPI := []byte("{\"seed\":\"openapi\"}\n")
 		originalSDK := []byte("export type Seed = \"sdk\";\n")

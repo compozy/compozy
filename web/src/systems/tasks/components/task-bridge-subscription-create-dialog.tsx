@@ -13,7 +13,7 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { TaskBridgeNotificationSubscriptionCreateRequest } from "../types";
 

@@ -164,7 +164,11 @@ export async function generateChangelogRelease(
   env: NodeJS.ProcessEnv
 ): Promise<string> {
   const version = normalizeVersionTag(requiredEnv(env, "PR_RELEASE_VERSION"));
-  const rawContext = await runGitCliffContext(cwd, version);
+  const rawContext = await runGitCliffContext(
+    cwd,
+    version,
+    emptyToUndefined(env.PR_RELEASE_GIT_RANGE)
+  );
   const context = parseGitCliffContext(rawContext);
   const releaseNotes = await readReleaseNotes(cwd, version);
   const repository = repositoryFromEnv(env);
@@ -184,10 +188,15 @@ export async function generateChangelogRelease(
   return outputPath;
 }
 
-async function runGitCliffContext(cwd: string, version: string): Promise<string> {
+async function runGitCliffContext(
+  cwd: string,
+  version: string,
+  gitRange: string | undefined
+): Promise<string> {
+  const selection = gitRange === undefined ? ["--unreleased"] : [gitRange];
   const { stdout } = await execFileAsync(
     "git-cliff",
-    ["--context", "--unreleased", "--tag", version, "--strip", "all"],
+    ["--context", "--tag", version, "--strip", "all", ...selection],
     {
       cwd,
       maxBuffer: maxGitCliffOutputBytes,

@@ -18,7 +18,7 @@ describe("static public route metadata", () => {
     expect(metadata.alternates?.canonical).toBe("/blog/");
     expect(metadata.openGraph?.title).toBe("Blog");
     expect(metadata.openGraph?.description).toBe(metadata.description);
-    expect(metadata.openGraph?.url).toBe("https://agh.network/blog/");
+    expect(metadata.openGraph?.url).toBe("https://compozy.com/blog/");
     expect(metadata.openGraph?.siteName).toBe(siteConfig.name);
     expect(metadata.twitter).toMatchObject({
       card: "summary_large_image",
@@ -32,12 +32,12 @@ describe("static public route metadata", () => {
 
     expect(metadata.title).toBe("Changelog");
     expect(metadata.description).toBe(
-      "Every alpha receipt and release note for the AGH runtime and compozy-network/v0."
+      "Every alpha receipt and release note for the Compozy runtime and compozy-network/v0."
     );
     expect(metadata.alternates?.canonical).toBe("/changelog/");
     expect(metadata.openGraph?.title).toBe("Changelog");
     expect(metadata.openGraph?.description).toBe(metadata.description);
-    expect(metadata.openGraph?.url).toBe("https://agh.network/changelog/");
+    expect(metadata.openGraph?.url).toBe("https://compozy.com/changelog/");
     expect(metadata.openGraph?.siteName).toBe(siteConfig.name);
     expect(metadata.twitter).toMatchObject({
       card: "summary_large_image",
@@ -53,13 +53,13 @@ describe("static public route metadata", () => {
       const { metadata, viewport } = await import("@/app/layout");
 
       expect(siteConfig.description).toBe(
-        "An open workplace for AI agents. AGH runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts."
+        "An open workplace for AI agents. CompozyOS runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts."
       );
-      expect(metadata.metadataBase?.toString()).toBe("https://agh.network/");
+      expect(metadata.metadataBase?.toString()).toBe("https://compozy.com/");
       expect(metadata.applicationName).toBe(siteConfig.name);
       expect(metadata.title).toEqual({
         default: siteConfig.name,
-        template: "%s | AGH",
+        template: "%s | Compozy",
       });
       expect(metadata.description).toBe(siteConfig.description);
       expect(metadata.alternates?.canonical).toBe("/");

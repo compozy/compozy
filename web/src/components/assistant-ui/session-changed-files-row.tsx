@@ -2,7 +2,7 @@ import { ChevronRight, FileText } from "lucide-react";
 import { useRef } from "react";
 
 import { cn } from "@/lib/utils";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 import type { ChangedFileEntry, SessionChangedFilesRow } from "./session-timeline.logic";
 
 // Signal palette as information, never decoration: additions read `--success`,
@@ -46,7 +46,7 @@ function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
 /**
  * The settled-turn "Changed files" roll-up card. Collapsed, it reads
  * `Edited N files +a/-d`; expanded, it lists each modified file with its diff
- * stats. Display-only — AGH exposes no checkpoint/Undo semantics, so this
+ * stats. Display-only — CompozyOS exposes no checkpoint/Undo semantics, so this
  * carries no Undo/Review actions (truthful UI). Styling per `analysis/07 §4.2
  * #26`: `--radius-lg` + `border-line` + `bg-canvas-soft` + `<Eyebrow>` header,
  * no `bg-card/45` translucency or custom shadow.

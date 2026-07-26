@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@agh/ui", async importOriginal => {
-  const actual = await importOriginal<typeof import("@agh/ui")>();
+vi.mock("@compozy/ui", async importOriginal => {
+  const actual = await importOriginal<typeof import("@compozy/ui")>();
   return {
     ...actual,
     CodeBlock: ({ code }: { code: ReactNode }) => <pre>{code}</pre>,

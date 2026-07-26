@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import type { EntityMode } from "@agh/ui";
+import type { EntityMode } from "@compozy/ui";
 
 import {
   buildBridgeCreateRequest,

@@ -1,4 +1,4 @@
-import { Time, TimelineEvent, type TimelineEventProps } from "@agh/ui";
+import { Time, TimelineEvent, type TimelineEventProps } from "@compozy/ui";
 
 import { humanizeTaskEvent, type TaskActivityView } from "../lib/task-activity-copy";
 import { resolveEventTone, visualFor } from "../lib/timeline-visuals";

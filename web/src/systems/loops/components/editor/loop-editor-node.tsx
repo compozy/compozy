@@ -1,7 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { EditorNode } from "../../lib/codec";
 import { MonoTag } from "../mono-tag";

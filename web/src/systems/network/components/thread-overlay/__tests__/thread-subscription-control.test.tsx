@@ -22,8 +22,8 @@ vi.mock("@/systems/network/adapters/network-api", async () => {
   };
 });
 
-vi.mock("@agh/ui", async () => {
-  const actual = await vi.importActual<typeof import("@agh/ui")>("@agh/ui");
+vi.mock("@compozy/ui", async () => {
+  const actual = await vi.importActual<typeof import("@compozy/ui")>("@compozy/ui");
   const React = await vi.importActual<typeof import("react")>("react");
   return {
     ...actual,

@@ -1,11 +1,11 @@
 ---
 title: Peer Discovery
-description: Reference for AGH Network v0 Peer Cards, greet announcements, whois queries, channel-scoped presence, and capability advertisement.
+description: Reference for Compozy Network v0 Peer Cards, greet announcements, whois queries, channel-scoped presence, and capability advertisement.
 icon: Search
 ---
 
 Peer discovery lets an agent know which peers are present in a channel and what they claim to be
-able to do. It is intentionally small. AGH Network v0 does not define a global registry, gossip
+able to do. It is intentionally small. Compozy Network v0 does not define a global registry, gossip
 protocol, trust directory, or service catalog.
 
 This page is normative unless a section is marked as an example.
@@ -21,7 +21,7 @@ A peer is an agent-facing participant in one channel. A Peer ID MUST match:
 Peer IDs are protocol identifiers, not display labels. A receiver MUST route by Peer ID, not by
 `display_name`.
 
-AGH Runtime derives local session Peer IDs as lowercase agent name, a dot, and the session ID. For
+Compozy Runtime derives local session Peer IDs as lowercase agent name, a dot, and the session ID. For
 example, a `PatchWorker` session with ID `sess-19` becomes `patchworker.sess-19`. Other runtimes MAY
 choose their own Peer ID scheme as long as it follows the grammar and remains stable within the
 runtime's routing window.
@@ -31,22 +31,22 @@ runtime's routing window.
 A Peer Card advertises a peer's claimed protocol profiles, capabilities, artifact support, trust
 modes, and optional display metadata.
 
-| Field                   | Type             | Required | Rule                                                                                                                                                                                           |
-| ----------------------- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `peer_id`               | string           | Yes      | MUST match the envelope `from` value in `greet` and `whois` responses.                                                                                                                         |
-| `display_name`          | string           | Optional | MAY provide a human-readable label.                                                                                                                                                            |
-| `profiles_supported`    | array of strings | Yes      | MUST be present. SHOULD include `compozy-network/v0` for v0 peers.                                                                                                                             |
-| `capabilities`          | array of strings | Yes      | MUST be present. Values are opaque advisory claims.                                                                                                                                            |
-| `artifacts_supported`   | array of strings | Yes      | MUST be present. Values SHOULD be profile-defined artifact identifiers. AGH v0 peers that support unified capability transfer SHOULD include `"capability"` even when `capabilities` is empty. |
-| `trust_modes_supported` | array of strings | Yes      | MUST be present. Values are advisory in v0.                                                                                                                                                    |
-| `ext`                   | object           | Optional | MAY carry namespaced extension data.                                                                                                                                                           |
+| Field                   | Type             | Required | Rule                                                                                                                                                                                               |
+| ----------------------- | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `peer_id`               | string           | Yes      | MUST match the envelope `from` value in `greet` and `whois` responses.                                                                                                                             |
+| `display_name`          | string           | Optional | MAY provide a human-readable label.                                                                                                                                                                |
+| `profiles_supported`    | array of strings | Yes      | MUST be present. SHOULD include `compozy-network/v0` for v0 peers.                                                                                                                                 |
+| `capabilities`          | array of strings | Yes      | MUST be present. Values are opaque advisory claims.                                                                                                                                                |
+| `artifacts_supported`   | array of strings | Yes      | MUST be present. Values SHOULD be profile-defined artifact identifiers. Compozy v0 peers that support unified capability transfer SHOULD include `"capability"` even when `capabilities` is empty. |
+| `trust_modes_supported` | array of strings | Yes      | MUST be present. Values are advisory in v0.                                                                                                                                                        |
+| `ext`                   | object           | Optional | MAY carry namespaced extension data.                                                                                                                                                               |
 
 The array fields MUST be present even when empty. A Peer Card does not prove identity or behavior.
 Receivers MUST NOT treat a capability claim as authorization or trust evidence.
 
 ## Announcing with `greet`
 
-A peer SHOULD send `greet` when it joins a channel. AGH records each announcement as a discrete
+A peer SHOULD send `greet` when it joins a channel. Compozy records each announcement as a discrete
 protocol message; `greet` is not a keepalive or membership lease.
 
 <Mermaid
@@ -89,7 +89,7 @@ caption="A greet message advertises a daemon-local peer without creating an expi
 }
 ```
 
-AGH Runtime's default Peer Card emits `profiles_supported: ["compozy-network/v0"]` and empty arrays for
+Compozy Runtime's default Peer Card emits `profiles_supported: ["compozy-network/v0"]` and empty arrays for
 capabilities, artifacts, and trust modes unless a peer is configured with richer metadata.
 
 ## Querying with `whois`
@@ -160,7 +160,7 @@ caption="Broadcast whois discovers matching peers; responses are directed back t
 
 ## Matching semantics
 
-Receivers SHOULD match `whois` queries against local peer metadata. The AGH reference implementation
+Receivers SHOULD match `whois` queries against local peer metadata. The Compozy reference implementation
 matches an empty query, exact Peer ID, display name, capability, supported profile, supported
 artifact type, or trust mode.
 
@@ -169,7 +169,7 @@ the query text would not otherwise match. This lets callers refresh a known peer
 
 ## Runtime membership
 
-AGH peer membership is channel-scoped and daemon-local. A Live execution becomes visible when its
+Compozy peer membership is channel-scoped and daemon-local. A Live execution becomes visible when its
 session joins a channel and is removed when that session leaves. The runtime does not cache,
 refresh, or expire peers announced by another daemon.
 

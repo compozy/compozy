@@ -8,7 +8,7 @@ import {
   KindIcon,
   Pill,
   type CatalogCardProps,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { providerHealthTone, providerStateTone } from "@/systems/model-catalog";
 import { buildBridgeProviderKey, isBridgeProviderSelectable } from "../lib/bridge-formatters";

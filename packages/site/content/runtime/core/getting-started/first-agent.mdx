@@ -1,6 +1,6 @@
 ---
 title: Your First Custom Agent
-description: Create one minimal AGENT.md definition, store it in the correct runtime path, and verify that AGH resolves it for the current workspace.
+description: Create one minimal AGENT.md definition, store it in the correct runtime path, and verify that Compozy resolves it for the current workspace.
 ---
 
 In [Quick Start](/runtime/core/getting-started/quick-start), you used the built-in `general` agent.
@@ -8,18 +8,18 @@ In this tutorial, you will create a second agent with its own system prompt and 
 store it in the correct runtime path, and launch a session with it.
 
 **Before you begin:** Run these steps from the repository root where you want the agent to be
-visible. The current AGH runtime uses `<workspace>/.agh/agents/<name>/AGENT.md` for workspace-local
+visible. The current Compozy runtime uses `<workspace>/.compozy/agents/<name>/AGENT.md` for workspace-local
 agents.
 
 ## 1. Create the workspace-local agent directory
 
 ```bash
-mkdir -p .agh/agents/code-reviewer
+mkdir -p .compozy/agents/code-reviewer
 ```
 
 ## 2. Write the AGENT.md file
 
-Create `.agh/agents/code-reviewer/AGENT.md` with this minimal example:
+Create `.compozy/agents/code-reviewer/AGENT.md` with this minimal example:
 
 ```yaml
 ---
@@ -39,38 +39,38 @@ This tutorial intentionally keeps the file small. The important pieces are:
 
 | Field         | Why it matters in this tutorial                                                                                    |
 | ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `name`        | The identifier AGH uses for discovery and selection.                                                               |
-| `provider`    | Tells AGH which provider configuration to resolve for this agent.                                                  |
+| `name`        | The identifier Compozy uses for discovery and selection.                                                           |
+| `provider`    | Tells Compozy which provider configuration to resolve for this agent.                                              |
 | `permissions` | This is the enforced session boundary today. `approve-reads` auto-allows read operations and prompts for the rest. |
 | Markdown body | Becomes the agent's startup prompt.                                                                                |
 
 For the full implemented schema, use [AGENT.md](/runtime/core/configuration/agent-md).
 
-## 3. Verify that AGH can see the agent
+## 3. Verify that Compozy can see the agent
 
 ```bash
-agh agent list
+compozy agent list
 ```
 
 Inspect the resolved definition:
 
 ```bash
-agh agent info code-reviewer
+compozy agent info code-reviewer
 ```
 
-This is the right moment to catch path mistakes. If the agent does not appear here, AGH will not be
+This is the right moment to catch path mistakes. If the agent does not appear here, Compozy will not be
 able to start a session with it.
 
 ## 4. Start a session with the custom agent
 
 ```bash
-agh session new --cwd "$PWD" --agent code-reviewer
+compozy session new --cwd "$PWD" --agent code-reviewer
 ```
 
 Then send it a focused task:
 
 ```bash
-agh session prompt sess_1234 "Review the changes in this repository and tell me the highest-risk issue first."
+compozy session prompt sess_1234 "Review the changes in this repository and tell me the highest-risk issue first."
 ```
 
 Because the agent uses `approve-reads`, read operations can proceed automatically, while write or

@@ -1,4 +1,4 @@
-import { ListingToolbar } from "@agh/ui";
+import { ListingToolbar } from "@compozy/ui";
 
 import type { TaskFilterOwnerOption } from "../lib/tasks-list-filters";
 import type { TaskListSortKey, TaskPriority, TaskStatus } from "../types";

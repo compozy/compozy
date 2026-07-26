@@ -1,6 +1,14 @@
 import { useRef } from "react";
 
-import { Field, FieldDescription, FieldLabel, FieldTitle, PageShell, Switch, cn } from "@agh/ui";
+import {
+  Field,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+  PageShell,
+  Switch,
+  cn,
+} from "@compozy/ui";
 
 import { useSettingsTopbar } from "@/systems/settings";
 

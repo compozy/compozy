@@ -33,7 +33,7 @@ import {
   PillGroup,
   Spinner,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 type SkillsConfig = SettingsSkillsSection["config"];
 

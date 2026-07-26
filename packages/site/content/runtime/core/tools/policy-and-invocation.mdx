@@ -1,9 +1,9 @@
 ---
 title: Policy and Invocation
-description: How AGH validates tool input, applies daemon policy, handles approvals, redacts sensitive fields, and records invocation evidence.
+description: How Compozy validates tool input, applies daemon policy, handles approvals, redacts sensitive fields, and records invocation evidence.
 ---
 
-Tool invocation is a runtime operation, not a direct function call from an agent. AGH validates the
+Tool invocation is a runtime operation, not a direct function call from an agent. Compozy validates the
 input, applies policy, dispatches the tool, redacts sensitive fields, and returns a structured
 result.
 
@@ -43,19 +43,19 @@ caption="Tool invocation flows through validation, policy, dispatch, redaction, 
 Invoke with inline JSON:
 
 ```bash
-agh tool invoke compozy__tool_info --input '{"tool_id":"compozy__skill_view"}' -o json
+compozy tool invoke compozy__tool_info --input '{"tool_id":"compozy__skill_view"}' -o json
 ```
 
 Invoke with a file:
 
 ```bash
-agh tool invoke compozy__tool_info --input-file ./input.json -o json
+compozy tool invoke compozy__tool_info --input-file ./input.json -o json
 ```
 
 Invoke with stdin:
 
 ```bash
-echo '{"tool_id":"compozy__skill_view"}' | agh tool invoke compozy__tool_info -o json
+echo '{"tool_id":"compozy__skill_view"}' | compozy tool invoke compozy__tool_info -o json
 ```
 
 What happened: the CLI sent JSON input to the daemon, the daemon validated and dispatched the tool,
@@ -67,7 +67,7 @@ Some tools depend on workspace, session, or agent context. Pass scope when you n
 the same view a managed session would receive:
 
 ```bash
-agh tool info compozy__skill_view --workspace ws-1 --session sess-1 --agent reviewer -o json
+compozy tool info compozy__skill_view --workspace ws-1 --session sess-1 --agent reviewer -o json
 ```
 
 Use scoped diagnostics when:
@@ -84,7 +84,7 @@ diagnostics should tell the caller what is missing. The invocation path accepts 
 approval token:
 
 ```bash
-agh tool invoke <tool-id> \
+compozy tool invoke <tool-id> \
   --approval-token "$APPROVAL_TOKEN" \
   --input '{"target":"example"}' \
   -o json
@@ -96,7 +96,7 @@ them as short-lived credentials.
 ### Remembered native-tool decisions
 
 When a managed session answers a native-tool approval prompt with `allow-always` or
-`reject-always`, AGH remembers the decision in the workspace database. The remembered key is exact:
+`reject-always`, Compozy remembers the decision in the workspace database. The remembered key is exact:
 workspace, agent, tool ID, and the SHA-256 digest of the authored input must all match. A different
 agent or input prompts again.
 
@@ -105,7 +105,7 @@ agent and tool across every input; tool scope matches the tool across every agen
 workspace. This management path never accepts an input digest, so it cannot fabricate an exact
 prompt-origin decision.
 
-AGH checks a supplied single-use approval token first. Without one, it checks the remembered
+Compozy checks a supplied single-use approval token first. Without one, it checks the remembered
 decision before opening another prompt. A remembered allow continues to dispatch; a remembered
 reject blocks the invocation. These decisions survive daemon restarts and remain workspace-scoped.
 They do not broaden sandbox, ACP, or workspace policy.
@@ -113,19 +113,19 @@ They do not broaden sandbox, ACP, or workspace policy.
 Set, list, or revoke remembered decisions from any management surface:
 
 ```bash
-agh tool approvals set compozy__workspace_list \
+compozy tool approvals set compozy__workspace_list \
   --workspace <workspace> \
   --decision allow \
   --scope agent \
   --agent claude-code \
   -o json
-agh tool approvals set compozy__workspace_list \
+compozy tool approvals set compozy__workspace_list \
   --workspace <workspace> \
   --decision reject \
   --scope tool \
   -o json
-agh tool approvals list --workspace <workspace> -o json
-agh tool approvals revoke <grant-id> --workspace <workspace> -o json
+compozy tool approvals list --workspace <workspace> -o json
+compozy tool approvals revoke <grant-id> --workspace <workspace> -o json
 ```
 
 The matching HTTP and UDS routes are `PUT /api/tool-approval-grants`,
@@ -144,24 +144,24 @@ workspace boundaries.
 If input contains sensitive values, mark the field path so invocation evidence can redact it:
 
 ```bash
-agh tool invoke <tool-id> \
+compozy tool invoke <tool-id> \
   --input '{"secret_ref":"vault://provider/token"}' \
   --sensitive-input-field secret_ref \
   -o json
 ```
 
-What happened: AGH still received the input needed by the handler, but the specified field is
+What happened: Compozy still received the input needed by the handler, but the specified field is
 treated as sensitive in diagnostic and event surfaces.
 
 ## Common failures
 
-| Symptom                            | Likely cause                                                         | First check                                      |
-| ---------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------ |
-| Tool is not found                  | Wrong ID or tool not registered in the current runtime.              | `agh tool search <query> -o json`                |
-| Tool is visible but unavailable    | Missing workspace/session/agent scope or prerequisite configuration. | `agh tool info <tool-id> --session <id> -o json` |
-| Invocation rejects input           | JSON does not match the tool schema.                                 | `agh tool info <tool-id> -o json`                |
-| Invocation needs approval          | Policy requires an approval token.                                   | Descriptor diagnostics                           |
-| Result omits expected secret value | Secrets are write-only or redacted by design.                        | Vault and policy docs                            |
+| Symptom                            | Likely cause                                                         | First check                                          |
+| ---------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- |
+| Tool is not found                  | Wrong ID or tool not registered in the current runtime.              | `compozy tool search <query> -o json`                |
+| Tool is visible but unavailable    | Missing workspace/session/agent scope or prerequisite configuration. | `compozy tool info <tool-id> --session <id> -o json` |
+| Invocation rejects input           | JSON does not match the tool schema.                                 | `compozy tool info <tool-id> -o json`                |
+| Invocation needs approval          | Policy requires an approval token.                                   | Descriptor diagnostics                               |
+| Result omits expected secret value | Secrets are write-only or redacted by design.                        | Vault and policy docs                                |
 
 ## Related pages
 

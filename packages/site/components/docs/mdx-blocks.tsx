@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 interface RouteRowProps {
   href: string;

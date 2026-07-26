@@ -13,7 +13,7 @@ describe("OsHydrationStatus", () => {
 
     expect(
       screen.getByRole("status", {
-        name: "Desktop sync paused. Changes stay in memory while AGH reconnects.",
+        name: "Desktop sync paused. Changes stay in memory while CompozyOS reconnects.",
       })
     ).toHaveTextContent("Sync paused · retrying");
   });

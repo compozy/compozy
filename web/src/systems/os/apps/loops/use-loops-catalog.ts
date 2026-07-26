@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 
-import type { ListingViewMode } from "@agh/ui";
+import type { ListingViewMode } from "@compozy/ui";
 
 import { useLoops } from "@/systems/loops";
 import type {

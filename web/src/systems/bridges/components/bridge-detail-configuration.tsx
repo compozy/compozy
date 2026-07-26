@@ -1,4 +1,4 @@
-import { MetadataList, Section } from "@agh/ui";
+import { MetadataList, Section } from "@compozy/ui";
 
 import {
   describeBridgeDeliveryDefaults,

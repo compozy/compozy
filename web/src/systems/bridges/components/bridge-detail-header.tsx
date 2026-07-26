@@ -11,7 +11,7 @@ import {
   TopbarOverflowIcon,
   type PillTone,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { bridgeStatusLabel, bridgeStatusTone } from "../lib/bridge-formatters";
 import type { BridgeStatus, BridgeSummary } from "../types";

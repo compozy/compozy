@@ -1,7 +1,8 @@
 {
-    "name": "@agh/extension-sdk",
+    "name": "@compozy/extension-sdk",
     "version": "0.1.0",
-    "description": "TypeScript SDK for building AGH subprocess extensions",
+    "private": true,
+    "description": "TypeScript SDK for building Compozy subprocess extensions",
     "license": "UNLICENSED",
     "files": [
         "dist/**/*"

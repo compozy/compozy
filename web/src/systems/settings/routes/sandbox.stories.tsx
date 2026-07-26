@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { useEffect } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
@@ -91,7 +91,7 @@ export const Empty: Story = {
     ...appRouteParameters("/sandbox"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/sandboxes", () =>
+        compozyApiMock.get("/api/settings/sandboxes", () =>
           HttpResponse.json({ ...settingsSandboxesCollectionFixture, sandboxes: [] })
         ),
       ],
@@ -139,7 +139,7 @@ export const Loading: Story = {
     ...appRouteParameters("/sandbox"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/sandboxes", async () => {
+        compozyApiMock.get("/api/settings/sandboxes", async () => {
           await delay("infinite");
           return HttpResponse.json({ ...settingsSandboxesCollectionFixture, sandboxes: [] });
         }),
@@ -158,7 +158,7 @@ export const Error: Story = {
     ...appRouteParameters("/sandbox"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/sandboxes", () =>
+        compozyApiMock.get("/api/settings/sandboxes", () =>
           HttpResponse.json({ error: "Failed to load sandboxes" }, { status: 500 })
         ),
       ],

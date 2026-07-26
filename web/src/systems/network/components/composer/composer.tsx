@@ -1,7 +1,7 @@
 import { AtSign } from "lucide-react";
 import { useRef, type RefObject } from "react";
 
-import { Button, Pill, Textarea } from "@agh/ui";
+import { Button, Pill, Textarea } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

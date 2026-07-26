@@ -10,7 +10,7 @@ import {
   EntityModeToolbar,
   FieldError,
   type EntityMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { AgentPayload } from "@/systems/agent";
 import {
@@ -279,8 +279,8 @@ function SessionCreateDialog({
                 data-testid="session-create-pending-status"
                 role="status"
               >
-                Starting the session. It opens as soon as AGH durably accepts it; the first message
-                is sent when the runtime starts.
+                Starting the session. It opens as soon as CompozyOS durably accepts it; the first
+                message is sent when the runtime starts.
               </p>
             ) : null}
 

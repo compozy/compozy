@@ -1,4 +1,4 @@
-import { Panel, Section } from "@agh/ui";
+import { Panel, Section } from "@compozy/ui";
 
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
 import type { HomeOverview, HomePulseBucket } from "../types";

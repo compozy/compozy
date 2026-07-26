@@ -355,7 +355,7 @@ func toolParityView(id toolspkg.ToolID, visibility toolspkg.Visibility, callable
 			DisplayTitle: id.String(),
 			Description:  "Skill registry test tool",
 			InputSchema:  json.RawMessage(`{"type":"object"}`),
-			Source:       toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "agh"},
+			Source:       toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "compozy"},
 			Visibility:   visibility,
 			Risk:         toolspkg.RiskRead,
 			ReadOnly:     true,

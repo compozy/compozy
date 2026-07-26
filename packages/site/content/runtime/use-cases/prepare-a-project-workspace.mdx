@@ -1,16 +1,16 @@
 ---
 title: Prepare a Project Workspace
-description: Turn an existing repository into an AGH workspace that agents can inspect, remember, and operate through durable sessions.
+description: Turn an existing repository into an Compozy workspace that agents can inspect, remember, and operate through durable sessions.
 ---
 
-This flow is for a maintainer who already has a repository and wants AGH to run repeatable agent
+This flow is for a maintainer who already has a repository and wants Compozy to run repeatable agent
 work against it. The goal is not just "start an agent"; it is to make the project discoverable,
 give the agent a local operating brief, and leave evidence that the runtime is using the intended
 workspace.
 
 <OperatorNote label="What this creates">
   A registered workspace, one workspace-local agent definition, one workspace memory entry, and one
-  smoke-test session. The files stay in the repository under `.agh/`; the daemon stores runtime
+  smoke-test session. The files stay in the repository under `.compozy/`; the daemon stores runtime
   session state under `COMPOZY_HOME`.
 </OperatorNote>
 
@@ -19,7 +19,7 @@ workspace.
 Start from the repository root and confirm the daemon is reachable:
 
 ```bash
-agh status
+compozy status
 ```
 
 If you do not already have a provider configured, use the provider key that matches your local
@@ -31,7 +31,7 @@ built-in provider key, not because the workspace model depends on that provider.
 <Mermaid
   chart={`flowchart TD
     Repo[Existing repository] --> Register[Register workspace]
-    Register --> Agent[Add .agh/agents/reviewer/AGENT.md]
+    Register --> Agent[Add .compozy/agents/reviewer/AGENT.md]
     Agent --> Memory[Write workspace memory]
     Memory --> Inspect[Inspect resolved workspace and agent]
     Inspect --> Session[Start smoke-test session]
@@ -45,11 +45,11 @@ built-in provider key, not because the workspace model depends on that provider.
     agents do not have to infer which checkout you mean.
 
     ```bash
-    agh workspace add "$PWD" --name checkout-api --default-agent reviewer
-    agh workspace info checkout-api -o json
+    compozy workspace add "$PWD" --name checkout-api --default-agent reviewer
+    compozy workspace info checkout-api -o json
     ```
 
-    What happened: AGH registered the current directory and will resolve workspace-scoped agents,
+    What happened: Compozy registered the current directory and will resolve workspace-scoped agents,
     skills, memory, config overlays, and sandbox settings from this root.
 
   </WorkflowStep>
@@ -59,10 +59,10 @@ built-in provider key, not because the workspace model depends on that provider.
     definitions of the same name.
 
     ```bash
-    mkdir -p .agh/agents/reviewer
+    mkdir -p .compozy/agents/reviewer
     ```
 
-    Create `.agh/agents/reviewer/AGENT.md` with this content:
+    Create `.compozy/agents/reviewer/AGENT.md` with this content:
 
     ```text
     ---
@@ -80,10 +80,10 @@ built-in provider key, not because the workspace model depends on that provider.
     Return blocking findings first with file paths and concrete reproduction evidence.
     ```
 
-    Then confirm AGH resolves the file you just created:
+    Then confirm Compozy resolves the file you just created:
 
     ```bash
-    agh agent info reviewer --workspace checkout-api -o json
+    compozy agent info reviewer --workspace checkout-api -o json
     ```
 
   </WorkflowStep>
@@ -93,16 +93,16 @@ built-in provider key, not because the workspace model depends on that provider.
     factual; do not paste a full architecture document into memory.
 
     ```bash
-    agh memory write project-map.md \
+    compozy memory write project-map.md \
       --scope workspace \
       --type project \
       --description "Where agents should start in this repository" \
       --content "Start with README.md, then inspect packages/site for docs and internal/ for runtime code."
 
-    agh memory list --scope workspace -o json
+    compozy memory list --scope workspace -o json
     ```
 
-    What happened: AGH wrote a workspace-scoped Markdown memory and refreshed the index so future
+    What happened: Compozy wrote a workspace-scoped Markdown memory and refreshed the index so future
     sessions can discover it.
 
   </WorkflowStep>
@@ -112,9 +112,9 @@ built-in provider key, not because the workspace model depends on that provider.
     root, local instructions, and memory.
 
     ```bash
-    agh session new --workspace checkout-api --agent reviewer --name workspace-smoke -o json
-    agh session prompt sess_1234 "Inspect this workspace setup. Confirm the repository root, agent definition, and workspace memory you can see."
-    agh session events sess_1234 --follow
+    compozy session new --workspace checkout-api --agent reviewer --name workspace-smoke -o json
+    compozy session prompt sess_1234 "Inspect this workspace setup. Confirm the repository root, agent definition, and workspace memory you can see."
+    compozy session events sess_1234 --follow
     ```
 
     What happened: the session produced durable events under the workspace context. Use the emitted
@@ -125,23 +125,23 @@ built-in provider key, not because the workspace model depends on that provider.
 
 ## Evidence to keep
 
-| Evidence              | Command                                                    | What it proves                                                     |
-| --------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------ |
-| Workspace resolution  | `agh workspace info checkout-api -o json`                  | The registered root, default agent, additional roots, and sandbox. |
-| Agent visibility      | `agh agent info reviewer --workspace checkout-api -o json` | The workspace-local `AGENT.md` parses and wins discovery.          |
-| Memory indexing       | `agh memory list --scope workspace -o json`                | The project note is visible to workspace-scoped sessions.          |
-| Session runtime state | `agh session status sess_1234 -o json`                     | The live session is attached to the intended workspace and agent.  |
-| Session transcript    | `agh session history sess_1234`                            | The smoke-test answer is durable after the terminal closes.        |
+| Evidence              | Command                                                        | What it proves                                                     |
+| --------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Workspace resolution  | `compozy workspace info checkout-api -o json`                  | The registered root, default agent, additional roots, and sandbox. |
+| Agent visibility      | `compozy agent info reviewer --workspace checkout-api -o json` | The workspace-local `AGENT.md` parses and wins discovery.          |
+| Memory indexing       | `compozy memory list --scope workspace -o json`                | The project note is visible to workspace-scoped sessions.          |
+| Session runtime state | `compozy session status sess_1234 -o json`                     | The live session is attached to the intended workspace and agent.  |
+| Session transcript    | `compozy session history sess_1234`                            | The smoke-test answer is durable after the terminal closes.        |
 
 ## Failure path
 
-| Symptom                                  | First check                                                | Next page                                                        |
-| ---------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------- |
-| Workspace resolves a different root      | `agh workspace info checkout-api -o json`                  | [Workspace Resolver](/runtime/core/workspaces/resolver)          |
-| Agent is not found                       | `agh agent info reviewer --workspace checkout-api -o json` | [AGENT.md](/runtime/core/configuration/agent-md)                 |
-| Agent uses the wrong provider            | `agh agent info reviewer --workspace checkout-api -o json` | [Agent Providers](/runtime/core/agents/providers)                |
-| Memory does not appear in the index      | `agh memory health -o json`                                | [Memory System](/runtime/core/memory/system)                     |
-| Session starts but never produces output | `agh session status sess_1234 -o json`                     | [Debug a Failed Session](/runtime/guides/debug-a-failed-session) |
+| Symptom                                  | First check                                                    | Next page                                                        |
+| ---------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Workspace resolves a different root      | `compozy workspace info checkout-api -o json`                  | [Workspace Resolver](/runtime/core/workspaces/resolver)          |
+| Agent is not found                       | `compozy agent info reviewer --workspace checkout-api -o json` | [AGENT.md](/runtime/core/configuration/agent-md)                 |
+| Agent uses the wrong provider            | `compozy agent info reviewer --workspace checkout-api -o json` | [Agent Providers](/runtime/core/agents/providers)                |
+| Memory does not appear in the index      | `compozy memory health -o json`                                | [Memory System](/runtime/core/memory/system)                     |
+| Session starts but never produces output | `compozy session status sess_1234 -o json`                     | [Debug a Failed Session](/runtime/guides/debug-a-failed-session) |
 
 ## Next
 

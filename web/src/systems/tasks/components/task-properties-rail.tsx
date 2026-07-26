@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
-import { Button, cn, MonoId, OwnerAvatar, Pill, PropertyRow, Spinner, Time } from "@agh/ui";
+import { Button, cn, MonoId, OwnerAvatar, Pill, PropertyRow, Spinner, Time } from "@compozy/ui";
 
 import {
   computeElapsed,
@@ -291,7 +291,7 @@ export function TaskPropertiesRail({
           Inspect
         </Button>
         <span className="truncate font-mono text-micro text-faint">
-          agh task inspect {record.id}
+          compozy task inspect {record.id}
         </span>
       </footer>
     </div>

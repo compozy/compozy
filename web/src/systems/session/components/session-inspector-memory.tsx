@@ -1,6 +1,6 @@
 import { AlertCircle, Library } from "lucide-react";
 
-import { Empty, Eyebrow, MetadataList, Pill, Skeleton, cn } from "@agh/ui";
+import { Empty, Eyebrow, MetadataList, Pill, Skeleton, cn } from "@compozy/ui";
 
 import { SessionLedgerUnavailableError } from "../adapters/session-api";
 import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";

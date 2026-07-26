@@ -5,7 +5,7 @@ import {
   MenubarSeparator,
   MenubarShortcut,
   MenubarTrigger,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 export interface SessionMenuProps {
   open: boolean;

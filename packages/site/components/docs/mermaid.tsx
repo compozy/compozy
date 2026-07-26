@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useReducer, useRef } from "react";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 let mermaidLoader: Promise<typeof import("mermaid").default> | null = null;
 
@@ -11,7 +11,7 @@ function loadMermaid() {
       .then(({ default: mermaid }) => {
         // Mermaid emits SVG with `fill` / `stroke` attributes set to these
         // theme variable values. SVG attributes accept `var(--…)`, so we
-        // wire each Mermaid theme key to the canonical AGH token. Retunes
+        // wire each Mermaid theme key to the canonical CompozyOS token. Retunes
         // flow from `packages/ui/src/tokens.css` without touching this file.
         mermaid.initialize({
           startOnLoad: false,
@@ -53,7 +53,7 @@ function loadMermaid() {
 
 export function Mermaid({ chart, caption }: { chart: string; caption?: string }) {
   const reactId = useId();
-  const diagramId = `agh-mermaid-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const diagramId = `compozy-mermaid-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [state, dispatch] = useReducer(
     (_state: { svg: string; error: string }, nextState: { svg?: string; error?: string }) => ({
@@ -76,7 +76,7 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
           dispatch({
             svg: rendered.svg.replace(
               "<svg ",
-              '<svg aria-hidden="true" class="agh-mermaid-svg" data-theme="agh" '
+              '<svg aria-hidden="true" class="compozy-mermaid-svg" data-theme="compozy" '
             ),
           });
         });
@@ -113,7 +113,7 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
         <div
           ref={containerRef}
           aria-label={caption ? `Diagram: ${caption}` : "Mermaid diagram"}
-          className="agh-mermaid [&_svg]:h-auto [&_svg]:max-w-full"
+          className="compozy-mermaid [&_svg]:h-auto [&_svg]:max-w-full"
           role="img"
         />
       ) : state.error ? (

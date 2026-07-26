@@ -1,25 +1,25 @@
 ---
 title: config.toml
-description: Complete AGH config.toml schema, defaults, valid values, merge behavior, and annotated examples.
+description: Complete Compozy config.toml schema, defaults, valid values, merge behavior, and annotated examples.
 ---
 
-`config.toml` is the main AGH runtime desired-state file. AGH loads the built-in defaults, then
+`config.toml` is the main Compozy runtime desired-state file. Compozy loads the built-in defaults, then
 overlays global and workspace files when they exist. The daemon only treats a change as runtime
 truth after `ConfigApplyService` advances the active generation and writes a `config_apply_records`
 audit row.
 
-| File                           | Scope                 | Loaded when                                                        |
-| ------------------------------ | --------------------- | ------------------------------------------------------------------ |
-| `$COMPOZY_HOME/config.toml`    | Global                | Every config load. Defaults to `~/.agh/config.toml`.               |
-| `$COMPOZY_HOME/mcp.json`       | Global MCP sidecar    | After global TOML.                                                 |
-| `<workspace>/.agh/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
-| `<workspace>/.agh/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
+| File                               | Scope                 | Loaded when                                                        |
+| ---------------------------------- | --------------------- | ------------------------------------------------------------------ |
+| `$COMPOZY_HOME/config.toml`        | Global                | Every config load. Defaults to `~/.compozy/config.toml`.           |
+| `$COMPOZY_HOME/mcp.json`           | Global MCP sidecar    | After global TOML.                                                 |
+| `<workspace>/.compozy/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
+| `<workspace>/.compozy/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
 
 Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes.<name>]`. Use only
 `[sandboxes.<name>]` for session execution boundaries.
 
 <OperatorNote>
-  Workspace `.env` files are loaded before AGH resolves `$COMPOZY_HOME`. This means
+  Workspace `.env` files are loaded before Compozy resolves `$COMPOZY_HOME`. This means
   `<workspace>/.env` can set `COMPOZY_HOME` for that workspace before the global config file path is
   chosen.
 </OperatorNote>
@@ -53,7 +53,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                              | empty list                                                                                            |
 | `[providers.<name>]`                 | Built-in provider override or custom provider definition.                            | empty map plus built-ins                                                                              |
 | `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                     | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
-| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                  | AGH `main` catalog, 1 h TTL, 10 s timeout                                                             |
+| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                  | Compozy `main` catalog, 1 h TTL, 10 s timeout                                                         |
 | `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                                 | local backend when no profile is selected                                                             |
 | `[observability]`                    | Event summary retention and global byte cap.                                         | enabled, 7 days, 1 GiB                                                                                |
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                       | enabled, 1 MiB segments, 256 MiB per session                                                          |
@@ -70,7 +70,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[memory.daily]`                     | Daily-log retention and rotation.                                                    | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                                  |
 | `[memory.file]`                      | Curated memory body and prompt-index limits.                                         | 200 lines, 25 KiB                                                                                     |
 | `[memory.provider]`                  | Active memory provider selection and circuit breaker.                                | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                                 |
-| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                  | `<workspace>/.agh/workspace.toml`, auto-create on first touch                                         |
+| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                  | `<workspace>/.compozy/workspace.toml`, auto-create on first touch                                     |
 | `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.                 | enabled, poll every 3 seconds                                                                         |
 | `[skills.marketplace]`               | Skill registry override.                                                             | unset                                                                                                 |
 | `[extensions.marketplace]`           | Extension registry override and side-load policy.                                    | registry unset, unverified side-loads disabled                                                        |
@@ -90,14 +90,14 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 
 ## Load And Merge Order
 
-| Order | Source                            | Merge behavior                                                                            |
-| ----- | --------------------------------- | ----------------------------------------------------------------------------------------- |
-| 1     | Built-in defaults                 | Base config.                                                                              |
-| 2     | `$COMPOZY_HOME/config.toml`       | Scalar fields replace defaults. TOML MCP and provider MCP entries merge by `name`.        |
-| 3     | `$COMPOZY_HOME/mcp.json`          | Same-name MCP servers replace the whole server object.                                    |
-| 4     | `<workspace>/.agh/config.toml`    | Workspace overlay applies over global config.                                             |
-| 5     | `<workspace>/.agh/mcp.json`       | Same-name MCP servers replace the whole server object after workspace TOML.               |
-| 6     | Path normalization and validation | `~` is expanded for `daemon.socket` and `memory.global_dir`; invalid values fail startup. |
+| Order | Source                             | Merge behavior                                                                            |
+| ----- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1     | Built-in defaults                  | Base config.                                                                              |
+| 2     | `$COMPOZY_HOME/config.toml`        | Scalar fields replace defaults. TOML MCP and provider MCP entries merge by `name`.        |
+| 3     | `$COMPOZY_HOME/mcp.json`           | Same-name MCP servers replace the whole server object.                                    |
+| 4     | `<workspace>/.compozy/config.toml` | Workspace overlay applies over global config.                                             |
+| 5     | `<workspace>/.compozy/mcp.json`    | Same-name MCP servers replace the whole server object after workspace TOML.               |
+| 6     | Path normalization and validation  | `~` is expanded for `daemon.socket` and `memory.global_dir`; invalid values fail startup. |
 
 TOML `[[mcp_servers]]` entries merge fields by `name`: non-empty `command`, non-empty `args`, and
 new `env` keys overlay the existing server. JSON sidecars replace same-name servers as whole
@@ -109,11 +109,11 @@ global and workspace MCP sidecars for session and runtime resolution.
 ## Complete Annotated Example
 
 ```toml
-# ~/.agh/config.toml
+# ~/.compozy/config.toml
 
 [daemon]
-# Path to the Unix domain socket used by AGH CLI commands.
-socket = "~/.agh/daemon.sock"
+# Path to the Unix domain socket used by Compozy CLI commands.
+socket = "~/.compozy/daemon.sock"
 # Emit daemon process-memory snapshots every five minutes. Set to "0s" to disable.
 memory_report_interval = "5m"
 # Escalate a task-bound session after three consecutive failed subprocess health checks.
@@ -231,7 +231,7 @@ progress_notify_interval = "10m"
 inactivity_warning_after = "15m"
 # 0 disables inactivity timeout.
 inactivity_timeout = "30m"
-# Grace period after cooperative prompt cancel before AGH stops the session as timeout.
+# Grace period after cooperative prompt cancel before Compozy stops the session as timeout.
 timeout_cancel_grace = "30s"
 
 [session.compaction]
@@ -285,7 +285,7 @@ mode = "approve-all"
 [tools]
 # Disables registry dispatch and hosted MCP exposure when false.
 enabled = true
-# Enables AGH-hosted local MCP projection for session-visible tools.
+# Enables Compozy-hosted local MCP projection for session-visible tools.
 hosted_mcp_enabled = true
 # Default result cap for tool descriptors that do not set a smaller cap.
 default_max_result_bytes = 262144
@@ -328,7 +328,7 @@ url = "https://mcp.example.com/sse"
 [mcp_servers.auth]
 type = "oauth2_pkce"
 issuer_url = "https://auth.example.com"
-client_id = "agh-desktop"
+client_id = "compozy-desktop"
 client_secret_ref = "env:REMOTE_DOCS_MCP_CLIENT_SECRET"
 scopes = ["mcp.read", "mcp.write"]
 
@@ -431,7 +431,7 @@ enabled = true
 
 [memory]
 enabled = true
-global_dir = "~/.agh/memory"
+global_dir = "~/.compozy/memory"
 
 [memory.controller]
 mode = "hybrid"                              # hybrid | rules | llm
@@ -533,7 +533,7 @@ failure_threshold = 5
 cooldown = "30s"
 
 [memory.workspace]
-toml_path = "<workspace>/.agh/workspace.toml" # informational; not configurable
+toml_path = "<workspace>/.compozy/workspace.toml" # informational; not configurable
 auto_create = true
 
 [skills]
@@ -735,25 +735,25 @@ max_coalesce_window = "5s"
 
 ## `[daemon]`
 
-| Field                                    | Type        | Default                     | Valid values                               | Description                                                                                                           |
-| ---------------------------------------- | ----------- | --------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `socket`                                 | string path | `$COMPOZY_HOME/daemon.sock` | Non-empty path. `~` is expanded.           | Unix domain socket used by CLI IPC and the UDS API server.                                                            |
-| `memory_report_interval`                 | duration    | `5m`                        | `0s` to disable, or any positive duration. | Cadence for daemon process-memory snapshots in logs and `runtime.memory`.                                             |
-| `subprocess_health_escalation_threshold` | integer     | `3`                         | `0` or a positive integer.                 | Failed health checks before AGH moves a task-bound nonterminal run to `needs_attention`; `0` disables the transition. |
+| Field                                    | Type        | Default                     | Valid values                               | Description                                                                                                               |
+| ---------------------------------------- | ----------- | --------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `socket`                                 | string path | `$COMPOZY_HOME/daemon.sock` | Non-empty path. `~` is expanded.           | Unix domain socket used by CLI IPC and the UDS API server.                                                                |
+| `memory_report_interval`                 | duration    | `5m`                        | `0s` to disable, or any positive duration. | Cadence for daemon process-memory snapshots in logs and `runtime.memory`.                                                 |
+| `subprocess_health_escalation_threshold` | integer     | `3`                         | `0` or a positive integer.                 | Failed health checks before Compozy moves a task-bound nonterminal run to `needs_attention`; `0` disables the transition. |
 
 The daemon captures a baseline snapshot at startup, periodic snapshots at this cadence, and one
 final snapshot during joined shutdown. Each `[memory]` log record and the `runtime.memory` item from
-`agh doctor -o json` reports Go heap allocation, heap in-use bytes, goroutines, uptime, and resident
+`compozy doctor -o json` reports Go heap allocation, heap in-use bytes, goroutines, uptime, and resident
 memory when the operating system exposes it. `resident_memory_kind` distinguishes current resident
 memory from the peak value available on macOS. Setting the interval to `0s` starts no sampling
 worker; doctor reports the feature as disabled. Changing this field is restart-required.
 
 `subprocess_health_escalation_threshold` consumes the health verdict exposed by an active ACP
-subprocess. At the configured consecutive-failure count, AGH moves the exact task run bound to that
+subprocess. At the configured consecutive-failure count, Compozy moves the exact task run bound to that
 session from `queued`, `claimed`, `starting`, or `running` to `needs_attention`. Repeated failed
 verdicts do not emit another transition, and a completed, failed, or canceled run remains terminal.
 An unexpected ACP process exit triggers the same transition immediately when the value is positive.
-Set the field to `0` when you want `agh status` and `agh doctor` evidence without task mutation.
+Set the field to `0` when you want `compozy status` and `compozy doctor` evidence without task mutation.
 Changing this field is restart-required.
 
 ## `[http]`
@@ -768,7 +768,7 @@ Changing this field is restart-required.
 Window-manager defaults are global desired state and may be overridden by the same typed fields in
 a workspace config overlay. Every field is live-applied as one validated candidate; an invalid
 field writes/applies nothing and leaves the previous active generation in place. Operators can use
-Settings › Layouts, while agents can use `agh config` or the typed
+Settings › Layouts, while agents can use `compozy config` or the typed
 `GET/PATCH /api/settings/window-manager` surface and inspect config apply history.
 
 | Field                   | Type    | Default             | Valid values                              | Description                                               |
@@ -820,7 +820,7 @@ not a second config source.
 
 `[roles]` is the closed routing roster for daemon-owned background work. It is not an extension
 registry: only the six sections below are accepted. Global `$COMPOZY_HOME/config.toml` values apply to
-every workspace unless the selected workspace's `.agh/config.toml` overlays them.
+every workspace unless the selected workspace's `.compozy/config.toml` overlays them.
 
 | Role                 | Default | Empty `agent` resolution   | Extra policy owned here                                   |
 | -------------------- | ------- | -------------------------- | --------------------------------------------------------- |
@@ -831,7 +831,7 @@ every workspace unless the selected workspace's `.agh/config.toml` overlays them
 | `auto_title`         | on      | invoking context           | none                                                      |
 | `memory_controller`  | on      | not applicable             | call timeout, candidate count, prompt version, output cap |
 
-`coordinator` and `dreaming-curator` are AGH-owned virtual identities. They resolve without an
+`coordinator` and `dreaming-curator` are Compozy-owned virtual identities. They resolve without an
 authored `AGENT.md`, do not appear in public agent catalogs, and are reserved from create, update,
 duplicate, and bundle materialization. Their embedded prompts are fixed; selecting a custom
 `agent` changes routing, not the builtin prompt.
@@ -851,8 +851,8 @@ These fields apply to `coordinator`, `dream`, `checkpoint_summary`, `memory_extr
 | `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                 | Ordered fallback routes; each entry may also set `reasoning_effort`.                                       |
 
 Fallback chains replace as a whole when a workspace overlay declares them. A session-backed
-consumer may advance only before ACP accepts a session; AGH never silently reroutes work after
-acceptance. Immediately before each fallback attempt, AGH emits `role.fallback.used` with the role,
+consumer may advance only before ACP accepts a session; Compozy never silently reroutes work after
+acceptance. Immediately before each fallback attempt, Compozy emits `role.fallback.used` with the role,
 the fallback's one-based `attempt`, provider, and model. The event records an attempt, not success.
 
 ```toml
@@ -894,8 +894,8 @@ session-backed role. Role changes are classified `live` and affect later invocat
 daemon restart. Inspect the resolved roster and per-field provenance with:
 
 ```bash
-agh roles list --workspace <workspace> -o json
-agh roles show auto_title --workspace <workspace> -o json
+compozy roles list --workspace <workspace> -o json
+compozy roles show auto_title --workspace <workspace> -o json
 ```
 
 HTTP and UDS expose the same `GET /api/roles` and `GET /api/roles/{role}` projections. A missing
@@ -916,24 +916,24 @@ authored agent remains visible as `role_agent_not_found`; an unknown role return
 ## `[session.supervision]`
 
 Session supervision keeps long-running prompts observable without turning every heartbeat into a
-stored event. AGH updates session metadata on short heartbeats and only writes durable events for
+stored event. Compozy updates session metadata on short heartbeats and only writes durable events for
 lower-frequency progress, warnings, and timeout classification.
 
-This timeout is based on inactivity, not total runtime. A prompt can run for hours as long as AGH
+This timeout is based on inactivity, not total runtime. A prompt can run for hours as long as Compozy
 continues to observe runtime activity or controlled waiting heartbeats.
 
-| Field                         | Type     | Default | Valid values                  | Description                                                                                   |
-| ----------------------------- | -------- | ------- | ----------------------------- | --------------------------------------------------------------------------------------------- |
-| `activity_heartbeat_interval` | duration | `30s`   | Positive Go duration.         | Cadence for metadata-only activity heartbeats while a prompt is waiting on ACP/provider work. |
-| `progress_notify_interval`    | duration | `10m`   | Zero or positive Go duration. | Cadence for persisted `runtime_progress` events. Zero disables periodic progress events.      |
-| `inactivity_warning_after`    | duration | `15m`   | Zero or positive Go duration. | Idle age before AGH emits one `runtime_warning`. Zero disables the warning.                   |
-| `inactivity_timeout`          | duration | `30m`   | Zero or positive Go duration. | Idle age before AGH cancels the prompt cooperatively. Zero disables inactivity timeout.       |
-| `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration.         | Grace period after timeout cancel before AGH stops the session with stop reason `timeout`.    |
+| Field                         | Type     | Default | Valid values                  | Description                                                                                    |
+| ----------------------------- | -------- | ------- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `activity_heartbeat_interval` | duration | `30s`   | Positive Go duration.         | Cadence for metadata-only activity heartbeats while a prompt is waiting on ACP/provider work.  |
+| `progress_notify_interval`    | duration | `10m`   | Zero or positive Go duration. | Cadence for persisted `runtime_progress` events. Zero disables periodic progress events.       |
+| `inactivity_warning_after`    | duration | `15m`   | Zero or positive Go duration. | Idle age before Compozy emits one `runtime_warning`. Zero disables the warning.                |
+| `inactivity_timeout`          | duration | `30m`   | Zero or positive Go duration. | Idle age before Compozy cancels the prompt cooperatively. Zero disables inactivity timeout.    |
+| `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration.         | Grace period after timeout cancel before Compozy stops the session with stop reason `timeout`. |
 
 ## `[session.compaction]`
 
 `[session.compaction]` bounds daemon-owned compaction of completed persisted turns when an ACP
-usage update reports context pressure. AGH first updates the workspace checkpoint with durable
+usage update reports context pressure. Compozy first updates the workspace checkpoint with durable
 sequence coverage, then marks that exact event range archived. Archived rows remain queryable in
 session events and history; only degraded transcript replay excludes them. The triggering turn is
 never included in its own compaction span.
@@ -945,10 +945,10 @@ never included in its own compaction span.
 | `max_attempts_per_turn` | integer  | `1`     | Positive integer.       | Per-trigger-turn attempt cap, including failed attempts.               |
 | `failure_cooldown`      | duration | `10m`   | Zero or positive value. | Per-session delay after a failed summary, archive, or hook transition. |
 
-These paths are global or workspace desired state and are available through `agh config set` and
+These paths are global or workspace desired state and are available through `compozy config set` and
 the `compozy__config_*` native tools. Structured writes return `lifecycle="restart-required"` and
 `next_action="restart-daemon"`; the running daemon keeps its bound compaction policy until restart.
-Use `agh config apply-history -o json` to inspect the blocked apply record.
+Use `compozy config apply-history -o json` to inspect the blocked apply record.
 
 ## `[agents.soul]`
 
@@ -957,11 +957,11 @@ limits, compact projection budget, and the `enabled` toggle. `SOUL.md` cannot re
 these keys, and forbidden operational fields in `SOUL.md` are rejected. See
 [Agent Soul](/runtime/core/agents/soul).
 
-| Field                      | Type    | Default | Valid values                                   | Description                                                                                                                                |
-| -------------------------- | ------- | ------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `enabled`                  | boolean | `true`  | `true` or `false`                              | When false, AGH stops injecting Soul into prompts and `/agent/context` but keeps inspect/validate/write/delete/history/rollback available. |
-| `max_body_bytes`           | integer | `32768` | Positive integer.                              | Maximum normalized `SOUL.md` body size. Files beyond this fail validation with `oversized_body`.                                           |
-| `context_projection_bytes` | integer | `2048`  | Positive integer; must be `<= max_body_bytes`. | Compact `/agent/context.soul` projection budget.                                                                                           |
+| Field                      | Type    | Default | Valid values                                   | Description                                                                                                                                    |
+| -------------------------- | ------- | ------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                  | boolean | `true`  | `true` or `false`                              | When false, Compozy stops injecting Soul into prompts and `/agent/context` but keeps inspect/validate/write/delete/history/rollback available. |
+| `max_body_bytes`           | integer | `32768` | Positive integer.                              | Maximum normalized `SOUL.md` body size. Files beyond this fail validation with `oversized_body`.                                               |
+| `context_projection_bytes` | integer | `2048`  | Positive integer; must be `<= max_body_bytes`. | Compact `/agent/context.soul` projection budget.                                                                                               |
 
 Workspace overlay merges scalar fields predictably; setting any key zero-clamps to the validated
 positive value or fails with a typed validation error. Disabling at runtime does not clear stored
@@ -976,7 +976,7 @@ authored files express bounded preferences only. See
 
 | Field                              | Type     | Default | Valid values                                         | Description                                                                                                                  |
 | ---------------------------------- | -------- | ------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`                          | boolean  | `true`  | `true` or `false`                                    | When false, AGH disables wake decisions but keeps managed authoring available so operators can repair a broken policy.       |
+| `enabled`                          | boolean  | `true`  | `true` or `false`                                    | When false, Compozy disables wake decisions but keeps managed authoring available so operators can repair a broken policy.   |
 | `max_body_bytes`                   | integer  | `32768` | Positive integer; capped at the runtime hard limit.  | Maximum normalized `HEARTBEAT.md` body size; oversized files fail validation.                                                |
 | `context_projection_bytes`         | integer  | `4096`  | Positive integer; must be `<= max_body_bytes`.       | Compact projection budget for status responses.                                                                              |
 | `min_interval`                     | duration | `5m`    | Positive Go duration; must be `<= default_interval`. | Hard floor for authored `preferences.min_interval`. Files below this are clamped with `heartbeat_preference_clamped`.        |
@@ -990,7 +990,7 @@ authored files express bounded preferences only. See
 | `session_health_hook_min_interval` | duration | `1m`    | Positive Go duration.                                | Minimum interval between `session.health.update.after` hook fires for the same session; metadata-only touches are coalesced. |
 
 `[agents.heartbeat]` does not own task-run lease heartbeat (`task_runs` + `ClaimNextRun` +
-`HeartbeatRunLease`), `[session.supervision]` activity heartbeat, or AGH Network `[network]`
+`HeartbeatRunLease`), `[session.supervision]` activity heartbeat, or Compozy Network `[network]`
 greet presence. Those four authorities remain independent.
 
 `HEARTBEAT.md` snapshot digest covers the normalized body, canonical frontmatter JSON, and a
@@ -1013,15 +1013,15 @@ a bare managed session receives the full availability-gated callable catalog unl
 policy narrows it. The startup prompt and hosted MCP metadata still teach the `search → info →
 invoke` loop through canonical discovery tools.
 
-| Field                      | Type    | Default  | Valid values            | Description                                                                |
-| -------------------------- | ------- | -------- | ----------------------- | -------------------------------------------------------------------------- |
-| `enabled`                  | boolean | `true`   | `true` or `false`.      | When false, disables AGH-owned registry dispatch and hosted MCP exposure.  |
-| `hosted_mcp_enabled`       | boolean | `true`   | `true` or `false`.      | Allows AGH to expose the local hosted MCP proxy for session-visible tools. |
-| `default_max_result_bytes` | integer | `262144` | `0` through `16777216`. | Result cap used when a descriptor does not specify a smaller limit.        |
+| Field                      | Type    | Default  | Valid values            | Description                                                                    |
+| -------------------------- | ------- | -------- | ----------------------- | ------------------------------------------------------------------------------ |
+| `enabled`                  | boolean | `true`   | `true` or `false`.      | When false, disables Compozy-owned registry dispatch and hosted MCP exposure.  |
+| `hosted_mcp_enabled`       | boolean | `true`   | `true` or `false`.      | Allows Compozy to expose the local hosted MCP proxy for session-visible tools. |
+| `default_max_result_bytes` | integer | `262144` | `0` through `16777216`. | Result cap used when a descriptor does not specify a smaller limit.            |
 
 ## `[tools.artifacts]`
 
-When a post-hook, redacted tool result exceeds its effective result cap, AGH retains the canonical
+When a post-hook, redacted tool result exceeds its effective result cap, Compozy retains the canonical
 JSON envelope and returns a bounded preview plus an opaque artifact URI. Retention is global across
 the daemon, while every read remains bound to the workspace that produced the result. The daemon
 snapshots these settings at boot; config changes require a restart.
@@ -1043,9 +1043,9 @@ snapshots these settings at boot; config changes require a restart.
 The daemon snapshots this global setting at boot. A structured config write records desired state
 with `lifecycle="restart-required"`; it does not change a question already waiting for an answer.
 
-| Field     | Type     | Default | Valid values       | Description                                                            |
-| --------- | -------- | ------- | ------------------ | ---------------------------------------------------------------------- |
-| `timeout` | duration | `5m`    | `1s` through `24h` | Maximum wait before AGH returns `{choice:null,text:"",fallback:true}`. |
+| Field     | Type     | Default | Valid values       | Description                                                                |
+| --------- | -------- | ------- | ------------------ | -------------------------------------------------------------------------- |
+| `timeout` | duration | `5m`    | `1s` through `24h` | Maximum wait before Compozy returns `{choice:null,text:"",fallback:true}`. |
 
 ## `[tools.policy]`
 
@@ -1071,10 +1071,10 @@ They can point at local stdio processes or remote HTTP/SSE MCP endpoints.
 | `url`        | string URL   | required for remote | Absolute URL.                      | Remote MCP endpoint for `http` or `sse` transports. Invalid for `stdio`.                                                    |
 | `auth`       | object       | empty               | OAuth 2.1 PKCE settings.           | Remote auth metadata and client settings. Invalid for `stdio`.                                                              |
 | `args`       | string array | empty               | Strings.                           | Process arguments passed to the command.                                                                                    |
-| `env`        | string map   | empty               | String keys and values.            | Literal environment values passed to the MCP server. AGH does not perform shell expansion.                                  |
+| `env`        | string map   | empty               | String keys and values.            | Literal environment values passed to the MCP server. Compozy does not perform shell expansion.                              |
 | `secret_env` | string map   | empty               | `env:NAME` or `vault:mcp/**` refs. | Scope-qualified secret environment bindings for stdio servers. Values are resolved at launch and redacted from diagnostics. |
 
-OAuth-enabled remote servers store only metadata in config. Token material is encrypted in the AGH
+OAuth-enabled remote servers store only metadata in config. Token material is encrypted in the Compozy
 Vault and is exposed through API, settings, CLI, logs, and the agent-callable `compozy__mcp_status` /
 `compozy__mcp_auth_status` tools only as redacted status. Authorization and logout are daemon-mediated
 operator flows available through CLI, HTTP, and UDS. The browser callback is HTTP-only and enabled
@@ -1089,20 +1089,20 @@ only when the daemon binds to a loopback host.
 | `metadata_url`      | string URL   | conditional | Explicit OAuth authorization-server metadata URL.                                                                 |
 | `authorization_url` | string URL   | conditional | Direct authorization endpoint. Pair with `token_url`.                                                             |
 | `token_url`         | string URL   | conditional | Direct token endpoint. Pair with `authorization_url`.                                                             |
-| `revocation_url`    | string URL   | no          | Optional endpoint used by `agh mcp auth logout`.                                                                  |
+| `revocation_url`    | string URL   | no          | Optional endpoint used by `compozy mcp auth logout`.                                                              |
 | `scopes`            | string array | no          | Requested OAuth scopes.                                                                                           |
 
 Configure one of `metadata_url`, `issuer_url`, or both `authorization_url` and `token_url`, then
 authenticate with:
 
 ```bash
-agh mcp authorize remote-docs
-agh mcp authorize remote-docs --manual
-agh mcp auth login remote-docs
-agh mcp auth status remote-docs
-agh mcp auth logout remote-docs
+compozy mcp authorize remote-docs
+compozy mcp authorize remote-docs --manual
+compozy mcp auth login remote-docs
+compozy mcp auth status remote-docs
+compozy mcp auth logout remote-docs
 
-agh mcp authorize remote-docs --scope workspace --workspace <workspace-id>
+compozy mcp authorize remote-docs --scope workspace --workspace <workspace-id>
 ```
 
 `authorize` and `auth login` use the same daemon-owned PKCE session. Both print the live
@@ -1118,7 +1118,7 @@ tools are omitted from callable discovery while status/probe output explains the
 For workspace-scoped servers, five consecutive confirmed permanent discovery failures mark the MCP
 runtime as `dead`. Settings, status, doctor, and `compozy__mcp_status` expose the redacted diagnostic;
 last-known tool descriptors remain visible through `compozy__tool_info` with reason `backend_dead`
-during the same daemon lifetime instead of disappearing from the catalog. AGH suppresses ordinary
+during the same daemon lifetime instead of disappearing from the catalog. Compozy suppresses ordinary
 attempts while the mark is active. After 60 seconds, the next runtime MCP status or discovery access
 may run one recovery probe; a successful probe clears the mark without restarting the daemon.
 Doctor reads the durable mark without starting that probe. Recovery is automatic, so there is no
@@ -1131,24 +1131,24 @@ Provider keys override built-ins with the same name or create a custom provider.
 `goose`, `hermes`, `junie`, `kimi-cli`, `openclaw`, `openhands`, `qoder`, `qwen-code`, `pi`,
 `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai`, `minimax`, `mistral`, and `groq`.
 
-| Field                 | Type                        | Default                                                                           | Valid values                                               | Description                                                                                                                    |
-| --------------------- | --------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `command`             | string                      | Built-in command or empty for custom providers.                                   | Required after built-in plus override resolution.          | ACP launch command for this provider.                                                                                          |
-| `display_name`        | string                      | Built-in label or empty.                                                          | Any string.                                                | Operator-facing label shown in settings and provider pickers.                                                                  |
-| `models`              | table                       | Built-in defaults or empty.                                                       | Nested model config block (see below).                     | Pre-session model defaults, curated metadata, and optional discovery wiring.                                                   |
-| `harness`             | string                      | `acp` unless a built-in sets `pi_acp`.                                            | `acp`, `pi_acp`.                                           | Launch strategy. `pi_acp` routes the provider through Pi's ACP adapter.                                                        |
-| `runtime_provider`    | string                      | Provider key.                                                                     | Harness-specific provider id.                              | Downstream provider id used by Pi and other harnesses.                                                                         |
-| `transport`           | string                      | empty.                                                                            | Harness-specific string.                                   | Optional Pi models override transport/API family.                                                                              |
-| `base_url`            | string                      | empty.                                                                            | URL string.                                                | Optional Pi models override base URL for custom gateways.                                                                      |
-| `auth_mode`           | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.                      | Declares whether auth belongs to the provider CLI, AGH secret binding, or no auth.                                             |
-| `none_security`       | string                      | `local_transport`.                                                                | `local_transport`, `external_identity`, `public_readonly`. | Safety rationale required for `auth_mode = "none"`.                                                                            |
-| `env_policy`          | string                      | `filtered`.                                                                       | `filtered`, `isolated`.                                    | Controls which daemon environment variables the provider subprocess inherits.                                                  |
-| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                                    | Controls whether native CLI state comes from the operator home or an AGH provider home.                                        |
-| `auth_status_command` | string                      | empty.                                                                            | Shell-style command string.                                | Optional status probe run by `agh provider auth status <provider>`.                                                            |
-| `auth_login_command`  | string                      | empty unless a built-in provider defines one.                                     | Shell-style command string.                                | Optional login command surfaced by `agh provider auth login <provider>`; isolated homes print the required environment prefix. |
-| `session_mcp`         | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                           | Enables AGH session MCP injection for providers that support it.                                                               |
-| `credential_slots`    | array                       | empty.                                                                            | See below.                                                 | Bound secret refs injected into provider subprocess environment variables at launch.                                           |
-| `mcp_servers`         | array of MCP server objects | empty.                                                                            | Same shape as `[[mcp_servers]]`.                           | Provider-specific MCP servers merged after top-level config and before agent MCP servers.                                      |
+| Field                 | Type                        | Default                                                                           | Valid values                                               | Description                                                                                                                        |
+| --------------------- | --------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `command`             | string                      | Built-in command or empty for custom providers.                                   | Required after built-in plus override resolution.          | ACP launch command for this provider.                                                                                              |
+| `display_name`        | string                      | Built-in label or empty.                                                          | Any string.                                                | Operator-facing label shown in settings and provider pickers.                                                                      |
+| `models`              | table                       | Built-in defaults or empty.                                                       | Nested model config block (see below).                     | Pre-session model defaults, curated metadata, and optional discovery wiring.                                                       |
+| `harness`             | string                      | `acp` unless a built-in sets `pi_acp`.                                            | `acp`, `pi_acp`.                                           | Launch strategy. `pi_acp` routes the provider through Pi's ACP adapter.                                                            |
+| `runtime_provider`    | string                      | Provider key.                                                                     | Harness-specific provider id.                              | Downstream provider id used by Pi and other harnesses.                                                                             |
+| `transport`           | string                      | empty.                                                                            | Harness-specific string.                                   | Optional Pi models override transport/API family.                                                                                  |
+| `base_url`            | string                      | empty.                                                                            | URL string.                                                | Optional Pi models override base URL for custom gateways.                                                                          |
+| `auth_mode`           | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.                      | Declares whether auth belongs to the provider CLI, Compozy secret binding, or no auth.                                             |
+| `none_security`       | string                      | `local_transport`.                                                                | `local_transport`, `external_identity`, `public_readonly`. | Safety rationale required for `auth_mode = "none"`.                                                                                |
+| `env_policy`          | string                      | `filtered`.                                                                       | `filtered`, `isolated`.                                    | Controls which daemon environment variables the provider subprocess inherits.                                                      |
+| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                                    | Controls whether native CLI state comes from the operator home or an Compozy provider home.                                        |
+| `auth_status_command` | string                      | empty.                                                                            | Shell-style command string.                                | Optional status probe run by `compozy provider auth status <provider>`.                                                            |
+| `auth_login_command`  | string                      | empty unless a built-in provider defines one.                                     | Shell-style command string.                                | Optional login command surfaced by `compozy provider auth login <provider>`; isolated homes print the required environment prefix. |
+| `session_mcp`         | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                           | Enables Compozy session MCP injection for providers that support it.                                                               |
+| `credential_slots`    | array                       | empty.                                                                            | See below.                                                 | Bound secret refs injected into provider subprocess environment variables at launch.                                               |
+| `mcp_servers`         | array of MCP server objects | empty.                                                                            | Same shape as `[[mcp_servers]]`.                           | Provider-specific MCP servers merged after top-level config and before agent MCP servers.                                          |
 
 The flat keys `default_model`, `supported_models`, and `supports_reasoning_effort` are no longer
 accepted. Config that still sets them is rejected with a deterministic hard-cut error citing the
@@ -1163,7 +1163,7 @@ rows preserve that canonical value.
 The old `providers.<id>.aliases` config key was removed for v1. Reference providers by canonical
 name only; config files that set `aliases = [...]` under a provider are rejected during load.
 
-`auth_mode = "none"` means `No auth required` and is only valid when the provider needs no AGH or
+`auth_mode = "none"` means `No auth required` and is only valid when the provider needs no Compozy or
 provider-owned credential. Set `none_security` to state why that is safe: local-only transport,
 external identity enforcement, or public read-only access. No-auth providers cannot define
 `credential_slots`, `auth_status_command`, or `auth_login_command`; those keys are rejected during
@@ -1222,7 +1222,7 @@ on builtin/config rows plus the optional `models.dev` enrichment.
 Top-level `[model_catalog.sources.models_dev]` controls the cross-provider `models.dev` enrichment
 source documented in the next section.
 
-`models.reasoning.apply = "none"` means AGH does not apply a reasoning level for the provider; it
+`models.reasoning.apply = "none"` means Compozy does not apply a reasoning level for the provider; it
 is different from explicit effort `none`. For a custom provider with provider-controlled reasoning:
 
 ```toml
@@ -1230,12 +1230,12 @@ is different from explicit effort `none`. For a custom provider with provider-co
 apply = "none"
 ```
 
-Selectable effort lists come only from config/catalog/live truth. AGH does not infer them from GPT
+Selectable effort lists come only from config/catalog/live truth. Compozy does not infer them from GPT
 or Claude name prefixes, and it never substitutes the provider default for an unknown model ID.
 
 `env_policy = "filtered"` preserves ordinary operator context such as `PATH`, `HOME`, and locale
 while stripping secret-shaped daemon variables before launch. `env_policy = "isolated"` starts from
-a small operational allowlist and then adds only AGH session metadata, provider-home variables, and
+a small operational allowlist and then adds only Compozy session metadata, provider-home variables, and
 explicit `bound_secret` slots. `home_policy = "operator"` lets native CLIs reuse existing login
 state. `home_policy = "isolated"` creates `$COMPOZY_HOME/providers/<provider>` with private
 permissions, sets `PROVIDER_HOME`, XDG directories, and known provider-specific home variables such
@@ -1256,8 +1256,8 @@ required = true
 ```
 
 `secret_ref` supports `env:NAME` for operator-managed environment variables and
-`vault:providers/<provider>/<slot>` for AGH-managed encrypted provider credentials written through
-the settings API, `agh vault`, or web provider editor. The `vault:` form accepts lowercase
+`vault:providers/<provider>/<slot>` for Compozy-managed encrypted provider credentials written through
+the settings API, `compozy vault`, or web provider editor. The `vault:` form accepts lowercase
 provider/slot identifiers only, with letters, numbers, hyphens, underscores, or dots; arbitrary
 vault paths are not valid provider credential refs.
 
@@ -1265,7 +1265,7 @@ The slot `required` flag is enforced at session start for both `env:` and `vault
 `credential_slots` are valid only when `auth_mode = "bound_secret"`. Direct ACP built-ins and the
 direct `pi` provider use `native_cli` by default and do not preflight provider API keys. Pi-backed
 API-key wrappers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral,
-and Groq default to AGH-managed `bound_secret` slots while AGH runs Pi under the hood.
+and Groq default to Compozy-managed `bound_secret` slots while Compozy runs Pi under the hood.
 
 | Built-in            | Harness  | Runtime provider    | `models.default`            | Auth mode      | Credential target    |
 | ------------------- | -------- | ------------------- | --------------------------- | -------------- | -------------------- |
@@ -1317,7 +1317,7 @@ timeout = "10s"
 ```
 
 `models.dev` rows write provider-scoped status: a single `models.dev` refresh records one
-`(source_id="models_dev", provider_id)` status row per AGH provider mapped, never a global
+`(source_id="models_dev", provider_id)` status row per Compozy provider mapped, never a global
 empty-provider sentinel. Disabled sources still expose status but skip outbound calls. Refresh
 lifetime is daemon-owned: requests trigger refreshes but the daemon detaches the work, applies an
 explicit deadline, and joins outstanding refresh workers during shutdown.
@@ -1328,9 +1328,9 @@ concurrent refresh requests for the same provider coalesce behind the in-flight 
 
 ## `[marketplace.catalog]`
 
-AGH fetches the curated MCP server, extension, and skill documents from this base URL. Each kind is
+Compozy fetches the curated MCP server, extension, and skill documents from this base URL. Each kind is
 validated independently and projected into the global database. If a fetch fails after a successful
-projection, AGH keeps serving the prior rows with stale status instead of replacing them with an
+projection, Compozy keeps serving the prior rows with stale status instead of replacing them with an
 invalid or incomplete document.
 
 This section is global-only because the projection and refresh service are global. Put it in
@@ -1344,7 +1344,7 @@ This section is global-only because the projection and refresh service are globa
 
 ```toml
 [marketplace.catalog]
-base_url = "https://catalog.example.com/agh"
+base_url = "https://catalog.example.com/compozy"
 ttl = "30m"
 timeout = "5s"
 ```
@@ -1354,16 +1354,16 @@ the next feed fetch reads the applied values. Reconcile and inspect the active g
 write:
 
 ```bash
-agh config set marketplace.catalog.ttl 30m -o json
-agh config reload -o json
-agh config apply-history --limit 5 -o json
+compozy config set marketplace.catalog.ttl 30m -o json
+compozy config reload -o json
+compozy config apply-history --limit 5 -o json
 ```
 
 Agent-side config mutation is narrower than the operator CLI. `compozy__config_set` accepts
 `marketplace.catalog.ttl` and `marketplace.catalog.timeout` with the same duration validation and
 live lifecycle. It rejects `marketplace.catalog.base_url` with
 `config_trust_root_forbidden`; changing the feed root remains an operator action through
-`agh config set`. Both surfaces require global scope for every `marketplace.catalog.*` write.
+`compozy config set`. Both surfaces require global scope for every `marketplace.catalog.*` write.
 
 ## `[observability]`
 
@@ -1383,7 +1383,7 @@ live lifecycle. It rejects `marketplace.catalog.base_url` with
 
 ## `[log]`
 
-The daemon writes structured logs to `$COMPOZY_HOME/logs/agh.log`. Rotation is owned by the daemon's
+The daemon writes structured logs to `$COMPOZY_HOME/logs/compozy.log`. Rotation is owned by the daemon's
 LogSink, so operators do not need an external `logrotate` rule for the default file.
 
 Changing any `[log]` key is `restart-required` in v1. The daemon applies the new rotation
@@ -1392,7 +1392,7 @@ writer on the next start.
 | Field              | Type    | Default | Valid values                     | Description                                                           |
 | ------------------ | ------- | ------- | -------------------------------- | --------------------------------------------------------------------- |
 | `level`            | string  | `info`  | `debug`, `info`, `warn`, `error` | Structured daemon log level.                                          |
-| `max_size_mb`      | integer | `10`    | Positive integer.                | Rotate `agh.log` when the active file would exceed this size.         |
+| `max_size_mb`      | integer | `10`    | Positive integer.                | Rotate `compozy.log` when the active file would exceed this size.     |
 | `max_backups`      | integer | `5`     | Zero or positive integer.        | Maximum rotated backups to keep. `0` disables backup count retention. |
 | `max_age_days`     | integer | `30`    | Zero or positive integer.        | Delete backups older than this many days. `0` disables age retention. |
 | `compress_backups` | boolean | `false` | `true` or `false`                | Compress rotated backups with gzip after rotation.                    |
@@ -1404,7 +1404,7 @@ writer on the next start.
 | `enabled` | boolean | `true`  | `true` or `false` | Enables additive heuristics for likely credentials in agent-visible content and runtime logs. |
 
 The daemon snapshots this value during boot, so changing `redact.enabled` is restart-required.
-When enabled, AGH redacts matching content before appending it to the global event ledger or a
+When enabled, Compozy redacts matching content before appending it to the global event ledger or a
 session's `events.db`; SSE, history, and replay consume that stored redacted form. Structured
 correlation fields such as session and run IDs, hashes, digests, and fingerprints remain intact.
 
@@ -1413,7 +1413,7 @@ or secrets registered by the Vault and other runtime subsystems. Those protectio
 authoritative. The heuristic is an additional defense for unregistered provider keys and similar
 credentials.
 
-Manage the setting through General Settings, `agh config set redact.enabled <true|false> -o json`,
+Manage the setting through General Settings, `compozy config set redact.enabled <true|false> -o json`,
 or the live `compozy__config_set` descriptor. These writes return
 `lifecycle="restart-required"` and `next_action="restart-daemon"`; they do not change the running
 process.
@@ -1495,12 +1495,12 @@ survives.
 ## `[memory.extractor]`
 
 The extractor consumes the `session.message_persisted` hook and writes structured proposals via the
-controller. `inbox_path` and `dlq_path` are validation-locked to the canonical AGH-managed
+controller. `inbox_path` and `dlq_path` are validation-locked to the canonical Compozy-managed
 locations.
 
 | Field                | Type     | Default                                           | Valid values          | Description                                                                                                       |
 | -------------------- | -------- | ------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `mode`               | string   | `post_message`                                    | `post_message`        | Extraction mode. AGH currently supports only post-message extraction.                                             |
+| `mode`               | string   | `post_message`                                    | `post_message`        | Extraction mode. Compozy currently supports only post-message extraction.                                         |
 | `throttle_turns`     | integer  | `1`                                               | Positive integer.     | Minimum same-session queued turns to coalesce before launching another extraction; drain flushes pending content. |
 | `deadline`           | duration | `60s`                                             | Positive Go duration. | Per-extraction deadline before the runtime drops the candidate.                                                   |
 | `sandbox_inbox_only` | boolean  | `true`                                            | `true` or `false`     | Restricts extractor writes to `_inbox/` until the controller accepts them.                                        |
@@ -1601,10 +1601,10 @@ fallback (see [Extensions](/runtime/core/extensions)).
 
 ## `[memory.workspace]`
 
-| Field         | Type    | Default                           | Valid values    | Description                                                                             |
-| ------------- | ------- | --------------------------------- | --------------- | --------------------------------------------------------------------------------------- |
-| `toml_path`   | string  | `<workspace>/.agh/workspace.toml` | Daemon-managed. | Read-only display field. Workspace identity always lives at this path.                  |
-| `auto_create` | boolean | `true`                            | `true`/`false`  | Auto-create `<workspace>/.agh/workspace.toml` on first daemon touch of a new workspace. |
+| Field         | Type    | Default                               | Valid values    | Description                                                                                 |
+| ------------- | ------- | ------------------------------------- | --------------- | ------------------------------------------------------------------------------------------- |
+| `toml_path`   | string  | `<workspace>/.compozy/workspace.toml` | Daemon-managed. | Read-only display field. Workspace identity always lives at this path.                      |
+| `auto_create` | boolean | `true`                                | `true`/`false`  | Auto-create `<workspace>/.compozy/workspace.toml` on first daemon touch of a new workspace. |
 
 ## `[skills]`
 
@@ -1637,7 +1637,7 @@ If `enabled = false`, skill polling and marketplace validation are skipped.
 
 `extensions.marketplace.allow_unverified` is the only live path in this key family; the registry
 and base URL remain restart-required under the broader `extensions.*` lifecycle. Verify the exact
-result through `agh config reload -o json` and `agh config apply-history -o json`. A policy-blocked
+result through `compozy config reload -o json` and `compozy config apply-history -o json`. A policy-blocked
 side-load reports `extension_unverified_policy_blocked` and points to `/settings/extensions`.
 
 ## `[automation]`
@@ -1656,7 +1656,7 @@ side-load reports `extension_unverified_policy_blocked` and points to `/settings
 | `pending_cap` | integer | `5`     | Positive integer. | Maximum unresolved suggestions stored for one workspace. |
 
 Changes under `automation.suggestions.*` require a daemon restart. Agents can write the desired
-value with `agh config set automation.suggestions.pending_cap <value>` and inspect the resulting
+value with `compozy config set automation.suggestions.pending_cap <value>` and inspect the resulting
 restart action through structured config apply history.
 
 ## `[[automation.jobs]]`
@@ -1706,7 +1706,7 @@ Triggers are appended by overlays; they do not replace earlier triggers with the
 | `webhook_secret_ref` | string     | empty                                                              | Required when `event = "webhook"`; must be `env:NAME` or `vault:automation/...`; empty otherwise. | Secret ref used to validate webhook requests. |
 
 See [Vault](/runtime/core/configuration/vault) for the CLI, HTTP, UDS, web, and session-scoped
-surfaces that store and inspect encrypted AGH-managed secret refs.
+surfaces that store and inspect encrypted Compozy-managed secret refs.
 
 ## `[loops.defaults.*]`
 
@@ -1730,7 +1730,7 @@ revision defaults, but it cannot loosen them past the hard runtime ceilings.
 | `model_defaults.judge`  | empty            | empty         | string.                   | Default model for `agent-judge` criteria that omit `model`.                 |
 | `fan_out_width`         | `4`              | `2`           | `0` through `64`.         | Fan-out width seed default for new runs.                                    |
 
-These paths are mutable through `agh config set` and the native config tools. Writes return
+These paths are mutable through `compozy config set` and the native config tools. Writes return
 `lifecycle="restart-required"` because the daemon does not rewrite active runs after defaults change.
 New starts read the resolved defaults after the daemon reloads its config state; live runs keep the
 effective config materialized at start.
@@ -1739,7 +1739,7 @@ effective config materialized at start.
 
 `[goals]` defines global or workspace defaults for newly started Goals. Its global configuration
 also controls the daemon-wide durable Goal session-event relay. All four paths are mutable through
-`agh config set` and the native config tools. Writes return `lifecycle="restart-required"`;
+`compozy config set` and the native config tools. Writes return `lifecycle="restart-required"`;
 restarting activates Goal defaults for later starts and applies global relay settings without
 rewriting active Runs or their checkpoints. Workspace overlays affect Goal defaults only because
 one relay serves every workspace in the daemon.
@@ -1755,7 +1755,7 @@ one relay serves every workspace in the daemon.
 the ratio of an existing Run, including after daemon restart or a later generation.
 
 Goal defaults follow the normal config precedence: built-in defaults, then global
-`$COMPOZY_HOME/config.toml`, then the resolved workspace's `.agh/config.toml`. The Run start resolves
+`$COMPOZY_HOME/config.toml`, then the resolved workspace's `.compozy/config.toml`. The Run start resolves
 that effective config once and persists the selected values. Later config generations apply only to
 later starts.
 
@@ -1768,10 +1768,10 @@ The CLI and native-tool mutation allowlists contain exactly these Goal paths:
 
 ```bash
 # Global desired state
-agh config set goals.max_turns 30 -o json
+compozy config set goals.max_turns 30 -o json
 
 # Workspace desired state
-agh config set goals.context_nudge_ratio 0.75 \
+compozy config set goals.context_nudge_ratio 0.75 \
   --scope workspace \
   --workspace /absolute/path/to/workspace \
   -o json
@@ -1813,10 +1813,10 @@ overlay sets a value.
 | `max_active_runs_per_workspace` | integer  | `16`    | Zero or positive integer.                                             | Maximum claimed, starting, or running worker and coordinator runs with live leases per workspace. Zero disables the limit; global and Network wake runs are exempt. |
 | `action_run_timeout`            | duration | `30m`   | Positive Go duration up to `24h` with whole-second precision.         | Wall-clock deadline inherited by action nodes without an explicit timeout. An explicit node timeout remains authoritative.                                          |
 | `network_status_queue_size`     | integer  | `64`    | Positive integer.                                                     | Queue depth for network-origin task status observer events.                                                                                                         |
-| `network_status_timeout`        | duration | `5s`    | Positive Go duration with whole-second precision.                     | Per-event timeout for summarizing task run status back to the AGH Network origin thread.                                                                            |
+| `network_status_timeout`        | duration | `5s`    | Positive Go duration with whole-second precision.                     | Per-event timeout for summarizing task run status back to the Compozy Network origin thread.                                                                        |
 
 `[task.orchestration]` keys are agent-mutable through the existing config tool surface
-(`agh config set` and the `compozy__config_*` native tools). Workspace overlays apply through the
+(`compozy config set` and the `compozy__config_*` native tools). Workspace overlays apply through the
 existing config loader without any special handling.
 
 Task orchestration writes are restart-required because the task runtime snapshots these bounds at
@@ -1874,7 +1874,7 @@ defaults and the bounded reviewer evidence enforced by `task.Service.RecordRunRe
 | `failure_policy`                | string   | `block_task` | `block_task`, `fail_task`                         | What happens when review attempts/rounds are exhausted: block the task awaiting operator action, or terminally fail it. |
 
 Workspace overlays may tighten or relax these values per workspace through
-`<workspace>/.agh/config.toml`. Unknown keys still fail validation.
+`<workspace>/.compozy/config.toml`. Unknown keys still fail validation.
 
 ## `[task.recovery]`
 
@@ -2001,7 +2001,7 @@ Removed keys are rejected as unknown: `network.default_channel`, `network.port`,
 `network.delivery_structured_body_max_bytes`.
 
 Workspace coordination is not a TOML key. Manage its future-run default with
-`agh network coordination status|enable|disable` or the equivalent HTTP/UDS surface.
+`compozy network coordination status|enable|disable` or the equivalent HTTP/UDS surface.
 
 ## Related Pages
 

@@ -6,7 +6,7 @@ import {
   SettingsGroup,
   SettingsNumberInput,
 } from "@/systems/settings";
-import { Button, Input, Spinner } from "@agh/ui";
+import { Button, Input, Spinner } from "@compozy/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
 interface DreamSectionProps extends ValidatedSectionProps {

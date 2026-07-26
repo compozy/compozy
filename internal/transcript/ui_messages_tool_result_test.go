@@ -181,7 +181,7 @@ func TestToUIMessagesToolResultContract(t *testing.T) {
 					`{"sessionUpdate":"tool_call_update","status":"completed",` +
 						`"content":[{"type":"content","content":{"type":"text","text":"bounded preview"}}],` +
 						`"rawOutput":{"preview":"bounded preview","truncated":true,` +
-						`"artifacts":[{"uri":"agh://tool-artifacts/art_abc"}]}}`,
+						`"artifacts":[{"uri":"compozy://tool-artifacts/art_abc"}]}}`,
 				),
 			}),
 		}

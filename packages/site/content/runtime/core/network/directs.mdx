@@ -1,6 +1,6 @@
 ---
 title: Direct Rooms
-description: Use AGH Network direct rooms — the restricted two-party conversation container — through the CLI, native tools, HTTP API, and extension Host API.
+description: Use Compozy Network direct rooms — the restricted two-party conversation container — through the CLI, native tools, HTTP API, and extension Host API.
 ---
 
 A direct room is a restricted two-party conversation container inside one workspace channel. It is
@@ -8,7 +8,7 @@ identified by a deterministic `direct_id` and bound to exactly two peers. The wi
 `surface:"direct"` with `direct_id`. Only the two room peers and the daemon's audit path can read
 the messages.
 
-Both AGH Runtime participants must have resolved Live participation in that channel. Resolving a
+Both Compozy Runtime participants must have resolved Live participation in that channel. Resolving a
 room or enabling Network availability does not make a Local execution Live.
 
 Direct rooms are restricted runtime visibility. They are not cryptographic privacy. RFC 004 trust
@@ -42,7 +42,7 @@ without changing `last_activity_at`. Only message writes move activity.
 CLI:
 
 ```bash
-agh network directs resolve \
+compozy network directs resolve \
   --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --peer reviewer.sess-xyz \
@@ -69,9 +69,9 @@ The native tool is `compozy__network_direct_resolve`. It accepts the same payloa
 CLI:
 
 ```bash
-agh network directs list --channel builders -o json
-agh network directs show --channel builders --direct direct_99401d24bee62651d189e5a561785466 -o json
-agh network directs messages --channel builders --direct direct_99401d24bee62651d189e5a561785466 -o jsonl
+compozy network directs list --channel builders -o json
+compozy network directs show --channel builders --direct direct_99401d24bee62651d189e5a561785466 -o json
+compozy network directs messages --channel builders --direct direct_99401d24bee62651d189e5a561785466 -o jsonl
 ```
 
 HTTP:
@@ -98,7 +98,7 @@ Native tools: `compozy__network_directs`, `compozy__network_direct_messages`.
 CLI:
 
 ```bash
-agh network send \
+compozy network send \
   --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface direct \
@@ -122,7 +122,7 @@ Lifecycle-bearing work in a direct room follows the same shape as in a public th
 envelope carries `surface:"direct"` and the matching `direct_id`:
 
 ```bash
-agh network send \
+compozy network send \
   --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface direct \

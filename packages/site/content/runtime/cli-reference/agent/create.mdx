@@ -1,24 +1,24 @@
 ---
-title: "agh agent create"
+title: "compozy agent create"
 description: "Create a global or workspace-local agent definition"
 ---
 
-## agh agent create
+## compozy agent create
 
 Create a global or workspace-local agent definition
 
 ### Synopsis
 
-Create a global or workspace-local agent definition through a running AGH daemon.
+Create a global or workspace-local agent definition through a running Compozy daemon.
 
 ```
-agh agent create <name> [flags]
+compozy agent create <name> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent create pricing_strategist \
+  compozy agent create pricing_strategist \
     --workspace ~/dev/ad8 \
     --provider claude \
     --model claude-sonnet-5 \
@@ -55,7 +55,7 @@ agh agent create <name> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -65,5 +65,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent create <name> -o json
+compozy agent create <name> -o json
 ```

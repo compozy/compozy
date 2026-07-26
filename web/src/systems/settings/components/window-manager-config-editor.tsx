@@ -1,4 +1,4 @@
-import { Button, Pill, Slider } from "@agh/ui";
+import { Button, Pill, Slider } from "@compozy/ui";
 
 import type { WindowManagerConfigEditorModel } from "../hooks/use-window-manager-config-editor";
 import { useWindowManagerShortcutRecorder } from "../hooks/use-window-manager-shortcut-recorder";

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { cn, Input, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { cn, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
 
 import type { CronFrequency, CronModel } from "../../lib/cron-engine";
 import { formatClock, SCHEDULE_CONSTANTS } from "../../lib/cron-engine";

@@ -6,78 +6,83 @@ import {
   type ResponseResolverInfo,
 } from "openapi-msw";
 
-import type { paths as aghPaths } from "@/generated/agh-openapi";
+import type { paths as compozyPaths } from "@/generated/compozy-openapi";
 
-export const aghApiMock = createOpenApiHttp<aghPaths>({ baseUrl: "*" });
+export const compozyApiMock = createOpenApiHttp<compozyPaths>({ baseUrl: "*" });
 
-export type AghApiMockMethod = "delete" | "get" | "patch" | "post" | "put";
+export type CompozyApiMockMethod = "delete" | "get" | "patch" | "post" | "put";
 
-interface AghApiMockHandlersByMethod {
-  delete: typeof aghApiMock.delete;
-  get: typeof aghApiMock.get;
-  patch: typeof aghApiMock.patch;
-  post: typeof aghApiMock.post;
-  put: typeof aghApiMock.put;
+interface CompozyApiMockHandlersByMethod {
+  delete: typeof compozyApiMock.delete;
+  get: typeof compozyApiMock.get;
+  patch: typeof compozyApiMock.patch;
+  post: typeof compozyApiMock.post;
+  put: typeof compozyApiMock.put;
 }
 
-export type AghApiPathForMethod<Method extends AghApiMockMethod> = PathsFor<
-  AghApiMockHandlersByMethod[Method]
+export type CompozyApiPathForMethod<Method extends CompozyApiMockMethod> = PathsFor<
+  CompozyApiMockHandlersByMethod[Method]
 >;
 
-export type AghApiRequestBodyForMethod<
-  Method extends AghApiMockMethod,
-  Path extends AghApiPathForMethod<Method>,
-> = RequestBodyFor<AghApiMockHandlersByMethod[Method], Path>;
+export type CompozyApiRequestBodyForMethod<
+  Method extends CompozyApiMockMethod,
+  Path extends CompozyApiPathForMethod<Method>,
+> = RequestBodyFor<CompozyApiMockHandlersByMethod[Method], Path>;
 
-export type AghApiResponseBodyForMethod<
-  Method extends AghApiMockMethod,
-  Path extends AghApiPathForMethod<Method>,
-> = ResponseBodyFor<AghApiMockHandlersByMethod[Method], Path>;
+export type CompozyApiResponseBodyForMethod<
+  Method extends CompozyApiMockMethod,
+  Path extends CompozyApiPathForMethod<Method>,
+> = ResponseBodyFor<CompozyApiMockHandlersByMethod[Method], Path>;
 
-export type AghApiResponseHelperFor<
-  Method extends AghApiMockMethod,
-  Path extends AghApiPathForMethod<Method>,
-> = ResponseResolverInfo<aghPaths, Path, Method>["response"];
+export type CompozyApiResponseHelperFor<
+  Method extends CompozyApiMockMethod,
+  Path extends CompozyApiPathForMethod<Method>,
+> = ResponseResolverInfo<compozyPaths, Path, Method>["response"];
 
-type AghApiOperationFor<
-  Method extends AghApiMockMethod,
-  Path extends AghApiPathForMethod<Method>,
-> = Path extends keyof aghPaths
-  ? Method extends keyof aghPaths[Path]
-    ? NonNullable<aghPaths[Path][Method]>
+type CompozyApiOperationFor<
+  Method extends CompozyApiMockMethod,
+  Path extends CompozyApiPathForMethod<Method>,
+> = Path extends keyof compozyPaths
+  ? Method extends keyof compozyPaths[Path]
+    ? NonNullable<compozyPaths[Path][Method]>
     : never
   : never;
 
-export type AghApiResponsesFor<
-  Method extends AghApiMockMethod,
-  Path extends AghApiPathForMethod<Method>,
-> = AghApiOperationFor<Method, Path> extends { responses: infer Responses } ? Responses : never;
+export type CompozyApiResponsesFor<
+  Method extends CompozyApiMockMethod,
+  Path extends CompozyApiPathForMethod<Method>,
+> = CompozyApiOperationFor<Method, Path> extends { responses: infer Responses } ? Responses : never;
 
-export type AghApiPathForMethodStatus<
-  Method extends AghApiMockMethod,
+export type CompozyApiPathForMethodStatus<
+  Method extends CompozyApiMockMethod,
   Status extends PropertyKey,
 > = {
-  [Path in AghApiPathForMethod<Method>]: Status extends keyof AghApiResponsesFor<Method, Path>
+  [Path in CompozyApiPathForMethod<Method>]: Status extends keyof CompozyApiResponsesFor<
+    Method,
+    Path
+  >
     ? Path
     : never;
-}[AghApiPathForMethod<Method>];
+}[CompozyApiPathForMethod<Method>];
 
-type AghApiContentFor<
-  Method extends AghApiMockMethod,
-  Path extends AghApiPathForMethod<Method>,
-  Status extends keyof AghApiResponsesFor<Method, Path>,
-> = AghApiResponsesFor<Method, Path>[Status] extends { content: infer Content } ? Content : never;
+type CompozyApiContentFor<
+  Method extends CompozyApiMockMethod,
+  Path extends CompozyApiPathForMethod<Method>,
+  Status extends keyof CompozyApiResponsesFor<Method, Path>,
+> = CompozyApiResponsesFor<Method, Path>[Status] extends { content: infer Content }
+  ? Content
+  : never;
 
 type JsonMediaType = `${string}/${string}json`;
 
-export type AghApiJsonResponseFor<
-  Method extends AghApiMockMethod,
-  Path extends AghApiPathForMethod<Method>,
-  Status extends keyof AghApiResponsesFor<Method, Path>,
-> = AghApiContentFor<Method, Path, Status>[keyof AghApiContentFor<Method, Path, Status> &
+export type CompozyApiJsonResponseFor<
+  Method extends CompozyApiMockMethod,
+  Path extends CompozyApiPathForMethod<Method>,
+  Status extends keyof CompozyApiResponsesFor<Method, Path>,
+> = CompozyApiContentFor<Method, Path, Status>[keyof CompozyApiContentFor<Method, Path, Status> &
   JsonMediaType];
 
-export type AghApiOkJsonResponseFor<
-  Method extends AghApiMockMethod,
-  Path extends AghApiPathForMethod<Method>,
-> = AghApiJsonResponseFor<Method, Path, 200 & keyof AghApiResponsesFor<Method, Path>>;
+export type CompozyApiOkJsonResponseFor<
+  Method extends CompozyApiMockMethod,
+  Path extends CompozyApiPathForMethod<Method>,
+> = CompozyApiJsonResponseFor<Method, Path, 200 & keyof CompozyApiResponsesFor<Method, Path>>;

@@ -2,7 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { AtSign, MessagesSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Item, ItemContent, ItemMedia, SidebarSectionLabel, Skeleton, SkeletonRows } from "@agh/ui";
+import {
+  Item,
+  ItemContent,
+  ItemMedia,
+  SidebarSectionLabel,
+  Skeleton,
+  SkeletonRows,
+} from "@compozy/ui";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkRecentEntry } from "../../types";

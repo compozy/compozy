@@ -1,13 +1,13 @@
 ---
 title: Agent Definitions
-description: The current AGENT.md format, discovery order, runtime defaults, and parser edge cases used by AGH.
+description: The current AGENT.md format, discovery order, runtime defaults, and parser edge cases used by Compozy.
 ---
 
-An agent definition tells AGH which agent to start and what startup prompt to give it. The
+An agent definition tells Compozy which agent to start and what startup prompt to give it. The
 definition is a directory with an `AGENT.md` file and optional sidecars:
 
 ```text
-~/.agh/agents/code-reviewer/
+~/.compozy/agents/code-reviewer/
   AGENT.md
   mcp.json
   capabilities.toml
@@ -18,9 +18,9 @@ directory) declares the unified capability catalog the runtime projects into bri
 discovery, and explicit `kind:"capability"` transfer. See
 [Agent Capabilities](/runtime/core/agents/capabilities) for the catalog format.
 
-`AGENT.md` is a Markdown file with required frontmatter and a required body. AGH parses the
+`AGENT.md` is a Markdown file with required frontmatter and a required body. Compozy parses the
 frontmatter into runtime configuration, then uses the Markdown body as the agent-owned role portion
-of the assembled startup prompt. The runtime adds its own AGH envelope and context around that body
+of the assembled startup prompt. The runtime adds its own Compozy envelope and context around that body
 when it starts a session.
 
 <OperatorNote>
@@ -50,21 +50,21 @@ validation error.
 
 ## Discovery paths
 
-AGH resolves agents from the workspace snapshot attached to the session.
+Compozy resolves agents from the workspace snapshot attached to the session.
 
-| Scope           | Directory AGH scans                                                       | Applies when                                                 |
-| --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Workspace root  | `<workspace>/.agh/agents/<name>/AGENT.md`                                 | The session is created in that workspace.                    |
-| Additional root | `<additional-dir>/.agh/agents/<name>/AGENT.md`                            | The workspace has additional roots registered.               |
-| Global home     | `~/.agh/agents/<name>/AGENT.md` or `$COMPOZY_HOME/agents/<name>/AGENT.md` | A user-authored agent should be available across workspaces. |
+| Scope           | Directory Compozy scans                                                       | Applies when                                                 |
+| --------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Workspace root  | `<workspace>/.compozy/agents/<name>/AGENT.md`                                 | The session is created in that workspace.                    |
+| Additional root | `<additional-dir>/.compozy/agents/<name>/AGENT.md`                            | The workspace has additional roots registered.               |
+| Global home     | `~/.compozy/agents/<name>/AGENT.md` or `$COMPOZY_HOME/agents/<name>/AGENT.md` | A user-authored agent should be available across workspaces. |
 
 Discovery order is first-wins:
 
 1. Workspace root
 2. Additional roots, in the registered order
-3. Global AGH home
+3. Global Compozy home
 
-If two definitions use the same `name`, AGH keeps the first one it found. It does not merge or
+If two definitions use the same `name`, Compozy keeps the first one it found. It does not merge or
 inherit from the lower-precedence definition.
 
 Extensions can also provide global agent candidates. Those agents keep their extension-local
@@ -82,7 +82,7 @@ authored fields. Use those fields instead of inferring the winner or runtime fro
 
 A workspace definition shadows a global definition with the same name. Updates, duplicates, and
 deletes target the effective winner. Deleting the workspace winner can therefore reveal the global
-definition immediately; the delete response reports that transition in `unshadowed_origin`. AGH
+definition immediately; the delete response reports that transition in `unshadowed_origin`. Compozy
 does not merge either definition before or after the delete.
 
 ## Browse a workspace fleet
@@ -115,39 +115,39 @@ and UDS expose the same catalog contract.
 ## Edit with compare-and-swap
 
 Read the current definition before editing and retain its `definition_digest`. A full-definition
-update sends that value as `expected_digest`; AGH returns `409 Conflict` if another writer changed
+update sends that value as `expected_digest`; Compozy returns `409 Conflict` if another writer changed
 the definition first. Reload the current definition, reapply the intended edit, and retry with the
 new digest. Do not retry a stale payload unchanged.
 
 The CLI exposes the same contract:
 
 ```bash
-agh agent info code-reviewer --workspace ~/dev/project -o json
-agh agent update code-reviewer \
+compozy agent info code-reviewer --workspace ~/dev/project -o json
+compozy agent update code-reviewer \
   --workspace ~/dev/project \
   --expected-digest <definition-digest> \
   --model claude-sonnet-5 \
   -o json
 ```
 
-See [`agh agent update`](/runtime/cli-reference/agent/update) for the generated flag reference. The
+See [`compozy agent update`](/runtime/cli-reference/agent/update) for the generated flag reference. The
 HTTP equivalent is `PUT /api/agents/:name` with the full `agent` payload, `workspace`, and
 `expected_digest`. The same mutation targets an extension-local definition when that definition is
 the effective global winner.
 
 ## Duplicate and delete definitions
 
-`agh agent duplicate <source> <new-name>` copies the complete authored agent directory on the
+`compozy agent duplicate <source> <new-name>` copies the complete authored agent directory on the
 daemon side, including `AGENT.md`, `SOUL.md`, `HEARTBEAT.md`, `mcp.json`, and other sidecars. Field
 overrides are applied to the copied `AGENT.md`; the target must not already exist. Because the
 daemon performs the copy, clients do not need to read or re-submit sidecar secrets. See
-[`agh agent duplicate`](/runtime/cli-reference/agent/duplicate).
+[`compozy agent duplicate`](/runtime/cli-reference/agent/duplicate).
 
-`agh agent delete <name>` removes the effective authored directory and its sidecars. It does not
+`compozy agent delete <name>` removes the effective authored directory and its sidecars. It does not
 delete existing session records or their event history. The CLI prompts for confirmation unless
 `--yes` is supplied; automation should use structured output and inspect `unshadowed_origin`. Keep
 authored agent directories in version control when you need recovery after deletion. See
-[`agh agent delete`](/runtime/cli-reference/agent/delete).
+[`compozy agent delete`](/runtime/cli-reference/agent/delete).
 
 The HTTP lifecycle endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:name`, and
 `POST /api/agents/:name/duplicate`. HTTP and UDS use the same daemon-owned semantics.
@@ -156,21 +156,21 @@ The HTTP lifecycle endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:n
 
 Session creation first resolves the agent name, then resolves the provider and runtime fields.
 
-| Value            | Resolution order                                                                                        | Failure mode                                                                                |
-| ---------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Agent name       | explicit `--agent` or API `agent_name` -> `defaults.agent`                                              | `agent name is required`; run `agh install` or set `defaults.agent`                         |
-| Provider         | `agent.provider` -> `defaults.provider`                                                                 | `agent provider is required`; run `agh install` or set `agent.provider`/`defaults.provider` |
-| Command          | `agent.command` -> provider `command`                                                                   | `provider "<name>" command is required`                                                     |
-| Model            | `agent.model` -> provider `models.default`                                                              | Empty is allowed when the provider has no default.                                          |
-| Reasoning effort | session override -> `agent.reasoning_effort` -> curated model default -> empty provider/adapter default | Must be canonical and advertised by the active model before the first prompt.               |
-| Tools            | `agent.tools`                                                                                           | Must be exact canonical ToolIDs or namespace-prefix wildcards.                              |
-| Toolsets         | `agent.toolsets`                                                                                        | Must be canonical ToolsetIDs.                                                               |
-| Deny tools       | `agent.deny_tools`                                                                                      | Same grammar as `tools`; denies narrow later policy evaluation.                             |
-| Permissions      | `agent.permissions` -> `[permissions].mode`                                                             | Must be one of the supported permission modes.                                              |
-| Category path    | `agent.category_path`                                                                                   | Display-only hierarchy surfaced by CLI/API/Web views; never affects runtime behavior.       |
+| Value            | Resolution order                                                                                        | Failure mode                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Agent name       | explicit `--agent` or API `agent_name` -> `defaults.agent`                                              | `agent name is required`; run `compozy install` or set `defaults.agent`                         |
+| Provider         | `agent.provider` -> `defaults.provider`                                                                 | `agent provider is required`; run `compozy install` or set `agent.provider`/`defaults.provider` |
+| Command          | `agent.command` -> provider `command`                                                                   | `provider "<name>" command is required`                                                         |
+| Model            | `agent.model` -> provider `models.default`                                                              | Empty is allowed when the provider has no default.                                              |
+| Reasoning effort | session override -> `agent.reasoning_effort` -> curated model default -> empty provider/adapter default | Must be canonical and advertised by the active model before the first prompt.                   |
+| Tools            | `agent.tools`                                                                                           | Must be exact canonical ToolIDs or namespace-prefix wildcards.                                  |
+| Toolsets         | `agent.toolsets`                                                                                        | Must be canonical ToolsetIDs.                                                                   |
+| Deny tools       | `agent.deny_tools`                                                                                      | Same grammar as `tools`; denies narrow later policy evaluation.                                 |
+| Permissions      | `agent.permissions` -> `[permissions].mode`                                                             | Must be one of the supported permission modes.                                                  |
+| Category path    | `agent.category_path`                                                                                   | Display-only hierarchy surfaced by CLI/API/Web views; never affects runtime behavior.           |
 
-The managed public `general` agent created by daemon boot and `agh install` intentionally contains
-only `name: general` and a prompt. Its provider and model come from `~/.agh/config.toml`, and it is
+The managed public `general` agent created by daemon boot and `compozy install` intentionally contains
+only `name: general` and a prompt. Its provider and model come from `~/.compozy/config.toml`, and it is
 the default public agent (`defaults.agent`) operators see in agent lists and workspace navigation
 unless a workspace-local `general` overrides it.
 
@@ -178,11 +178,11 @@ Tool discovery works the same way. The `tools` and `toolsets` frontmatter fields
 means no agent-local allowlist. For a bare managed session, hosted MCP projects the full
 availability-gated callable catalog. Populate `tools` or `toolsets` only when the agent should be
 limited to that explicit surface.
-Discovery-only policies can still name `compozy__bootstrap` and `compozy__catalog`; AGH just no longer
+Discovery-only policies can still name `compozy__bootstrap` and `compozy__catalog`; Compozy just no longer
 injects those toolsets as a default cap for every bare hosted session. Denies, session lineage,
 disabled sources, and approval/risk gates still narrow or block invocation.
 Agents resolve canonical `compozy__tool_search` and inspect canonical `compozy__tool_info`.
-Invoke the harness-returned tool reference for AGH-native capabilities.
+Invoke the harness-returned tool reference for Compozy-native capabilities.
 Skill loading resolves canonical `compozy__skill_search` and `compozy__skill_view`.
 Operator-only management — daemon lifecycle, MCP OAuth login/logout, trust-root config, raw secret
 writes, and cross-session terminal-state mutation — stays on the CLI/HTTP/UDS surfaces and is
@@ -197,7 +197,7 @@ These are the frontmatter fields accepted by the current `internal/config` parse
 | `name`             | string                      | yes      | none                                                 | Must be non-empty. `LoadAgentDef(name)` also requires the parsed name to match the requested directory/name. No lowercase or hyphen pattern is enforced today.                                                                               |
 | `provider`         | string                      | no       | `defaults.provider`                                  | Provider ID such as `claude`, `codex`, or a custom configured provider. Required at resolution time unless `defaults.provider` is set.                                                                                                       |
 | `command`          | string                      | no       | provider `command`                                   | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                                                                                                         |
-| `model`            | string                      | no       | provider `models.default`                            | Exact model preference. After ACP session creation/load, AGH applies it through the advertised model option and never aliases or falls back from an unknown ID.                                                                              |
+| `model`            | string                      | no       | provider `models.default`                            | Exact model preference. After ACP session creation/load, Compozy applies it through the advertised model option and never aliases or falls back from an unknown ID.                                                                          |
 | `reasoning_effort` | string                      | no       | curated model default, then provider/adapter default | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; session creation overrides the agent value.                                                                                                                                   |
 | `tools`            | string array                | no       | empty                                                | Optional agent-local allowlist of exact canonical ToolIDs such as `compozy__skill_view`, or namespace-prefix wildcards such as `compozy__skill_*` and `mcp__github__*`. Empty leaves the hosted projection uncapped by the agent definition. |
 | `toolsets`         | string array                | no       | empty                                                | Optional agent-local allowlist of canonical ToolsetIDs such as `compozy__tasks` or `linear__read`. Empty leaves the hosted projection uncapped by the agent definition.                                                                      |
@@ -210,10 +210,10 @@ These are the frontmatter fields accepted by the current `internal/config` parse
 
 The parser accepts YAML frontmatter first. If YAML parsing fails, it tries TOML frontmatter. In
 both formats, unknown fields fail validation.
-`category_path` has one canonical shape: an array of path segments. AGH rejects `categories` and
+`category_path` has one canonical shape: an array of path segments. Compozy rejects `categories` and
 slash-string values such as `"Marketing/Sales"`.
 
-ACP session creation/load happens first. AGH then applies the resolved model through the advertised
+ACP session creation/load happens first. Compozy then applies the resolved model through the advertised
 model option, replaces its option snapshot with the response, and applies the resolved reasoning
 effort before the first prompt. Empty effort sends no RPC; explicit `none` does when advertised.
 
@@ -255,7 +255,7 @@ Sidecar behavior is precise:
 
 - `mcp.json` may use either `mcp_servers` or `mcpServers`.
 - Server names are map keys in `mcp.json`.
-- `env` values are sent as literal strings; AGH does not expand shell placeholders inside MCP
+- `env` values are sent as literal strings; Compozy does not expand shell placeholders inside MCP
   server definitions.
 - When an inline server and sidecar server have the same name, the sidecar replaces the whole
   server object.

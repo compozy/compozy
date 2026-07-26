@@ -2,7 +2,7 @@
 name: invalid-mcp
 description: Skill with invalid MCP server entries
 metadata:
-  agh:
+  compozy:
     mcp_servers:
       - command: npx
       - name: missing-command

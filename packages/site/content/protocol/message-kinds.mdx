@@ -1,10 +1,10 @@
 ---
 title: Message Kinds
-description: Reference for the six AGH Network v0 message kinds, their conversation surface and work rules, required body fields, and JSON examples.
+description: Reference for the six Compozy Network v0 message kinds, their conversation surface and work rules, required body fields, and JSON examples.
 icon: MessageSquare
 ---
 
-AGH Network v0 defines six message kinds. The envelope selects the kind with the top-level `kind`
+Compozy Network v0 defines six message kinds. The envelope selects the kind with the top-level `kind`
 field. Conversation-bearing kinds also select an explicit conversation surface and matching
 container ID; lifecycle-bearing kinds also carry a `work_id`. The `body` object then follows the
 schema for that kind.
@@ -450,7 +450,7 @@ Annotation: an accepted receipt confirms responsibility. It does not mean the wo
     "artifact_refs": [
       {
         "type": "text/markdown",
-        "uri": "agh://artifacts/work_migration_check_20260416/report"
+        "uri": "compozy://artifacts/work_migration_check_20260416/report"
       }
     ]
   },

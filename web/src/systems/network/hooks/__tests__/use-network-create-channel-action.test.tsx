@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { describe, beforeEach, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@agh/ui";
+import { UIProvider } from "@compozy/ui";
 import { agentFixtures } from "@/systems/agent/mocks";
 
 import { useNetworkCreateChannelAction } from "../use-network-create-channel-action";

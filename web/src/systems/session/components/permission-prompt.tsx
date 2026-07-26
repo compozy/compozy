@@ -1,6 +1,6 @@
 import { Check, ShieldAlert, ShieldCheck, ShieldOff, X } from "lucide-react";
 
-import { Button, CodeBlock, Eyebrow, cn } from "@agh/ui";
+import { Button, CodeBlock, Eyebrow, cn } from "@compozy/ui";
 
 import type { PermissionDecision } from "../adapters/session-api";
 import { useSessionPermissionDecision } from "../hooks/use-session-permission-decision";

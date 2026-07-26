@@ -1,6 +1,6 @@
 import { useState, type ComponentProps } from "react";
 
-import { Input } from "@agh/ui";
+import { Input } from "@compozy/ui";
 
 interface SettingsNumberInputProps extends Omit<
   ComponentProps<typeof Input>,

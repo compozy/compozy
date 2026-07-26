@@ -1,6 +1,6 @@
 import { Folder, X } from "lucide-react";
 
-import { Alert, AlertDescription, Button, Eyebrow } from "@agh/ui";
+import { Alert, AlertDescription, Button, Eyebrow } from "@compozy/ui";
 
 import type { OnboardingWorkspacesApi } from "../hooks/use-onboarding-workspaces";
 import { DirectoryBrowser } from "./directory-browser";

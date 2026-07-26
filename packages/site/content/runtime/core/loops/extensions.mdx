@@ -1,9 +1,9 @@
 ---
 title: Extending Loops
-description: How extensions add Loop definitions, actions, gate checks, and watch sources — reusing AGH's existing surfaces, with one new bridge capability.
+description: How extensions add Loop definitions, actions, gate checks, and watch sources — reusing Compozy's existing surfaces, with one new bridge capability.
 ---
 
-Loops extend through AGH's existing [extension](/runtime/core/extensions) surfaces. Almost
+Loops extend through Compozy's existing [extension](/runtime/core/extensions) surfaces. Almost
 everything is wiring you already have — the tool registry, the resource projection, the hook
 catalog — and the only new protocol surface is a single bridge capability for watch sources.
 
@@ -96,4 +96,4 @@ tick finds nothing unresolved. It requires `gh` to be installed and authenticate
 - **Agent tools** — the `compozy__loop_*` toolset is native and standard; extensions do not add loop
   management tools.
 - **The network wire** — Loops are a runtime feature. Extensions do not carry Loop execution over
-  AGH Network.
+  Compozy Network.

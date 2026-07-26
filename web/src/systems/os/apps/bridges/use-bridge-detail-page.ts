@@ -1,7 +1,7 @@
 import { useDeferredValue, useState } from "react";
 import { toast } from "sonner";
 
-import type { EntityMode } from "@agh/ui";
+import type { EntityMode } from "@compozy/ui";
 
 import {
   buildBridgeUpdateRequest,

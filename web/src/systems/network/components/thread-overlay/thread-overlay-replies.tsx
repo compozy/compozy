@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Separator } from "@agh/ui";
+import { Separator } from "@compozy/ui";
 
 import type { NetworkConversationMessage } from "../../types";
 import type { HoverToolbarHandlers } from "../timeline/hover-toolbar";

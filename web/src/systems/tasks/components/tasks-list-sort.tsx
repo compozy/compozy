@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { TaskListSortKey } from "../types";
 

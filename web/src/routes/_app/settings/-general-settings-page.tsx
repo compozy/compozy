@@ -34,7 +34,7 @@ import {
   SheetHeader,
   SheetTitle,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
 import { GeneralUpdateSection } from "./-general-update-section";

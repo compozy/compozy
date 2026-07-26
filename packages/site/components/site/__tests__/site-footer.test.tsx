@@ -25,7 +25,7 @@ describe("SiteFooter", () => {
     render(<SiteFooter />);
 
     const footer = screen.getByRole("contentinfo");
-    const homeLink = screen.getByRole("link", { name: "AGH home" });
+    const homeLink = screen.getByRole("link", { name: "Compozy home" });
     const logo = homeLink.querySelector('[data-slot="logo"]');
 
     expect(footer).toBeDefined();
@@ -69,6 +69,6 @@ describe("SiteFooter", () => {
       expect(link.getAttribute("rel")).toContain("noreferrer");
     }
 
-    expect(screen.getByRole("link", { name: "AGH on GitHub" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Compozy on GitHub" })).toBeDefined();
   });
 });

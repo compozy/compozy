@@ -1,4 +1,4 @@
-import { MonoId, Time } from "@agh/ui";
+import { MonoId, Time } from "@compozy/ui";
 
 import type { TaskRunDetailView } from "../types";
 

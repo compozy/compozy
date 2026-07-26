@@ -129,7 +129,7 @@ func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(internalDir, "package.json"),
-		[]byte("{\"name\":\"@agh/extension-sdk\"}\n"),
+		[]byte("{\"name\":\"@compozy/extension-sdk\"}\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(package.json) error = %v", err)
@@ -142,15 +142,15 @@ func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 		t.Fatalf("os.WriteFile(tsc) error = %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", "@agh"), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(node_modules/@agh) error = %v", err)
+	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", "@compozy"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(node_modules/@compozy) error = %v", err)
 	}
 	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", ".bin"), 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(node_modules/.bin) error = %v", err)
 	}
 	if err := os.Symlink(
 		filepath.Join(sourceDir, "vendor", "extension-sdk"),
-		filepath.Join(sourceDir, "node_modules", "@agh", "extension-sdk"),
+		filepath.Join(sourceDir, "node_modules", "@compozy", "extension-sdk"),
 	); err != nil {
 		t.Skipf("os.Symlink(directory) unavailable: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 		t.Fatalf("copyInstallTree() error = %v", err)
 	}
 
-	copiedDir := filepath.Join(targetDir, "node_modules", "@agh", "extension-sdk")
+	copiedDir := filepath.Join(targetDir, "node_modules", "@compozy", "extension-sdk")
 	info, err := os.Lstat(copiedDir)
 	if err != nil {
 		t.Fatalf("os.Lstat(%q) error = %v", copiedDir, err)
@@ -205,7 +205,7 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 	t.Parallel()
 
 	sourceDir := filepath.Join(t.TempDir(), "source")
-	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", "@agh"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", "@compozy"), 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(source node_modules) error = %v", err)
 	}
 	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", "@types"), 0o755); err != nil {
@@ -217,7 +217,7 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 	if err := os.WriteFile(
 		filepath.Join(sourceDir, "package.json"),
 		[]byte(
-			"{\"dependencies\":{\"@agh/extension-sdk\":\"workspace:*\"},\"devDependencies\":{\"@types/node\":\"^25.5.2\",\"typescript\":\"^6.0.2\"}}\n",
+			"{\"dependencies\":{\"@compozy/extension-sdk\":\"workspace:*\"},\"devDependencies\":{\"@types/node\":\"^25.5.2\",\"typescript\":\"^6.0.2\"}}\n",
 		),
 		0o644,
 	); err != nil {
@@ -230,7 +230,7 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(runtimePackageDir, "package.json"),
-		[]byte("{\"name\":\"@agh/extension-sdk\",\"main\":\"./dist/index.js\"}\n"),
+		[]byte("{\"name\":\"@compozy/extension-sdk\",\"main\":\"./dist/index.js\"}\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(runtime package.json) error = %v", err)
@@ -265,7 +265,7 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 
 	if err := os.Symlink(
 		runtimePackageDir,
-		filepath.Join(sourceDir, "node_modules", "@agh", "extension-sdk"),
+		filepath.Join(sourceDir, "node_modules", "@compozy", "extension-sdk"),
 	); err != nil {
 		t.Skipf("os.Symlink(runtime dependency) unavailable: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 		t.Fatalf("copyInstallTree() error = %v", err)
 	}
 
-	copiedRuntimeDir := filepath.Join(targetDir, "node_modules", "@agh", "extension-sdk")
+	copiedRuntimeDir := filepath.Join(targetDir, "node_modules", "@compozy", "extension-sdk")
 	info, err := os.Lstat(copiedRuntimeDir)
 	if err != nil {
 		t.Fatalf("os.Lstat(%q) error = %v", copiedRuntimeDir, err)

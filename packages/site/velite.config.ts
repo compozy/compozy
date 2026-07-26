@@ -1,4 +1,4 @@
-import { COMPOZY_CODE_THEMES } from "@agh/ui/lib/code-theme";
+import { COMPOZY_CODE_THEMES } from "@compozy/ui/lib/code-theme";
 import { defineConfig, s } from "velite";
 import rehypePrettyCode, { type Options as RehypePrettyCodeOptions } from "rehype-pretty-code";
 

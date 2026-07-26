@@ -1,6 +1,6 @@
 import { CalendarClock, Plus, Zap } from "lucide-react";
 
-import { Button, Section, Spinner } from "@agh/ui";
+import { Button, Section, Spinner } from "@compozy/ui";
 
 import { bindingKindLabel, type LoopBindingRow } from "../../lib/loop-bindings";
 import { MonoTag } from "../mono-tag";

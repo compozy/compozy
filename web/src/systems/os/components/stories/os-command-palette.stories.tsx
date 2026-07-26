@@ -9,7 +9,7 @@ import { useActiveWorkspaceStore } from "@/systems/workspace";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
@@ -68,10 +68,12 @@ export const Open: Story = {
   },
   parameters: storybookMswParameters({
     workspace: [
-      aghApiMock.get("/api/workspaces", () => HttpResponse.json({ workspaces: workspaceFixtures })),
+      compozyApiMock.get("/api/workspaces", () =>
+        HttpResponse.json({ workspaces: workspaceFixtures })
+      ),
     ],
     session: [
-      aghApiMock.get("/api/sessions", () =>
+      compozyApiMock.get("/api/sessions", () =>
         HttpResponse.json({
           sessions: PALETTE_SESSIONS,
           page: { has_more: false, limit: 50, total: PALETTE_SESSIONS.length },

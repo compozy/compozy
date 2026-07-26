@@ -27,7 +27,7 @@ describe("fallback pages", () => {
     expect(
       screen.getByRole("heading", { name: "This route is not in the runtime." })
     ).toBeDefined();
-    expect(screen.getByText(/not part of the published AGH site/)).toBeDefined();
+    expect(screen.getByText(/not part of the published Compozy site/)).toBeDefined();
     expect(screen.getByRole("link", { name: "Runtime docs" }).getAttribute("href")).toBe(
       "/runtime/"
     );

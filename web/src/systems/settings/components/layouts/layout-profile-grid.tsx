@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import { ConfirmDialog } from "@agh/ui";
+import { ConfirmDialog } from "@compozy/ui";
 
 import type { WindowManagerLayoutProfilesModel } from "../../hooks/use-window-manager-layout-profiles";
 import { isSelectedLayoutProfile } from "../../lib/window-manager-layout-profile-key";

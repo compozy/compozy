@@ -1,7 +1,7 @@
 import { ListFilter } from "lucide-react";
 
-import { Button } from "@agh/ui";
-import { FiltersWithSearch, type Filter } from "@agh/ui";
+import { Button } from "@compozy/ui";
+import { FiltersWithSearch, type Filter } from "@compozy/ui";
 
 import type { LoopKindFilter, LoopStatusFilter } from "../../lib/loop-catalog";
 import {

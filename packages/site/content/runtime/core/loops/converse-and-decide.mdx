@@ -7,13 +7,13 @@ description: A documented Loop that posts a question into a channel, lets agents
 
 <Callout type="info">
   This is a **documented example**, not a packaged default Loop. The capability ships in the runtime
-  — it is an `compozy__network_send` action with a `channel_result` harvest — but AGH does not
+  — it is an `compozy__network_send` action with a `channel_result` harvest — but Compozy does not
   install a `converse-and-decide` Loop, because it needs a configured channel and participating
   agents to run. Save the definition below to author it in your own workspace.
 </Callout>
 
 The **converse-and-decide** pattern drives a live discussion and acts on its result: a step posts a
-question into an [AGH Network](/runtime/core/network) channel thread, the participating agents
+question into an [Compozy Network](/runtime/core/network) channel thread, the participating agents
 converse, the step harvests the one designated **result**, and a branch routes on the decision. It
 is the canonical illustration of harvesting a channel outcome into a Loop.
 
@@ -33,7 +33,7 @@ kind: Loop
 meta:
   name: converse-and-decide
   description: >
-    Post a question into an AGH Network channel thread, let the participating
+    Post a question into an Compozy Network channel thread, let the participating
     agents converse, harvest the designated result signal, and branch on the
     decision. Documented example — not a packaged default Loop.
   catalog:
@@ -155,11 +155,11 @@ The Loop needs a real channel and participating agents. Once you have them:
 
 ```bash
 # validate the definition (lint + compile, no save)
-agh loop validate --workspace <ws> --file converse-and-decide.yaml
+compozy loop validate --workspace <ws> --file converse-and-decide.yaml
 
 # publish it, then run it against your channel and thread
-agh loop create --workspace <ws> --file converse-and-decide.yaml
-agh loop run --workspace <ws> --name converse-and-decide \
+compozy loop create --workspace <ws> --file converse-and-decide.yaml
+compozy loop run --workspace <ws> --name converse-and-decide \
   --input workspace_id='"<ws-id>"' \
   --input channel='"engineering"' \
   --input thread_id='"<thread-id>"' \

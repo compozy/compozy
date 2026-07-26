@@ -21,7 +21,7 @@ function _createMdxContent(props) {
       _jsxs(_components.p, {
         children: [
           "Run ",
-          _jsx(_components.code, { children: "agh daemon start" }),
+          _jsx(_components.code, { children: "compozy daemon start" }),
           " before opening the workplace.",
         ],
       }),
@@ -30,7 +30,7 @@ function _createMdxContent(props) {
         "data-language": "bash",
         children: _jsx(_components.code, {
           "data-language": "bash",
-          children: "agh daemon start",
+          children: "compozy daemon start",
         }),
       }),
     ],
@@ -51,7 +51,7 @@ describe("blog MdxContent", () => {
     render(<MdxContent code={sampleMdxCode} />);
 
     screen.getByRole("heading", { name: "Operator notes", level: 2 });
-    expect(screen.getAllByText("agh daemon start").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("compozy daemon start").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Copy code" })).toBeDefined();
   });
 

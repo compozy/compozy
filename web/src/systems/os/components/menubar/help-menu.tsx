@@ -6,7 +6,7 @@ import {
   MenubarMenu,
   MenubarSeparator,
   MenubarTrigger,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 export interface HelpMenuProps {
   open: boolean;
@@ -18,12 +18,12 @@ export interface HelpMenuProps {
 }
 
 const EXTERNAL_LINKS = [
-  { id: "documentation", label: "Documentation", href: "https://agh.network/runtime/" },
-  { id: "protocol", label: "Protocol", href: "https://agh.network/protocol/" },
-  { id: "changelog", label: "What's new", href: "https://agh.network/changelog/" },
+  { id: "documentation", label: "Documentation", href: "https://compozy.com/runtime/" },
+  { id: "protocol", label: "Protocol", href: "https://compozy.com/protocol/" },
+  { id: "changelog", label: "What's new", href: "https://compozy.com/changelog/" },
 ] as const;
 
-const ISSUES_URL = "https://github.com/compozy/agh/issues";
+const ISSUES_URL = "https://github.com/compozy/compozy/issues";
 
 /**
  * Help menu. External destinations carry an arrow glyph so "this leaves the

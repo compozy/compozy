@@ -12,7 +12,7 @@ import {
   FieldLabel,
   FormSection,
   Input,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { AgentPayload } from "@/systems/agent";
 import { ScopeSelector } from "@/systems/workspace";

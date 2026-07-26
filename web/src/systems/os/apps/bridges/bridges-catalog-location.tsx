@@ -9,7 +9,7 @@ import {
   ListingPage,
   ListingToolbar,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { type BridgesRouteSearch, useBridgesPage } from "./use-bridges-page";
 import {
   BridgeCreateDialog,

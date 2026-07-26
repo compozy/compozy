@@ -20,7 +20,7 @@ import {
   Time,
   TopbarOverflowIcon,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { DeactivateBundleDialog } from "./extension-dialogs";
 import { useBundleActivationDetail } from "../hooks/use-bundle-activation-detail";
@@ -232,7 +232,7 @@ export function BundleActivationDetail({ id }: { id: string }) {
                       className="text-xs text-muted"
                       id="bundle-update-network-confirmation-description"
                     >
-                      Required only if the updated extension declares Live AGH Network
+                      Required only if the updated extension declares Live Compozy Network
                       participation.
                     </span>
                   </span>

@@ -1,4 +1,4 @@
-import type { ListingViewMode } from "@agh/ui";
+import type { ListingViewMode } from "@compozy/ui";
 
 /** Trim a raw search-param value; blank/whitespace/non-string → undefined. */
 export function normalizeListingSearchValue(value: unknown): string | undefined {

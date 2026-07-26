@@ -9,7 +9,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { LoopGateVerdict } from "../../lib/loop-events";
 import { type LoopGraph, fanOutSummary, findWatchNode } from "../../lib/loop-graph";

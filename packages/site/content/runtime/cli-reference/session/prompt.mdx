@@ -1,30 +1,30 @@
 ---
-title: "agh session prompt"
+title: "compozy session prompt"
 description: "Send a prompt to a session"
 ---
 
-## agh session prompt
+## compozy session prompt
 
 Send a prompt to a session
 
 ```
-agh session prompt <id> <message> [flags]
+compozy session prompt <id> <message> [flags]
 ```
 
 ### Examples
 
 ```
   # Send a follow-up prompt to an active session
-  agh session prompt sess_1234 "Summarize the current changes."
+  compozy session prompt sess_1234 "Summarize the current changes."
 
   # Queue input while the session is busy
-  agh session prompt sess_1234 "Run the next check." --queue
+  compozy session prompt sess_1234 "Run the next check." --queue
 
   # Steer the current turn after the next tool result
-  agh session prompt sess_1234 "Prefer the smaller patch." --steer
+  compozy session prompt sess_1234 "Prefer the smaller patch." --steer
 
   # Cancel queued input by entry id
-  agh session prompt sess_1234 --cancel queue_entry_1234
+  compozy session prompt sess_1234 --cancel queue_entry_1234
 ```
 
 ### Options
@@ -46,7 +46,7 @@ agh session prompt <id> <message> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -56,5 +56,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session prompt <id> <message> -o json
+compozy session prompt <id> <message> -o json
 ```

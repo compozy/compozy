@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Button, Panel, Section, StatusDot, Time } from "@agh/ui";
+import { Button, Panel, Section, StatusDot, Time } from "@compozy/ui";
 
 import { useHomeAttentionActions } from "../hooks/use-home-attention-actions";
 import type { HomeAttentionResolvedKind } from "../hooks/use-home-attention-actions";

@@ -10,7 +10,7 @@ const meta: Meta<typeof Logo> = {
     docs: {
       description: {
         component:
-          "AGH brand mark. Use `logo` for full lockups, `symbol` for square app surfaces (including OS-shell menubar chrome at a smaller size class), and `lettering` only where the symbol is already present nearby.",
+          "Compozy brand mark. Use `logo` for full lockups, `symbol` for square app surfaces (including OS-shell menubar chrome at a smaller size class), and `lettering` only where the symbol is already present nearby.",
       },
     },
   },
@@ -33,7 +33,7 @@ const VARIANTS: LogoVariant[] = ["logo", "symbol", "lettering"];
 export const Default: Story = {
   args: {
     variant: "logo",
-    label: "AGH",
+    label: "Compozy",
     className: "h-12 w-auto",
   },
 };
@@ -41,7 +41,7 @@ export const Default: Story = {
 export const Symbol: Story = {
   args: {
     variant: "symbol",
-    label: "AGH symbol",
+    label: "Compozy symbol",
     className: "size-16",
   },
 };
@@ -49,7 +49,7 @@ export const Symbol: Story = {
 export const Lettering: Story = {
   args: {
     variant: "lettering",
-    label: "AGH lettering",
+    label: "Compozy lettering",
     className: "h-12 w-auto",
   },
 };
@@ -64,7 +64,7 @@ export const Variants: Story = {
           </span>
           <Logo
             variant={variant}
-            label={`AGH ${variant}`}
+            label={`Compozy ${variant}`}
             className={variant === "symbol" ? "size-14" : "h-12 w-auto"}
           />
         </div>

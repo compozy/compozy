@@ -2,12 +2,12 @@ import * as React from "react";
 
 import {
   COMPOZY_CODE_DEFAULT_THEME,
-  normalizeAghCodeLanguage,
-  resolveAghCodeThemeName,
+  normalizeCompozyCodeLanguage,
+  resolveCompozyCodeThemeName,
   type CodeBlockResolvedTheme,
   type CodeBlockThemeMode,
 } from "../../../lib/code-theme";
-import { highlightAghCode, type HighlightedCodeLine } from "../../../lib/shiki-highlighter";
+import { highlightCompozyCode, type HighlightedCodeLine } from "../../../lib/shiki-highlighter";
 
 export type CodeBlockHighlightState = "plain" | "loading" | "highlighted" | "failed";
 
@@ -27,8 +27,8 @@ export function useCodeBlock({
   truncateLines,
 }: UseCodeBlockOptions) {
   const resolvedTheme = useResolvedCodeTheme(themeMode);
-  const resolvedThemeName = resolveAghCodeThemeName(resolvedTheme);
-  const normalizedLanguage = normalizeAghCodeLanguage(language);
+  const resolvedThemeName = resolveCompozyCodeThemeName(resolvedTheme);
+  const normalizedLanguage = normalizeCompozyCodeLanguage(language);
   const [highlightedCode, setHighlightedCode] = React.useState<HighlightedCodeLine[] | null>(null);
   const [highlightState, setHighlightState] = React.useState<CodeBlockHighlightState>(
     normalizedLanguage ? "loading" : "plain"
@@ -63,7 +63,7 @@ export function useCodeBlock({
     setHighlightState("loading");
     setHighlightedCode(null);
 
-    void highlightAghCode({ code, language: normalizedLanguage, theme: resolvedTheme })
+    void highlightCompozyCode({ code, language: normalizedLanguage, theme: resolvedTheme })
       .then(result => {
         if (cancelled) return;
         if (!result) {

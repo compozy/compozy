@@ -11,7 +11,7 @@ import (
 
 const (
 	// ToolArtifactURIPrefix identifies retained oversized tool results.
-	ToolArtifactURIPrefix = "agh://tool-artifacts/"
+	ToolArtifactURIPrefix = "compozy://tool-artifacts/"
 	// ToolArtifactMIMEType identifies the canonical retained ToolResult JSON envelope.
 	ToolArtifactMIMEType = "application/vnd.agh.tool-result+json"
 	// ToolArtifactName is the stable display name for retained result envelopes.

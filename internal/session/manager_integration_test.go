@@ -778,9 +778,9 @@ func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
 
 func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
 	h := newHarness(t)
-	networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
+	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledAghSkillName, testBundledNetworkReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
 	}
 	networkSkill = strings.TrimSpace(networkSkill)
 

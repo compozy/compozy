@@ -1,4 +1,4 @@
-import { UIProvider } from "@agh/ui";
+import { UIProvider } from "@compozy/ui";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";

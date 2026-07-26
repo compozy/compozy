@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 
@@ -14,7 +14,7 @@ const meta: Meta<typeof ProviderLogo> = {
     docs: {
       description: {
         component:
-          "Neutral grayscale provider mark sourced from `@agh/ui`'s `KindIcon` provider registry. Used inside the provider card icon-well — never rendered with a brand-color tint.",
+          "Neutral grayscale provider mark sourced from `@compozy/ui`'s `KindIcon` provider registry. Used inside the provider card icon-well — never rendered with a brand-color tint.",
       },
     },
   },

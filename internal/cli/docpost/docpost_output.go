@@ -35,7 +35,7 @@ func computeHasChildren(inputs []input) map[string]bool {
 // forward slashes.
 func outPath(in input, hasChildren map[string]bool) string {
 	if len(in.segments) == 0 {
-		return docpostAghMDXPath
+		return docpostCompozyMDXPath
 	}
 	if hasChildren[in.baseName] {
 		return path.Join(in.segments...) + "/index.mdx"

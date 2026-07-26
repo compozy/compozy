@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import { WIRE_KIND_DOT_CLASS, type WireKind } from "./kind-chip-data";
 

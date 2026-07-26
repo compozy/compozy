@@ -1,6 +1,6 @@
 import { Code } from "lucide-react";
 
-import { Alert, AlertDescription, JsonViewer } from "@agh/ui";
+import { Alert, AlertDescription, JsonViewer } from "@compozy/ui";
 
 import {
   automationRequestPayloadForDisplay,

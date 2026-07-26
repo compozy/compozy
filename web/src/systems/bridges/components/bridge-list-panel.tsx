@@ -10,7 +10,7 @@ import {
   Skeleton,
   SkeletonRows,
   type ListingViewMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   bridgeStatusLabel,

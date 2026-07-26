@@ -1,10 +1,10 @@
 ---
 title: Develop Extensions
-description: Build custom AGH extensions with manifests, bundled resources, subprocess lifecycle, Host API permissions, and package examples.
+description: Build custom Compozy extensions with manifests, bundled resources, subprocess lifecycle, Host API permissions, and package examples.
 ---
 
-An AGH extension is a directory with a manifest and optional runtime code. Resource-only extensions
-package files AGH already knows how to load. Subprocess extensions run code over JSON-RPC and can
+An Compozy extension is a directory with a manifest and optional runtime code. Resource-only extensions
+package files Compozy already knows how to load. Subprocess extensions run code over JSON-RPC and can
 call the daemon through the Host API after capability checks.
 
 Use extensions when a capability should be installed, versioned, enabled, disabled, and inspected as
@@ -23,7 +23,7 @@ prompt-enhancer/
       SKILL.md
 ```
 
-AGH looks for `extension.toml` first and `extension.json` second. TOML is the common format. A
+Compozy looks for `extension.toml` first and `extension.json` second. TOML is the common format. A
 manifest may put core metadata at the root or inside `[extension]`; do not define the same core
 field in both places with conflicting values.
 
@@ -62,15 +62,15 @@ channel_scopes = ["builders", "release"]
 | `mode`           | yes      | Must be `"live"` when the requirement is enabled.                                                 |
 | `channel_scopes` | no       | Named channels the extension may require. Values are trimmed, deduplicated, sorted, and digested. |
 
-AGH hashes the normalized block into the bundle activation's Network requirement digest. Preview
+Compozy hashes the normalized block into the bundle activation's Network requirement digest. Preview
 shows the digest; activation requires explicit operator confirmation. If an extension update
-changes the digest, AGH advances the activation version, clears the prior confirmation, and blocks
+changes the digest, Compozy advances the activation version, clears the prior confirmation, and blocks
 projection until the operator reads the current activation and confirms it with that exact version.
 Declared channels remain inventory: confirmation does not enroll any execution into Live.
 
 ## Resource-Only Extensions
 
-Resource-only extensions do not need a persistent subprocess. They become active after AGH loads and
+Resource-only extensions do not need a persistent subprocess. They become active after Compozy loads and
 registers their resources.
 
 ```toml
@@ -165,13 +165,13 @@ interval = "24h"
 ```
 
 The `path` is resolved relative to the extension root, must stay inside that root, and must point
-to a directory containing `AGENT.md`. AGH loads that folder through the same agent loader used for
+to a directory containing `AGENT.md`. Compozy loads that folder through the same agent loader used for
 normal agents, so `mcp.json`, `capabilities.toml`, and `capabilities/` keep the same behavior.
 
 Optional `SOUL.md` and `HEARTBEAT.md` files in the agent folder are packaged as read-only bundle
 defaults. Activating the profile materializes `agent`, `agent.soul`, and `agent.heartbeat`
-resources owned by the bundle activation. AGH uses synthetic diagnostic paths such as
-`.agh/bundles/<activation-id>/agents/<agent>/SOUL.md`; it does not copy package files into a
+resources owned by the bundle activation. Compozy uses synthetic diagnostic paths such as
+`.compozy/bundles/<activation-id>/agents/<agent>/SOUL.md`; it does not copy package files into a
 writable workspace folder.
 
 Activation fails when a bundled agent name conflicts with an existing visible agent in the target
@@ -179,7 +179,7 @@ scope, or when a bundled job/trigger references an agent that is neither package
 available in the existing agent catalog.
 
 Each `profiles.layouts` path must resolve inside the extension root and contain one strict
-`window_layout` JSON resource. AGH validates the resource when the extension loads and again in the
+`window_layout` JSON resource. Compozy validates the resource when the extension loads and again in the
 activation's global or workspace scope. The activation owns the projected layout and removes it on
 deactivation. See [Bundles](/runtime/core/resources/bundles) for the authoring and identity rules.
 
@@ -208,7 +208,7 @@ LOG_LEVEL = "info"
 capabilities = ["session.read"]
 ```
 
-When AGH starts an enabled subprocess extension, it runs this lifecycle:
+When Compozy starts an enabled subprocess extension, it runs this lifecycle:
 
 1. Discover the extension root from the stored manifest path.
 2. Parse `extension.toml` or `extension.json`.
@@ -293,7 +293,7 @@ metadata.
 
 Important current provide surfaces:
 
-| Provide surface  | AGH calls into the extension with                |
+| Provide surface  | Compozy calls into the extension with            |
 | ---------------- | ------------------------------------------------ |
 | `memory.backend` | `memory/store`, `memory/recall`, `memory/forget` |
 | `bridge.adapter` | `bridges/deliver`, `bridges/targets/snapshot`    |
@@ -332,7 +332,7 @@ Bridge adapters are currently a trusted in-tree or local-source path. External b
 not yet a first-class public SDK workflow: the public SDKs do not cover the complete service and
 control contracts, marketplace bridge grants are unavailable, and there is no public bridge
 conformance harness. Follow the [in-tree provider guide](/runtime/core/bridges/adding-a-bridge) only
-when contributing inside the AGH repository; the registry packaging flow below is not, by itself, a
+when contributing inside the Compozy repository; the registry packaging flow below is not, by itself, a
 supported third-party bridge path.
 
 Marketplace extensions run under a stricter policy. They are constrained to read-oriented grants:
@@ -360,17 +360,17 @@ command = "node"
 args = ["dist/index.js"]
 ```
 
-The extension service method `models/list` is dispatched by AGH whenever the catalog refreshes the
+The extension service method `models/list` is dispatched by Compozy whenever the catalog refreshes the
 `extension:<slug>` source for a provider the extension declares. The slug is derived from the
 extension name and must match `^[a-z0-9][a-z0-9_-]*$`; manifests that do not normalize cleanly are
 rejected at install time.
 
-| Direction       | Method           | Purpose                                                                      |
-| --------------- | ---------------- | ---------------------------------------------------------------------------- |
-| AGH → extension | `models/list`    | Returns provider model rows for the extension's declared providers.          |
-| Host API call   | `models/list`    | Reads the daemon-owned merged catalog projection, scoped by capability.      |
-| Host API call   | `models/refresh` | Triggers a daemon-owned source refresh; serialized per provider.             |
-| Host API call   | `models/status`  | Reads daemon-owned source status, including `last_refresh` and `last_error`. |
+| Direction           | Method           | Purpose                                                                      |
+| ------------------- | ---------------- | ---------------------------------------------------------------------------- |
+| Compozy → extension | `models/list`    | Returns provider model rows for the extension's declared providers.          |
+| Host API call       | `models/list`    | Reads the daemon-owned merged catalog projection, scoped by capability.      |
+| Host API call       | `models/refresh` | Triggers a daemon-owned source refresh; serialized per provider.             |
+| Host API call       | `models/status`  | Reads daemon-owned source status, including `last_refresh` and `last_error`. |
 
 Capability areas align with the Host API authorization layer:
 
@@ -392,9 +392,13 @@ finishes.
 The in-repository TypeScript SDK exports generated `ProviderModel*`, `ModelCatalogSource*`, and
 `ModelSource*` contracts from the daemon's OpenAPI source. The Go SDK currently exposes the generic
 `HostAPI.Request` boundary rather than generated model-catalog payload types. The TypeScript package
-is a workspace dependency in this repository and is not published by the AGH release workflow; use
-it from a version-matched repository checkout instead of assuming `@agh/extension-sdk` is available
+is a workspace dependency in this repository and is not published by the Compozy release workflow; use
+it from a version-matched repository checkout instead of assuming `@compozy/extension-sdk` is available
 from a package registry.
+
+The public `@compozy/extension-sdk` and `@compozy/create-extension` packages remain frozen on their
+legacy v0.1.x line. There is no v0.3 registry successor: the API-incompatible v0.3 workspaces are
+private repository sources, not package renames or drop-in upgrades.
 
 ### Authored Context Host API
 
@@ -455,7 +459,7 @@ Heartbeat, or wake state.
 
 ### Authored Context Native Tools
 
-AGH exposes three native tools that run through the same managed services. They are
+Compozy exposes three native tools that run through the same managed services. They are
 agent-callable when policy permits, and they reuse the Host API authorization layer so a tool
 call and a JSON-RPC call resolve to the same grants.
 
@@ -481,7 +485,7 @@ contract instead of assuming SDK parity that is not present.
 ## Practical Example: Prompt Enhancer
 
 This example mirrors the repository's `sdk/examples/prompt-enhancer` pattern and can be built and
-exercised from an AGH repository checkout, where its `package.json` resolves `@agh/extension-sdk`
+exercised from an Compozy repository checkout, where its `package.json` resolves `@compozy/extension-sdk`
 with `workspace:*`. It cannot be managed-installed as written: the runtime import remains in the
 built JavaScript, and the workspace dependency is a symlink outside the example root. The managed
 installer rejects runtime dependency symlinks that escape the package boundary. The extension
@@ -529,7 +533,7 @@ import {
   type ExecuteHookParams,
   type ExtensionOptions,
   type PromptPatch,
-} from "@agh/extension-sdk";
+} from "@compozy/extension-sdk";
 
 function enhance(prompt: string, workspace?: string, workspaceID?: string): PromptPatch {
   const label = workspace?.trim() || workspaceID?.trim() || "unknown";
@@ -623,7 +627,7 @@ payload from stdin and exits with a patch on stdout.
 
 ## Build the repository example
 
-From the AGH repository root:
+From the Compozy repository root:
 
 ```bash
 bun install
@@ -631,7 +635,7 @@ bun run --cwd sdk/examples/prompt-enhancer build
 ```
 
 This proves the repository-local SDK/example contract. Do not pass
-`sdk/examples/prompt-enhancer` to `agh extension install` until its runtime SDK dependency has been
+`sdk/examples/prompt-enhancer` to `compozy extension install` until its runtime SDK dependency has been
 materialized inside the extension package rather than linked to `sdk/typescript` outside it.
 
 ## Install a self-contained extension
@@ -643,11 +647,11 @@ own directory tree. Once an extension satisfies that boundary:
 EXTENSION_DIR=/absolute/path/to/self-contained-extension
 EXTENSION_NAME=prompt-enhancer
 
-agh extension install "$EXTENSION_DIR" --allow-unverified --yes -o json
-agh extension status "$EXTENSION_NAME" -o json
+compozy extension install "$EXTENSION_DIR" --allow-unverified --yes -o json
+compozy extension status "$EXTENSION_NAME" -o json
 ```
 
-If `package.json` is present, AGH copies runtime `dependencies` and `optionalDependencies` under
+If `package.json` is present, Compozy copies runtime `dependencies` and `optionalDependencies` under
 `node_modules`; development dependencies are not copied. Symlinked runtime dependencies must still
 resolve within the extension root. This prevents a managed package from silently capturing files
 from the surrounding checkout.
@@ -669,20 +673,20 @@ prompt-enhancer-0.1.0.tar.gz
 The installer rejects ambiguous packages, including archive roots that look like both a skill package
 and an extension package. Keep extension packages centered on `extension.toml`.
 
-For GitHub-backed registries, AGH reads release metadata, downloads the selected release asset or
+For GitHub-backed registries, Compozy reads release metadata, downloads the selected release asset or
 tarball, computes the install checksum, stores registry metadata, and can later run
-`agh extension update`.
+`compozy extension update`.
 
 ## Runtime Failure And Recovery
 
-The extension supervisor monitors health checks and process exits. On failure, AGH records the
+The extension supervisor monitors health checks and process exits. On failure, Compozy records the
 failure, applies exponential restart backoff, and relaunches the subprocess. After repeated
-consecutive failures, AGH disables the extension, unregisters resources, marks it inactive, and
-stores the last error for `agh extension status`.
+consecutive failures, Compozy disables the extension, unregisters resources, marks it inactive, and
+stores the last error for `compozy extension status`.
 
 Stop and reload behavior:
 
-- `agh extension enable <name>` and `agh extension disable <name>` reload the manager when the
+- `compozy extension enable <name>` and `compozy extension disable <name>` reload the manager when the
   daemon is running.
 - Daemon shutdown sends cooperative `shutdown` first, then escalates through the subprocess layer if
   needed.
@@ -697,8 +701,8 @@ Stop and reload behavior:
 5. If providing `bridge.adapter`, declare `[bridge] platform` and `display_name`.
 6. If packaging hooks, make each hook command satisfy stdin payload to stdout patch.
 7. Materialize every runtime dependency inside the trusted extension root, then install that
-   directory with `agh extension install <path> --allow-unverified --yes -o json`.
-8. Inspect with `agh extension status <name>` and `agh hooks list --source config` when hooks are
+   directory with `compozy extension install <path> --allow-unverified --yes -o json`.
+8. Inspect with `compozy extension status <name>` and `compozy hooks list --source config` when hooks are
    included.
 
 Related references:

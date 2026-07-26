@@ -1,4 +1,4 @@
-import { Field, FieldDescription, FieldLabel, Input } from "@agh/ui";
+import { Field, FieldDescription, FieldLabel, Input } from "@compozy/ui";
 
 interface PlacementSectionProps {
   parentTaskId: string;

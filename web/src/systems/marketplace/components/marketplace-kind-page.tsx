@@ -10,7 +10,7 @@ import {
   RouteNav,
   Spinner,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { MCPServerEditor } from "@/systems/settings";

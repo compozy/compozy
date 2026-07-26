@@ -1,6 +1,6 @@
 import { Trash2 } from "lucide-react";
 
-import { Button, Pill, cn } from "@agh/ui";
+import { Button, Pill, cn } from "@compozy/ui";
 
 import { layoutThumbnail } from "../../lib/window-manager-layout-thumbnail";
 import type { WindowManagerLayoutResourceRecord } from "../../lib/window-manager-layout-types";

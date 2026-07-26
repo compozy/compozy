@@ -1,6 +1,6 @@
 import { HttpResponse, type HttpHandler } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { vaultSecretFixtures, vaultSecretsResponseFixture } from "./fixtures";
 
@@ -30,10 +30,10 @@ function readRecord(value: unknown): Record<string, unknown> {
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/vault/secrets", ({ request }) =>
+  compozyApiMock.get("/api/vault/secrets", ({ request }) =>
     HttpResponse.json({ secrets: filterVaultSecrets(request) })
   ),
-  aghApiMock.get("/api/vault/secrets/metadata", ({ request }) => {
+  compozyApiMock.get("/api/vault/secrets/metadata", ({ request }) => {
     const url = new URL(request.url);
     const ref = url.searchParams.get("ref") ?? "";
     const secret = vaultSecretFixtures.find(candidate => candidate.ref === ref);
@@ -44,7 +44,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ secret });
   }),
-  aghApiMock.put("/api/vault/secrets", async ({ request }) => {
+  compozyApiMock.put("/api/vault/secrets", async ({ request }) => {
     const body = readRecord(await request.json());
     const ref = typeof body.ref === "string" ? body.ref : "vault:sessions/storybook";
     return HttpResponse.json({
@@ -58,7 +58,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.delete("/api/vault/secrets", ({ request }) => {
+  compozyApiMock.delete("/api/vault/secrets", ({ request }) => {
     const url = new URL(request.url);
     const ref = url.searchParams.get("ref") ?? "";
     const secret = vaultSecretsResponseFixture.secrets.find(candidate => candidate.ref === ref);

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState, type ComponentProps, type Ref } from "react";
 
-import { cn, ConnectionIndicator, SearchInput, type ConnectionStatus } from "@agh/ui";
+import { cn, ConnectionIndicator, SearchInput, type ConnectionStatus } from "@compozy/ui";
 
 import {
   filterSettingsSections,

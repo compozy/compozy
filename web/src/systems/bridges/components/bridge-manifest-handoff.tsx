@@ -7,7 +7,7 @@ import {
   FormSection,
   OperationalLinksRow,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 export interface BridgeManifestCommittedState {
   bridgeId: string;
@@ -78,7 +78,9 @@ export function BridgeManifestHandoff({ state }: BridgeManifestHandoffProps) {
             <ol className="list-decimal space-y-1 pl-5 text-small-body leading-relaxed text-muted">
               <li>Open the Slack app dashboard and choose Create New App.</li>
               <li>Select From an app manifest, then paste the copied JSON.</li>
-              <li>Install the app, return to AGH, bind its credentials, and run verification.</li>
+              <li>
+                Install the app, return to CompozyOS, bind its credentials, and run verification.
+              </li>
             </ol>
             <OperationalLinksRow
               ariaLabel="Slack setup links"

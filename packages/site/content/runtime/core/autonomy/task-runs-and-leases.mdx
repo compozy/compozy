@@ -22,10 +22,10 @@ compozy__task_run_claim_next  { "wait": true, "lease_seconds": 300 }
 CLI path:
 
 ```bash
-agh task next --wait --lease-seconds 300 -o json
+compozy task next --wait --lease-seconds 300 -o json
 ```
 
-The claim is atomic. AGH selects one eligible queued run, binds it to the current managed session,
+The claim is atomic. Compozy selects one eligible queued run, binds it to the current managed session,
 sets a lease deadline, and returns a synchronous claim response that includes:
 
 - task summary
@@ -34,7 +34,7 @@ sets a lease deadline, and returns a synchronous claim response that includes:
 - `claim_token_hash` for observability
 - coordination channel metadata when the run has a bound channel
 
-The raw bearer lease token is internal to AGH. Public CLI, HTTP, UDS, native-tool, web, stream,
+The raw bearer lease token is internal to Compozy. Public CLI, HTTP, UDS, native-tool, web, stream,
 log, channel, and memory payloads use the calling session plus `run_id` and expose at most
 `claim_token_hash`. Tools belonging to the `compozy__autonomy` toolset reject any input or response
 field that would carry a raw claim token.
@@ -52,7 +52,7 @@ The MVP lease contract is intentionally narrow:
 | Expiry recovery              | Expired leases are recovered by boot recovery or scheduler sweeps through the task service.                             |
 | Stale holders fail           | A stale heartbeat or late complete after recovery fails explicitly; it does not extend or overwrite a newer claim.      |
 
-Each expired-lease recovery increments the run's durable `recovery_count`. AGH exhausts the run
+Each expired-lease recovery increments the run's durable `recovery_count`. Compozy exhausts the run
 when `attempt + recovery_count >= max_attempts`; otherwise it returns the run to the queue. An
 exhausted recovery emits `task.run.lease_recovery_exhausted` and moves the run to
 `needs_attention`. Recovery state and its canonical events commit atomically, so a failed event
@@ -71,7 +71,7 @@ compozy__task_run_heartbeat  { "run_id": "run-123", "lease_seconds": 300 }
 CLI path:
 
 ```bash
-agh task heartbeat run-123 --lease-seconds 300
+compozy task heartbeat run-123 --lease-seconds 300
 ```
 
 Heartbeats are task-service operations. Do not mirror routine heartbeats into coordination channel
@@ -90,7 +90,7 @@ compozy__task_run_complete  { "run_id": "run-123", "result": { "summary": "tests
 CLI path:
 
 ```bash
-agh task complete run-123 \
+compozy task complete run-123 \
   --result '{"summary":"tests passed"}'
 ```
 
@@ -107,15 +107,15 @@ through its existing terminal-state path.
 ### Auto-enqueue on ready
 
 Tasks are opt-in for dependency-driven auto-enqueue. When a task carries
-`auto_enqueue_on_ready`, AGH enqueues its next run automatically as soon as a blocking dependency
+`auto_enqueue_on_ready`, Compozy enqueues its next run automatically as soon as a blocking dependency
 completes and the task becomes `ready` — no manual `enqueue` is required to advance the DAG.
 
 Set it at create time, or toggle it later on an assembled tree:
 
 ```bash
-agh task create --scope global --title "Deploy" --auto-enqueue-on-ready
-agh task update task-123 --auto-enqueue-on-ready          # turn on
-agh task update task-123 --auto-enqueue-on-ready=false    # turn off
+compozy task create --scope global --title "Deploy" --auto-enqueue-on-ready
+compozy task update task-123 --auto-enqueue-on-ready          # turn on
+compozy task update task-123 --auto-enqueue-on-ready=false    # turn off
 ```
 
 The behavior is deliberately conservative:
@@ -134,7 +134,7 @@ The behavior is deliberately conservative:
 ## Failing a claimed run
 
 Use the session-bound fail path when the current claim cannot complete successfully. This path is
-token-fenced server-side: the caller supplies a `run_id`, and AGH resolves the managed session's
+token-fenced server-side: the caller supplies a `run_id`, and Compozy resolves the managed session's
 active lease before mutating the run.
 
 Tool path:
@@ -146,7 +146,7 @@ compozy__task_run_fail  { "run_id": "run-123", "error": "tests failed", "metadat
 CLI path:
 
 ```bash
-agh task run fail run-123 \
+compozy task run fail run-123 \
   --error "tests failed" \
   --metadata '{"command":"make test"}'
 ```
@@ -166,7 +166,7 @@ compozy__task_run_release  { "run_id": "run-123", "reason": "handoff" }
 ```
 
 Release is also used by daemon-owned cleanup. For example, if a spawned child reaches TTL or its
-parent stops, AGH releases active child leases with structured reasons such as `ttl_expired` or
+parent stops, Compozy releases active child leases with structured reasons such as `ttl_expired` or
 `parent_stopped` before stopping the child session.
 
 ## Force operations
@@ -176,17 +176,17 @@ not available or should not be trusted. Force operations still mutate `task_runs
 `task.Service`; they do not accept raw claim tokens, and they apply compare-and-swap state
 preconditions before committing.
 
-| Operation     | CLI path                                    | API route                     | Valid source state    |
-| ------------- | ------------------------------------------- | ----------------------------- | --------------------- |
-| Force release | `agh task release run-123 --reason handoff` | `POST /api/runs/{id}/release` | `claimed`             |
-| Force fail    | `agh task fail run-123 --reason "recovery"` | `POST /api/runs/{id}/fail`    | `queued` or `claimed` |
-| Retry         | `agh task retry run-123`                    | `POST /api/runs/{id}/retry`   | `failed`              |
+| Operation     | CLI path                                        | API route                     | Valid source state    |
+| ------------- | ----------------------------------------------- | ----------------------------- | --------------------- |
+| Force release | `compozy task release run-123 --reason handoff` | `POST /api/runs/{id}/release` | `claimed`             |
+| Force fail    | `compozy task fail run-123 --reason "recovery"` | `POST /api/runs/{id}/fail`    | `queued` or `claimed` |
+| Retry         | `compozy task retry run-123`                    | `POST /api/runs/{id}/retry`   | `failed`              |
 
 Bulk force release and force fail use bounded batches of run IDs:
 
 ```bash
-agh task release run-123 run-456 --reason handoff -o json
-agh task fail run-123 run-456 --reason "provider credentials revoked" -o json
+compozy task release run-123 run-456 --reason handoff -o json
+compozy task fail run-123 run-456 --reason "provider credentials revoked" -o json
 ```
 
 The HTTP and UDS bulk routes are `POST /api/runs/bulk/release` and
@@ -205,7 +205,7 @@ and provider diagnostics instead of on task-run rows.
 
 Every force operation emits canonical audit events:
 
-| Event                           | When AGH emits it                                                 |
+| Event                           | When Compozy emits it                                             |
 | ------------------------------- | ----------------------------------------------------------------- |
 | `task.run_released`             | A claimed run is force released back to the queue.                |
 | `task.run_operator_forced_fail` | A queued or claimed run is force failed with operator evidence.   |
@@ -221,15 +221,15 @@ heartbeating, completing, failing, releasing, and expiring through the normal le
 Use scheduler-wide pause when dispatch must stop globally, and task pause when one task or a task
 subtree must stop receiving new claims.
 
-| Operation         | CLI path                                      | API route                     | Effect                                       |
-| ----------------- | --------------------------------------------- | ----------------------------- | -------------------------------------------- |
-| Scheduler status  | `agh scheduler status`                        | `GET /api/scheduler`          | Shows pause state and queue pressure.        |
-| Scheduler pause   | `agh scheduler pause --reason "incident"`     | `POST /api/scheduler/pause`   | Stops new dispatch and claim eligibility.    |
-| Scheduler resume  | `agh scheduler resume`                        | `POST /api/scheduler/resume`  | Re-enables new dispatch and claims.          |
-| Scheduler drain   | `agh scheduler drain --timeout 30s`           | `POST /api/scheduler/drain`   | Pauses dispatch and waits for active claims. |
-| Scheduler backlog | `agh scheduler backlog --include-paused`      | `GET /api/scheduler/backlog`  | Lists queued runs in scheduler order.        |
-| Task pause        | `agh task pause task-123 --reason "incident"` | `POST /api/tasks/{id}/pause`  | Stops new claims for that task subtree.      |
-| Task resume       | `agh task resume task-123`                    | `POST /api/tasks/{id}/resume` | Clears the direct task pause.                |
+| Operation         | CLI path                                          | API route                     | Effect                                       |
+| ----------------- | ------------------------------------------------- | ----------------------------- | -------------------------------------------- |
+| Scheduler status  | `compozy scheduler status`                        | `GET /api/scheduler`          | Shows pause state and queue pressure.        |
+| Scheduler pause   | `compozy scheduler pause --reason "incident"`     | `POST /api/scheduler/pause`   | Stops new dispatch and claim eligibility.    |
+| Scheduler resume  | `compozy scheduler resume`                        | `POST /api/scheduler/resume`  | Re-enables new dispatch and claims.          |
+| Scheduler drain   | `compozy scheduler drain --timeout 30s`           | `POST /api/scheduler/drain`   | Pauses dispatch and waits for active claims. |
+| Scheduler backlog | `compozy scheduler backlog --include-paused`      | `GET /api/scheduler/backlog`  | Lists queued runs in scheduler order.        |
+| Task pause        | `compozy task pause task-123 --reason "incident"` | `POST /api/tasks/{id}/pause`  | Stops new claims for that task subtree.      |
+| Task resume       | `compozy task resume task-123`                    | `POST /api/tasks/{id}/resume` | Clears the direct task pause.                |
 
 Task pause is inherited by descendants through typed task columns. Backlog responses expose
 `effective_paused` and `paused_by_task_id` so agents can tell whether a queued run is blocked by
@@ -246,7 +246,7 @@ when they need an independent progress view.
 
 Queued work does not become starved just because every compatible session is busy. A compatible
 session that is starting, waiting at a prompt, processing another run, or already reserved for an
-earlier run in the same scheduler cycle is still usable capacity. AGH keeps later work queued and
+earlier run in the same scheduler cycle is still usable capacity. Compozy keeps later work queued and
 freezes its escalation budget until that capacity becomes available. The daemon records structured
 `scheduler.capacity_waiting` diagnostics for this condition.
 
@@ -256,7 +256,7 @@ than every run older than `[autonomy.scheduler].min_queued_age`. Capacity-waitin
 of `queued_run_count`; a run appears in `needs_attention_run_count` only after the bounded ladder
 parks it for recovery. The same projection is returned by CLI, HTTP, and UDS scheduler status.
 
-| Event                       | When AGH emits it                                     |
+| Event                       | When Compozy emits it                                 |
 | --------------------------- | ----------------------------------------------------- |
 | `scheduler.paused`          | Scheduler dispatch was paused or drain was requested. |
 | `scheduler.resumed`         | Scheduler dispatch was resumed.                       |
@@ -290,16 +290,16 @@ compozy__task_unblock  { "task_id": "task-123", "block_id": "block-abc" }
 CLI path:
 
 ```bash
-agh task block task-123 --kind transient --reason "provider 503" --expires-in 5m -o json
-agh task blocks task-123 --all -o json
-agh task unblock task-123 --block block-abc --note "provider recovered" -o json
+compozy task block task-123 --kind transient --reason "provider 503" --expires-in 5m -o json
+compozy task blocks task-123 --all -o json
+compozy task unblock task-123 --block block-abc --note "provider recovered" -o json
 ```
 
 The HTTP and UDS surfaces are `POST /api/tasks/{id}/blocks`, `GET /api/tasks/{id}/blocks`, and
 `POST /api/tasks/{id}/blocks/{block_id}/clear`.
 
-Blocking a running task in one step passes `--run-id` (with `--as-agent`, so AGH resolves the active
-lease token server-side). AGH records the block, increments the recurrence counter, and releases the
+Blocking a running task in one step passes `--run-id` (with `--as-agent`, so Compozy resolves the active
+lease token server-side). Compozy records the block, increments the recurrence counter, and releases the
 lease in one atomic transaction. The run returns to `queued` with no attempt consumed and emits
 `task.run_released`.
 
@@ -314,7 +314,7 @@ edges, and flags. The web task detail renders one chip per entry.
 ### Auto-resume
 
 Clearing the last blocking cause returns a task to `ready`. For tasks that opted into
-`auto_enqueue_on_ready`, AGH enqueues the next run automatically on block-clear, transient-expiry, and
+`auto_enqueue_on_ready`, Compozy enqueues the next run automatically on block-clear, transient-expiry, and
 approval-granted — the same idempotent, at-most-one-open-run path used for dependency completion.
 Transient blocks expire lazily: an expired block stops counting toward `blocked` immediately for read
 and claim correctness, and a scheduler sweep finalizes the clear through the task service.
@@ -322,7 +322,7 @@ and claim correctness, and a scheduler sweep finalizes the clear through the tas
 ### The unblock-loop breaker
 
 An automation that keeps clearing a block the worker keeps re-declaring is an unbounded thrash loop.
-AGH counts re-blocks of the same kind on the same task and, when the count reaches
+Compozy counts re-blocks of the same kind on the same task and, when the count reaches
 `[autonomy] block_recurrence_limit` (default `2`; `0` disables the breaker), escalates the task out of
 the block lane to a first-class `needs_attention` task status. The counter resets only on successful
 task completion — never on unblock or expiry.
@@ -339,7 +339,7 @@ compozy__task_recover  { "task_id": "task-123", "note": "fixed the credential" }
 CLI path:
 
 ```bash
-agh task recover task-123 --note "fixed the credential" -o json
+compozy task recover task-123 --note "fixed the credential" -o json
 ```
 
 The HTTP and UDS route is `POST /api/tasks/{id}/recover`. Recover clears the escalation, records the
@@ -348,12 +348,12 @@ Recovering a task that is not escalated is rejected as an invalid status transit
 
 ### Wake-creator
 
-When an `agent_session` creates a task (delegation), AGH wakes the creating session on the child's
+When an `agent_session` creates a task (delegation), Compozy wakes the creating session on the child's
 terminal, blocked, and `needs_attention` transitions by default, delivering a synthetic queued turn —
 never an interrupt or steer. Opt out per task at create time:
 
 ```bash
-agh task create --scope global --title "Deploy" --no-wake-creator
+compozy task create --scope global --title "Deploy" --no-wake-creator
 ```
 
 Wake is delivered at most once per transition, suppressed for a dead creator session and for a
@@ -364,7 +364,7 @@ creators.
 ### Completion claim gate
 
 When a run completes, the worker may list the tasks it created during that run in `created_task_ids`.
-AGH verifies each id before the terminal write: the task must exist, belong to the same workspace, and
+Compozy verifies each id before the terminal write: the task must exist, belong to the same workspace, and
 have been created by the completing session. A phantom or cross-session id rejects the completion,
 leaves the run `running` with its lease intact for a corrected resubmission, and records
 `task.completion.hallucination_blocked`. A second advisory scan of the result prose emits
@@ -379,13 +379,13 @@ compozy__task_run_complete  { "run_id": "run-123", "result": { "summary": "spawn
 
 ### Run usage and cost
 
-`agh task run show <run-id> -o json` and the task-run detail API include an operational summary with
+`compozy task run show <run-id> -o json` and the task-run detail API include an operational summary with
 token totals plus `total_cost`, `cost_currency`, `cost_status`, and `cost_source`.
 
 - `actual` is agent-reported cost.
 - `estimated` is a catalog-rate projection and remains labeled as estimated.
 - `included` means the native provider owns subscription billing; no amount is shown.
-- `unknown` means AGH cannot make one compatible monetary claim; no amount is shown.
+- `unknown` means Compozy cannot make one compatible monetary claim; no amount is shown.
 
 Task-run aggregation never mixes reported and estimated amounts. If currency, status, or source
 differs across contributing rows, the monetary summary becomes `unknown`/`none` while token totals
@@ -395,7 +395,7 @@ cache-read, cache-write, and reasoning bucket; missing bucket rates never fall b
 
 ### Block and escalation events
 
-| Event                  | When AGH emits it                                      |
+| Event                  | When Compozy emits it                                  |
 | ---------------------- | ------------------------------------------------------ |
 | `task.blocked`         | A typed block was created on a task.                   |
 | `task.unblocked`       | A block was cleared explicitly or by transient expiry. |
@@ -411,8 +411,8 @@ Use inspect when an operator or agent needs a read-only triage snapshot before m
 The CLI auto-detects task and run IDs:
 
 ```bash
-agh task inspect task-123 -o json
-agh task inspect run-123 -o json
+compozy task inspect task-123 -o json
+compozy task inspect run-123 -o json
 ```
 
 The same snapshot is available over HTTP and UDS:
@@ -456,10 +456,10 @@ Lease writers and the autonomy tool bridge return the same deterministic reason 
 
 ## Lease credentials and channels
 
-Never send raw lease credentials through `agh ch send`, `agh ch reply`, `compozy__network_send`,
+Never send raw lease credentials through `compozy ch send`, `compozy ch reply`, `compozy__network_send`,
 network envelopes, logs, or memory. If another participant needs to know progress, send a
 coordination message. If a session needs to prove ownership, it calls one of the `compozy__autonomy`
-tools or the matching `agh task` command for the owned `run_id`; AGH resolves the internal lease
+tools or the matching `compozy task` command for the owned `run_id`; Compozy resolves the internal lease
 server-side.
 
 ## Related pages

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 import { expect, userEvent, within } from "storybook/test";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -74,16 +74,16 @@ const gitFlowShadows = {
 function detailSkillHandlers(disableFailure = false, skill = gitFlowSkill) {
   return storybookMswParameters({
     marketplace: [
-      aghApiMock.get("/api/skills/{name}", () => HttpResponse.json({ skill })),
-      aghApiMock.get("/api/skills/{name}/content", () =>
+      compozyApiMock.get("/api/skills/{name}", () => HttpResponse.json({ skill })),
+      compozyApiMock.get("/api/skills/{name}/content", () =>
         HttpResponse.json({
           content:
             "# Git Flow\n\nBranch, review, and land changes using the repository's own checks as the gate.\n",
         })
       ),
-      aghApiMock.get("/api/skills/{name}/shadows", () => HttpResponse.json(gitFlowShadows)),
-      aghApiMock.post("/api/skills/{name}/enable", () => HttpResponse.json({ ok: true })),
-      aghApiMock.post("/api/skills/{name}/disable", () =>
+      compozyApiMock.get("/api/skills/{name}/shadows", () => HttpResponse.json(gitFlowShadows)),
+      compozyApiMock.post("/api/skills/{name}/enable", () => HttpResponse.json({ ok: true })),
+      compozyApiMock.post("/api/skills/{name}/disable", () =>
         disableFailure
           ? HttpResponse.json({ error: "Skill policy rejected the update" }, { status: 409 })
           : HttpResponse.json({ ok: true })
@@ -127,7 +127,7 @@ export const SkillsLoading: Story = {
     ...appRouteParameters("/marketplace/skills"),
     ...storybookMswParameters({
       marketplace: [
-        aghApiMock.get("/api/marketplace/{kind}", async () => {
+        compozyApiMock.get("/api/marketplace/{kind}", async () => {
           await delay("infinite");
           return HttpResponse.json(marketplaceSearchFixture.kinds[0]);
         }),
@@ -216,7 +216,7 @@ export const DetailExtensionInstalled: Story = {
     ...appRouteParameters("/marketplace/extension/slack-notify"),
     ...storybookMswParameters({
       marketplace: [
-        aghApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
           HttpResponse.json({
             ...marketplaceDetails["extension:slack-notify"],
             entry: {
@@ -239,7 +239,7 @@ export const DetailMcpInstalled: Story = {
     ...appRouteParameters("/marketplace/mcp/linear"),
     ...storybookMswParameters({
       marketplace: [
-        aghApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
           HttpResponse.json({
             ...marketplaceDetails["mcp:linear"],
             entry: {
@@ -250,7 +250,7 @@ export const DetailMcpInstalled: Story = {
             },
           })
         ),
-        aghApiMock.get("/api/settings/mcp-servers", () =>
+        compozyApiMock.get("/api/settings/mcp-servers", () =>
           HttpResponse.json(mcpManagementCollectionFixture)
         ),
       ],
@@ -265,7 +265,7 @@ export const SkillsError: Story = {
     ...appRouteParameters("/marketplace/skills"),
     ...storybookMswParameters({
       marketplace: [
-        aghApiMock.get("/api/marketplace/{kind}", () =>
+        compozyApiMock.get("/api/marketplace/{kind}", () =>
           HttpResponse.json({ error: "unreachable" }, { status: 503 })
         ),
       ],
@@ -280,7 +280,7 @@ export const SkillsEmpty: Story = {
     ...appRouteParameters("/marketplace/skills"),
     ...storybookMswParameters({
       marketplace: [
-        aghApiMock.get("/api/marketplace/{kind}", () =>
+        compozyApiMock.get("/api/marketplace/{kind}", () =>
           HttpResponse.json({ items: [], kind: "skill", stale: false, total: 0 })
         ),
       ],

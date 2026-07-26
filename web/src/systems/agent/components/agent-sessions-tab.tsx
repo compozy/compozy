@@ -1,4 +1,4 @@
-import { PillGroup, Skeleton, type PillGroupItem } from "@agh/ui";
+import { PillGroup, Skeleton, type PillGroupItem } from "@compozy/ui";
 
 import type { SessionPayload } from "@/systems/session";
 

@@ -17,7 +17,7 @@ import {
   Spinner,
   Textarea,
   type PillTone,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { describeBridgeTestTarget } from "../lib/bridge-formatters";
 import type {

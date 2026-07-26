@@ -21,7 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   bridgeTargetTypeLabel,

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Boxes } from "lucide-react";
 
-import { EntityModeToolbar, type EntityMode } from "@agh/ui";
+import { EntityModeToolbar, type EntityMode } from "@compozy/ui";
 
 import { SettingsEditorDialog, SettingsSourceBadge } from "@/systems/settings";
 

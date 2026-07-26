@@ -63,7 +63,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/runtime/cli-reference/agh/",
+  usePathname: () => "/runtime/cli-reference/compozy/",
 }));
 
 vi.mock("next/link", () => ({
@@ -106,8 +106,8 @@ describe("DocsHeader", () => {
       </button>
     );
     const NavTitle = ({ className }: SlotComponentProps) => (
-      <a className={className} href="/" aria-label="AGH docs home">
-        AGH
+      <a className={className} href="/" aria-label="Compozy docs home">
+        Compozy
       </a>
     );
     const SearchFull = ({ className }: SlotComponentProps) => (
@@ -126,7 +126,7 @@ describe("DocsHeader", () => {
       isNavTransparent: true,
       navItems: [
         { text: "Runtime", type: "main", url: "/runtime/" },
-        { text: "AGH Network", type: "main", url: "/protocol/" },
+        { text: "Compozy Network", type: "main", url: "/protocol/" },
         { label: "GitHub", type: "icon", url: "https://github.com/compozy", icon: "GH" },
         { type: "menu", text: "Ignored menu" },
       ],
@@ -164,7 +164,7 @@ describe("DocsHeader", () => {
         .getAllByRole("link", { name: "Runtime" })
         .some(link => link.getAttribute("href") === "/runtime/")
     ).toBe(true);
-    expect(screen.getByRole("link", { name: "AGH Network" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Compozy Network" }).getAttribute("href")).toBe(
       "/protocol/"
     );
     expect(screen.queryByText("Ignored menu")).toBeNull();
@@ -173,7 +173,7 @@ describe("DocsHeader", () => {
     );
     expect(screen.getByRole("searchbox", { name: "Search docs" })).toBeDefined();
     expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "AGH docs home" }).getAttribute("href")).toBe("/");
+    expect(screen.getByRole("link", { name: "Compozy docs home" }).getAttribute("href")).toBe("/");
   });
 
   it("marks the active layout tab and hides inactive unlisted tabs", () => {

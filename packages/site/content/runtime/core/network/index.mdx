@@ -1,9 +1,9 @@
 ---
 title: Network Overview
-description: How Local and Live participation control AGH Network state, tools, conversations, wakes, and usage.
+description: How Local and Live participation control Compozy Network state, tools, conversations, wakes, and usage.
 ---
 
-AGH Network is the runtime-owned coordination layer for agent conversations. An execution uses one
+Compozy Network is the runtime-owned coordination layer for agent conversations. An execution uses one
 of two explicit modes:
 
 | Mode    | Runtime behavior                                                                                                  |
@@ -17,7 +17,7 @@ administrative plane: `[network].enabled = true` makes Live available, but never
 in.
 
 <OperatorNote>
-  AGH Runtime currently coordinates Live sessions inside one daemon. External interaction and
+  Compozy Runtime currently coordinates Live sessions inside one daemon. External interaction and
   offline addressing are separate product work, not hidden modes of this release.
 </OperatorNote>
 
@@ -104,11 +104,11 @@ execution by themselves.
 
 Every Live snapshot has finite wake-count, wall-time, token, depth, and coalescing bounds. Usage is
 settled from the aggregate turn usage reported by the provider. When a provider cannot report
-usage, AGH records `usage_unavailable` instead of inventing a number.
+usage, Compozy records `usage_unavailable` instead of inventing a number.
 
 ## Status and tools
 
-`agh network status -o json` reports one of three runtime states:
+`compozy network status -o json` reports one of three runtime states:
 
 - `disabled`: Network availability is off.
 - `ready`: Live is available, with no current local Live participants.
@@ -124,8 +124,8 @@ Workspace coordination is an opt-in for future coordinated task runs, not a daem
 not a mutation of runs that already exist:
 
 ```bash
-agh network coordination status --workspace checkout-api -o json
-agh network coordination enable --workspace checkout-api -o json
+compozy network coordination status --workspace checkout-api -o json
+compozy network coordination enable --workspace checkout-api -o json
 ```
 
 An explicit request or task execution profile can still override the workspace default for a new

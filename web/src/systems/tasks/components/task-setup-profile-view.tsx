@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Pill, PillGroup, PropertyRow, Section, type PillGroupItem } from "@agh/ui";
+import { Pill, PillGroup, PropertyRow, Section, type PillGroupItem } from "@compozy/ui";
 
 import type { TaskExecutionProfile } from "../types";
 

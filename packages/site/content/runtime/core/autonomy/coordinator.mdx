@@ -1,9 +1,9 @@
 ---
 title: Coordinator Handoff
-description: When AGH starts a workspace coordinator and why coordinator bootstrap is independent from Network participation.
+description: When Compozy starts a workspace coordinator and why coordinator bootstrap is independent from Network participation.
 ---
 
-The coordinator is a managed AGH session that performs semantic orchestration for executable,
+The coordinator is a managed Compozy session that performs semantic orchestration for executable,
 workspace-scoped runs. It can decompose work, create follow-up tasks, route workers, and synthesize
 results, but it does not own task-run state.
 
@@ -67,19 +67,19 @@ Workspace config wins over global config, then builtin or authored-agent/provide
 Changes are Live for later coordinator starts; an active coordinator keeps its accepted routing.
 The builtin identity is virtual, reserved from authoring, and absent from the public agent catalog.
 The coordinator remains idempotent per workspace and cannot spawn another coordinator. Inspect the
-effective projection with `agh roles show coordinator --workspace <workspace> -o json`.
+effective projection with `compozy roles show coordinator --workspace <workspace> -o json`.
 
 ## Operator control
 
 ```bash
 # Intent only: no run and no coordinator yet.
-agh task create --scope workspace --workspace checkout-api --title "Audit auth flow"
+compozy task create --scope workspace --workspace checkout-api --title "Audit auth flow"
 
 # Enqueue a normal Local run; coordinator handoff can still happen.
-agh task start task-123 --network local -o json
+compozy task start task-123 --network local -o json
 
 # Enqueue one bounded Live coordinated run.
-agh task start task-123 \
+compozy task start task-123 \
   --network live \
   --network-channel-strategy run \
   -o json

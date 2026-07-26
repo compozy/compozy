@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn, Pill, type PillTone } from "@agh/ui";
+import { cn, Pill, type PillTone } from "@compozy/ui";
 
 export interface SettingsHeroStat {
   key: string;

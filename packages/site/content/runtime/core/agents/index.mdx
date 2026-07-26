@@ -1,14 +1,14 @@
 ---
 title: Agents
-description: How AGH resolves agent definitions, advertises capabilities, launches providers, and supervises ACP subprocesses.
+description: How Compozy resolves agent definitions, advertises capabilities, launches providers, and supervises ACP subprocesses.
 ---
 
-Agents are the executable unit AGH manages. A definition file declares the agent identity, the
+Agents are the executable unit Compozy manages. A definition file declares the agent identity, the
 provider that runs it, the permissions it inherits, and the capabilities it advertises. At session
-start AGH resolves that definition into an ACP subprocess, injects environment, negotiates the
+start Compozy resolves that definition into an ACP subprocess, injects environment, negotiates the
 session, and supervises it through stop.
 
-Use this section when you need to answer which agent will run, which provider command AGH will
+Use this section when you need to answer which agent will run, which provider command Compozy will
 execute, what capabilities the agent advertises to the network, or why a session did not launch the
 way you expected. Agent docs sit between configuration and sessions: configuration explains the
 files, sessions explain live runtime state, and this section explains the handoff from definition to
@@ -27,7 +27,7 @@ discover about the agent, not how the process starts.
 <figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--line) bg-(--canvas-soft) p-2">
   <img
     src="/images/runtime/agents-overview-storyboard-v1.png"
-    alt="Hand-drawn Agents poster showing AGH agent definitions, provider selection, ACP subprocess spawning, and supervised live sessions with the octopus mascot."
+    alt="Hand-drawn Agents poster showing Compozy agent definitions, provider selection, ACP subprocess spawning, and supervised live sessions with the octopus mascot."
     loading="eager"
     decoding="async"
     className="h-auto w-full rounded-md"
@@ -48,7 +48,7 @@ discover about the agent, not how the process starts.
     href="/runtime/core/agents/capabilities"
     label="Catalog"
     title="Capability catalog and projection"
-    description="Use this page when authoring capability catalogs and seeing how AGH projects them into greet, whois, and capability transfer."
+    description="Use this page when authoring capability catalogs and seeing how Compozy projects them into greet, whois, and capability transfer."
     meta="Discovery"
   />
   <RouteRow

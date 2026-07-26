@@ -11,17 +11,17 @@ is wrong before it ever costs anything.
 <Workflow>
   <WorkflowStep title="Describe">
     Read the current definition — its declared inputs, contract, start bindings, and version.
-    `agh loop inspect --name <loop>`, `GET /loops/:name`, or `compozy__loop_inspect`. This is where you
+    `compozy loop inspect --name <loop>`, `GET /loops/:name`, or `compozy__loop_inspect`. This is where you
     learn the `version` you will need to publish safely.
   </WorkflowStep>
   <WorkflowStep title="Validate">
-    Lint and compile a candidate definition **without saving it**. `agh loop validate --file
+    Lint and compile a candidate definition **without saving it**. `compozy loop validate --file
     loop.yaml`, `POST /loops/:name/validate`, or `compozy__loop_validate`. You get per-node errors with
     deterministic codes — `unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
     `fan_out_ceiling_exceeded`, and the rest. Nothing is persisted.
   </WorkflowStep>
   <WorkflowStep title="Dry-run">
-    Resolve inputs and render the first generation's plan **without starting a run**. `agh loop run
+    Resolve inputs and render the first generation's plan **without starting a run**. `compozy loop run
     --name <loop> --dry-run`, `POST /loops/:name/run?dry=true`, or `compozy__loop_run` with `dry: true`.
     It spends no budget, creates no run row, and returns a plan preview — resolved inputs, the
     generation-1 nodes, the contract, and the effective config.
@@ -34,14 +34,14 @@ is wrong before it ever costs anything.
     never silently clobber each other.
   </WorkflowStep>
   <WorkflowStep title="Run">
-    Start it — `agh loop run --name <loop>`, `POST /loops/:name/run`, or `compozy__loop_run`. Now, and
+    Start it — `compozy loop run --name <loop>`, `POST /loops/:name/run`, or `compozy__loop_run`. Now, and
     only now, the Loop spends tokens.
   </WorkflowStep>
 </Workflow>
 
 ## Two write paths
 
-A definition lives on the filesystem (`$COMPOZY_HOME/loops`, a workspace's `.agh/loops`, plus
+A definition lives on the filesystem (`$COMPOZY_HOME/loops`, a workspace's `.compozy/loops`, plus
 read-only extension resources such as `dev-cycle`). There are two ways to change one:
 
 - **HTTP `PATCH` / native tool** — the atomic, compare-and-swap path. `expected_version` guards it,
@@ -57,28 +57,28 @@ re-parse the author YAML mid-run — so a run's behavior is fixed at publish tim
 
 <OperatorNote label="There is no loop-edit tool">
   Agents author Loops through the steps above — validate, dry-run, then `compozy__loop_create` with
-  `expected_version` (or HTTP `PATCH`). There is no `compozy__loop_edit` native tool. The CLI's `agh
-  loop edit` is an operator convenience that opens the definition in `$EDITOR` and publishes it
-  through the same compare-and-swap path.
+  `expected_version` (or HTTP `PATCH`). There is no `compozy__loop_edit` native tool. The CLI's
+  `compozy loop edit` is an operator convenience that opens the definition in `$EDITOR` and
+  publishes it through the same compare-and-swap path.
 </OperatorNote>
 
 ## Fork, then edit
 
 New Loops start as a fork of an existing one — there is no blank-canvas builder. Fork a read-only
-or workspace Loop with `agh loop create --fork-from-name <name>` (or the editor's **Fork & edit**),
+or workspace Loop with `compozy loop create --fork-from-name <name>` (or the editor's **Fork & edit**),
 then change its body and publish. All three authoring surfaces — file, agent, and the
 [visual editor](/runtime/core/loops/visual-editor) — write the **same** canonical definition; there
 is no parallel authoring path.
 
 ## Where each step lives
 
-| Step     | CLI                                             | HTTP                             | Native tool                                 |
-| -------- | ----------------------------------------------- | -------------------------------- | ------------------------------------------- |
-| Describe | `agh loop inspect`                              | `GET /loops/:name`               | `compozy__loop_inspect`                     |
-| Validate | `agh loop validate`                             | `POST /loops/:name/validate`     | `compozy__loop_validate`                    |
-| Dry-run  | `agh loop run --dry-run`                        | `POST /loops/:name/run?dry=true` | `compozy__loop_run` (`dry: true`)           |
-| Publish  | `agh loop create --file … --expected-version …` | `PATCH /loops/:name`             | `compozy__loop_create` (`expected_version`) |
-| Run      | `agh loop run`                                  | `POST /loops/:name/run`          | `compozy__loop_run`                         |
+| Step     | CLI                                                 | HTTP                             | Native tool                                 |
+| -------- | --------------------------------------------------- | -------------------------------- | ------------------------------------------- |
+| Describe | `compozy loop inspect`                              | `GET /loops/:name`               | `compozy__loop_inspect`                     |
+| Validate | `compozy loop validate`                             | `POST /loops/:name/validate`     | `compozy__loop_validate`                    |
+| Dry-run  | `compozy loop run --dry-run`                        | `POST /loops/:name/run?dry=true` | `compozy__loop_run` (`dry: true`)           |
+| Publish  | `compozy loop create --file … --expected-version …` | `PATCH /loops/:name`             | `compozy__loop_create` (`expected_version`) |
+| Run      | `compozy loop run`                                  | `POST /loops/:name/run`          | `compozy__loop_run`                         |
 
 See the [CLI reference](/runtime/cli-reference/loop) and the
 [Loops API](/runtime/api-reference/loops) for exact flags and payloads.

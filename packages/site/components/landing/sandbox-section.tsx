@@ -1,7 +1,7 @@
 import { Cloud, RefreshCcw, Terminal } from "lucide-react";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 const CARDS = [
   {
@@ -16,7 +16,7 @@ const CARDS = [
     eyebrow: "Daytona",
     title: "Move a workspace into a remote sandbox",
     description:
-      "Daytona profiles create or reattach cloud sandboxes from an image or snapshot, then connect AGH through the provider tool host.",
+      "Daytona profiles create or reattach cloud sandboxes from an image or snapshot, then connect CompozyOS through the provider tool host.",
   },
   {
     icon: <RefreshCcw className="size-4" />,
@@ -31,13 +31,13 @@ function SandboxDiagram() {
   return (
     <div
       className="relative min-h-90 overflow-hidden rounded-diagram border border-line bg-canvas-soft p-5"
-      aria-label="AGH sandbox lifecycle diagram"
+      aria-label="CompozyOS sandbox lifecycle diagram"
       role="img"
     >
       <div className="absolute inset-x-5 top-5 h-px bg-line" />
       <div className="grid h-full min-h-80 grid-rows-[auto_1fr_auto] gap-5">
         <div className="grid grid-cols-3 gap-3">
-          {["workspace", "agh daemon", "sandbox provider"].map(label => (
+          {["workspace", "compozy daemon", "sandbox provider"].map(label => (
             <div key={label} className="rounded-md border border-line bg-canvas px-3 py-2">
               <Eyebrow className="text-muted">{label}</Eyebrow>
             </div>
@@ -45,7 +45,10 @@ function SandboxDiagram() {
         </div>
 
         <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-          <DiagramNode title="Host files" lines={["root_dir", "add_dirs", ".agh/config.toml"]} />
+          <DiagramNode
+            title="Host files"
+            lines={["root_dir", "add_dirs", ".compozy/config.toml"]}
+          />
           <div className="h-px w-10 bg-accent" />
           <DiagramNode title="Session" lines={["prepare", "sync", "stop"]} active />
           <div className="h-px w-10 bg-accent" />

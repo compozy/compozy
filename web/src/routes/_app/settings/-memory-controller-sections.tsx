@@ -1,5 +1,5 @@
 import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
-import { Input } from "@agh/ui";
+import { Input } from "@compozy/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
 export function ControllerSection({

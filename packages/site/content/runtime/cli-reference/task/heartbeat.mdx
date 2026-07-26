@@ -1,24 +1,24 @@
 ---
-title: "agh task heartbeat"
+title: "compozy task heartbeat"
 description: "Extend a claimed task run lease for the current agent session"
 ---
 
-## agh task heartbeat
+## compozy task heartbeat
 
 Extend a claimed task run lease for the current agent session
 
 ```
-agh task heartbeat <run-id> [flags]
+compozy task heartbeat <run-id> [flags]
 ```
 
 ### Examples
 
 ```
   # Extend the active session-bound lease
-  agh task heartbeat run-123
+  compozy task heartbeat run-123
 
 	  # Request a specific lease duration
-  agh task heartbeat run-123 --lease-seconds 300
+  compozy task heartbeat run-123 --lease-seconds 300
 ```
 
 ### Options
@@ -37,7 +37,7 @@ agh task heartbeat <run-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -47,5 +47,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task heartbeat <run-id> -o json
+compozy task heartbeat <run-id> -o json
 ```

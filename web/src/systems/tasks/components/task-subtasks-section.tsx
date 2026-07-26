@@ -1,4 +1,4 @@
-import { Section, StackedProgress } from "@agh/ui";
+import { Section, StackedProgress } from "@compozy/ui";
 
 import type { TaskChildSummary } from "../types";
 import { TaskLinkedRow, type TaskLinkedRowState } from "./task-linked-row";

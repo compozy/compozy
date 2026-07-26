@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 import { AgentCommandSelect } from "@/systems/agent";
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 
 import type { RolesRuntimeOptions } from "../hooks/use-roles-runtime-options";
 import type { RoleRuntimeValue } from "../lib/roles-config";

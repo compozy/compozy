@@ -1,11 +1,11 @@
 # CLAUDE.md (packages/site)
 
-Fumadocs documentation site at `agh.network` — Next.js 16, Fumadocs 16, Remotion (protocol illustrations), Velite (`/blog` + `/changelog` content layer), Bun-managed. (Root `CLAUDE.md` rules apply — this file adds site-specific ones.)
+Fumadocs documentation site at `compozy.com` — Next.js 16, Fumadocs 16, Remotion (protocol illustrations), Velite (`/blog` + `/changelog` content layer), Bun-managed. (Root `CLAUDE.md` rules apply — this file adds site-specific ones.)
 
 ## Critical Rules
 
 - **Tokens from `packages/ui/src/tokens.css` + generated `DESIGN.md`** — no invented values. Site-only layout/type extensions go in `packages/site/app/global.css` `@theme inline`. After changing runtime/site theme tokens run `make codegen` + `make codegen-check`; never hand-edit generated `DESIGN.md` regions.
-- **Eyebrow markup is mandatory** for every uppercase label: `<Eyebrow>` from `@agh/ui` (children + `className` only) **or** the `eyebrow` utility class on structural elements; tone via `className`. Inlining `font-mono` + `uppercase` + `text-[…]` + `tracking-[…]` tuples is forbidden (that IS the utility), as are the removed `eyebrow-badge`/`eyebrow-micro` literals. Contract **Inter UC 11/600/-0.005em**. Full rule: `DESIGN.md` §3, `web/CLAUDE.md`, lesson `L-022`.
+- **Eyebrow markup is mandatory** for every uppercase label: `<Eyebrow>` from `@compozy/ui` (children + `className` only) **or** the `eyebrow` utility class on structural elements; tone via `className`. Inlining `font-mono` + `uppercase` + `text-[…]` + `tracking-[…]` tuples is forbidden (that IS the utility), as are the removed `eyebrow-badge`/`eyebrow-micro` literals. Contract **Inter UC 11/600/-0.005em**. Full rule: `DESIGN.md` §3, `web/CLAUDE.md`, lesson `L-022`.
 - **Product language from `COPY.md`** — landing copy, blog/changelog, runtime/protocol docs, site config, OpenGraph/SEO metadata, and CTAs follow the copy system; terms per `docs/_memory/glossary.md` (`capability`, never `recipe`).
 - **Hero positioning is locked**: headline "An open workplace for AI agents." with subhead "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts." Open-workplace-first. Do not propose alternative hero copy without explicit user approval.
 - **`packages/site` ships in the same PR as backend contract changes** that affect documented APIs/CLI verbs (per the `internal/api/contract` co-ship rule).
@@ -16,7 +16,7 @@ Fumadocs documentation site at `agh.network` — Next.js 16, Fumadocs 16, Remoti
 ```bash
 # Turbo-backed validation from the repo root:
 make bun-typecheck / bun-test                       # full Bun workspace typecheck / test
-bunx turbo run typecheck|test|build --filter=./packages/site   # focused @agh/site
+bunx turbo run typecheck|test|build --filter=./packages/site   # focused @compozy/site
 
 # Generators + local dev:
 cd packages/site && bun run source:generate         # Fumadocs MDX -> .source/
@@ -50,7 +50,7 @@ make cli-docs                                        # regenerate CLI reference 
 ## Truthful Docs > Plausible Docs
 
 - Document only behavior the runtime supports today. When the AGH Network RFC differs from the daemon, docs follow the daemon and link the RFC as "future profile".
-- API/CLI references are generated from `openapi/agh.json` + the cobra JSON export — never paraphrase; if the generated reference is wrong, fix the source.
+- API/CLI references are generated from `openapi/compozy.json` + the cobra JSON export — never paraphrase; if the generated reference is wrong, fix the source.
 - Changelog entries (`content/blog/changelog/*.mdx`) reflect real merged work — source `added`/`changed`/`fixed`/`breaking` from `git log` + PR descriptions, not aspirational copy.
 
 ## Testing

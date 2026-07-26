@@ -1,27 +1,27 @@
 ---
-title: "agh agent list"
+title: "compozy agent list"
 description: "List installed agent definitions"
 ---
 
-## agh agent list
+## compozy agent list
 
 List installed agent definitions
 
 ```
-agh agent list [flags]
+compozy agent list [flags]
 ```
 
 ### Examples
 
 ```
   # Show every agent definition available to the daemon
-  agh agent list
+  compozy agent list
 
   # Show agents resolved for a workspace
-  agh agent list --workspace ~/dev/ai/acme-startup
+  compozy agent list --workspace ~/dev/ai/acme-startup
 
   # Emit the same list as JSON
-  agh agent list -o json
+  compozy agent list -o json
 ```
 
 ### Options
@@ -40,7 +40,7 @@ agh agent list [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -50,5 +50,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent list -o json
+compozy agent list -o json
 ```

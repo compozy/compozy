@@ -56,14 +56,14 @@ External delivery remains at-least-once: a process crash after external delivery
 `config.toml`, and there are no `notifications.presets.*` config keys. Built-in presets are seeded
 disabled and keep their default metadata in the row:
 
-| Field                      | Meaning                                                                  |
-| -------------------------- | ------------------------------------------------------------------------ |
-| `default_version`          | Version of the built-in default AGH seeded.                              |
-| `default_hash`             | Stable hash of the seeded mutable fields.                                |
-| `user_modified`            | True when the row's mutable fields no longer match `default_hash`.       |
-| `default_update_available` | True when AGH has a newer built-in default but the operator changed row. |
+| Field                      | Meaning                                                                      |
+| -------------------------- | ---------------------------------------------------------------------------- |
+| `default_version`          | Version of the built-in default Compozy seeded.                              |
+| `default_hash`             | Stable hash of the seeded mutable fields.                                    |
+| `user_modified`            | True when the row's mutable fields no longer match `default_hash`.           |
+| `default_update_available` | True when Compozy has a newer built-in default but the operator changed row. |
 
-Seed reconciliation preserves operator edits. AGH may insert missing built-ins or refresh untouched
+Seed reconciliation preserves operator edits. Compozy may insert missing built-ins or refresh untouched
 built-ins, but it never treats `config.toml` as the preset authority and never overwrites a
 user-modified preset silently.
 
@@ -79,7 +79,7 @@ Event patterns use canonical registry names. Suffix wildcards are limited to a p
 so `task.run_*` matches notification-eligible task run events such as `task.run_completed`,
 `task.run_failed`, and `task.run_operator_retry` without matching session or provider events.
 Optional filters support the documented comparison grammar over event fields such as `severity`,
-`workspace`, `agent`, `provider`, and `event_type`; AGH rejects arbitrary CEL or script
+`workspace`, `agent`, `provider`, and `event_type`; Compozy rejects arbitrary CEL or script
 expressions.
 
 Preset fanout uses one cursor per concrete target:
@@ -177,12 +177,12 @@ re-parsing the wrapper `event_type`.
 
 ## Manage subscriptions from the CLI
 
-The `agh task notification` command group operates over UDS and shares its surface with the
+The `compozy task notification` command group operates over UDS and shares its surface with the
 matching HTTP endpoints. Every subcommand supports `-o json|jsonl|toon` for agent consumption.
 
 ```bash
 # Subscribe a bridge target to one task. --subscription-id is idempotent.
-agh task notification subscribe <task-id> \
+compozy task notification subscribe <task-id> \
   --bridge <bridge-instance-id> \
   --scope workspace --workspace <workspace-id> \
   --thread <thread-id> \
@@ -191,22 +191,22 @@ agh task notification subscribe <task-id> \
   -o json
 
 # List subscriptions for the task. Cursor diagnostics appear inline.
-agh task notification list <task-id> -o json
+compozy task notification list <task-id> -o json
 
 # Inspect one subscription, including cursor diagnostics.
-agh task notification show <task-id> <subscription-id> -o json
+compozy task notification show <task-id> <subscription-id> -o json
 
 # Delete the active subscription. Cursor diagnostics remain inspectable for replay.
-agh task notification delete <task-id> <subscription-id> -o json
+compozy task notification delete <task-id> <subscription-id> -o json
 ```
 
 Generated reference for each verb:
 
-- [agh task notification](/runtime/cli-reference/task/notification)
-- [agh task notification subscribe](/runtime/cli-reference/task/notification/subscribe)
-- [agh task notification list](/runtime/cli-reference/task/notification/list)
-- [agh task notification show](/runtime/cli-reference/task/notification/show)
-- [agh task notification delete](/runtime/cli-reference/task/notification/delete)
+- [compozy task notification](/runtime/cli-reference/task/notification)
+- [compozy task notification subscribe](/runtime/cli-reference/task/notification/subscribe)
+- [compozy task notification list](/runtime/cli-reference/task/notification/list)
+- [compozy task notification show](/runtime/cli-reference/task/notification/show)
+- [compozy task notification delete](/runtime/cli-reference/task/notification/delete)
 
 The CLI does not expose a cursor-reset verb. Cursor reset is deliberately kept out of the task
 notification command group, so normal operator recovery starts by repairing task/review state and
@@ -214,28 +214,28 @@ letting replay run again.
 
 ## Manage presets from the CLI
 
-The `agh notifications` command group operates over UDS and manages the preset rows directly.
+The `compozy notifications` command group operates over UDS and manages the preset rows directly.
 
 ```bash
 # List SQLite-backed presets.
-agh notifications presets list -o json
+compozy notifications presets list -o json
 
 # Inspect the built-in task terminal preset.
-agh notifications preset show task_terminal -o json
+compozy notifications preset show task_terminal -o json
 
 # Create a custom preset and keep it disabled until the target has been checked.
-agh notifications preset create provider_ops \
+compozy notifications preset create provider_ops \
   --event provider.unavailable \
   --target bridge_slack_ops:channel:ops \
   --filter 'severity >= warning' \
   -o json
 
 # Enable or disable without editing config.toml.
-agh notifications preset enable provider_ops -o json
-agh notifications preset disable provider_ops -o json
+compozy notifications preset enable provider_ops -o json
+compozy notifications preset disable provider_ops -o json
 
 # Delete only custom presets. Built-ins cannot be deleted.
-agh notifications preset delete provider_ops -o json
+compozy notifications preset delete provider_ops -o json
 ```
 
 The `--target` value is `bridge_id:canonical_route`. The CLI splits on the first colon, so the
@@ -243,13 +243,13 @@ canonical route itself may contain additional colons.
 
 Generated reference for each verb:
 
-- [agh notifications](/runtime/cli-reference/notifications)
-- [agh notifications presets list](/runtime/cli-reference/notifications/presets/list)
-- [agh notifications preset show](/runtime/cli-reference/notifications/preset/show)
-- [agh notifications preset create](/runtime/cli-reference/notifications/preset/create)
-- [agh notifications preset enable](/runtime/cli-reference/notifications/preset/enable)
-- [agh notifications preset disable](/runtime/cli-reference/notifications/preset/disable)
-- [agh notifications preset delete](/runtime/cli-reference/notifications/preset/delete)
+- [compozy notifications](/runtime/cli-reference/notifications)
+- [compozy notifications presets list](/runtime/cli-reference/notifications/presets/list)
+- [compozy notifications preset show](/runtime/cli-reference/notifications/preset/show)
+- [compozy notifications preset create](/runtime/cli-reference/notifications/preset/create)
+- [compozy notifications preset enable](/runtime/cli-reference/notifications/preset/enable)
+- [compozy notifications preset disable](/runtime/cli-reference/notifications/preset/disable)
+- [compozy notifications preset delete](/runtime/cli-reference/notifications/preset/delete)
 
 ## Manage subscriptions with native tools
 
@@ -263,11 +263,11 @@ Managed agents use the same bridge subscription contract through the `compozy__t
 | `compozy__task_notification_delete`    | Remove the active subscription target.                  |
 
 `subscription_id` is optional on subscribe. When present, the daemon preserves it as the
-idempotency key; when omitted, AGH generates the `bts-*` identifier.
+idempotency key; when omitted, Compozy generates the `bts-*` identifier.
 
 ## Manage subscriptions through HTTP and UDS
 
-Both transports mount the same shared core handlers. Operation IDs come from `openapi/agh.json`;
+Both transports mount the same shared core handlers. Operation IDs come from `openapi/compozy.json`;
 do not paraphrase the shapes.
 
 | Method   | Path                                                      | Operation ID                               | Purpose                                                                                           |
@@ -279,7 +279,7 @@ do not paraphrase the shapes.
 
 Cursor diagnostics ship inside the subscription payload's `cursor` object — there is no separate
 cursor read endpoint. Generated TypeScript types for web consumers live in
-`web/src/generated/agh-openapi.d.ts`. The legacy
+`web/src/generated/compozy-openapi.d.ts`. The legacy
 `bridge-notification-subscriptions` route shape is no longer accepted; clients should use the
 canonical `/api/tasks/{id}/notifications/bridges` paths above.
 
@@ -352,5 +352,5 @@ runs wait for `task.run_review_approved`; ungated runs wait for `task.run_comple
   gated runs and where `task.run_review_approved` enters the stream.
 - [config.toml](/runtime/core/configuration/config-toml) lists `[task.orchestration]` and
   `[task.orchestration.review]` bounds that shape task context and review evidence.
-- [agh task notification](/runtime/cli-reference/task/notification) is the generated CLI reference
+- [compozy task notification](/runtime/cli-reference/task/notification) is the generated CLI reference
   for the notification commands.

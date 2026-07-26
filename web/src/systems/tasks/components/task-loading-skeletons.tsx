@@ -1,4 +1,4 @@
-import { Skeleton } from "@agh/ui";
+import { Skeleton } from "@compozy/ui";
 
 const SKELETON_ROWS = [0, 1, 2, 3];
 

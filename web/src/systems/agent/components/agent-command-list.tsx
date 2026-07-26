@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup, Eyebrow } from "@agh/ui";
+import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup, Eyebrow } from "@compozy/ui";
 
 import { AgentIcon } from "./agent-icon";
 import {

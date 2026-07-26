@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 
@@ -34,7 +34,7 @@ export const Default: Story = {
   parameters: {
     msw: {
       handlers: [
-        aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
+        compozyApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
           HttpResponse.json({
             sources: [
               {
@@ -83,7 +83,7 @@ export const StaleSources: Story = {
   parameters: {
     msw: {
       handlers: [
-        aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
+        compozyApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
           HttpResponse.json({
             sources: [
               {
@@ -132,7 +132,7 @@ export const EmptySources: Story = {
   parameters: {
     msw: {
       handlers: [
-        aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
+        compozyApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
           HttpResponse.json({ sources: [] })
         ),
       ],

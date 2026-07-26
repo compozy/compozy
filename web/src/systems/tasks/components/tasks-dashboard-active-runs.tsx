@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight } from "lucide-react";
 
-import { Eyebrow, Pill, Panel } from "@agh/ui";
+import { Eyebrow, Pill, Panel } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

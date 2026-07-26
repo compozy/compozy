@@ -40,7 +40,7 @@ const (
 func newMeCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "me",
-		Short: "Inspect the current AGH-managed agent session",
+		Short: "Inspect the current Compozy-managed agent session",
 		Example: `  # Show the current managed session identity
   compozy me
 

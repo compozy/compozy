@@ -12,7 +12,7 @@
 
 ## Test Decision
 
-Every AGH task needs a test decision, not automatic new tests. Before adding or changing tests, state:
+Every Compozy task needs a test decision, not automatic new tests. Before adding or changing tests, state:
 
 - invariant
 - owning layer
@@ -60,7 +60,7 @@ Passing tests are evidence only for what they cover. Audit the original requirem
 
 ## QA Labs
 
-For release or scenario QA, use isolated AGH homes, daemon ports, and bridge sockets. Reuse a QA lab only when continuing the same active QA session with a matching manifest. Fresh independent QA passes should use fresh labs.
+For release or scenario QA, use isolated Compozy homes, daemon ports, and bridge sockets. Reuse a QA lab only when continuing the same active QA session with a matching manifest. Fresh independent QA passes should use fresh labs.
 
 Persist lab root, runtime home, base URL, and verification evidence when a QA pass creates a bootstrap manifest.
 
@@ -70,4 +70,4 @@ Release-grade QA follows SD-005 in `docs/_memory/standing_directives.md`: `make 
 
 Use the `real-scenario-qa` skill for release/scenario validation. It routes through `qa-report` and `qa-execution` for persona, journey, exploratory, and evidence capture.
 
-When parallel QA or parallel agents are involved, apply `docs/_memory/lessons/L-009-concurrent-worktree-deadlock.md`: unique `COMPOZY_HOME`, daemon port, and bridge socket per lab. When native providers are involved, apply `docs/_memory/lessons/L-016-native-provider-qa-home-policy.md`: isolate AGH runtime state, but preserve operator `HOME` for `native_cli` providers with `home_policy=operator` unless the scenario explicitly tests isolated provider-home behavior.
+When parallel QA or parallel agents are involved, apply `docs/_memory/lessons/L-009-concurrent-worktree-deadlock.md`: unique `COMPOZY_HOME`, daemon port, and bridge socket per lab. When native providers are involved, apply `docs/_memory/lessons/L-016-native-provider-qa-home-policy.md`: isolate Compozy runtime state, but preserve operator `HOME` for `native_cli` providers with `home_policy=operator` unless the scenario explicitly tests isolated provider-home behavior.

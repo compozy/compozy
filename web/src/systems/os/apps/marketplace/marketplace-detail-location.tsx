@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 
-import { Button, Empty, useTopbarSlot } from "@agh/ui";
+import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 import {
   MarketplaceApiError,
   MarketplaceDetail,

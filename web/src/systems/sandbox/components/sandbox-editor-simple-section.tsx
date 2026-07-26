@@ -13,7 +13,7 @@ import {
   Pill,
   RadioCard,
   RequiredMark,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { SandboxDraft } from "../lib/sandbox-profile-draft";
 

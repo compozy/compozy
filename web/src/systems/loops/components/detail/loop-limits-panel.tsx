@@ -1,4 +1,4 @@
-import { Section } from "@agh/ui";
+import { Section } from "@compozy/ui";
 
 import { buildLoopLimits } from "../../lib/loop-limits";
 import type { LoopEffectiveConfig } from "../../types";

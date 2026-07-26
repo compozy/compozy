@@ -123,7 +123,7 @@ function LogoGallery({ group = "all" }: LogoGalleryProps) {
         </p>
         <h1 className="text-xl font-medium">Agent and bridge logos</h1>
         <p className="max-w-[62ch] text-sm leading-6 text-muted">
-          Brand SVGs exported by `@agh/ui/logos` for AGH site and runtime surfaces.
+          Brand SVGs exported by `@compozy/ui/logos` for AGH site and runtime surfaces.
         </p>
       </div>
       {showAgents ? <LogoSection title="Agent providers" logos={AGENT_LOGOS} /> : null}

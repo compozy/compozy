@@ -12,7 +12,7 @@ import {
   Input,
   Pill,
   type PillTone,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { describeBridgeSecretSlot } from "../lib/bridge-formatters";
 import type { BridgeProvider, BridgeSecretBinding, BridgeVerifyCheck } from "../types";
@@ -112,7 +112,7 @@ export function BridgeSecretSlotCard({
           <FieldContent className="min-w-0">
             <FieldTitle>Secret value</FieldTitle>
             <FieldDescription>
-              AGH stores bridge secret values in the vault for this bridge.
+              CompozyOS stores bridge secret values in the vault for this bridge.
             </FieldDescription>
           </FieldContent>
           <Input

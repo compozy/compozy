@@ -21,7 +21,7 @@ const (
 	defaultUserAgentName           = "agh-cli"
 )
 
-// DaemonClient is the CLI transport surface for talking to the AGH daemon over UDS.
+// DaemonClient is the CLI transport surface for talking to the Compozy daemon over UDS.
 type DaemonClient interface {
 	Status(ctx context.Context) (StatusRecord, error)
 	ObserveOverview(ctx context.Context, query ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)

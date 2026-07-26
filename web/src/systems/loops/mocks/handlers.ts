@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import {
   buildLiveNetworkParticipationFixture,
   buildLocalNetworkParticipationFixture,
@@ -128,7 +128,7 @@ function createLoopRunEventsStreamResponse(workspaceId: string, runId: string): 
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/workspaces/{workspace_id}/loops", () =>
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loops", () =>
     HttpResponse.json({
       facets: {
         categories: { delivery: 1, watch: 1 },
@@ -143,10 +143,10 @@ export const handlers: HttpHandler[] = [
       },
     })
   ),
-  aghApiMock.post("/api/workspaces/{workspace_id}/loops", () =>
+  compozyApiMock.post("/api/workspaces/{workspace_id}/loops", () =>
     HttpResponse.json({ loop: loopDetailByName.get("software-delivery")! }, { status: 201 })
   ),
-  aghApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", ({ params }) => {
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", ({ params }) => {
     const detail = loopDetailByName.get(String(params.name));
     if (!detail) {
       return HttpResponse.json(
@@ -156,39 +156,42 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json({ loop: detail });
   }),
-  aghApiMock.patch("/api/workspaces/{workspace_id}/loops/{name}", async ({ params, request }) => {
-    const detail = loopDetailByName.get(String(params.name));
-    if (!detail) {
-      return HttpResponse.json(
-        { error: `Loop not found: ${String(params.name)}` },
-        { status: 404 }
-      );
-    }
-    const body = (await request.json().catch(() => ({}))) as {
-      definition?: Record<string, unknown>;
-      expected_version?: number | null;
-    };
-    // Echo the published definition with a bumped monotonic meta.version (§9.13);
-    // the store is not mutated so parallel tests stay isolated.
-    const published = (body.definition ?? detail.definition) as Partial<LoopDefinition>;
-    const publishedMeta =
-      typeof published.meta === "object" && published.meta !== null
-        ? (published.meta as Partial<LoopDefinitionMeta>)
-        : {};
-    const nextVersion = (detail.version ?? 0) + 1;
-    return HttpResponse.json({
-      loop: {
-        ...detail,
-        version: nextVersion,
-        definition: {
-          ...detail.definition,
-          ...published,
-          meta: { ...detail.definition.meta, ...publishedMeta, version: nextVersion },
+  compozyApiMock.patch(
+    "/api/workspaces/{workspace_id}/loops/{name}",
+    async ({ params, request }) => {
+      const detail = loopDetailByName.get(String(params.name));
+      if (!detail) {
+        return HttpResponse.json(
+          { error: `Loop not found: ${String(params.name)}` },
+          { status: 404 }
+        );
+      }
+      const body = (await request.json().catch(() => ({}))) as {
+        definition?: Record<string, unknown>;
+        expected_version?: number | null;
+      };
+      // Echo the published definition with a bumped monotonic meta.version (§9.13);
+      // the store is not mutated so parallel tests stay isolated.
+      const published = (body.definition ?? detail.definition) as Partial<LoopDefinition>;
+      const publishedMeta =
+        typeof published.meta === "object" && published.meta !== null
+          ? (published.meta as Partial<LoopDefinitionMeta>)
+          : {};
+      const nextVersion = (detail.version ?? 0) + 1;
+      return HttpResponse.json({
+        loop: {
+          ...detail,
+          version: nextVersion,
+          definition: {
+            ...detail.definition,
+            ...published,
+            meta: { ...detail.definition.meta, ...publishedMeta, version: nextVersion },
+          },
         },
-      },
-    });
-  }),
-  aghApiMock.delete("/api/workspaces/{workspace_id}/loops/{name}", ({ params }) => {
+      });
+    }
+  ),
+  compozyApiMock.delete("/api/workspaces/{workspace_id}/loops/{name}", ({ params }) => {
     if (!catalogByName.has(String(params.name))) {
       return HttpResponse.json(
         { error: `Loop not found: ${String(params.name)}` },
@@ -197,7 +200,7 @@ export const handlers: HttpHandler[] = [
     }
     return new HttpResponse(null, { status: 204 });
   }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", ({ params }) => {
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", ({ params }) => {
     if (!catalogByName.has(String(params.name))) {
       return HttpResponse.json(
         { error: `Loop not found: ${String(params.name)}` },
@@ -209,21 +212,26 @@ export const handlers: HttpHandler[] = [
       effective_config: loopEffectiveConfigFixture,
     });
   }),
-  aghApiMock.put("/api/workspaces/{workspace_id}/loops/{name}/config", async ({ request }) => {
+  compozyApiMock.put("/api/workspaces/{workspace_id}/loops/{name}/config", async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as Partial<LoopConfigUpdateRequest>;
     return HttpResponse.json({
       config: body.config ?? loopConfigFixture,
       effective_config: loopEffectiveConfigFixture,
     });
   }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/annotations", () =>
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/annotations", () =>
     HttpResponse.json({ annotations: loopAnnotationsFixture })
   ),
-  aghApiMock.put("/api/workspaces/{workspace_id}/loops/{name}/annotations", async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as Partial<LoopAnnotationsUpdateRequest>;
-    return HttpResponse.json({ annotations: body.annotations ?? loopAnnotationsFixture });
-  }),
-  aghApiMock.post(
+  compozyApiMock.put(
+    "/api/workspaces/{workspace_id}/loops/{name}/annotations",
+    async ({ request }) => {
+      const body = (await request
+        .json()
+        .catch(() => ({}))) as Partial<LoopAnnotationsUpdateRequest>;
+      return HttpResponse.json({ annotations: body.annotations ?? loopAnnotationsFixture });
+    }
+  ),
+  compozyApiMock.post(
     "/api/workspaces/{workspace_id}/loops/{name}/run",
     async ({ request, params }) => {
       const url = new URL(request.url);
@@ -301,17 +309,20 @@ export const handlers: HttpHandler[] = [
       );
     }
   ),
-  aghApiMock.post("/api/workspaces/{workspace_id}/loops/{name}/validate", async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as {
-      definition?: { graph?: { nodes?: unknown[]; edges?: unknown[] } };
-    };
-    const errors = lintDefinition(body.definition?.graph);
-    return HttpResponse.json({
-      valid: errors.length === 0,
-      errors: errors satisfies LoopValidationIssue[],
-    });
-  }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/loop-runs", ({ request }) => {
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/loops/{name}/validate",
+    async ({ request }) => {
+      const body = (await request.json().catch(() => ({}))) as {
+        definition?: { graph?: { nodes?: unknown[]; edges?: unknown[] } };
+      };
+      const errors = lintDefinition(body.definition?.graph);
+      return HttpResponse.json({
+        valid: errors.length === 0,
+        errors: errors satisfies LoopValidationIssue[],
+      });
+    }
+  ),
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs", ({ request }) => {
     const url = new URL(request.url);
     const loop = url.searchParams.get("loop");
     const status = url.searchParams.get("status");
@@ -322,7 +333,7 @@ export const handlers: HttpHandler[] = [
     });
     return HttpResponse.json({ runs, aggregates: loopRunAggregatesFixture });
   }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}", ({ params }) => {
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}", ({ params }) => {
     const detail = loopRunDetailByRunId.get(String(params.run_id));
     if (!detail) {
       return HttpResponse.json(
@@ -332,14 +343,14 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json(detail);
   }),
-  aghApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns", ({ params }) => {
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns", ({ params }) => {
     const runId = String(params.run_id);
     if (!loopRunDetailByRunId.has(runId)) {
       return HttpResponse.json({ error: `Loop run not found: ${runId}` }, { status: 404 });
     }
     return HttpResponse.json({ turns: [], next_after_seq: null });
   }),
-  aghApiMock.get(
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events",
     ({ params, response }) => {
       const workspaceId = String(params.workspace_id);
@@ -350,16 +361,16 @@ export const handlers: HttpHandler[] = [
       return response.untyped(createLoopRunEventsStreamResponse(workspaceId, runId));
     }
   ),
-  aghApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve", () =>
+  compozyApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve", () =>
     HttpResponse.json({ ok: true })
   ),
-  aghApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause", () =>
+  compozyApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause", () =>
     HttpResponse.json({ ok: true })
   ),
-  aghApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/resume", () =>
+  compozyApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/resume", () =>
     HttpResponse.json({ ok: true })
   ),
-  aghApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/stop", () =>
+  compozyApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/stop", () =>
     HttpResponse.json({ ok: true })
   ),
 ];

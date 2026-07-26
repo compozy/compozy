@@ -1,18 +1,18 @@
 ---
 title: Resume Attach and Replay
-description: How AGH attaches operators to resumable sessions, reconstructs transcripts from events, and returns deterministic recaps.
+description: How Compozy attaches operators to resumable sessions, reconstructs transcripts from events, and returns deterministic recaps.
 ---
 
-Resume attach and replay are related, but they are not the same thing in AGH.
+Resume attach and replay are related, but they are not the same thing in Compozy.
 
 - **Resume attach** acquires a short-lived holder lease on an existing live session.
 - **Replay** reconstructs durable history from the stored event log.
 - **Recap** returns a bounded, deterministic snapshot for reorientation.
 
 <OperatorNote>
-  `agh session resume` is an attach command. It does not start another provider subprocess, call ACP
-  `session/load`, or create a second session authority. CLI, HTTP, UDS, and web attach to the same
-  daemon-owned session record.
+  `compozy session resume` is an attach command. It does not start another provider subprocess, call
+  ACP `session/load`, or create a second session authority. CLI, HTTP, UDS, and web attach to the
+  same daemon-owned session record.
 </OperatorNote>
 
 ## When resume attach is the right tool
@@ -23,7 +23,7 @@ eligible for an explicit holder:
 - after a browser refresh
 - after the CLI process exits while the daemon keeps running
 - after handing an active session from one operator surface to another
-- after listing resumable sessions and choosing the same AGH session ID
+- after listing resumable sessions and choosing the same Compozy session ID
 
 Use a new session when you want a clean slate. Use history, repair, and recap when the session is
 already terminal and you need to understand what happened before deciding the next action.
@@ -34,8 +34,8 @@ The daemon computes attach eligibility from runtime truth and persists the resul
 payload. List only sessions that can be attached:
 
 ```bash
-agh session list --resumable
-agh session list --resumable --workspace checkout-api
+compozy session list --resumable
+compozy session list --resumable --workspace checkout-api
 ```
 
 Session payloads include a canonical `badge` plus attach metadata:
@@ -59,13 +59,13 @@ instead of inferring status from local timers or transcript text.
 Attach by ID:
 
 ```bash
-agh session resume sess-1234
+compozy session resume sess-1234
 ```
 
 Attach the latest eligible session in a workspace:
 
 ```bash
-agh session resume --latest --workspace checkout-api
+compozy session resume --latest --workspace checkout-api
 ```
 
 Attach over HTTP:
@@ -104,7 +104,7 @@ Recap is the bounded read path for reorientation. It is deterministic for the sa
 set, applies the transcript redaction rules, and reports what was omitted by the limit.
 
 ```bash
-agh session recap sess-1234 --limit 20
+compozy session recap sess-1234 --limit 20
 ```
 
 HTTP clients use the same daemon operation:
@@ -144,12 +144,12 @@ Recap is useful before attaching, after an interrupted turn, and when agents nee
 summary without parsing raw event rows.
 
 `snapshot.consistency` is a closed string. v1 returns `"persisted_reads"`, which means the recap
-was assembled from persisted event, marker, and input-queue read models with stable cursors. AGH does
+was assembled from persisted event, marker, and input-queue read models with stable cursors. Compozy does
 not currently return `"read_snapshot"`.
 
 ## Transcript markers
 
-AGH emits `transcript_marker.created` and `transcript_marker.redacted` events for operator-relevant
+Compozy emits `transcript_marker.created` and `transcript_marker.redacted` events for operator-relevant
 session facts such as interrupts, prompt timeouts, unhealthy state, and MCP auth prompts. Markers
 are durable event rows and appear in recap output, logs, and web activity notices.
 
@@ -158,15 +158,15 @@ diagnostic payload is redacted before it leaves the daemon when it contains sens
 
 ## Replay surfaces
 
-AGH exposes these read paths for old work:
+Compozy exposes these read paths for old work:
 
 | Surface                                                             | Use it for                               |
 | ------------------------------------------------------------------- | ---------------------------------------- |
-| `agh session events`                                                | Raw persisted event rows.                |
-| `agh session history`                                               | Turn-grouped operator history.           |
+| `compozy session events`                                            | Raw persisted event rows.                |
+| `compozy session history`                                           | Turn-grouped operator history.           |
 | `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` | Canonical chat transcript entries.       |
 | `GET /api/workspaces/:workspace_id/sessions/:session_id/stream`     | Live transcript snapshots and deltas.    |
-| `agh session recap` / `GET .../recap`                               | Bounded redacted reorientation snapshot. |
+| `compozy session recap` / `GET .../recap`                           | Bounded redacted reorientation snapshot. |
 
 Transcript assembly is deterministic and event-driven:
 
@@ -192,7 +192,7 @@ fence produces an explicit reset snapshot. The stream rejects the old `replay` q
 ### Attach after a CLI exits
 
 This is the normal path. The daemon still owns the session, and the new surface obtains a holder
-lease on the same AGH session ID.
+lease on the same Compozy session ID.
 
 ### Attach after a terminal stop
 
@@ -201,12 +201,12 @@ starting new work.
 
 ### Resume does not rewrite history
 
-The per-session store is append-only for the AGH session ID. Attach records and transcript markers
+The per-session store is append-only for the Compozy session ID. Attach records and transcript markers
 are additional evidence, not replacements for earlier events.
 
 ### The command name is historical
 
-`agh session resume` remains the operator command name, but its contract is attach. Scripts should
+`compozy session resume` remains the operator command name, but its contract is attach. Scripts should
 key off the HTTP operation and response payload, not the English verb in the CLI command.
 
 ## Next steps

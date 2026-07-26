@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Input, cn } from "@agh/ui";
+import { Input, cn } from "@compozy/ui";
 
 import type { WindowManagerLayoutDesktop } from "../../lib/window-manager-layout-types";
 

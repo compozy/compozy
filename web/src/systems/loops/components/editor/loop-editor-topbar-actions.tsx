@@ -1,6 +1,6 @@
 import { Check, Upload } from "lucide-react";
 
-import { Button, Pill } from "@agh/ui";
+import { Button, Pill } from "@compozy/ui";
 
 interface LoopEditorTopbarActionsProps {
   busy: boolean;

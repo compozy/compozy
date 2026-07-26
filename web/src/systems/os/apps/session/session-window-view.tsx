@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Spinner } from "@agh/ui";
+import { Spinner } from "@compozy/ui";
 
 import { useSessionWorkspaceGuard } from "@/hooks/routes/use-session-workspace-guard";
 import { SessionChatRuntimeProvider, useSessionById } from "@/systems/session";

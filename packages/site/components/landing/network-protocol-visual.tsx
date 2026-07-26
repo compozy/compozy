@@ -2,8 +2,8 @@
 
 import { useEffect, useReducer, useRef } from "react";
 import { ArrowLeftRight, Pause, Play } from "lucide-react";
-import { Button, Eyebrow, Pill } from "@agh/ui";
-import { cn } from "@agh/ui/lib/utils";
+import { Button, Eyebrow, Pill } from "@compozy/ui";
+import { cn } from "@compozy/ui/lib/utils";
 import { AnimatedDiagram } from "./primitives/animated-diagram";
 import { KIND_MEANING, type NetworkKind } from "./primitives/network-kinds";
 
@@ -106,7 +106,7 @@ function reducer(state: State, action: Action): State {
 function fromLabel(lane: Lane) {
   if (lane === "A") return "Coder · session-a";
   if (lane === "B") return "Reviewer · session-b";
-  return "AGH daemon";
+  return "CompozyOS daemon";
 }
 
 function directionGlyph(d: Direction, from: Lane, to: Lane) {
@@ -180,7 +180,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       {/* Header , lane labels */}
       <div className="grid grid-cols-3 gap-2 border-b border-line bg-canvas-soft p-3 sm:gap-4 sm:px-4 md:px-6">
         <LaneHeader title="Session A" subtitle="coder · Live" />
-        <LaneHeader title="AGH daemon" subtitle="compozy-network/v0 · in-process" accent />
+        <LaneHeader title="CompozyOS daemon" subtitle="compozy-network/v0 · in-process" accent />
         <LaneHeader title="Session B" subtitle="reviewer · Live" />
       </div>
 

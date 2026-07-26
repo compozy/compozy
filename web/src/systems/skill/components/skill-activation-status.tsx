@@ -1,7 +1,7 @@
 import { AlertCircle } from "lucide-react";
 import * as React from "react";
 
-import { cn, Pill, Section, type PillProps } from "@agh/ui";
+import { cn, Pill, Section, type PillProps } from "@compozy/ui";
 
 import type { SkillActivationReasonPayload, SkillPayload } from "../types";
 

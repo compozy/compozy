@@ -1,9 +1,9 @@
 ---
-title: "agh completion powershell"
+title: "compozy completion powershell"
 description: "Generate the autocompletion script for powershell"
 ---
 
-## agh completion powershell
+## compozy completion powershell
 
 Generate the autocompletion script for powershell
 
@@ -14,7 +14,7 @@ Generate the autocompletion script for powershell.
 To load completions in your current shell session:
 
 ```
-agh completion powershell | Out-String | Invoke-Expression
+compozy completion powershell | Out-String | Invoke-Expression
 
 ```
 
@@ -22,7 +22,7 @@ To load completions for every new session, add the output of the above command
 to your powershell profile.
 
 ```
-agh completion powershell [flags]
+compozy completion powershell [flags]
 ```
 
 ### Options
@@ -41,7 +41,7 @@ agh completion powershell [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -51,5 +51,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh completion powershell | Out-String | Invoke-Expression -o json
+compozy completion powershell | Out-String | Invoke-Expression -o json
 ```

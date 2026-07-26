@@ -1,4 +1,4 @@
-import { Skeleton } from "@agh/ui";
+import { Skeleton } from "@compozy/ui";
 
 import type { MarketplaceListing } from "../types";
 import { MarketplaceCard } from "./marketplace-card";

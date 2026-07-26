@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { Activity, Bell, Check, Eye, Pause, Play, Square, TriangleAlert, X } from "lucide-react";
 
-import { cn, Empty, formatAbsoluteTime, formatRelativeTime, type PillTone } from "@agh/ui";
+import { cn, Empty, formatAbsoluteTime, formatRelativeTime, type PillTone } from "@compozy/ui";
 
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import type { LoopStoryIcon, LoopStoryRow } from "../../lib/loop-run-story";

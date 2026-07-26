@@ -1,21 +1,21 @@
 ---
-title: "agh workspace remove"
+title: "compozy workspace remove"
 description: "Remove a workspace registration and stopped session history"
 ---
 
-## agh workspace remove
+## compozy workspace remove
 
 Remove a workspace registration and stopped session history
 
 ```
-agh workspace remove <name-or-id> [flags]
+compozy workspace remove <name-or-id> [flags]
 ```
 
 ### Examples
 
 ```
   # Remove a workspace registration by name
-  agh workspace remove checkout-api
+  compozy workspace remove checkout-api
 ```
 
 ### Options
@@ -33,7 +33,7 @@ agh workspace remove <name-or-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -43,5 +43,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh workspace remove <name-or-id> -o json
+compozy workspace remove <name-or-id> -o json
 ```

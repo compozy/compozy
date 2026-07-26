@@ -2312,7 +2312,7 @@ func TestWriteFileAndEnumHelpers(t *testing.T) {
 			t.Fatalf("Render() output must end with newline: %q", string(rendered))
 		}
 
-		path := filepath.Join(t.TempDir(), "openapi", "agh.json")
+		path := filepath.Join(t.TempDir(), "openapi", "compozy.json")
 		if err := WriteFile(path); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
@@ -2328,7 +2328,7 @@ func TestWriteFileAndEnumHelpers(t *testing.T) {
 	t.Run("Should write the document and keep enum helpers populated", func(t *testing.T) {
 		t.Parallel()
 
-		path := filepath.Join(t.TempDir(), "openapi", "agh.json")
+		path := filepath.Join(t.TempDir(), "openapi", "compozy.json")
 		if err := WriteFile(path); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}

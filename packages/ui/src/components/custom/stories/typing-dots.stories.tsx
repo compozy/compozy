@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { TypingDots } from "@agh/ui";
+import { TypingDots } from "@compozy/ui";
 
 const meta: Meta<typeof TypingDots> = {
   title: "components/custom/TypingDots",

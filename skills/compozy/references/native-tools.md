@@ -18,7 +18,7 @@
 
 ## Operating Rule
 
-Inside AGH, prefer callable daemon-native tools over shelling out. They are policy-filtered, structured, auditable, and redaction-aware. Use shell only when a native tool is absent, denied, too narrow, or explicitly requested.
+Inside Compozy, prefer callable daemon-native tools over shelling out. They are policy-filtered, structured, auditable, and redaction-aware. Use shell only when a native tool is absent, denied, too narrow, or explicitly requested.
 
 `compozy__*` strings are canonical ToolIDs for registry, policy, CLI, descriptors, and `tool_id`; harnesses may wrap call names. Resolve by capability plus canonical ID, then call the returned reference exactly.
 
@@ -31,7 +31,7 @@ Management-only surfaces include diagnostics, support bundles, scheduler control
 - Toolset `compozy__bootstrap`: `compozy__tool_list`, `compozy__tool_search`, `compozy__tool_info`.
 - Toolset `compozy__catalog`: skill catalog access plus bootstrap tools.
 
-Bare managed sessions receive the full availability-gated callable catalog through hosted MCP. AGH
+Bare managed sessions receive the full availability-gated callable catalog through hosted MCP. Compozy
 does not add an automatic bootstrap/catalog allowlist over the hosted projection. Explicit agent
 `tools`, `toolsets`, `deny_tools`, session lineage, disabled sources, and approval/risk gates still
 apply.
@@ -95,7 +95,7 @@ fallbacks are `compozy desktop|window|layout`; read `window-management.md` for m
 
 Skill tools: `compozy__skill_list`, `compozy__skill_search`, `compozy__skill_view`.
 
-Resolve canonical `compozy__skill_view`, then use its returned tool reference with a file/resource argument when reading `skills/agh/references/*.md` from inside AGH.
+Resolve canonical `compozy__skill_view`, then use its returned tool reference with a file/resource argument when reading `skills/compozy/references/*.md` from inside Compozy.
 
 Memory tools: `compozy__memory_list`, `compozy__memory_show`, `compozy__memory_search`, `compozy__memory_propose`, `compozy__memory_note`.
 
@@ -181,7 +181,7 @@ MCP diagnostics are `compozy__mcp_status` and `compozy__mcp_auth_status`. A
 workspace-scoped server with five consecutive confirmed permanent failures reports `state: "dead"`
 from `compozy__mcp_status`; its nested runtime reason is `backend_dead`. During the same daemon lifetime,
 resolve its last-known tools through `compozy__tool_info`, which retains their unavailable descriptors
-and diagnostic instead of hiding them. Do not retry a dead tool blindly or invent a revive call: AGH
+and diagnostic instead of hiding them. Do not retry a dead tool blindly or invent a revive call: Compozy
 admits at most one automatic recovery probe after the 60-second window and clears the mark when that
 probe succeeds. Browser/OAuth login, raw auth material, and any required credential repair remain
 management-surface operations.
@@ -212,4 +212,4 @@ If a descriptor is unavailable or denied, do not retry blindly. Choose a narrowe
 
 ## Descriptor And Skill Co-Ship
 
-Changing native tools is a public agent contract change. When an AGH change adds, removes, renames, or changes an `compozy__*` ID, toolset, descriptor, schema digest, risk flag, availability diagnostic, capability gate, or CLI/API fallback, update `skills/agh/` in the same change or record explicit no-impact evidence.
+Changing native tools is a public agent contract change. When a Compozy change adds, removes, renames, or changes a `compozy__*` ID, toolset, descriptor, schema digest, risk flag, availability diagnostic, capability gate, or CLI/API fallback, update `skills/compozy/` in the same change or record explicit no-impact evidence.

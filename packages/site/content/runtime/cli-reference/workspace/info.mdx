@@ -1,27 +1,27 @@
 ---
-title: "agh workspace info"
+title: "compozy workspace info"
 description: "Show one workspace with resolved details"
 ---
 
-## agh workspace info
+## compozy workspace info
 
 Show one workspace with resolved details
 
 ```
-agh workspace info [name-or-id] [flags]
+compozy workspace info [name-or-id] [flags]
 ```
 
 ### Examples
 
 ```
   # Show workspace paths, agents, and skills by name
-  agh workspace info checkout-api
+  compozy workspace info checkout-api
 
   # Resolve the current directory as a workspace
-  agh workspace info
+  compozy workspace info
 
   # Emit resolved workspace details as JSON
-  agh workspace info ws_1234 -o json
+  compozy workspace info ws_1234 -o json
 ```
 
 ### Options
@@ -40,7 +40,7 @@ agh workspace info [name-or-id] [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -50,5 +50,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh workspace info [name-or-id] -o json
+compozy workspace info [name-or-id] -o json
 ```

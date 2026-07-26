@@ -1,6 +1,6 @@
 import { Pause, Play, Square } from "lucide-react";
 
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 
 import { isTerminalLoopStatus } from "../../lib/loop-formatters";
 

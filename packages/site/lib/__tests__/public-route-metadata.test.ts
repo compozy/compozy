@@ -101,10 +101,10 @@ describe("public route metadata", () => {
       "> An open workplace for AI agents, the runtime, the compozy-network/v0 protocol, and the blog."
     );
     expect(body).toContain(
-      "- [How to use these docs](https://agh.network/runtime/how-to-use-these-docs): Runtime docs overview."
+      "- [How to use these docs](https://compozy.com/runtime/how-to-use-these-docs): Runtime docs overview."
     );
     expect(body).toContain(
-      "- [Implementation Status](https://agh.network/protocol/implementation-status): Implemented protocol surface."
+      "- [Implementation Status](https://compozy.com/protocol/implementation-status): Implemented protocol surface."
     );
   });
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
-import type { ListingViewMode } from "@agh/ui";
+import type { ListingViewMode } from "@compozy/ui";
 
 import { useSettingsPage } from "@/systems/settings/hooks/use-settings-page";
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";

@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import { HeroPlayer } from "./hero-player";
 import { SUPPORTED_AGENT_COUNT } from "./provider-data";
@@ -27,7 +27,7 @@ const signalItems = [
   },
   {
     label: "Single binary, no infra",
-    detail: "No Docker. No Postgres. agh daemon start.",
+    detail: "No Docker. No Postgres. compozy daemon start.",
   },
 ];
 
@@ -45,9 +45,8 @@ export function Hero() {
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:items-center lg:gap-14">
           <div className="order-2 lg:order-0 lg:pr-2">
             <Eyebrow className="text-muted flex items-center gap-3">
-              <span className="text-accent">AGH</span>
+              <span className="text-accent">Compozy</span>
               <span className="h-px w-10 bg-line" />
-              <span>Artificial General Hivemind</span>
             </Eyebrow>
 
             <h1 className="mt-6 max-w-[20ch] text-site-hero leading-none font-normal tracking-tight text-fg">
@@ -55,9 +54,9 @@ export function Hero() {
             </h1>
 
             <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-muted md:text-lg">
-              AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy,
-              tools, and automation, connected on compozy-network/v0 channels where they find each
-              other, share capabilities, and close work with receipts.
+              CompozyOS runs the agent CLIs you already use as durable sessions, with memory,
+              autonomy, tools, and automation, connected on compozy-network/v0 channels where they
+              find each other, share capabilities, and close work with receipts.
             </p>
 
             <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap">

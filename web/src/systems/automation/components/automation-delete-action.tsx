@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 
-import { Button, ConfirmDialog, DialogTrigger } from "@agh/ui";
+import { Button, ConfirmDialog, DialogTrigger } from "@compozy/ui";
 
 interface AutomationDeleteActionProps {
   isPending: boolean;

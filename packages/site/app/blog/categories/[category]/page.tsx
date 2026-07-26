@@ -4,7 +4,7 @@ import { ArchiveRow } from "@/components/blog/archive-row";
 import { CategoryPill } from "@/components/blog/category-pill";
 import { BlogEmptyState } from "@/components/blog/empty-state";
 import { categoryLabel } from "@/components/blog/format";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 import {
   BLOG_CATEGORIES,
   type BlogCategory,

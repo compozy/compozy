@@ -7,7 +7,7 @@ import {
   NativeSelect,
   NativeSelectOption,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 import {
   NetworkParticipationFields,
   networkParticipationDraftFromPayload,

@@ -3,7 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { DateStamp } from "./date-stamp";
 import { categoryLabel, formatReadingTime } from "./format";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 export interface ArchiveRowProps {
   post: Post;

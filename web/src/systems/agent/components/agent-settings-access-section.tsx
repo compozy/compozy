@@ -1,6 +1,6 @@
 import { ShieldCheck } from "lucide-react";
 
-import { FormSection } from "@agh/ui";
+import { FormSection } from "@compozy/ui";
 
 import type { AgentSettingsDraft } from "../lib/agent-settings-draft";
 import { TokenListField } from "./token-list-field";

@@ -175,7 +175,7 @@ export const LOOP_PALETTE: PaletteGroup[] = [
         kindLabel: "watch-events",
         nodeClass: "source",
         idBase: "watch_events",
-        hint: "Parks the loop until a subscribed internal AGH event (task status, loop terminal, …) commits, matched by a CEL filter.",
+        hint: "Parks the loop until a subscribed internal CompozyOS event (task status, loop terminal, …) commits, matched by a CEL filter.",
         buildRaw: id => ({ id, class: "source", kind: "watch-events", events: [] }),
       },
       {

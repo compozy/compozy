@@ -9,7 +9,7 @@ import {
   useSettingsSaveBarState,
   useSettingsTopbar,
 } from "@/systems/settings";
-import { Button, Spinner } from "@agh/ui";
+import { Button, Spinner } from "@compozy/ui";
 
 export function NetworkSettingsPage() {
   const page = useSettingsNetworkPage();
@@ -69,7 +69,7 @@ export function NetworkSettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="How this daemon talks to other agents over AGH Network."
+      description="How this daemon talks to other agents over Compozy Network."
       meta={[
         {
           key: "status",

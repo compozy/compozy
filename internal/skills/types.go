@@ -35,7 +35,7 @@ type Skill struct {
 	Diagnostics            SkillDiagnostics
 }
 
-// ActivationGates declares offer-time constraints from metadata.agh.when.
+// ActivationGates declares offer-time constraints from metadata.compozy.when.
 type ActivationGates struct {
 	Platforms            []string `json:"platforms,omitempty"             yaml:"platforms,omitempty"`
 	Environments         []string `json:"environments,omitempty"          yaml:"environments,omitempty"`
@@ -43,7 +43,7 @@ type ActivationGates struct {
 	RequiresCapabilities []string `json:"requires_capabilities,omitempty" yaml:"requires_capabilities,omitempty"`
 }
 
-// ActivationGate identifies one supported metadata.agh.when family.
+// ActivationGate identifies one supported metadata.compozy.when family.
 type ActivationGate string
 
 const (

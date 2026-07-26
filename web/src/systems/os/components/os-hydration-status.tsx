@@ -1,6 +1,6 @@
 import { CloudOff } from "lucide-react";
 
-import { Icon, Pill } from "@agh/ui";
+import { Icon, Pill } from "@compozy/ui";
 
 import type { OsHydration } from "../lib/os-types";
 
@@ -16,7 +16,7 @@ export function OsHydrationStatus({ hydration }: OsHydrationStatusProps) {
     <Pill
       role="status"
       aria-atomic="true"
-      aria-label="Desktop sync paused. Changes stay in memory while AGH reconnects."
+      aria-label="Desktop sync paused. Changes stay in memory while CompozyOS reconnects."
       aria-live="polite"
       tone="warning"
       size="sm"

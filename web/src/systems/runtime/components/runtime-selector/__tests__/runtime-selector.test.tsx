@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IntensityMeter, UIProvider } from "@agh/ui";
+import { IntensityMeter, UIProvider } from "@compozy/ui";
 
 import { FAVORITES_STORAGE_KEY, RECENTS_LIMIT, RECENTS_STORAGE_KEY } from "../favorites";
 import { runtimeModelKey } from "../model-key";

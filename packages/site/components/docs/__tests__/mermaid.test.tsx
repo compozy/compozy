@@ -61,7 +61,7 @@ describe("Mermaid", () => {
       })
     );
     expect(mermaidMock.render).toHaveBeenCalledWith(
-      expect.stringContaining("agh-mermaid-"),
+      expect.stringContaining("compozy-mermaid-"),
       "graph TD; B-->C"
     );
   });

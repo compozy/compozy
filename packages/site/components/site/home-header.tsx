@@ -1,8 +1,8 @@
 "use client";
 
 import { baseOptions } from "@/lib/layout.shared";
-import { Eyebrow, Logo, buttonVariants, cn } from "@agh/ui";
-import { GithubLogo } from "@agh/ui/logos";
+import { Eyebrow, Logo, buttonVariants, cn } from "@compozy/ui";
+import { GithubLogo } from "@compozy/ui/logos";
 import { useHomeLayout } from "fumadocs-ui/layouts/home";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,7 +14,7 @@ import { HeaderSearchInput } from "@/components/site/header-search-input";
 const primaryLinks = [
   { href: "/", label: "Home" },
   { href: "/runtime", label: "Runtime" },
-  { href: "/protocol", label: "AGH Network" },
+  { href: "/protocol", label: "Compozy Network" },
   { href: "/blog", label: "Blog" },
   { href: "/changelog", label: "Changelog" },
 ];
@@ -58,7 +58,11 @@ export function HomeHeader(props: ComponentProps<"header">) {
       )}
     >
       <div className="mx-auto flex h-14 w-full max-w-site-layout-width items-center gap-3 lg:gap-5">
-        <Link href="/" aria-label="AGH home" className="inline-flex shrink-0 items-center gap-3">
+        <Link
+          href="/"
+          aria-label="Compozy home"
+          className="inline-flex shrink-0 items-center gap-3"
+        >
           <Logo variant="logo" decorative className="h-8 w-auto" />
           <span aria-hidden className="hidden sm:inline-flex">
             <Eyebrow className="flex items-center gap-1.5 text-muted">
@@ -103,7 +107,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
               href={baseOptions.githubUrl}
               target="_blank"
               rel="noreferrer noopener"
-              aria-label="AGH on GitHub"
+              aria-label="Compozy on GitHub"
               className={cn(
                 buttonVariants({
                   variant: "ghost",

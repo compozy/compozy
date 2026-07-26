@@ -1,6 +1,6 @@
 "use client";
 
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 export default function Error({
   error,

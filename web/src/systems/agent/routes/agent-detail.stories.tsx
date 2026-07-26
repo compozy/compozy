@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { StorybookRouteCanvas, appRouteParameters } from "@/storybook/route-story-meta";
 import { expect, within } from "storybook/test";
 import { storybookMswParameters } from "@/storybook/msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { delay, HttpResponse } from "msw";
 import { agentFixtures } from "@/systems/agent/mocks";
 import { storyAgentNames } from "@/storybook/fintech-scenario";
@@ -154,7 +154,7 @@ export const Diagnostics: Story = {
     ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/{name}", () =>
+        compozyApiMock.get("/api/agents/{name}", () =>
           HttpResponse.json({
             agent: {
               ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
@@ -190,7 +190,7 @@ export const SessionsError: Story = {
     ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/sessions", () =>
+        compozyApiMock.get("/api/sessions", () =>
           HttpResponse.json({ error: "sessions unavailable" }, { status: 500 })
         ),
       ],
@@ -212,7 +212,7 @@ export const NoSessions: Story = {
   parameters: {
     ...appRouteParameters(`${complianceAgentRoute}?tab=sessions`),
     ...storybookMswParameters({
-      session: [aghApiMock.get("/api/sessions", () => HttpResponse.json(sessionPage([])))],
+      session: [compozyApiMock.get("/api/sessions", () => HttpResponse.json(sessionPage([])))],
     }),
   },
   render: () => <AgentWorkspaceSetup />,
@@ -232,7 +232,7 @@ export const OverviewZeroSessions: Story = {
     ...appRouteParameters(complianceAgentRoute),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/catalog", ({ request }) => {
+        compozyApiMock.get("/api/agents/catalog", ({ request }) => {
           const url = new URL(request.url);
           const name = url.searchParams.get("name")?.trim() ?? "";
           const agent = agentFixtures.find(entry => entry.name === storyAgentNames.compliance)!;
@@ -262,7 +262,7 @@ export const OverviewZeroSessions: Story = {
           });
         }),
       ],
-      session: [aghApiMock.get("/api/sessions", () => HttpResponse.json(sessionPage([])))],
+      session: [compozyApiMock.get("/api/sessions", () => HttpResponse.json(sessionPage([])))],
     }),
   },
   render: () => <AgentWorkspaceSetup />,
@@ -292,7 +292,7 @@ export const RuntimeMutationPending: Story = {
     ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.put("/api/agents/{name}", async () => {
+        compozyApiMock.put("/api/agents/{name}", async () => {
           await delay(120_000);
           return HttpResponse.json({ error: "unreachable" }, { status: 500 });
         }),
@@ -316,7 +316,7 @@ export const RuntimeMutationConflict: Story = {
     ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.put("/api/agents/{name}", () =>
+        compozyApiMock.put("/api/agents/{name}", () =>
           HttpResponse.json({ error: "definition digest conflict" }, { status: 409 })
         ),
       ],
@@ -339,7 +339,7 @@ export const RuntimeProvidersError: Story = {
     ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/providers", () =>
+        compozyApiMock.get("/api/settings/providers", () =>
           HttpResponse.json({ error: "Global providers unavailable" }, { status: 503 })
         ),
       ],
@@ -367,7 +367,7 @@ export const MetricsLoading: Story = {
     ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/catalog", async () => {
+        compozyApiMock.get("/api/agents/catalog", async () => {
           await delay("infinite");
           return HttpResponse.json({
             agents: [],
@@ -396,7 +396,7 @@ export const SessionsLoading: Story = {
     ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/sessions", async () => {
+        compozyApiMock.get("/api/sessions", async () => {
           await delay("infinite");
           return HttpResponse.json(sessionPage([]));
         }),
@@ -421,7 +421,7 @@ export const AgentLoading: Story = {
     ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/{name}", async () => {
+        compozyApiMock.get("/api/agents/{name}", async () => {
           await delay(120_000);
           return HttpResponse.json({ agent: agentFixtures[0]! });
         }),
@@ -445,7 +445,7 @@ export const NotFound: Story = {
     ...appRouteParameters(missingAgentRoute),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/{name}", ({ params }) =>
+        compozyApiMock.get("/api/agents/{name}", ({ params }) =>
           HttpResponse.json({ error: `Agent not found: ${String(params.name)}` }, { status: 404 })
         ),
       ],
@@ -467,7 +467,7 @@ export const WithFailedSession: Story = {
   parameters: {
     ...appRouteParameters(`${fraudAgentRoute}?tab=sessions`),
     ...storybookMswParameters({
-      session: [aghApiMock.get("/api/sessions", () => HttpResponse.json(failedSessionPage()))],
+      session: [compozyApiMock.get("/api/sessions", () => HttpResponse.json(failedSessionPage()))],
     }),
   },
   render: () => <AgentWorkspaceSetup />,
@@ -489,7 +489,9 @@ export const ManyAgents: Story = {
   parameters: {
     ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
-      agent: [aghApiMock.get("/api/agents", () => HttpResponse.json({ agents: agentFixtures }))],
+      agent: [
+        compozyApiMock.get("/api/agents", () => HttpResponse.json({ agents: agentFixtures })),
+      ],
     }),
   },
   render: () => <AgentWorkspaceSetup />,

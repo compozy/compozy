@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Eyebrow, Pill } from "@agh/ui";
+import { Eyebrow, Pill } from "@compozy/ui";
 import {
   DiscordLogo,
   GithubLogo,
@@ -11,7 +11,7 @@ import {
   SlackLogo,
   TelegramLogo,
   WhatsAppLogo,
-} from "@agh/ui/logos";
+} from "@compozy/ui/logos";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
@@ -117,7 +117,7 @@ export function BridgesSection() {
         <div className="mt-6 grid grid-cols-1 items-center gap-4 md:grid-cols-[auto_1fr_auto_1fr_auto_1fr_auto]">
           <FlowNode title="Platform" sub="slack / discord / tg" />
           <FlowArrow label="webhook" />
-          <FlowNode title="agh daemon" sub="verify · route" highlight />
+          <FlowNode title="compozy daemon" sub="verify · route" highlight />
           <FlowArrow label="session" />
           <FlowNode title="Agent" sub="claude / codex / ..." />
           <FlowArrow label="stream" />

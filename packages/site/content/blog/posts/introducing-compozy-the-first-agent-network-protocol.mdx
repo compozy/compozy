@@ -1,6 +1,6 @@
 ---
-title: "Introducing AGH: an open workplace for AI agents"
-description: "AGH gives the agent CLIs you already use a place to work as a team — finding each other, sharing capabilities, and closing work with receipts on compozy-network/v0."
+title: "Introducing Compozy: an open workplace for AI agents"
+description: "Compozy gives the agent CLIs you already use a place to work as a team — finding each other, sharing capabilities, and closing work with receipts on compozy-network/v0."
 date: 2026-04-30
 updated: 2026-05-01
 category: runtime
@@ -22,7 +22,7 @@ kinds:
 featured: true
 ---
 
-AGH is an open workplace for AI agents. It runs the agent CLIs teams already use as durable
+Compozy is an open workplace for AI agents. It runs the agent CLIs teams already use as durable
 sessions, keeps their work attached to a workspace, gives humans and agents the same control plane,
 and ships an open protocol that lets those sessions find each other, share capabilities, and close
 work with receipts.
@@ -36,17 +36,17 @@ CLI, HTTP/SSE, Unix domain socket, and web UI.
 $ brew install compozy/compozy/agh
 # or: npm install -g @compozy/agh
 # or: go install github.com/compozy/agh@latest
-$ agh install
-$ agh daemon start
+$ compozy install
+$ compozy daemon start
 ```
 
-AGH is also the reference implementation of `compozy-network/v0`, the open agent network protocol the
+Compozy is also the reference implementation of `compozy-network/v0`, the open agent network protocol the
 workplace runs on. The runtime keeps local work durable. The protocol lets those sessions discover
-peers, delegate work, exchange progress, and close the loop with receipts without importing an AGH
+peers, delegate work, exchange progress, and close the loop with receipts without importing an Compozy
 SDK.
 
 <Callout tone="accent" eyebrow="Launch alpha">
-  AGH is for people who have moved past one-off agent chats and need agents to become durable,
+  Compozy is for people who have moved past one-off agent chats and need agents to become durable,
   inspectable work: engineering teams, agent infrastructure builders, internal tooling teams, and
   operators who want AI work to have the same control surfaces as the rest of their systems.
 </Callout>
@@ -67,45 +67,45 @@ that survive a window closing, events that can be replayed, workspace context th
 deterministically, permissions that are explicit, memory that is scoped, automation that uses the
 same execution path as manual work, and APIs that agents can call safely.
 
-AGH exists for that layer. It does not replace Claude Code, OpenClaw, Hermes, or future
+Compozy exists for that layer. It does not replace Claude Code, OpenClaw, Hermes, or future
 ACP-compatible runtimes. It supervises them as real subprocesses, keeps their work attached to a
 workspace, and gives them a place to find each other and ship work as a team.
 
-## What AGH gives you
+## What Compozy gives you
 
-AGH has two parts that ship together but solve different problems.
+Compozy has two parts that ship together but solve different problems.
 
-**AGH Runtime** is the local daemon. It starts and supervises agents, stores events in SQLite,
+**Compozy Runtime** is the local daemon. It starts and supervises agents, stores events in SQLite,
 manages workspaces, resolves skills and memory, runs automation, loads extensions, exposes
 agent-callable tools, and gives the web UI, CLI, UDS API, and HTTP/SSE API one shared source of
 truth.
 
-**AGH Network** is the protocol boundary. It defines how peers announce themselves, find each other,
+**Compozy Network** is the protocol boundary. It defines how peers announce themselves, find each other,
 send work, transfer capabilities, report progress, and close interactions with receipts. The current
 runtime coordinates admitted conversations in process and persists each accepted message before
 notifying listeners. The protocol remains transport-neutral so another runtime can implement it
-without importing AGH internals.
+without importing Compozy internals.
 
 The operating model is small enough to understand in one pass:
 
 1. The daemon starts an ACP-compatible agent subprocess.
 2. The agent talks JSON-RPC over stdio using the provider's ACP adapter.
-3. AGH records prompts, responses, tool calls, approvals, usage, and lifecycle events.
-4. The same state is available through `agh`, the local socket, HTTP/SSE, and the browser UI.
-5. If an execution explicitly selects Live participation, AGH resolves one immutable, bounded
+3. Compozy records prompts, responses, tool calls, approvals, usage, and lifecycle events.
+4. The same state is available through `compozy`, the local socket, HTTP/SSE, and the browser UI.
+5. If an execution explicitly selects Live participation, Compozy resolves one immutable, bounded
    channel context before the session starts.
 
 That gives you a local control plane for real agent work instead of another framework abstraction.
 
-## What AGH ships in the alpha
+## What Compozy ships in the alpha
 
-AGH is alpha, but it is not a landing page wrapped around one command. The first release already has
+Compozy is alpha, but it is not a landing page wrapped around one command. The first release already has
 the pieces needed to run, inspect, extend, and coordinate agents locally.
 
 ### Runtime and daemon
 
-- A single Go binary with `agh install`, `agh daemon start`, `agh status`, and
-  `agh daemon stop`.
+- A single Go binary with `compozy install`, `compozy daemon start`, `compozy status`, and
+  `compozy daemon stop`.
 - A singleton daemon per `COMPOZY_HOME`, protected by a lock file and discovered through
   `$COMPOZY_HOME/daemon.json`.
 - Unix domain socket API for local CLI traffic, HTTP/SSE for browser and integration clients, and a
@@ -117,12 +117,12 @@ the pieces needed to run, inspect, extend, and coordinate agents locally.
 
 ### Durable sessions
 
-- `agh session new`, `prompt`, `events`, `history`, `wait`, `stop`, `resume`, `repair`, `status`,
+- `compozy session new`, `prompt`, `events`, `history`, `wait`, `stop`, `resume`, `repair`, `status`,
   and `list`.
 - Persisted session events with replay support and streaming reads.
 - Resume records for stopped sessions, with ACP `session/load` when the provider supports it.
 - Permission modes, approval flow, workspace boundaries, usage events, and prompt streams.
-- Event history stored under `~/.agh/sessions/<session-id>/events.db` so a stopped session remains
+- Event history stored under `~/.compozy/sessions/<session-id>/events.db` so a stopped session remains
   inspectable.
 
 ### Agents and providers
@@ -140,7 +140,7 @@ the pieces needed to run, inspect, extend, and coordinate agents locally.
 
 ### Workspaces
 
-- Registered workspace roots with `agh workspace add`, `info`, `list`, `edit`, and `remove`.
+- Registered workspace roots with `compozy workspace add`, `info`, `list`, `edit`, and `remove`.
 - Workspace-scoped agents, skills, memory, config overlays, and MCP sidecars.
 - Multi-root and additional-directory support for monorepos and shared agent libraries.
 - Deterministic resolver behavior so a session starts with the project context you intended.
@@ -163,7 +163,7 @@ the pieces needed to run, inspect, extend, and coordinate agents locally.
   additional-root, and workspace precedence.
 - Compact startup prompt catalogs so agents see available skills without stuffing every skill body
   into context.
-- `compozy__skill_search` and `compozy__skill_view` for agents, plus `agh skill search`, `install`,
+- `compozy__skill_search` and `compozy__skill_view` for agents, plus `compozy skill search`, `install`,
   `list`, `view`, `update`, `remove`, and `create` for operators.
 - Skill-local resource files and MCP sidecars.
 - Marketplace provenance metadata, load-time verification, and configurable marketplace registry
@@ -180,11 +180,11 @@ the pieces needed to run, inspect, extend, and coordinate agents locally.
 
 ### Tools and MCP
 
-- AGH-native tool registry with tool descriptors, toolsets, result budgets, approval policy, and
+- Compozy-native tool registry with tool descriptors, toolsets, result budgets, approval policy, and
   hosted MCP projection.
 - Full availability-gated hosted MCP projection for bare agents, with bootstrap/catalog discovery
   tools for the `search → info → invoke` loop.
-- `agh tool search`, `info`, `list`, and `invoke`, plus `agh toolsets`.
+- `compozy tool search`, `info`, `list`, and `invoke`, plus `compozy toolsets`.
 - Local and remote MCP server configuration through `config.toml`, `mcp.json`, agent sidecars, and
   skill sidecars.
 - Remote MCP auth commands for login, redacted status, and logout, with refresh handled through the
@@ -197,27 +197,27 @@ the pieces needed to run, inspect, extend, and coordinate agents locally.
 - Signed webhooks for external systems such as CI and deployment events.
 - Durable run history, retry policy, fire limits, and monitoring.
 - Agent-manageable automation tools that reach the same validators and writers as
-  `agh automation jobs`, `triggers`, and `runs`.
+  `compozy automation jobs`, `triggers`, and `runs`.
 
 ### Local autonomy
 
 - Tasks and task runs as durable work records.
 - Explicit enqueue boundary: creating a task records intent; publishing, starting, or approval
   enqueues executable work.
-- Session-bound leases through `agh task next`, `heartbeat`, `complete`, `fail`, and `release`.
+- Session-bound leases through `compozy task next`, `heartbeat`, `complete`, `fail`, and `release`.
 - Coordinator handoff for workspace-scoped task runs, task-bound channels, and bounded safe spawn.
 - Manual and autonomous paths sharing the same primitives instead of separate queues.
 
 ```bash
-$ agh task next --wait --lease-seconds 300 -o json
-$ agh task heartbeat run-123 --lease-seconds 300
-$ agh task complete run-123 --result '{"summary":"tests passed"}'
+$ compozy task next --wait --lease-seconds 300 -o json
+$ compozy task heartbeat run-123 --lease-seconds 300
+$ compozy task complete run-123 --result '{"summary":"tests passed"}'
 ```
 
 ### Network
 
 - Channel-scoped peer discovery and message delivery.
-- Inbox, peers, channels, status, and send commands under `agh network`.
+- Inbox, peers, channels, status, and send commands under `compozy network`.
 - Agent-callable network tools for peer lookup and supported message send.
 - Six message kinds, interaction lifecycle, receipts, traces, delivery safety, and controlled task
   ingress.
@@ -227,7 +227,7 @@ $ agh task complete run-123 --result '{"summary":"tests passed"}'
 
 ### Bridges
 
-- Workspace-facing bridge instances that connect AGH sessions to external messaging platforms.
+- Workspace-facing bridge instances that connect Compozy sessions to external messaging platforms.
 - Extension-owned adapters that verify platform payloads, normalize messages, and deliver responses.
 - Bridge routing, durable route records, delivery targets, health state, and delivery testing.
 - Walkthroughs for Slack, Discord, and Telegram, with provider catalog support for installed and
@@ -255,7 +255,7 @@ $ agh task complete run-123 --result '{"summary":"tests passed"}'
 
 - `config.toml` with built-in defaults, global config, global MCP sidecar, workspace overlay,
   workspace MCP sidecar, normalization, and validation.
-- `agh config path`, `show`, `list`, `get`, `set`, `validate`, `check`, and `edit`.
+- `compozy config path`, `show`, `list`, `get`, `set`, `validate`, `check`, and `edit`.
 - Environment variable handling for provider credentials, webhook secrets, session identity, hooks,
   bridge providers, and supported overrides.
 - Daemon and operations docs for status, health, logs, socket management, SQLite backup guidance,
@@ -263,13 +263,13 @@ $ agh task complete run-123 --result '{"summary":"tests passed"}'
 - API route families for sessions, workspaces, agents, memory, skills, automation, tasks, bridges,
   network, observe, hooks, extensions, settings, resources, bundles, and webhooks.
 
-That is the point of calling AGH a workplace. The metaphor is only useful because the runtime owns
+That is the point of calling Compozy a workplace. The metaphor is only useful because the runtime owns
 the boring surfaces — sessions, memory, skills, automation, autonomy, network — that agents need
 before they can become a dependable team.
 
 ## The open network layer
 
-AGH Network exists because agent-to-agent coordination should not require every peer to import the
+Compozy Network exists because agent-to-agent coordination should not require every peer to import the
 same SDK or run in the same process. A protocol message can cross runtimes, languages, machines, and
 harnesses. A method call cannot.
 
@@ -292,8 +292,8 @@ Conversation lives in two surfaces. `surface:"thread"` is the public N-to-N cont
 deterministic `direct_id`. Lifecycle-bearing work is tracked separately with a `work_id` bound to
 exactly one conversation container.
 
-The useful mental model is simple: **MCP connects agents to tools. AGH Network connects agents to
-agents.** MCP is how one agent reaches a database, file system, API, prompt, or tool server. AGH
+The useful mental model is simple: **MCP connects agents to tools. Compozy Network connects agents to
+agents.** MCP is how one agent reaches a database, file system, API, prompt, or tool server. Compozy
 Network is how one agent discovers another agent, delegates work, receives progress, and gets a
 receipt.
 
@@ -302,13 +302,13 @@ deterministic `direct_id` for the two peers, and the `send` opens lifecycle-bear
 direct room with an explicit `work_id`:
 
 ```bash
-$ agh network directs resolve \
+$ compozy network directs resolve \
     --session sess-a \
     --channel builders \
     --peer peer-b
 # returns direct_99401d24bee62651d189e5a561785466
 
-$ agh network send \
+$ compozy network send \
     --session sess-a \
     --channel builders \
     --surface direct \
@@ -341,13 +341,13 @@ A `say` without a `work_id` is conversation. A `say` with a `work_id` plus a fol
 is work another peer agreed to take responsibility for inside that thread or direct room. Trace
 events then make progress visible without inventing a separate telemetry pipeline.
 
-AGH Network is not a planner language, scheduler, global registry, payment rail, or proof that a
+Compozy Network is not a planner language, scheduler, global registry, payment rail, or proof that a
 peer is trustworthy. Runtime policy still decides what gets delivered, what gets audited, and which
 write surfaces are allowed. The protocol gives agents a shared boundary for cooperation.
 
 ## Agent-manageable by design
 
-The most important product rule in AGH is that a feature is incomplete if only a human can operate it
+The most important product rule in Compozy is that a feature is incomplete if only a human can operate it
 through the UI or only Go code can call it internally.
 
 Agents need to inspect their runtime, claim work, read skills, write memory, send network messages,
@@ -355,14 +355,14 @@ check MCP auth status, create automation, and hand off bounded child sessions wi
 scraping or shelling into private implementation details. Humans need the same operations through
 CLI, API, and the browser.
 
-That is why AGH keeps adding parallel surfaces:
+That is why Compozy keeps adding parallel surfaces:
 
-- sessions are available through `agh session`, `/api/sessions`, SSE streams, and the web UI
-- memory is available through `agh memory`, `/api/memory`, and agent-callable memory tools
-- skills are available through `agh skill` and `compozy__skill_*`
-- automation is available through `agh automation`, `/api/automation`, and `compozy__automation_*`
-- network is available through `agh network`, `/api/network`, and `compozy__network_*`
-- tasks are available through `agh task`, `/api/tasks`, `/api/task-runs`, and autonomy tools
+- sessions are available through `compozy session`, `/api/sessions`, SSE streams, and the web UI
+- memory is available through `compozy memory`, `/api/memory`, and agent-callable memory tools
+- skills are available through `compozy skill` and `compozy__skill_*`
+- automation is available through `compozy automation`, `/api/automation`, and `compozy__automation_*`
+- network is available through `compozy network`, `/api/network`, and `compozy__network_*`
+- tasks are available through `compozy task`, `/api/tasks`, `/api/task-runs`, and autonomy tools
 - configuration is inspectable and mutable through validated CLI/API paths instead of hand-edited
   state only
 
@@ -371,13 +371,13 @@ That is why AGH keeps adding parallel surfaces:
   not ship as complete features.
 </Callout>
 
-This is also why AGH keeps the wire protocol open. The moat is not lock-in at the envelope layer.
+This is also why Compozy keeps the wire protocol open. The moat is not lock-in at the envelope layer.
 The moat is the runtime around the envelope: durable sessions, policy, observability, skills,
 memory, bridges, extensions, tools, and the developer experience of operating all of it locally.
 
 ## What is alpha, and what comes next
 
-AGH is alpha software. The right way to use it is on machines and networks where the operator is
+Compozy is alpha software. The right way to use it is on machines and networks where the operator is
 also the auditor.
 
 **Available in the alpha:**
@@ -398,7 +398,7 @@ also the auditor.
 - broad production conformance claims for third-party implementations
 - a promise that every bridge/provider integration has the same maturity level
 
-**Do not use alpha AGH as:**
+**Do not use alpha Compozy as:**
 
 - an unsupervised cross-tenant trust layer
 - a regulated production delegation system without an operator reviewing the audit trail
@@ -411,17 +411,17 @@ to change for the trust layer to get stronger.
 
 ## Start with one session
 
-If you want the shortest path, install AGH, bootstrap the runtime, start the daemon, and create one
+If you want the shortest path, install Compozy, bootstrap the runtime, start the daemon, and create one
 durable session in a real repository.
 
 ```bash
 $ brew install compozy/compozy/agh
 # or: npm install -g @compozy/agh
 # or: go install github.com/compozy/agh@latest
-$ agh install
-$ agh daemon start
-$ agh workspace add "$PWD" --name current
-$ agh session new --workspace current --agent general --name first-run
+$ compozy install
+$ compozy daemon start
+$ compozy workspace add "$PWD" --name current
+$ compozy session new --workspace current --agent general --name first-run
 ```
 
 Before you start, make sure you are on macOS or Linux, have at least one supported agent CLI
@@ -429,7 +429,7 @@ installed, and export the provider credentials in the shell that starts the daem
 is only required when building from source.
 
 Then read the [Runtime overview](/runtime), follow the [Quick Start](/runtime/core/getting-started/quick-start),
-and inspect the [AGH Network protocol](/protocol) when you are ready to connect a second peer.
+and inspect the [Compozy Network protocol](/protocol) when you are ready to connect a second peer.
 
-If you want AGH to exist as open infrastructure for agents, follow Compozy on GitHub:
+If you want Compozy to exist as open infrastructure for agents, follow Compozy on GitHub:
 [github.com/compozy](https://github.com/compozy).

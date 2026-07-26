@@ -49,7 +49,7 @@ import {
   TooltipContent,
   TooltipTrigger,
   toast,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { BellIcon, GitBranchIcon, InfoIcon, Layers3Icon, PlayIcon } from "lucide-react";
 
 import { SectionLink } from "./design-system-showcase-section-link";

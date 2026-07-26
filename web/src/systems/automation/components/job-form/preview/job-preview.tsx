@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import type { JobPreviewModel } from "../../../lib/job-preview";
 import { AutomationRequestPayload } from "../../automation-request-payload";

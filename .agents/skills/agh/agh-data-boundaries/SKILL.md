@@ -46,7 +46,7 @@ Preserve the owner's scope, order, completeness, identity, and continuity across
 
 ### Step 5: Close every surface
 
-1. Co-ship contract, OpenAPI, generated TypeScript, CLI/UDS/native/Extension surfaces, docs, and `skills/agh/` when public behavior changes.
+1. Co-ship contract, OpenAPI, generated TypeScript, CLI/UDS/native/Extension surfaces, docs, and `skills/compozy/` when public behavior changes.
 2. Complete the AGH Impact Audit for native tools, extensibility/hooks, workspace data isolation, and the official AGH skill.
 3. Flag user-visible behavior in `docs/qa/scenarios/`; declare a pure contributor-tooling change when no runtime surface changed.
 4. Run the touched lanes during iteration and the repository completion gate once after source freeze.

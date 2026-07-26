@@ -207,7 +207,12 @@ func newTaskBlockCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&input.DetailsRaw, "details", "", "Optional block details JSON")
 	cmd.Flags().StringVar(&input.ExpiresIn, "expires-in", "", "Optional transient block duration")
 	cmd.Flags().StringVar(&input.RunID, "run-id", "", "Active run ID to park when blocking")
-	cmd.Flags().BoolVar(&input.AsAgent, "as-agent", false, "Block using the current AGH-managed agent session identity")
+	cmd.Flags().BoolVar(
+		&input.AsAgent,
+		"as-agent",
+		false,
+		"Block using the current Compozy-managed agent session identity",
+	)
 	mustMarkFlagRequired(cmd, taskKindKey)
 	mustMarkFlagRequired(cmd, taskReasonKey)
 	return cmd
@@ -253,7 +258,7 @@ func newTaskUnblockCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&blockID, "block", "", "Task block ID")
 	cmd.Flags().StringVar(&note, "note", "", "Optional clear note")
-	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Clear using the current AGH-managed agent session identity")
+	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Clear using the current Compozy-managed agent session identity")
 	mustMarkFlagRequired(cmd, "block")
 	return cmd
 }

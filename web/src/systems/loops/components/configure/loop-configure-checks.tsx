@@ -1,4 +1,4 @@
-import { Input } from "@agh/ui";
+import { Input } from "@compozy/ui";
 
 import type { LoopConfigCheckDescriptor, LoopConfigCheckState } from "../../lib/loop-config-checks";
 import { LoopConfigureSwitchRow } from "./loop-configure-switch-row";

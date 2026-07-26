@@ -10,7 +10,7 @@ import {
   Spinner,
   TopbarOverflowIcon,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSessionRunning, isUserControllableSession } from "../lib/session-running";

@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import type { PillTone } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
 
 export interface EventVisualMeta {
   tone: PillTone;

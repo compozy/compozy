@@ -11,7 +11,7 @@ import {
   CommandSelectShell,
   CommandSelectTrigger,
   CommandSeparator,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useUserHomeDir } from "../hooks/use-user-home-dir";
 import { useScopeSelectorContext } from "../hooks/use-scope-selector-context";

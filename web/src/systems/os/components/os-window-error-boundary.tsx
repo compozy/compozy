@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
-import { Button, Empty } from "@agh/ui";
+import { Button, Empty } from "@compozy/ui";
 
 interface OsWindowErrorBoundaryProps {
   children: ReactNode;

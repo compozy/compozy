@@ -4,7 +4,7 @@ import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ScrollToBottomPill, SessionThread } from "@/components/assistant-ui/session-thread";
 import { storybookMswParameters } from "@/storybook/msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -60,7 +60,7 @@ const meta: Meta<typeof SessionThread> = {
     layout: "fullscreen",
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
           HttpResponse.json(transcriptPayload([]))
         ),
       ],
@@ -169,7 +169,7 @@ export const QueuedComposer: Story = {
   parameters: {
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
           HttpResponse.json(transcriptPayload(mixedStreamingTranscript))
         ),
       ],
@@ -190,7 +190,7 @@ export const Disabled: Story = {
 };
 
 /**
- * Durable startup state — the persisted session is already addressable while AGH
+ * Durable startup state — the persisted session is already addressable while CompozyOS
  * prepares its runtime, and the composer remains disabled until activation.
  */
 export const Starting: Story = {
@@ -228,7 +228,7 @@ export const MixedStreaming: Story = {
   parameters: {
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
           HttpResponse.json(transcriptPayload(mixedStreamingTranscript))
         ),
       ],
@@ -249,7 +249,7 @@ export const FoldedTurns: Story = {
   parameters: {
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
           HttpResponse.json(transcriptPayload(foldedTurnsTranscript))
         ),
       ],
@@ -260,7 +260,7 @@ export const FoldedTurns: Story = {
 /**
  * Changed-files roll-up — a settled editing turn closes with a collapsed
  * "Edited N files +a/-d" audit summary at its tail (below the folded work and the
- * terminal answer). Display-only: no Undo/Review, since AGH exposes no checkpoint
+ * terminal answer). Display-only: no Undo/Review, since CompozyOS exposes no checkpoint
  * semantics. Expanding it lists each modified file with its diff stats.
  */
 export const ChangedFilesRollup: Story = {
@@ -273,7 +273,7 @@ export const ChangedFilesRollup: Story = {
   parameters: {
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
           HttpResponse.json(transcriptPayload(changedFilesTranscript))
         ),
       ],
@@ -295,7 +295,7 @@ export const HoverToolbar: Story = {
   parameters: {
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
           HttpResponse.json(transcriptPayload(hoverToolbarTranscript))
         ),
       ],
@@ -330,7 +330,7 @@ export const GoalCommandError: Story = {
   parameters: {
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
           HttpResponse.json(transcriptPayload(hoverToolbarTranscript))
         ),
       ],
@@ -371,7 +371,7 @@ export const BusyInputControls: Story = {
   parameters: {
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
           HttpResponse.json(transcriptPayload(mixedStreamingTranscript))
         ),
       ],

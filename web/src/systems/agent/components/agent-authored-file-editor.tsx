@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { FileText } from "lucide-react";
 
-import { Button, Empty, Pill, Skeleton, Spinner, Textarea } from "@agh/ui";
+import { Button, Empty, Pill, Skeleton, Spinner, Textarea } from "@compozy/ui";
 
 import {
   useAgentAuthoredFileEditor,

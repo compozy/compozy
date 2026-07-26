@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { useAgents } from "@/systems/agent";
 import { useActiveWorkspace } from "@/systems/workspace";
-import { Button, toast } from "@agh/ui";
+import { Button, toast } from "@compozy/ui";
 
 import { NetworkCreateChannelDialog } from "../components/network-create-channel-dialog";
 import { createNetworkChannelDraft, sortAgentsForNetwork } from "../lib/network-formatters";

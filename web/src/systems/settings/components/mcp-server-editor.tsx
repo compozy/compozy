@@ -13,7 +13,7 @@ import {
   EntityDialogHeader,
   EntityModeToolbar,
   type EntityMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { MCPDraft, MCPDraftErrors } from "../lib/mcp-editor-model";
 import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "../types";

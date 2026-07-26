@@ -20,7 +20,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 const { LoopCatalog } = await import("../catalog/loop-catalog");
 const { loopCatalogFixtures } = await import("../../mocks/fixtures");
 type LoopCatalogEntry = import("../../types").LoopCatalogEntry;
-type ListingViewMode = import("@agh/ui").ListingViewMode;
+type ListingViewMode = import("@compozy/ui").ListingViewMode;
 
 function Harness({
   onRun,

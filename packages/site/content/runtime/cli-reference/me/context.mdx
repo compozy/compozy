@@ -1,24 +1,24 @@
 ---
-title: "agh me context"
+title: "compozy me context"
 description: "Inspect the bounded situation context for the current agent session"
 ---
 
-## agh me context
+## compozy me context
 
 Inspect the bounded situation context for the current agent session
 
 ```
-agh me context [flags]
+compozy me context [flags]
 ```
 
 ### Examples
 
 ```
   # Show the bounded situation context injected for this session
-  agh me context
+  compozy me context
 
   # Read the context payload as JSON
-  agh me context -o json
+  compozy me context -o json
 ```
 
 ### Options
@@ -36,7 +36,7 @@ agh me context [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -46,5 +46,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh me context -o json
+compozy me context -o json
 ```

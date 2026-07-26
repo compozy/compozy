@@ -1,6 +1,6 @@
 "use client";
 
-import { buttonVariants, cn } from "@agh/ui";
+import { buttonVariants, cn } from "@compozy/ui";
 import { useNotebookLayout } from "fumadocs-ui/layouts/notebook";
 import {
   isLayoutTabActive,

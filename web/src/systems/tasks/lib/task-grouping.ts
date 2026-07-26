@@ -1,4 +1,4 @@
-import type { StatusDotProps, StatusDotTone, StatusDotVariant } from "@agh/ui";
+import type { StatusDotProps, StatusDotTone, StatusDotVariant } from "@compozy/ui";
 
 import type { TaskListItem, TaskStatus } from "../types";
 

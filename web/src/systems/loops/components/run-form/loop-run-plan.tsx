@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import type { LoopDryRunPreview } from "../../types";
 import { MonoTag } from "../mono-tag";

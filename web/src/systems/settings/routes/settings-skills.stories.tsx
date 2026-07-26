@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
@@ -58,7 +58,7 @@ export const Dirty: Story = {
 
 /**
  * Disabled-skills empty branch when nothing has been opted out -- exercises
- * the @agh/ui Empty primitive for the no-skills state.
+ * the @compozy/ui Empty primitive for the no-skills state.
  */
 export const DisabledEmpty: Story = {
   args: {},
@@ -66,7 +66,7 @@ export const DisabledEmpty: Story = {
     ...appRouteParameters("/settings/skills"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/skills", () =>
+        compozyApiMock.get("/api/settings/skills", () =>
           HttpResponse.json({
             ...settingsSkillsSectionFixture,
             disabled_count: 0,
@@ -105,7 +105,7 @@ export const Loading: Story = {
     ...appRouteParameters("/settings/skills"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/skills", async () => {
+        compozyApiMock.get("/api/settings/skills", async () => {
           await delay("infinite");
           return HttpResponse.json(settingsSkillsSectionFixture);
         }),
@@ -124,7 +124,7 @@ export const Error: Story = {
     ...appRouteParameters("/settings/skills"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/skills", () =>
+        compozyApiMock.get("/api/settings/skills", () =>
           HttpResponse.json({ error: "Failed to load skills settings" }, { status: 500 })
         ),
       ],

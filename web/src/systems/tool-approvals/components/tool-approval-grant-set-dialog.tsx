@@ -11,7 +11,7 @@ import {
   Input,
   Label,
   RadioCard,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { ToolApprovalGrantSetDraft } from "../hooks/use-tool-approval-grants-panel";
 

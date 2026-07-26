@@ -1,6 +1,6 @@
 import { AlertCircle, Repeat2 } from "lucide-react";
 
-import { Empty, Spinner } from "@agh/ui";
+import { Empty, Spinner } from "@compozy/ui";
 import { LoopDetailView } from "@/systems/loops";
 import { useLoopDetail } from "./use-loop-detail";
 

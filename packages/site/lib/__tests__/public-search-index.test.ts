@@ -24,7 +24,7 @@ const mockedContent = vi.hoisted(() => ({
       slug: "posts/introducing-site-search",
       title: "Introducing Site Search",
       description:
-        "Restore AGH search from the home shell and the docs shell with one runtime API.",
+        "Restore Compozy search from the home shell and the docs shell with one runtime API.",
       excerpt:
         "Search now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
       toc: [
@@ -76,7 +76,7 @@ const mockedContent = vi.hoisted(() => ({
       url: "/runtime/how-to-use-these-docs",
       data: {
         title: "How to Use These Docs",
-        description: "Choose the right AGH documentation path for your goal.",
+        description: "Choose the right Compozy documentation path for your goal.",
         structuredData: { headings: [{ content: "Choose a path" }] },
       },
     },
@@ -130,7 +130,7 @@ describe("public search index", () => {
         id: "/blog/introducing-site-search",
         title: "Introducing Site Search",
         description:
-          "Restore AGH search from the home shell and the docs shell with one runtime API.",
+          "Restore Compozy search from the home shell and the docs shell with one runtime API.",
         breadcrumbs: ["Blog"],
         tag: "Blog",
         structuredData: {
@@ -142,7 +142,7 @@ describe("public search index", () => {
             {
               heading: undefined,
               content:
-                "Restore AGH search from the home shell and the docs shell with one runtime API.\n\nSearch now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
+                "Restore Compozy search from the home shell and the docs shell with one runtime API.\n\nSearch now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
             },
             {
               heading: "why-the-search-broke",
@@ -198,11 +198,11 @@ describe("public search index", () => {
         structuredData: { headings: [{ content: "Current runtime" }] },
         id: "/protocol/implementation-status",
         url: "/protocol/implementation-status",
-        tag: "AGH Network",
+        tag: "Compozy Network",
       },
       {
         title: "How to Use These Docs",
-        description: "Choose the right AGH documentation path for your goal.",
+        description: "Choose the right Compozy documentation path for your goal.",
         structuredData: { headings: [{ content: "Choose a path" }] },
         id: "/runtime/how-to-use-these-docs",
         url: "/runtime/how-to-use-these-docs",
@@ -225,13 +225,13 @@ describe("public search index", () => {
     expect(searchApi.calls).toHaveLength(1);
     expect(searchApi.calls[0]?.mode).toBe("advanced");
 
-    const response = await route.GET(new Request("https://agh.network/api/search?query=search"));
+    const response = await route.GET(new Request("https://compozy.com/api/search?query=search"));
 
     await expect(response.json()).resolves.toEqual({
       mode: "live",
       query: "search",
       count: 5,
     });
-    expect(searchApi.calls[0]?.requests).toEqual(["https://agh.network/api/search?query=search"]);
+    expect(searchApi.calls[0]?.requests).toEqual(["https://compozy.com/api/search?query=search"]);
   });
 });

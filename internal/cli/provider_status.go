@@ -164,7 +164,7 @@ func providerMissingAuthLoginCommandError(providerName string, provider aghconfi
 	}
 	return fmt.Errorf(
 		"cli: provider %q does not define auth_login_command; "+
-			"run the provider's own login command outside AGH or set providers.%s.auth_login_command",
+			"run the provider's own login command outside Compozy or set providers.%s.auth_login_command",
 		providerName,
 		providerName,
 	)

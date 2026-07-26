@@ -8,7 +8,7 @@ import (
 
 func interruptedToolResultRaw(toolCallID string, toolName string) (json.RawMessage, error) {
 	metadata := map[string]any{
-		"agh": map[string]any{
+		"compozy": map[string]any{
 			"repair":   true,
 			"toolName": strings.TrimSpace(toolName),
 		},

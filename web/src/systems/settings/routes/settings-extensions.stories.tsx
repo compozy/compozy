@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -37,7 +37,7 @@ export const Loading: Story = {
     ...appRouteParameters("/settings/extensions"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/hooks-extensions", async () => {
+        compozyApiMock.get("/api/settings/hooks-extensions", async () => {
           await delay("infinite");
           return HttpResponse.json(settingsHooksExtensionsSectionFixture);
         }),

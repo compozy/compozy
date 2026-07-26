@@ -1,7 +1,7 @@
 import { AlertCircle } from "lucide-react";
 import * as React from "react";
 
-import { Button, MonoId, OwnerAvatar, Pill } from "@agh/ui";
+import { Button, MonoId, OwnerAvatar, Pill } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

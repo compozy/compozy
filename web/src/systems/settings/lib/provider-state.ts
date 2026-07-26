@@ -1,4 +1,4 @@
-import type { PillTone } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
 
 import type { SettingsProviderEntry } from "../types";
 
@@ -94,7 +94,8 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
         tone: "info",
         label,
         display: "Sign-in unverified",
-        hint: provider.auth_status?.message?.trim() || "AGH has not verified the local sign-in.",
+        hint:
+          provider.auth_status?.message?.trim() || "CompozyOS has not verified the local sign-in.",
         cta: { label: "Inspect sign-in", intent: "edit" },
       };
     case "auth-unavailable":

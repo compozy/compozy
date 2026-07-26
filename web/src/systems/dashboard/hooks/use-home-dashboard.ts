@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ConnectionStatus } from "@agh/ui";
+import type { ConnectionStatus } from "@compozy/ui";
 
 import { useDaemonHealth, useDaemonStatus } from "@/systems/status";
 import { useActiveWorkspace } from "@/systems/workspace";

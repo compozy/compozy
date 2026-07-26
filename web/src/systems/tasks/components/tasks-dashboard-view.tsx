@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Empty, Eyebrow } from "@agh/ui";
+import { Empty, Eyebrow } from "@compozy/ui";
 import type { SchedulerBacklog, SchedulerStatus } from "@/systems/scheduler";
 import { SchedulerControlsPanel } from "@/systems/scheduler";
 

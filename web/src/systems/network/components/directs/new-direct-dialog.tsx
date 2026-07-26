@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
   Eyebrow,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useResolveNetworkDirectRoom } from "../../hooks/use-network-actions";
 import { networkPeersOptions } from "../../lib/query-options";

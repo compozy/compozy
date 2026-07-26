@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn, Pill, type PillTone } from "@agh/ui";
+import { cn, Pill, type PillTone } from "@compozy/ui";
 
 export interface SettingsHeroGaugeProps {
   /** Headline usage, e.g. "842 MB of 1 GB". */

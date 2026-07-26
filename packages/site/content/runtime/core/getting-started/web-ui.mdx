@@ -1,6 +1,6 @@
 ---
 title: Web UI
-description: Open the AGH web UI, inspect the session you already created, and compare the browser view with the same daemon state you saw in the CLI.
+description: Open the Compozy web UI, inspect the session you already created, and compare the browser view with the same daemon state you saw in the CLI.
 ---
 
 The web UI is another surface on the same daemon you already used in Quick Start. The goal of this
@@ -11,13 +11,13 @@ already have a real session to inspect.
 
 ## 1. Open the runtime in your browser
 
-By default, AGH serves the UI from the same HTTP address used by the daemon API:
+By default, Compozy serves the UI from the same HTTP address used by the daemon API:
 
 ```text
 http://localhost:2123
 ```
 
-If you changed `[http].host` or `[http].port` in `~/.agh/config.toml`, use that address instead.
+If you changed `[http].host` or `[http].port` in `~/.compozy/config.toml`, use that address instead.
 
 ## 2. Find the session you created in Quick Start
 
@@ -32,9 +32,9 @@ daemon-owned session catalog, event store, and redacted Vault metadata as the CL
 Keep these commands handy while the UI is open:
 
 ```bash
-agh session list
-agh session status sess_1234
-agh session events sess_1234 --follow
+compozy session list
+compozy session status sess_1234
+compozy session events sess_1234 --follow
 ```
 
 Use them to confirm that the CLI and browser are reflecting the same runtime facts:
@@ -50,17 +50,17 @@ Use them to confirm that the CLI and browser are reflecting the same runtime fac
 Send one more prompt from the CLI:
 
 ```bash
-agh session prompt sess_1234 "Tell me the last thing you learned about this repository."
+compozy session prompt sess_1234 "Tell me the last thing you learned about this repository."
 ```
 
 Then watch the session in the browser update from the same persisted event stream. This is the
-fastest way to understand how AGH keeps CLI, API, and UI surfaces aligned.
+fastest way to understand how Compozy keeps CLI, API, and UI surfaces aligned.
 
 ## 5. Use the browser as an operator surface
 
 The web UI is the easiest place to inspect runtime state visually. Depending on the current build,
 you may see surfaces for sessions, tasks, bridges, network state, skills, and settings. Settings >
-Vault lists redacted metadata for encrypted AGH-managed secrets and supports write-only updates and
+Vault lists redacted metadata for encrypted Compozy-managed secrets and supports write-only updates and
 deletes. Session pages include a Vault tab in the inspector for entries under
 `vault:sessions/<session_id>/`.
 
@@ -77,12 +77,12 @@ port = 8080
 Restart the daemon after changing the address:
 
 ```bash
-agh daemon stop
-agh daemon start
+compozy daemon stop
+compozy daemon start
 ```
 
 > **Note:** Binding to a non-local host exposes the browser and API surfaces to a wider network.
-> Do that only when you understand the trust boundary of the machine running AGH.
+> Do that only when you understand the trust boundary of the machine running Compozy.
 
 ## Next Steps
 

@@ -1,16 +1,16 @@
 ---
 title: Bridges Overview
-description: How AGH bridge instances connect workspace agents to external messaging platforms.
+description: How Compozy bridge instances connect workspace agents to external messaging platforms.
 ---
 
-A bridge is a workspace-facing adapter between AGH sessions and an external platform. The AGH source
+A bridge is a workspace-facing adapter between Compozy sessions and an external platform. The Compozy source
 repository contains in-tree providers for Slack, Discord, Telegram, WhatsApp, Microsoft Teams,
-Google Chat, GitHub, and Linear. They are not embedded in the released `agh` binary: build and
+Google Chat, GitHub, and Linear. They are not embedded in the released `compozy` binary: build and
 install the provider from a trusted source checkout before configuring its bridge instances. The
 bridge instance stores the operator-owned configuration, while the provider extension owns webhook
 validation, message normalization, and outbound delivery.
 
-That split keeps AGH responsible for sessions, routing, persistence, and delivery bookkeeping while
+That split keeps Compozy responsible for sessions, routing, persistence, and delivery bookkeeping while
 letting each platform adapter speak the platform API directly.
 
 <OperatorNote>
@@ -85,7 +85,7 @@ letting each platform adapter speak the platform API directly.
     href="/runtime/core/bridges/adding-a-bridge"
     label="Authoring"
     title="Build an In-Tree Bridge Provider"
-    description="Declare, implement, verify, and document a provider inside the AGH repository."
+    description="Declare, implement, verify, and document a provider inside the Compozy repository."
     meta="Developer guide"
   />
 </RouteList>
@@ -109,14 +109,14 @@ and real outbound-delivery proofs all pass.
 
 ## Runtime model
 
-| Object             | Owned by            | What it does                                                                                                                       |
-| ------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Provider extension | Extension catalog   | Declares `bridge.adapter`, platform name, display name, required secret slots, and provider config schema hints.                   |
-| Bridge instance    | AGH bridge registry | Stores scope, workspace, provider selection, routing policy, delivery defaults, provider config, status, and degradation metadata. |
-| Secret binding     | AGH daemon          | Maps a provider slot such as `bot_token` to a vault-backed secret reference and stores the write-only secret value encrypted.      |
-| Bridge route       | AGH routing layer   | Maps one canonical platform identity to one AGH session and agent name.                                                            |
-| Target directory   | AGH daemon          | Stores provider-discovered immutable target identities and resolver indexes for operator-friendly names.                           |
-| Delivery target    | Delivery broker     | Identifies where a response should be posted, replied to, edited, or deleted on the platform.                                      |
+| Object             | Owned by                | What it does                                                                                                                       |
+| ------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Provider extension | Extension catalog       | Declares `bridge.adapter`, platform name, display name, required secret slots, and provider config schema hints.                   |
+| Bridge instance    | Compozy bridge registry | Stores scope, workspace, provider selection, routing policy, delivery defaults, provider config, status, and degradation metadata. |
+| Secret binding     | Compozy daemon          | Maps a provider slot such as `bot_token` to a vault-backed secret reference and stores the write-only secret value encrypted.      |
+| Bridge route       | Compozy routing layer   | Maps one canonical platform identity to one Compozy session and agent name.                                                        |
+| Target directory   | Compozy daemon          | Stores provider-discovered immutable target identities and resolver indexes for operator-friendly names.                           |
+| Delivery target    | Delivery broker         | Identifies where a response should be posted, replied to, edited, or deleted on the platform.                                      |
 
 The provider catalog is dynamic. `GET /api/bridges/providers` returns installed extensions that
 provide `bridge.adapter`, including disabled providers. Inspect each descriptor's `enabled`, `state`,
@@ -131,9 +131,9 @@ section covers every in-tree provider and calls out mode-dependent credentials e
 participant User as Platform user
 participant Platform as External platform
 participant Adapter as Bridge provider extension
-participant Host as AGH Host API
+participant Host as Compozy Host API
 participant Router as Bridge routing
-participant Session as AGH session
+participant Session as Compozy session
 participant Agent as ACP agent
 participant Broker as Delivery broker
 
@@ -150,29 +150,29 @@ Session-->>Broker: project response events
 Broker->>Adapter: bridges/deliver
 Adapter->>Platform: post, edit, or delete response
 Platform-->>User: response appears in channel or chat`}
-caption="An inbound platform event is normalized by the adapter, routed to an AGH session, and streamed back through the delivery broker to the same platform."
+caption="An inbound platform event is normalized by the adapter, routed to an Compozy session, and streamed back through the delivery broker to the same platform."
 />
 
 ## Adapter architecture
 
-The bridge adapter runs as an extension subprocess. During initialization, AGH gives it the bridge
+The bridge adapter runs as an extension subprocess. During initialization, Compozy gives it the bridge
 instances assigned to that extension and a Host API surface. The adapter then:
 
 1. Resolves bridge secret bindings from the daemon-provided cache.
 2. Starts webhook listeners for configured bridge instances.
 3. Verifies incoming platform requests before ingestion.
 4. Converts platform payloads into normalized bridge envelopes.
-5. Reports bridge state back to AGH as `ready`, `degraded`, `auth_required`, or `error`.
-6. Delivers response events back to the platform API and acknowledges delivery to AGH.
+5. Reports bridge state back to Compozy as `ready`, `degraded`, `auth_required`, or `error`.
+6. Delivers response events back to the platform API and acknowledges delivery to Compozy.
 
-AGH does not parse provider webhook payloads in the daemon. The daemon accepts the normalized
+Compozy does not parse provider webhook payloads in the daemon. The daemon accepts the normalized
 envelope only after the provider extension authenticates it and confirms that the bridge instance is
 enabled for that extension.
 
 ## Bridge instance format
 
 Bridge instances are persisted runtime records. They are created through the bridge API or the
-`agh bridge create` command, not through `config.toml`.
+`compozy bridge create` command, not through `config.toml`.
 
 ```json
 {
@@ -236,13 +236,13 @@ Package-managed instances can be created by extension bundles. Those records rep
 | GitHub          | `webhook_secret`                             | `token`, `app_id`, `private_key`        | GitHub `X-Hub-Signature-256`.                                         |
 | Linear          | `webhook_secret`                             | `api_key`, `client_id`, `client_secret` | Linear `linear-signature` HMAC.                                       |
 
-Bind each slot to an AGH-managed vault secret before enabling the bridge. The API accepts the
+Bind each slot to an Compozy-managed vault secret before enabling the bridge. The API accepts the
 plaintext only through the write-only `secret_value` field and never returns it:
 
 ```bash
 BRIDGE_ID=brg_123
 
-printf '%s' "$SLACK_BOT_TOKEN" | agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
+printf '%s' "$SLACK_BOT_TOKEN" | compozy bridge secret-bindings put "$BRIDGE_ID" bot_token \
   --secret-ref "vault:bridges/$BRIDGE_ID/bot_token" \
   --kind token \
   --secret-value-stdin
@@ -251,7 +251,7 @@ printf '%s' "$SLACK_BOT_TOKEN" | agh bridge secret-bindings put "$BRIDGE_ID" bot
 The reference must be scoped to the edited bridge: `vault:bridges/<bridge>/<slot>`. Restart or
 enable the bridge after changing a binding so the provider receives fresh launch material.
 
-Bridge Vault refs are visible as redacted metadata through the Vault page, `agh vault list
+Bridge Vault refs are visible as redacted metadata through the Vault page, `compozy vault list
 --namespace bridges`, and `/api/vault/secrets?namespace=bridges`. The plaintext `secret_value` is
 accepted only on write.
 
@@ -273,7 +273,7 @@ last error, and degradation metadata.
 ## Target directory
 
 Bridge adapters can report platform targets such as channels, rooms, users, groups, and threads.
-Adapters that do not implement native target enumeration use AGH's fallback snapshot from the bridge
+Adapters that do not implement native target enumeration use Compozy's fallback snapshot from the bridge
 instance's operator-declared delivery defaults. The daemon validates snapshots, writes
 `bridge_target_directory`, and records the latest successful refresh time. The directory refreshes
 when an extension runtime connects and then every five minutes while that runtime remains connected.
@@ -290,8 +290,8 @@ can distinguish stale but known targets from new unknown names.
 Use the target APIs before wiring notification presets or explicit outbound targets:
 
 ```bash
-agh bridge targets brg_123 --query launch -o json
-agh bridge resolve brg_123 "launch room" -o json
+compozy bridge targets brg_123 --query launch -o json
+compozy bridge resolve brg_123 "launch room" -o json
 ```
 
 The HTTP/UDS equivalents are `GET /api/bridges/:id/targets` and

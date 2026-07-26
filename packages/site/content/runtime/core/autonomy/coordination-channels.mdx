@@ -11,7 +11,7 @@ conversation state only for Live.
 
 ## Resolution precedence
 
-For a new task run, AGH resolves participation in this order:
+For a new task run, Compozy resolves participation in this order:
 
 1. explicit start, enqueue, or fan-out request
 2. the task's `network_participation` execution-profile block
@@ -26,9 +26,9 @@ when a profile, workspace setting, or config default changes.
 Inspect or change the default for future coordinated runs:
 
 ```bash
-agh network coordination status --workspace checkout-api -o json
-agh network coordination enable --workspace checkout-api -o json
-agh network coordination disable --workspace checkout-api -o json
+compozy network coordination status --workspace checkout-api -o json
+compozy network coordination enable --workspace checkout-api -o json
+compozy network coordination disable --workspace checkout-api -o json
 ```
 
 The web invitation writes the same versioned record. Accepting it affects future coordinated runs,
@@ -40,7 +40,7 @@ the invitation does not enable coordination.
 Choose Live for one run without changing the workspace default:
 
 ```bash
-agh task start task-123 \
+compozy task start task-123 \
   --network live \
   --network-channel-strategy run \
   --network-bounds '{"max_wakes":6,"max_wake_depth":2}' \

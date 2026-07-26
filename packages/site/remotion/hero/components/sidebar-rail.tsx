@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Logo } from "@agh/ui";
+import { Logo } from "@compozy/ui";
 import { TOKENS } from "../tokens";
 import type { AgentId } from "../data";
 

@@ -6,11 +6,11 @@ description: Restrict direct messages before enabling a bridge, without confusin
 Bridge access has three separate boundaries. Configure all three before treating a public callback
 as ready:
 
-| Boundary                 | Question it answers                                 | Owner                                        |
-| ------------------------ | --------------------------------------------------- | -------------------------------------------- |
-| Transport authentication | Did this request come from the configured platform? | Provider signature, token, or JWT validation |
-| Sender authorization     | May this direct-message sender reach the bridge?    | `dm_policy` plus `provider_config.dm`        |
-| Route isolation          | Which accepted conversations share an AGH session?  | `routing_policy`                             |
+| Boundary                 | Question it answers                                    | Owner                                        |
+| ------------------------ | ------------------------------------------------------ | -------------------------------------------- |
+| Transport authentication | Did this request come from the configured platform?    | Provider signature, token, or JWT validation |
+| Sender authorization     | May this direct-message sender reach the bridge?       | `dm_policy` plus `provider_config.dm`        |
+| Route isolation          | Which accepted conversations share an Compozy session? | `routing_policy`                             |
 
 `dm_policy` controls direct messages only. It does not authorize or deny channels, servers, groups,
 spaces, repositories, or issues. Use the provider's platform permissions and a route-specific bridge
@@ -30,7 +30,7 @@ instance for those shared surfaces.
 | `allowlist` | The normalized sender ID or username appears in `allow_user_ids` or `allow_usernames`.           | Use for an explicit operator-maintained access list.  |
 | `pairing`   | The sender appears in `paired_user_ids` or `paired_usernames`; the allowlist remains a fallback. | Use for identities the operator designated as paired. |
 
-`pairing` is not an interactive enrollment flow in the current runtime. AGH does not issue a code,
+`pairing` is not an interactive enrollment flow in the current runtime. Compozy does not issue a code,
 wait for approval, or add a sender automatically. Populate the `paired_user_ids` or
 `paired_usernames` arrays yourself. If those arrays do not contain the sender, the provider checks
 the allowlist arrays before denying the DM.
@@ -45,8 +45,8 @@ Start from a disabled instance:
 ```bash
 BRIDGE_ID=brg_123
 
-agh bridge disable "$BRIDGE_ID"
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge disable "$BRIDGE_ID"
+compozy bridge get "$BRIDGE_ID" -o json
 ```
 
 The readback should report `enabled: false`. Preserve the complete existing `provider_config`; an
@@ -88,7 +88,7 @@ required webhook, tenant, repository, or mode settings.
 
 ## Configure access through HTTP or UDS
 
-The current `agh bridge create` and `agh bridge update` commands do not expose a `--dm-policy`
+The current `compozy bridge create` and `compozy bridge update` commands do not expose a `--dm-policy`
 flag. Use the Web editor or `PATCH /api/bridges/:id`. The same route is available through the UDS
 transport.
 
@@ -129,13 +129,13 @@ administration console.
 After the saved resource shows the intended policy and list, enable the bridge:
 
 ```bash
-agh bridge enable "$BRIDGE_ID"
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge enable "$BRIDGE_ID"
+compozy bridge get "$BRIDGE_ID" -o json
 ```
 
 Then test the observable sides of the boundary:
 
-1. Send one DM from an allowed test identity. Confirm that `agh bridge routes "$BRIDGE_ID" -o json`
+1. Send one DM from an allowed test identity. Confirm that `compozy bridge routes "$BRIDGE_ID" -o json`
    contains its peer route and that the prompt reaches the expected workspace agent. This is the
    positive admission proof.
 2. If you control an excluded test identity, send one DM and inspect the route/session output. A

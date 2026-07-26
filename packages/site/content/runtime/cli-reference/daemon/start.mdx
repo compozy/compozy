@@ -1,24 +1,24 @@
 ---
-title: "agh daemon start"
-description: "Start the AGH daemon"
+title: "compozy daemon start"
+description: "Start the Compozy daemon"
 ---
 
-## agh daemon start
+## compozy daemon start
 
-Start the AGH daemon
+Start the Compozy daemon
 
 ```
-agh daemon start [flags]
+compozy daemon start [flags]
 ```
 
 ### Examples
 
 ```
-  # Start AGH in the background and wait for readiness
-  agh daemon start
+  # Start Compozy in the background and wait for readiness
+  compozy daemon start
 
   # Keep logs attached to the current terminal
-  agh daemon start --foreground
+  compozy daemon start --foreground
 ```
 
 ### Options
@@ -37,7 +37,7 @@ agh daemon start [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -47,5 +47,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh daemon start -o json
+compozy daemon start -o json
 ```

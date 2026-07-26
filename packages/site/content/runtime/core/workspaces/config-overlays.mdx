@@ -1,14 +1,14 @@
 ---
 title: Workspace Config Overlays
-description: How workspace config.toml and mcp.json layer over global AGH configuration without making project copies brittle.
+description: How workspace config.toml and mcp.json layer over global Compozy configuration without making project copies brittle.
 ---
 
-Workspace config lets one project change runtime behavior without changing every AGH session on the
+Workspace config lets one project change runtime behavior without changing every Compozy session on the
 machine. The loader starts from built-in defaults, applies global config, then applies the resolved
 workspace root overlay.
 
-This keeps project behavior portable. Copy a repository with `.agh/config.toml`, `.agh/agents/`,
-`.agh/skills/`, and `.agh/memory/`, register the copied path, and the project-level runtime context
+This keeps project behavior portable. Copy a repository with `.compozy/config.toml`, `.compozy/agents/`,
+`.compozy/skills/`, and `.compozy/memory/`, register the copied path, and the project-level runtime context
 comes with it.
 
 <OperatorNote>
@@ -21,14 +21,14 @@ comes with it.
 
 The effective config for a resolved workspace is built in this order:
 
-| Order | Source                            | Notes                                                                                    |
-| ----- | --------------------------------- | ---------------------------------------------------------------------------------------- |
-| 1     | Built-in defaults                 | `DefaultWithHome(homePaths)`.                                                            |
-| 2     | `~/.agh/config.toml`              | Global operator settings. `$COMPOZY_HOME/config.toml` when `COMPOZY_HOME` is set.        |
-| 3     | `~/.agh/mcp.json`                 | Global top-level MCP sidecar.                                                            |
-| 4     | `<workspace>/.agh/config.toml`    | Workspace root overlay only.                                                             |
-| 5     | `<workspace>/.agh/mcp.json`       | Workspace top-level MCP sidecar.                                                         |
-| 6     | Path normalization and validation | Expands `~` in `daemon.socket` and `memory.global_dir`, then validates the final config. |
+| Order | Source                             | Notes                                                                                    |
+| ----- | ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1     | Built-in defaults                  | `DefaultWithHome(homePaths)`.                                                            |
+| 2     | `~/.compozy/config.toml`           | Global operator settings. `$COMPOZY_HOME/config.toml` when `COMPOZY_HOME` is set.        |
+| 3     | `~/.compozy/mcp.json`              | Global top-level MCP sidecar.                                                            |
+| 4     | `<workspace>/.compozy/config.toml` | Workspace root overlay only.                                                             |
+| 5     | `<workspace>/.compozy/mcp.json`    | Workspace top-level MCP sidecar.                                                         |
+| 6     | Path normalization and validation  | Expands `~` in `daemon.socket` and `memory.global_dir`, then validates the final config. |
 
 Workspace additional roots do not contribute config. They can contribute agents and skills, but
 only the primary root contributes `config.toml` and top-level `mcp.json`.
@@ -38,11 +38,11 @@ only the primary root contributes `config.toml` and top-level `mcp.json`.
 Create the config file under the project root:
 
 ```bash
-mkdir -p /Users/you/src/checkout-api/.agh
+mkdir -p /Users/you/src/checkout-api/.compozy
 ```
 
 ```toml
-# /Users/you/src/checkout-api/.agh/config.toml
+# /Users/you/src/checkout-api/.compozy/config.toml
 [defaults]
 agent = "reviewer"
 provider = "claude"
@@ -65,13 +65,13 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/src/checkou
 Then register the workspace:
 
 ```bash
-agh workspace add /Users/you/src/checkout-api --name checkout-api
+compozy workspace add /Users/you/src/checkout-api --name checkout-api
 ```
 
 Sessions that target `checkout-api` now inherit the overlay:
 
 ```bash
-agh session new --workspace checkout-api
+compozy session new --workspace checkout-api
 ```
 
 The command uses `reviewer` as the default agent unless you pass `--agent`.
@@ -94,14 +94,14 @@ TOML overlays are field-aware. A field changes only when the overlay provides th
 This example keeps the global marketplace URL while changing only skill enablement:
 
 ```toml
-# ~/.agh/config.toml
+# ~/.compozy/config.toml
 [skills.marketplace]
 registry = "clawhub"
 base_url = "https://registry.example.test/api/v1"
 ```
 
 ```toml
-# <workspace>/.agh/config.toml
+# <workspace>/.compozy/config.toml
 [skills]
 enabled = false
 ```
@@ -143,25 +143,25 @@ Across the session start path, MCP servers are then resolved in this order:
 Config overlays do not define agents or skills directly. They change the runtime defaults around
 the agents and skills discovered by the resolver.
 
-| Goal                                          | Put this in config                                                               | Put this in the workspace filesystem                                        |
-| --------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Change the default agent for one project      | `[defaults].agent = "reviewer"` or `agh workspace edit --default-agent reviewer` | `.agh/agents/reviewer/AGENT.md`                                             |
-| Disable a noisy skill in one project          | `[skills].disabled_skills = ["skill-name"]`                                      | Keep the skill where it is.                                                 |
-| Add project MCP servers                       | `[[mcp_servers]]` or `.agh/mcp.json`                                             | Agent/skill-local `mcp.json` when the server belongs to one agent or skill. |
-| Change provider command/model for one project | `[providers.<name>]`                                                             | No filesystem resource needed.                                              |
-| Add a project-only skill                      | No config entry required.                                                        | `.agh/skills/<name>/SKILL.md`                                               |
+| Goal                                          | Put this in config                                                                   | Put this in the workspace filesystem                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Change the default agent for one project      | `[defaults].agent = "reviewer"` or `compozy workspace edit --default-agent reviewer` | `.compozy/agents/reviewer/AGENT.md`                                         |
+| Disable a noisy skill in one project          | `[skills].disabled_skills = ["skill-name"]`                                          | Keep the skill where it is.                                                 |
+| Add project MCP servers                       | `[[mcp_servers]]` or `.compozy/mcp.json`                                             | Agent/skill-local `mcp.json` when the server belongs to one agent or skill. |
+| Change provider command/model for one project | `[providers.<name>]`                                                                 | No filesystem resource needed.                                              |
+| Add a project-only skill                      | No config entry required.                                                            | `.compozy/skills/<name>/SKILL.md`                                           |
 
 Workspace registration has one extra override: `default_agent`. When it is set on the workspace row,
 the resolver applies it after loading config by setting `defaults.agent` for the resolved snapshot.
 
 ```bash
-agh workspace edit checkout-api --default-agent reviewer
+compozy workspace edit checkout-api --default-agent reviewer
 ```
 
 Set it to an empty value to clear it:
 
 ```bash
-agh workspace edit checkout-api --default-agent ""
+compozy workspace edit checkout-api --default-agent ""
 ```
 
 ## Concrete Overlay Walkthrough
@@ -169,7 +169,7 @@ agh workspace edit checkout-api --default-agent ""
 Global config:
 
 ```toml
-# ~/.agh/config.toml
+# ~/.compozy/config.toml
 [defaults]
 agent = "general"
 provider = "codex"
@@ -187,7 +187,7 @@ disabled_skills = ["legacy-notes"]
 Workspace config:
 
 ```toml
-# <workspace>/.agh/config.toml
+# <workspace>/.compozy/config.toml
 [defaults]
 agent = "reviewer"
 
@@ -210,16 +210,16 @@ Effective result for the workspace:
 
 ## `.env` And `COMPOZY_HOME`
 
-If a workspace root contains `.env`, AGH loads it before resolving the AGH home layout for that
+If a workspace root contains `.env`, Compozy loads it before resolving the Compozy home layout for that
 config load. That means a workspace can set `COMPOZY_HOME` for sessions that resolve that workspace:
 
 ```dotenv
-COMPOZY_HOME=/Users/you/.agh-checkout
+COMPOZY_HOME=/Users/you/.compozy-checkout
 ```
 
 Use this carefully. It changes the global config, agents, skills, memory, sessions, logs, socket,
 and database locations for that resolved workspace config load. Most projects should prefer
-`<workspace>/.agh/config.toml` for project-specific behavior and keep `COMPOZY_HOME` stable.
+`<workspace>/.compozy/config.toml` for project-specific behavior and keep `COMPOZY_HOME` stable.
 
 ## Failure Behavior
 

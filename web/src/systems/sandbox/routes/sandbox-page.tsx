@@ -1,6 +1,13 @@
 import { AlertCircle, Boxes, Info, Plus, RefreshCw } from "lucide-react";
 
-import { Button, Empty, ListingPage, ListingToolbar, SkeletonRows, useTopbarSlot } from "@agh/ui";
+import {
+  Button,
+  Empty,
+  ListingPage,
+  ListingToolbar,
+  SkeletonRows,
+  useTopbarSlot,
+} from "@compozy/ui";
 
 import { useSandboxPage, type SandboxRouteSearch } from "../hooks/use-sandbox-page";
 import { SandboxListFilters, SandboxProfilesList, SandboxProfileSheet } from "../components";

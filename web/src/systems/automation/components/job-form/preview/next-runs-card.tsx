@@ -1,6 +1,6 @@
 import { Clock } from "lucide-react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { JobNextRun } from "../../../lib/job-preview";
 import { PreviewCard } from "../../trigger-form/preview/preview-card";

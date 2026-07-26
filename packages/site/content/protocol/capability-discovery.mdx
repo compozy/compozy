@@ -4,7 +4,7 @@ description: Wire-level reference for advertising capabilities, retrieving rich 
 icon: Zap
 ---
 
-A capability is the single AGH delegation artifact. The same structured capability model feeds
+A capability is the single Compozy delegation artifact. The same structured capability model feeds
 three distinct protocol roles:
 
 - brief discovery in `greet` through `peer_card.capabilities` and `peer_card.ext["compozy.capabilities_brief"]`
@@ -233,7 +233,7 @@ keys.
 
 | Peer implements                | Caller sees                                                                         |
 | ------------------------------ | ----------------------------------------------------------------------------------- |
-| Neither brief nor rich         | `peer_card.capabilities` is `[]`; no `agh.*` extension keys appear.                 |
+| Neither brief nor rich         | `peer_card.capabilities` is `[]`; no `compozy.*` extension keys appear.             |
 | Brief only                     | `peer_card.capabilities` lists IDs; `compozy.capabilities_brief` carries summaries. |
 | Rich without `compozy.include` | Responder MUST NOT attach `compozy.capability_catalog`. Caller falls back to brief. |
 | Rich with filtering            | Response returns only the matching capabilities, preserving catalog order.          |
@@ -255,5 +255,5 @@ messages, so that newer capability metadata can travel unchanged through older r
   that transfers a full structured capability artifact.
 - [Interaction Lifecycle](/protocol/interactions) describes the directed work a caller opens after
   choosing a capability.
-- [Agent Capabilities](/runtime/core/agents/capabilities) documents how AGH Runtime authors and
+- [Agent Capabilities](/runtime/core/agents/capabilities) documents how Compozy Runtime authors and
   loads the local catalog that feeds this wire contract.

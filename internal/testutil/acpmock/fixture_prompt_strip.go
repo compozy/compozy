@@ -49,7 +49,7 @@ func lastLineMarkerIndex(text string, marker string) int {
 
 func stripKnownPromptAugmentation(prompt string) string {
 	next := prompt
-	next = stripLeadingPromptBlock(next, aghSituationContextOpen, aghSituationContextClose)
+	next = stripLeadingPromptBlock(next, compozySituationContextOpen, compozySituationContextClose)
 	next = stripLeadingSkillsCatalogBlock(next, currentAvailableSkillsOpen, currentAvailableSkillsClose)
 	next = stripLeadingSkillsCatalogBlock(next, availableSkillsOpen, availableSkillsClose)
 	next = stripLeadingSelfClosingPromptBlock(next, currentAvailableSkillsSelfClosing)

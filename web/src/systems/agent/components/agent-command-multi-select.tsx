@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { CommandSelect, CommandSelectShell, CommandSelectTrigger, Pill } from "@agh/ui";
+import { CommandSelect, CommandSelectShell, CommandSelectTrigger, Pill } from "@compozy/ui";
 
 import { AgentCommandList } from "./agent-command-list";
 import type { AgentPayload } from "../types";

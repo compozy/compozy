@@ -1,7 +1,7 @@
 import { LayoutGrid, Settings, Star } from "lucide-react";
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 
-import { cn, KindIcon, providerKindIconRegistry } from "@agh/ui";
+import { cn, KindIcon, providerKindIconRegistry } from "@compozy/ui";
 
 import type { RailFilter } from "./use-runtime-selector";
 import type { RuntimeProviderOption } from "./types";

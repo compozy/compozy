@@ -1,6 +1,6 @@
 import { Home, Plus, ServerOff } from "lucide-react";
 
-import { Button, ConnectionIndicator, Empty, useTopbarSlot } from "@agh/ui";
+import { Button, ConnectionIndicator, Empty, useTopbarSlot } from "@compozy/ui";
 
 import { HomeDashboard } from "@/systems/dashboard";
 import { useSessionCreate } from "@/systems/session";

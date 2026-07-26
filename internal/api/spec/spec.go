@@ -171,7 +171,7 @@ const (
 
 const (
 	// DefaultPath is the canonical generated OpenAPI output location.
-	DefaultPath = "openapi/agh.json"
+	DefaultPath = "openapi/compozy.json"
 )
 
 var rawMessageType = reflect.TypeFor[json.RawMessage]()

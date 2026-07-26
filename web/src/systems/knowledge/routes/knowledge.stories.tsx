@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -78,7 +78,7 @@ export const Empty: Story = {
     ...appRouteParameters("/knowledge"),
     ...storybookMswParameters({
       knowledge: [
-        aghApiMock.get("/api/memory", () =>
+        compozyApiMock.get("/api/memory", () =>
           HttpResponse.json({
             memories: [],
             page: { has_more: false, limit: 50, total: 0 },
@@ -99,7 +99,7 @@ export const ContentLoading: Story = {
     ...appRouteParameters("/knowledge"),
     ...storybookMswParameters({
       knowledge: [
-        aghApiMock.get("/api/memory/{filename}", async () => {
+        compozyApiMock.get("/api/memory/{filename}", async () => {
           await delay("infinite");
           return HttpResponse.json(memoryReadFixtures["operator-style.md"]!);
         }),
@@ -118,7 +118,7 @@ export const ContentError: Story = {
     ...appRouteParameters("/knowledge"),
     ...storybookMswParameters({
       knowledge: [
-        aghApiMock.get("/api/memory/{filename}", () =>
+        compozyApiMock.get("/api/memory/{filename}", () =>
           HttpResponse.json({ code: "memory.read_failed", message: "boom" }, { status: 500 })
         ),
       ],

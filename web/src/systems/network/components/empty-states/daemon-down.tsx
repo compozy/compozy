@@ -1,6 +1,6 @@
 import { ServerCrash } from "lucide-react";
 
-import { Button, ConnectionIndicator, Empty } from "@agh/ui";
+import { Button, ConnectionIndicator, Empty } from "@compozy/ui";
 
 export interface DaemonDownProps {
   onRetry?: () => void;
@@ -28,7 +28,7 @@ export function DaemonDown({ onRetry, className }: DaemonDownProps) {
       }
       className={className}
       data-testid="network-daemon-down"
-      description="Make sure the AGH daemon is running."
+      description="Make sure the CompozyOS daemon is running."
       icon={ServerCrash}
       title={
         <span className="inline-flex flex-col items-center gap-2">

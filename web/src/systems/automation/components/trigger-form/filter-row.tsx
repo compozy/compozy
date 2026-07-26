@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 
-import { Button, Input, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Button, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
 
 interface FilterRowProps {
   index: number;

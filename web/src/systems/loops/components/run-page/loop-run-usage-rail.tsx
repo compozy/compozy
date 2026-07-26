@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 
-import { cn, Eyebrow, PropertyRow } from "@agh/ui";
+import { cn, Eyebrow, PropertyRow } from "@compozy/ui";
 
 import type { LoopRunUsageRow, LoopUsageTone } from "../../lib/loop-run-usage";
 

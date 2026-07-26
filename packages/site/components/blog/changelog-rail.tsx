@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 import type { Release } from "#site/content";
 import Link from "next/link";
 import { DateStamp } from "./date-stamp";

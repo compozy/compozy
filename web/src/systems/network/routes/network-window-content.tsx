@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 
 import { ActivityFeed } from "../components/activity";
 import { DirectRoom, DirectsList, NewDirectDialog } from "../components/directs";

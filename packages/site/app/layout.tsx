@@ -5,7 +5,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { RootProvider } from "fumadocs-ui/provider/next";
-import { UIProvider } from "@agh/ui";
+import { UIProvider } from "@compozy/ui";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteSearchDialog, SiteSearchProvider } from "@/components/site/site-search";
 import { siteConfig } from "@/lib/site-config";
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   applicationName: siteConfig.name,
   title: {
     default: siteConfig.name,
-    template: "%s | AGH",
+    template: "%s | Compozy",
   },
   description: siteConfig.description,
   alternates: {
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "AGH operator runtime and coordination protocol",
+        alt: "CompozyOS runtime and coordination protocol",
       },
     ],
   },

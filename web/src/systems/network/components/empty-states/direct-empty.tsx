@@ -1,6 +1,6 @@
 import { MessageCircle } from "lucide-react";
 
-import { Empty } from "@agh/ui";
+import { Empty } from "@compozy/ui";
 
 export interface DirectEmptyProps {
   className?: string;

@@ -1,4 +1,4 @@
-import { cn, Eyebrow, Panel, Pill, type PillTone } from "@agh/ui";
+import { cn, Eyebrow, Panel, Pill, type PillTone } from "@compozy/ui";
 
 import { formatPercent, taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";

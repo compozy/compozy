@@ -1,24 +1,24 @@
 ---
-title: "agh install"
-description: "Bootstrap AGH and create the default general agent"
+title: "compozy install"
+description: "Bootstrap Compozy and create the default general agent"
 ---
 
-## agh install
+## compozy install
 
-Bootstrap AGH and create the default general agent
+Bootstrap Compozy and create the default general agent
 
 ```
-agh install [flags]
+compozy install [flags]
 ```
 
 ### Examples
 
 ```
-  # Create ~/.agh/config.toml and ~/.agh/agents/general/AGENT.md
-  agh install
+  # Create ~/.compozy/config.toml and ~/.compozy/agents/general/AGENT.md
+  compozy install
 
   # Bootstrap non-interactively for automation
-  agh install --provider codex --model gpt-5.6-sol -o json
+  compozy install --provider codex --model gpt-5.6-sol -o json
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh install [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh install -o json
+compozy install -o json
 ```

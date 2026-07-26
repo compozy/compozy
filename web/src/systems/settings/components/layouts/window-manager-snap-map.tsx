@@ -1,6 +1,6 @@
 import { useRef, type Dispatch, type SetStateAction } from "react";
 
-import { Popover, PopoverContent, PopoverTrigger, cn } from "@agh/ui";
+import { Popover, PopoverContent, PopoverTrigger, cn } from "@compozy/ui";
 
 import type { WindowManagerConfig } from "@/systems/os";
 

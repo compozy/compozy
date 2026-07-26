@@ -1,4 +1,4 @@
-# AGH Network
+# Compozy Network
 
 ## Participation first
 

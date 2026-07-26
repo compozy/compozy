@@ -1,7 +1,15 @@
 import { useId, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 
-import { cn, FieldError, Input, NativeSelect, NativeSelectOption, Switch, Textarea } from "@agh/ui";
+import {
+  cn,
+  FieldError,
+  Input,
+  NativeSelect,
+  NativeSelectOption,
+  Switch,
+  Textarea,
+} from "@compozy/ui";
 
 import { MonoTag } from "../mono-tag";
 import { getAtPath } from "../../lib/loop-editor-draft";

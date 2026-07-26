@@ -55,14 +55,14 @@ The full data model lives in the [DSL reference](/runtime/core/loops/dsl-referen
 A Loop and a [capability](/runtime/core/agents/capabilities) are different artifacts, and Loops do
 not replace capabilities:
 
-- A **Loop** is a **deterministic runtime program** the daemon owns and runs. It rides AGH's
+- A **Loop** is a **deterministic runtime program** the daemon owns and runs. It rides Compozy's
   existing durable foundations — the work queue, sessions, [automation](/runtime/core/automation),
   [network](/runtime/core/network), and [memory](/runtime/core/memory) — rather than adding a
   second execution engine.
 - A **capability** is an **interpretive network artifact** — what an agent offers to peers over
-  AGH Network. Capabilities stay interpretive; the network protocol does not carry Loop execution.
+  Compozy Network. Capabilities stay interpretive; the network protocol does not carry Loop execution.
 
-AGH Network remains, by design, not a workflow engine: envelopes do not carry loop execution. The
+Compozy Network remains, by design, not a workflow engine: envelopes do not carry loop execution. The
 Loop domain lives entirely in the runtime.
 
 ## Arrive and use
@@ -144,6 +144,6 @@ Authoring, configuring, and forking are an opt-in power ceiling, never the entry
 ## Manage from any surface
 
 Every Loop capability — author, configure, run, observe, approve, stop — is operable by an agent
-through structured non-UI surfaces. The [`agh loop`](/runtime/cli-reference/loop) CLI, the
+through structured non-UI surfaces. The [`compozy loop`](/runtime/cli-reference/loop) CLI, the
 [Loops HTTP API](/runtime/api-reference/loops), and the `compozy__loop_*` native tools all reach the
 same validators and writers as the web UI. Web-UI-only control would be incomplete by definition.

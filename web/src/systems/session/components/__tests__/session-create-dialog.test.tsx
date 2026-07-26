@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@agh/ui";
+import { UIProvider } from "@compozy/ui";
 import type { AgentPayload } from "@/systems/agent";
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
@@ -390,7 +390,7 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-prompt")).toBeDisabled();
     const pending = screen.getByTestId("session-create-pending-status");
     expect(pending).toHaveAttribute("role", "status");
-    expect(pending).toHaveTextContent("AGH durably accepts it");
+    expect(pending).toHaveTextContent("CompozyOS durably accepts it");
     fireEvent.click(getDialogBackdrop());
     expect(onOpenChange).not.toHaveBeenCalled();
   });

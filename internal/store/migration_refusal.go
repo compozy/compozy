@@ -6,9 +6,9 @@ import (
 	"fmt"
 )
 
-const migrationFamilyRecoveryInstruction = "stop AGH; preserve or move the complete COMPOZY_HOME or " +
+const migrationFamilyRecoveryInstruction = "stop CompozyOS; preserve or move the complete COMPOZY_HOME or " +
 	"workspace .compozy directory containing this database, including every sibling database file; " +
-	"then start AGH with a separately " +
+	"then start CompozyOS with a separately " +
 	"selected fresh COMPOZY_HOME or workspace"
 
 func refuseLegacyDatabase(ctx context.Context, db *sql.DB, stream MigrationStream, path string) error {
@@ -39,7 +39,7 @@ func refuseAheadDatabase(
 	if status.Version > maxEmbeddedVersion {
 		return fmt.Errorf(
 			"%w: %s stream %s is at version %d, binary head is %d; "+
-				"install a newer AGH binary or %s",
+				"install a newer Compozy binary or %s",
 			ErrSchemaAhead,
 			path,
 			stream.Name,

@@ -12,7 +12,7 @@ import {
   EntityModeToolbar,
   ImmutableIdentity,
   type EntityMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 

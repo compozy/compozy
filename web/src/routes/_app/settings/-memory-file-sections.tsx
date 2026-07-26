@@ -1,5 +1,5 @@
 import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
-import { Input, Switch } from "@agh/ui";
+import { Input, Switch } from "@compozy/ui";
 import {
   type DraftSectionProps,
   type ValidatedSectionProps,
@@ -428,11 +428,11 @@ export function FileCapsSection({
 
 export function WorkspaceIdentitySection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup title="Workspace identity" description=".agh/workspace.toml lifecycle">
+    <SettingsGroup title="Workspace identity" description=".compozy/workspace.toml lifecycle">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-workspace-toml-path`}
         label="Workspace toml path"
-        description="Informational; validation locks this to <workspace>/.agh/workspace.toml"
+        description="Informational; validation locks this to <workspace>/.compozy/workspace.toml"
         control={
           <Input
             readOnly
@@ -445,7 +445,7 @@ export function WorkspaceIdentitySection({ draft, setDraft }: DraftSectionProps)
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-workspace-auto-create`}
         label="Auto-create workspace.toml"
-        description="Create <workspace>/.agh/workspace.toml on first touch"
+        description="Create <workspace>/.compozy/workspace.toml on first touch"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-workspace-auto-create-switch`}

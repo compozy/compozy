@@ -43,7 +43,7 @@ function landingSnippets(): LandingSnippet[] {
 function generatedCLICommands(): Set<string> {
   const commands = new Set<string>();
   for (const file of listFiles(cliReferenceRoot, ".mdx")) {
-    const match = readFileSync(file, "utf8").match(/^## (agh(?: [^\n]+)?)/m);
+    const match = readFileSync(file, "utf8").match(/^## (compozy(?: [^\n]+)?)/m);
     if (match?.[1]) {
       commands.add(match[1].trim());
     }
@@ -60,7 +60,7 @@ function extractAghCommandPrefixes(line: string, generatedCommands: Set<string>)
     .filter(Boolean);
 
   for (let index = 0; index < tokens.length; index += 1) {
-    if (tokens[index] !== "agh") {
+    if (tokens[index] !== "compozy") {
       continue;
     }
 
@@ -103,9 +103,9 @@ describe("landing CLI snippets", () => {
     expect(networkSnippet).toBeDefined();
 
     const normalized = networkSnippet?.code.replaceAll("\\\n", " ") ?? "";
-    expect(normalized).toContain("agh network peers builders");
-    expect(normalized).toContain("agh network directs resolve");
-    expect(normalized).toContain("agh network send");
+    expect(normalized).toContain("compozy network peers builders");
+    expect(normalized).toContain("compozy network directs resolve");
+    expect(normalized).toContain("compozy network send");
     expect(normalized).toContain("--session <session-id>");
     expect(normalized).toContain("--channel builders");
     expect(normalized).toContain("--surface direct");
@@ -113,7 +113,7 @@ describe("landing CLI snippets", () => {
     expect(normalized).toContain("--kind say");
     expect(normalized).toContain("--work ");
     expect(normalized).toContain("--body ");
-    expect(normalized).toContain("agh network inbox --session <session-id>");
+    expect(normalized).toContain("compozy network inbox --session <session-id>");
     expect(normalized).not.toContain("--kind direct");
     expect(normalized).not.toContain("--interaction-id");
   });

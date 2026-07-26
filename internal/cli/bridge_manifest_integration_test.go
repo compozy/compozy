@@ -22,7 +22,7 @@ func TestBridgeSlackManifestIntegration(t *testing.T) {
 			Platform:      "slack",
 			ExtensionName: "slack-reference",
 			DisplayName:   "Slack",
-			Description:   "Connect Slack messages, commands, actions, and reactions to AGH.",
+			Description:   "Connect Slack messages, commands, actions, and reactions to Compozy.",
 		}}
 		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 		defer func() {

@@ -94,7 +94,7 @@ function queryBody(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="tool-call-row-body"]');
 }
 
-describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui", () => {
+describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compozy/ui", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });

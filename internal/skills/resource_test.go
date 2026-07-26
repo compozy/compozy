@@ -80,7 +80,7 @@ func TestSkillResourceCodecRejectsInvalidSpecs(t *testing.T) {
 					RequiresTools: []string{"compozy__skill_view", "   "},
 				},
 			},
-			wantErr: "metadata.agh.when.requires_tools[1] is required",
+			wantErr: "metadata.compozy.when.requires_tools[1] is required",
 		},
 	}
 
@@ -151,7 +151,7 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 		"description: Installed marketplace skill",
 		"version: 1.2.3",
 		"metadata:",
-		"  agh:",
+		"  compozy:",
 		"    when:",
 		"      platforms: [DARWIN, linux, darwin]",
 		"      requires_tools: [compozy__skill_view]",

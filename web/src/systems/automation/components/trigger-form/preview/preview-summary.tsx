@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { SummarySegment, SummaryTone } from "../../../lib/trigger-preview";
 import { PreviewCard } from "./preview-card";

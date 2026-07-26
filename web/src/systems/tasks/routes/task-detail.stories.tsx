@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -89,7 +89,7 @@ export const BlockedReasons: Story = {
     ...appRouteParameters("/tasks/task_001"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/tasks/{id}", () =>
+        compozyApiMock.get("/api/tasks/{id}", () =>
           HttpResponse.json({
             task: buildDetailFixture({
               task: {
@@ -116,7 +116,7 @@ export const NeedsAttention: Story = {
     ...appRouteParameters("/tasks/task_001"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/tasks/{id}", () =>
+        compozyApiMock.get("/api/tasks/{id}", () =>
           HttpResponse.json({
             task: buildDetailFixture({
               task: {
@@ -146,7 +146,7 @@ export const Loading: Story = {
     ...appRouteParameters("/tasks/task_001"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/tasks/{id}", async () => {
+        compozyApiMock.get("/api/tasks/{id}", async () => {
           await delay("infinite");
           return HttpResponse.json({ task: taskDetailFixture });
         }),
@@ -165,7 +165,7 @@ export const NotFound: Story = {
     ...appRouteParameters("/tasks/task_missing"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/tasks/{id}", ({ params }) =>
+        compozyApiMock.get("/api/tasks/{id}", ({ params }) =>
           HttpResponse.json({ error: `Task not found: ${String(params.id)}` }, { status: 404 })
         ),
       ],

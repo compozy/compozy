@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { MonoId, Pill } from "@agh/ui";
+import { MonoId, Pill } from "@compozy/ui";
 
 import {
   formatAttemptLabel,

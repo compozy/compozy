@@ -1,6 +1,6 @@
 import { GripVertical } from "lucide-react";
 
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import { LOOP_PALETTE, type PaletteItem } from "../../lib/loop-palette";
 import { MonoTag } from "../mono-tag";

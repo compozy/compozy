@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { ExternalLink, Sparkles } from "lucide-react";
 
 export interface OpenWithAIProps {

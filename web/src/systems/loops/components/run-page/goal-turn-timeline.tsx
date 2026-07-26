@@ -12,7 +12,7 @@ import {
   Timeline,
   TimelineEvent,
   type PillTone,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 

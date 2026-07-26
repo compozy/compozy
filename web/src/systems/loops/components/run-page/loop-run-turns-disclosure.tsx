@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 
-import { Button, Collapsible, CollapsibleContent, CollapsibleTrigger, Spinner } from "@agh/ui";
+import { Button, Collapsible, CollapsibleContent, CollapsibleTrigger, Spinner } from "@compozy/ui";
 
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import { GoalTurnTimeline } from "./goal-turn-timeline";

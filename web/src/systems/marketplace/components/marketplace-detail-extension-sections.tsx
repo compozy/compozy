@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, MonoId, Pill, Section, Spinner } from "@agh/ui";
+import { Button, MonoId, Pill, Section, Spinner } from "@compozy/ui";
 
 function ExtensionDetailBlock({ label, children }: { label: string; children: ReactNode }) {
   return (

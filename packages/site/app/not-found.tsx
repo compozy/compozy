@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 export default function NotFound() {
   return (
@@ -10,7 +10,7 @@ export default function NotFound() {
           This route is not in the runtime.
         </h1>
         <p className="mt-5 max-w-[58ch] text-base leading-7 text-muted">
-          The requested page is not part of the published AGH site. Use the runtime docs or the
+          The requested page is not part of the published Compozy site. Use the runtime docs or the
           network protocol reference to re-enter the catalog.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">

@@ -14,7 +14,7 @@ import {
   Input,
   PillGroup,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { retryDraftForStrategy } from "../lib/automation-drafts";
 import type { AutomationFireLimit, AutomationRetry } from "../types";

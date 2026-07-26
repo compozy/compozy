@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 
-import { MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator } from "@agh/ui";
+import { MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator } from "@compozy/ui";
 
 import type { WorkspacePayload } from "@/systems/workspace";
 

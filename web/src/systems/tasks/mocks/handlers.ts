@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import type {
   CreateTaskRequest,
@@ -212,10 +212,10 @@ function notFound(entity: string, id: string) {
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/tasks", ({ request }) =>
+  compozyApiMock.get("/api/tasks", ({ request }) =>
     HttpResponse.json(buildTaskCatalogResponse(TASK_CATALOG_FIXTURES, new URL(request.url)))
   ),
-  aghApiMock.get("/api/tasks/{id}", ({ params, response }) => {
+  compozyApiMock.get("/api/tasks/{id}", ({ params, response }) => {
     const id = String(params.id);
     const detail = resolveTaskDetail(id);
 
@@ -225,7 +225,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ task: detail });
   }),
-  aghApiMock.get("/api/tasks/{id}/runs", ({ params, request, response }) => {
+  compozyApiMock.get("/api/tasks/{id}/runs", ({ params, request, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
       return response(404).json(notFound("Task", id));
@@ -233,7 +233,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ runs: filterRuns(resolveTaskRuns(id), new URL(request.url)) });
   }),
-  aghApiMock.get("/api/tasks/{id}/timeline", ({ params, request, response }) => {
+  compozyApiMock.get("/api/tasks/{id}/timeline", ({ params, request, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
       return response(404).json(notFound("Task", id));
@@ -247,7 +247,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ timeline });
   }),
-  aghApiMock.get("/api/tasks/{id}/tree", ({ params, response }) => {
+  compozyApiMock.get("/api/tasks/{id}/tree", ({ params, response }) => {
     const id = String(params.id);
     const tree = resolveTaskTree(id);
 
@@ -257,7 +257,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ tree });
   }),
-  aghApiMock.get("/api/tasks/{id}/inspect", ({ params, response }) => {
+  compozyApiMock.get("/api/tasks/{id}/inspect", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTask(id);
 
@@ -269,7 +269,7 @@ export const handlers: HttpHandler[] = [
       inspect: buildTaskInspectFixture({ task, target: "task" }),
     });
   }),
-  aghApiMock.get("/api/task-runs/{id}", ({ params, response }) => {
+  compozyApiMock.get("/api/task-runs/{id}", ({ params, response }) => {
     const id = String(params.id);
     const run = resolveTaskRun(id);
 
@@ -279,7 +279,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ run });
   }),
-  aghApiMock.get("/api/runs/{id}/inspect", ({ params, response }) => {
+  compozyApiMock.get("/api/runs/{id}/inspect", ({ params, response }) => {
     const id = String(params.id);
     const run = resolveTaskRun(id);
 
@@ -307,18 +307,18 @@ export const handlers: HttpHandler[] = [
       }),
     });
   }),
-  aghApiMock.get("/api/observe/tasks/dashboard", () =>
+  compozyApiMock.get("/api/observe/tasks/dashboard", () =>
     HttpResponse.json({ dashboard: taskDashboardFixture })
   ),
-  aghApiMock.get("/api/observe/tasks/inbox", ({ request }) =>
+  compozyApiMock.get("/api/observe/tasks/inbox", ({ request }) =>
     HttpResponse.json({ inbox: buildTaskInboxResponse(taskInboxFixture, new URL(request.url)) })
   ),
-  aghApiMock.post("/api/tasks", async ({ request }) => {
+  compozyApiMock.post("/api/tasks", async ({ request }) => {
     const body = (await request.json()) as Partial<CreateTaskRequest>;
 
     return HttpResponse.json({ task: buildCreatedTaskFixture(body) }, { status: 201 });
   }),
-  aghApiMock.patch("/api/tasks/{id}", async ({ params, request, response }) => {
+  compozyApiMock.patch("/api/tasks/{id}", async ({ params, request, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
@@ -341,7 +341,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/tasks/{id}/publish", ({ params, response }) => {
+  compozyApiMock.post("/api/tasks/{id}/publish", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
@@ -364,7 +364,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/tasks/{id}/cancel", ({ params, response }) => {
+  compozyApiMock.post("/api/tasks/{id}/cancel", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
@@ -378,7 +378,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/tasks/{id}/pause", async ({ params, request, response }) => {
+  compozyApiMock.post("/api/tasks/{id}/pause", async ({ params, request, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
@@ -398,7 +398,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/tasks/{id}/resume", ({ params, response }) => {
+  compozyApiMock.post("/api/tasks/{id}/resume", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
@@ -417,7 +417,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/tasks/{id}/recover", ({ params, response }) => {
+  compozyApiMock.post("/api/tasks/{id}/recover", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
@@ -442,7 +442,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/tasks/{id}/approve", ({ params, response }) => {
+  compozyApiMock.post("/api/tasks/{id}/approve", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
@@ -469,7 +469,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  aghApiMock.post("/api/tasks/{id}/reject", ({ params, response }) => {
+  compozyApiMock.post("/api/tasks/{id}/reject", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
@@ -484,7 +484,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/tasks/{id}/runs", ({ params, response }) => {
+  compozyApiMock.post("/api/tasks/{id}/runs", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTask(id);
     if (!task) {
@@ -506,7 +506,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  aghApiMock.post("/api/tasks/{id}/runs/fan-out", async ({ params, request, response }) => {
+  compozyApiMock.post("/api/tasks/{id}/runs/fan-out", async ({ params, request, response }) => {
     const id = String(params.id);
     const task = resolveTask(id);
     if (!task) {
@@ -540,22 +540,22 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  aghApiMock.post("/api/tasks/{id}/triage/read", ({ params }) =>
+  compozyApiMock.post("/api/tasks/{id}/triage/read", ({ params }) =>
     HttpResponse.json({ triage: withTriageState(String(params.id), { read: true }) })
   ),
-  aghApiMock.post("/api/tasks/{id}/triage/archive", ({ params }) =>
+  compozyApiMock.post("/api/tasks/{id}/triage/archive", ({ params }) =>
     HttpResponse.json({
       triage: withTriageState(String(params.id), { archived: true, read: true }),
     })
   ),
-  aghApiMock.post("/api/tasks/{id}/triage/dismiss", ({ params }) =>
+  compozyApiMock.post("/api/tasks/{id}/triage/dismiss", ({ params }) =>
     HttpResponse.json({
       triage: withTriageState(String(params.id), { dismissed: true, read: true }),
     })
   ),
 
   // Execution profile
-  aghApiMock.get("/api/tasks/{id}/execution-profile", ({ params, response }) => {
+  compozyApiMock.get("/api/tasks/{id}/execution-profile", ({ params, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
       return response(404).json(notFound("Task", id));
@@ -564,7 +564,7 @@ export const handlers: HttpHandler[] = [
       profile: { ...taskExecutionProfileFixture, task_id: id },
     });
   }),
-  aghApiMock.put("/api/tasks/{id}/execution-profile", async ({ params, request, response }) => {
+  compozyApiMock.put("/api/tasks/{id}/execution-profile", async ({ params, request, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
       return response(404).json(notFound("Task", id));
@@ -574,7 +574,7 @@ export const handlers: HttpHandler[] = [
       profile: buildTaskExecutionProfileFixture({ ...body, task_id: id }),
     });
   }),
-  aghApiMock.delete("/api/tasks/{id}/execution-profile", ({ params, response }) => {
+  compozyApiMock.delete("/api/tasks/{id}/execution-profile", ({ params, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
       return response(404).json(notFound("Task", id));
@@ -583,7 +583,7 @@ export const handlers: HttpHandler[] = [
   }),
 
   // Run reviews
-  aghApiMock.get("/api/task-runs/{id}/reviews", ({ params, request }) => {
+  compozyApiMock.get("/api/task-runs/{id}/reviews", ({ params, request }) => {
     const runId = String(params.id);
     const url = new URL(request.url);
     const status = url.searchParams.get("status");
@@ -595,7 +595,7 @@ export const handlers: HttpHandler[] = [
     });
     return HttpResponse.json({ reviews: filtered });
   }),
-  aghApiMock.post("/api/task-runs/{id}/reviews", async ({ params, request }) => {
+  compozyApiMock.post("/api/task-runs/{id}/reviews", async ({ params, request }) => {
     const runId = String(params.id);
     const body = (await request.json()) as TaskRunReviewRequest;
     const review = buildTaskRunReviewFixture({
@@ -610,7 +610,7 @@ export const handlers: HttpHandler[] = [
     });
     return HttpResponse.json({ review, created: true }, { status: 201 });
   }),
-  aghApiMock.get("/api/task-reviews/{id}", ({ params, response }) => {
+  compozyApiMock.get("/api/task-reviews/{id}", ({ params, response }) => {
     const reviewId = String(params.id);
     const review =
       taskRunReviewListFixture.find(item => item.review_id === reviewId) ??
@@ -620,7 +620,7 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json({ review });
   }),
-  aghApiMock.post("/api/task-reviews/{id}/verdict", async ({ params, request }) => {
+  compozyApiMock.post("/api/task-reviews/{id}/verdict", async ({ params, request }) => {
     const reviewId = String(params.id);
     const body = (await request.json()) as TaskRunReviewVerdictRequest;
     const verdictResult = buildTaskRunReviewVerdictResultFixture({
@@ -640,7 +640,7 @@ export const handlers: HttpHandler[] = [
   }),
 
   // Task-level reviews
-  aghApiMock.get("/api/tasks/{id}/reviews", ({ params, response }) => {
+  compozyApiMock.get("/api/tasks/{id}/reviews", ({ params, response }) => {
     const taskId = String(params.id);
     if (!resolveTask(taskId)) {
       return response(404).json(notFound("Task", taskId));
@@ -649,7 +649,7 @@ export const handlers: HttpHandler[] = [
   }),
 
   // Bridge notification subscriptions
-  aghApiMock.get("/api/tasks/{id}/notifications/bridges", ({ params, request, response }) => {
+  compozyApiMock.get("/api/tasks/{id}/notifications/bridges", ({ params, request, response }) => {
     const taskId = String(params.id);
     if (!resolveTask(taskId)) {
       return response(404).json(notFound("Task", taskId));
@@ -667,7 +667,7 @@ export const handlers: HttpHandler[] = [
       });
     return HttpResponse.json({ subscriptions: filtered });
   }),
-  aghApiMock.post(
+  compozyApiMock.post(
     "/api/tasks/{id}/notifications/bridges",
     async ({ params, request, response }) => {
       const taskId = String(params.id);
@@ -698,7 +698,7 @@ export const handlers: HttpHandler[] = [
       return HttpResponse.json({ subscription }, { status: 201 });
     }
   ),
-  aghApiMock.get(
+  compozyApiMock.get(
     "/api/tasks/{id}/notifications/bridges/{subscription_id}",
     ({ params, response }) => {
       const taskId = String(params.id);
@@ -712,7 +712,7 @@ export const handlers: HttpHandler[] = [
       return HttpResponse.json({ subscription: { ...subscription, task_id: taskId } });
     }
   ),
-  aghApiMock.delete(
+  compozyApiMock.delete(
     "/api/tasks/{id}/notifications/bridges/{subscription_id}",
     ({ params, response }) => {
       const subscriptionId = String(params.subscription_id);
@@ -727,5 +727,7 @@ export const handlers: HttpHandler[] = [
   ),
 
   // Agent context (carries the task context bundle)
-  aghApiMock.get("/api/agent/context", () => HttpResponse.json({ context: agentContextFixture })),
+  compozyApiMock.get("/api/agent/context", () =>
+    HttpResponse.json({ context: agentContextFixture })
+  ),
 ];

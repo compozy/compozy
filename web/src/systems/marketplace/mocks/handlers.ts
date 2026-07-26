@@ -1,6 +1,6 @@
 import { HttpResponse, type HttpHandler } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
   marketplaceBundlePreviewFixture,
@@ -20,7 +20,7 @@ function matchesQuery(name: string, description: string, query: string): boolean
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/marketplace/search", ({ request }) => {
+  compozyApiMock.get("/api/marketplace/search", ({ request }) => {
     const query = queryText(request);
     return HttpResponse.json({
       ...marketplaceSearchFixture,
@@ -31,7 +31,7 @@ export const handlers: HttpHandler[] = [
       }),
     });
   }),
-  aghApiMock.post("/api/marketplace/refresh", () =>
+  compozyApiMock.post("/api/marketplace/refresh", () =>
     HttpResponse.json({
       kinds: [
         {
@@ -55,14 +55,14 @@ export const handlers: HttpHandler[] = [
       ],
     })
   ),
-  aghApiMock.get("/api/marketplace/{kind}/{entry_id}", ({ params }) => {
+  compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", ({ params }) => {
     const key = `${String(params.kind)}:${String(params.entry_id)}`;
     const detail = marketplaceDetails[key];
     return detail
       ? HttpResponse.json(detail)
       : HttpResponse.json({ error: `Marketplace entry not found: ${key}` }, { status: 404 });
   }),
-  aghApiMock.get("/api/marketplace/{kind}", ({ params, request }) => {
+  compozyApiMock.get("/api/marketplace/{kind}", ({ params, request }) => {
     const kind = String(params.kind) as MarketplaceKind;
     if (!(kind in marketplaceListings)) {
       return HttpResponse.json({ error: `Marketplace kind not found: ${kind}` }, { status: 404 });
@@ -72,11 +72,13 @@ export const handlers: HttpHandler[] = [
     const items = fixture.items.filter(item => matchesQuery(item.name, item.description, query));
     return HttpResponse.json({ ...fixture, items, total: items.length });
   }),
-  aghApiMock.post("/api/bundles/preview", () => HttpResponse.json(marketplaceBundlePreviewFixture)),
-  aghApiMock.post("/api/bundles/activations", () =>
+  compozyApiMock.post("/api/bundles/preview", () =>
+    HttpResponse.json(marketplaceBundlePreviewFixture)
+  ),
+  compozyApiMock.post("/api/bundles/activations", () =>
     HttpResponse.json(marketplaceBundlePreviewFixture, { status: 201 })
   ),
-  aghApiMock.post("/api/settings/mcp-servers/install", async ({ request }) => {
+  compozyApiMock.post("/api/settings/mcp-servers/install", async ({ request }) => {
     const body = (await request.json()) as { entry_id?: string; name?: string; scope?: string };
     const remote = body.entry_id === "linear";
     return HttpResponse.json({

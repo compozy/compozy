@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { taskDetailFixture } from "@/systems/tasks/mocks";
@@ -45,7 +45,7 @@ export const Loading: Story = {
     ...appRouteParameters("/tasks/task_001/edit"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/tasks/{id}", async () => {
+        compozyApiMock.get("/api/tasks/{id}", async () => {
           await delay("infinite");
           return HttpResponse.json({ task: taskDetailFixture });
         }),
@@ -64,7 +64,7 @@ export const MissingTask: Story = {
     ...appRouteParameters("/tasks/task_missing/edit"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.get("/api/tasks/{id}", ({ params }) =>
+        compozyApiMock.get("/api/tasks/{id}", ({ params }) =>
           HttpResponse.json({ error: `Task not found: ${String(params.id)}` }, { status: 404 })
         ),
       ],

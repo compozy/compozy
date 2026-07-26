@@ -1,6 +1,6 @@
 /**
  * Wire-protocol kinds rendered on the landing diagrams. Kept as data-only so
- * the chrome (a `Pill mono` from `@agh/ui`) can be composed inline by callers.
+ * the chrome (a `Pill mono` from `@compozy/ui`) can be composed inline by callers.
  *
  * `direct` is intentionally not a kind. Restricted two-party conversation is
  * modeled with `surface:"direct"` plus `direct_id`; the message kind for that

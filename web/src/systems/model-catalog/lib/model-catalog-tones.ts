@@ -1,4 +1,4 @@
-import type { PillTone } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
 
 const MODEL_AVAILABILITY_LABELS: Record<string, string> = {
   available_live: "live",

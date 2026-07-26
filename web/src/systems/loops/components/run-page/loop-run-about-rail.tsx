@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { Link } from "@tanstack/react-router";
 
-import { cn, Eyebrow, MonoId, PropertyRow } from "@agh/ui";
+import { cn, Eyebrow, MonoId, PropertyRow } from "@compozy/ui";
 
 import type { LoopRunInputRow } from "../../lib/loop-run-about";
 import type { LoopRunRecord } from "../../types";

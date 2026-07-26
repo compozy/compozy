@@ -6,7 +6,7 @@ import {
   CommandSelectShell,
   CommandSelectTrigger,
   Eyebrow,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { AgentIcon } from "./agent-icon";
 import { AgentCommandList } from "./agent-command-list";

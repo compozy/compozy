@@ -1,10 +1,10 @@
 ---
 title: Delivery Guarantees
-description: Reference for AGH Network v0 validation, retry, ordering, deduplication, expiry, receipts, and transport independence.
+description: Reference for Compozy Network v0 validation, retry, ordering, deduplication, expiry, receipts, and transport independence.
 icon: Send
 ---
 
-AGH Network v0 defines message semantics, not exactly-once transport guarantees. Implementations
+Compozy Network v0 defines message semantics, not exactly-once transport guarantees. Implementations
 must handle duplication, reordering, expiration, and failure without confusing carrier acceptance
 with application acceptance.
 
@@ -32,9 +32,9 @@ A retry of the same logical message SHOULD preserve the original `id` and correl
 changed intent gets a new ID. Implementations MUST NOT rely on ordering across peers or channels.
 Once a `work_id` is terminal, delayed non-terminal traces cannot reopen it.
 
-## AGH Runtime reference path
+## Compozy Runtime reference path
 
-AGH Runtime uses one atomic SQLite acceptance transaction for the message, immutable recipient
+Compozy Runtime uses one atomic SQLite acceptance transaction for the message, immutable recipient
 decisions, Live wake admission, admitted `network_wake` task runs, and accounting rows. It notifies
 the scheduler in process only after commit. Restart recovery uses the ordinary task-run path.
 
@@ -45,7 +45,7 @@ This provides a reference-runtime guarantee:
 - admitted work is durable without a second Network queue
 - model activation remains separate from message persistence
 
-A valid message can remain durable without starting a model turn. AGH Runtime admits only directly
+A valid message can remain durable without starting a model turn. Compozy Runtime admits only directly
 addressed or explicitly mentioned Live recipients, subject to availability and finite bounds.
 
 ## Receipts

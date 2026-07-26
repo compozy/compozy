@@ -2443,8 +2443,8 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 	if d.skillsRegistry == nil {
 		t.Fatal("boot() did not initialize the skills registry")
 	}
-	if _, ok := d.skillsRegistry.Get("agh"); !ok {
-		t.Fatal("skills registry does not contain bundled skill agh")
+	if _, ok := d.skillsRegistry.Get("compozy"); !ok {
+		t.Fatal("skills registry does not contain bundled skill compozy")
 	}
 
 	workspace := workspacepkg.ResolvedWorkspace{
@@ -2459,7 +2459,7 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 		t.Fatalf("PromptAssembler.Assemble() error = %v", err)
 	}
 
-	assertPromptContainsInOrder(t, prompt, "Base prompt.", "<available-skills>", "agh")
+	assertPromptContainsInOrder(t, prompt, "Base prompt.", "<available-skills>", "compozy")
 	assertPromptExcludes(t, prompt, "# Persistent Memory")
 
 	t.Run("Should migrate every shared database stream while memory is disabled", func(t *testing.T) {
@@ -2590,7 +2590,7 @@ Prompt.
 name: local-hook
 description: workspace lifecycle hook
 metadata:
-  agh:
+  compozy:
     hooks:
       - event: session.post_create
         mode: sync
@@ -2843,7 +2843,7 @@ func TestBootSkillsWatcherRebuildsHooksBeforeNextDispatch(t *testing.T) {
 name: watched-hook
 description: reloaded hook
 metadata:
-  agh:
+  compozy:
     hooks:
       - event: session.post_create
         mode: sync

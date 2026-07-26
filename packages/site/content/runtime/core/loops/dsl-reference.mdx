@@ -120,7 +120,7 @@ extension, and MCP tool is a Loop action for free.
 
 A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
 `nodes.<id>.output.<field>` — the type-safe chaining pattern.
-`params.model` is a per-node override. If it is empty, AGH uses the effective
+`params.model` is a per-node override. If it is empty, Compozy uses the effective
 `model_defaults.worker`; if that is also empty, the provider/runtime default model remains in
 effect.
 `run-agent` sessions use the target agent definition plus workspace defaults for sandbox and
@@ -143,12 +143,12 @@ array slice above it.
 
 ### Source nodes
 
-| Kind           | Purpose                                    | Key fields                                   |
-| -------------- | ------------------------------------------ | -------------------------------------------- |
-| `input`        | Expose a declared input to the graph       | `input_ref`                                  |
-| `file-import`  | Materialize a finite collection from files | `pattern`, `parse: json \| text`, `produces` |
-| `watch-source` | Wait for an external signal, then tick     | `watch` (spec)                               |
-| `watch-events` | Wake on an internal AGH event, then tick   | `events` (subscription list)                 |
+| Kind           | Purpose                                      | Key fields                                   |
+| -------------- | -------------------------------------------- | -------------------------------------------- |
+| `input`        | Expose a declared input to the graph         | `input_ref`                                  |
+| `file-import`  | Materialize a finite collection from files   | `pattern`, `parse: json \| text`, `produces` |
+| `watch-source` | Wait for an external signal, then tick       | `watch` (spec)                               |
+| `watch-events` | Wake on an internal Compozy event, then tick | `events` (subscription list)                 |
 
 A definition that contains a `watch-source` node is a **watch Loop** — it defaults to
 `iteration_cap: 0` and holds the `watching` state between ticks.
@@ -156,10 +156,10 @@ See [extending Loops](/runtime/core/loops/extensions#watch-sources).
 
 ### Watch-events source
 
-A `watch-events` node parks the Loop at zero cost and wakes it when an **internal AGH event**
+A `watch-events` node parks the Loop at zero cost and wakes it when an **internal Compozy event**
 commits — a task status transition, a task-run outcome, a loop terminal. It is the event-driven
 sibling of `watch-source`: `watch-source` polls an _external_ signal through an extension, while
-`watch-events` observes AGH's own durable ledgers. Hook dispatch is only the doorbell; the matched
+`watch-events` observes Compozy's own durable ledgers. Hook dispatch is only the doorbell; the matched
 batch is always re-derived from the append-only ledger at wake, so a subscription survives daemon
 downtime and dropped hooks.
 
@@ -214,7 +214,7 @@ watch-events batch. The kind select and lint error text always name the registry
 set, so the grammar never changes as families are added.
 
 The parked read-model — the active subscriptions, per-stream cursors, and last wake — is visible on the
-run detail (`agh loop runs show -o json`, HTTP/UDS, and the web run page) only while the Loop is
+run detail (`compozy loop runs show -o json`, HTTP/UDS, and the web run page) only while the Loop is
 dormant on events.
 
 ## The gate contract
@@ -260,7 +260,7 @@ start:
 ```
 
 Available kinds: `manual`, `cli`, `http`, `uds`, `native_tool`, `schedule`, `trigger`, `webhook`,
-`network`, `extension`. Hands-free starts (`schedule`, `trigger`, `webhook`) ride AGH's existing
+`network`, `extension`. Hands-free starts (`schedule`, `trigger`, `webhook`) ride Compozy's existing
 [automation](/runtime/core/automation) primitives — a `Trigger` or `Job` targets the Loop with
 typed inputs. A watch-source is a body-node concept, **never** a start binding.
 

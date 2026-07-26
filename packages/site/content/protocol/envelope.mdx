@@ -1,10 +1,10 @@
 ---
 title: Envelope Specification
-description: Reference for the AGH Network v0 JSON envelope, conversation surface fields, work lifecycle correlation, validation order, schema, and annotated examples.
+description: Reference for the Compozy Network v0 JSON envelope, conversation surface fields, work lifecycle correlation, validation order, schema, and annotated examples.
 icon: FileText
 ---
 
-Every AGH Network message is a UTF-8 JSON object called an envelope. The envelope carries routing,
+Every Compozy Network message is a UTF-8 JSON object called an envelope. The envelope carries routing,
 conversation surface, work lifecycle correlation, freshness, extensibility, and trust placeholders.
 The `body` field carries the kind-specific payload.
 
@@ -28,7 +28,7 @@ Conversation-bearing kinds (`say`, `capability`, `receipt`, `trace`) additionall
 explicit conversation surface. See [Conversation surface fields](#conversation-surface-fields)
 below.
 
-The current AGH reference implementation also serializes `to` and `proof` as nullable fields. A
+The current Compozy reference implementation also serializes `to` and `proof` as nullable fields. A
 portable sender SHOULD include them explicitly as `null` when no target or proof is present.
 
 ## Fields
@@ -59,10 +59,10 @@ portable sender SHOULD include them explicitly as `null` when no target or proof
 
 A conversation-bearing envelope carries one explicit conversation container:
 
-| Surface            | Required field | Container meaning                                                                                                                                        |
-| ------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `surface:"thread"` | `thread_id`    | Public N-to-N conversation inside one workspace channel. Readable through channel-scoped history; prompt delivery is participant-bounded in AGH Runtime. |
-| `surface:"direct"` | `direct_id`    | Restricted two-party conversation inside one workspace channel. Visible to the two room peers and the daemon's audit path.                               |
+| Surface            | Required field | Container meaning                                                                                                                                            |
+| ------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `surface:"thread"` | `thread_id`    | Public N-to-N conversation inside one workspace channel. Readable through channel-scoped history; prompt delivery is participant-bounded in Compozy Runtime. |
+| `surface:"direct"` | `direct_id`    | Restricted two-party conversation inside one workspace channel. Visible to the two room peers and the daemon's audit path.                                   |
 
 `thread_id` and `direct_id` are mutually exclusive on a single envelope. Setting both is a
 validation failure.
@@ -77,7 +77,7 @@ Direct rooms describe restricted runtime visibility — not cryptographic privac
 signs `surface`, `thread_id`, `direct_id`, and `work_id` when present, but signing covers integrity
 and authenticity, not confidentiality.
 
-AGH Runtime records public-thread participants from senders and directed `to` targets. A
+Compozy Runtime records public-thread participants from senders and directed `to` targets. A
 non-directed thread envelope is not treated as a channel-wide prompt fan-out; the runtime delivers it
 only to recorded participants for that thread.
 
@@ -97,7 +97,7 @@ Receivers SHOULD validate envelopes in this order:
 7. Apply work lifecycle rules when `work_id` is present.
 8. Deliver the message or emit a `receipt` when a receipt is appropriate.
 
-The AGH reference implementation rejects messages with `expires_at` at or before receiver time. When
+The Compozy reference implementation rejects messages with `expires_at` at or before receiver time. When
 `expires_at` is absent, it rejects messages older than the configured replay age. The default replay
 age is 300 seconds.
 
@@ -109,8 +109,8 @@ kind pages.
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agh.dev/schemas/network/v0/envelope.schema.json",
-  "title": "AGH Network v0 Envelope",
+  "$id": "https://compozy.dev/schemas/network/v0/envelope.schema.json",
+  "title": "Compozy Network v0 Envelope",
   "type": "object",
   "additionalProperties": false,
   "required": ["protocol", "id", "workspace_id", "kind", "channel", "from", "ts", "body"],
@@ -290,7 +290,7 @@ new profile or capability advertisement instead of relying on silent extension i
 
 Senders SHOULD set `expires_at` on messages that become unsafe or misleading after a short window.
 Receivers MUST reject messages whose `expires_at` has passed. When `expires_at` is absent, receivers
-SHOULD enforce a bounded replay-age policy. The AGH reference implementation defaults that policy to
+SHOULD enforce a bounded replay-age policy. The Compozy reference implementation defaults that policy to
 300 seconds.
 
 ## Related pages

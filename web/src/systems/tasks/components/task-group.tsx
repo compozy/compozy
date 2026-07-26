@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Eyebrow, StatusDot } from "@agh/ui";
+import { Eyebrow, StatusDot } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import { listGroupDotProps, type TaskListGroupId } from "../lib/task-grouping";

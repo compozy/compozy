@@ -1,6 +1,6 @@
 import { Fingerprint } from "lucide-react";
 
-import { Field, FieldLabel, FormSection, Input, RequiredMark } from "@agh/ui";
+import { Field, FieldLabel, FormSection, Input, RequiredMark } from "@compozy/ui";
 
 import type { BridgeCreateDraft, BridgeProvider } from "../types";
 import { BridgeCreateProviderStep } from "./bridge-create-provider-step";

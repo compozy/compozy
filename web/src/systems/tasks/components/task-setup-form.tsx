@@ -7,7 +7,7 @@ import {
   NativeSelect,
   NativeSelectOption,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   RuntimeSelector,

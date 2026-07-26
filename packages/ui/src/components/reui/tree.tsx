@@ -5,7 +5,7 @@ import { useRender } from "@base-ui/react/use-render";
 import type { ItemInstance, TreeInstance } from "@headless-tree/core";
 import * as React from "react";
 
-import { cn } from "@agh/ui/lib/utils";
+import { cn } from "@compozy/ui/lib/utils";
 import { ChevronDownIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { TreeContext, type ToggleIconType, useTreeContext } from "./hooks/use-tree-context";
 

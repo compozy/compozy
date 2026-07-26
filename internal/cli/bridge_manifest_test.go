@@ -105,7 +105,7 @@ func TestBridgeSlackManifestCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("Should write to the AGH home when no output override is set", func(t *testing.T) {
+	t.Run("Should write to the Compozy home when no output override is set", func(t *testing.T) {
 		t.Parallel()
 
 		manifest := testSlackManifestRecord()
@@ -177,7 +177,7 @@ func testSlackManifestRecord() SlackManifestRecord {
 		Metadata: bridgepkg.SlackManifestMetadata{MajorVersion: 1, MinorVersion: 1},
 		DisplayInformation: bridgepkg.SlackManifestDisplayInformation{
 			Name:            "Support agent",
-			Description:     "Connect Slack messages to AGH.",
+			Description:     "Connect Slack messages to Compozy.",
 			BackgroundColor: "#E8572A",
 		},
 		Features: bridgepkg.SlackManifestFeatures{
@@ -185,7 +185,7 @@ func testSlackManifestRecord() SlackManifestRecord {
 			SlashCommands: []bridgepkg.SlackManifestSlashCommand{{
 				Command:     "/compozy",
 				URL:         "https://bridge.example.com/slack/support",
-				Description: "Send a command to AGH",
+				Description: "Send a command to Compozy",
 			}},
 		},
 		OAuthConfig: bridgepkg.SlackManifestOAuthConfig{

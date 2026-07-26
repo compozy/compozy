@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import {
   resolveWindowManagerActions,

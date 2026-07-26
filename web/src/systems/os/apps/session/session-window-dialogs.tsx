@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { SessionPayload } from "@/systems/session";
 

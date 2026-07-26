@@ -562,9 +562,9 @@ func TestComposedAssemblerAssembleStartupLoadsNetworkResponseRegisterSection(t *
 			t.TempDir(),
 		)
 
-		networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
+		networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
 		if err != nil {
-			t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
+			t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
 		}
 		if !strings.Contains(got, "# AGH Network Response Register") ||
 			!strings.Contains(got, "Threads decide and discuss; actionable work is promoted to tasks") {
@@ -600,19 +600,19 @@ func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *t
 			t.TempDir(),
 		)
 
-		toolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledToolsReference)
+		toolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledToolsReference)
 		if err != nil {
-			t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledToolsReference, err)
+			t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledToolsReference, err)
 		}
 		toolsGuide = strings.TrimSpace(toolsGuide)
-		nativeToolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledNativeToolsReference)
+		nativeToolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNativeToolsReference)
 		if err != nil {
-			t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
+			t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNativeToolsReference, err)
 		}
 		nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
-		networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
+		networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
 		if err != nil {
-			t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
+			t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
 		}
 		networkSkill = strings.TrimSpace(networkSkill)
 		if !strings.Contains(got, toolsGuide) {

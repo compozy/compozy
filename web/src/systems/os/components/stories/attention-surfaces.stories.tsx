@@ -69,7 +69,7 @@ const ATTENTION: OsAttentionModel = {
       kind: "task",
       id: "task-42",
       title: "Approve runtime contract",
-      identifier: "AGH-42",
+      identifier: "CompozyOS-42",
     },
   ],
   sessions: CATALOG,

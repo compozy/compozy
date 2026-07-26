@@ -1,7 +1,7 @@
-import { MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator } from "@agh/ui";
+import { MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator } from "@compozy/ui";
 
 export interface AghMenuProps {
-  /** The AGH mark, already built as a `MenubarTrigger` by the chrome. */
+  /** The CompozyOS mark, already built as a `MenubarTrigger` by the chrome. */
   trigger: React.ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -13,7 +13,7 @@ export interface AghMenuProps {
   onLayouts: () => void;
 }
 
-/** The system menu on the AGH mark: identity plus the settings surfaces. */
+/** The system menu on the CompozyOS mark: identity plus the settings surfaces. */
 export function AghMenu({
   trigger,
   open,
@@ -29,7 +29,7 @@ export function AghMenu({
       {trigger}
       <MenubarContent align="start" data-testid="os-menu-agh">
         <MenubarItem data-testid="os-menu-about" onClick={onAbout}>
-          About AGH…
+          About CompozyOS…
         </MenubarItem>
         <MenubarSeparator />
         <MenubarItem data-testid="os-menu-settings" disabled={!canOpenApps} onClick={onSettings}>

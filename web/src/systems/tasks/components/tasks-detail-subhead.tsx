@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { Pill, Time } from "@agh/ui";
+import { Pill, Time } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

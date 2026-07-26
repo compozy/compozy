@@ -17,7 +17,7 @@ import {
   TableRow,
   cn,
   formatDuration as formatCanonicalDuration,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { getAgentSessionStatus } from "../lib/session-status";
 import { getSessionDisplayTitle, isSessionRunning, type SessionPayload } from "@/systems/session";

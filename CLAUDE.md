@@ -1,6 +1,6 @@
 ## Project Overview
 
-AGH is an agent operating system: a Go single-binary daemon that manages AI agent sessions via ACP — spawning ACP agents (Claude Code, OpenClaw, Hermes) as subprocesses over JSON-RPC/stdio, persisting events in SQLite, exposing HTTP/SSE (web UI) + UDS (CLI). Docs live at `agh.network` (Fumadocs).
+AGH is an agent operating system: a Go single-binary daemon that manages AI agent sessions via ACP — spawning ACP agents (Claude Code, OpenClaw, Hermes) as subprocesses over JSON-RPC/stdio, persisting events in SQLite, exposing HTTP/SSE (web UI) + UDS (CLI). Docs live at `compozy.com` (Fumadocs).
 
 **Core premise:** every capability must be both extensible by the runtime and manageable by agents (CLI/HTTP/UDS with structured output). A feature that only works through internal Go calls or the web UI is incomplete.
 
@@ -48,23 +48,23 @@ AGH Impact Audit:
 - Native tools: <changed tool IDs/toolsets/descriptors/schema digests/capability gates/tests, or no impact + checked surfaces>
 - Extensibility and hooks: <extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, config lifecycle, or no impact + checked surfaces>
 - Workspace data isolation: <global/workspace/session/agent scope + workspace_id propagation through CLI/HTTP/UDS/core/store/web/SSE/cache/events + tests, or no impact + checked surfaces>
-- Official AGH skill: <skills/agh/ updates, or no impact + checked surfaces>
+- Official Compozy skill: <skills/compozy/ updates, or no impact + checked surfaces>
 ```
 
 - `No impact` is valid only when it names the exact checked surfaces and why they're unchanged.
 - **Native tools** = `compozy__*` IDs, toolsets, descriptors, I/O schemas, digests, risk flags, availability diagnostics, capability gates, CLI/API fallbacks.
 - **Workspace data isolation** = runtime data ownership (not QA/worktree isolation): classify each new/changed datum as global/workspace/session/agent-scoped and prove list/read/cache/SSE/event paths can't leak across workspaces.
-- **Official AGH skill** updates are required when public behavior, tool IDs, CLI paths, hook events, capabilities, bundles/resources, or memory/network/task semantics change. Canonical bundled skill: `skills/agh/`.
+- **Official Compozy skill** updates are required when public behavior, tool IDs, CLI paths, hook events, capabilities, bundles/resources, or memory/network/task semantics change. Canonical bundled skill: `skills/compozy/`.
 
 ## Design System
 
 `packages/ui/src/tokens.css` is the canonical token source; `DESIGN.md` (repo root) is its generated spec + rationale. Full grammar (flat depth model, signal palette, type stack) lives in `DESIGN.md` — pull from there, never invent.
 
-- <critical>**Reuse before create (any UI surface):** `packages/ui/src/index.ts` is the primitive inventory — check it before authoring any component and import from `@agh/ui` instead of redefining. Shadowing an exported name in `web/`/`packages/site` is a blocked lint error (`compozy-ui-reuse/no-shadow-ui-primitive`); domain variants take domain-prefixed names (`SessionToolCallRow`); new generic primitives land in `packages/ui` (story + test), domain composites in `web/src/systems/<domain>/`.</critical>
+- <critical>**Reuse before create (any UI surface):** `packages/ui/src/index.ts` is the primitive inventory — check it before authoring any component and import from `@compozy/ui` instead of redefining. Shadowing an exported name in `web/`/`packages/site` is a blocked lint error (`compozy-ui-reuse/no-shadow-ui-primitive`); domain variants take domain-prefixed names (`SessionToolCallRow`); new generic primitives land in `packages/ui` (story + test), domain composites in `web/src/systems/<domain>/`.</critical>
 - Pull every color/type/radius/spacing/motion value from `tokens.css` + `DESIGN.md`. Signal palette is information, never decoration: `#E8572A` action · `#5FBF85` success · `#E0635A` danger · `#D6A647` warning · `#8E8EB5` info.
 - Never hand-edit `DESIGN.md` frontmatter or `<!-- BEGIN/END:tokens:* -->` regions. After changing runtime/site theme tokens run `make codegen`; `make codegen-check` enforces drift. Site-only extensions go in `packages/site/app/global.css` `@theme inline`.
 - **Truthful UI > plausible UI.** Never render controls/metrics the runtime doesn't support. On conflict, daemon truth wins.
-- **Design-system/redesign work runs through the `designer` agent in execution mode only** and MUST activate `agh-design` + `ui-craft` (reference-routed — read the matched rows in full). **Verify every `web/` or `packages/ui/` UI change with `agh-ui-screenshot` before completion** and cite the capture; when a spec names a visual reference, Visual Contract Mode requires a rendered reference/implementation bundle with zero unresolved structural mismatches — an implementation-only capture is not parity evidence. Reference parity binds visual language only — a prototype is lossy on content, data, copy, and brand marks; runtime truth, `COPY.md`, and the `@agh/ui` brand inventory own those axes (divergences become authorized deltas, never new brand variants or invented content).
+- **Design-system/redesign work runs through the `designer` agent in execution mode only** and MUST activate `agh-design` + `ui-craft` (reference-routed — read the matched rows in full). **Verify every `web/` or `packages/ui/` UI change with `agh-ui-screenshot` before completion** and cite the capture; when a spec names a visual reference, Visual Contract Mode requires a rendered reference/implementation bundle with zero unresolved structural mismatches — an implementation-only capture is not parity evidence. Reference parity binds visual language only — a prototype is lossy on content, data, copy, and brand marks; runtime truth, `COPY.md`, and the `@compozy/ui` brand inventory own those axes (divergences become authorized deltas, never new brand variants or invented content).
 
 ## Copy System
 
@@ -164,7 +164,7 @@ Repo layout — **open the surface's instructions file before working in it**:
 | `internal/`     | Go runtime daemon (ACP, SQLite, autonomy kernel, HTTP/UDS, network) | `internal/CLAUDE.md`      |
 | `web/`          | React 19 SPA (Vite, TanStack, Tailwind, shadcn)                     | `web/CLAUDE.md`           |
 | `packages/site` | Fumadocs documentation site (Bun)                                   | `packages/site/CLAUDE.md` |
-| `packages/ui`   | Shared UI primitives (`@agh/ui`) for `web/` + `packages/site`       | `packages/ui/CLAUDE.md`   |
+| `packages/ui`   | Shared UI primitives (`@compozy/ui`) for `web/` + `packages/site`   | `packages/ui/CLAUDE.md`   |
 
 ## Coding Style
 

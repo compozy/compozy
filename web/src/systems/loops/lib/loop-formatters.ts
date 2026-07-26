@@ -1,4 +1,4 @@
-import type { PillTone } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
 
 import { LOOP_RUN_STATUSES, LOOP_RUN_TERMINAL_STATUSES } from "@/generated/loop-enums";
 

@@ -1,20 +1,20 @@
 ---
-title: "agh session inspect"
+title: "compozy session inspect"
 description: "Inspect session health, wake audit, and policy correlation"
 ---
 
-## agh session inspect
+## compozy session inspect
 
 Inspect session health, wake audit, and policy correlation
 
 ```
-agh session inspect <session-id> [flags]
+compozy session inspect <session-id> [flags]
 ```
 
 ### Examples
 
 ```
-  agh session inspect sess_123 --include-wake-events --json
+  compozy session inspect sess_123 --include-wake-events --json
 ```
 
 ### Options
@@ -33,7 +33,7 @@ agh session inspect <session-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -43,5 +43,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session inspect <session-id> -o json
+compozy session inspect <session-id> -o json
 ```

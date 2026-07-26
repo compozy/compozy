@@ -1,20 +1,20 @@
 ---
-title: "agh agent soul write"
+title: "compozy agent soul write"
 description: "Create or replace SOUL.md through managed authoring"
 ---
 
-## agh agent soul write
+## compozy agent soul write
 
 Create or replace SOUL.md through managed authoring
 
 ```
-agh agent soul write <agent> [flags]
+compozy agent soul write <agent> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent soul write coder --file SOUL.md --expected-digest sha256:old --workspace checkout-api --json
+  compozy agent soul write coder --file SOUL.md --expected-digest sha256:old --workspace checkout-api --json
 ```
 
 ### Options
@@ -37,7 +37,7 @@ agh agent soul write <agent> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -47,5 +47,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent soul write <agent> -o json
+compozy agent soul write <agent> -o json
 ```

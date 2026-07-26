@@ -20,7 +20,7 @@ import {
   NativeSelectOption,
   RequiredMark,
   type EntityMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import { describeBridgeDmPolicy } from "../lib/bridge-formatters";

@@ -8,7 +8,7 @@ import {
   SidebarSectionLabel,
   Skeleton,
   useSidebarViewport,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import {

@@ -1,7 +1,7 @@
 import { RefreshCw, Search } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 
-import { cn, Popover, PopoverContent } from "@agh/ui";
+import { cn, Popover, PopoverContent } from "@compozy/ui";
 
 import { ModelList } from "./model-list";
 import { ProviderRail } from "./provider-rail";

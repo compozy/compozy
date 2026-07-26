@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 import { Search } from "lucide-react";
 import { useSearchContext } from "fumadocs-ui/contexts/search";
 import type { ComponentProps } from "react";

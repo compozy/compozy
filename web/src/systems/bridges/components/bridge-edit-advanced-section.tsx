@@ -8,7 +8,7 @@ import {
   FormSection,
   SecretField,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { describeBridgeProviderConfigSchema } from "../lib/bridge-formatters";
 import type { BridgeProvider, BridgeUpdateDraft } from "../types";
@@ -43,7 +43,7 @@ export interface BridgeEditAdvancedSectionProps {
  * provider config blob.
  *
  * Credentials hydrate as presence plus their stored reference — never a value —
- * because every AGH secret read path returns presence only.
+ * because every CompozyOS secret read path returns presence only.
  */
 export function BridgeEditAdvancedSection({
   draft,

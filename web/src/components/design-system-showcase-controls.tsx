@@ -37,7 +37,7 @@ import {
   Textarea,
   ToggleGroup,
   ToggleGroupItem,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { PlusIcon, SearchIcon } from "lucide-react";
 import { KindChip } from "@/systems/network";
 

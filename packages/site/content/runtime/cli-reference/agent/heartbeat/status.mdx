@@ -1,20 +1,20 @@
 ---
-title: "agh agent heartbeat status"
+title: "compozy agent heartbeat status"
 description: "Read Heartbeat policy status and wake eligibility"
 ---
 
-## agh agent heartbeat status
+## compozy agent heartbeat status
 
 Read Heartbeat policy status and wake eligibility
 
 ```
-agh agent heartbeat status <agent> [flags]
+compozy agent heartbeat status <agent> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent heartbeat status coder --session sess_123 --workspace checkout-api --json
+  compozy agent heartbeat status coder --session sess_123 --workspace checkout-api --json
 ```
 
 ### Options
@@ -36,7 +36,7 @@ agh agent heartbeat status <agent> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -46,5 +46,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent heartbeat status <agent> -o json
+compozy agent heartbeat status <agent> -o json
 ```

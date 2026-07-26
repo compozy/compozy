@@ -13,7 +13,7 @@ import type {
 } from "./types.js";
 import { HostAPI } from "./host-api.js";
 
-export const SDK_NAME = "@agh/extension-sdk";
+export const SDK_NAME = "@compozy/extension-sdk";
 
 export const SDK_VERSION = "0.1.0";
 

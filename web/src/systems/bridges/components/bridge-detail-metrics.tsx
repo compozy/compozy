@@ -1,4 +1,4 @@
-import { Metric, MetricGrid, Section } from "@agh/ui";
+import { Metric, MetricGrid, Section } from "@compozy/ui";
 
 import { formatBridgeRelativeTime } from "../lib/bridge-formatters";
 import type { BridgeHealth, BridgeRoute } from "../types";

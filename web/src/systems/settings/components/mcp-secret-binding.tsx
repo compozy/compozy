@@ -8,7 +8,7 @@ import {
   Pill,
   RadioCard,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { MCPSecretBinding } from "../lib/mcp-editor-model";
 
@@ -87,7 +87,7 @@ export function MCPSecretBindingControl({
 
       {binding.mode === "preserve" ? (
         <p className="mt-2 text-caption text-muted">
-          AGH keeps the configured binding without returning or displaying its identifier.
+          CompozyOS keeps the configured binding without returning or displaying its identifier.
         </p>
       ) : binding.mode === "typed" ? (
         <div className="mt-2">
@@ -109,7 +109,7 @@ export function MCPSecretBindingControl({
             data-testid={`${idPrefix}-typed-input`}
           />
           <p className="mt-1.5 text-caption text-muted">
-            AGH stores this value on save. The value and resulting binding are never returned.
+            CompozyOS stores this value on save. The value and resulting binding are never returned.
           </p>
         </div>
       ) : (

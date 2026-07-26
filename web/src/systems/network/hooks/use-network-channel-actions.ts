@@ -1,4 +1,4 @@
-import { toast } from "@agh/ui";
+import { toast } from "@compozy/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { sessionKeys } from "@/systems/session";

@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { useRef } from "react";
 
-import { RadioCard } from "@agh/ui";
+import { RadioCard } from "@compozy/ui";
 
 export interface SettingsChoiceOption<V extends string> {
   value: V;

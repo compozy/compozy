@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
-import { Spinner } from "@agh/ui";
+import { Spinner } from "@compozy/ui";
 
 import { sessionByIdOptions } from "@/systems/session";
 

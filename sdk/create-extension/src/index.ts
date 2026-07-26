@@ -108,7 +108,7 @@ export function renderHelp(): string {
     "Options:",
     "  --template, -t  hook-subprocess | memory-backend | tool-provider | go-tool-provider | loop-watch-source",
     "  --dir, -d       target directory (defaults to ./<name>)",
-    "  --sdk-spec      package spec for @agh/extension-sdk",
+    "  --sdk-spec      package spec for @compozy/extension-sdk",
     "  --help, -h      show this help message",
   ].join("\n");
 }

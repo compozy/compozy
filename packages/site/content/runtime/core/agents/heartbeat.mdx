@@ -4,14 +4,14 @@ description: Optional HEARTBEAT.md authored wake/reentry policy plus runtime ses
 ---
 
 `HEARTBEAT.md` is an optional authored wake/reentry policy beside an agent's `AGENT.md`. It guides
-how an already eligible session should reorient when AGH delivers a synthetic wake. It is not
+how an already eligible session should reorient when Compozy delivers a synthetic wake. It is not
 liveness, not task ownership, not a scheduler, and not a durable work queue.
 
 `HEARTBEAT.md` always coexists with two separate runtime authorities:
 
 - **Session health.** Metadata-only presence, attachability, and wake eligibility maintained by
   the daemon. It never injects prompts or renews task leases.
-- **AGH Heartbeat wake service.** Evaluates the latest valid `HEARTBEAT.md` snapshot plus session
+- **Compozy Heartbeat wake service.** Evaluates the latest valid `HEARTBEAT.md` snapshot plus session
   health, applies cooldown and coalescing, and dispatches one synthetic wake prompt. It never
   creates, claims, completes, fails, releases, or renews `task_runs`.
 
@@ -26,9 +26,9 @@ liveness, not task ownership, not a scheduler, and not a durable work queue.
 ## Where HEARTBEAT.md lives
 
 ```text
-~/.agh/agents/<agent>/AGENT.md
-~/.agh/agents/<agent>/HEARTBEAT.md          # optional
-<workspace>/.agh/agents/<agent>/HEARTBEAT.md
+~/.compozy/agents/<agent>/AGENT.md
+~/.compozy/agents/<agent>/HEARTBEAT.md          # optional
+<workspace>/.compozy/agents/<agent>/HEARTBEAT.md
 ```
 
 `HEARTBEAT.md` follows the same first-wins discovery as `AGENT.md` and `SOUL.md`. A missing file
@@ -43,7 +43,7 @@ guidance only.
 ---
 version: 1
 enabled: true
-summary: "Reorient, inspect assignments, and claim only through AGH task APIs."
+summary: "Reorient, inspect assignments, and claim only through Compozy task APIs."
 preferences:
   min_interval: "30m"
   active_hours:
@@ -62,8 +62,8 @@ context:
     - inbox_summary
 ---
 
-When AGH wakes you, inspect `/agent/context` and your inbox before acting.
-Use `agh task next` to obtain claim authority; do not assume work is owned.
+When Compozy wakes you, inspect `/agent/context` and your inbox before acting.
+Use `compozy task next` to obtain claim authority; do not assume work is owned.
 If nothing is claimable, return a concise no-op summary.
 ```
 
@@ -94,7 +94,7 @@ queue ownership. Use the linked surface instead:
 | Raw claim tokens, lease duration overrides             | `task_runs` + `ClaimNextRun` runtime APIs |
 | Task status transitions, queue ownership               | `task_runs` + task CLI/API                |
 | Scheduler sweep cadence, claim cadence                 | Scheduler config                          |
-| Network membership, peer presence, `greet` interval    | `[network]` and AGH Network protocol      |
+| Network membership, peer presence, `greet` interval    | `[network]` and Compozy Network protocol  |
 | Provider config, model selection, tool grants          | `AGENT.md` and `[providers]`              |
 | Capabilities, hooks, MCP servers, permissions          | `AGENT.md` and `config.toml`              |
 | Recurring model pings or persistent heartbeat sessions | Not supported in MVP                      |
@@ -132,11 +132,11 @@ authored and is the only authority for whether an idle session is wake-eligible.
 | `updated_at`           | Last health write.                                           |
 
 Health updates never inject prompts, never renew task leases, and never call the model. On daemon
-restart, AGH recomputes health from runtime/session state before any wake consumer runs; stale
+restart, Compozy recomputes health from runtime/session state before any wake consumer runs; stale
 rows alone cannot make a session wake-eligible.
 
-`agh session health`, `agh session status`, and `agh session inspect` expose this state with
-`-o json` for agent and operator consumption. There is intentionally **no** `agh session
+`compozy session health`, `compozy session status`, and `compozy session inspect` expose this state with
+`-o json` for agent and operator consumption. There is intentionally **no** `compozy session
 heartbeat` command — that name conflates liveness with authored wake policy.
 
 ## Wake decision flow
@@ -169,13 +169,13 @@ Wake guarantees:
 4. The synthetic prompt names the wake reason and policy snapshot id, instructs the agent to
    inspect `/agent/context`, session state, inbox, and task APIs before acting, and never implies
    claimable work exists.
-5. AGH Network `greet` presence is independent. A peer's derived activity state does not make a
+5. Compozy Network `greet` presence is independent. A peer's derived activity state does not make a
    session wake-eligible.
 
 Manual operator/agent wake:
 
 ```bash
-agh agent heartbeat wake reviewer --session sess_123 --json
+compozy agent heartbeat wake reviewer --session sess_123 --json
 ```
 
 `result` is one of `sent`, `skipped`, `coalesced`, `rate_limited`, or `failed`, and `reason` is a
@@ -190,16 +190,16 @@ Mutating `HEARTBEAT.md` always goes through the managed authoring service. CLI, 
 Host API share the same DTOs, validation, CAS, and revision audit. Direct file writes from hooks,
 extensions, tools, MCP sidecars, bridge adapters, or web code are forbidden.
 
-| Action   | CLI                            | HTTP                                         | UDS                        | Host API                    |
-| -------- | ------------------------------ | -------------------------------------------- | -------------------------- | --------------------------- |
-| Inspect  | `agh agent heartbeat inspect`  | `GET /api/agents/{name}/heartbeat`           | `agent.heartbeat.inspect`  | `agents/heartbeat/get`      |
-| Validate | `agh agent heartbeat validate` | `POST /api/agents/{name}/heartbeat/validate` | `agent.heartbeat.validate` | `agents/heartbeat/validate` |
-| Write    | `agh agent heartbeat write`    | `PUT /api/agents/{name}/heartbeat`           | `agent.heartbeat.put`      | `agents/heartbeat/put`      |
-| Delete   | `agh agent heartbeat delete`   | `DELETE /api/agents/{name}/heartbeat`        | `agent.heartbeat.delete`   | `agents/heartbeat/delete`   |
-| History  | `agh agent heartbeat history`  | `GET /api/agents/{name}/heartbeat/history`   | `agent.heartbeat.history`  | `agents/heartbeat/history`  |
-| Rollback | `agh agent heartbeat rollback` | `POST /api/agents/{name}/heartbeat/rollback` | `agent.heartbeat.rollback` | `agents/heartbeat/rollback` |
-| Status   | `agh agent heartbeat status`   | `GET /api/agents/{name}/heartbeat/status`    | `agent.heartbeat.status`   | `agents/heartbeat/status`   |
-| Wake     | `agh agent heartbeat wake`     | `POST /api/agents/{name}/heartbeat/wake`     | `agent.heartbeat.wake`     | `agents/heartbeat/wake`     |
+| Action   | CLI                                | HTTP                                         | UDS                        | Host API                    |
+| -------- | ---------------------------------- | -------------------------------------------- | -------------------------- | --------------------------- |
+| Inspect  | `compozy agent heartbeat inspect`  | `GET /api/agents/{name}/heartbeat`           | `agent.heartbeat.inspect`  | `agents/heartbeat/get`      |
+| Validate | `compozy agent heartbeat validate` | `POST /api/agents/{name}/heartbeat/validate` | `agent.heartbeat.validate` | `agents/heartbeat/validate` |
+| Write    | `compozy agent heartbeat write`    | `PUT /api/agents/{name}/heartbeat`           | `agent.heartbeat.put`      | `agents/heartbeat/put`      |
+| Delete   | `compozy agent heartbeat delete`   | `DELETE /api/agents/{name}/heartbeat`        | `agent.heartbeat.delete`   | `agents/heartbeat/delete`   |
+| History  | `compozy agent heartbeat history`  | `GET /api/agents/{name}/heartbeat/history`   | `agent.heartbeat.history`  | `agents/heartbeat/history`  |
+| Rollback | `compozy agent heartbeat rollback` | `POST /api/agents/{name}/heartbeat/rollback` | `agent.heartbeat.rollback` | `agents/heartbeat/rollback` |
+| Status   | `compozy agent heartbeat status`   | `GET /api/agents/{name}/heartbeat/status`    | `agent.heartbeat.status`   | `agents/heartbeat/status`   |
+| Wake     | `compozy agent heartbeat wake`     | `POST /api/agents/{name}/heartbeat/wake`     | `agent.heartbeat.wake`     | `agents/heartbeat/wake`     |
 
 CAS contract: every mutating transport carries `expected_digest` in the request body. HTTP
 `If-Match` headers are explicitly rejected with `heartbeat_if_match_header_unsupported` so CLI,
@@ -207,12 +207,12 @@ HTTP, UDS, Host API, and SDKs share one CAS shape. The CLI alias `--if-match` ma
 `expected_digest`.
 
 ```bash
-agh agent heartbeat validate reviewer --file HEARTBEAT.md --json
-agh agent heartbeat write reviewer --file HEARTBEAT.md --if-match sha256:1234... --json
-agh agent heartbeat status reviewer --json
+compozy agent heartbeat validate reviewer --file HEARTBEAT.md --json
+compozy agent heartbeat write reviewer --file HEARTBEAT.md --if-match sha256:1234... --json
+compozy agent heartbeat status reviewer --json
 ```
 
-There is no `agh agent heartbeat refresh` command in MVP. Managed writes create new snapshots,
+There is no `compozy agent heartbeat refresh` command in MVP. Managed writes create new snapshots,
 and wake decisions evaluate the latest valid snapshot at wake-decision time.
 
 ## Diagnostics
@@ -249,7 +249,7 @@ transcripts, and use workspace-relative paths.
   [Session Lifecycle → Runtime activity supervision](/runtime/core/sessions/lifecycle).
 - `HEARTBEAT.md` is **not** session health. Health is metadata-only and lives in
   `session_health`. `HEARTBEAT.md` consumes health; it never implements it.
-- `HEARTBEAT.md` is **not** AGH Network membership. Network membership is daemon-local and belongs
+- `HEARTBEAT.md` is **not** Compozy Network membership. Network membership is daemon-local and belongs
   to the [protocol model](/runtime/core/network/protocol). Membership cannot make a session
   wake-eligible.
 - `HEARTBEAT.md` is **not** a scheduler. Scheduler eligibility runs first; the wake service is
@@ -259,13 +259,13 @@ transcripts, and use workspace-relative paths.
 
 ## Common errors
 
-| Error                          | Cause                                                                         | Fix                                                              |
-| ------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `heartbeat_invalid_timezone`   | A time window used a fixed offset or unknown zone.                            | Use IANA names such as `America/Sao_Paulo` or `UTC`.             |
-| `heartbeat_preference_clamped` | File `min_interval` was below `[agents.heartbeat].min_interval`.              | Either align the file or raise the config bound.                 |
-| `heartbeat_conflict`           | `expected_digest` did not match the current file digest.                      | Re-read the digest with `agh agent heartbeat inspect` and retry. |
-| `heartbeat_rate_limited`       | Wake attempts exceeded `max_wakes_per_cycle` for the current scheduler cycle. | Wait for the next cycle or relax the cap.                        |
-| `quiet_window`                 | The current instant fell inside an authored quiet window.                     | Wait for the active window or adjust the policy.                 |
+| Error                          | Cause                                                                         | Fix                                                                  |
+| ------------------------------ | ----------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `heartbeat_invalid_timezone`   | A time window used a fixed offset or unknown zone.                            | Use IANA names such as `America/Sao_Paulo` or `UTC`.                 |
+| `heartbeat_preference_clamped` | File `min_interval` was below `[agents.heartbeat].min_interval`.              | Either align the file or raise the config bound.                     |
+| `heartbeat_conflict`           | `expected_digest` did not match the current file digest.                      | Re-read the digest with `compozy agent heartbeat inspect` and retry. |
+| `heartbeat_rate_limited`       | Wake attempts exceeded `max_wakes_per_cycle` for the current scheduler cycle. | Wait for the next cycle or relax the cap.                            |
+| `quiet_window`                 | The current instant fell inside an authored quiet window.                     | Wait for the active window or adjust the policy.                     |
 
 ## Related pages
 
@@ -273,7 +273,7 @@ transcripts, and use workspace-relative paths.
 - [`config.toml` → `[agents.heartbeat]`](/runtime/core/configuration/config-toml) for cadence,
   rate limits, retention, and stale thresholds.
 - [Session Lifecycle](/runtime/core/sessions/lifecycle) for activity supervision and stop reasons.
-- [Network → Protocol](/runtime/core/network/protocol) for AGH Network `greet` presence
+- [Network → Protocol](/runtime/core/network/protocol) for Compozy Network `greet` presence
   separation.
-- [`agh agent heartbeat`](/runtime/cli-reference/agent/heartbeat) and
-  [`agh session`](/runtime/cli-reference/session) generated CLI references.
+- [`compozy agent heartbeat`](/runtime/cli-reference/agent/heartbeat) and
+  [`compozy session`](/runtime/cli-reference/session) generated CLI references.

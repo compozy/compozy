@@ -1,6 +1,6 @@
 import { Trash2 } from "lucide-react";
 
-import { ConfirmDialog } from "@agh/ui";
+import { ConfirmDialog } from "@compozy/ui";
 
 import type { KnowledgeScope } from "../types";
 import { knowledgeScopeLabel } from "../lib/knowledge-formatters";

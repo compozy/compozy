@@ -1,9 +1,9 @@
 ---
 title: Vault
-description: Store AGH-managed encrypted secrets with redacted CLI, HTTP, UDS, web, and session-scoped metadata surfaces.
+description: Store Compozy-managed encrypted secrets with redacted CLI, HTTP, UDS, web, and session-scoped metadata surfaces.
 ---
 
-The Vault is AGH's encrypted store for daemon-managed secret material. Use it when AGH should own
+The Vault is Compozy's encrypted store for daemon-managed secret material. Use it when Compozy should own
 the value lifecycle instead of reading a value from the daemon process environment.
 
 <OperatorNote>
@@ -13,12 +13,12 @@ the value lifecycle instead of reading a value from the daemon process environme
 
 ## Ref Model
 
-AGH accepts two secret ref families:
+Compozy accepts two secret ref families:
 
-| Ref family                 | Owner                | Runtime behavior                                                                                                          |
-| -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `env:NAME`                 | Operator environment | AGH reads `NAME` from the daemon process environment when a runtime boundary needs it.                                    |
-| `vault:<namespace>/<path>` | AGH Vault            | AGH stores the secret encrypted, resolves it only at internal launch/materialization boundaries, and redacts diagnostics. |
+| Ref family                 | Owner                | Runtime behavior                                                                                                              |
+| -------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `env:NAME`                 | Operator environment | Compozy reads `NAME` from the daemon process environment when a runtime boundary needs it.                                    |
+| `vault:<namespace>/<path>` | Compozy Vault        | Compozy stores the secret encrypted, resolves it only at internal launch/materialization boundaries, and redacts diagnostics. |
 
 Supported Vault namespaces are:
 
@@ -33,16 +33,16 @@ Supported Vault namespaces are:
 | `sandbox`    | `vault:sandbox/daytona-dev/api-token`                                                      |
 | `sessions`   | `vault:sessions/sess_123/github-token`                                                     |
 
-Session Vault entries are normal Vault records under the `sessions` namespace. AGH filters them by
+Session Vault entries are normal Vault records under the `sessions` namespace. Compozy filters them by
 the deterministic prefix `vault:sessions/<session_id>/`; there is no separate session-secret table.
 
 ## Public Surfaces
 
-Vault is agent-manageable through the same daemon surfaces as the rest of AGH:
+Vault is agent-manageable through the same daemon surfaces as the rest of Compozy:
 
 | Surface           | Operations                                             | Notes                                                                                                             |
 | ----------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| CLI over UDS      | `agh vault list`, `get`, `put`, `delete`               | `put` accepts secret material only through `--value-stdin`.                                                       |
+| CLI over UDS      | `compozy vault list`, `get`, `put`, `delete`           | `put` accepts secret material only through `--value-stdin`.                                                       |
 | HTTP API          | `/api/vault/secrets` and `/api/vault/secrets/metadata` | Web UI and external local clients use these routes. HTTP Vault routes use the daemon's privileged loopback guard. |
 | UDS API           | Same route shapes as HTTP                              | CLI and local agents use the Unix domain socket surface.                                                          |
 | Web UI            | Vault page                                             | Lists metadata, filters by namespace or prefix, writes new values, and deletes refs.                              |
@@ -68,7 +68,7 @@ get, delete, settings read, CLI output, or web views.
 
 ## MCP Catalog Bindings
 
-`agh mcp install` supports two secret modes. `--set KEY` reads a typed value from stdin or a hidden
+`compozy mcp install` supports two secret modes. `--set KEY` reads a typed value from stdin or a hidden
 terminal prompt and creates a scope-qualified canonical ref. A
 `--vault-ref KEY=vault:mcp/...` assignment binds an existing, present ref anywhere inside the `mcp`
 namespace.
@@ -78,7 +78,7 @@ namespace.
 | Global        | `vault:mcp/global/<server>/env/<KEY>`                 |
 | Workspace     | `vault:mcp/ws/<workspace-segment>/<server>/env/<KEY>` |
 
-OAuth client secrets use the same owner prefix with `oauth/client-secret`. AGH encodes workspace
+OAuth client secrets use the same owner prefix with `oauth/client-secret`. Compozy encodes workspace
 IDs that do not fit the Vault ref grammar, so two workspaces installing the same server do not
 share credential identity.
 
@@ -91,44 +91,44 @@ client-secret presence, never bound refs or stored plaintext.
 List all redacted metadata:
 
 ```bash
-agh vault list
+compozy vault list
 ```
 
 Filter by namespace:
 
 ```bash
-agh vault list --namespace providers -o json
+compozy vault list --namespace providers -o json
 ```
 
 Filter one session:
 
 ```bash
-agh vault list --prefix vault:sessions/sess_123/
+compozy vault list --prefix vault:sessions/sess_123/
 ```
 
 Store a secret without putting it in shell history:
 
 ```bash
 printf "%s" "$TOKEN" |
-  agh vault put vault:sessions/sess_123/github-token --kind token --value-stdin
+  compozy vault put vault:sessions/sess_123/github-token --kind token --value-stdin
 ```
 
 Read metadata for one ref:
 
 ```bash
-agh vault get vault:sessions/sess_123/github-token
+compozy vault get vault:sessions/sess_123/github-token
 ```
 
 Delete one ref:
 
 ```bash
-agh vault delete vault:sessions/sess_123/github-token
+compozy vault delete vault:sessions/sess_123/github-token
 ```
 
-`agh vault put` intentionally does not have a `--value` flag. Passing secret values through argv can
+`compozy vault put` intentionally does not have a `--value` flag. Passing secret values through argv can
 leak them through shell history or process inspection.
 
-When `--kind` is omitted during rotation, AGH preserves the existing kind metadata for that ref.
+When `--kind` is omitted during rotation, Compozy preserves the existing kind metadata for that ref.
 
 ## API Usage
 
@@ -155,7 +155,7 @@ The daemon validates the ref grammar, namespace, and non-empty `secret_value`. A
 write it returns the persisted metadata row. The submitted value is registered with dynamic
 redaction before storage, then unregistered when the same ref is deleted or replaced.
 
-HTTP Vault routes are intended for the local web UI and local integrations, so AGH applies the
+HTTP Vault routes are intended for the local web UI and local integrations, so Compozy applies the
 privileged loopback guard to metadata reads and mutations. Agents and local tools can use the UDS
 surface for the same route shapes without exposing the HTTP listener.
 
@@ -176,7 +176,7 @@ Session pages include a Vault tab in the inspector. It shows only entries below
 
 ## Operational Notes
 
-`COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, AGH creates
+`COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, Compozy creates
 `$COMPOZY_HOME/vault.key` with `0600` permissions the first time the Vault needs to encrypt or decrypt a
 secret.
 
@@ -192,4 +192,4 @@ stored.
 - [mcp.json](/runtime/core/configuration/mcp-json) documents MCP `secret_env` and OAuth
   `client_secret_ref`.
 - [API Reference](/runtime/api-reference) lists the Vault route family.
-- [CLI Reference](/runtime/cli-reference/vault) contains the generated `agh vault` command pages.
+- [CLI Reference](/runtime/cli-reference/vault) contains the generated `compozy vault` command pages.

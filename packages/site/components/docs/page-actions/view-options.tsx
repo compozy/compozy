@@ -6,8 +6,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@agh/ui";
-import { GithubLogo } from "@agh/ui/logos";
+} from "@compozy/ui";
+import { GithubLogo } from "@compozy/ui/logos";
 import { ExternalLink, FileText, MoreHorizontal } from "lucide-react";
 
 export interface ViewOptionsProps {

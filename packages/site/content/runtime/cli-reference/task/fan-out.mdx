@@ -1,14 +1,14 @@
 ---
-title: "agh task fan-out"
+title: "compozy task fan-out"
 description: "Enqueue designated sibling runs for one task"
 ---
 
-## agh task fan-out
+## compozy task fan-out
 
 Enqueue designated sibling runs for one task
 
 ```
-agh task fan-out <task-id> [flags]
+compozy task fan-out <task-id> [flags]
 ```
 
 ### Options
@@ -32,7 +32,7 @@ agh task fan-out <task-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -42,5 +42,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task fan-out <task-id> -o json
+compozy task fan-out <task-id> -o json
 ```

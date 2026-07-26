@@ -1,4 +1,4 @@
-import { Separator } from "@agh/ui";
+import { Separator } from "@compozy/ui";
 
 export interface NewDividerProps {
   label?: string;

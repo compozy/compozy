@@ -1,9 +1,9 @@
 ---
-title: "agh completion fish"
+title: "compozy completion fish"
 description: "Generate the autocompletion script for fish"
 ---
 
-## agh completion fish
+## compozy completion fish
 
 Generate the autocompletion script for fish
 
@@ -14,21 +14,21 @@ Generate the autocompletion script for the fish shell.
 To load completions in your current shell session:
 
 ```
-agh completion fish | source
+compozy completion fish | source
 
 ```
 
 To load completions for every new session, execute once:
 
 ```
-agh completion fish > ~/.config/fish/completions/agh.fish
+compozy completion fish > ~/.config/fish/completions/compozy.fish
 
 ```
 
 You will need to start a new shell for this setup to take effect.
 
 ```
-agh completion fish [flags]
+compozy completion fish [flags]
 ```
 
 ### Options
@@ -47,7 +47,7 @@ agh completion fish [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -57,5 +57,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh completion fish | source -o json
+compozy completion fish | source -o json
 ```

@@ -10,20 +10,20 @@
 - Skill loading
 - Bundled skill resources
 - Skill provenance and shadows
-- Native AGH tool map
+- Native Compozy tool map
 - Management-surface exceptions
 - Skill authoring rules
 - Reference-system lessons
 
 ## Tool-First Operating Model
 
-AGH exposes runtime capabilities through a policy-filtered tool registry. Prefer native AGH tools over equivalent compozy shell commands when a dedicated tool is callable. Tool calls are structured, policy-aware, observable, and easier to redact and audit.
+Compozy exposes runtime capabilities through a policy-filtered tool registry. Prefer native Compozy tools over equivalent compozy shell commands when a dedicated tool is callable. Tool calls are structured, policy-aware, observable, and easier to redact and audit.
 
-Use shell commands for repository work, explicit operator requests, and management flows AGH keeps outside the normal tool-call loop.
+Use shell commands for repository work, explicit operator requests, and management flows Compozy keeps outside the normal tool-call loop.
 
 ## Discovery Loop
 
-Use this sequence for AGH-native work:
+Use this sequence for Compozy-native work:
 
 1. Resolve canonical `compozy__tool_search`, then search using the runtime domain or action.
 2. Resolve canonical `compozy__tool_info`, then inspect the selected ToolID before first invocation.
@@ -32,7 +32,7 @@ Use this sequence for AGH-native work:
 
 `compozy__*` names are canonical IDs, not harness call names. Use them for registry, policy, CLI, descriptors, and `tool_id`; call only the reference the harness returns.
 
-Hosted MCP projects the full availability-gated callable catalog for a bare managed session. AGH no
+Hosted MCP projects the full availability-gated callable catalog for a bare managed session. Compozy no
 longer caps that projection to bootstrap/catalog tools unless the agent definition or session
 lineage explicitly narrows it. Use `compozy__tool_search` and `compozy__tool_info` to diagnose known but
 denied tools; use `compozy__tool_list` when you need only the currently callable set.
@@ -42,7 +42,7 @@ For skills, resolve canonical `compozy__skill_search`/`compozy__skill_view`, the
 ## Oversized Tool Results
 
 A truncated tool result can carry a bounded `preview` and an opaque
-`agh://tool-artifacts/art_<sha256>` reference. Keep using the preview for immediate context, then
+`compozy://tool-artifacts/art_<sha256>` reference. Keep using the preview for immediate context, then
 resolve canonical `compozy__tool_artifact_read` and page the exact retained result with the returned
 tool reference. Pass the artifact URI unchanged; continue from `next_offset` until `eof`.
 
@@ -57,13 +57,13 @@ does not promise a durable artifact; inspect the partial result and do not fabri
 
 Descriptor presentation is optional and workspace-scoped. Extension manifests use
 `friendly_verb` and `preview` under `[resources.tools.<name>]`; MCP tool `_meta` uses
-`agh/friendly_verb` and `agh/preview`. AGH resolves the active descriptor through the current
+`compozy/friendly_verb` and `compozy/preview`. Compozy resolves the active descriptor through the current
 workspace's registry projection.
 
 `friendly_verb` is one line and at most 80 runes. `preview` accepts only `auto`, `none`, `command`,
 `path`, `delegate`, `query`, or `arg:<field>`; an argument strategy must select a non-sensitive
 scalar field. The daemon selects and redacts the preview. See [Tool progress in
-bridges](https://agh.network/runtime/core/bridges/progress) for the rendering and validation
+bridges](https://compozy.com/runtime/core/bridges/progress) for the rendering and validation
 contract.
 
 ## Marketplace Discovery
@@ -144,13 +144,13 @@ per-extension native search tool.
 ## Skill Loading
 
 Catalogs carry names and descriptions only. Resolve canonical skill search/view through the active
-harness; CLI uses `compozy skill view agh` or
+harness; CLI uses `compozy skill view compozy` or
 `compozy skill view compozy --file references/network.md` for a resource.
 
-Repeated `<current-available-skills>` or `<agh-situation-context>` sections may be `unchanged`.
+Repeated `<current-available-skills>` or `<compozy-situation-context>` sections may be `unchanged`.
 Reuse the latest full section for that ACP session and workspace; live surfaces remain authoritative.
 
-`metadata.agh.when` offers a skill only when every gate family passes. `platforms` and
+`metadata.compozy.when` offers a skill only when every gate family passes. `platforms` and
 `environments` match any value; `requires_tools` and `requires_capabilities` require all values.
 Platform means canonical Go OS, tools come from the callable session projection, and capabilities
 come from the effective authored agent. Environment gates fail closed because the daemon
@@ -162,7 +162,7 @@ Tool-gated skills re-evaluate on the next projection without a daemon restart.
 
 ## Bundled Skill Resources
 
-Bundled AGH skills are compiled from the repository skills/<name>/ directories. The canonical AGH bundled skill is agh. It includes SKILL.md and flat references/\*.md resource files.
+Bundled Compozy skills are compiled from the repository skills/<name>/ directories. The canonical Compozy bundled skill is compozy. It includes SKILL.md and flat references/\*.md resource files.
 
 Resource files are load-bearing. A summary in SKILL.md is never a substitute for reading the referenced file selected by the router.
 
@@ -170,7 +170,7 @@ Resource files are load-bearing. A summary in SKILL.md is never a substitute for
 
 Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier, and installed-from metadata identifies bundle or extension ownership when present.
 
-When multiple declarations use the same skill name, AGH keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
+When multiple declarations use the same skill name, Compozy keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
 
     compozy skill where <name> --workspace <ref> --for-agent <agent>
     GET /api/skills/{name}/shadows?workspace=<ref>&for_agent=<agent>
@@ -186,13 +186,13 @@ local state changes. Use `compozy skill where <name>`, inspect the winning sourc
 the installed skill, remove or rename the shadowing declaration, or remove the broken install
 directory before retrying.
 
-## Native AGH Tool Map
+## Native Compozy Tool Map
 
-Inside AGH, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `compozy__*` IDs, but parameters and availability come from the live descriptor returned by canonical `compozy__tool_info`.
+Inside Compozy, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `compozy__*` IDs, but parameters and availability come from the live descriptor returned by canonical `compozy__tool_info`.
 
 ## Management-Surface Exceptions
 
-Keep these on operator CLI, HTTP, or UDS surfaces unless AGH explicitly exposes a scoped tool:
+Keep these on operator CLI, HTTP, or UDS surfaces unless Compozy explicitly exposes a scoped tool:
 
 - daemon lifecycle, sockets, host/port, sandbox, provider bootstrap, and destructive repair
 - creating, stopping, or mutating arbitrary sessions outside scoped authority
@@ -204,7 +204,7 @@ Read-only inspection tools may exist for these domains. Do not invent a mutating
 
 ## Skill Authoring Rules
 
-AGH skills follow progressive disclosure:
+Compozy skills follow progressive disclosure:
 
 - Keep SKILL.md short and under the practical 500-line ceiling.
 - Put heavy contracts in flat one-level references/\*.md files.
@@ -219,4 +219,4 @@ For this compozy skill, do not add scripts. It is a documentation and routing bu
 
 Hermes distinguishes skills from tools: use skills for procedural guidance and shell workflows; use tools for authenticated, precise, binary, streaming, or realtime work. OpenClaw keeps skill precedence separate from tool allowlists and injects compact prompt catalogs with local paths. Claude Code loads directory-format skill-name/SKILL.md, tracks skill roots for resources, and supports hooks from skill metadata.
 
-AGH follows the same lesson: one compact catalog entry, explicit resource loading, daemon-owned authority, and structured tool surfaces for state changes.
+Compozy follows the same lesson: one compact catalog entry, explicit resource loading, daemon-owned authority, and structured tool surfaces for state changes.

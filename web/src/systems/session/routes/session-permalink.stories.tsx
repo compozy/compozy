@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storySessionIds } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorybookRouteCanvas, appRouteParameters } from "@/storybook/route-story-meta";
@@ -36,7 +36,7 @@ export const NotFound: Story = {
     ...appRouteParameters("/session/sess_missing"),
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/sessions/{session_id}", ({ params }) =>
+        compozyApiMock.get("/api/sessions/{session_id}", ({ params }) =>
           HttpResponse.json(
             { error: `Session not found: ${String(params.session_id)}` },
             { status: 404 }

@@ -46,7 +46,7 @@ or a definition edit:
 
 Configure writes a separate per-Loop config store keyed `(workspace_id, loop_name)` — distinct from
 the definition, which stays filesystem-as-truth. It is read and written through `GET`/`PUT
-/loops/:name/config`, `agh loop configure`, and `compozy__loop_configure`.
+/loops/:name/config`, `compozy loop configure`, and `compozy__loop_configure`.
 
 The effective config a run actually uses is a **four-layer merge**, each layer bounded by the
 compile-time ceilings:
@@ -75,9 +75,9 @@ adapter decides what an empty model means.
 
 Configure is fully agent-manageable — the same overlay, written structurally:
 
-| Action       | CLI                            | HTTP                      | Native tool                          |
-| ------------ | ------------------------------ | ------------------------- | ------------------------------------ |
-| Read config  | —                              | `GET /loops/:name/config` | `compozy__loop_inspect` (definition) |
-| Write config | `agh loop configure --set k=v` | `PUT /loops/:name/config` | `compozy__loop_configure`            |
+| Action       | CLI                                | HTTP                      | Native tool                          |
+| ------------ | ---------------------------------- | ------------------------- | ------------------------------------ |
+| Read config  | —                                  | `GET /loops/:name/config` | `compozy__loop_inspect` (definition) |
+| Write config | `compozy loop configure --set k=v` | `PUT /loops/:name/config` | `compozy__loop_configure`            |
 
-See the [`agh loop`](/runtime/cli-reference/loop) CLI and the [Loops API](/runtime/api-reference/loops).
+See the [`compozy loop`](/runtime/cli-reference/loop) CLI and the [Loops API](/runtime/api-reference/loops).

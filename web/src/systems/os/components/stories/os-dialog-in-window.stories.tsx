@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogTitle,
   OverlayContainerContext,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { OsWindowFrame } from "../os-window-frame";
 import { DesktopShell } from "./_desktop";

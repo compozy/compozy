@@ -84,7 +84,7 @@ func TestOpenLocalGlobalDatabaseMigrationErrors(t *testing.T) {
 		if !errors.As(err, &openErr) {
 			t.Fatalf("openLocalGlobalDatabase(ahead) error type = %T, want *localDatabaseOpenError", err)
 		}
-		if !strings.Contains(err.Error(), "install a newer AGH binary") ||
+		if !strings.Contains(err.Error(), "install a newer Compozy binary") ||
 			!strings.Contains(err.Error(), "complete COMPOZY_HOME or workspace .compozy directory") {
 			t.Fatalf("openLocalGlobalDatabase(ahead) error = %q, want deterministic remediation", err)
 		}

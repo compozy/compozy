@@ -1,6 +1,6 @@
 import { AlertCircle, ListChecks, Search } from "lucide-react";
 
-import { Button, Empty, ListingPage, Skeleton, Spinner } from "@agh/ui";
+import { Button, Empty, ListingPage, Skeleton, Spinner } from "@compozy/ui";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
 import type { TaskListItem, TaskStatus } from "../types";

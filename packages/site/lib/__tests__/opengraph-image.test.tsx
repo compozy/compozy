@@ -95,7 +95,7 @@ describe("Landing OpenGraph image (root)", () => {
     expect((response.init as { fonts: unknown[] }).fonts.length).toBeGreaterThan(0);
   });
 
-  it("renders headline, eyebrow, footer rail, and AGH glyph with the warm-dark palette", async () => {
+  it("renders headline, CompozyOS eyebrow, and footer rail with the warm-dark palette", async () => {
     const { default: Image } = await import("@/app/opengraph-image");
     const response = asMockImageResponse(await Image());
     const copy = textContent(response.element);
@@ -103,10 +103,10 @@ describe("Landing OpenGraph image (root)", () => {
     const types = componentTypes(response.element);
 
     expect(copy).toContain("An open workplace for AI agents.");
-    expect(copy).toContain("ARTIFICIAL GENERAL HIVEMIND");
-    expect(copy).toContain("AGH NETWORK / V0");
+    expect(copy).toContain("COMPOZYOS");
+    expect(copy).toContain("COMPOZY NETWORK / V0");
     expect(copy).toContain("LOCAL-FIRST RUNTIME");
-    expect(copy).toContain("agh.network");
+    expect(copy).toContain("compozy.com");
 
     const subheadStart = siteConfig.description.indexOf(".") + 1;
     const subhead = siteConfig.description.slice(subheadStart).trim();
@@ -134,7 +134,7 @@ describe("Docs OpenGraph template (runtime/protocol)", () => {
       await renderDocsOG({
         tree: "runtime",
         title: "Sessions and lifecycle",
-        description: "How AGH durably runs ACP-compatible agents end to end.",
+        description: "How Compozy durably runs ACP-compatible agents end to end.",
         path: "runtime/sessions/lifecycle",
       })
     );
@@ -142,13 +142,13 @@ describe("Docs OpenGraph template (runtime/protocol)", () => {
     const styleValues = styleStrings(response.element);
     const types = componentTypes(response.element);
 
-    expect(copy).toContain("AGH RUNTIME");
+    expect(copy).toContain("COMPOZYOS RUNTIME");
     expect(copy).toContain("runtime/sessions/lifecycle");
     expect(copy).toContain("Sessions and lifecycle");
-    expect(copy).toContain("How AGH durably runs ACP-compatible agents end to end.");
+    expect(copy).toContain("How Compozy durably runs ACP-compatible agents end to end.");
     expect(copy).toContain("DOCS");
     expect(copy).toContain("RUNTIME");
-    expect(copy).toContain("agh.network");
+    expect(copy).toContain("compozy.com");
 
     expect(types).toContain(SymbolGlyph);
     expect(styleValues).toContain("#E8572A");
@@ -168,7 +168,7 @@ describe("Docs OpenGraph template (runtime/protocol)", () => {
       })
     );
     const copy = textContent(response.element);
-    expect(copy).toContain("AGH NETWORK PROTOCOL");
+    expect(copy).toContain("COMPOZY NETWORK PROTOCOL");
     expect(copy).toContain("PROTOCOL");
   });
 });
@@ -178,10 +178,10 @@ describe("Blog OpenGraph template", () => {
     const { renderBlogOG } = await import("@/lib/og/templates/blog");
     const response = asMockImageResponse(
       await renderBlogOG({
-        title: "Introducing AGH, the first agent network protocol",
+        title: "Introducing Compozy, the first agent network protocol",
         description:
-          "AGH gives every agent CLI a durable home and a shared protocol to coordinate with peers.",
-        slug: "introducing-agh-the-first-agent-network-protocol",
+          "Compozy gives every agent CLI a durable home and a shared protocol to coordinate with peers.",
+        slug: "introducing-compozy-the-first-agent-network-protocol",
         date: "2026-04-29",
         author: "pnauck",
       })
@@ -190,10 +190,10 @@ describe("Blog OpenGraph template", () => {
     const styleValues = styleStrings(response.element);
     const types = componentTypes(response.element);
 
-    expect(copy).toContain("AGH BLOG");
-    expect(copy).toContain("Introducing AGH, the first agent network protocol");
+    expect(copy).toContain("COMPOZY BLOG");
+    expect(copy).toContain("Introducing Compozy, the first agent network protocol");
     expect(copy).toContain("APR 29, 2026");
-    expect(copy).toContain("agh.network/blog/introducing-agh-the-first-agent-network-protocol");
+    expect(copy).toContain("compozy.com/blog/introducing-compozy-the-first-agent-network-protocol");
     expect(copy).toContain("BY pnauck");
 
     expect(types).toContain(SymbolGlyph);
@@ -211,8 +211,8 @@ describe("Blog OpenGraph template", () => {
       })
     );
     const copy = textContent(response.element);
-    expect(copy).toContain("AGH BLOG");
+    expect(copy).toContain("COMPOZY BLOG");
     expect(copy).not.toContain("BY ");
-    expect(copy).toContain("agh.network/blog/draft-without-date");
+    expect(copy).toContain("compozy.com/blog/draft-without-date");
   });
 });

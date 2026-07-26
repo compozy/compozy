@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import { Input } from "@agh/ui";
+import { Input } from "@compozy/ui";
 
 import type { SettingsNetworkSection } from "../types";
 import { SettingsProvChip } from "./settings-advanced-fold";

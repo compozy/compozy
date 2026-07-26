@@ -96,7 +96,7 @@ func renderOutputFormatsSection(body string) string {
 
 	var b strings.Builder
 	b.WriteString("## Output Formats\n\n")
-	b.WriteString("Every AGH command supports `-o, --output`:\n\n")
+	b.WriteString("Every Compozy command supports `-o, --output`:\n\n")
 	b.WriteString("- `human` for interactive terminal use\n")
 	b.WriteString("- `json` for scripts and other machine-readable consumers\n")
 	b.WriteString("- `jsonl` for wait or streaming commands that emit one JSON record per line\n")

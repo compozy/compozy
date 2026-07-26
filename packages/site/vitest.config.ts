@@ -9,9 +9,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL(".", import.meta.url)),
-      "@agh/ui/utils": fileURLToPath(new URL("../ui/src/lib/utils.ts", import.meta.url)),
-      "@agh/ui/tokens.css": fileURLToPath(new URL("../ui/src/tokens.css", import.meta.url)),
-      "@agh/ui": fileURLToPath(new URL("../ui/src", import.meta.url)),
+      "@compozy/ui/utils": fileURLToPath(new URL("../ui/src/lib/utils.ts", import.meta.url)),
+      "@compozy/ui/tokens.css": fileURLToPath(new URL("../ui/src/tokens.css", import.meta.url)),
+      "@compozy/ui": fileURLToPath(new URL("../ui/src", import.meta.url)),
       "#site/content": fileURLToPath(new URL(".velite/index.js", import.meta.url)),
     },
   },

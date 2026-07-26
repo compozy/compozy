@@ -10,7 +10,7 @@ import {
   Spinner,
   StatusDot,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   INBOX_GROUPS,

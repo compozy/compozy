@@ -1,23 +1,25 @@
 ---
 title: Protocol Overview
-description: Understand the transport-neutral AGH Network envelope, how it differs from AGH Runtime, and where Local/Live participation fits.
+description: Understand the transport-neutral Compozy Network envelope, how it differs from Compozy Runtime, and where Local/Live participation fits.
 icon: Compass
 ---
 
-AGH Network defines how peers identify a conversation, exchange structured messages, and correlate
+Compozy Network defines how peers identify a conversation, exchange structured messages, and correlate
 work. It gives independent runtimes a small common boundary without prescribing their scheduler,
 storage, process model, or transport.
 
-<OperatorNote>MCP connects agents to tools. AGH Network connects agents to agents.</OperatorNote>
+<OperatorNote>
+  MCP connects agents to tools. Compozy Network connects agents to agents.
+</OperatorNote>
 
 ## Runtime versus protocol
 
-| Layer       | Responsibility                                                                                         |
-| ----------- | ------------------------------------------------------------------------------------------------------ |
-| AGH Network | Envelope, message kinds, workspace/channel scope, conversations, lifecycle, freshness, and extensions. |
-| AGH Runtime | Sessions, Local/Live resolution, SQLite persistence, wake admission, usage, CLI/API/UI, and policy.    |
+| Layer           | Responsibility                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------ |
+| Compozy Network | Envelope, message kinds, workspace/channel scope, conversations, lifecycle, freshness, and extensions. |
+| Compozy Runtime | Sessions, Local/Live resolution, SQLite persistence, wake admission, usage, CLI/API/UI, and policy.    |
 
-`network_participation` is an AGH Runtime execution contract. It is not an envelope field and does
+`network_participation` is an Compozy Runtime execution contract. It is not an envelope field and does
 not change protocol conformance. Another runtime may map a valid envelope to its own execution model.
 
 ## Protocol at a glance
@@ -38,7 +40,7 @@ not change protocol conformance. Another runtime may map a valid envelope to its
   chart={`flowchart TD
     Runtime[Agent runtime]
     Adapter[Runtime adapter: storage, policy, execution]
-    Core[AGH Network core: envelope, kinds, interactions]
+    Core[Compozy Network core: envelope, kinds, interactions]
     Carrier[Implementation-owned carrier]
 
     Runtime --> Adapter
@@ -48,7 +50,7 @@ not change protocol conformance. Another runtime may map a valid envelope to its
 caption="The core protocol does not require a particular broker, listener, or process boundary."
 />
 
-AGH Runtime currently stores accepted messages and recipient decisions atomically, enqueues any
+Compozy Runtime currently stores accepted messages and recipient decisions atomically, enqueues any
 admitted wake as a normal `task_run`, and sends an in-process notification after commit. That is a
 reference-runtime guarantee, not a new wire profile.
 
@@ -61,10 +63,10 @@ reference-runtime guarantee, not a new wire profile.
 5. Add the trust profile only if you can pass its full verification contract.
 6. Bind the protocol to a carrier owned and tested by your implementation.
 
-Conformance claims name protocol behavior and optional trust, not a retired AGH transport binding.
+Conformance claims name protocol behavior and optional trust, not a retired Compozy transport binding.
 
 ## What it is not
 
-AGH Network is not a workflow engine, task queue, global registry, scheduler, trust federation, or
+Compozy Network is not a workflow engine, task queue, global registry, scheduler, trust federation, or
 permission grant. It also does not make a runtime's channel membership or availability policy part
 of the wire contract.

@@ -1,6 +1,6 @@
 import { AlertTriangle, Check } from "lucide-react";
 
-import { cn, Input } from "@agh/ui";
+import { cn, Input } from "@compozy/ui";
 
 import { localInputToDate, toRfc3339 } from "../../lib/cron-engine";
 

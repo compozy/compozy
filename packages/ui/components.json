@@ -13,11 +13,11 @@
     "iconLibrary": "lucide",
     "rtl": false,
     "aliases": {
-        "components": "@agh/ui/components",
-        "utils": "@agh/ui/lib/utils",
-        "ui": "@agh/ui/components",
-        "lib": "@agh/ui/lib",
-        "hooks": "@agh/ui/hooks"
+        "components": "@compozy/ui/components",
+        "utils": "@compozy/ui/lib/utils",
+        "ui": "@compozy/ui/components",
+        "lib": "@compozy/ui/lib",
+        "hooks": "@compozy/ui/hooks"
     },
     "registries": {
         "@reui": "https://reui.io/r/{style}/{name}.json"

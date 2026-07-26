@@ -1,14 +1,14 @@
 ---
 title: API Reference
-description: Per-tag HTTP and SSE reference for the AGH daemon, generated from the canonical OpenAPI contract on every site build.
+description: Per-tag HTTP and SSE reference for the Compozy daemon, generated from the canonical OpenAPI contract on every site build.
 ---
 
-The AGH daemon ships a single HTTP surface under `/api`. This reference is built from
-`openapi/agh.json` at every site build, so each request and response schema below matches the
+The Compozy daemon ships a single HTTP surface under `/api`. This reference is built from
+`openapi/compozy.json` at every site build, so each request and response schema below matches the
 binary you are running.
 
 <OperatorNote label="How this reference stays truthful">
-  Every endpoint page is generated from `openapi/agh.json`, which is rewritten by `make codegen`
+  Every endpoint page is generated from `openapi/compozy.json`, which is rewritten by `make codegen`
   from the Go HTTP contract. Drift is enforced by `make codegen-check` in CI, so what you read here
   matches the daemon you build from this checkout.
 </OperatorNote>

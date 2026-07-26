@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
-import { Button, Eyebrow } from "@agh/ui";
+import { Button, Eyebrow } from "@compozy/ui";
 
 interface SessionThreadErrorBoundaryProps {
   children: ReactNode;

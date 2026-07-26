@@ -25,7 +25,7 @@ func openAIModelCatalogOperation() OperationSpec {
 		Tags:        []string{specOpenAIKey},
 		Transports:  []Transport{TransportHTTP},
 		Parameters: []ParameterSpec{
-			queryParam("provider_id", "Filter by AGH provider id", false),
+			queryParam("provider_id", "Filter by Compozy provider id", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.OpenAIModelListResponse{}},
@@ -90,7 +90,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 			Summary:             "Refresh provider model catalog sources for one provider",
 			Tags:                []string{modelCatalogProvidersKey},
 			Transports:          []Transport{TransportHTTP, TransportUDS},
-			Parameters:          []ParameterSpec{pathParam("provider_id", "AGH provider id")},
+			Parameters:          []ParameterSpec{pathParam("provider_id", "Compozy provider id")},
 			RequestBody:         contract.ProviderModelRefreshRequest{},
 			RequestBodyOptional: true,
 			Responses:           modelCatalogRefreshResponses(),
@@ -112,7 +112,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 			Summary:     "List provider model catalog source status for one provider",
 			Tags:        []string{modelCatalogProvidersKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters:  []ParameterSpec{pathParam("provider_id", "AGH provider id")},
+			Parameters:  []ParameterSpec{pathParam("provider_id", "Compozy provider id")},
 			Responses:   modelCatalogStatusResponses(),
 		},
 	}
@@ -127,7 +127,7 @@ func modelCatalogCurationOperation() OperationSpec {
 		Tags:        []string{modelCatalogProvidersKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("provider_id", "AGH provider id"),
+			pathParam("provider_id", "Compozy provider id"),
 		},
 		RequestBody: contract.ProviderModelCurationRequest{},
 		Responses: []ResponseSpec{
@@ -143,9 +143,9 @@ func modelCatalogCurationOperation() OperationSpec {
 func modelCatalogListParameters(providerPath bool) []ParameterSpec {
 	parameters := make([]ParameterSpec, 0, 5)
 	if providerPath {
-		parameters = append(parameters, pathParam("provider_id", "AGH provider id"))
+		parameters = append(parameters, pathParam("provider_id", "Compozy provider id"))
 	} else {
-		parameters = append(parameters, queryParam("provider_id", "Filter by AGH provider id", false))
+		parameters = append(parameters, queryParam("provider_id", "Filter by Compozy provider id", false))
 	}
 	parameters = append(
 		parameters,

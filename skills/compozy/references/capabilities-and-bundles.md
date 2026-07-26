@@ -14,13 +14,13 @@
 
 ## Capability Vocabulary
 
-The canonical AGH artifact name is capability. Do not use recipe, workflow, procedure, or playbook for current AGH behavior unless quoting historical material.
+The canonical Compozy artifact name is capability. Do not use recipe, workflow, procedure, or playbook for current Compozy behavior unless quoting historical material.
 
 A capability should be discoverable, manageable by agents, and represented through public runtime surfaces. It is incomplete if it only works through internal Go calls or the web UI.
 
 ## Extensibility Surfaces
 
-When adding or changing AGH behavior, decide which surfaces are affected:
+When adding or changing Compozy behavior, decide which surfaces are affected:
 
 - extensions and extension resources
 - hooks
@@ -37,12 +37,12 @@ No-impact is acceptable only when there is evidence.
 
 ## Cross-Surface Impact Audit
 
-For any feature, bug fix, refactor, contract/API/CLI/native-tool/config/docs update, or runtime behavior change, record the AGH impact decision before claiming the change complete:
+For any feature, bug fix, refactor, contract/API/CLI/native-tool/config/docs update, or runtime behavior change, record the Compozy impact decision before claiming the change complete:
 
 - Native tools: tool IDs, toolsets, descriptors, input/output schemas, schema digests, risk flags, availability diagnostics, capability gates, and agent CLI/API fallbacks.
 - Extensibility and hooks: extension resources, hook taxonomy and dispatch call sites, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, config lifecycle, docs, and tests.
 - Workspace data isolation: whether data is global, workspace-scoped, session-scoped, or agent-scoped; `workspace_id` flow through CLI/HTTP/UDS/core/store/web/SSE/cache/events; and cross-workspace leak tests for list/read/cache/event paths.
-- Official AGH skill: `skills/agh/SKILL.md` and `skills/agh/references/*.md` guidance that must change when public behavior or agent-operable surfaces change.
+- Official Compozy skill: `skills/compozy/SKILL.md` and `skills/compozy/references/*.md` guidance that must change when public behavior or agent-operable surfaces change.
 
 Use `no impact` only with checked-surface evidence. QA/worktree isolation and workspace data isolation are separate decisions.
 
@@ -64,7 +64,7 @@ Bundles activate related runtime resources together. Treat bundle projection as 
 
 Bundle activation reads expose `version`. Before confirming a changed Live requirement, read the activation with `compozy bundle get <id> -o json`, then pass that value to `compozy bundle update <id> --expected-version <version> --confirm-network-requirement -o json`. A `409 Conflict` means the activation changed; reread it and inspect the current digest instead of retrying with a stale version.
 
-When changing bundle behavior, update resources, registries, config docs, CLI/API surfaces, and tests in the same change. Greenfield AGH favors hard cuts over compatibility bridges.
+When changing bundle behavior, update resources, registries, config docs, CLI/API surfaces, and tests in the same change. Greenfield Compozy favors hard cuts over compatibility bridges.
 
 Activation list and detail payloads expose `spec_drift` by comparing the stored activation spec hash with the current installed bundle profile. Use `compozy bundle list -o json` or the activation API to inspect it. Reapply with `compozy bundle update <activation-id> -o json`; a successful reapply reconciles current resources, stores the current hash, and clears drift. Activation timestamps are informational and never signal bundle updates.
 
@@ -150,7 +150,7 @@ Any feature or refactor must state whether config.toml keys, defaults, docs, and
 
 If a rename touches code, storage, APIs, CLI, extensions, specs, docs, and task artifacts, update them together.
 
-`[marketplace.catalog]` controls AGH's curated MCP server, extension, and skill feed projection.
+`[marketplace.catalog]` controls Compozy's curated MCP server, extension, and skill feed projection.
 `base_url` defaults to the public `compozy/compozy` catalog on `main`, `ttl` defaults to `1h`, and
 `timeout` defaults to `10s`; all three paths apply live to the next fetch. Use the structured config
 surfaces plus `compozy config reload -o json` and apply history to change or verify them. These keys do

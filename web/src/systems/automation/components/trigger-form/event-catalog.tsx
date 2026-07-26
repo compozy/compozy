@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { Search } from "lucide-react";
 
-import { Eyebrow, Input } from "@agh/ui";
+import { Eyebrow, Input } from "@compozy/ui";
 
 import { listEventGroups, type EventDef, type EventFamily } from "../../lib/trigger-catalog";
 import type { EventSelection } from "../../lib/trigger-event-id";

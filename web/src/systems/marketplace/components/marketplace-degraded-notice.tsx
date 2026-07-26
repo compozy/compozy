@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Alert, AlertActions, AlertDescription, Button } from "@agh/ui";
+import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
 
 // Discriminated on usage context so the page-level notice reads naturally ("Marketplace results may
 // be out of date") while per-kind copy stays verbatim. `scope: "page"` forbids `label` by

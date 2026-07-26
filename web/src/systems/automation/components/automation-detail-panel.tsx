@@ -11,7 +11,7 @@ import {
   Skeleton,
   useTopbarSlot,
   type MetricTone,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { useNavigate } from "@tanstack/react-router";
 
 import {

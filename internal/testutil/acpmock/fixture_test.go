@@ -606,9 +606,9 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	}
 
 	augmentedPrompt := strings.Join([]string{
-		"<agh-situation-context>",
+		"<compozy-situation-context>",
 		`{"self":{"session_id":"sess_123","agent_name":"alpha"}}`,
-		"</agh-situation-context>",
+		"</compozy-situation-context>",
 		"",
 		"<current-available-skills>",
 		`  <skill name="agh">Operate AGH runtime surfaces.</skill>`,
@@ -649,9 +649,9 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		"",
 		"User request:",
 		"",
-		"<agh-situation-context>",
+		"<compozy-situation-context>",
 		`{"self":{"session_id":"sess_123","agent_name":"alpha"}}`,
-		"</agh-situation-context>",
+		"</compozy-situation-context>",
 		"",
 		"<current-available-skills>",
 		`  <skill name="agh">Operate AGH runtime surfaces.</skill>`,
@@ -874,9 +874,9 @@ hello alpha
 		{
 			name: "Should strip layered situation skills and durable memory wrappers",
 			prompt: strings.Join([]string{
-				"<agh-situation-context>",
+				"<compozy-situation-context>",
 				`{"self":{"session_id":"sess_123","agent_name":"alpha"}}`,
-				"</agh-situation-context>",
+				"</compozy-situation-context>",
 				"",
 				"<current-available-skills>",
 				`<skill name="qa-marker">Marker.</skill>`,

@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { cn, StatusCard, type PillTone } from "@agh/ui";
+import { cn, StatusCard, type PillTone } from "@compozy/ui";
 
 export interface TaskStateBandProps extends Omit<React.ComponentProps<"div">, "title"> {
   tone: PillTone;

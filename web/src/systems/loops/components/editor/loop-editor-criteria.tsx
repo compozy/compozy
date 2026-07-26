@@ -1,6 +1,6 @@
 import { Plus, X } from "lucide-react";
 
-import { Button, Input, Label, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Button, Input, Label, NativeSelect, NativeSelectOption } from "@compozy/ui";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 

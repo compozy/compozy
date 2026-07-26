@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import { clarifyAnswerLabel } from "../lib/clarify-event";
 import type { ClarifyEventView } from "../types";

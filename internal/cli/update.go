@@ -53,9 +53,9 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   updateUpdateKey,
-		Short: "Check for and apply the latest stable AGH release",
+		Short: "Check for and apply the latest stable Compozy release",
 		Long: strings.TrimSpace(`
-Check GitHub Releases for the latest stable AGH build and apply it when this install supports
+Check GitHub Releases for the latest stable Compozy build and apply it when this install supports
 self-update. Managed installs return the exact package-manager upgrade path instead of mutating
 files directly.
 		`),
@@ -156,7 +156,7 @@ func finishLocalUpdate(
 	}
 	record.Status = string(aghupdate.StatusUpdated)
 	record.CurrentVersion = strings.TrimSpace(release.Version)
-	record.Message = "Updated AGH to " + strings.TrimSpace(release.Version) + "."
+	record.Message = "Updated Compozy to " + strings.TrimSpace(release.Version) + "."
 	return writeCommandOutput(cmd, updateBundle(record))
 }
 
@@ -236,7 +236,7 @@ func restartDaemonAfterUpdate(
 	record.Status = string(aghupdate.StatusUpdated)
 	record.CurrentVersion = strings.TrimSpace(release.Version)
 	record.DaemonRestarted = true
-	record.Message = "Updated AGH to " + strings.TrimSpace(release.Version) + " and restarted the daemon."
+	record.Message = "Updated Compozy to " + strings.TrimSpace(release.Version) + " and restarted the daemon."
 	return writeCommandOutput(cmd, updateBundle(record))
 }
 

@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 
-import { cn, formatAbsoluteTime, formatRelativeTime } from "@agh/ui";
+import { cn, formatAbsoluteTime, formatRelativeTime } from "@compozy/ui";
 
 import { isTerminalLoopStatus } from "../../lib/loop-formatters";
 import type { LoopRunRecord } from "../../types";

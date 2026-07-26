@@ -1,4 +1,4 @@
-import { Button, Eyebrow, Spinner, cn } from "@agh/ui";
+import { Button, Eyebrow, Spinner, cn } from "@compozy/ui";
 
 import { ONBOARDING_SUMMARY_ID, type OnboardingSummary } from "../lib/onboarding-summary";
 

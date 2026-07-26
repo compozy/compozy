@@ -13,7 +13,7 @@ import {
   Pill,
   Spinner,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { Check, CircleAlert, CircleCheck, Copy, ExternalLink, Plug } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
@@ -163,8 +163,8 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
               data-testid="settings-page-mcp-authorize-manual-input"
             />
             <p className="mt-1.5 text-caption text-muted" id="mcp-authorize-manual-help">
-              Use this when the browser cannot reach the daemon host. AGH sends exactly one value to
-              auth/exchange.
+              Use this when the browser cannot reach the daemon host. CompozyOS sends exactly one
+              value to auth/exchange.
             </p>
           </div>
         ) : null}

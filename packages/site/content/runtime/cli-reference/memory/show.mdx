@@ -1,24 +1,24 @@
 ---
-title: "agh memory show"
+title: "compozy memory show"
 description: "Show one Memory v2 entry"
 ---
 
-## agh memory show
+## compozy memory show
 
 Show one Memory v2 entry
 
 ```
-agh memory show <filename> [flags]
+compozy memory show <filename> [flags]
 ```
 
 ### Examples
 
 ```
   # Show a workspace memory entry
-  agh memory show runtime-notes.md --scope workspace
+  compozy memory show runtime-notes.md --scope workspace
 
   # Show an agent-global memory entry as JSON
-  agh memory show prefs.md --scope agent --agent reviewer --agent-tier global -o json
+  compozy memory show prefs.md --scope agent --agent reviewer --agent-tier global -o json
 ```
 
 ### Options
@@ -41,7 +41,7 @@ agh memory show <filename> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -51,5 +51,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh memory show <filename> -o json
+compozy memory show <filename> -o json
 ```

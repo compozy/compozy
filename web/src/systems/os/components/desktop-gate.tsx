@@ -1,7 +1,7 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, Spinner } from "@agh/ui";
+import { Button, Empty, Spinner } from "@compozy/ui";
 
 import { OnboardingSetupPanel, useOnboardingStatus } from "@/systems/onboarding";
 
@@ -38,7 +38,7 @@ export function DesktopGate({ children }: { children: ReactNode }) {
           className="max-w-xl"
           description={describeGateError(
             onboarding.error,
-            "AGH could not confirm whether first-run setup is complete."
+            "CompozyOS could not confirm whether first-run setup is complete."
           )}
           icon={AlertTriangle}
           title="Unable to check onboarding"

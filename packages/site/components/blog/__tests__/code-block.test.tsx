@@ -29,13 +29,13 @@ describe("BlogCodeBlock", () => {
 
     render(
       <BlogCodeBlock data-language="bash">
-        <code>agh daemon start</code>
+        <code>compozy daemon start</code>
       </BlogCodeBlock>
     );
 
     await clickCopyButton();
 
-    expect(writeText).toHaveBeenCalledWith("agh daemon start");
+    expect(writeText).toHaveBeenCalledWith("compozy daemon start");
     expect(screen.getByRole("button", { name: "Copied" })).toBeDefined();
 
     await act(async () => {
@@ -53,7 +53,7 @@ describe("BlogCodeBlock", () => {
 
     render(
       <BlogCodeBlock data-language="bash">
-        <code>agh daemon start</code>
+        <code>compozy daemon start</code>
       </BlogCodeBlock>
     );
 

@@ -6,7 +6,7 @@ import {
   NativeSelectOption,
   RequiredMark,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { ProviderDraft } from "../types";
 import type { ProviderDraftChange } from "./provider-edit-form";

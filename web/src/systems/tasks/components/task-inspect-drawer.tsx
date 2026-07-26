@@ -11,7 +11,7 @@ import {
   Time,
   type LaneTabsItem,
   type PillTone,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { taskRunStatusLabel } from "../lib/task-formatters";
 import type {
@@ -262,7 +262,7 @@ export function TaskInspectDrawer({
           description={
             <>
               Runtime internals for this task. Everything here maps to{" "}
-              <span className="font-mono text-eyebrow">agh task inspect</span>.
+              <span className="font-mono text-eyebrow">compozy task inspect</span>.
             </>
           }
           title="Inspect"

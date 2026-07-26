@@ -3,7 +3,13 @@ import { Brain, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger, Eyebrow, TypingDots } from "@agh/ui";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Eyebrow,
+  TypingDots,
+} from "@compozy/ui";
 
 export interface ThinkingBlockProps {
   thinking: string;

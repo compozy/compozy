@@ -8,7 +8,7 @@ import {
   PAGE_CONTENT_GUTTER,
   Pill,
   Skeleton,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { PackageX } from "lucide-react";
 import type { ReactNode } from "react";
 

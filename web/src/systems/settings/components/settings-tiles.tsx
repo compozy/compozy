@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn, MetadataTile, Pill } from "@agh/ui";
+import { cn, MetadataTile, Pill } from "@compozy/ui";
 
 /**
  * Read-only runtime facts (design system §06): quiet bordered tiles, visibly

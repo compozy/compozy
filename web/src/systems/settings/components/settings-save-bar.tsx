@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, cn, Pill, Spinner } from "@agh/ui";
+import { Button, cn, Pill, Spinner } from "@compozy/ui";
 
 import type { SettingsSaveBarState } from "../lib/save-state";
 

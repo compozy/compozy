@@ -1,4 +1,4 @@
-import { CodeBlock } from "@agh/ui";
+import { CodeBlock } from "@compozy/ui";
 
 import type { UIMessage } from "../../types";
 

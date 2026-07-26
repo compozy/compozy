@@ -1,24 +1,24 @@
 ---
-title: "agh scheduler drain"
+title: "compozy scheduler drain"
 description: "Pause dispatch and wait for active task claims to finish"
 ---
 
-## agh scheduler drain
+## compozy scheduler drain
 
 Pause dispatch and wait for active task claims to finish
 
 ```
-agh scheduler drain [flags]
+compozy scheduler drain [flags]
 ```
 
 ### Examples
 
 ```
   # Drain active claims with the default timeout
-  agh scheduler drain
+  compozy scheduler drain
 
   # Return immediately after pausing dispatch
-  agh scheduler drain --timeout 0s
+  compozy scheduler drain --timeout 0s
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh scheduler drain [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh scheduler drain -o json
+compozy scheduler drain -o json
 ```

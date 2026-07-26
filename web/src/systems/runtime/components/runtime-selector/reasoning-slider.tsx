@@ -1,5 +1,5 @@
 import { type ReasoningEffort } from "@/lib/api-contract";
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 import { useRef } from "react";
 
 import { reasoningEffortLabel } from "./types";

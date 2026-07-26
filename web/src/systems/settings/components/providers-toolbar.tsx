@@ -5,7 +5,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
   ListingToolbar,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { ProviderStateLabel } from "../lib/provider-state";
 

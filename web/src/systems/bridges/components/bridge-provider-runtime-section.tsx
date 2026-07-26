@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { CodeBlock, DataSurface, Eyebrow, MetadataList, Section } from "@agh/ui";
+import { CodeBlock, DataSurface, Eyebrow, MetadataList, Section } from "@compozy/ui";
 
 import { describeBridgeProviderConfigSchema } from "../lib/bridge-formatters";
 import type { BridgeSetupProjection } from "../lib/bridge-setup";

@@ -1,10 +1,10 @@
 export const siteConfig = {
-  name: "AGH",
-  url: "https://agh.network",
+  name: "Compozy",
+  url: "https://compozy.com",
   description:
-    "An open workplace for AI agents. AGH runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts.",
+    "An open workplace for AI agents. CompozyOS runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts.",
   githubUrl: "https://github.com/compozy",
-  repoUrl: "https://github.com/compozy/agh",
+  repoUrl: "https://github.com/compozy/compozy",
   repoBranch: "main",
 } as const;
 
@@ -61,7 +61,7 @@ export function createPageMetadata({
     url: image?.url ?? resolveOGImagePath(path),
     width: image?.width ?? 1200,
     height: image?.height ?? 630,
-    alt: image?.alt ?? `${title} | AGH`,
+    alt: image?.alt ?? `${title} | Compozy`,
   };
 
   return {

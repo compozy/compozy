@@ -7,7 +7,7 @@ import {
   type LazyExoticComponent,
 } from "react";
 
-import { Spinner } from "@agh/ui";
+import { Spinner } from "@compozy/ui";
 
 import { SETTINGS_SECTIONS } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";

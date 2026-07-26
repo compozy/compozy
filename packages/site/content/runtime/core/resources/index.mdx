@@ -1,10 +1,10 @@
 ---
 title: Desired-State Resources
-description: How AGH stores extensible runtime resources, validates mutations, and reconciles projected runtime state.
+description: How Compozy stores extensible runtime resources, validates mutations, and reconciles projected runtime state.
 ---
 
-Resources are AGH's desired-state layer for runtime objects that must be extensible and
-agent-manageable. Instead of letting every subsystem invent its own private storage shape, AGH writes
+Resources are Compozy's desired-state layer for runtime objects that must be extensible and
+agent-manageable. Instead of letting every subsystem invent its own private storage shape, Compozy writes
 canonical resource records, validates their specs through registered codecs, and reconciles them into
 runtime state.
 
@@ -82,9 +82,9 @@ Content-Type: application/json
 
 What happens:
 
-1. AGH validates the path kind and id.
-2. AGH validates the scope binding.
-3. If a codec is registered for that kind, AGH canonicalizes the `spec`.
+1. Compozy validates the path kind and id.
+2. Compozy validates the scope binding.
+3. If a codec is registered for that kind, Compozy canonicalizes the `spec`.
 4. The record is written with an owner, source, version, and timestamps.
 5. Reconcile is triggered for that kind.
 
@@ -124,7 +124,7 @@ or update the activation instead of deleting the projected child record by hand.
 | `409` on update/delete                   | `expected_version` is stale.                                          | `GET /api/resources/:kind/:id` for the current version. |
 | Record exists but runtime did not change | Reconcile failed or is degraded.                                      | Observe resource/reconcile health and daemon logs.      |
 | Projected record reappears               | A bundle activation or extension owns it.                             | `owner` and `source` fields on the resource record.     |
-| Workspace write fails                    | `scope.id` does not name a valid workspace.                           | `agh workspace list -o json`.                           |
+| Workspace write fails                    | `scope.id` does not name a valid workspace.                           | `compozy workspace list -o json`.                       |
 
 ## Next
 

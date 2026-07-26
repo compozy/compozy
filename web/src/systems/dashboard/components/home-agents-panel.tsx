@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Button, cn, Empty, Eyebrow, OwnerAvatar, Panel, Section } from "@agh/ui";
+import { Button, cn, Empty, Eyebrow, OwnerAvatar, Panel, Section } from "@compozy/ui";
 
 import type { HomeAgentRow } from "../hooks/use-home-agents";
 

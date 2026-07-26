@@ -15,7 +15,7 @@ import {
   Pill,
   Spinner,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { ownerAvatarKindFor, taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
 import { taskRunReviewPresentation } from "../lib/task-run-presentation";

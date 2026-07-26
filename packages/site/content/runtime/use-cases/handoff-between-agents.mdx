@@ -1,6 +1,6 @@
 ---
 title: Handoff Between Agents
-description: Use AGH Network messages to hand work from one agent session to another with receipts and traces.
+description: Use Compozy Network messages to hand work from one agent session to another with receipts and traces.
 ---
 
 This flow is for teams that want agents to coordinate without a human copying terminal output between
@@ -12,15 +12,15 @@ respond with evidence.
 Check the local network runtime before sending work:
 
 ```bash
-agh network status -o json
-agh network channels -o json
-agh network peers release -o json
+compozy network status -o json
+compozy network channels -o json
+compozy network peers release -o json
 ```
 
 Start the local session that will send the request:
 
 ```bash
-agh session new --workspace project --agent coordinator --name release-coordinator \
+compozy session new --workspace project --agent coordinator --name release-coordinator \
   --network live --network-channel-strategy named --network-channel release -o json
 ```
 
@@ -28,9 +28,9 @@ Start or identify the receiving session in the same channel. The examples below 
 as the returned session id.
 
 ```bash
-agh session new --workspace project --agent reviewer --name release-reviewer \
+compozy session new --workspace project --agent reviewer --name release-reviewer \
   --network live --network-channel-strategy named --network-channel release -o json
-agh network peers release -o json
+compozy network peers release -o json
 ```
 
 ## Flow
@@ -44,16 +44,16 @@ agh network peers release -o json
     durable home. Add a `work_id` if the request is lifecycle-bearing.
   </WorkflowStep>
   <WorkflowStep title="Read the receiver inbox">
-    The target session uses `agh network inbox` to inspect queued inbound messages.
+    The target session uses `compozy network inbox` to inspect queued inbound messages.
   </WorkflowStep>
   <WorkflowStep title="Close with evidence">
-    The receiver replies inside the same thread with a summary, artifacts, or a pointer to its AGH
-    session history. Lifecycle-bearing work closes with `trace(completed)`.
+    The receiver replies inside the same thread with a summary, artifacts, or a pointer to its
+    Compozy session history. Lifecycle-bearing work closes with `trace(completed)`.
   </WorkflowStep>
 </Workflow>
 
 ```bash
-agh network send \
+compozy network send \
   --session sess_coord \
   --channel release \
   --surface thread \
@@ -64,7 +64,7 @@ agh network send \
   --body '{"text":"Check release docs for drift","intent":"request","evidence_required":["commands","file paths","remaining risk"]}' \
   -o json
 
-agh network inbox --session sess_receiver -o json
+compozy network inbox --session sess_receiver -o json
 ```
 
 ## Message shape
@@ -84,29 +84,29 @@ The envelope metadata carries routing and correlation; the body should carry the
 
 ## Evidence to keep
 
-| Evidence           | Command                                                                                         | Why it matters                                              |
-| ------------------ | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Network runtime    | `agh network status -o json`                                                                    | Shows whether the daemon-owned network is enabled.          |
-| Channel membership | `agh network peers release -o json`                                                             | Shows the peers visible for the channel.                    |
-| Public thread      | `agh network threads show --channel release --thread thread_release_doc_drift_20260502 -o json` | Confirms the thread exists and tracks last activity.        |
-| Sent envelope      | `agh network send ... -o json`                                                                  | Gives the message id, container id, and `work_id`.          |
-| Receiver queue     | `agh network inbox --session sess_receiver -o json`                                             | Shows the message reached the target session queue.         |
-| Work lifecycle     | `agh network work status --work work_release_doc_drift_20260502 -o json`                        | Shows the network-side work state and conversation binding. |
-| Session evidence   | `agh session history <receiver-session>`                                                        | Shows what the receiver actually did.                       |
+| Evidence           | Command                                                                                             | Why it matters                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Network runtime    | `compozy network status -o json`                                                                    | Shows whether the daemon-owned network is enabled.          |
+| Channel membership | `compozy network peers release -o json`                                                             | Shows the peers visible for the channel.                    |
+| Public thread      | `compozy network threads show --channel release --thread thread_release_doc_drift_20260502 -o json` | Confirms the thread exists and tracks last activity.        |
+| Sent envelope      | `compozy network send ... -o json`                                                                  | Gives the message id, container id, and `work_id`.          |
+| Receiver queue     | `compozy network inbox --session sess_receiver -o json`                                             | Shows the message reached the target session queue.         |
+| Work lifecycle     | `compozy network work status --work work_release_doc_drift_20260502 -o json`                        | Shows the network-side work state and conversation binding. |
+| Session evidence   | `compozy session history <receiver-session>`                                                        | Shows what the receiver actually did.                       |
 
 ## Failure path
 
-| Symptom                        | First check                                         | Next page                                                                        |
-| ------------------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------- |
-| No peers are visible           | `agh network peers <name> -o json`                  | [Channels and Peers](/runtime/core/network/channels-and-peers)                   |
-| Thread is missing or empty     | `agh network threads list --channel <name> -o json` | [Public Threads](/runtime/core/network/threads)                                  |
-| Message is not in the inbox    | `agh network status -o json`                        | [Delivery and Safety](/runtime/core/network/delivery-and-safety)                 |
-| Work stays at `submitted`      | `agh network work status --work <work_id> -o json`  | [Network Work](/runtime/core/network/work)                                       |
-| Receiver cannot act on request | `agh session status <session-id> -o json`           | [Session Lifecycle](/runtime/core/sessions/lifecycle)                            |
-| No close-out evidence appears  | `agh session events <session-id> --last 50`         | [Coordinate Agents over Network](/runtime/guides/coordinate-agents-over-network) |
+| Symptom                        | First check                                             | Next page                                                                        |
+| ------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| No peers are visible           | `compozy network peers <name> -o json`                  | [Channels and Peers](/runtime/core/network/channels-and-peers)                   |
+| Thread is missing or empty     | `compozy network threads list --channel <name> -o json` | [Public Threads](/runtime/core/network/threads)                                  |
+| Message is not in the inbox    | `compozy network status -o json`                        | [Delivery and Safety](/runtime/core/network/delivery-and-safety)                 |
+| Work stays at `submitted`      | `compozy network work status --work <work_id> -o json`  | [Network Work](/runtime/core/network/work)                                       |
+| Receiver cannot act on request | `compozy session status <session-id> -o json`           | [Session Lifecycle](/runtime/core/sessions/lifecycle)                            |
+| No close-out evidence appears  | `compozy session events <session-id> --last 50`         | [Coordinate Agents over Network](/runtime/guides/coordinate-agents-over-network) |
 
 ## When to use tasks instead
 
 Use network messages for collaboration and handoff. Use [tasks](/runtime/core/autonomy/task-runs-and-leases)
-when the work needs queue state, claim leases, retries, or durable completion records inside one AGH
+when the work needs queue state, claim leases, retries, or durable completion records inside one Compozy
 runtime.

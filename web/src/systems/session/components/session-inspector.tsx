@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { DetailInspector, cn } from "@agh/ui";
+import { DetailInspector, cn } from "@compozy/ui";
 import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
 
 import {

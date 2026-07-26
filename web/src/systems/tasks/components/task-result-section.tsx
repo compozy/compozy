@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 
-import { JsonViewer, Markdown, Section } from "@agh/ui";
+import { JsonViewer, Markdown, Section } from "@compozy/ui";
 
 import type { TaskRun } from "../types";
 

@@ -1,4 +1,4 @@
-import { Metric } from "@agh/ui";
+import { Metric } from "@compozy/ui";
 
 import { formatDurationMs, formatPercent } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";

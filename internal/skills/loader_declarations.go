@@ -31,7 +31,12 @@ func parseSkillContent(content []byte) (SkillMeta, string, error) {
 func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
 	items, ok := raw.([]any)
 	if !ok {
-		warnAGHMetadata(skill, "skills: malformed metadata.agh.mcp_servers field", "type", fmt.Sprintf("%T", raw))
+		warnCompozyMetadata(
+			skill,
+			"skills: malformed metadata.compozy.mcp_servers field",
+			"type",
+			fmt.Sprintf("%T", raw),
+		)
 		return nil
 	}
 
@@ -39,9 +44,9 @@ func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
 	for idx, item := range items {
 		entry, ok := item.(map[string]any)
 		if !ok {
-			warnAGHMetadata(
+			warnCompozyMetadata(
 				skill,
-				"skills: malformed metadata.agh.mcp_servers entry",
+				"skills: malformed metadata.compozy.mcp_servers entry",
 				"index",
 				idx,
 				"type",
@@ -53,14 +58,14 @@ func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
 		server := MCPServerDecl{
 			Name:      strings.TrimSpace(stringValue(entry["name"])),
 			Command:   strings.TrimSpace(stringValue(entry["command"])),
-			Args:      stringSliceValue(skill, "metadata.agh.mcp_servers", idx, "args", entry["args"]),
-			Env:       stringMapValue(skill, "metadata.agh.mcp_servers", idx, "env", entry["env"]),
-			SecretEnv: stringMapValue(skill, "metadata.agh.mcp_servers", idx, "secret_env", entry["secret_env"]),
+			Args:      stringSliceValue(skill, "metadata.compozy.mcp_servers", idx, "args", entry["args"]),
+			Env:       stringMapValue(skill, "metadata.compozy.mcp_servers", idx, "env", entry["env"]),
+			SecretEnv: stringMapValue(skill, "metadata.compozy.mcp_servers", idx, "secret_env", entry["secret_env"]),
 		}
 		if server.Name == "" {
-			warnAGHMetadata(
+			warnCompozyMetadata(
 				skill,
-				"skills: invalid metadata.agh.mcp_servers entry",
+				"skills: invalid metadata.compozy.mcp_servers entry",
 				"index",
 				idx,
 				"reason",
@@ -69,9 +74,9 @@ func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
 			continue
 		}
 		if server.Command == "" {
-			warnAGHMetadata(
+			warnCompozyMetadata(
 				skill,
-				"skills: invalid metadata.agh.mcp_servers entry",
+				"skills: invalid metadata.compozy.mcp_servers entry",
 				"index",
 				idx,
 				"reason",
@@ -105,7 +110,7 @@ type parsedSkillHookDecl struct {
 func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
 	items, ok := raw.([]any)
 	if !ok {
-		warnAGHMetadata(skill, "skills: malformed metadata.agh.hooks field", "type", fmt.Sprintf("%T", raw))
+		warnCompozyMetadata(skill, "skills: malformed metadata.compozy.hooks field", "type", fmt.Sprintf("%T", raw))
 		return nil, nil
 	}
 
@@ -113,9 +118,9 @@ func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
 	for idx, item := range items {
 		entry, ok := item.(map[string]any)
 		if !ok {
-			warnAGHMetadata(
+			warnCompozyMetadata(
 				skill,
-				"skills: malformed metadata.agh.hooks entry",
+				"skills: malformed metadata.compozy.hooks entry",
 				"index",
 				idx,
 				"type",
@@ -127,7 +132,7 @@ func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
 		decoded, err := decodeSkillHookDecl(entry)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"skills: invalid metadata.agh.hooks entry for %q at index %d: %w",
+				"skills: invalid metadata.compozy.hooks entry for %q at index %d: %w",
 				skillIdentifier(skill),
 				idx,
 				err,
@@ -140,7 +145,7 @@ func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
 		}
 		if err := hookspkg.ValidateHookDecl(hook); err != nil {
 			return nil, fmt.Errorf(
-				"skills: invalid metadata.agh.hooks entry for %q at index %d: %w",
+				"skills: invalid metadata.compozy.hooks entry for %q at index %d: %w",
 				skillIdentifier(skill),
 				idx,
 				err,
@@ -195,7 +200,7 @@ func buildSkillHookDecl(
 	}
 	if hook.Command == "" {
 		return hookspkg.HookDecl{}, fmt.Errorf(
-			"skills: invalid metadata.agh.hooks entry for %q at index %d: command is required",
+			"skills: invalid metadata.compozy.hooks entry for %q at index %d: command is required",
 			skillIdentifier(skill),
 			index,
 		)
@@ -208,7 +213,7 @@ func skillHookEvent(skill *Skill, rawEvent string, index int) (hookspkg.HookEven
 	event := hookspkg.HookEvent(rawEvent)
 	if replacement, ok := legacyHookEventReplacement(rawEvent); ok {
 		return "", fmt.Errorf(
-			"skills: invalid metadata.agh.hooks entry for %q at index %d: hook event %q was removed; use %q",
+			"skills: invalid metadata.compozy.hooks entry for %q at index %d: hook event %q was removed; use %q",
 			skillIdentifier(skill),
 			index,
 			rawEvent,
@@ -217,7 +222,7 @@ func skillHookEvent(skill *Skill, rawEvent string, index int) (hookspkg.HookEven
 	}
 	if !validHookEvent(event) {
 		return "", fmt.Errorf(
-			"skills: invalid metadata.agh.hooks entry for %q at index %d: unknown hook event %q",
+			"skills: invalid metadata.compozy.hooks entry for %q at index %d: unknown hook event %q",
 			skillIdentifier(skill),
 			index,
 			rawEvent,

@@ -16,7 +16,7 @@ import {
 } from "@/lib/blog";
 import { categoryLabel } from "@/components/blog/format";
 import { blogMetadata } from "./metadata";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 export const metadata = blogMetadata;
 

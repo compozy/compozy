@@ -1,4 +1,4 @@
-import { Button, Time } from "@agh/ui";
+import { Button, Time } from "@compozy/ui";
 
 import { taskRunCanRecover } from "../lib/task-run-recovery";
 import type { TaskDetailView } from "../types";

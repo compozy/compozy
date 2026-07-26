@@ -9,7 +9,7 @@ import {
   Skeleton,
   TabsContent,
   type LaneTabsItem,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   TaskActivityPanel,

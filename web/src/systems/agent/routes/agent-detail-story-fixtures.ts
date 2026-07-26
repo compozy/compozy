@@ -9,7 +9,7 @@ import {
 import { agentFixtures } from "@/systems/agent/mocks";
 import type { AgentPayload } from "@/systems/agent/types";
 import { storybookMswParameters } from "@/storybook/msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
@@ -107,7 +107,7 @@ Produce concrete next steps: files to touch, the hold id, and the exact \`agh\` 
 export function denseFraudAgentHandlers() {
   return storybookMswParameters({
     agent: [
-      aghApiMock.get("/api/agents/{name}", () => HttpResponse.json({ agent: denseFraudAgent })),
+      compozyApiMock.get("/api/agents/{name}", () => HttpResponse.json({ agent: denseFraudAgent })),
     ],
   });
 }

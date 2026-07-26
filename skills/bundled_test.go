@@ -11,10 +11,10 @@ import (
 	internal "github.com/compozy/compozy/internal/skills"
 )
 
-var expectedAghReferences = []string{
+var expectedCompozyReferences = []string{
 	"references/agent-definitions.md",
 	"references/capabilities-and-bundles.md",
-	"references/contributing-to-agh.md",
+	"references/contributing-to-compozy.md",
 	"references/docs-design-and-copy.md",
 	"references/memory.md",
 	"references/native-tools.md",
@@ -25,10 +25,10 @@ var expectedAghReferences = []string{
 	"references/tools-and-skills.md",
 }
 
-func TestBundledFSContainsOnlyAghSkill(t *testing.T) {
+func TestBundledFSContainsOnlyCompozySkill(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should embed only the agh directory", func(t *testing.T) {
+	t.Run("Should embed only the compozy directory", func(t *testing.T) {
 		t.Parallel()
 
 		entries, err := fs.ReadDir(FS(), ".")
@@ -41,12 +41,12 @@ func TestBundledFSContainsOnlyAghSkill(t *testing.T) {
 				dirs = append(dirs, entry.Name())
 			}
 		}
-		if !slices.Equal(dirs, []string{"agh"}) {
-			t.Fatalf("bundled skill dirs = %#v, want only agh", dirs)
+		if !slices.Equal(dirs, []string{"compozy"}) {
+			t.Fatalf("bundled skill dirs = %#v, want only compozy", dirs)
 		}
 	})
 
-	t.Run("Should load exactly one bundled skill named agh with non-empty description", func(t *testing.T) {
+	t.Run("Should load exactly one bundled skill named compozy with non-empty description", func(t *testing.T) {
 		t.Parallel()
 
 		registry := internal.NewRegistry(internal.RegistryConfig{BundledFS: FS()})
@@ -57,8 +57,8 @@ func TestBundledFSContainsOnlyAghSkill(t *testing.T) {
 		if len(loaded) != 1 {
 			t.Fatalf("bundled skills count = %d, want 1: %#v", len(loaded), loaded)
 		}
-		if loaded[0].Meta.Name != "agh" {
-			t.Fatalf("bundled skill name = %q, want agh", loaded[0].Meta.Name)
+		if loaded[0].Meta.Name != "compozy" {
+			t.Fatalf("bundled skill name = %q, want compozy", loaded[0].Meta.Name)
 		}
 		if strings.TrimSpace(loaded[0].Meta.Description) == "" {
 			t.Fatal("bundled skill description is empty")
@@ -72,11 +72,11 @@ func TestLoadContentReturnsSkillBody(t *testing.T) {
 	t.Run("Should strip frontmatter", func(t *testing.T) {
 		t.Parallel()
 
-		content, err := LoadContent("agh")
+		content, err := LoadContent("compozy")
 		if err != nil {
 			t.Fatalf("LoadContent error = %v", err)
 		}
-		if strings.Contains(content, "name: agh") {
+		if strings.Contains(content, "name: compozy") {
 			t.Fatalf("LoadContent returned frontmatter:\n%s", content)
 		}
 	})
@@ -85,11 +85,11 @@ func TestLoadContentReturnsSkillBody(t *testing.T) {
 func TestBundledReferencesAreEmbeddedAndReadable(t *testing.T) {
 	t.Parallel()
 
-	for _, reference := range expectedAghReferences {
+	for _, reference := range expectedCompozyReferences {
 		t.Run("Should read "+reference, func(t *testing.T) {
 			t.Parallel()
 
-			content, err := LoadResource("agh", reference)
+			content, err := LoadResource("compozy", reference)
 			if err != nil {
 				t.Fatalf("LoadResource(%q) error = %v", reference, err)
 			}
@@ -117,50 +117,55 @@ func TestLoadResourceRejectsInvalidInputs(t *testing.T) {
 		},
 		{
 			name:         "Should reject nested skill",
-			skillName:    "agh/network",
+			skillName:    "compozy/network",
 			resourcePath: "references/network.md",
 			wantErr:      ErrInvalidSkillName,
 		},
-		{name: "Should reject empty resource", skillName: "agh", resourcePath: "", wantErr: ErrResourcePathRequired},
+		{
+			name:         "Should reject empty resource",
+			skillName:    "compozy",
+			resourcePath: "",
+			wantErr:      ErrResourcePathRequired,
+		},
 		{
 			name:         "Should reject parent traversal",
-			skillName:    "agh",
+			skillName:    "compozy",
 			resourcePath: "../SKILL.md",
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
 			name:         "Should reject absolute path",
-			skillName:    "agh",
+			skillName:    "compozy",
 			resourcePath: "/references/network.md",
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
 			name:         "Should reject backslash path",
-			skillName:    "agh",
+			skillName:    "compozy",
 			resourcePath: `references\network.md`,
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
 			name:         "Should reject dot-prefixed resource alias",
-			skillName:    "agh",
+			skillName:    "compozy",
 			resourcePath: "./references/network.md",
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
 			name:         "Should reject duplicate separator resource alias",
-			skillName:    "agh",
+			skillName:    "compozy",
 			resourcePath: "references//network.md",
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
 			name:         "Should reject internal parent traversal resource alias",
-			skillName:    "agh",
+			skillName:    "compozy",
 			resourcePath: "references/../SKILL.md",
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
 			name:         "Should reject surrounding whitespace resource alias",
-			skillName:    "agh",
+			skillName:    "compozy",
 			resourcePath: " references/network.md ",
 			wantErr:      ErrInvalidResourcePath,
 		},

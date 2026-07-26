@@ -9,7 +9,7 @@ lifecycle, and complete any required authorization. A catalog record proves wher
 from; it does not prove that the item is safe for every environment.
 
 <OperatorNote>
-  Marketplace discovery is daemon-owned. Start the daemon before using the web page, the `agh
+  Marketplace discovery is daemon-owned. Start the daemon before using the web page, the `compozy
   marketplace` command group, extension registry operations, bundle operations, or MCP catalog
   install and authorization.
 </OperatorNote>
@@ -28,22 +28,22 @@ The CLI returns the same daemon-owned projection:
 
 ```bash
 # Browse every kind. An empty query returns real catalog slices.
-agh marketplace search -o json
+compozy marketplace search -o json
 
 # Search one kind.
-agh marketplace search "linear" --kind mcp -o json
+compozy marketplace search "linear" --kind mcp -o json
 
 # Continue that exact kind/query/scope from the returned next_cursor.
-agh marketplace search "linear" --kind mcp --cursor '<next_cursor>' -o json
+compozy marketplace search "linear" --kind mcp --cursor '<next_cursor>' -o json
 
 # Inspect the stable catalog identity before installing.
-agh marketplace info mcp linear -o json
+compozy marketplace info mcp linear -o json
 
 # Disambiguate an installed definition whose local name collides with a catalog entry.
-agh marketplace info mcp linear --installed-name custom-linear -o json
+compozy marketplace info mcp linear --installed-name custom-linear -o json
 ```
 
-Use the returned `entry_id` with `agh marketplace info`. Install commands use the kind-specific
+Use the returned `entry_id` with `compozy marketplace info`. Install commands use the kind-specific
 identifier shown by the detail payload, such as an extension or skill `install_slug`.
 `--installed-name` disambiguates installed MCP, extension, and skill identities; bundle detail
 rejects that flag because bundle activation identity is managed through its activation route.
@@ -53,8 +53,8 @@ catalog.
 Single-kind responses return `next_cursor` when more rows remain. Treat it as opaque and pass it
 unchanged with the same kind, query, scope, and workspace; grouped search does not accept a cursor.
 Curated and bundle cursors fence the source projection. Remote skill registries do not expose a
-snapshot revision, so AGH validates the prior page boundary with one bounded look-behind row. If
-that boundary changes, AGH rejects the continuation; restart from the first page instead of
+snapshot revision, so Compozy validates the prior page boundary with one bounded look-behind row. If
+that boundary changes, Compozy rejects the continuation; restart from the first page instead of
 combining shifted pages.
 `total` is the exact filtered total when the source can determine it. A source that cannot determine
 an exact total omits it while still returning `next_cursor`.
@@ -68,7 +68,7 @@ Each kind can fail independently during grouped search. Read the affected kind's
 A failed refresh keeps the last successful rows, marks that kind stale, and returns the per-kind
 failure report rather than pruning the projection. MCP, extension, and skill rows come from curated
 feed documents. Bundle rows are derived from installed extensions, so
-`agh marketplace refresh --kind bundle` is intentionally unavailable.
+`compozy marketplace refresh --kind bundle` is intentionally unavailable.
 
 The launch catalog includes Context7 for current library documentation, Repository Orientation for
 evidence-backed codebase mapping, and Documentation Writer for project and API documentation.
@@ -80,13 +80,13 @@ metadata can change independently of the daemon release.
 Install the detail payload's skill slug through the existing skill lifecycle:
 
 ```bash
-agh skill install documentation-writer -o json
-agh skill where documentation-writer -o json
+compozy skill install documentation-writer -o json
+compozy skill where documentation-writer -o json
 ```
 
 The install writes marketplace provenance beside `SKILL.md`, scans the content, and then verifies
 that the effective skill resolver can discover the installed declaration. If a higher-precedence
-declaration shadows it, inspect `agh skill where <name>` and repair the local precedence conflict
+declaration shadows it, inspect `compozy skill where <name>` and repair the local precedence conflict
 before retrying.
 
 Skills do not carry a Marketplace trust badge because the skill source does not expose a trust
@@ -97,11 +97,11 @@ field. Content scanning and installed provenance are separate runtime checks, no
 Install the detail payload's extension slug, then inspect the persisted provenance:
 
 ```bash
-agh extension install compozy/repository-orientation -o json
-agh extension provenance repository-orientation -o json
+compozy extension install compozy/repository-orientation -o json
+compozy extension provenance repository-orientation -o json
 ```
 
-For a curated entry, AGH downloads the feed's exact HTTPS `artifact_url`, pins its version and
+For a curated entry, Compozy downloads the feed's exact HTTPS `artifact_url`, pins its version and
 SHA-256 digest, verifies the download before extraction, and records the catalog entry, archive
 digest, extracted-tree checksum, registry tier, and trust report separately. Manual registry
 installs still resolve GitHub releases. A digest mismatch returns
@@ -113,9 +113,9 @@ Non-curated side-loads use a two-part gate. The live daemon policy must allow th
 individual request must confirm the decision:
 
 ```bash
-agh config set extensions.marketplace.allow_unverified true -o json
-agh config reload -o json
-agh extension install acme/private-extension --allow-unverified --yes -o json
+compozy config set extensions.marketplace.allow_unverified true -o json
+compozy config reload -o json
+compozy extension install acme/private-extension --allow-unverified --yes -o json
 ```
 
 When policy is disabled, the structured diagnostic code is
@@ -129,7 +129,7 @@ Bundles are declared by installed extensions. Always preview the selected profil
 activation:
 
 ```bash
-agh bundle preview \
+compozy bundle preview \
   --extension linear-bridge \
   --bundle incident-response \
   --profile default \
@@ -137,7 +137,7 @@ agh bundle preview \
   --workspace <workspace-id> \
   -o json
 
-agh bundle activate \
+compozy bundle activate \
   --extension linear-bridge \
   --bundle incident-response \
   --profile default \
@@ -158,7 +158,7 @@ fields, validates the submitted values, and writes one complete MCP definition o
 Context7 needs no required values and can be installed globally from the launch catalog:
 
 ```bash
-agh mcp install context7 --scope global -o json
+compozy mcp install context7 --scope global -o json
 ```
 
 Use `--set KEY` to read a field value from stdin or a hidden terminal prompt. To bind an existing
@@ -166,9 +166,9 @@ present Vault ref:
 
 ```bash
 printf "%s" "$GITHUB_TOKEN" | \
-  agh vault put vault:mcp/shared/github-token --kind token --value-stdin
+  compozy vault put vault:mcp/shared/github-token --kind token --value-stdin
 
-agh mcp install github \
+compozy mcp install github \
   --scope global \
   --vault-ref GITHUB_TOKEN=vault:mcp/shared/github-token \
   -o json
@@ -177,7 +177,7 @@ agh mcp install github \
 Workspace installs require both selectors:
 
 ```bash
-agh mcp install github \
+compozy mcp install github \
   --scope workspace \
   --workspace <workspace-id> \
   --vault-ref GITHUB_TOKEN=vault:mcp/shared/github-token \
@@ -202,22 +202,22 @@ claim runtime readiness.
 Start the daemon-owned PKCE flow after an OAuth catalog install:
 
 ```bash
-agh mcp authorize linear --scope global
+compozy mcp authorize linear --scope global
 ```
 
-AGH returns a live, copyable authorization URL and may open it in a browser. For a remote operator,
+Compozy returns a live, copyable authorization URL and may open it in a browser. For a remote operator,
 or when the daemon HTTP bind is not loopback, use manual completion and paste the authorization code
 or full redirect URL:
 
 ```bash
-agh mcp authorize linear --scope global --manual
+compozy mcp authorize linear --scope global --manual
 ```
 
 Workspace authorization again requires both selectors:
 
 ```bash
-agh mcp authorize linear --scope workspace --workspace <workspace-id> --manual
-agh mcp auth status linear --scope workspace --workspace <workspace-id> -o json
+compozy mcp authorize linear --scope workspace --workspace <workspace-id> --manual
+compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o json
 ```
 
 Treat authorization as complete only when status is `authenticated` and `token_present` is `true`.
@@ -261,12 +261,12 @@ The HTTP-only `GET /api/mcp/oauth/callback` handles loopback browser completion.
 
 Marketplace does not invent one cross-kind update operation.
 
-| Kind      | Truthful update signal                                                         | Action                                                                                                                  |
-| --------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Skill     | Installed marketplace version compared with the registry version.              | `agh skill update <name> --check`, then `agh skill update <name>`.                                                      |
-| Extension | Installed marketplace version compared with the registry version.              | `agh extension update <name> --check`, then `agh extension update <name>`. Curated updates re-verify the pinned digest. |
-| Bundle    | Stored activation spec hash differs from the current installed bundle profile. | Inspect `spec_drift`, then `agh bundle update <activation-id>`.                                                         |
-| MCP       | No update comparison or update action in v1.                                   | Manage the installed definition and authorization state; do not infer freshness from a badge.                           |
+| Kind      | Truthful update signal                                                         | Action                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Skill     | Installed marketplace version compared with the registry version.              | `compozy skill update <name> --check`, then `compozy skill update <name>`.                                                      |
+| Extension | Installed marketplace version compared with the registry version.              | `compozy extension update <name> --check`, then `compozy extension update <name>`. Curated updates re-verify the pinned digest. |
+| Bundle    | Stored activation spec hash differs from the current installed bundle profile. | Inspect `spec_drift`, then `compozy bundle update <activation-id>`.                                                             |
+| MCP       | No update comparison or update action in v1.                                   | Manage the installed definition and authorization state; do not infer freshness from a badge.                                   |
 
 Non-semver skill or extension versions do not produce a speculative update badge. Updating a bundle
 reapplies its current profile and clears `spec_drift` after successful reconciliation.
@@ -300,9 +300,9 @@ timeout = "10s"
 All three keys apply live to the next fetch. Validate a change through the structured lifecycle:
 
 ```bash
-agh config set marketplace.catalog.ttl 30m -o json
-agh config reload -o json
-agh config apply-history --limit 5 -o json
+compozy config set marketplace.catalog.ttl 30m -o json
+compozy config reload -o json
+compozy config apply-history --limit 5 -o json
 ```
 
 A failed refresh preserves the last valid projection and marks that kind stale. A successful

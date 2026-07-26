@@ -1,4 +1,4 @@
-import { DayAreaChart, Empty, Eyebrow, Panel, PillGroup, Section } from "@agh/ui";
+import { DayAreaChart, Empty, Eyebrow, Panel, PillGroup, Section } from "@compozy/ui";
 
 import {
   HOME_USAGE_WINDOWS,

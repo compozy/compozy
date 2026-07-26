@@ -1,4 +1,4 @@
-import { Pill } from "@agh/ui";
+import { Pill } from "@compozy/ui";
 
 /**
  * Marks a control whose change takes effect immediately (no daemon restart),

@@ -2,7 +2,7 @@ import { ChevronRight } from "lucide-react";
 import { useReducedMotionConfig } from "motion/react";
 import { useState } from "react";
 
-import { cn, Collapsible, CollapsibleContent, CollapsibleTrigger, Section } from "@agh/ui";
+import { cn, Collapsible, CollapsibleContent, CollapsibleTrigger, Section } from "@compozy/ui";
 
 import type { TaskDetailView } from "../types";
 import { TaskLinkedRow, type TaskLinkedRowState } from "./task-linked-row";

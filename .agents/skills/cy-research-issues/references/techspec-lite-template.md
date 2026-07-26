@@ -41,7 +41,7 @@ Empty section = "None" explicitly.]
 - Extensibility and hooks: <extensions/hooks/skills/config lifecycle impact; contract-codegen
   co-ship duties for any API change>
 - Workspace data isolation: <scope classification of new/changed data + leak-path check>
-- Official AGH skill: <skills/agh/ updates required or "no impact + why">
+- Official Compozy skill: <skills/compozy/ updates required or "no impact + why">
 
 ## 8. Web/Docs Impact
 [Affected web routes/components/hooks AND docs-site pages; "no impact" only after analysis.]

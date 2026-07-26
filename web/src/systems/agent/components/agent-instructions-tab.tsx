@@ -6,7 +6,7 @@ import {
   PillGroup,
   Skeleton,
   type PillGroupItem,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { AgentInstructionsTabViewModel } from "../hooks/use-agent-instructions-tab";
 import type { AgentInstructionFile } from "../lib/agent-detail-search";

@@ -1,4 +1,4 @@
-import { Separator } from "@agh/ui";
+import { Separator } from "@compozy/ui";
 
 import { formatDatePill } from "../../lib/format-timestamp";
 

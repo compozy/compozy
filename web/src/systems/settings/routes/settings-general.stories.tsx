@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -58,7 +58,7 @@ export const MemoryReportingDisabled: Story = {
     ...appRouteParameters("/settings/general"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/general", () =>
+        compozyApiMock.get("/api/settings/general", () =>
           HttpResponse.json({
             ...settingsGeneralSectionFixture,
             config: {
@@ -85,7 +85,7 @@ export const Loading: Story = {
     ...appRouteParameters("/settings/general"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/general", async () => {
+        compozyApiMock.get("/api/settings/general", async () => {
           await delay("infinite");
           return HttpResponse.json(settingsGeneralSectionFixture);
         }),
@@ -104,7 +104,7 @@ export const Error: Story = {
     ...appRouteParameters("/settings/general"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/general", () =>
+        compozyApiMock.get("/api/settings/general", () =>
           HttpResponse.json({ error: "Failed to load general settings" }, { status: 500 })
         ),
       ],
@@ -138,7 +138,7 @@ export const Saving: Story = {
     ...appRouteParameters("/settings/general"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.patch("/api/settings/general", async () => {
+        compozyApiMock.patch("/api/settings/general", async () => {
           await delay("infinite");
           return HttpResponse.json(settingsAppliedMutationFixture);
         }),
@@ -177,7 +177,7 @@ export const RestartPolling: Story = {
     ...appRouteParameters("/settings/general"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/actions/restart/{operation_id}", async () => {
+        compozyApiMock.get("/api/settings/actions/restart/{operation_id}", async () => {
           await delay("infinite");
           return HttpResponse.json({
             ...settingsRestartStatusFixture,
@@ -269,7 +269,7 @@ export const RememberedDecisions: Story = {
     ...appRouteParameters("/settings/general"),
     ...storybookMswParameters({
       "tool-approvals": [
-        aghApiMock.get("/api/tool-approval-grants", () =>
+        compozyApiMock.get("/api/tool-approval-grants", () =>
           HttpResponse.json(toolApprovalGrantsResponseFixture)
         ),
       ],

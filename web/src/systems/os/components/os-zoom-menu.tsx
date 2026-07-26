@@ -8,7 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

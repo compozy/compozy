@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Topbar, TopbarSlotProvider, UIProvider } from "@agh/ui";
+import { Topbar, TopbarSlotProvider, UIProvider } from "@compozy/ui";
 
 vi.mock("@/systems/tasks/hooks/use-task-setup-runtime", () => ({
   useTaskSetupRuntime: () => ({

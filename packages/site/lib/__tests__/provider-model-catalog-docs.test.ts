@@ -119,20 +119,20 @@ describe("provider model catalog docs", () => {
 
   it("includes the regenerated provider models CLI reference", () => {
     const indexSource = read(cliProviderModelsIndex);
-    expect(indexSource).toContain("agh provider models");
+    expect(indexSource).toContain("compozy provider models");
     expect(indexSource).toContain("/runtime/cli-reference/provider/models/list");
     expect(indexSource).toContain("/runtime/cli-reference/provider/models/refresh");
     expect(indexSource).toContain("/runtime/cli-reference/provider/models/status");
 
-    expect(read(cliProviderModelsList)).toContain("agh provider models list");
-    expect(read(cliProviderModelsRefresh)).toContain("agh provider models refresh");
-    expect(read(cliProviderModelsStatus)).toContain("agh provider models status");
+    expect(read(cliProviderModelsList)).toContain("compozy provider models list");
+    expect(read(cliProviderModelsRefresh)).toContain("compozy provider models refresh");
+    expect(read(cliProviderModelsStatus)).toContain("compozy provider models status");
   });
 
-  it("explains the agh provider models namespace choice in the model catalog doc", () => {
+  it("explains the compozy provider models namespace choice in the model catalog doc", () => {
     const source = read(modelCatalogDoc);
-    expect(source).toContain("agh provider models");
-    expect(source).toContain("agh models");
+    expect(source).toContain("compozy provider models");
+    expect(source).toContain("compozy models");
     expect(source).toContain("out of scope");
   });
 

@@ -1,4 +1,4 @@
-import { ConfirmDialog } from "@agh/ui";
+import { ConfirmDialog } from "@compozy/ui";
 import { useBlocker } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 

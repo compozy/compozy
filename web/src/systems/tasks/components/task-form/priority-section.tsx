@@ -1,4 +1,4 @@
-import { PillGroup, type PillGroupItem } from "@agh/ui";
+import { PillGroup, type PillGroupItem } from "@compozy/ui";
 
 import type { TaskPriority } from "../../types";
 

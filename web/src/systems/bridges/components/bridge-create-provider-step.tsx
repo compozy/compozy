@@ -1,6 +1,6 @@
 import { FileJson2, Plug } from "lucide-react";
 
-import { ActionResultBanner, FormSection } from "@agh/ui";
+import { ActionResultBanner, FormSection } from "@compozy/ui";
 
 import { buildBridgeProviderKey, isBridgeProviderSelectable } from "../lib/bridge-formatters";
 import type { BridgeProvider } from "../types";
@@ -80,7 +80,7 @@ export function BridgeCreateProviderStep({
       {supportsManifest && selectedProviderKey ? (
         <ActionResultBanner
           data-testid="bridge-manifest-precreate-hint"
-          description="AGH generates the JSON from the persisted bridge ID and saved webhook URL. Create the bridge first, then copy the real manifest into Slack."
+          description="CompozyOS generates the JSON from the persisted bridge ID and saved webhook URL. Create the bridge first, then copy the real manifest into Slack."
           icon={FileJson2}
           title="Slack manifest available after creation"
           tone="info"

@@ -1,6 +1,6 @@
 import { CircleAlert, ListChecks, SquareTerminal } from "lucide-react";
 
-import { Icon, PopoverDescription, PopoverHeader, PopoverTitle } from "@agh/ui";
+import { Icon, PopoverDescription, PopoverHeader, PopoverTitle } from "@compozy/ui";
 
 import type { OsAttentionRow } from "../lib/attention-model";
 

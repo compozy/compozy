@@ -17,7 +17,7 @@ import {
   WIDTH_MESSAGE_BUBBLE_MAX,
   WIDTH_RIGHT_RAIL_DEFAULT,
   WIDTH_TABLE_CELL_LG,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { ChannelHeader } from "./channel-header";
 import { ChannelRail } from "./channel-rail";

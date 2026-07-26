@@ -3,8 +3,8 @@ title: Bridge Setup
 description: Build and install an in-tree provider, follow its operator guide, and prove the inbound and outbound path before production use.
 ---
 
-Bridge setup has two boundaries: the external platform and the AGH runtime. A complete setup proves
-both. The platform must authenticate and deliver an event to the provider extension; AGH must route
+Bridge setup has two boundaries: the external platform and the Compozy runtime. A complete setup proves
+both. The platform must authenticate and deliver an event to the provider extension; Compozy must route
 that event into the intended workspace and deliver the agent response back to the same platform
 target.
 
@@ -23,7 +23,7 @@ Every provider guide ends at the same observable result:
 6. For providers that accept direct messages, access is explicitly configured while the bridge remains disabled.
 7. Enabled verification proves public callback reachability.
 8. A real inbound event creates a route in the expected workspace.
-9. `agh bridge send-test` produces a real remote message at the intended target.
+9. `compozy bridge send-test` produces a real remote message at the intended target.
 
 If any checkpoint is missing, the setup is not complete. A green public reachability check does not
 prove provider authentication, and a successful identity check does not prove that the provider
@@ -42,9 +42,9 @@ console is delivering events.
 | GitHub          | Generic CLI                          | Signed repository or GitHub App webhooks            | [Set up GitHub](/runtime/core/bridges/setup-github)         |
 | Linear          | Generic CLI                          | Signed comment or Agent Session webhooks            | [Set up Linear](/runtime/core/bridges/setup-linear)         |
 
-Only WhatsApp, Telegram, and Discord have `agh bridge setup <provider>` commands. Slack needs a
-persisted disabled instance before AGH can generate its app manifest. Teams, Google Chat, GitHub,
-and Linear use `agh bridge create` followed by explicit secret bindings.
+Only WhatsApp, Telegram, and Discord have `compozy bridge setup <provider>` commands. Slack needs a
+persisted disabled instance before Compozy can generate its app manifest. Teams, Google Chat, GitHub,
+and Linear use `compozy bridge create` followed by explicit secret bindings.
 
 <OperatorNote>
   GitHub and Linear are issue-side bridges, not chat rooms. Their success criterion is a routed
@@ -53,8 +53,8 @@ and Linear use `agh bridge create` followed by explicit secret bindings.
 
 ## Install an in-tree provider
 
-The AGH source repository contains these eight provider implementations, but released `agh`
-artifacts do not include their executables or install them automatically. Start from a trusted AGH
+The Compozy source repository contains these eight provider implementations, but released `compozy`
+artifacts do not include their executables or install them automatically. Start from a trusted Compozy
 source checkout with the Go toolchain available, then build and install the provider from the
 repository root:
 
@@ -67,18 +67,18 @@ go build \
   -o "./extensions/bridges/$PROVIDER/bin/$PROVIDER" \
   "./extensions/bridges/$PROVIDER"
 
-agh extension install \
+compozy extension install \
   "./extensions/bridges/$PROVIDER" \
   --allow-unverified \
   --yes \
   -o json
 
-agh extension status "$PROVIDER" -o json
+compozy extension status "$PROVIDER" -o json
 ```
 
 `--allow-unverified` is the explicit trust decision for a local source directory. `--yes` makes that
 decision non-interactive when structured output is requested. The install copies the provider into
-the AGH extension home and enables it; run `agh extension enable "$PROVIDER" -o json` only if it was
+the Compozy extension home and enables it; run `compozy extension enable "$PROVIDER" -o json` only if it was
 disabled later.
 
 `GET /api/bridges/providers` returns installed extensions that declare `bridge.adapter`, including
@@ -94,7 +94,7 @@ bridge instance. Presence in the catalog does not mean the provider is enabled o
 
 ## Prerequisites
 
-- The AGH daemon is running.
+- The Compozy daemon is running.
 - The destination workspace exists and has a default agent.
 - The selected in-tree provider passes the install and status checks above.
 - You can administer the external app, bot, webhook, or repository integration.
@@ -105,17 +105,17 @@ Inspect the workspace, extension registry, provider catalog, and existing bridge
 creating anything:
 
 ```bash
-agh workspace list -o json
-agh extension list -o json
+compozy workspace list -o json
+compozy extension list -o json
 curl -sS http://127.0.0.1:2123/api/bridges/providers | jq
-agh bridge list --scope workspace --workspace-id ws_8f33a913d23c4fd1 -o json
+compozy bridge list --scope workspace --workspace-id ws_8f33a913d23c4fd1 -o json
 ```
 
 Confirm the workspace record has a non-empty `default_agent`. If it does not, assign one before
 creating the bridge:
 
 ```bash
-agh workspace edit <workspace-name-or-id> --default-agent <agent-name>
+compozy workspace edit <workspace-name-or-id> --default-agent <agent-name>
 ```
 
 The HTTP response and the equivalent UDS route expose the same provider catalog. Confirm the chosen
@@ -135,10 +135,10 @@ external platform
 ```
 
 `provider_config.webhook.public_url` is the complete external callback. It is the value copied into
-the provider console and the destination probed by `agh bridge verify` after enablement.
+the provider console and the destination probed by `compozy bridge verify` after enablement.
 
 `provider_config.webhook.listen_addr` and `provider_config.webhook.path` are the local listener
-coordinates. AGH does not infer the public URL from proxy headers, the daemon HTTP address, or the
+coordinates. Compozy does not infer the public URL from proxy headers, the daemon HTTP address, or the
 listener address.
 
 One provider subprocess can own multiple bridge instances. Those instances share the provider's
@@ -162,7 +162,7 @@ probe does not use an HTTP proxy or follow redirects.
 Guided setup creates a disabled instance automatically. Generic providers use this shape:
 
 ```bash
-agh bridge create \
+compozy bridge create \
   --scope workspace \
   --workspace-id ws_8f33a913d23c4fd1 \
   --platform <provider> \
@@ -185,12 +185,12 @@ Each guide names the exact slots and where their values originate. A binding wri
 once and returns only redacted metadata later:
 
 ```bash
-printf '%s' "$PROVIDER_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" <slot> \
+printf '%s' "$PROVIDER_SECRET" | compozy bridge secret-bindings put "$BRIDGE_ID" <slot> \
   --secret-ref "vault:bridges/$BRIDGE_ID/<slot>" \
   --kind <token-or-secret-kind> \
   --secret-value-stdin
 
-agh bridge secret-bindings list "$BRIDGE_ID" -o json
+compozy bridge secret-bindings list "$BRIDGE_ID" -o json
 ```
 
 The reference is scoped to the edited bridge. Never reuse another bridge's
@@ -205,7 +205,7 @@ external console.
 ### 4. Verify while disabled
 
 ```bash
-agh bridge verify "$BRIDGE_ID" --json
+compozy bridge verify "$BRIDGE_ID" --json
 ```
 
 Verification returns provider-owned records with `check`, `status`, and `remediation`. Status is
@@ -223,7 +223,7 @@ normalizes to `open`, which admits every direct-message sender whose request pas
 transport authentication. The policy applies only to direct messages. Provider membership,
 visibility, permissions, and the bridge routing policy still govern groups, channels, and spaces.
 
-`agh bridge create` and `agh bridge update` do not currently expose a `--dm-policy` flag. Use the Web
+`compozy bridge create` and `compozy bridge update` do not currently expose a `--dm-policy` flag. Use the Web
 editor or HTTP API procedure in [Control direct-message access](./access). `pairing` is not an
 interactive approval flow: the in-tree messaging providers read pre-populated `paired_user_ids` and
 `paired_usernames`, then fall back to `allow_user_ids` and `allow_usernames`.
@@ -231,7 +231,7 @@ interactive approval flow: the in-tree messaging providers read pre-populated `p
 Keep the bridge disabled and inspect the stored result:
 
 ```bash
-agh bridge get "$BRIDGE_ID" -o json | \
+compozy bridge get "$BRIDGE_ID" -o json | \
   jq '{enabled, dm_policy, dm: (.provider_config.dm // {})}'
 ```
 
@@ -242,9 +242,9 @@ not simulate a provider webhook.
 ### 6. Enable and verify reachability
 
 ```bash
-agh bridge enable "$BRIDGE_ID"
-agh bridge verify "$BRIDGE_ID" --json
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge enable "$BRIDGE_ID"
+compozy bridge verify "$BRIDGE_ID" --json
+compozy bridge get "$BRIDGE_ID" -o json
 ```
 
 The bridge should settle at `ready`. A `degraded`, `auth_required`, or `error` state is evidence to
@@ -255,7 +255,7 @@ repair, not a reason to continue to the happy-path test.
 Trigger one real supported event from the provider. Then inspect the created route:
 
 ```bash
-agh bridge routes "$BRIDGE_ID" -o json
+compozy bridge routes "$BRIDGE_ID" -o json
 ```
 
 Confirm the route belongs to the intended workspace and carries the expected peer, group, and thread
@@ -267,8 +267,8 @@ if the agent produced an answer.
 Use identifiers from the real inbound route:
 
 ```bash
-agh bridge send-test "$BRIDGE_ID" \
-  --message "AGH bridge connection check" \
+compozy bridge send-test "$BRIDGE_ID" \
+  --message "Compozy bridge connection check" \
   --group-id "<group-from-route>" \
   --thread-id "<thread-from-route>" \
   --mode reply \
@@ -276,7 +276,7 @@ agh bridge send-test "$BRIDGE_ID" \
 ```
 
 `send-test` calls the provider and returns a delivery ID, resolved target, and remote message ID when
-the platform supplies one. `agh bridge test-delivery` only validates target resolution and sends
+the platform supplies one. `compozy bridge test-delivery` only validates target resolution and sends
 nothing.
 
 ## Automation surfaces

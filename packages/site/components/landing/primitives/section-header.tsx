@@ -1,4 +1,4 @@
-import { Eyebrow, cn } from "@agh/ui";
+import { Eyebrow, cn } from "@compozy/ui";
 import type { ReactNode } from "react";
 
 interface SectionHeaderProps {

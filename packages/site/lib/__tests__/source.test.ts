@@ -109,9 +109,9 @@ const runtimePageTree: Root = {
         },
         {
           type: "page",
-          $id: "cli-reference/agh.mdx",
+          $id: "cli-reference/compozy.mdx",
           name: "Agh",
-          url: "/runtime/cli-reference/agh",
+          url: "/runtime/cli-reference/compozy",
         },
       ],
     },

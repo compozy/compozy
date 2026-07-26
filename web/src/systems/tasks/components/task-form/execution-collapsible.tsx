@@ -11,7 +11,7 @@ import {
   FieldDescription,
   FieldTitle,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 interface ExecutionCollapsibleProps {
   saveAsDraft: boolean;

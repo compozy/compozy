@@ -10,7 +10,7 @@ import {
   ItemMedia,
   ItemTitle,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { VaultSecret } from "../types";
 

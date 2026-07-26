@@ -19,10 +19,10 @@ import { createHighlighterCore, type ThemedToken } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
 import {
-  normalizeAghCodeLanguage,
-  resolveAghCodeThemeName,
-  type AghCodeLanguage,
-  type AghCodeThemeName,
+  normalizeCompozyCodeLanguage,
+  resolveCompozyCodeThemeName,
+  type CompozyCodeLanguage,
+  type CompozyCodeThemeName,
   type CodeBlockResolvedTheme,
 } from "./code-theme";
 
@@ -45,12 +45,12 @@ export interface HighlightedCodeLine {
 }
 
 export interface HighlightedCodeResult {
-  language: AghCodeLanguage;
+  language: CompozyCodeLanguage;
   lines: HighlightedCodeLine[];
-  themeName: AghCodeThemeName;
+  themeName: CompozyCodeThemeName;
 }
 
-export interface HighlightAghCodeOptions {
+export interface HighlightCompozyCodeOptions {
   code: string;
   language?: string | null;
   theme: CodeBlockResolvedTheme;
@@ -79,16 +79,16 @@ const highlighterPromise = createHighlighterCore({
   warnings: false,
 });
 
-export async function highlightAghCode({
+export async function highlightCompozyCode({
   code,
   language,
   theme,
-}: HighlightAghCodeOptions): Promise<HighlightedCodeResult | null> {
-  const normalizedLanguage = normalizeAghCodeLanguage(language);
+}: HighlightCompozyCodeOptions): Promise<HighlightedCodeResult | null> {
+  const normalizedLanguage = normalizeCompozyCodeLanguage(language);
   if (!normalizedLanguage) return null;
 
   const highlighter = await highlighterPromise;
-  const themeName = resolveAghCodeThemeName(theme);
+  const themeName = resolveCompozyCodeThemeName(theme);
   const result = highlighter.codeToTokens(code, {
     lang: normalizedLanguage,
     theme: themeName,

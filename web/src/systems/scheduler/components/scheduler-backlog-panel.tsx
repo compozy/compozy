@@ -1,4 +1,4 @@
-import { Eyebrow, MonoId, Pill, Skeleton, SkeletonRows } from "@agh/ui";
+import { Eyebrow, MonoId, Pill, Skeleton, SkeletonRows } from "@compozy/ui";
 
 import type { SchedulerBacklog } from "../types";
 

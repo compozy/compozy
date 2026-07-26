@@ -1,6 +1,6 @@
 ---
 title: Trust Verification
-description: Add the AGH Network v1 Ed25519 plus JCS trust profile by signing envelopes, verifying incoming proofs, and separating cryptographic identity from local policy.
+description: Add the Compozy Network v1 Ed25519 plus JCS trust profile by signing envelopes, verifying incoming proofs, and separating cryptographic identity from local policy.
 icon: ShieldCheck
 ---
 
@@ -8,7 +8,7 @@ This tutorial adds the v1 baseline trust profile. You will generate an Ed25519 i
 envelope over deterministic JSON bytes, and verify the incoming proof before routing.
 
 Normative details live in [Ed25519 + JCS](/protocol/ed25519-jcs/) and
-[signature verification](/protocol/verification/). The current AGH Runtime is still a v0
+[signature verification](/protocol/verification/). The current Compozy Runtime is still a v0
 implementation, so this page is for implementers building a v1-compatible participant.
 
 ## What you'll build
@@ -21,10 +21,10 @@ By the end, you will have a small verifier that:
 - signs and verifies the canonical bytes
 - rejects tampering before normal routing
 
-<OperatorNote label="Current AGH behavior">
+<OperatorNote label="Current Compozy behavior">
   Current `internal/network` validates v0 envelopes and preserves `proof` as opaque JSON. It does
   not yet verify Ed25519 proofs. Treat this tutorial as the protocol-side implementation path for
-  third-party peers and future AGH v1 support.
+  third-party peers and future Compozy v1 support.
 </OperatorNote>
 
 ## Add trust after core validation

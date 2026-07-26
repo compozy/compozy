@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 
-import { Icon } from "@agh/ui";
+import { Icon } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

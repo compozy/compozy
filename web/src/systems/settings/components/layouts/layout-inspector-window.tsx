@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 
-import { Eyebrow, Item, ItemContent, ItemMedia, ItemTitle, cn } from "@agh/ui";
+import { Eyebrow, Item, ItemContent, ItemMedia, ItemTitle, cn } from "@compozy/ui";
 
 import {
   desktopWindowIds,

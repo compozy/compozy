@@ -1,9 +1,9 @@
 ---
-title: "agh completion bash"
+title: "compozy completion bash"
 description: "Generate the autocompletion script for bash"
 ---
 
-## agh completion bash
+## compozy completion bash
 
 Generate the autocompletion script for bash
 
@@ -17,7 +17,7 @@ If it is not installed already, you can install it via your OS's package manager
 To load completions in your current shell session:
 
 ```
-source <(agh completion bash)
+source <(compozy completion bash)
 
 ```
 
@@ -26,21 +26,21 @@ To load completions for every new session, execute once:
 #### Linux:
 
 ```
-agh completion bash > /etc/bash_completion.d/agh
+compozy completion bash > /etc/bash_completion.d/compozy
 
 ```
 
 #### macOS:
 
 ```
-agh completion bash > $(brew --prefix)/etc/bash_completion.d/agh
+compozy completion bash > $(brew --prefix)/etc/bash_completion.d/compozy
 
 ```
 
 You will need to start a new shell for this setup to take effect.
 
 ```
-agh completion bash
+compozy completion bash
 ```
 
 ### Options
@@ -59,7 +59,7 @@ agh completion bash
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -69,5 +69,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh completion bash > /etc/bash_completion.d/agh -o json
+compozy completion bash > /etc/bash_completion.d/compozy -o json
 ```

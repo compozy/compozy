@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -33,10 +33,10 @@ type Story = StoryObj<typeof meta>;
 // The nine-server reference matrix, plus a selectable Vault inventory entry.
 const managementMsw = storybookMswParameters({
   settings: [
-    aghApiMock.get("/api/settings/mcp-servers", () =>
+    compozyApiMock.get("/api/settings/mcp-servers", () =>
       HttpResponse.json(mcpManagementCollectionFixture)
     ),
-    aghApiMock.get("/api/vault/secrets", () =>
+    compozyApiMock.get("/api/vault/secrets", () =>
       HttpResponse.json({
         secrets: [
           {
@@ -97,7 +97,7 @@ export const Unavailable: Story = {
     ...appRouteParameters("/mcp?scope=workspace"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/mcp-servers", () =>
+        compozyApiMock.get("/api/settings/mcp-servers", () =>
           HttpResponse.json({
             ...mcpManagementCollectionFixture,
             mcp_servers: [
@@ -176,12 +176,12 @@ export const AuthFailure: Story = {
     ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/mcp-servers", () =>
+        compozyApiMock.get("/api/settings/mcp-servers", () =>
           HttpResponse.json(mcpManagementCollectionFixture)
         ),
-        aghApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] })),
+        compozyApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] })),
         // Exchange returns without a confirmed token -> the UI stays failed.
-        aghApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", () =>
+        compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", () =>
           HttpResponse.json({
             server_name: "linear",
             scope: "workspace",
@@ -214,11 +214,11 @@ export const AuthBeginFailure: Story = {
     ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/mcp-servers", () =>
+        compozyApiMock.get("/api/settings/mcp-servers", () =>
           HttpResponse.json(mcpManagementCollectionFixture)
         ),
-        aghApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] })),
-        aghApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
+        compozyApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] })),
+        compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
           HttpResponse.json({ error: "OAuth provider unavailable" }, { status: 503 })
         ),
       ],
@@ -335,7 +335,7 @@ export const Loading: Story = {
     ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/mcp-servers", async ({ request }) => {
+        compozyApiMock.get("/api/settings/mcp-servers", async ({ request }) => {
           if (new URL(request.url).searchParams.get("scope") === "global") await delay("infinite");
           return HttpResponse.json(mcpManagementCollectionFixture);
         }),
@@ -352,7 +352,7 @@ export const Empty: Story = {
     ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/mcp-servers", () =>
+        compozyApiMock.get("/api/settings/mcp-servers", () =>
           HttpResponse.json({ ...mcpManagementCollectionFixture, mcp_servers: [], scope: "global" })
         ),
       ],
@@ -371,7 +371,7 @@ export const Error: Story = {
     ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/mcp-servers", ({ request }) => {
+        compozyApiMock.get("/api/settings/mcp-servers", ({ request }) => {
           if (new URL(request.url).searchParams.get("scope") === "global") {
             return HttpResponse.json({ error: "Failed to load MCP servers" }, { status: 500 });
           }

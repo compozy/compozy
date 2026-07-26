@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storyDefaultWorkspaceId, storyHeroNetworkChannel } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -56,7 +56,7 @@ export const ThreadNotFound: Story = {
     ),
     ...storybookMswParameters({
       network: [
-        aghApiMock.get(
+        compozyApiMock.get(
           "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}",
           ({ params }) =>
             HttpResponse.json(

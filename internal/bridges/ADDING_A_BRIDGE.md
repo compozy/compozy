@@ -22,7 +22,7 @@ grant surface, or conformance harness.
 | Service/control subprocess boundary       | `internal/extension` and `internal/subprocess`                    |
 | Daemon routing, delivery, and checkpoints | `internal/bridges`                                                |
 | Public operator guide                     | `packages/site/content/runtime/core/bridges/setup-<provider>.mdx` |
-| Agent-operable runtime guidance           | `skills/agh/references/runtime-operations.md`                     |
+| Agent-operable runtime guidance           | `skills/compozy/references/runtime-operations.md`                 |
 
 There is no hand-maintained provider registry. The extension catalog and conformance tests discover
 valid manifests that provide `bridge.adapter`.

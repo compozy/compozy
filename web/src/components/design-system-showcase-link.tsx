@@ -1,4 +1,4 @@
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 
 const DESIGN_MD_BASE = "https://github.com/compozy/agh/blob/main/DESIGN.md";
 

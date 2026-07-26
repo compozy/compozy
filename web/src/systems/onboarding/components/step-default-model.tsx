@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { Check, KeyRound } from "lucide-react";
 
-import { Eyebrow, Field, FieldLabel, Input, RadioCard, Spinner } from "@agh/ui";
+import { Eyebrow, Field, FieldLabel, Input, RadioCard, Spinner } from "@compozy/ui";
 import { RuntimeSelector } from "@/systems/runtime";
 
 import type { OnboardingDefaultModelApi } from "../hooks/use-onboarding-default-model";
@@ -90,7 +90,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
 
       <section>
         <Eyebrow id="onboarding-auth-label" className="mb-2.5 block text-subtle">
-          How AGH signs in
+          How CompozyOS signs in
         </Eyebrow>
         <div
           role="radiogroup"

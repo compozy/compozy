@@ -1,4 +1,4 @@
-import { formatDuration } from "@agh/ui";
+import { formatDuration } from "@compozy/ui";
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;

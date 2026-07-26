@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 
-import { useTopbarSlot, type TopbarCrumb } from "@agh/ui";
+import { useTopbarSlot, type TopbarCrumb } from "@compozy/ui";
 
 import { SETTINGS_SECTIONS, settingsSectionPath } from "../lib/sections";
 import type { SettingsSectionSlug } from "../types";

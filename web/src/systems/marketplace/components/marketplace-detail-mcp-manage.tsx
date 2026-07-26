@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { Button, Pill, Section } from "@agh/ui";
+import { Button, Pill, Section } from "@compozy/ui";
 
 import { useMCPAuthorize } from "@/systems/settings";
 import {

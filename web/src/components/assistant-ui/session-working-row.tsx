@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { TypingDots } from "@agh/ui";
+import { TypingDots } from "@compozy/ui";
 import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import { formatWorkingElapsed } from "./session-working-row.logic";
 import type { SessionWorkingRow } from "./session-timeline.logic";
@@ -35,7 +35,7 @@ function WorkingTimer({ startedAt }: { startedAt: number }) {
  * Presentational streaming indicator, split from the row wrapper so Storybook can
  * render both the motion and reduced-motion variants without touching `matchMedia`.
  *
- * Motion: typing dots (`@agh/ui` `TypingDots`, wiring the `typing-bounce`
+ * Motion: typing dots (`@compozy/ui` `TypingDots`, wiring the `typing-bounce`
  * keyframe on `bg-subtle` dots) beside a live "Working for Xs" `tabular-nums`
  * timer. Reduced motion degrades to a resting label — no `TypingDots`, no
  * ticking timer — so no animation class reaches the DOM.

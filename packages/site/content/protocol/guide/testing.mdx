@@ -1,6 +1,6 @@
 ---
 title: Testing Your Implementation
-description: Test AGH Network envelopes, lifecycle, trust, and your implementation-owned carrier with repeatable evidence.
+description: Test Compozy Network envelopes, lifecycle, trust, and your implementation-owned carrier with repeatable evidence.
 icon: Activity
 ---
 
@@ -54,9 +54,9 @@ func TestCoreSenderFixture(t *testing.T) {
 Add a carrier integration test only after fixtures pass. A carrier acknowledgement proves carrier
 handling; it does not prove protocol acceptance, trust, or completed work.
 
-## AGH Runtime evidence
+## Compozy Runtime evidence
 
-Inside the AGH repository, scoped package tests exercise the reference implementation:
+Inside the Compozy repository, scoped package tests exercise the reference implementation:
 
 ```bash
 go test -race ./internal/network/...

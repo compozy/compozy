@@ -2,7 +2,7 @@ import { Copy, Globe, ListChecks, Plus, RefreshCcw, UserCheck, Zap } from "lucid
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { Button, Empty, Eyebrow } from "@agh/ui";
+import { Button, Empty, Eyebrow } from "@compozy/ui";
 
 import { getTaskTemplate, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
 
@@ -81,7 +81,7 @@ export function TasksEmptyState({
                   variant="neutral"
                 >
                   <Copy className="size-3" />
-                  <span className="font-mono text-eyebrow text-fg-strong">agh tasks new</span>
+                  <span className="font-mono text-eyebrow text-fg-strong">compozy tasks new</span>
                 </Button>
               ) : null}
             </>

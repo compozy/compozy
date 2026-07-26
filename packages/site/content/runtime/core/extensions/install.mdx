@@ -1,36 +1,36 @@
 ---
 title: Install Extensions
-description: Install, discover, enable, disable, update, and inspect AGH extensions from local directories or configured registries.
+description: Install, discover, enable, disable, update, and inspect Compozy extensions from local directories or configured registries.
 ---
 
-Extensions are installable packages that add static resources or runtime capabilities to AGH. An
+Extensions are installable packages that add static resources or runtime capabilities to Compozy. An
 extension can bundle skills, agent definitions, hooks, bundles, MCP servers, bridge adapters, memory
 backends, and subprocess services.
 
-AGH stores installed extensions in the global registry and copies managed installs into
+Compozy stores installed extensions in the global registry and copies managed installs into
 `<COMPOZY_HOME>/extensions/<name>`.
 
 <OperatorNote>
   Extension marketplace operations are daemon-owned. Search, registry install, update, remove,
   enable, disable, status, and provenance calls require the daemon over UDS or HTTP. The only
-  daemon-down fallback paths are local `agh extension list` and local-directory `agh extension
-  install --allow-unverified --yes`.
+  daemon-down fallback paths are local `compozy extension list` and local-directory `compozy
+  extension install --allow-unverified --yes`.
 </OperatorNote>
 
 Extension lifecycle is agent-manageable. The `compozy__extensions` toolset and the parallel
-`agh extension` CLI reach the same registry, marketplace, install, update, remove, enable, and
+`compozy extension` CLI reach the same registry, marketplace, install, update, remove, enable, and
 disable services:
 
-| Action             | Tool                                    | CLI                            |
-| ------------------ | --------------------------------------- | ------------------------------ |
-| Search marketplace | `compozy__marketplace_search`           | `agh extension search`         |
-| List installed     | `compozy__extensions_list`              | `agh extension list`           |
-| Inspect one        | `compozy__extensions_info`              | `agh extension status`         |
-| Inspect provenance | `compozy__extensions_info`              | `agh extension provenance`     |
-| Install            | `compozy__extensions_install`           | `agh extension install`        |
-| Update             | `compozy__extensions_update`            | `agh extension update`         |
-| Remove             | `compozy__extensions_remove`            | `agh extension remove`         |
-| Enable / disable   | `compozy__extensions_enable`/`_disable` | `agh extension enable/disable` |
+| Action             | Tool                                    | CLI                                |
+| ------------------ | --------------------------------------- | ---------------------------------- |
+| Search marketplace | `compozy__marketplace_search`           | `compozy extension search`         |
+| List installed     | `compozy__extensions_list`              | `compozy extension list`           |
+| Inspect one        | `compozy__extensions_info`              | `compozy extension status`         |
+| Inspect provenance | `compozy__extensions_info`              | `compozy extension provenance`     |
+| Install            | `compozy__extensions_install`           | `compozy extension install`        |
+| Update             | `compozy__extensions_update`            | `compozy extension update`         |
+| Remove             | `compozy__extensions_remove`            | `compozy extension remove`         |
+| Enable / disable   | `compozy__extensions_enable`/`_disable` | `compozy extension enable/disable` |
 
 Tool mutations require approval and pass through the same source-trust filter as the CLI.
 Deterministic denials include `EXTENSION_SOURCE_FORBIDDEN`, `EXTENSION_APPROVAL_REQUIRED`,
@@ -43,9 +43,9 @@ install actor, and deterministic diagnostics when capability or trust checks rej
 The HTTP/UDS API, native tools, CLI, and settings page all surface the same trust decision.
 
 Extension bundles have their own UDS-backed CLI surface. After installing an extension, agents can
-inspect and manage preset activations with `agh bundle catalog`, `agh bundle preview`,
-`agh bundle activate`, `agh bundle list`, `agh bundle get`, `agh bundle update`,
-`agh bundle deactivate`, and `agh bundle network-settings`.
+inspect and manage preset activations with `compozy bundle catalog`, `compozy bundle preview`,
+`compozy bundle activate`, `compozy bundle list`, `compozy bundle get`, `compozy bundle update`,
+`compozy bundle deactivate`, and `compozy bundle network-settings`.
 The same daemon service is exposed to agents through `compozy__bundles_list`, `compozy__bundles_info`,
 `compozy__bundles_activate`, `compozy__bundles_deactivate`, and `compozy__bundles_status`. Desired-state
 resources published by extensions are inspectable through `compozy__resources_list`,
@@ -67,7 +67,7 @@ prompt-enhancer/
 Install it:
 
 ```bash
-agh extension install ./prompt-enhancer --allow-unverified
+compozy extension install ./prompt-enhancer --allow-unverified
 ```
 
 If the daemon is running, the CLI sends the path and checksum to the daemon over UDS. The daemon
@@ -90,16 +90,16 @@ min_compozy_version = "0.5.0"
 requires_env = ["DAYTONA_API_KEY", "DAYTONA_ORGANIZATION_ID"]
 ```
 
-AGH validates `requires_env` as environment variable names during install and status loading.
+Compozy validates `requires_env` as environment variable names during install and status loading.
 Diagnostics report only names, never values. If a required variable is unset or empty,
-`agh extension list`, `agh extension status`, the API, and the settings page surface it through
+`compozy extension list`, `compozy extension status`, the API, and the settings page surface it through
 `missing_env`.
 
 ## List And Inspect Installed Extensions
 
 ```bash
-agh extension list
-agh extension status prompt-enhancer
+compozy extension list
+compozy extension status prompt-enhancer
 ```
 
 `status` returns both registry and runtime information:
@@ -113,7 +113,7 @@ agh extension status prompt-enhancer
 | `health`                    | `unknown`, `healthy`, or `unhealthy`.                                                                                    |
 | `capabilities`, `actions`   | Manifest-declared provide surfaces and Host API methods.                                                                 |
 | `requires_env`              | Manifest-declared environment variable names required by the extension.                                                  |
-| `missing_env`               | Required environment variable names that are unset or empty in the current AGH process environment.                      |
+| `missing_env`               | Required environment variable names that are unset or empty in the current Compozy process environment.                  |
 | `bundles`                   | Bundle summaries packaged by the extension.                                                                              |
 | `provenance`                | Install source, checksum, registry tier, `allow_unverified`, installer identity, and trust report.                       |
 | `trust`                     | Current trust decision, checksum verification, capability diagnostics, warnings, and denials.                            |
@@ -124,8 +124,8 @@ agh extension status prompt-enhancer
 ## Enable Or Disable
 
 ```bash
-agh extension disable prompt-enhancer
-agh extension enable prompt-enhancer
+compozy extension disable prompt-enhancer
+compozy extension enable prompt-enhancer
 ```
 
 Enable and disable require the daemon. The daemon updates the registry flag, reloads the extension
@@ -138,7 +138,7 @@ bundle activations first, then disable the extension.
 ## Remove An Extension
 
 ```bash
-agh extension remove prompt-enhancer
+compozy extension remove prompt-enhancer
 ```
 
 Removal deletes the managed install directory and registry row with rollback handling. Like disable,
@@ -174,8 +174,8 @@ After changing `marketplace.catalog.*` or `extensions.marketplace.allow_unverifi
 inspect the daemon's apply record:
 
 ```bash
-agh config reload -o json
-agh config apply-history --limit 5 -o json
+compozy config reload -o json
+compozy config apply-history --limit 5 -o json
 ```
 
 ## Search Marketplace Sources
@@ -183,14 +183,14 @@ agh config apply-history --limit 5 -o json
 The CLI searches the daemon-owned curated projection:
 
 ```bash
-agh extension search prompt --limit 20
+compozy extension search prompt --limit 20
 ```
 
 Use the unified discovery command when another agent needs installed state and trust fields in the
 same structured result:
 
 ```bash
-agh marketplace search bridge --kind extension -o json
+compozy marketplace search bridge --kind extension -o json
 ```
 
 Both commands read `GET /api/marketplace/extension`. Curated entries name an exact HTTPS artifact
@@ -201,16 +201,16 @@ and digest; GitHub remains the release source for manual registry installs, not 
 Install the `install_slug` from a curated detail record:
 
 ```bash
-agh marketplace info extension acme-linear-bridge -o json
-agh extension install acme/linear-bridge -o json
+compozy marketplace info extension acme-linear-bridge -o json
+compozy extension install acme/linear-bridge -o json
 ```
 
 Curated installs pin the catalog version, exact `artifact_url`, and archive digest. `--version` and
 `--asset` remain available for non-curated registry installs:
 
 ```bash
-agh extension install acme/private-extension --version v0.3.1 --allow-unverified --yes
-agh extension install acme/private-extension --asset agh-extension-linux-amd64.tar.gz --allow-unverified --yes
+compozy extension install acme/private-extension --version v0.3.1 --allow-unverified --yes
+compozy extension install acme/private-extension --asset compozy-extension-linux-amd64.tar.gz --allow-unverified --yes
 ```
 
 Registry flags are valid only for registry installs. If the argument is an existing local directory,
@@ -219,19 +219,19 @@ Registry flags are valid only for registry installs. If the argument is an exist
 Marketplace install flow:
 
 1. The CLI, HTTP client, web app, or native tool sends the install request to the daemon.
-2. AGH resolves curated evidence for the requested slug and version when a matching catalog entry
+2. Compozy resolves curated evidence for the requested slug and version when a matching catalog entry
    exists.
-3. AGH downloads the catalog entry's exact HTTPS artifact into a staging directory and verifies the
+3. Compozy downloads the catalog entry's exact HTTPS artifact into a staging directory and verifies the
    catalog-pinned SHA-256 digest before extraction. Non-curated installs resolve a registry release
    instead.
 4. The installer extracts the archive and locates `extension.toml` at archive root or inside one
    top-level directory.
-5. AGH validates the manifest, computes the extracted-tree checksum, and evaluates the trust
+5. Compozy validates the manifest, computes the extracted-tree checksum, and evaluates the trust
    report.
-6. AGH moves the package to `<COMPOZY_HOME>/extensions/<name>`.
-7. AGH persists catalog identity, archive digest, extracted checksum, registry tier, install actor,
+6. Compozy moves the package to `<COMPOZY_HOME>/extensions/<name>`.
+7. Compozy persists catalog identity, archive digest, extracted checksum, registry tier, install actor,
    trust report, and diagnostics.
-8. AGH reloads extension runtime resources and writes an `extension.installed` event.
+8. Compozy reloads extension runtime resources and writes an `extension.installed` event.
 
 Managed installs do not allow runtime dependency symlinks to escape the extracted extension root.
 If a packaged `node_modules` or runtime dependency symlink resolves outside that root, installation
@@ -251,20 +251,20 @@ cannot be bypassed with `--allow-unverified`.
 Check one marketplace extension:
 
 ```bash
-agh extension update prompt-enhancer --check
+compozy extension update prompt-enhancer --check
 ```
 
 Update one marketplace extension:
 
 ```bash
-agh extension update prompt-enhancer
+compozy extension update prompt-enhancer
 ```
 
 Check or update all marketplace-installed extensions:
 
 ```bash
-agh extension update --all --check
-agh extension update --all
+compozy extension update --all --check
+compozy extension update --all
 ```
 
 Update only works for extensions installed from a registry with slug metadata. Local extensions are
@@ -273,7 +273,7 @@ row and provenance, reloads runtime resources, and writes an `extension.updated`
 updates resolve and verify the digest for the selected version again. Non-curated updates follow the
 same policy-plus-request gate as installs.
 
-The runtime activation is the update commit point. If the new version is active but AGH cannot
+The runtime activation is the update commit point. If the new version is active but Compozy cannot
 remove its staging directory or previous-version backup, the update still returns `status: "updated"`
 with an `extension_update_cleanup_failed` warning. The warning identifies the cleanup target and
 residual path; verify the active version before an operator removes that residue. The same warning is
@@ -282,7 +282,7 @@ preserved in the `extension.updated` event and in CLI/native structured output.
 ## Inspect Provenance And Trust
 
 ```bash
-agh extension provenance prompt-enhancer
+compozy extension provenance prompt-enhancer
 ```
 
 The provenance response is the audit record for the installed package. It includes the install
@@ -320,7 +320,7 @@ unverified checksum decision with `allow_unverified`, but capability ceilings st
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | `extensions marketplace is not configured`         | `[extensions.marketplace]` is absent or empty.                                             | Add `registry = "github"` or install from a local path.                                                    |
 | `extensions.marketplace.registry must be "github"` | Unsupported registry value.                                                                | Use `github`.                                                                                              |
-| Extension appears as `enabled` but not `active`    | Daemon is offline, disabled, or runtime failed before activation.                          | Start the daemon and inspect `agh extension status <name>`.                                                |
+| Extension appears as `enabled` but not `active`    | Daemon is offline, disabled, or runtime failed before activation.                          | Start the daemon and inspect `compozy extension status <name>`.                                            |
 | Disable/remove returns a conflict                  | Active bundle activations depend on the extension.                                         | Remove or deactivate those bundle activations first.                                                       |
 | `extension_unverified_policy_blocked`              | A non-curated side-load is disabled by live policy.                                        | Review the source, enable `extensions.marketplace.allow_unverified`, reload, then confirm the one request. |
 | `extension_archive_digest_mismatch`                | A curated archive differs from the catalog-pinned bytes.                                   | Stop. Refresh the catalog or wait for the curated entry to be corrected; do not bypass the check.          |

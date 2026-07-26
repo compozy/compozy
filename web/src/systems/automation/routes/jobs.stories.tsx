@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -52,7 +52,7 @@ export const Empty: Story = {
     ...appRouteParameters("/jobs"),
     ...storybookMswParameters({
       automation: [
-        aghApiMock.get("/api/automation/jobs", () =>
+        compozyApiMock.get("/api/automation/jobs", () =>
           HttpResponse.json({ jobs: [], page: { has_more: false, limit: 50, total: 0 } })
         ),
       ],
@@ -67,7 +67,7 @@ export const JobsError: Story = {
     ...appRouteParameters("/jobs"),
     ...storybookMswParameters({
       automation: [
-        aghApiMock.get("/api/automation/jobs", () =>
+        compozyApiMock.get("/api/automation/jobs", () =>
           HttpResponse.json({ error: "jobs unavailable" }, { status: 500 })
         ),
       ],
@@ -97,7 +97,7 @@ export const Loading: Story = {
     ...appRouteParameters("/jobs"),
     ...storybookMswParameters({
       automation: [
-        aghApiMock.get("/api/automation/jobs", async () => {
+        compozyApiMock.get("/api/automation/jobs", async () => {
           await delay("infinite");
           return HttpResponse.json({
             jobs: [],

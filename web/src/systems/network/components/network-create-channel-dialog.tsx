@@ -18,7 +18,7 @@ import {
   Input,
   Pill,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { AgentCommandMultiSelect, type AgentPayload } from "@/systems/agent";
 
 import type { NetworkCreateChannelDraft, NetworkFanoutPolicy } from "../types";

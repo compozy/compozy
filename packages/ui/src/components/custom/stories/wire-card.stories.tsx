@@ -1,7 +1,7 @@
 import { Check, Package } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { WireCard, WireCardBody, WireCardFoot, WireCardHead } from "@agh/ui";
+import { WireCard, WireCardBody, WireCardFoot, WireCardHead } from "@compozy/ui";
 
 const meta: Meta<typeof WireCard> = {
   title: "components/custom/WireCard",

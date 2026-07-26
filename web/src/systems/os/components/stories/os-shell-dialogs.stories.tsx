@@ -16,7 +16,7 @@ const meta: Meta<typeof OsShortcutsDialog> = {
     docs: {
       description: {
         component:
-          "The two shell-scoped dialogs the Help and AGH menus open: the keyboard reference (every registry action, bound or not) and the installation identity read straight from `/api/status`.",
+          "The two shell-scoped dialogs the Help and CompozyOS menus open: the keyboard reference (every registry action, bound or not) and the installation identity read straight from `/api/status`.",
       },
     },
   },

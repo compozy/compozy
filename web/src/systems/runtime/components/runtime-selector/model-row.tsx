@@ -1,6 +1,6 @@
 import { Brain, Check, Star } from "lucide-react";
 
-import { cn, KindIcon, providerKindIconRegistry } from "@agh/ui";
+import { cn, KindIcon, providerKindIconRegistry } from "@compozy/ui";
 
 import type { RuntimeModelOption } from "./types";
 

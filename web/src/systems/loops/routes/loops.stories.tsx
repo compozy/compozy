@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -64,7 +64,7 @@ export const EmptyCatalog: Story = {
     ...appRouteParameters("/loops"),
     ...storybookMswParameters({
       loops: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/loops", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loops", () =>
           HttpResponse.json({
             facets: { categories: {}, kinds: {}, statuses: {} },
             loops: [],
@@ -83,7 +83,7 @@ export const LoadingCatalog: Story = {
     ...appRouteParameters("/loops"),
     ...storybookMswParameters({
       loops: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/loops", async () => {
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loops", async () => {
           await delay("infinite");
           return HttpResponse.json({
             facets: { categories: {}, kinds: {}, statuses: {} },

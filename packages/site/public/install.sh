@@ -23,8 +23,8 @@ usage() {
 AGH installer
 
 Usage:
-  curl -fsSL https://agh.network/install.sh | sh
-  curl -fsSL https://agh.network/install.sh | sh -s -- [options]
+  curl -fsSL https://compozy.com/install.sh | sh
+  curl -fsSL https://compozy.com/install.sh | sh -s -- [options]
 
 Options:
   --version vX.Y.Z      Install a specific release tag instead of latest.

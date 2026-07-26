@@ -22,7 +22,7 @@ const meta: Meta<typeof OsMenuBar> = {
     docs: {
       description: {
         component:
-          'The desktop menubar: the AGH system menu, the workspace switcher, the static Session / Go / Window / Help set, the approvals bell, the ⌘K chip, and Settings. The mark, the workspace chip, and every app menu sit in one `role="menubar"`, so arrow keys traverse the whole bar and hovering a sibling switches the open menu.',
+          'The desktop menubar: the CompozyOS system menu, the workspace switcher, the static Session / Go / Window / Help set, the approvals bell, the ⌘K chip, and Settings. The mark, the workspace chip, and every app menu sit in one `role="menubar"`, so arrow keys traverse the whole bar and hovering a sibling switches the open menu.',
       },
     },
   },

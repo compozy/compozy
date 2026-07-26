@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 import { userEvent, within } from "storybook/test";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -53,7 +53,7 @@ export const Empty: Story = {
   parameters: {
     ...appRouteParameters("/vault"),
     ...storybookMswParameters({
-      vault: [aghApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] }))],
+      vault: [compozyApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] }))],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -65,7 +65,7 @@ export const Loading: Story = {
     ...appRouteParameters("/vault"),
     ...storybookMswParameters({
       vault: [
-        aghApiMock.get("/api/vault/secrets", async () => {
+        compozyApiMock.get("/api/vault/secrets", async () => {
           await delay("infinite");
           return HttpResponse.json({ secrets: [] });
         }),
@@ -81,7 +81,7 @@ export const Error: Story = {
     ...appRouteParameters("/vault"),
     ...storybookMswParameters({
       vault: [
-        aghApiMock.get("/api/vault/secrets", () =>
+        compozyApiMock.get("/api/vault/secrets", () =>
           HttpResponse.json({ error: "vault unavailable" }, { status: 503 })
         ),
       ],

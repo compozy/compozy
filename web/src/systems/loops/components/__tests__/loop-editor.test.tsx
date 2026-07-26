@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { TopbarSlotValue } from "@agh/ui";
+import type { TopbarSlotValue } from "@compozy/ui";
 
 import { createMswFetch } from "@/test/msw-fetch";
 import { renderWithTopbar } from "@/test/render-with-topbar";

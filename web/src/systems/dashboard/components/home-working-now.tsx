@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 
-import { Button, Empty, OwnerAvatar, Pill, Section, SkeletonRows, Surface } from "@agh/ui";
+import { Button, Empty, OwnerAvatar, Pill, Section, SkeletonRows, Surface } from "@compozy/ui";
 
 import { useSessionCreate } from "@/systems/session";
 

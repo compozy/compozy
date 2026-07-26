@@ -1,4 +1,4 @@
-import type { Filter, FilterFieldsConfig } from "@agh/ui";
+import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 
 import type { TaskOwnerKind, TaskPriority, TaskStatus } from "../types";
 import { taskOwnerKindLabel, taskPriorityLabel, taskStatusLabel } from "./task-formatters";

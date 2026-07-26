@@ -1,6 +1,6 @@
 import { KeyRound } from "lucide-react";
 
-import { DataSurface, type ListingViewMode } from "@agh/ui";
+import { DataSurface, type ListingViewMode } from "@compozy/ui";
 
 import type { VaultSecret } from "../types";
 import { VaultSecretsCard } from "./vault-secrets-card";

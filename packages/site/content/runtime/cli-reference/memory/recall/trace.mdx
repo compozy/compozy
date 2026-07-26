@@ -1,14 +1,14 @@
 ---
-title: "agh memory recall trace"
+title: "compozy memory recall trace"
 description: "Show one redaction-safe recall trace"
 ---
 
-## agh memory recall trace
+## compozy memory recall trace
 
 Show one redaction-safe recall trace
 
 ```
-agh memory recall trace <session_id> <turn_seq> [flags]
+compozy memory recall trace <session_id> <turn_seq> [flags]
 ```
 
 ### Options
@@ -26,7 +26,7 @@ agh memory recall trace <session_id> <turn_seq> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -36,5 +36,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh memory recall trace <session_id> <turn_seq> -o json
+compozy memory recall trace <session_id> <turn_seq> -o json
 ```

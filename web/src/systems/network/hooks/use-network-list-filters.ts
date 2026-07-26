@@ -1,6 +1,6 @@
 import { useDeferredValue, useState } from "react";
 
-import { createFilter, type Filter as ReuiFilter } from "@agh/ui";
+import { createFilter, type Filter as ReuiFilter } from "@compozy/ui";
 
 import type { NetworkLastReadLookupKey } from "./use-last-read";
 import { useLastRead } from "./use-last-read";

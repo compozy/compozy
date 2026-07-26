@@ -1,20 +1,20 @@
 ---
-title: "agh agent heartbeat history"
+title: "compozy agent heartbeat history"
 description: "List managed Heartbeat authoring revisions"
 ---
 
-## agh agent heartbeat history
+## compozy agent heartbeat history
 
 List managed Heartbeat authoring revisions
 
 ```
-agh agent heartbeat history <agent> [flags]
+compozy agent heartbeat history <agent> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent heartbeat history coder --limit 10 --workspace checkout-api --json
+  compozy agent heartbeat history coder --limit 10 --workspace checkout-api --json
 ```
 
 ### Options
@@ -35,7 +35,7 @@ agh agent heartbeat history <agent> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -45,5 +45,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent heartbeat history <agent> -o json
+compozy agent heartbeat history <agent> -o json
 ```

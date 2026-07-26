@@ -1,6 +1,6 @@
 import { KeyRound, ShieldOff, TerminalSquare } from "lucide-react";
 
-import { Alert, AlertDescription, Eyebrow, FormSection, Input, Pill, RadioCard } from "@agh/ui";
+import { Alert, AlertDescription, Eyebrow, FormSection, Input, Pill, RadioCard } from "@compozy/ui";
 
 import { withProviderAuthMode } from "../lib/provider-draft";
 import type { ProviderAuthMode, ProviderDraft, SettingsProviderEntry } from "../types";
@@ -26,7 +26,7 @@ const AUTH_CARDS: ReadonlyArray<{
   {
     value: "native_cli",
     title: "Native CLI",
-    description: "The provider owns login and credential state. AGH never asks for keys.",
+    description: "The provider owns login and credential state. CompozyOS never asks for keys.",
     badge: "Provider-owned",
     icon: TerminalSquare,
     testId: "settings-providers-editor-auth-mode-native_cli",
@@ -34,15 +34,15 @@ const AUTH_CARDS: ReadonlyArray<{
   {
     value: "bound_secret",
     title: "Bound secret",
-    description: "AGH injects the declared credential slots at launch, from the vault.",
-    badge: "AGH-managed",
+    description: "CompozyOS injects the declared credential slots at launch, from the vault.",
+    badge: "CompozyOS-managed",
     icon: KeyRound,
     testId: "settings-providers-editor-auth-mode-bound_secret",
   },
   {
     value: "none",
     title: "None",
-    description: "The provider launches with no AGH-managed credentials.",
+    description: "The provider launches with no CompozyOS-managed credentials.",
     badge: "Unauthenticated",
     icon: ShieldOff,
     testId: "settings-providers-editor-auth-mode-none",
@@ -52,17 +52,17 @@ const AUTH_CARDS: ReadonlyArray<{
 /**
  * Auth ownership and everything it governs.
  *
- * The mode is a security boundary, not a disclosure: AGH may offer credential
+ * The mode is a security boundary, not a disclosure: CompozyOS may offer credential
  * inputs only under `bound_secret`, and under `native_cli` it may do no more
  * than surface the provider-owned login command (`internal/CLAUDE.md`
  * § Provider auth boundary). The gate is therefore mount/unmount, never
- * disabled fields — a disabled credential input still says AGH wants the key.
+ * disabled fields — a disabled credential input still says CompozyOS wants the key.
  */
 export function ProviderAuthFields({ mode, draft, entry, onChange }: ProviderAuthFieldsProps) {
   return (
     <FormSection
       data-testid="settings-providers-editor-auth"
-      description="AGH asks for credentials only under a bound-secret contract."
+      description="CompozyOS asks for credentials only under a bound-secret contract."
       title="Who owns authentication?"
     >
       <div
@@ -124,7 +124,7 @@ interface ProviderNativeAuthFieldsProps {
 }
 
 /**
- * Provider-owned login: the two commands AGH may run on the operator's behalf,
+ * Provider-owned login: the two commands CompozyOS may run on the operator's behalf,
  * plus the last reported status. No credential input belongs here.
  */
 function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuthFieldsProps) {
@@ -178,7 +178,7 @@ function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuth
           />
         }
         data-testid="settings-providers-editor-auth-login-command"
-        description="Provider-owned command opened by provider auth login. AGH never stores what it produces."
+        description="Provider-owned command opened by provider auth login. CompozyOS never stores what it produces."
         label={
           <>
             Login command

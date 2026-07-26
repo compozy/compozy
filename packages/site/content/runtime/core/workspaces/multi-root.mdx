@@ -1,24 +1,24 @@
 ---
 title: Multi-Root Workspaces
-description: How to attach additional directories to one AGH workspace for monorepos, shared agents, and project clusters.
+description: How to attach additional directories to one Compozy workspace for monorepos, shared agents, and project clusters.
 ---
 
 A multi-root workspace has one primary root and zero or more additional roots. The primary root owns
 the workspace config. All roots can contribute agents and skills.
 
 Use multi-root when one session should operate from a main repository while also seeing reusable
-project-local agents or skills from nearby directories. AGH starts the agent in the primary root and
+project-local agents or skills from nearby directories. Compozy starts the agent in the primary root and
 sends the additional roots to ACP as `additional_dirs`.
 
 <OperatorNote>
-  Keep `.agh/config.toml` in the primary root. Additional roots are for resource discovery, not
+  Keep `.compozy/config.toml` in the primary root. Additional roots are for resource discovery, not
   another config merge layer.
 </OperatorNote>
 
 ## Register Additional Roots
 
 ```bash
-agh workspace add /Users/you/src/acme/checkout \
+compozy workspace add /Users/you/src/acme/checkout \
   --name checkout \
   --add-dir /Users/you/src/acme/shared-agents \
   --add-dir /Users/you/src/acme/platform
@@ -27,12 +27,12 @@ agh workspace add /Users/you/src/acme/checkout \
 Add or remove roots later:
 
 ```bash
-agh workspace edit checkout \
+compozy workspace edit checkout \
   --add-dir /Users/you/src/acme/ops-notes
 ```
 
 ```bash
-agh workspace edit checkout \
+compozy workspace edit checkout \
   --remove-dir /Users/you/src/acme/platform
 ```
 
@@ -40,15 +40,15 @@ The CLI prevents adding and removing the same directory in one edit command.
 
 ## What Multi-Root Changes
 
-| Surface                           | Primary root            | Additional roots         | Global home                       |
-| --------------------------------- | ----------------------- | ------------------------ | --------------------------------- |
-| Agent process `cwd`               | yes                     | no                       | no                                |
-| ACP `additional_dirs`             | no                      | yes                      | no                                |
-| `.agh/config.toml`                | yes                     | no                       | global config is separate         |
-| `.agh/mcp.json` top-level sidecar | yes                     | no                       | global sidecar is separate        |
-| `.agh/agents/*/AGENT.md`          | yes, highest precedence | yes, in registered order | yes, lowest precedence            |
-| `.agh/skills/*/SKILL.md`          | yes, highest precedence | yes, in registered order | yes, lowest filesystem precedence |
-| `.agh/memory/`                    | yes                     | no                       | global memory is separate         |
+| Surface                               | Primary root            | Additional roots         | Global home                       |
+| ------------------------------------- | ----------------------- | ------------------------ | --------------------------------- |
+| Agent process `cwd`                   | yes                     | no                       | no                                |
+| ACP `additional_dirs`                 | no                      | yes                      | no                                |
+| `.compozy/config.toml`                | yes                     | no                       | global config is separate         |
+| `.compozy/mcp.json` top-level sidecar | yes                     | no                       | global sidecar is separate        |
+| `.compozy/agents/*/AGENT.md`          | yes, highest precedence | yes, in registered order | yes, lowest precedence            |
+| `.compozy/skills/*/SKILL.md`          | yes, highest precedence | yes, in registered order | yes, lowest filesystem precedence |
+| `.compozy/memory/`                    | yes                     | no                       | global memory is separate         |
 
 The session start options use:
 
@@ -57,7 +57,7 @@ cwd = <workspace root>
 additional_dirs = [<additional root 1>, <additional root 2>, ...]
 ```
 
-That means provider support for `additional_dirs` depends on the ACP-compatible agent. AGH still
+That means provider support for `additional_dirs` depends on the ACP-compatible agent. Compozy still
 uses the additional roots for its own agent and skill discovery before the subprocess starts.
 
 ## Precedence
@@ -66,19 +66,19 @@ Discovery order is first-wins:
 
 1. Primary workspace root
 2. Additional roots, in the order stored on the workspace
-3. Global AGH home
+3. Global Compozy home
 
-For agents, the first `AGENT.md` whose parsed `name` matches wins. AGH does not merge two agent
+For agents, the first `AGENT.md` whose parsed `name` matches wins. Compozy does not merge two agent
 definitions with the same name.
 
-For skills, the first skill directory name wins. AGH does not merge two `SKILL.md` files with the
+For skills, the first skill directory name wins. Compozy does not merge two `SKILL.md` files with the
 same directory name.
 
 <Mermaid
   chart={`flowchart LR
-Root[primary root .agh] --> AddOne[additional root 1 .agh]
-AddOne --> AddTwo[additional root 2 .agh]
-AddTwo --> Global[global ~/.agh]
+Root[primary root .compozy] --> AddOne[additional root 1 .compozy]
+AddOne --> AddTwo[additional root 2 .compozy]
+AddTwo --> Global[global ~/.compozy]
 Root --> Winner{same name?}
 AddOne --> Winner
 AddTwo --> Winner
@@ -89,12 +89,12 @@ Winner --> First[keep first discovered resource]`}
 
 ## Monorepo Pattern
 
-Use the repository root as the workspace root when one `.agh/config.toml` should govern the whole
+Use the repository root as the workspace root when one `.compozy/config.toml` should govern the whole
 monorepo:
 
 ```text
 acme-platform/
-  .agh/
+  .compozy/
     config.toml
     agents/
       monorepo-maintainer/AGENT.md
@@ -110,13 +110,13 @@ acme-platform/
 Register once:
 
 ```bash
-agh workspace add /Users/you/src/acme-platform --name acme-platform
+compozy workspace add /Users/you/src/acme-platform --name acme-platform
 ```
 
 Start sessions from the named workspace:
 
 ```bash
-agh session new --workspace acme-platform --agent monorepo-maintainer
+compozy session new --workspace acme-platform --agent monorepo-maintainer
 ```
 
 This keeps one config overlay and one workspace memory scope for the whole monorepo.
@@ -129,17 +129,17 @@ agents or skills:
 ```text
 acme/
   checkout/
-    .agh/
+    .compozy/
       config.toml
       memory/
         MEMORY.md
   billing/
-    .agh/
+    .compozy/
       config.toml
       memory/
         MEMORY.md
   shared-agent-kit/
-    .agh/
+    .compozy/
       agents/
         incident-reviewer/AGENT.md
       skills/
@@ -149,13 +149,13 @@ acme/
 Register each project with the same shared root:
 
 ```bash
-agh workspace add /Users/you/src/acme/checkout \
+compozy workspace add /Users/you/src/acme/checkout \
   --name checkout \
   --add-dir /Users/you/src/acme/shared-agent-kit
 ```
 
 ```bash
-agh workspace add /Users/you/src/acme/billing \
+compozy workspace add /Users/you/src/acme/billing \
   --name billing \
   --add-dir /Users/you/src/acme/shared-agent-kit
 ```
@@ -165,18 +165,18 @@ config and workspace memory.
 
 ## Nested Workspace Pattern
 
-Nested directories can be registered as separate workspaces because AGH resolves registered rows,
+Nested directories can be registered as separate workspaces because Compozy resolves registered rows,
 not a Git-style nearest-parent marker.
 
 ```text
 acme-platform/
-  .agh/
+  .compozy/
     config.toml
     agents/
       platform/AGENT.md
   services/
     checkout/
-      .agh/
+      .compozy/
         config.toml
         agents/
           checkout/AGENT.md
@@ -185,30 +185,30 @@ acme-platform/
 You can register both:
 
 ```bash
-agh workspace add /Users/you/src/acme-platform --name platform
+compozy workspace add /Users/you/src/acme-platform --name platform
 ```
 
 ```bash
-agh workspace add /Users/you/src/acme-platform/services/checkout --name checkout
+compozy workspace add /Users/you/src/acme-platform/services/checkout --name checkout
 ```
 
 Then target the desired scope explicitly:
 
 ```bash
-agh session new --workspace platform --agent platform
+compozy session new --workspace platform --agent platform
 ```
 
 ```bash
-agh session new --workspace checkout --agent checkout
+compozy session new --workspace checkout --agent checkout
 ```
 
-If you run `agh session new` from inside `services/checkout` without `--workspace`, the CLI sends
-that current directory as `workspace_path`. AGH resolves or registers that exact directory. It does
-not walk upward to find the nearest ancestor that already has `.agh/`.
+If you run `compozy session new` from inside `services/checkout` without `--workspace`, the CLI sends
+that current directory as `workspace_path`. Compozy resolves or registers that exact directory. It does
+not walk upward to find the nearest ancestor that already has `.compozy/`.
 
 ## Path Normalization And Duplicates
 
-AGH normalizes every root with `filepath.Abs`, `os.Stat`, and `filepath.EvalSymlinks`.
+Compozy normalizes every root with `filepath.Abs`, `os.Stat`, and `filepath.EvalSymlinks`.
 
 | Case                                                           | Behavior                                                                               |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -225,25 +225,25 @@ Additional roots do not load config:
 
 ```text
 checkout/
-  .agh/config.toml       # loaded
+  .compozy/config.toml       # loaded
 
 shared-agent-kit/
-  .agh/config.toml       # ignored for checkout
-  .agh/agents/...        # discovered
-  .agh/skills/...        # discovered
+  .compozy/config.toml       # ignored for checkout
+  .compozy/agents/...        # discovered
+  .compozy/skills/...        # discovered
 ```
 
-Use global `~/.agh/config.toml` for settings shared across workspaces. Use the primary root
-`<workspace>/.agh/config.toml` for project-specific settings. Avoid putting shared runtime policy in
-additional roots, because AGH will not read it for the parent workspace.
+Use global `~/.compozy/config.toml` for settings shared across workspaces. Use the primary root
+`<workspace>/.compozy/config.toml` for project-specific settings. Avoid putting shared runtime policy in
+additional roots, because Compozy will not read it for the parent workspace.
 
 ## Inspect A Multi-Root Workspace
 
-`agh workspace info` resolves the workspace and shows the sessions, visible agents, and visible
+`compozy workspace info` resolves the workspace and shows the sessions, visible agents, and visible
 skills:
 
 ```bash
-agh workspace info checkout
+compozy workspace info checkout
 ```
 
 The JSON shape includes the stored registration plus resolved resources:
@@ -261,7 +261,7 @@ The JSON shape includes the stored registration plus resolved resources:
     {
       "name": "runbook-reader",
       "source": "additional",
-      "dir": "/Users/you/src/acme/shared-agent-kit/.agh/skills/runbook-reader"
+      "dir": "/Users/you/src/acme/shared-agent-kit/.compozy/skills/runbook-reader"
     }
   ]
 }

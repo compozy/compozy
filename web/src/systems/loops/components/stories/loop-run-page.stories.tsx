@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { useTopbarSlot, type TopbarSlotValue } from "@agh/ui";
+import { useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { StoryTopbarHost } from "@/storybook/story-layout";
 

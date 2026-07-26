@@ -1,6 +1,6 @@
 import { Trash2 } from "lucide-react";
 
-import { Button, ConfirmDialog, DialogTrigger } from "@agh/ui";
+import { Button, ConfirmDialog, DialogTrigger } from "@compozy/ui";
 
 interface LoopDeleteActionProps {
   loopName: string;

@@ -4,8 +4,8 @@ area: ET
 title: Offer only skills whose runtime activation gates pass
 persona: Ada
 journey: J-offer-runnable-capabilities
-expected: A skill with satisfied metadata.agh.when gates appears in startup and current-turn catalogs; one with an unmet platform, environment, tool, or authored-capability gate remains manageable with structured inactive reasons but is absent from both catalogs; restoring a required callable tool makes the next catalog projection offer it without restarting AGH.
-entry_points: SKILL.md metadata.agh.when; agent startup and current-turn prompt catalogs; GET /api/skills; agh skill list|inspect|view; compozy__skill_list|view; Web /skills
+expected: A skill with satisfied metadata.compozy.when gates appears in startup and current-turn catalogs; one with an unmet platform, environment, tool, or authored-capability gate remains manageable with structured inactive reasons but is absent from both catalogs; restoring a required callable tool makes the next catalog projection offer it without restarting CompozyOS.
+entry_points: SKILL.md metadata.compozy.when; agent startup and current-turn prompt catalogs; GET /api/skills; compozy skill list|inspect|view; compozy__skill_list|view; Web /skills
 qa_status: untested
 bug_ids:
 fix_status:
@@ -37,3 +37,6 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
   unknown-`when`-key parse error.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-011-only-runnable-skills-are-offered-dead-sidecars-self-recover
+
+QA impact 2026-07-26: activation metadata and CLI entry points hard-cut to Compozy.
+Status remains untested; the next QA cycle owns live retesting.

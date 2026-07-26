@@ -1,6 +1,6 @@
 ---
 title: Webhooks
-description: Set up signed AGH webhook triggers for CI, deployment, and external event integrations.
+description: Set up signed Compozy webhook triggers for CI, deployment, and external event integrations.
 ---
 
 Webhooks are the external ingress path for automation. They accept signed HTTP requests, normalize
@@ -29,7 +29,7 @@ The webhook ID starts with `wbh_`.
 | Global    | `POST /api/webhooks/global/<endpoint_slug>--<webhook_id>`                    |
 | Workspace | `POST /api/webhooks/workspaces/<workspace_id>/<endpoint_slug>--<webhook_id>` |
 
-AGH returns a result object with the number of matched triggers and the runs created from the
+Compozy returns a result object with the number of matched triggers and the runs created from the
 delivery.
 
 ```json
@@ -50,9 +50,9 @@ delivery.
 ## Configure a webhook trigger
 
 Config-backed webhook triggers need an endpoint slug and a `webhook_secret_ref`. Use `env:NAME` for
-operator-managed environment variables or a `vault:automation/...` ref for AGH-managed encrypted
-secret storage. AGH resolves the secret only when validating signed webhook requests. Store
-AGH-managed values with `agh vault put`, the Vault page, or the write-only API before enabling the
+operator-managed environment variables or a `vault:automation/...` ref for Compozy-managed encrypted
+secret storage. Compozy resolves the secret only when validating signed webhook requests. Store
+Compozy-managed values with `compozy vault put`, the Vault page, or the write-only API before enabling the
 trigger.
 
 ```toml
@@ -71,11 +71,11 @@ fire_limit = { max = 6, window = "1h" }
 ```
 
 Dynamic webhook triggers can be created with the CLI by passing the secret directly. The secret is
-write-only through the API surface: AGH uses it for signature validation, but it is not returned by
+write-only through the API surface: Compozy uses it for signature validation, but it is not returned by
 read endpoints.
 
 ```bash
-agh automation triggers create \
+compozy automation triggers create \
   --name deploy-webhook \
   --scope workspace \
   --workspace /Users/you/src/checkout-api \
@@ -91,18 +91,18 @@ agh automation triggers create \
 Read the trigger to get its webhook path:
 
 ```bash
-agh automation triggers get <trigger-id>
+compozy automation triggers get <trigger-id>
 ```
 
 ## Authentication
 
 Every webhook request must include these headers:
 
-| Header                      | Required | Meaning                                                                                     |
-| --------------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| `X-AGH-Webhook-Timestamp`   | Yes      | Unix seconds or RFC3339 timestamp. Must be within the freshness window.                     |
-| `X-AGH-Webhook-Signature`   | Yes      | `sha256=` followed by the HMAC-SHA256 digest.                                               |
-| `X-AGH-Webhook-Delivery-ID` | Yes      | Idempotency key. Replays are rejected while the delivery ID is inside the freshness window. |
+| Header                          | Required | Meaning                                                                                     |
+| ------------------------------- | -------- | ------------------------------------------------------------------------------------------- |
+| `X-Compozy-Webhook-Timestamp`   | Yes      | Unix seconds or RFC3339 timestamp. Must be within the freshness window.                     |
+| `X-Compozy-Webhook-Signature`   | Yes      | `sha256=` followed by the HMAC-SHA256 digest.                                               |
+| `X-Compozy-Webhook-Delivery-ID` | Yes      | Idempotency key. Replays are rejected while the delivery ID is inside the freshness window. |
 
 The freshness window is `5m`. Requests older than the window, too far in the future, or signed with
 the wrong secret are rejected.
@@ -114,18 +114,18 @@ The signature message is:
 ```
 
 Use Unix seconds for the timestamp header unless your integration has a reason to send RFC3339.
-When AGH receives RFC3339, it parses the timestamp and validates the signature against the parsed
+When Compozy receives RFC3339, it parses the timestamp and validates the signature against the parsed
 Unix seconds value.
 
 ## Payload format
 
 Request bodies are limited to `1MiB`.
 
-If the body is a JSON object, AGH exposes its fields under `.Data` for filters and prompt
-templates. If the JSON object does not already include `payload`, AGH also adds the raw request body
+If the body is a JSON object, Compozy exposes its fields under `.Data` for filters and prompt
+templates. If the JSON object does not already include `payload`, Compozy also adds the raw request body
 as `.Data.payload`.
 
-AGH adds webhook metadata to every delivery:
+Compozy adds webhook metadata to every delivery:
 
 | Data key        | Meaning                                |
 | --------------- | -------------------------------------- |
@@ -134,7 +134,7 @@ AGH adds webhook metadata to every delivery:
 | `webhook_id`    | Stable webhook ID.                     |
 | `timestamp`     | Parsed delivery timestamp.             |
 
-If the body is empty or not a JSON object, AGH exposes the raw body as `.Data.payload` alongside
+If the body is empty or not a JSON object, Compozy exposes the raw body as `.Data.payload` alongside
 the metadata fields.
 
 ## Send a signed request
@@ -149,30 +149,30 @@ signature="sha256=$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -
 
 curl -sS -X POST "http://localhost:2123/api/webhooks/workspaces/ws_123/deploy--wbh_abc123" \
   -H "Content-Type: application/json" \
-  -H "X-AGH-Webhook-Timestamp: $timestamp" \
-  -H "X-AGH-Webhook-Signature: $signature" \
-  -H "X-AGH-Webhook-Delivery-ID: deploy-$timestamp" \
+  -H "X-Compozy-Webhook-Timestamp: $timestamp" \
+  -H "X-Compozy-Webhook-Signature: $signature" \
+  -H "X-Compozy-Webhook-Delivery-ID: deploy-$timestamp" \
   --data "$body"
 ```
 
-With the trigger above, AGH only dispatches when both filters match:
+With the trigger above, Compozy only dispatches when both filters match:
 
 - `data.action = deploy`
 - `data.branch = main`
 
 ## Worked example: CI deployment review
 
-This GitHub Actions step notifies AGH after a deployment run reaches the point where an agent
+This GitHub Actions step notifies Compozy after a deployment run reaches the point where an agent
 should validate the deployment request.
 
 ```yaml
-name: Notify AGH deployment automation
+name: Notify Compozy deployment automation
 
 on:
   workflow_dispatch:
 
 jobs:
-  notify-agh:
+  notify-compozy:
     runs-on: ubuntu-latest
     steps:
       - name: Send signed deployment webhook
@@ -195,9 +195,9 @@ jobs:
 
           curl -sS -X POST "$COMPOZY_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -H "X-AGH-Webhook-Timestamp: $timestamp" \
-            -H "X-AGH-Webhook-Signature: $signature" \
-            -H "X-AGH-Webhook-Delivery-ID: deploy-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            -H "X-Compozy-Webhook-Timestamp: $timestamp" \
+            -H "X-Compozy-Webhook-Signature: $signature" \
+            -H "X-Compozy-Webhook-Delivery-ID: deploy-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --data "$body"
 ```
 
@@ -209,7 +209,7 @@ http://localhost:2123/api/webhooks/workspaces/ws_123/deploy--wbh_abc123
 
 ## Errors
 
-| Status | When AGH returns it                                                                                                |
+| Status | When Compozy returns it                                                                                            |
 | ------ | ------------------------------------------------------------------------------------------------------------------ |
 | `400`  | Invalid endpoint shape, missing required webhook headers, oversized body, or missing webhook secret configuration. |
 | `401`  | Stale timestamp, future timestamp, or invalid webhook signature.                                                   |
@@ -222,19 +222,19 @@ http://localhost:2123/api/webhooks/workspaces/ws_123/deploy--wbh_abc123
 List failed webhook-triggered runs:
 
 ```bash
-agh automation runs --status failed --last 20
+compozy automation runs --status failed --last 20
 ```
 
 Read one run:
 
 ```bash
-agh automation runs get <run-id>
+compozy automation runs get <run-id>
 ```
 
 Use trigger history when you know which webhook trigger owns the endpoint:
 
 ```bash
-agh automation triggers history <trigger-id> --last 20
+compozy automation triggers history <trigger-id> --last 20
 ```
 
 ## Related pages

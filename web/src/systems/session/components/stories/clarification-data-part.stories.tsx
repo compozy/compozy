@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { CenteredSurface } from "@/storybook/story-layout";
 import type { AgentEventPayload } from "@/systems/session";
 
@@ -62,8 +62,9 @@ export const LiveReadFailed: Story = {
   args: {},
   parameters: storybookMswParameters({
     session: [
-      aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications", () =>
-        HttpResponse.json({ error: "clarification broker unavailable" }, { status: 503 })
+      compozyApiMock.get(
+        "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
+        () => HttpResponse.json({ error: "clarification broker unavailable" }, { status: 503 })
       ),
     ],
   }),

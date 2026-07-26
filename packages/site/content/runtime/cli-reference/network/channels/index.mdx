@@ -1,14 +1,14 @@
 ---
-title: "agh network channels"
+title: "compozy network channels"
 description: "List active runtime channels"
 ---
 
-## agh network channels
+## compozy network channels
 
 List active runtime channels
 
 ```
-agh network channels [flags]
+compozy network channels [flags]
 ```
 
 ### Options
@@ -27,7 +27,7 @@ agh network channels [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -37,12 +37,12 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh network channels -o json
+compozy network channels -o json
 ```
 
 ## Subcommands
 
-| Command                                                                       | Description                                                       |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [agh network channels create](/runtime/cli-reference/network/channels/create) | Create a runtime channel and start one session per selected agent |
-| [agh network channels update](/runtime/cli-reference/network/channels/update) | Update runtime channel routing metadata                           |
+| Command                                                                           | Description                                                       |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [compozy network channels create](/runtime/cli-reference/network/channels/create) | Create a runtime channel and start one session per selected agent |
+| [compozy network channels update](/runtime/cli-reference/network/channels/update) | Update runtime channel routing metadata                           |

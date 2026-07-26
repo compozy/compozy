@@ -1,19 +1,19 @@
 ---
 title: Ed25519 + JCS Trust Profile
-description: Reference for the AGH Network v1 baseline trust profile, including verified identities, JCS signing bytes, proof fields, and a reproducible Ed25519 example.
+description: Reference for the Compozy Network v1 baseline trust profile, including verified identities, JCS signing bytes, proof fields, and a reproducible Ed25519 example.
 icon: Key
 ---
 
-The AGH Network v1 baseline trust profile binds a sender identity to an envelope with an Ed25519
+The Compozy Network v1 baseline trust profile binds a sender identity to an envelope with an Ed25519
 signature over deterministic JSON bytes. It extends the [envelope](/protocol/envelope/) without
 changing the top-level wire shape.
 
 This page is normative unless a section is marked as an example.
 
 <OperatorNote label="Implementation status">
-  RFC 004 defines this v1 trust profile. The current AGH Runtime `internal/network` package is a v0
-  implementation: it preserves `proof` as opaque JSON, uses `compozy-network/v0`, and does not yet
-  verify Ed25519 proofs.
+  RFC 004 defines this v1 trust profile. The current Compozy Runtime `internal/network` package is a
+  v0 implementation: it preserves `proof` as opaque JSON, uses `compozy-network/v0`, and does not
+  yet verify Ed25519 proofs.
 </OperatorNote>
 
 ## Profile identifier
@@ -183,7 +183,7 @@ The full signing step still requires an RFC 8785 JCS canonicalizer before callin
 
 This example is informative. The fixed test seed and envelope shape are stable, but the canonical
 JCS bytes, SHA-256 digest, and Ed25519 signature MUST be computed by the implementer's own
-canonicalizer and signer. The AGH reference repository ships a Go fixture under
+canonicalizer and signer. The Compozy reference repository ships a Go fixture under
 `internal/network/v1trust/` that implementers can run to confirm byte exactness.
 
 The chosen envelope is a v1 `greet` because discovery messages MUST NOT carry `surface`,
@@ -286,7 +286,7 @@ canonical form of the envelope above looks like:
 
 The SHA-256 digest of those canonical bytes and the Ed25519 signature over them are deterministic
 for a given seed. Implementers SHOULD compute both with their own canonicalizer and signer rather
-than trusting paste-in values; the AGH `internal/network/v1trust/` fixture exposes the verified
+than trusting paste-in values; the Compozy `internal/network/v1trust/` fixture exposes the verified
 golden bytes for cross-implementation matching.
 
 ### Step 4: Ed25519 signature

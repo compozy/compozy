@@ -9,7 +9,7 @@ import {
   ItemTitle,
   Skeleton,
   SkeletonRows,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

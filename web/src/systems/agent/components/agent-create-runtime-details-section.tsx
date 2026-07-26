@@ -1,6 +1,6 @@
 import { Terminal } from "lucide-react";
 
-import { Field, FieldHeader, FieldLabel, FormSection, HelpTip, Input } from "@agh/ui";
+import { Field, FieldHeader, FieldLabel, FormSection, HelpTip, Input } from "@compozy/ui";
 
 import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 

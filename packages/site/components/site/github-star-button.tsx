@@ -6,16 +6,16 @@ import {
   GithubStarsIcon,
   GithubStarsNumber,
   GithubStarsParticles,
-} from "@agh/ui";
-import { GithubLogo } from "@agh/ui/logos";
+} from "@compozy/ui";
+import { GithubLogo } from "@compozy/ui/logos";
 import { Star } from "lucide-react";
 import Link from "next/link";
 
-const GITHUB_REPO_URL = "https://github.com/compozy/agh";
+const GITHUB_REPO_URL = "https://github.com/compozy/compozy";
 
 export function GitHubStarButton() {
   return (
-    <GithubStars username="compozy" repo="agh" inViewOnce={false}>
+    <GithubStars username="compozy" repo="compozy" inViewOnce={false}>
       <Button
         nativeButton={false}
         render={
@@ -23,7 +23,7 @@ export function GitHubStarButton() {
             href={GITHUB_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Star AGH on GitHub"
+            aria-label="Star Compozy on GitHub"
           />
         }
         variant="outline"

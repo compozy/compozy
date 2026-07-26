@@ -2,7 +2,7 @@ import { useReducer } from "react";
 
 import { useNavigate } from "@tanstack/react-router";
 
-import { toast } from "@agh/ui";
+import { toast } from "@compozy/ui";
 
 import {
   applyLoopEventFrame,

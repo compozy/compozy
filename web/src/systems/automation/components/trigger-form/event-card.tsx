@@ -1,7 +1,7 @@
 import { Brain, Check, CircleStop, Play, Puzzle, Webhook, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { EventIconKey } from "../../lib/trigger-catalog";
 

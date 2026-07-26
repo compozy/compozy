@@ -1,21 +1,21 @@
 ---
-title: "agh session remove"
+title: "compozy session remove"
 description: "Remove a session and its persisted history"
 ---
 
-## agh session remove
+## compozy session remove
 
 Remove a session and its persisted history
 
 ```
-agh session remove <id> [flags]
+compozy session remove <id> [flags]
 ```
 
 ### Examples
 
 ```
   # Remove a stopped session
-  agh session remove sess_1234
+  compozy session remove sess_1234
 ```
 
 ### Options
@@ -33,7 +33,7 @@ agh session remove <id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -43,5 +43,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session remove <id> -o json
+compozy session remove <id> -o json
 ```

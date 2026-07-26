@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
   schedulerBacklogFixture,
@@ -9,8 +9,10 @@ import {
 } from "./fixtures";
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/scheduler", () => HttpResponse.json({ scheduler: schedulerStatusFixture })),
-  aghApiMock.post("/api/scheduler/pause", async ({ request }) => {
+  compozyApiMock.get("/api/scheduler", () =>
+    HttpResponse.json({ scheduler: schedulerStatusFixture })
+  ),
+  compozyApiMock.post("/api/scheduler/pause", async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as { reason?: string };
     return HttpResponse.json({
       scheduler: {
@@ -19,11 +21,11 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/scheduler/resume", () =>
+  compozyApiMock.post("/api/scheduler/resume", () =>
     HttpResponse.json({ scheduler: { ...schedulerStatusFixture, paused: false } })
   ),
-  aghApiMock.post("/api/scheduler/drain", () => HttpResponse.json(schedulerDrainResultFixture)),
-  aghApiMock.get("/api/scheduler/backlog", () =>
+  compozyApiMock.post("/api/scheduler/drain", () => HttpResponse.json(schedulerDrainResultFixture)),
+  compozyApiMock.get("/api/scheduler/backlog", () =>
     HttpResponse.json({ backlog: schedulerBacklogFixture })
   ),
 ];

@@ -1,29 +1,29 @@
 ---
 title: Agent Soul
-description: Optional SOUL.md authored persona artifact that AGH resolves, validates, snapshots, and projects into prompts and read models.
+description: Optional SOUL.md authored persona artifact that Compozy resolves, validates, snapshots, and projects into prompts and read models.
 ---
 
-`SOUL.md` is an optional authored persona file beside an agent's `AGENT.md`. It tells AGH how an
-agent should think, communicate, collaborate, apply principles, and relate to memory. AGH resolves
+`SOUL.md` is an optional authored persona file beside an agent's `AGENT.md`. It tells Compozy how an
+agent should think, communicate, collaborate, apply principles, and relate to memory. Compozy resolves
 the file at session start, snapshots the result, and includes a bounded persona block in the agent
 prompt and a compact projection in `/agent/context`.
 
 <OperatorNote>
   `SOUL.md` is persona only. It cannot define provider, command, model, tools, capabilities, MCP
-  servers, hooks, permissions, tasks, leases, scheduler behavior, or AGH Network presence — those
-  authorities belong to `AGENT.md`, capabilities, `config.toml`, and the runtime.
+  servers, hooks, permissions, tasks, leases, scheduler behavior, or Compozy Network presence —
+  those authorities belong to `AGENT.md`, capabilities, `config.toml`, and the runtime.
 </OperatorNote>
 
 ## Where SOUL.md lives
 
 ```text
-~/.agh/agents/<agent>/AGENT.md
-~/.agh/agents/<agent>/SOUL.md          # optional
-<workspace>/.agh/agents/<agent>/SOUL.md
+~/.compozy/agents/<agent>/AGENT.md
+~/.compozy/agents/<agent>/SOUL.md          # optional
+<workspace>/.compozy/agents/<agent>/SOUL.md
 ```
 
 `SOUL.md` follows the same discovery order as `AGENT.md`: workspace root, then additional roots,
-then the AGH home directory. Discovery is first-wins. If `SOUL.md` is missing, AGH reports the
+then the Compozy home directory. Discovery is first-wins. If `SOUL.md` is missing, Compozy reports the
 agent's persona as `present=false` and proceeds without prompt injection.
 
 ## File format
@@ -82,7 +82,7 @@ the correct surface.
 | `capabilities`                                                           | `capabilities.toml` or `capabilities/*` |
 | `tasks`, `task_runs`, `scheduler`, `lease`                               | Runtime task APIs                       |
 | `heartbeat`                                                              | `HEARTBEAT.md` and `[agents.heartbeat]` |
-| `network`, `channels`                                                    | AGH Network protocol                    |
+| `network`, `channels`                                                    | Compozy Network protocol                |
 | `spawn`, `env`, `config`, operational memory-store fields                | Runtime config                          |
 
 A `SOUL.md` that contains any of these fields is invalid; new sessions for the affected agent fail
@@ -90,10 +90,10 @@ to start until the file is fixed or removed.
 
 ## Lifecycle
 
-1. **Session start.** AGH resolves `SOUL.md` once, validates it under the current
+1. **Session start.** Compozy resolves `SOUL.md` once, validates it under the current
    `[agents.soul]` config, computes the canonical digest, and writes an immutable snapshot to
    `agent_soul_snapshots`. The session row records `soul_snapshot_id` and `soul_digest`.
-2. **Prompt assembly.** When `enabled=true`, AGH inserts a bounded `Agent Soul` block after the
+2. **Prompt assembly.** When `enabled=true`, Compozy inserts a bounded `Agent Soul` block after the
    `AGENT.md` system prompt and before runtime situation/task context.
 3. **`/agent/context`.** A compact projection (`enabled`, `present`, `digest`, `source_path`,
    `role`, `truncated`, `snapshot_id`) appears in `AgentContextPayload.soul`. The full prose body
@@ -104,7 +104,7 @@ to start until the file is fixed or removed.
 5. **Spawned sessions.** A spawned session resolves the target agent's own `SOUL.md`. Parent
    persona never carries over as behavioral instruction; only `parent_soul_digest` is recorded as
    provenance metadata.
-6. **Refresh.** `agh session soul refresh <session-id>` re-resolves the file for an idle session.
+6. **Refresh.** `compozy session soul refresh <session-id>` re-resolves the file for an idle session.
    Active task runs reject refresh with `409 soul_conflict`.
 
 Editing `SOUL.md` does not silently affect active sessions or running task runs. New sessions and
@@ -117,16 +117,16 @@ hooks, extensions, tools, resources, bundles, MCP sidecars, bridge adapters, or 
 explicitly forbidden. Every write/delete/rollback against an existing file requires
 `expected_digest`; stale writes fail without persistence and never partially replace the file.
 
-| Action   | CLI                        | HTTP                                                                   | UDS                            | Host API               |
-| -------- | -------------------------- | ---------------------------------------------------------------------- | ------------------------------ | ---------------------- |
-| Inspect  | `agh agent soul inspect`   | `GET /api/agents/{name}/soul`                                          | `agent.soul.inspectDefinition` | `agents/soul/get`      |
-| Validate | `agh agent soul validate`  | `POST /api/agent/soul/validate`                                        | `agent.soul.validate`          | `agents/soul/validate` |
-| Write    | `agh agent soul write`     | `PUT /api/agents/{name}/soul`                                          | `agent.soul.put`               | `agents/soul/put`      |
-| Delete   | `agh agent soul delete`    | `DELETE /api/agents/{name}/soul`                                       | `agent.soul.delete`            | `agents/soul/delete`   |
-| History  | `agh agent soul history`   | `GET /api/agents/{name}/soul/history`                                  | `agent.soul.history`           | `agents/soul/history`  |
-| Rollback | `agh agent soul rollback`  | `POST /api/agents/{name}/soul/rollback`                                | `agent.soul.rollback`          | `agents/soul/rollback` |
-| Refresh  | `agh session soul refresh` | `POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh` | `session.soul.refresh`         | n/a                    |
-| Compact  | `agh agent context`        | `GET /api/agent/context`                                               | `agent.context.get`            | n/a                    |
+| Action   | CLI                            | HTTP                                                                   | UDS                            | Host API               |
+| -------- | ------------------------------ | ---------------------------------------------------------------------- | ------------------------------ | ---------------------- |
+| Inspect  | `compozy agent soul inspect`   | `GET /api/agents/{name}/soul`                                          | `agent.soul.inspectDefinition` | `agents/soul/get`      |
+| Validate | `compozy agent soul validate`  | `POST /api/agent/soul/validate`                                        | `agent.soul.validate`          | `agents/soul/validate` |
+| Write    | `compozy agent soul write`     | `PUT /api/agents/{name}/soul`                                          | `agent.soul.put`               | `agents/soul/put`      |
+| Delete   | `compozy agent soul delete`    | `DELETE /api/agents/{name}/soul`                                       | `agent.soul.delete`            | `agents/soul/delete`   |
+| History  | `compozy agent soul history`   | `GET /api/agents/{name}/soul/history`                                  | `agent.soul.history`           | `agents/soul/history`  |
+| Rollback | `compozy agent soul rollback`  | `POST /api/agents/{name}/soul/rollback`                                | `agent.soul.rollback`          | `agents/soul/rollback` |
+| Refresh  | `compozy session soul refresh` | `POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh` | `session.soul.refresh`         | n/a                    |
+| Compact  | `compozy agent context`        | `GET /api/agent/context`                                               | `agent.context.get`            | n/a                    |
 
 CAS contract: every mutating transport carries `expected_digest` in the request body. HTTP
 `If-Match` headers are not honored — the body field is the deterministic CAS shape across CLI,
@@ -135,8 +135,8 @@ HTTP, UDS, Host API, and SDKs.
 ### Author and validate before writing
 
 ```bash
-agh agent soul validate reviewer --file SOUL.md --json
-agh agent soul write reviewer --file SOUL.md --expected-digest sha256:1234... --json
+compozy agent soul validate reviewer --file SOUL.md --json
+compozy agent soul write reviewer --file SOUL.md --expected-digest sha256:1234... --json
 ```
 
 The response returns the new digest, previous digest, revision id, and bounded actor/origin
@@ -146,9 +146,9 @@ success.
 ### Inspect, history, and rollback
 
 ```bash
-agh agent soul inspect reviewer --json
-agh agent soul history reviewer --json
-agh agent soul rollback reviewer --revision rev_01J... --expected-digest sha256:current... --json
+compozy agent soul inspect reviewer --json
+compozy agent soul history reviewer --json
+compozy agent soul rollback reviewer --revision rev_01J... --expected-digest sha256:current... --json
 ```
 
 Rollback runs through the same validation and CAS path as a managed write. It rejects revisions
@@ -158,7 +158,7 @@ forbidden field cannot be restored verbatim.
 ### Refresh idle sessions
 
 ```bash
-agh session soul refresh sess_123
+compozy session soul refresh sess_123
 ```
 
 Refresh is split into validation under the request context and a durable mutation phase that runs
@@ -196,7 +196,7 @@ expansions are stripped before logging.
 - `SOUL.md` is **not** liveness or session health. Session presence is metadata-only and lives in
   the runtime; see [Sessions](/runtime/core/sessions/lifecycle) and the session health/inspect
   CLI commands.
-- `SOUL.md` is **not** AGH Network identity. Peer presence, peer cards, and `greet` interval are
+- `SOUL.md` is **not** Compozy Network identity. Peer presence, peer cards, and `greet` interval are
   governed by the [protocol model](/runtime/core/network/protocol) and remain independent.
 - `SOUL.md` does **not** appear in capability catalogs, registry metadata, or extension manifests
   as an authority surface; extensions can manage `SOUL.md` only through Host API grants.
@@ -210,7 +210,7 @@ expansions are stripped before logging.
 | `oversized_body`     | The body exceeds `[agents.soul].max_body_bytes` after normalization. | Trim the body or raise the config limit.                                   |
 | `path_escape`        | The resolved `SOUL.md` path traverses outside the agent directory.   | Place `SOUL.md` next to `AGENT.md`; do not symlink across the workspace.   |
 | `soul_conflict`      | `expected_digest` did not match the current file digest.             | Re-read the current digest and retry.                                      |
-| `revision_not_found` | Rollback referenced a revision that does not exist or was pruned.    | Use `agh agent soul history` to pick a valid revision id.                  |
+| `revision_not_found` | Rollback referenced a revision that does not exist or was pruned.    | Use `compozy agent soul history` to pick a valid revision id.              |
 | `inactive`           | `[agents.soul].enabled=false` while the file is present.             | Re-enable the section in config or accept that prompt injection is paused. |
 
 ## Related pages
@@ -220,5 +220,5 @@ expansions are stripped before logging.
   defaults.
 - [Agent Heartbeat](/runtime/core/agents/heartbeat) for advisory wake/reentry policy.
 - [Session Lifecycle](/runtime/core/sessions/lifecycle) for session start, refresh, and stop.
-- [`agh agent soul`](/runtime/cli-reference/agent/soul) and
-  [`agh session soul`](/runtime/cli-reference/session/soul) generated CLI references.
+- [`compozy agent soul`](/runtime/cli-reference/agent/soul) and
+  [`compozy session soul`](/runtime/cli-reference/session/soul) generated CLI references.

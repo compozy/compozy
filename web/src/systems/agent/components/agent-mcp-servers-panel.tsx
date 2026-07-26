@@ -1,6 +1,6 @@
 import { Plug } from "lucide-react";
 
-import { Empty, ListingRow, Pill, Section, cn } from "@agh/ui";
+import { Empty, ListingRow, Pill, Section, cn } from "@compozy/ui";
 
 import type { AgentMCPServer, AgentPayload } from "../types";
 

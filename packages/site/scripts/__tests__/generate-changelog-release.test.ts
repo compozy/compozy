@@ -27,7 +27,7 @@ describe("generate changelog release", () => {
       generatedAt: "2026-05-18T12:00:00.000Z",
       previousTag: "v0.7.0",
       githubOwner: "compozy",
-      githubRepo: "agh",
+      githubRepo: "compozy",
       releaseNotes,
       context: [
         {
@@ -70,7 +70,7 @@ describe("generate changelog release", () => {
       date: "2026-05-18T12:00:00.000Z",
       status: "alpha",
       summary: "Clear upgrade guidance for operators.",
-      compareUrl: "https://github.com/compozy/agh/compare/v0.7.0...v0.8.0",
+      compareUrl: "https://github.com/compozy/compozy/compare/v0.7.0...v0.8.0",
       added: ["Operator upgrade path", "site: Add workspace-aware changelog pages"],
       fixed: ["Fix release notes body selection"],
       changed: ["Document release automation"],

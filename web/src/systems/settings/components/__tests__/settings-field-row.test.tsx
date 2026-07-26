@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { PillGroup } from "@agh/ui";
+import { PillGroup } from "@compozy/ui";
 
 import { SettingRow } from "../setting-row";
 import { ModalSettingsFieldRow, SettingsFieldRow } from "../settings-field-row";

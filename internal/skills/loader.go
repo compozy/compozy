@@ -125,8 +125,8 @@ func parseSkillDocument(filePath string, dir string, content []byte, source Skil
 		Enabled:    true,
 		Activation: SkillActivation{Active: true},
 	}
-	if err := parseAGHMetadata(skill); err != nil {
-		return nil, "", fmt.Errorf("skills: parse %q metadata.agh: %w", filePath, err)
+	if err := parseCompozyMetadata(skill); err != nil {
+		return nil, "", fmt.Errorf("skills: parse %q metadata.compozy: %w", filePath, err)
 	}
 	refreshSkillHookDecls(skill)
 	if skill.Meta.Description == "" {

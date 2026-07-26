@@ -148,7 +148,7 @@ function buildReleaseIndexes(releases: Release[]): AdvancedIndex[] {
 export function buildPublicSearchIndexes(): AdvancedIndex[] {
   return [
     ...buildDocIndexes(runtimeDocs.getPages(), "Runtime"),
-    ...buildDocIndexes(protocolDocs.getPages(), "AGH Network"),
+    ...buildDocIndexes(protocolDocs.getPages(), "Compozy Network"),
     ...buildPostIndexes(allPosts()),
     ...buildReleaseIndexes(allReleases()),
   ].toSorted(byURL);

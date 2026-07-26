@@ -21,7 +21,7 @@ const (
 		"optional for lifecycle-bearing say messages in the same conversation."
 	networkSendTargetDescription = "Target peer. Required for capability and for say carrying work_id."
 	networkSendBodyDescription   = "Kind-specific object. say requires a non-empty text field; " +
-		"other kinds follow the AGH Network message body rules."
+		"other kinds follow the Compozy Network message body rules."
 )
 
 const networkSendInputSchema = `{

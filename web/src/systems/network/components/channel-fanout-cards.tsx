@@ -1,7 +1,7 @@
 import { Search, Users, UserRound } from "lucide-react";
 import type { ComponentProps } from "react";
 
-import { cn, Pill, RadioCard } from "@agh/ui";
+import { cn, Pill, RadioCard } from "@compozy/ui";
 
 import type { NetworkFanoutPolicy } from "../types";
 

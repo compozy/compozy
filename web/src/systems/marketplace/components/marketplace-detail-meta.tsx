@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { Pill } from "@agh/ui";
+import { Pill } from "@compozy/ui";
 
 import type { MarketplaceEntryResponse, MarketplaceKind } from "../types";
 import { formatMarketplaceCount } from "./marketplace-ui";

@@ -12,7 +12,7 @@ import {
   EntityDialogHeader,
   Eyebrow,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
 import { WORKSPACE_SETUP_COPY } from "../lib/workspace-setup-copy";

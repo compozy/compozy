@@ -1,10 +1,10 @@
 ---
 title: Providers
-description: Built-in provider IDs, launch commands, config overrides, and custom provider setup for AGH agents.
+description: Built-in provider IDs, launch commands, config overrides, and custom provider setup for Compozy agents.
 ---
 
-A provider is the ACP-compatible command AGH launches for an agent. The provider owns the actual
-LLM integration. AGH owns definition resolution, process lifecycle, workspace boundaries,
+A provider is the ACP-compatible command Compozy launches for an agent. The provider owns the actual
+LLM integration. Compozy owns definition resolution, process lifecycle, workspace boundaries,
 permissions, MCP server wiring, and event persistence.
 
 Provider IDs appear in `AGENT.md`:
@@ -61,27 +61,27 @@ The built-in registry lives in `internal/config/provider.go`.
 <OperatorNote>
   `pi` is the direct Pi provider and owns authentication through Pi `/login` and Pi's auth file.
   OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq are wrapped
-  providers: AGH exposes them as first-class providers, launches Pi under the hood, and injects the
-  provider key through a session-local Pi config.
+  providers: Compozy exposes them as first-class providers, launches Pi under the hood, and injects
+  the provider key through a session-local Pi config.
 </OperatorNote>
 
 ## Authentication modes
 
-Provider authentication is explicit. AGH does not infer that every provider needs an AGH-managed
+Provider authentication is explicit. Compozy does not infer that every provider needs an Compozy-managed
 API key.
 
-| Mode           | Owner                         | Runtime behavior                                                                                  |
-| -------------- | ----------------------------- | ------------------------------------------------------------------------------------------------- |
-| `native_cli`   | The provider CLI              | AGH launches the provider without preflight key checks. The CLI uses its own login/session store. |
-| `bound_secret` | AGH config or AGH Vault       | AGH resolves `credential_slots` and injects the bound values into the provider subprocess.        |
-| `none`         | No authentication at AGH side | AGH launches the provider without native auth diagnostics or secret injection.                    |
+| Mode           | Owner                             | Runtime behavior                                                                                      |
+| -------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `native_cli`   | The provider CLI                  | Compozy launches the provider without preflight key checks. The CLI uses its own login/session store. |
+| `bound_secret` | Compozy config or Compozy Vault   | Compozy resolves `credential_slots` and injects the bound values into the provider subprocess.        |
+| `none`         | No authentication at Compozy side | Compozy launches the provider without native auth diagnostics or secret injection.                    |
 
 Direct ACP providers and the direct `pi` provider default to `native_cli`. Pi-backed API-key
 wrappers default to `bound_secret` because their public provider contract is an API key managed by
-AGH. Custom providers with `credential_slots` default to `bound_secret`; custom providers without
+Compozy. Custom providers with `credential_slots` default to `bound_secret`; custom providers without
 slots default to `native_cli` unless `auth_mode = "none"` is set explicitly.
 
-`native_cli` providers cannot define `credential_slots`. If you intentionally want AGH to inject a
+`native_cli` providers cannot define `credential_slots`. If you intentionally want Compozy to inject a
 key into a native ACP command, set `auth_mode = "bound_secret"` in the provider override and define
 the slots there. This keeps secret injection opt-in and prevents daemon shell variables from
 silently overriding a provider's own login state.
@@ -96,15 +96,15 @@ Provider overrides and custom providers are configured in `config.toml`.
 | `display_name`        | string | no                       | Operator-facing label shown in settings and provider pickers.                                                 |
 | `models`              | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".    |
 | `harness`             | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`. |
-| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the AGH provider id.                         |
+| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the Compozy provider id.                     |
 | `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                              |
 | `base_url`            | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                      |
 | `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                           |
 | `none_security`       | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.      |
 | `env_policy`          | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.              |
 | `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                 |
-| `auth_status_command` | string | no                       | Optional native CLI status probe used by `agh provider auth status`.                                          |
-| `auth_login_command`  | string | no                       | Optional native CLI login command used by `agh provider auth login`.                                          |
+| `auth_status_command` | string | no                       | Optional native CLI status probe used by `compozy provider auth status`.                                      |
+| `auth_login_command`  | string | no                       | Optional native CLI login command used by `compozy provider auth login`.                                      |
 | `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                    |
 | `mcp_servers`         | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                             |
 
@@ -112,10 +112,10 @@ Provider overrides and custom providers are configured in `config.toml`.
 `none_security` to describe why the provider is safe without credentials: `local_transport` for
 local-only transports, `external_identity` when another system authenticates the caller, or
 `public_readonly` for public read-only providers. No-auth providers cannot define
-`credential_slots`, `auth_status_command`, or `auth_login_command`; AGH rejects those combinations
+`credential_slots`, `auth_status_command`, or `auth_login_command`; Compozy rejects those combinations
 at config load time.
 
-AGH overlays provider config on top of a built-in provider when the name matches. Unknown provider
+Compozy overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
 
 Built-in provider aliases are intentionally small and resolve before launch. Common aliases such as
@@ -168,15 +168,15 @@ reasoning controls inside a running session.
 | `models.discovery.endpoint`                     | string  | required for some providers | Side-effect-free discovery endpoint URL.                                                                                          |
 | `models.discovery.timeout`                      | string  | no                          | Per-discovery timeout duration (defaults to the model catalog timeout).                                                           |
 
-Rate changes apply to subsequent usage updates. AGH does not reprice stored token statistics, and
+Rate changes apply to subsequent usage updates. Compozy does not reprice stored token statistics, and
 an agent-reported actual amount always takes precedence over catalog estimation. Every nonzero
 input, output, cache-read, cache-write, or reasoning bucket requires its own finite, non-negative
-rate. AGH does not substitute input rates for cache tokens or output rates for reasoning tokens.
+rate. Compozy does not substitute input rates for cache tokens or output rates for reasoning tokens.
 
 Provider Settings PUTs distinguish omission from an explicit membership change. If
-`models.curated` is omitted, AGH preserves the server-owned raw membership even when catalog sources
+`models.curated` is omitted, Compozy preserves the server-owned raw membership even when catalog sources
 are temporarily unavailable. A present empty array is an explicit membership clear and fails with
-`503 Service Unavailable` when AGH cannot enumerate the authoritative catalog. Entries in a PUT are
+`503 Service Unavailable` when Compozy cannot enumerate the authoritative catalog. Entries in a PUT are
 membership IDs only; use the request-level `model_curation` object or the atomic curation endpoint to
 set `hidden`, `featured`, `deprecated`, or a default reasoning effort without copying merged catalog
 metadata into `config.toml`.
@@ -196,7 +196,7 @@ Catalog/config/live observations are the only sources; model-name prefixes never
 levels. `supports_reasoning=true` with an empty effort list is valid and means the provider decides.
 
 Claude and Codex built-ins use `models.reasoning.apply = "acp_option"`; custom and `pi_acp`
-providers default to `none` unless explicitly configured. Strategy `none` means AGH has no effort
+providers default to `none` unless explicitly configured. Strategy `none` means Compozy has no effort
 application strategy. It is distinct from explicit effort `none`, which is sent through ACP when
 the active model advertises it.
 
@@ -209,16 +209,16 @@ See [Provider Model Catalog](/runtime/core/agents/model-catalog) for the curated
 curated/all views, curation surfaces, and error codes.
 
 Native provider auth state belongs to the provider. Run the provider's own login command, such as
-`claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside AGH or through
+`claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside Compozy or through
 a configured `auth_login_command`. The built-in `claude`, `codex`, `opencode`, and `pi` providers
-expose those login commands through `agh provider auth login <provider>`. By default, that command
+expose those login commands through `compozy provider auth login <provider>`. By default, that command
 executes the configured login command locally and attaches the terminal when stdin, stdout, and
 stderr are TTYs, so OAuth URLs and provider prompts remain visible. Use
-`agh provider auth login <provider> --print-command` when automation needs one copyable shell
+`compozy provider auth login <provider> --print-command` when automation needs one copyable shell
 command without executing it, `--no-tty` for deterministic non-interactive runs, and `--timeout`
 when scripts need a bounded login attempt. When a provider uses `home_policy = "isolated"`, the
 resolved command includes the required `HOME`/provider-home environment prefix so the native login
-writes credentials where AGH will read them. Remote HTTP/UDS surfaces never run login commands; they
+writes credentials where Compozy will read them. Remote HTTP/UDS surfaces never run login commands; they
 only run non-interactive `auth_status_command` probes. Wrapped API-key providers use their
 configured `credential_slots` instead of Pi login. Custom providers should set `auth_mode` to match
 the runtime's real authentication contract.
@@ -262,9 +262,9 @@ Only non-empty scalar fields replace the built-in values. MCP servers merge by `
 ## Configure wrapped API-key providers
 
 OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq are built-in
-wrapped providers. Operators select them directly, and AGH uses Pi only as the underlying ACP
+wrapped providers. Operators select them directly, and Compozy uses Pi only as the underlying ACP
 adapter. These built-ins default to `auth_mode = "bound_secret"` with required provider-key slots.
-Override the slot when you want AGH Vault, rather than the daemon environment, to own the
+Override the slot when you want Compozy Vault, rather than the daemon environment, to own the
 launch-time credential.
 
 ```toml
@@ -290,7 +290,7 @@ kind = "api_key"
 required = true
 ```
 
-For AGH-managed encrypted storage, use a `vault:providers/<provider>/<slot>` ref and save the value
+For Compozy-managed encrypted storage, use a `vault:providers/<provider>/<slot>` ref and save the value
 through the settings API or web provider editor. The `<provider>` and `<slot>` segments are lowercase
 provider/slot identifiers using letters, numbers, hyphens, underscores, or dots; path traversal,
 whitespace, and arbitrary vault paths are rejected.
@@ -304,12 +304,12 @@ kind = "api_key"
 required = true
 ```
 
-AGH never exposes provider secret values through settings reads. Status surfaces report only
+Compozy never exposes provider secret values through settings reads. Status surfaces report only
 whether the bound credential is present.
 
 ## Add a custom provider
 
-A custom provider needs an ACP-compatible command. AGH will launch it the same way it launches the
+A custom provider needs an ACP-compatible command. Compozy will launch it the same way it launches the
 built-ins.
 
 ```toml
@@ -355,7 +355,7 @@ none_security = "local_transport"
 ```
 
 No-auth providers render as `No auth required` in status, doctor, web, and CLI output. They cannot
-define credential slots or login/status commands. If a custom provider requires an AGH-managed key,
+define credential slots or login/status commands. If a custom provider requires an Compozy-managed key,
 use `auth_mode = "bound_secret"` and define `credential_slots`:
 
 ```toml
@@ -401,19 +401,19 @@ Set environment variables before starting the daemon instead.
 `model` and `models.default` are resolved and exposed as runtime metadata. Direct `acp` providers
 receive the normal ACP startup flow. Native `pi` sessions receive the resolved
 `runtime_provider/model` through ACP model selection. Wrapped Pi-backed API-key providers receive
-session-local Pi `settings.json` and `models.json` so Pi can run with the AGH-selected provider,
+session-local Pi `settings.json` and `models.json` so Pi can run with the Compozy-selected provider,
 model, and injected credential while the operator-facing provider remains OpenRouter, z.ai,
 Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, or Groq.
 
 The practical rule is:
 
-- use `model` in `AGENT.md` when you want AGH metadata and provider-specific wrappers to agree on
+- use `model` in `AGENT.md` when you want Compozy metadata and provider-specific wrappers to agree on
   the intended model
 - use `native_cli` when the provider command owns login state, session files, or browser/device auth
-- use `bound_secret` plus `credential_slots` when AGH should inject a specific API key into the
+- use `bound_secret` plus `credential_slots` when Compozy should inject a specific API key into the
   subprocess
 - use `env:` refs for service-manager-owned secrets and `vault:providers/<provider>/<slot>` refs
-  for AGH-managed encrypted provider credentials
+  for Compozy-managed encrypted provider credentials
 
 ## MCP server merge order
 
@@ -427,7 +427,7 @@ MCP servers can be declared at several levels. Startup uses this order:
 Config/provider/agent merges are field overlays by server name. Agent-local `mcp.json` sidecars
 replace same-name inline servers as whole objects before that cross-scope merge happens.
 Configured MCP `env` values are passed through as literal strings. Pi-backed providers are launched
-through `pi-acp`; current Pi ACP support does not wire AGH MCP server declarations into Pi's own MCP
+through `pi-acp`; current Pi ACP support does not wire Compozy MCP server declarations into Pi's own MCP
 configuration.
 
 ## Choosing a provider
@@ -472,5 +472,5 @@ agent's role, permissions, MCP servers, and startup prompt in `AGENT.md`.
 - [Agent Definitions](/runtime/core/agents/definitions) explains the `AGENT.md` fields that reference providers.
 - [Spawning](/runtime/core/agents/spawning) shows exactly how the resolved provider command becomes a running ACP process.
 - [Provider Model Catalog](/runtime/core/agents/model-catalog) covers the daemon-owned catalog, sources, refresh lifecycle, OpenAI-compatible projection, and extension `model.source`.
-- [CLI agent reference](/runtime/cli-reference/agent) lists the current `agh agent` inspection commands.
-- [`agh provider models` CLI](/runtime/cli-reference/provider/models) inspects and refreshes the catalog without a UI.
+- [CLI agent reference](/runtime/cli-reference/agent) lists the current `compozy agent` inspection commands.
+- [`compozy provider models` CLI](/runtime/cli-reference/provider/models) inspects and refreshes the catalog without a UI.

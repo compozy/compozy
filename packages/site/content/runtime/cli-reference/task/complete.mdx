@@ -1,24 +1,24 @@
 ---
-title: "agh task complete"
+title: "compozy task complete"
 description: "Complete a claimed task run for the current agent session"
 ---
 
-## agh task complete
+## compozy task complete
 
 Complete a claimed task run for the current agent session
 
 ```
-agh task complete <run-id> [flags]
+compozy task complete <run-id> [flags]
 ```
 
 ### Examples
 
 ```
   # Complete a claimed run
-  agh task complete run-123
+  compozy task complete run-123
 
 	  # Complete with structured result data
-  agh task complete run-123 --result '{"summary":"tests passed"}'
+  compozy task complete run-123 --result '{"summary":"tests passed"}'
 ```
 
 ### Options
@@ -37,7 +37,7 @@ agh task complete <run-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -47,5 +47,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task complete <run-id> -o json
+compozy task complete <run-id> -o json
 ```

@@ -7,7 +7,7 @@ import {
   useSettingsSaveBarState,
   useSettingsTopbar,
 } from "@/systems/settings";
-import { Button, Spinner } from "@agh/ui";
+import { Button, Spinner } from "@compozy/ui";
 
 import { PolicySection } from "./-extensions-policy-section";
 

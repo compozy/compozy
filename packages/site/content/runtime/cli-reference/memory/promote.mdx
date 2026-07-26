@@ -1,14 +1,14 @@
 ---
-title: "agh memory promote"
+title: "compozy memory promote"
 description: "Promote a memory entry across Memory v2 scopes"
 ---
 
-## agh memory promote
+## compozy memory promote
 
 Promote a memory entry across Memory v2 scopes
 
 ```
-agh memory promote <filename> --from <scope[:tier]> --to <scope[:tier]> [flags]
+compozy memory promote <filename> --from <scope[:tier]> --to <scope[:tier]> [flags]
 ```
 
 ### Options
@@ -33,7 +33,7 @@ agh memory promote <filename> --from <scope[:tier]> --to <scope[:tier]> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -43,5 +43,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh memory promote <filename> --from <scope[:tier]> --to <scope[:tier]> -o json
+compozy memory promote <filename> --from <scope[:tier]> --to <scope[:tier]> -o json
 ```

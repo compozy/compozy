@@ -1,7 +1,7 @@
 import { FolderPlus, Home } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Button, Pill } from "@agh/ui";
+import { Button, Pill } from "@compozy/ui";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 
@@ -75,7 +75,7 @@ export const Compact: Story = {
         <OptionCard.Content>
           <OptionCard.Title>Pick a workspace path</OptionCard.Title>
           <OptionCard.Description>
-            Provide an absolute path AGH will register and watch.
+            Provide an absolute path CompozyOS will register and watch.
           </OptionCard.Description>
         </OptionCard.Content>
       </OptionCard.Body>

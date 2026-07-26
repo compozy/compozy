@@ -8,7 +8,7 @@ import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
-import { useTopbarSlotValue, type TopbarSlotValue } from "@agh/ui";
+import { useTopbarSlotValue, type TopbarSlotValue } from "@compozy/ui";
 import { bundleActivationFixtures } from "../../mocks/fixtures";
 import type { BundleActivation } from "../../types";
 

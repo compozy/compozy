@@ -1,6 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 
-import { Button, Time } from "@agh/ui";
+import { Button, Time } from "@compozy/ui";
 
 import { useLiveElapsed } from "../hooks/use-live-elapsed";
 import { runCoordinationChannelLabel, runIsCoordinated } from "../lib/task-formatters";

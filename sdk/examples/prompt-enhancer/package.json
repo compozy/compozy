@@ -1,5 +1,5 @@
 {
-    "name": "@agh/example-prompt-enhancer",
+    "name": "@compozy/example-prompt-enhancer",
     "version": "0.1.0",
     "private": true,
     "type": "module",
@@ -9,7 +9,7 @@
         "hook": "node dist/index.js hook prompt_post_assemble"
     },
     "dependencies": {
-        "@agh/extension-sdk": "workspace:*"
+        "@compozy/extension-sdk": "workspace:*"
     },
     "devDependencies": {
         "@types/node": "^26.1.1",

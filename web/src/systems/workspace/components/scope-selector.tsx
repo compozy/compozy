@@ -1,6 +1,6 @@
 import { Box, Globe } from "lucide-react";
 
-import { PillGroup, cn } from "@agh/ui";
+import { PillGroup, cn } from "@compozy/ui";
 
 import { ScopeSelectorProvider } from "../contexts/scope-selector-context";
 import {

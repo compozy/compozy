@@ -3,13 +3,13 @@ title: Linear Setup
 description: Connect Linear comments or Agent Sessions with API-key or OAuth client-credentials authentication.
 ---
 
-This guide connects a Linear workspace to AGH through either ordinary issue comments or Linear's
+This guide connects a Linear workspace to Compozy through either ordinary issue comments or Linear's
 Agent Session surface. Runtime mode and authentication mode are independent choices; configure both
 explicitly.
 
 ## How the Linear bridge behaves
 
-| Surface               | AGH behavior                                                                                                                                  |
+| Surface               | Compozy behavior                                                                                                                              |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `comments` mode       | Ingests newly created `Comment` webhooks. Replies become Linear comments; existing bridge comments can be updated or deleted.                 |
 | `agent_sessions` mode | Ingests `AgentSessionEvent` actions `created` and `prompted`. Responses become append-only Agent Activities; edit and delete are unsupported. |
@@ -33,10 +33,10 @@ Use `comments + api_key` for the first proof:
 
 1. Create a dedicated Linear API key and copy the organization ID returned for that identity.
 2. Create one Comment webhook with a unique signing secret.
-3. Create the AGH bridge disabled with explicit `mode: "comments"` and `auth_mode: "api_key"`.
+3. Create the Compozy bridge disabled with explicit `mode: "comments"` and `auth_mode: "api_key"`.
 4. Bind `webhook_secret` and `api_key`.
 5. Verify configuration, enable, and inspect runtime health.
-6. Create one real issue comment and confirm the AGH route.
+6. Create one real issue comment and confirm the Compozy route.
 7. Reply through `send-test` and confirm the remote Linear comment ID.
 
 Use `agent_sessions + oauth` when the app must be mentionable/assignable and produce append-only Agent
@@ -48,14 +48,14 @@ Activities.
 - The workspace's organization ID.
 - A public HTTPS callback and local provider listener.
 - Either a personal API key or an OAuth application with client-credentials tokens enabled.
-- An AGH workspace with a default agent.
+- An Compozy workspace with a default agent.
 
 Before configuring Linear, prove that the locally built provider is installed and visible in the
 daemon catalog:
 
 ```bash
 PROVIDER=linear
-agh extension status "$PROVIDER" -o json
+compozy extension status "$PROVIDER" -o json
 curl -sS http://127.0.0.1:2123/api/bridges/providers | \
   jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
 ```
@@ -99,7 +99,7 @@ by organization and runtime mode before verifying that instance's secret.
 For the quickest comments setup:
 
 1. Open Linear **Settings → API**.
-2. Create a personal API key for the identity that should own AGH's comments.
+2. Create a personal API key for the identity that should own Compozy's comments.
 3. Copy it when Linear displays it.
 
 The key inherits that user's team access. Use a dedicated integration identity if comments should not
@@ -116,17 +116,17 @@ For app-owned comments or Agent Sessions:
 5. For `agent_sessions`, enable the **Agent session events** webhook category and give the app a short,
    recognizable name and icon; that identity appears in mention and assignment menus.
 
-AGH requests `read`, `write`, `comments:create`, and `issues:create`; Agent Session mode also requests
+Compozy requests `read`, `write`, `comments:create`, and `issues:create`; Agent Session mode also requests
 `app:mentionable`. Linear's [OAuth client-credentials reference](https://linear.app/developers/oauth-2-0-authentication#client-credentials-tokens)
 documents the enablement toggle and token behavior. The [Agents setup guide](https://linear.app/developers/agents)
 covers app installation and Agent Session event registration.
 
 ## Step 3: Create the bridge disabled
 
-Linear has no guided `agh bridge setup` command. API-key comments example:
+Linear has no guided `compozy bridge setup` command. API-key comments example:
 
 ```bash
-agh bridge create \
+compozy bridge create \
   --scope workspace \
   --workspace-id ws_8f33a913d23c4fd1 \
   --platform linear \
@@ -174,7 +174,7 @@ BRIDGE_ID=brg_123
 Every mode requires the signing secret from the Linear webhook or OAuth application settings:
 
 ```bash
-printf '%s' "$LINEAR_WEBHOOK_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
+printf '%s' "$LINEAR_WEBHOOK_SECRET" | compozy bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
   --secret-ref "vault:bridges/$BRIDGE_ID/webhook_secret" \
   --kind secret \
   --secret-value-stdin
@@ -183,7 +183,7 @@ printf '%s' "$LINEAR_WEBHOOK_SECRET" | agh bridge secret-bindings put "$BRIDGE_I
 API-key authentication:
 
 ```bash
-printf '%s' "$LINEAR_API_KEY" | agh bridge secret-bindings put "$BRIDGE_ID" api_key \
+printf '%s' "$LINEAR_API_KEY" | compozy bridge secret-bindings put "$BRIDGE_ID" api_key \
   --secret-ref "vault:bridges/$BRIDGE_ID/api_key" \
   --kind token \
   --secret-value-stdin
@@ -192,12 +192,12 @@ printf '%s' "$LINEAR_API_KEY" | agh bridge secret-bindings put "$BRIDGE_ID" api_
 OAuth client credentials:
 
 ```bash
-printf '%s' "$LINEAR_CLIENT_ID" | agh bridge secret-bindings put "$BRIDGE_ID" client_id \
+printf '%s' "$LINEAR_CLIENT_ID" | compozy bridge secret-bindings put "$BRIDGE_ID" client_id \
   --secret-ref "vault:bridges/$BRIDGE_ID/client_id" \
   --kind credential \
   --secret-value-stdin
 
-printf '%s' "$LINEAR_CLIENT_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" client_secret \
+printf '%s' "$LINEAR_CLIENT_SECRET" | compozy bridge secret-bindings put "$BRIDGE_ID" client_secret \
   --secret-ref "vault:bridges/$BRIDGE_ID/client_secret" \
   --kind secret \
   --secret-value-stdin
@@ -216,11 +216,11 @@ For `comments` mode:
 1. Open Linear **Settings → API → Webhooks**.
 2. Select **New webhook**.
 3. Set its URL to `provider_config.webhook.public_url`.
-4. Choose all public teams or the specific team scope AGH should receive.
+4. Choose all public teams or the specific team scope Compozy should receive.
 5. Select the **Comment** resource type.
 6. Save the webhook and copy its signing secret into the `webhook_secret` binding.
 
-AGH ingests only `type: "Comment"` with `action: "create"`; update/remove webhooks are acknowledged
+Compozy ingests only `type: "Comment"` with `action: "create"`; update/remove webhooks are acknowledged
 without starting another agent turn. Linear's [webhook guide](https://linear.app/developers/webhooks)
 documents the current settings page, public-HTTPS requirement, retries, and signature header.
 
@@ -229,19 +229,19 @@ documents the current settings page, public-HTTPS requirement, retries, and sign
 For `agent_sessions` mode, use the OAuth application's webhook configuration rather than a separate
 data-change webhook:
 
-1. Set the OAuth application's webhook URL to the AGH public callback.
+1. Set the OAuth application's webhook URL to the Compozy public callback.
 2. Enable **Agent session events**.
-3. Copy the app webhook signing secret into the AGH binding.
+3. Copy the app webhook signing secret into the Compozy binding.
 4. Install/authorize the app in the intended workspace and grant its team access.
 5. Confirm the app is mentionable or assignable in a test issue according to the scopes you enabled.
 
-AGH handles `created` and `prompted` Agent Session actions. Linear expects an agent to acknowledge a
-new session quickly; keep the public endpoint and AGH daemon continuously available.
+Compozy handles `created` and `prompted` Agent Session actions. Linear expects an agent to acknowledge a
+new session quickly; keep the public endpoint and Compozy daemon continuously available.
 
 ## Step 6: Verify configuration, then runtime identity
 
 ```bash
-agh bridge verify "$BRIDGE_ID" --json
+compozy bridge verify "$BRIDGE_ID" --json
 ```
 
 Linear currently reports `provider.identity` as `skipped` in the control command. While disabled,
@@ -251,9 +251,9 @@ and make the skipped checks explicit.
 Enable the bridge so runtime initialization can perform the live GraphQL viewer query:
 
 ```bash
-agh bridge enable "$BRIDGE_ID"
-agh bridge verify "$BRIDGE_ID" --json
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge enable "$BRIDGE_ID"
+compozy bridge verify "$BRIDGE_ID" --json
+compozy bridge get "$BRIDGE_ID" -o json
 ```
 
 Runtime health should reach `ready`. It fails authentication when the API key/client credentials are
@@ -265,14 +265,14 @@ For comments mode, create a new comment on an issue. For Agent Sessions, mention
 Linear sends a `created` event. Then inspect the route:
 
 ```bash
-agh bridge routes "$BRIDGE_ID" -o json
+compozy bridge routes "$BRIDGE_ID" -o json
 ```
 
 Use the route's issue group and encoded thread in a real delivery:
 
 ```bash
-agh bridge send-test "$BRIDGE_ID" \
-  --message "AGH Linear connection check" \
+compozy bridge send-test "$BRIDGE_ID" \
+  --message "Compozy Linear connection check" \
   --group-id "<group-id-from-route>" \
   --thread-id "<thread-id-from-route>" \
   --mode reply \
@@ -302,7 +302,7 @@ The GraphQL and OAuth token destinations are official defaults or operator-owned
 - Comment mode only starts turns from newly created comments.
 - Agent Session activities are append-only; edit and delete delivery operations are unsupported.
 - Tool progress has no Linear side effect.
-- `agh bridge verify` does not run the viewer query; enabled runtime health does.
+- `compozy bridge verify` does not run the viewer query; enabled runtime health does.
 - The provider validates a recent positive webhook timestamp, but the signing secret and organization/
   mode selection remain the primary documented trust boundary.
 
@@ -325,7 +325,7 @@ The GraphQL and OAuth token destinations are official defaults or operator-owned
 - Prefer an OAuth app identity or dedicated integration user over a personal admin key.
 - Scope team access to the work the agent should see.
 - Keep the public handler fast and preserve the raw request body for HMAC verification.
-- Store `api_key`, `client_secret`, and `webhook_secret` only through AGH secret bindings.
+- Store `api_key`, `client_secret`, and `webhook_secret` only through Compozy secret bindings.
 
 ## Rotate Linear credentials
 
@@ -334,7 +334,7 @@ boundary. For OAuth, create/rotate the client secret on the same app. Disable th
 binding, enable it, and wait for the GraphQL viewer check to return `ready` before revoking the old
 credential.
 
-Rotate `webhook_secret` in the Linear webhook/app and AGH during the same disabled window. Prove a
+Rotate `webhook_secret` in the Linear webhook/app and Compozy during the same disabled window. Prove a
 new signed event after rotation; a successful GraphQL identity call does not validate webhook HMAC.
 
 ## Completion checklist

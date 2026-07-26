@@ -25,7 +25,7 @@ describe("blog category routes", () => {
       expect(metadata.openGraph?.title, category).toBe(`${label} posts`);
       expect(metadata.openGraph?.description, category).toBe(`Posts filed under ${label}.`);
       expect(metadata.openGraph?.url, category).toBe(
-        `https://agh.network/blog/categories/${category}/`
+        `https://compozy.com/blog/categories/${category}/`
       );
       expect(metadata.twitter?.title, category).toBe(`${label} posts`);
       expect(metadata.twitter?.description, category).toBe(`Posts filed under ${label}.`);

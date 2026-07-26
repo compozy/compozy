@@ -1,6 +1,6 @@
 import { FileText } from "lucide-react";
 
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import type { RenderToken, TemplateToken } from "../../../lib/trigger-template";
 import { PreviewCard } from "./preview-card";

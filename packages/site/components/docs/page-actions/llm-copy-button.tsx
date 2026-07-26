@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 

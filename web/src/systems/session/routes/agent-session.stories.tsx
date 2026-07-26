@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storyAgentNames, storySessionIds, storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { primarySessionFixture, sessionTranscriptPermissionFixture } from "@/systems/session/mocks";
@@ -69,7 +69,7 @@ export const Loading: Story = {
     ...appRouteParameters(fraudSessionRoute),
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", async () => {
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", async () => {
           await delay("infinite");
           return HttpResponse.json({ session: primarySessionFixture });
         }),
@@ -97,7 +97,7 @@ export const PendingPermission: Story = {
     ...appRouteParameters(fraudSessionRoute),
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
           HttpResponse.json(transcriptPayload(sessionTranscriptPermissionFixture))
         ),
       ],
@@ -115,7 +115,7 @@ export const NotFoundRedirect: Story = {
     ...appRouteParameters(missingSessionRoute),
     ...storybookMswParameters({
       session: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) =>
           HttpResponse.json(
             { error: `Session not found: ${String(params.session_id)}` },
             { status: 404 }

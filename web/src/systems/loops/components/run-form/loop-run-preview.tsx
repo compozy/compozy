@@ -1,4 +1,4 @@
-import { Eyebrow, MonoId, Pill } from "@agh/ui";
+import { Eyebrow, MonoId, Pill } from "@compozy/ui";
 import type { NetworkParticipationDraft } from "@/systems/network";
 
 import {

@@ -3,7 +3,7 @@ import { HttpResponse } from "msw";
 import { fireEvent, expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storyAgentNames, storyWorkspaceIds } from "@/storybook/fintech-scenario";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -127,7 +127,7 @@ export const DefinitionConflict: Story = {
     ...appRouteParameters(`${settingsRoute}?section=instructions`),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.put("/api/agents/{name}", () =>
+        compozyApiMock.put("/api/agents/{name}", () =>
           HttpResponse.json({ error: "definition digest conflict" }, { status: 409 })
         ),
       ],
@@ -150,7 +150,7 @@ export const PermissionDenied: Story = {
     ...appRouteParameters(`${settingsRoute}?section=instructions`),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.put("/api/agents/{name}", () =>
+        compozyApiMock.put("/api/agents/{name}", () =>
           HttpResponse.json({ error: "mutation forbidden" }, { status: 403 })
         ),
       ],
@@ -193,7 +193,7 @@ export const InstructionsLong: Story = {
     ...appRouteParameters(`${settingsRoute}?section=instructions`),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/{name}", () =>
+        compozyApiMock.get("/api/agents/{name}", () =>
           HttpResponse.json({
             agent: {
               ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
@@ -223,7 +223,7 @@ export const AccessPopulated: Story = {
     ...appRouteParameters(`${settingsRoute}?section=access`),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/{name}", () =>
+        compozyApiMock.get("/api/agents/{name}", () =>
           HttpResponse.json({
             agent: {
               ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
@@ -254,7 +254,7 @@ export const McpServersPopulated: Story = {
     ...appRouteParameters(`${settingsRoute}?section=mcp`),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/{name}", () =>
+        compozyApiMock.get("/api/agents/{name}", () =>
           HttpResponse.json({
             agent: {
               ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
@@ -287,7 +287,7 @@ export const McpServersEmpty: Story = {
     ...appRouteParameters(`${settingsRoute}?section=mcp`),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents/{name}", () =>
+        compozyApiMock.get("/api/agents/{name}", () =>
           HttpResponse.json({
             agent: {
               ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
@@ -325,7 +325,7 @@ export const SaveFailure: Story = {
     ...appRouteParameters(`${settingsRoute}?section=instructions`),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.put("/api/agents/{name}", () =>
+        compozyApiMock.put("/api/agents/{name}", () =>
           HttpResponse.json({ error: "agent store unavailable" }, { status: 500 })
         ),
       ],

@@ -9,7 +9,7 @@ import {
   NativeSelectOption,
   PillGroup,
   type PillGroupItem,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { TaskOwnerKind } from "../../types";
 

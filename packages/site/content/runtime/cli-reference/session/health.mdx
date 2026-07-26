@@ -1,20 +1,20 @@
 ---
-title: "agh session health"
+title: "compozy session health"
 description: "Read session health and wake eligibility"
 ---
 
-## agh session health
+## compozy session health
 
 Read session health and wake eligibility
 
 ```
-agh session health <session-id> [flags]
+compozy session health <session-id> [flags]
 ```
 
 ### Examples
 
 ```
-  agh session health sess_123 --json
+  compozy session health sess_123 --json
 ```
 
 ### Options
@@ -32,7 +32,7 @@ agh session health <session-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -42,5 +42,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session health <session-id> -o json
+compozy session health <session-id> -o json
 ```

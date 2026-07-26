@@ -26,7 +26,7 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     installedNoun: "installed",
     teachingEmptyTitle: "No skills installed yet",
     teachingEmptyBody: "Everything you install from the marketplace shows up here.",
-    cliHint: "agh skill install <slug>",
+    cliHint: "compozy skill install <slug>",
   },
   mcp: {
     kind: "mcp",
@@ -38,7 +38,7 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     installedNoun: "installed",
     teachingEmptyTitle: "No MCPs installed yet",
     teachingEmptyBody: "Everything you install from the marketplace shows up here.",
-    cliHint: "agh mcp install <name>",
+    cliHint: "compozy mcp install <name>",
   },
   extension: {
     kind: "extension",
@@ -50,7 +50,7 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     installedNoun: "installed",
     teachingEmptyTitle: "No extensions installed yet",
     teachingEmptyBody: "Everything you install from the marketplace shows up here.",
-    cliHint: "agh extension install <path-or-slug>",
+    cliHint: "compozy extension install <path-or-slug>",
   },
   bundle: {
     kind: "bundle",
@@ -62,7 +62,7 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     installedNoun: "active",
     teachingEmptyTitle: "No bundles active yet",
     teachingEmptyBody: "A bundle activates a curated set of capabilities in one step.",
-    cliHint: "agh bundle activate",
+    cliHint: "compozy bundle activate",
   },
 };
 

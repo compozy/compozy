@@ -1,24 +1,24 @@
 ---
-title: "agh workspace add"
+title: "compozy workspace add"
 description: "Register a workspace"
 ---
 
-## agh workspace add
+## compozy workspace add
 
 Register a workspace
 
 ```
-agh workspace add <path> [flags]
+compozy workspace add <path> [flags]
 ```
 
 ### Examples
 
 ```
   # Register a workspace with a stable name
-  agh workspace add "$PWD" --name checkout-api
+  compozy workspace add "$PWD" --name checkout-api
 
   # Include an additional directory and set a workspace default agent
-  agh workspace add "$PWD" --name platform --add-dir "$PWD/docs" --default-agent architect
+  compozy workspace add "$PWD" --name platform --add-dir "$PWD/docs" --default-agent architect
 ```
 
 ### Options
@@ -40,7 +40,7 @@ agh workspace add <path> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -50,5 +50,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh workspace add <path> -o json
+compozy workspace add <path> -o json
 ```

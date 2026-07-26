@@ -3,7 +3,7 @@ import { AlertCircle } from "lucide-react";
 import { useSettingsHooksPage } from "@/systems/settings/hooks/use-settings-hooks-page";
 import { NotificationPresetsPanel } from "@/systems/notifications";
 import { SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
-import { Button, Spinner } from "@agh/ui";
+import { Button, Spinner } from "@compozy/ui";
 
 import { HooksSection } from "./-hooks-section";
 

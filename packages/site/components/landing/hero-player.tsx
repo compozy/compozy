@@ -1,7 +1,7 @@
 "use client";
 
 import { Player, Thumbnail } from "@remotion/player";
-import { cn } from "@agh/ui/lib/utils";
+import { cn } from "@compozy/ui/lib/utils";
 import { HeroChatComposition, STATIC_FALLBACK_FRAME } from "@/remotion/hero/composition";
 import {
   COMPOSITION_HEIGHT,

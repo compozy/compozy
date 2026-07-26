@@ -1,4 +1,4 @@
-import { Alert, AlertDescription } from "@agh/ui";
+import { Alert, AlertDescription } from "@compozy/ui";
 import { CircleAlert } from "lucide-react";
 
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";

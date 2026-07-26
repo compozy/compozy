@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	"github.com/compozy/compozy/internal/frontmatter"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -40,7 +40,7 @@ func TestParseSkillContentValidCases(t *testing.T) {
 				"description: Review code carefully",
 				"version: 1.2.3",
 				"metadata:",
-				"  agh:",
+				"  compozy:",
 				"    category: quality",
 				"---",
 				"# Heading",
@@ -52,7 +52,7 @@ func TestParseSkillContentValidCases(t *testing.T) {
 				Description: "Review code carefully",
 				Version:     "1.2.3",
 				Metadata: map[string]any{
-					"agh": map[string]any{
+					"compozy": map[string]any{
 						"category": "quality",
 					},
 				},
@@ -358,7 +358,7 @@ func TestParseSkillFileMergesMCPSidecar(t *testing.T) {
 		"name: sidecar",
 		"description: Sidecar MCP merge",
 		"metadata:",
-		"  agh:",
+		"  compozy:",
 		"    mcp_servers:",
 		"      - name: inline-only",
 		"        command: inline-only-command",
@@ -398,7 +398,7 @@ func TestParseSkillFileMergesMCPSidecar(t *testing.T) {
 	}
 }
 
-func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
+func TestParseSkillFileParsesCompozyMetadataFixtures(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -408,7 +408,7 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 		wantHook []hookspkg.HookDecl
 	}{
 		{
-			name:    "mcp servers only",
+			name:    "Should parse MCP servers",
 			fixture: "mcp-only",
 			wantMCP: []MCPServerDecl{{
 				Name:    "filesystem",
@@ -421,7 +421,7 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 			}},
 		},
 		{
-			name:    "hooks only",
+			name:    "Should parse hooks",
 			fixture: "hooks-only",
 			wantHook: []hookspkg.HookDecl{{
 				Name:        "hooks-only",
@@ -437,7 +437,7 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 			}},
 		},
 		{
-			name:    "mcp servers and hooks",
+			name:    "Should parse MCP servers and hooks",
 			fixture: "combined",
 			wantMCP: []MCPServerDecl{{
 				Name:    "git",
@@ -461,8 +461,8 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 			}},
 		},
 		{
-			name:    "without compozy metadata",
-			fixture: "no-agh",
+			name:    "Should ignore unrelated metadata",
+			fixture: "no-compozy",
 		},
 	}
 
@@ -495,6 +495,36 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 	}
 }
 
+func TestParseSkillFileIgnoresLegacyAGHMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should ignore declarations under the legacy metadata key", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		skillPath := writeSkillFile(t, root, filepath.Join("legacy-metadata", skillFileName), strings.Join([]string{
+			"---",
+			"name: legacy-metadata",
+			"description: Legacy metadata must not activate declarations",
+			"metadata:",
+			"  agh:",
+			"    mcp_servers:",
+			"      - name: legacy-server",
+			"        command: legacy-command",
+			"---",
+			"body",
+		}, "\n"))
+
+		skill, err := ParseSkillFile(skillPath)
+		if err != nil {
+			t.Fatalf("ParseSkillFile() error = %v", err)
+		}
+		if len(skill.MCPServers) != 0 {
+			t.Fatalf("ParseSkillFile() MCPServers = %#v, want legacy metadata ignored", skill.MCPServers)
+		}
+	})
+}
+
 func TestParseSkillFileParsesActivationGatesStrictly(t *testing.T) {
 	t.Parallel()
 
@@ -507,7 +537,7 @@ func TestParseSkillFileParsesActivationGatesStrictly(t *testing.T) {
 			"name: gated",
 			"description: Gated skill",
 			"metadata:",
-			"  agh:",
+			"  compozy:",
 			"    when:",
 			"      platforms: [darwin, linux]",
 			"      environments: [container]",
@@ -544,7 +574,7 @@ func TestParseSkillFileParsesActivationGatesStrictly(t *testing.T) {
 			"name: unknown-gate",
 			"description: Invalid gated skill",
 			"metadata:",
-			"  agh:",
+			"  compozy:",
 			"    when:",
 			"      platforms: [linux]",
 			"      requires_toolsets: [terminal]",
@@ -562,7 +592,7 @@ func TestParseSkillFileParsesActivationGatesStrictly(t *testing.T) {
 	})
 }
 
-func TestParseBundledSkillParsesAGHMetadata(t *testing.T) {
+func TestParseBundledSkillParsesCompozyMetadata(t *testing.T) {
 	t.Parallel()
 
 	fsys := os.DirFS(filepath.Join("testdata", "loader"))
@@ -622,7 +652,7 @@ func TestParseBundledSkillParsesMCPSidecar(t *testing.T) {
 	}
 }
 
-func TestParseSkillFileWarnsOnMalformedAGHMetadata(t *testing.T) {
+func TestParseSkillFileWarnsOnMalformedCompozyMetadata(t *testing.T) {
 	original := slog.Default()
 	var logs bytes.Buffer
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
@@ -630,7 +660,7 @@ func TestParseSkillFileWarnsOnMalformedAGHMetadata(t *testing.T) {
 		slog.SetDefault(original)
 	})
 
-	skill, err := ParseSkillFile(loaderFixturePath("malformed-agh"))
+	skill, err := ParseSkillFile(loaderFixturePath("malformed-compozy"))
 	if err != nil {
 		t.Fatalf("ParseSkillFile() error = %v", err)
 	}
@@ -695,7 +725,7 @@ func TestParseSkillFileRejectsHooksMissingCommand(t *testing.T) {
 	if err == nil {
 		t.Fatal("ParseSkillFile() error = nil, want missing hook command failure")
 	}
-	if !strings.Contains(err.Error(), `invalid metadata.agh.hooks entry for "invalid-hook-command"`) {
+	if !strings.Contains(err.Error(), `invalid metadata.compozy.hooks entry for "invalid-hook-command"`) {
 		t.Fatalf("ParseSkillFile() error = %v, want skill identifier context", err)
 	}
 	if !strings.Contains(err.Error(), "command is required") {
@@ -712,7 +742,7 @@ func TestParseSkillFileRejectsLegacyHookEventsWithReplacement(t *testing.T) {
 		"name: legacy-hook",
 		"description: Legacy hook names are rejected",
 		"metadata:",
-		"  agh:",
+		"  compozy:",
 		"    hooks:",
 		"      - event: on_session_created",
 		"        command: /bin/echo",
@@ -738,7 +768,7 @@ func TestParseSkillFileParsesHookOptionalFields(t *testing.T) {
 		"name: hook-options",
 		"description: Hook with optional fields",
 		"metadata:",
-		"  agh:",
+		"  compozy:",
 		"    hooks:",
 		"      - event: session.post_create",
 		"        command: /bin/echo",
@@ -784,7 +814,7 @@ func TestParseSkillFileDefaultsMinimalHookFields(t *testing.T) {
 		"name: hook-defaults",
 		"description: Minimal hook declaration",
 		"metadata:",
-		"  agh:",
+		"  compozy:",
 		"    hooks:",
 		"      - event: session.post_create",
 		"        command: /bin/echo",
@@ -997,7 +1027,7 @@ func loaderFixturePath(name string) string {
 func writeSkillMCPSidecar(t *testing.T, skillDir, content string) string {
 	t.Helper()
 
-	path := filepath.Join(skillDir, aghconfig.MCPJSONName)
+	path := filepath.Join(skillDir, compozyconfig.MCPJSONName)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(path), err)
 	}

@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { Search } from "lucide-react";
 
-import { Button, cn } from "@agh/ui";
+import { Button, cn } from "@compozy/ui";
 
 import type {
   LoopApprovalFact,

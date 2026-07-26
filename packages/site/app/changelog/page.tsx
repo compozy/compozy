@@ -4,7 +4,7 @@ import { ChangelogTocRail } from "@/components/blog/changelog-toc-rail";
 import { ReleaseEntry } from "@/components/blog/release-entry";
 import { allReleases } from "@/lib/blog";
 import { changelogMetadata } from "./metadata";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 export const metadata = changelogMetadata;
 
@@ -24,7 +24,7 @@ export default function ChangelogPage() {
             Every alpha, on the wire.
           </h1>
           <p className="mt-5 max-w-[58ch] text-lg leading-7 text-muted">
-            AGH ships in the open and logs every change here. New behavior, breaking moves, and
+            Compozy ships in the open and logs every change here. New behavior, breaking moves, and
             engineering notes are sourced from the same git history that ships the binary.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -62,7 +62,7 @@ export default function ChangelogPage() {
                     Install the runtime
                   </Link>
                   <Link
-                    href="/blog/introducing-agh-the-first-agent-network-protocol"
+                    href="/blog/introducing-compozy-the-first-agent-network-protocol"
                     className="inline-flex h-9 items-center justify-center rounded-lg border border-line px-3.5 font-sans text-sm font-medium text-fg transition-colors hover:bg-hover"
                   >
                     Read the launch post

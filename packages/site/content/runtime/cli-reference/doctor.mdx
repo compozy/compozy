@@ -1,27 +1,27 @@
 ---
-title: "agh doctor"
+title: "compozy doctor"
 description: "Run runtime diagnostics"
 ---
 
-## agh doctor
+## compozy doctor
 
 Run runtime diagnostics
 
 ```
-agh doctor [flags]
+compozy doctor [flags]
 ```
 
 ### Examples
 
 ```
   # Run diagnostics
-  agh doctor
+  compozy doctor
 
   # Return diagnostic items for agents
-  agh doctor -o json
+  compozy doctor -o json
 
   # Run only provider and MCP diagnostics
-  agh doctor --only provider --only mcp
+  compozy doctor --only provider --only mcp
 ```
 
 ### Options
@@ -42,7 +42,7 @@ agh doctor [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -52,5 +52,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh doctor -o json
+compozy doctor -o json
 ```

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorySurface } from "@/storybook/story-layout";
@@ -82,7 +82,7 @@ function onboardingHarness() {
 /** Stalls the directory browse so the reading state stays on screen. */
 const browseLoading = storybookMswParameters({
   workspace: [
-    aghApiMock.get("/api/fs/browse", async () => {
+    compozyApiMock.get("/api/fs/browse", async () => {
       await delay("infinite");
       return HttpResponse.json({ entries: [], home: "/Users/pedro", path: "/Users/pedro" });
     }),
@@ -91,7 +91,7 @@ const browseLoading = storybookMswParameters({
 
 const browseEmpty = storybookMswParameters({
   workspace: [
-    aghApiMock.get("/api/fs/browse", () =>
+    compozyApiMock.get("/api/fs/browse", () =>
       HttpResponse.json({
         entries: [],
         home: "/Users/pedro",
@@ -104,7 +104,7 @@ const browseEmpty = storybookMswParameters({
 
 const browseError = storybookMswParameters({
   workspace: [
-    aghApiMock.get("/api/fs/browse", () =>
+    compozyApiMock.get("/api/fs/browse", () =>
       HttpResponse.json({ error: "permission denied" }, { status: 403 })
     ),
   ],
@@ -120,7 +120,7 @@ export const OnboardingGlobalUnavailable: Story = {
   parameters: {
     ...storybookMswParameters({
       daemon: [
-        aghApiMock.get("/api/status", () =>
+        compozyApiMock.get("/api/status", () =>
           HttpResponse.json({
             ...statusFixture,
             daemon: { ...statusFixture.daemon, user_home_dir: "" },
@@ -207,7 +207,7 @@ export const OnboardingLoadingGlobal: Story = {
   parameters: {
     ...storybookMswParameters({
       workspace: [
-        aghApiMock.post("/api/workspaces/resolve", async () => {
+        compozyApiMock.post("/api/workspaces/resolve", async () => {
           await delay("infinite");
           return HttpResponse.json({ workspace: primaryWorkspaceFixture });
         }),
@@ -235,7 +235,7 @@ export const OnboardingLoadingCreate: Story = {
   parameters: {
     ...storybookMswParameters({
       workspace: [
-        aghApiMock.post("/api/workspaces", async () => {
+        compozyApiMock.post("/api/workspaces", async () => {
           await delay("infinite");
           return HttpResponse.json({ workspace: primaryWorkspaceFixture }, { status: 201 });
         }),
@@ -258,7 +258,7 @@ export const OnboardingCreateError: Story = {
   parameters: {
     ...storybookMswParameters({
       workspace: [
-        aghApiMock.post("/api/workspaces", () =>
+        compozyApiMock.post("/api/workspaces", () =>
           HttpResponse.json({ error: "root is already registered" }, { status: 409 })
         ),
       ],

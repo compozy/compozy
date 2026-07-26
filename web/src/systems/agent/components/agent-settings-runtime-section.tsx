@@ -10,7 +10,7 @@ import {
   FormSection,
   Input,
   RadioCard,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   RuntimeSelector,

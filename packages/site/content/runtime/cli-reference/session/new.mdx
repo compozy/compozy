@@ -1,33 +1,33 @@
 ---
-title: "agh session new"
+title: "compozy session new"
 description: "Create a new session"
 ---
 
-## agh session new
+## compozy session new
 
 Create a new session
 
 ```
-agh session new [flags]
+compozy session new [flags]
 ```
 
 ### Examples
 
 ```
   # Start a session in the current workspace using the configured default agent
-  agh session new
+  compozy session new
 
   # Start a named session for a specific registered workspace and agent
-  agh session new --workspace checkout-api --agent reviewer --name review-api
+  compozy session new --workspace checkout-api --agent reviewer --name review-api
 
   # Override provider, model, and reasoning effort for this session only
-  agh session new --provider codex --model gpt-5.6-sol --reasoning-effort max
+  compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort max
 
   # Create the session and dispatch its first prompt after runtime activation
-  agh session new --prompt "Inspect the failing build and propose a fix"
+  compozy session new --prompt "Inspect the failing build and propose a fix"
 
   # Auto-register an absolute workspace path before creating the session
-  agh session new --cwd "$PWD" --agent reviewer
+  compozy session new --cwd "$PWD" --agent reviewer
 ```
 
 ### Options
@@ -58,7 +58,7 @@ agh session new [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -68,5 +68,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session new -o json
+compozy session new -o json
 ```

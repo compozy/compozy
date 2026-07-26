@@ -9,9 +9,9 @@ Web, CLI, HTTP/UDS, or native tools. The daemon remains the source of truth; clo
 disconnecting the prompt response does not cancel a committed Goal.
 
 <Callout type="info">
-  `/goal` is parsed only at authenticated operator prompt ingress: Web, HTTP, UDS, and `agh session
-  prompt`. Internal, automation, network, extension, and synthetic prompts treat the same text as an
-  ordinary message.
+  `/goal` is parsed only at authenticated operator prompt ingress: Web, HTTP, UDS, and `compozy
+  session prompt`. Internal, automation, network, extension, and synthetic prompts treat the same
+  text as an ordinary message.
 </Callout>
 
 ## Start and inspect
@@ -19,17 +19,17 @@ disconnecting the prompt response does not cancel a committed Goal.
 Send a free-form objective to an active session:
 
 ```bash
-agh session prompt sess_123 '/goal Ship the requested change and keep make verify green.' -o json
+compozy session prompt sess_123 '/goal Ship the requested change and keep make verify green.' -o json
 ```
 
 The command returns a structured result. A successful start has `outcome: started` and the canonical
-snapshot. If the session already owns a visible Goal, AGH returns `goal_replace_required` with the
+snapshot. If the session already owns a visible Goal, Compozy returns `goal_replace_required` with the
 current snapshot instead of overwriting it.
 
 Read the current Goal through any of these public surfaces:
 
 - Web session header — status, turn meter, context state, Run link, active binding link, and valid controls.
-- `agh session prompt <id> '/goal status' -o json` — structured session command result.
+- `compozy session prompt <id> '/goal status' -o json` — structured session command result.
 - `compozy__goal_get` — session-scoped native read, including terminal state until clear.
 - `GET /api/workspaces/{workspace_id}/sessions/{session_id}/goal` — canonical snapshot or `{ "goal": null }`.
 
@@ -58,7 +58,7 @@ points. Unknown text after `/goal` is the objective for the start form, not a co
 Use the `run_id` from the current snapshot as the expected ID:
 
 ```bash
-agh session prompt sess_123 \
+compozy session prompt sess_123 \
   '/goal replace run_current Ship the narrower objective and keep make verify green.' \
   -o json
 ```
@@ -70,7 +70,7 @@ callers receive `goal_replace_stale` with the newer snapshot.
 ### Draft before activation
 
 ```bash
-agh session prompt sess_123 '/goal draft fix the flaky checks without broad rewrites'
+compozy session prompt sess_123 '/goal draft fix the flaky checks without broad rewrites'
 ```
 
 Draft is the only `/goal` form that stays on the ordinary streaming response path. It is admitted
@@ -90,7 +90,7 @@ verify: generated OpenAPI has no drift
 constraints: preserve the public CLI shape
 ```
 
-AGH stores the non-clause lines as the objective. Each `verify:` and `constraints:` line must contain
+Compozy stores the non-clause lines as the objective. Each `verify:` and `constraints:` line must contain
 text. The synthetic Goal always uses one canonical `agent-judge` criterion. Verification text is
 added to that judge rubric; it is never executed as a shell command. To author an actual command
 criterion, use a [`goal` node in an compozy.loop/v1 definition](/runtime/core/loops/goal-node).
@@ -99,17 +99,17 @@ criterion, use a [`goal` node in an compozy.loop/v1 definition](/runtime/core/lo
 
 The context gauge reports evidence from the active Goal checkpoint:
 
-| State     | Meaning                                                                                                 |
-| --------- | ------------------------------------------------------------------------------------------------------- |
-| `known`   | The provider reported a current context window size and usage ratio.                                    |
-| `unknown` | No trustworthy report exists. AGH does not display or infer a percentage.                               |
-| `pending` | Compaction ran, but AGH still needs a strictly newer usage report before it can call the context fresh. |
+| State     | Meaning                                                                                                     |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| `known`   | The provider reported a current context window size and usage ratio.                                        |
+| `unknown` | No trustworthy report exists. Compozy does not display or infer a percentage.                               |
+| `pending` | Compaction ran, but Compozy still needs a strictly newer usage report before it can call the context fresh. |
 
 `[goals].context_nudge_ratio` is pinned when the Run starts. When known usage reaches that threshold,
-AGH requests correlated compaction. Compaction is an operational prompt, not a user-authored human
+Compozy requests correlated compaction. Compaction is an operational prompt, not a user-authored human
 message and not a Goal work turn.
 
-AGH does not replay an ACP prompt after its durable start. A restart with exact terminal evidence
+Compozy does not replay an ACP prompt after its durable start. A restart with exact terminal evidence
 reconciles that terminal result. Missing proof becomes an `ambiguous` turn and a typed approval
 boundary. A `max_tokens` recovery starts a new continuation turn that inspects current state; it is
 not a retry of the previous prompt.
@@ -129,18 +129,18 @@ Every durably started work prompt consumes one monotonic Goal turn. Compaction d
 run-wide total order with:
 
 ```bash
-agh loop turns --run run_123 --after-seq 42 --limit 50 -o json
+compozy loop turns --run run_123 --after-seq 42 --limit 50 -o json
 ```
 
 Optional `--node` and `--item` filters narrow one Goal instance. `result_status`, reason, stop reason,
 verdict, evidence, token usage, and `ended_at` are nullable until the corresponding evidence exists.
 The response returns `next_after_seq` for the next page. See the generated
-[`agh loop turns` reference](/runtime/cli-reference/loop/turns).
+[`compozy loop turns` reference](/runtime/cli-reference/loop/turns).
 
 List only conversational Goal Runs, or one origin session:
 
 ```bash
-agh loop runs --origin session --origin-session sess_123 -o json
+compozy loop runs --origin session --origin-session sess_123 -o json
 ```
 
 The Web Run page merges persisted pages with the three Goal Run events without duplicating turns.

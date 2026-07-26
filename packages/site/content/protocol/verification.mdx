@@ -1,17 +1,17 @@
 ---
 title: Signature Verification
-description: Reference for AGH Network v1 trust-state processing, Ed25519 proof verification, unsigned messages, key resolution, and verification errors.
+description: Reference for Compozy Network v1 trust-state processing, Ed25519 proof verification, unsigned messages, key resolution, and verification errors.
 icon: ShieldCheck
 ---
 
-AGH Network v1 inserts trust evaluation between core envelope validation and routing. A receiver
+Compozy Network v1 inserts trust evaluation between core envelope validation and routing. A receiver
 uses this step to classify each message as `verified`, `unverified`, or `rejected`.
 
 This page is normative unless a section is marked as an example.
 
 <OperatorNote label="Implementation status">
-  The current AGH Runtime implementation validates v0 envelopes and routes opaque `proof` values.
-  The trust-state algorithm below is the RFC 004 v1 contract for implementers.
+  The current Compozy Runtime implementation validates v0 envelopes and routes opaque `proof`
+  values. The trust-state algorithm below is the RFC 004 v1 contract for implementers.
 </OperatorNote>
 
 ## Trust states

@@ -4,7 +4,7 @@ description: Package agents, channels, automation, window layouts, and bridge pr
 ---
 
 Bundles are extension-provided presets. A bundle catalog record describes what an extension can
-provide; a bundle activation chooses one profile and asks AGH to project its runtime resources.
+provide; a bundle activation chooses one profile and asks Compozy to project its runtime resources.
 
 Use bundles when a feature should install as a coherent unit: specialized agents, channels,
 automation jobs, triggers, window layouts, and bridge instances that make sense together.
@@ -32,7 +32,7 @@ automation jobs, triggers, window layouts, and bridge instances that make sense 
 | Bundle catalog    | Lists extension bundles and profiles available for activation.                    |
 | Bundle profile    | Chooses agents, channels, jobs, triggers, layouts, and bridges inside one bundle. |
 | Bundle activation | Records one active profile at global or workspace scope.                          |
-| Inventory         | Lists the resources AGH projected from the activation.                            |
+| Inventory         | Lists the resources Compozy projected from the activation.                        |
 | Network settings  | Reports declared channels for inventory and explicit future selection.            |
 
 ## Operator routes
@@ -55,14 +55,14 @@ These routes are available over HTTP and UDS and are included in the generated O
 The same bundle lifecycle is exposed through UDS-backed CLI commands:
 
 ```bash
-agh bundle catalog
-agh bundle preview --extension github --bundle release-readiness --profile default
-agh bundle activate --extension github --bundle release-readiness --profile default --scope workspace --workspace project --confirm-network-requirement
-agh bundle list
-agh bundle get act_123
-agh bundle update act_123 --expected-version 7 --confirm-network-requirement
-agh bundle deactivate act_123
-agh bundle network-settings
+compozy bundle catalog
+compozy bundle preview --extension github --bundle release-readiness --profile default
+compozy bundle activate --extension github --bundle release-readiness --profile default --scope workspace --workspace project --confirm-network-requirement
+compozy bundle list
+compozy bundle get act_123
+compozy bundle update act_123 --expected-version 7 --confirm-network-requirement
+compozy bundle deactivate act_123
+compozy bundle network-settings
 ```
 
 Use `--json` or `-o toon` when another agent will consume the output.
@@ -83,7 +83,7 @@ Content-Type: application/json
 }
 ```
 
-Preview returns the activation payload AGH would create: channels, agents, jobs, triggers, layouts,
+Preview returns the activation payload Compozy would create: channels, agents, jobs, triggers, layouts,
 bridges, and inventory. It does not mutate the runtime.
 
 ## Activate a profile
@@ -125,7 +125,7 @@ Content-Type: application/json
 }
 ```
 
-AGH returns `409 Conflict` when another writer or requirement reconciliation advanced the activation.
+Compozy returns `409 Conflict` when another writer or requirement reconciliation advanced the activation.
 Read the activation again, inspect the current digest and confirmation state, then decide whether to
 confirm the new version.
 
@@ -162,7 +162,7 @@ must contain one canonical `window_layout` resource: resource version `1`, a sta
 display name, an `any`, `landscape`, or `portrait` aspect variant, a `stack` or `reject` overflow
 policy, optional participant slots, and a valid version `2` layout document.
 
-AGH validates the file when the extension loads and validates it again in the activation scope before
+Compozy validates the file when the extension loads and validates it again in the activation scope before
 writing anything. Each activation receives its own derived resource id, so two activations of the same
 profile cannot overwrite one another. Preview and activation payloads expose the projected layouts and
 inventory; deactivation removes only the layouts owned by that activation.

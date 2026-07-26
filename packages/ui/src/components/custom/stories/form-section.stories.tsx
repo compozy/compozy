@@ -10,7 +10,7 @@ import {
   HelpTip,
   Input,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 const meta: Meta<typeof FormSection> = {
   title: "components/custom/FormSection",

@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 
-import { Button, cn, DescriptionCard, Section } from "@agh/ui";
+import { Button, cn, DescriptionCard, Section } from "@compozy/ui";
 
 import type { TaskDetailView, TaskRun, TaskTimelineItem } from "../types";
 import { latestTaskRun } from "../lib/task-run-presentation";

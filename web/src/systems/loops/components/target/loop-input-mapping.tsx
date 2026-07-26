@@ -1,4 +1,4 @@
-import { Input } from "@agh/ui";
+import { Input } from "@compozy/ui";
 
 import type { LoopInputSchema } from "../../types";
 

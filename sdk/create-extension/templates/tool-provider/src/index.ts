@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 
-import { Extension, type ExtensionOptions, type ToolResult } from "@agh/extension-sdk";
+import { Extension, type ExtensionOptions, type ToolResult } from "@compozy/extension-sdk";
 
 interface SearchInput {
   query: string;

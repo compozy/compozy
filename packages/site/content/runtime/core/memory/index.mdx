@@ -1,9 +1,9 @@
 ---
 title: Memory
-description: How AGH stores durable Markdown memory across global, workspace, and agent scopes, gates dreaming runs, and routes every write through the controller.
+description: How Compozy stores durable Markdown memory across global, workspace, and agent scopes, gates dreaming runs, and routes every write through the controller.
 ---
 
-Memory is the durable layer that survives a session. AGH stores curated facts as Markdown files
+Memory is the durable layer that survives a session. Compozy stores curated facts as Markdown files
 behind typed indexes so agents can rediscover knowledge without replaying past transcripts. The
 runtime keeps three scopes — global, workspace, and agent — and a dreaming loop that promotes
 recall-validated signal into curated memory.
@@ -52,7 +52,7 @@ enough that one project does not leak into another.
     href="/runtime/core/memory/dream"
     label="Dream"
     title="Dreaming and promotion gates"
-    description="Use this page to understand the dreaming loop, recall-signal gates, and what `agh memory dream trigger` actually does."
+    description="Use this page to understand the dreaming loop, recall-signal gates, and what `compozy memory dream trigger` actually does."
     meta="Maintenance"
   />
   <RouteRow

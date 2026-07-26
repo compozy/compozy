@@ -2,7 +2,7 @@ import { Brain } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
 import { type ReasoningEffort } from "@/lib/api-contract";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import { ReasoningSlider } from "./reasoning-slider";
 import { type RuntimeReasoningState } from "./types";

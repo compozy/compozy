@@ -1,5 +1,5 @@
-import type { PillTone } from "@agh/ui";
-import { Metric, PillDot } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
+import { Metric, PillDot } from "@compozy/ui";
 
 import type { LoopKpi, LoopRunKpis } from "../../lib/loop-runs-view";
 

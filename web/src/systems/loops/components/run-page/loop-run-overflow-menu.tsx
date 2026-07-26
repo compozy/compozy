@@ -7,7 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 interface LoopRunOverflowMenuProps {
   loopName: string;

@@ -1,6 +1,6 @@
 import { RefreshCw } from "lucide-react";
 
-import { Button, Eyebrow, Pill, type PillTone, Spinner, Time } from "@agh/ui";
+import { Button, Eyebrow, Pill, type PillTone, Spinner, Time } from "@compozy/ui";
 
 import {
   modelRefreshStateTone,

@@ -11,7 +11,7 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { TaskProfileEditor } from "../hooks/use-profile-editor";
 import type { TaskExecutionProfile } from "../types";

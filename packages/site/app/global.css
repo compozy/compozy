@@ -1,11 +1,11 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/preset.css";
 @import "fumadocs-ui/css/neutral.css";
-@import "@agh/ui/tokens.css";
+@import "@compozy/ui/tokens.css";
 
 /*
  * Tailwind v4 JIT scans source files relative to this stylesheet and ignores
- * node_modules by default. The @agh/ui workspace package contains components
+ * node_modules by default. The @compozy/ui workspace package contains components
  * (Button, Badge, etc.) that use utilities like `bg-primary` — register its
  * sources explicitly so those classes get emitted in this app's CSS.
  */
@@ -273,82 +273,82 @@ button span.truncate[class*="transition-"] {
   white-space: normal;
 }
 
-.agh-mermaid {
-  --agh-mermaid-bg: var(--color-canvas-soft);
-  --agh-mermaid-node-bg: var(--color-elevated);
-  --agh-mermaid-node-border: var(--color-accent);
-  --agh-mermaid-node-text: var(--color-fg);
-  --agh-mermaid-muted: var(--color-muted);
+.compozy-mermaid {
+  --compozy-mermaid-bg: var(--color-canvas-soft);
+  --compozy-mermaid-node-bg: var(--color-elevated);
+  --compozy-mermaid-node-border: var(--color-accent);
+  --compozy-mermaid-node-text: var(--color-fg);
+  --compozy-mermaid-muted: var(--color-muted);
 }
 
-.agh-mermaid .agh-mermaid-svg {
+.compozy-mermaid .compozy-mermaid-svg {
   color: var(--color-fg);
 }
 
-.agh-mermaid .node rect,
-.agh-mermaid .node circle,
-.agh-mermaid .node ellipse,
-.agh-mermaid .node polygon,
-.agh-mermaid .node path {
-  fill: var(--agh-mermaid-node-bg) !important;
-  stroke: var(--agh-mermaid-node-border) !important;
+.compozy-mermaid .node rect,
+.compozy-mermaid .node circle,
+.compozy-mermaid .node ellipse,
+.compozy-mermaid .node polygon,
+.compozy-mermaid .node path {
+  fill: var(--compozy-mermaid-node-bg) !important;
+  stroke: var(--compozy-mermaid-node-border) !important;
   stroke-width: 1.4px !important;
 }
 
-.agh-mermaid .cluster rect {
+.compozy-mermaid .cluster rect {
   fill: var(--color-canvas-soft) !important;
   stroke: var(--color-line) !important;
 }
 
-.agh-mermaid .edgePath path,
-.agh-mermaid .flowchart-link,
-.agh-mermaid .messageLine0,
-.agh-mermaid .messageLine1,
-.agh-mermaid .transition {
+.compozy-mermaid .edgePath path,
+.compozy-mermaid .flowchart-link,
+.compozy-mermaid .messageLine0,
+.compozy-mermaid .messageLine1,
+.compozy-mermaid .transition {
   stroke: var(--color-subtle) !important;
 }
 
-.agh-mermaid marker path,
-.agh-mermaid marker polygon {
+.compozy-mermaid marker path,
+.compozy-mermaid marker polygon {
   fill: var(--color-subtle) !important;
   stroke: var(--color-subtle) !important;
 }
 
-.agh-mermaid text,
-.agh-mermaid .label,
-.agh-mermaid .nodeLabel,
-.agh-mermaid .edgeLabel,
-.agh-mermaid .messageText,
-.agh-mermaid .actor,
-.agh-mermaid .stateLabel {
-  color: var(--agh-mermaid-node-text) !important;
-  fill: var(--agh-mermaid-node-text) !important;
+.compozy-mermaid text,
+.compozy-mermaid .label,
+.compozy-mermaid .nodeLabel,
+.compozy-mermaid .edgeLabel,
+.compozy-mermaid .messageText,
+.compozy-mermaid .actor,
+.compozy-mermaid .stateLabel {
+  color: var(--compozy-mermaid-node-text) !important;
+  fill: var(--compozy-mermaid-node-text) !important;
   font-family: var(--font-mono) !important;
   letter-spacing: 0 !important;
   overflow-wrap: anywhere !important;
   white-space: normal !important;
 }
 
-.agh-mermaid foreignObject,
-.agh-mermaid foreignObject > * {
+.compozy-mermaid foreignObject,
+.compozy-mermaid foreignObject > * {
   overflow: visible !important;
   white-space: normal !important;
 }
 
-.agh-mermaid .edgeLabel,
-.agh-mermaid .loopText,
-.agh-mermaid .noteText {
-  color: var(--agh-mermaid-muted) !important;
-  fill: var(--agh-mermaid-muted) !important;
+.compozy-mermaid .edgeLabel,
+.compozy-mermaid .loopText,
+.compozy-mermaid .noteText {
+  color: var(--compozy-mermaid-muted) !important;
+  fill: var(--compozy-mermaid-muted) !important;
 }
 
-.agh-mermaid .actor {
+.compozy-mermaid .actor {
   fill: var(--color-elevated) !important;
   stroke: var(--color-line) !important;
 }
 
-.agh-mermaid .note,
-.agh-mermaid .labelBox {
+.compozy-mermaid .note,
+.compozy-mermaid .labelBox {
   fill: var(--color-canvas-soft) !important;
   stroke: var(--color-line) !important;
 }

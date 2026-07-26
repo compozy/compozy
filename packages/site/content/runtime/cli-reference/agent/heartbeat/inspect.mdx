@@ -1,20 +1,20 @@
 ---
-title: "agh agent heartbeat inspect"
+title: "compozy agent heartbeat inspect"
 description: "Inspect one agent's resolved Heartbeat policy"
 ---
 
-## agh agent heartbeat inspect
+## compozy agent heartbeat inspect
 
 Inspect one agent's resolved Heartbeat policy
 
 ```
-agh agent heartbeat inspect <agent> [flags]
+compozy agent heartbeat inspect <agent> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent heartbeat inspect coder --workspace checkout-api --json
+  compozy agent heartbeat inspect coder --workspace checkout-api --json
 ```
 
 ### Options
@@ -33,7 +33,7 @@ agh agent heartbeat inspect <agent> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -43,5 +43,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent heartbeat inspect <agent> -o json
+compozy agent heartbeat inspect <agent> -o json
 ```

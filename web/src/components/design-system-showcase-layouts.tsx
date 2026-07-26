@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
   ToolCallRow,
-} from "@agh/ui";
+} from "@compozy/ui";
 import {
   BellIcon,
   BoxesIcon,
@@ -40,7 +40,7 @@ import { sectionById } from "./design-system-showcase-sections";
 
 export function CodeAndChatSection() {
   const sampleCode = `agh start --workspace agh-core
-agh session list --active`;
+compozy session list --active`;
 
   return (
     <Section

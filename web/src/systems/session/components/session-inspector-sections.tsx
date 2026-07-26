@@ -1,6 +1,6 @@
 import { Activity, ChevronRight, FileCode, Gauge } from "lucide-react";
 
-import { Button, Empty, Eyebrow, Metric, Pill, ScrollArea, type PillTone } from "@agh/ui";
+import { Button, Empty, Eyebrow, Metric, Pill, ScrollArea, type PillTone } from "@compozy/ui";
 import { describeCost } from "@/lib/cost-provenance";
 
 import { formatMessageTimestamp } from "../lib/format-timestamp";

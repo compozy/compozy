@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { useState } from "react";
 
-import { Button, Input, Pill } from "@agh/ui";
+import { Button, Input, Pill } from "@compozy/ui";
 
 export interface SettingsTaglistFieldProps {
   /** Current entries, rendered as removable chips. */

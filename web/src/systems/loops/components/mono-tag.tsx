@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 interface MonoTagProps extends React.ComponentProps<"span"> {
   children: React.ReactNode;

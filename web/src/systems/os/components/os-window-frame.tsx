@@ -1,4 +1,4 @@
-import { Topbar, TopbarSlotProvider, useTopbarSlotValue } from "@agh/ui";
+import { Topbar, TopbarSlotProvider, useTopbarSlotValue } from "@compozy/ui";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";

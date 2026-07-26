@@ -1,6 +1,6 @@
 import { Boxes } from "lucide-react";
 
-import { Button, DataSurface, Empty, type ListingViewMode } from "@agh/ui";
+import { Button, DataSurface, Empty, type ListingViewMode } from "@compozy/ui";
 
 import type { SettingsSandboxEntry } from "@/systems/settings";
 import { SandboxProfileCard } from "./sandbox-profile-card";

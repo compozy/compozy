@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

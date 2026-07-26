@@ -1,6 +1,6 @@
 import { useId, useRef } from "react";
 
-import { cn, Input, Textarea } from "@agh/ui";
+import { cn, Input, Textarea } from "@compozy/ui";
 
 import { useReferenceAutocomplete } from "../../hooks/use-reference-autocomplete";
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";

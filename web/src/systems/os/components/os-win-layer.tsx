@@ -1,4 +1,4 @@
-import { Kbd } from "@agh/ui";
+import { Kbd } from "@compozy/ui";
 
 import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-layer";
 import type { SnapTarget } from "../lib/snap-targets";

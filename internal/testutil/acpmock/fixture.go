@@ -21,8 +21,8 @@ const (
 )
 
 const (
-	aghSituationContextOpen           = "<agh-situation-context>"
-	aghSituationContextClose          = "</agh-situation-context>"
+	compozySituationContextOpen       = "<compozy-situation-context>"
+	compozySituationContextClose      = "</compozy-situation-context>"
 	availableSkillsOpen               = "<available-skills>"
 	availableSkillsClose              = "</available-skills>"
 	availableSkillsSelfClosing        = "<available-skills />"

@@ -1,24 +1,24 @@
 ---
-title: "agh vault list"
+title: "compozy vault list"
 description: "List redacted vault secret metadata"
 ---
 
-## agh vault list
+## compozy vault list
 
 List redacted vault secret metadata
 
 ```
-agh vault list [flags]
+compozy vault list [flags]
 ```
 
 ### Examples
 
 ```
   # List session-scoped vault entries
-  agh vault list --prefix vault:sessions/sess_123/
+  compozy vault list --prefix vault:sessions/sess_123/
 
   # List all provider vault entries as JSON
-  agh vault list --namespace providers -o json
+  compozy vault list --namespace providers -o json
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh vault list [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh vault list -o json
+compozy vault list -o json
 ```

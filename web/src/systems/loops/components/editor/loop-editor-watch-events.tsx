@@ -1,6 +1,6 @@
 import { Plus, X } from "lucide-react";
 
-import { Button, Label, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Button, Label, NativeSelect, NativeSelectOption } from "@compozy/ui";
 import { LOOP_WATCH_EVENT_KINDS } from "@/generated/loop-enums";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";

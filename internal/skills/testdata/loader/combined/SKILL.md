@@ -2,7 +2,7 @@
 name: combined
 description: Skill with MCP and hook metadata
 metadata:
-  agh:
+  compozy:
     mcp_servers:
       - name: git
         command: uvx

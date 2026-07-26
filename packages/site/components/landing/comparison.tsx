@@ -1,5 +1,5 @@
-import { Eyebrow } from "@agh/ui";
-import { cn } from "@agh/ui/lib/utils";
+import { Eyebrow } from "@compozy/ui";
+import { cn } from "@compozy/ui/lib/utils";
 import { Check, Minus } from "lucide-react";
 import { SUPPORTED_AGENT_COUNT } from "./provider-data";
 import { SectionFrame } from "./primitives/section-frame";
@@ -46,7 +46,7 @@ const APPROACHES: Approach[] = [
     crossRuntime: false,
   },
   {
-    approach: "AGH",
+    approach: "CompozyOS",
     focus: "Run + connect real agent CLIs",
     agentModel: "Your existing ACP agents",
     coordination: "compozy-network/v0, implemented",
@@ -72,7 +72,7 @@ export function Comparison() {
         align="start"
         eyebrow="Positioning"
         title="Other tools stop at the runtime boundary."
-        description="AGH is the only approach here with an implemented cross-runtime protocol. The rest centralize coordination or skip it entirely."
+        description="CompozyOS is the only approach here with an implemented cross-runtime protocol. The rest centralize coordination or skip it entirely."
       />
 
       <div className="mt-10 overflow-hidden rounded-diagram border border-line bg-canvas-soft">

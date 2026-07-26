@@ -1,6 +1,6 @@
 import { ExternalLink, RefreshCw } from "lucide-react";
 
-import { Button, Pill, Spinner } from "@agh/ui";
+import { Button, Pill, Spinner } from "@compozy/ui";
 import { SettingRow, SettingValue, SettingsGroup } from "@/systems/settings";
 import { settingsUpdateView } from "@/systems/settings/lib/update-presentation";
 import type { SettingsUpdateStatus } from "@/systems/settings";
@@ -43,7 +43,7 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
         <SettingRow
           data-testid="settings-page-general-update-status"
           description="Checking the daemon's install method and latest stable release."
-          label="AGH version"
+          label="CompozyOS version"
           control={
             <>
               <Spinner className="size-3.5 text-info" />
@@ -61,7 +61,7 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
         <SettingRow
           data-testid="settings-page-general-update-status"
           description={view.message}
-          label="AGH version"
+          label="CompozyOS version"
           control={
             <>
               <Pill tone={view.kind === "error" ? "danger" : "warning"}>
@@ -99,7 +99,7 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
   const lastError = snapshot.last_error ?? view.refreshError;
   const installDescription = snapshot.managed
     ? `Installed with ${snapshot.install_method || "a package manager"}. Updates are managed for you.`
-    : `Direct-binary install detected. ${snapshot.recommendation ?? "Use the AGH updater for new releases."}`;
+    : `Direct-binary install detected. ${snapshot.recommendation ?? "Use the CompozyOS updater for new releases."}`;
   return (
     <SettingsGroup title="Updates">
       <SettingRow
@@ -109,7 +109,7 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
             ? `Showing the last known status. Refresh failed: ${view.refreshError}`
             : installDescription
         }
-        label="AGH version"
+        label="CompozyOS version"
         control={
           <>
             <SettingValue mono>{snapshot.current_version}</SettingValue>

@@ -1,21 +1,21 @@
 ---
-title: "agh task retry"
+title: "compozy task retry"
 description: "Retry one failed task run"
 ---
 
-## agh task retry
+## compozy task retry
 
 Retry one failed task run
 
 ```
-agh task retry <run-id> [flags]
+compozy task retry <run-id> [flags]
 ```
 
 ### Examples
 
 ```
   # Re-enqueue one failed run
-  agh task retry run-123
+  compozy task retry run-123
 ```
 
 ### Options
@@ -34,7 +34,7 @@ agh task retry <run-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -44,5 +44,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task retry <run-id> -o json
+compozy task retry <run-id> -o json
 ```

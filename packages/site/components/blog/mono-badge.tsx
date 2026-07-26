@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 import type { ComponentProps } from "react";
 
 export type MonoBadgeTone = "neutral" | "accent" | "success" | "danger" | "warning" | "info";

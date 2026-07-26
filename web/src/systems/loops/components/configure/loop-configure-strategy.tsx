@@ -1,4 +1,4 @@
-import { RadioCard } from "@agh/ui";
+import { RadioCard } from "@compozy/ui";
 
 import type { LoopReattemptStrategy } from "../../lib/loop-config-draft";
 import { MonoTag } from "../mono-tag";

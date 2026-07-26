@@ -1,14 +1,14 @@
 ---
 title: Triggers
-description: Configure AGH automation triggers that react to runtime events, filters, and prompt templates.
+description: Configure Compozy automation triggers that react to runtime events, filters, and prompt templates.
 ---
 
 Triggers start an Agent or Loop in response to events. They are useful when the next run should
-depend on something that happened inside AGH, such as a session stopping, a memory consolidation
+depend on something that happened inside Compozy, such as a session stopping, a memory consolidation
 completing, or a webhook delivery arriving.
 
 Triggers do not bind to jobs by ID. A trigger is its own automation definition with an event,
-filters, target, retry policy, and fire limit. When a matching event arrives, AGH uses the same
+filters, target, retry policy, and fire limit. When a matching event arrives, Compozy uses the same
 dispatcher and run history model that scheduled jobs use.
 
 Triggers can come from TOML config, package-provided definitions, or the dynamic store. Config and
@@ -23,7 +23,7 @@ management through the CLI, native tools, HTTP, and UDS.
 
 ## Browse the trigger catalog
 
-`agh automation triggers -o json` returns one counted catalog page. The daemon applies `scope`,
+`compozy automation triggers -o json` returns one counted catalog page. The daemon applies `scope`,
 `workspace`, definition `source` (`config`, `package`, or `dynamic`), enabled state, activation
 event, Loop target, and text query filters before it cuts the page. The response keeps the rows
 under `triggers` and reports the exact `total`, applied `limit`, `has_more`, and `next_cursor` values
@@ -31,7 +31,7 @@ under `page`.
 
 Use `--limit` to bound each read and pass `--cursor` to continue. A cursor is tied to the filter set
 that created it; restart from the first page when any filter changes. See the generated
-[`agh automation triggers`](/runtime/cli-reference/automation/triggers) reference for every flag.
+[`compozy automation triggers`](/runtime/cli-reference/automation/triggers) reference for every flag.
 
 ## Trigger fields
 
@@ -82,13 +82,13 @@ Loop inputs from the activation envelope with the Loop start-binding template gr
 ```
 
 Agents can submit this shape through `compozy__automation_triggers_create`; HTTP and UDS expose the
-same request contract. The `agh automation triggers create|update` flags currently author Agent
+same request contract. The `compozy automation triggers create|update` flags currently author Agent
 targets. The CLI can still list, inspect, enable, disable, and delete Loop-target triggers created
 through a native tool or transport API.
 
 ## Event types
 
-AGH stores trigger events as strings. The current runtime emits these built-in event names:
+Compozy stores trigger events as strings. The current runtime emits these built-in event names:
 
 | Event                        | Source                       | Typical use                                                                |
 | ---------------------------- | ---------------------------- | -------------------------------------------------------------------------- |
@@ -99,7 +99,7 @@ AGH stores trigger events as strings. The current runtime emits these built-in e
 | `webhook`                    | Signed HTTP webhook ingress  | React to CI, deploy, incident, or repository events from external systems. |
 | `ext.*`                      | Extension trigger API        | Let an extension publish its own automation event family.                  |
 
-The event name must be non-empty. AGH does not restrict custom extension event names beyond the
+The event name must be non-empty. Compozy does not restrict custom extension event names beyond the
 extension ingress contract.
 
 ## Matching and filters
@@ -169,7 +169,7 @@ fire_limit = { max = 4, window = "1h" }
 Create the same dynamic trigger from the CLI:
 
 ```bash
-agh automation triggers create \
+compozy automation triggers create \
   --name summarize-failed-sessions \
   --scope workspace \
   --workspace /Users/you/src/checkout-api \
@@ -228,7 +228,7 @@ runs:
 
 - job or trigger pre-fire hooks can rewrite the prompt
 - pre-fire hooks can cancel the run, which records the run as `canceled`
-- run-failed hooks receive retry metadata, including whether AGH will retry
+- run-failed hooks receive retry metadata, including whether Compozy will retry
 
 Hooks are part of the same runtime flow, so cancellation and prompt changes are visible in run
 history.
@@ -238,13 +238,13 @@ history.
 Read trigger-specific history:
 
 ```bash
-agh automation triggers history <trigger-id> --last 20
+compozy automation triggers history <trigger-id> --last 20
 ```
 
 Read all recent automation runs for a status:
 
 ```bash
-agh automation runs --status failed --last 20
+compozy automation runs --status failed --last 20
 ```
 
 Query the API:

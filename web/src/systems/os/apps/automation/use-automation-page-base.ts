@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
-import type { ListingViewMode } from "@agh/ui";
+import type { ListingViewMode } from "@compozy/ui";
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
 import {
   AutomationApiError,

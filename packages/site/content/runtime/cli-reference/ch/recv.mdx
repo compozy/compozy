@@ -1,24 +1,24 @@
 ---
-title: "agh ch recv"
+title: "compozy ch recv"
 description: "Receive queued coordination messages for a channel"
 ---
 
-## agh ch recv
+## compozy ch recv
 
 Receive queued coordination messages for a channel
 
 ```
-agh ch recv <channel> [flags]
+compozy ch recv <channel> [flags]
 ```
 
 ### Examples
 
 ```
   # Receive currently queued messages
-  agh ch recv coord-run-123
+  compozy ch recv coord-run-123
 
   # Wait for messages and stream each record as JSONL
-  agh ch recv coord-run-123 --wait --limit 10 -o jsonl
+  compozy ch recv coord-run-123 --wait --limit 10 -o jsonl
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh ch recv <channel> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh ch recv <channel> -o json
+compozy ch recv <channel> -o json
 ```

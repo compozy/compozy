@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { buttonVariants } from "@agh/ui";
-import { cn } from "@agh/ui/lib/utils";
+import { buttonVariants } from "@compozy/ui";
+import { cn } from "@compozy/ui/lib/utils";
 
 type Variant = "primary" | "ghost";
 type ButtonVariantsProps = Parameters<typeof buttonVariants>[0];

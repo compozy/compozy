@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { TaskDetailView, TaskRun } from "../types";
 import { TaskNowActiveRun } from "./task-now-active-run";

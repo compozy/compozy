@@ -1,7 +1,7 @@
 import { Boxes, X } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Eyebrow, Pill, Sheet, SheetContent } from "@agh/ui";
+import { Button, Eyebrow, Pill, Sheet, SheetContent } from "@compozy/ui";
 
 import { SettingsSourceBadge, type SettingsSandboxEntry } from "@/systems/settings";
 import {

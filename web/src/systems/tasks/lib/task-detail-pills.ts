@@ -1,4 +1,4 @@
-import type { PillTone } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
 
 import { taskHasApprovalPending, taskWakeIndicatorApplies } from "./task-formatters";
 import type { TaskDetailView, TaskPriority } from "../types";

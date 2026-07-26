@@ -3,7 +3,7 @@ import { Database, ShieldCheck, Terminal } from "lucide-react";
 import { LandingCodeBlock } from "./primitives/code-block";
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 const FEATURES = [
   {
@@ -30,15 +30,15 @@ const FEATURES = [
     eyebrow: "Permissions",
     title: "Permission modes with an audit trail",
     description:
-      "AGH enforces session permission modes, keeps workspace boundaries intact, and records every approval decision.",
+      "CompozyOS enforces session permission modes, keeps workspace boundaries intact, and records every approval decision.",
     cite: { href: "/runtime/core/sessions/permissions", label: "permissions" },
   },
 ];
 
-const RUNTIME_CODE = `agh daemon start
-agh session new --cwd "$PWD" --agent general
-agh session events <session-id> --follow
-agh session resume <session-id>`;
+const RUNTIME_CODE = `compozy daemon start
+compozy session new --cwd "$PWD" --agent general
+compozy session events <session-id> --follow
+compozy session resume <session-id>`;
 
 export function RuntimeSection() {
   return (
@@ -51,7 +51,7 @@ export function RuntimeSection() {
               A daemon built for sessions, not chats.
             </h2>
             <p className="mt-4 max-w-[50ch] text-sm leading-relaxed text-muted">
-              Start <code className="font-mono text-fg">agh daemon start</code>. Every agent run
+              Start <code className="font-mono text-fg">compozy daemon start</code>. Every agent run
               becomes a session with a durable event log, an SSE stream, resumable state, and one
               operator surface shared by the CLI, API, and web UI.
             </p>
@@ -59,7 +59,7 @@ export function RuntimeSection() {
           <div className="absolute bottom-0 left-0 invisible lg:visible">
             <Image
               src="/images/runtime/illustration_1.png"
-              alt="AGH daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
+              alt="CompozyOS daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
               width={848}
               height={636}
               decoding="async"
@@ -84,7 +84,7 @@ export function RuntimeSection() {
             ))}
           </div>
 
-          <LandingCodeBlock code={RUNTIME_CODE} caption="agh session" shell />
+          <LandingCodeBlock code={RUNTIME_CODE} caption="compozy session" shell />
         </div>
       </div>
     </SectionFrame>

@@ -1,6 +1,6 @@
 ---
 title: Network Work
-description: Inspect AGH Network `work_id` lifecycle through the CLI, native tools, HTTP API, and extension Host API. Work is bound to one conversation container.
+description: Inspect Compozy Network `work_id` lifecycle through the CLI, native tools, HTTP API, and extension Host API. Work is bound to one conversation container.
 ---
 
 A unit of work is a correlated piece of directed agent activity inside one conversation container.
@@ -40,7 +40,7 @@ later `receipt` and `trace` envelopes for that `work_id` MUST carry the same `su
 container ID and MUST come from the initiator or target.
 
 ```bash
-agh network send \
+compozy network send \
   --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
@@ -57,8 +57,8 @@ agh network send \
 CLI:
 
 ```bash
-agh network work lookup --work work_migration_check_20260416 -o json
-agh network work status --work work_migration_check_20260416 -o json
+compozy network work lookup --work work_migration_check_20260416 -o json
+compozy network work status --work work_migration_check_20260416 -o json
 ```
 
 HTTP:
@@ -94,7 +94,7 @@ command returns aggregate counters for the runtime as a whole; the per-channel/p
 counters are exposed through the channel and conversation read paths.
 
 ```bash
-agh network status -o json
+compozy network status -o json
 ```
 
 ## Cross-references

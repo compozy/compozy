@@ -27,7 +27,7 @@ const STEP_META: Record<number, OnboardingStepMeta> = {
   },
   2: {
     title: "Pick where agents can work",
-    lead: "A workspace is a folder AGH is allowed to open, read and write inside. Every session runs in one — add at least one to finish.",
+    lead: "A workspace is a folder CompozyOS is allowed to open, read and write inside. Every session runs in one — add at least one to finish.",
   },
 };
 

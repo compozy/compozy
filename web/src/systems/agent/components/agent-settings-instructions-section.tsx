@@ -1,6 +1,6 @@
 import { Bot } from "lucide-react";
 
-import { Field, FieldError, FieldLabel, FormSection, Textarea } from "@agh/ui";
+import { Field, FieldError, FieldLabel, FormSection, Textarea } from "@compozy/ui";
 
 import type { AgentSettingsDraft, AgentSettingsValidation } from "../lib/agent-settings-draft";
 

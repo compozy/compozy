@@ -1,4 +1,4 @@
-import { type ConnectionStatus, Pill, cn } from "@agh/ui";
+import { type ConnectionStatus, Pill, cn } from "@compozy/ui";
 
 import { type HealthPayload, useDaemonHealth } from "@/systems/status";
 import { resolveRuntimeConnectionState } from "./connection-indicator.logic";

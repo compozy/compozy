@@ -10,7 +10,7 @@ import {
   useSettingsSaveBarState,
   useSettingsTopbar,
 } from "@/systems/settings";
-import { Button, Spinner, Time } from "@agh/ui";
+import { Button, Spinner, Time } from "@compozy/ui";
 import { ControllerSection } from "./-memory-controller-sections";
 import { DreamSection } from "./-memory-dream-section";
 import {

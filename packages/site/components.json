@@ -12,11 +12,11 @@
     },
     "iconLibrary": "lucide",
     "aliases": {
-        "components": "@agh/ui/components",
-        "utils": "@agh/ui/lib/utils",
-        "ui": "@agh/ui/components",
-        "lib": "@agh/ui/lib",
-        "hooks": "@agh/ui/hooks"
+        "components": "@compozy/ui/components",
+        "utils": "@compozy/ui/lib/utils",
+        "ui": "@compozy/ui/components",
+        "lib": "@compozy/ui/lib",
+        "hooks": "@compozy/ui/hooks"
     },
     "registries": {
         "@elements": "https://www.tryelements.dev/r/{name}.json",

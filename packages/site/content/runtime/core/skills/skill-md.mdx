@@ -3,7 +3,7 @@ title: SKILL.md Format
 description: The accepted SKILL.md frontmatter schema, Markdown body rules, MCP sidecars, hooks, and complete examples.
 ---
 
-`SKILL.md` is the authoring contract for AGH skills. The file starts with YAML frontmatter, then a
+`SKILL.md` is the authoring contract for Compozy skills. The file starts with YAML frontmatter, then a
 Markdown body with procedural instructions for the agent.
 
 ```text
@@ -23,59 +23,59 @@ Missing descriptions are allowed by code but logged as a warning and are poor ca
 
 ## Top-level Frontmatter
 
-AGH currently maps these top-level fields into the runtime skill model.
+Compozy currently maps these top-level fields into the runtime skill model.
 
 | Field         | Type   | Required                        | Current behavior                                                                                                                        |
 | ------------- | ------ | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`        | string | yes                             | Trimmed and used as the unique skill identifier. Missing names fail parsing.                                                            |
 | `description` | string | no in code, yes for useful docs | Trimmed and injected into the prompt catalog. Descriptions over 200 runes are truncated in prompts. Missing descriptions log a warning. |
 | `version`     | string | no                              | Stored as metadata and used for marketplace provenance/update comparisons when available.                                               |
-| `metadata`    | object | no                              | Free-form metadata. AGH currently acts on `metadata.agh.when`, `metadata.agh.mcp_servers`, and `metadata.agh.hooks`.                    |
+| `metadata`    | object | no                              | Free-form metadata. Compozy currently acts on `metadata.compozy.when`, `metadata.compozy.mcp_servers`, and `metadata.compozy.hooks`.    |
 
 Unknown top-level fields are logged as warnings but do not fail parsing. Avoid relying on that
 leniency for portable skills.
 
 Common AgentSkills or Claude-style fields such as `allowed-tools`, `user-invocable`, and
-`argument-hint` are examples of that leniency today. AGH may load a file that contains them, but the
+`argument-hint` are examples of that leniency today. Compozy may load a file that contains them, but the
 current runtime does not use those fields for tool permissions, invocation, or catalog behavior.
-Use `metadata.agh.mcp_servers`, `metadata.agh.hooks`, and normal AGH configuration for behavior AGH
+Use `metadata.compozy.mcp_servers`, `metadata.compozy.hooks`, and normal Compozy configuration for behavior Compozy
 must enforce.
 
-## AGH Metadata
+## Compozy Metadata
 
-AGH-specific runtime behavior lives under `metadata.agh` so the file remains compatible with plain
+Compozy-specific runtime behavior lives under `metadata.compozy` so the file remains compatible with plain
 AgentSkills readers.
 
-| Field                      | Type                        | Required | Current behavior                                                                                                          |
-| -------------------------- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `metadata.agh.when`        | activation gate object      | no       | Controls whether the skill is offered in the current prompt catalog. Unknown gate names or malformed values fail parsing. |
-| `metadata.agh.mcp_servers` | array of MCP server objects | no       | Parsed into skill MCP declarations and merged into session startup MCP servers. Malformed entries are warned and skipped. |
-| `metadata.agh.hooks`       | array of hook declarations  | no       | Parsed into skill-sourced hooks. Invalid hook declarations fail skill parsing.                                            |
-| `metadata.agh.memory_tags` | string array                | no       | RFC-only today. The current runtime does not use this field.                                                              |
+| Field                          | Type                        | Required | Current behavior                                                                                                          |
+| ------------------------------ | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `metadata.compozy.when`        | activation gate object      | no       | Controls whether the skill is offered in the current prompt catalog. Unknown gate names or malformed values fail parsing. |
+| `metadata.compozy.mcp_servers` | array of MCP server objects | no       | Parsed into skill MCP declarations and merged into session startup MCP servers. Malformed entries are warned and skipped. |
+| `metadata.compozy.hooks`       | array of hook declarations  | no       | Parsed into skill-sourced hooks. Invalid hook declarations fail skill parsing.                                            |
+| `metadata.compozy.memory_tags` | string array                | no       | RFC-only today. The current runtime does not use this field.                                                              |
 
-### `metadata.agh.when`
+### `metadata.compozy.when`
 
 Activation gates keep a skill out of agent prompt catalogs when its declared runtime requirements
-are not met. They do not disable or hide the skill from management surfaces: `agh skill list`,
-`agh skill info`, the Skills UI, and the HTTP/UDS skill payloads retain the skill with
+are not met. They do not disable or hide the skill from management surfaces: `compozy skill list`,
+`compozy skill info`, the Skills UI, and the HTTP/UDS skill payloads retain the skill with
 `activation.active: false` and structured `activation.reasons`. Explicit `skill view` reads also
 remain available.
 
 ```yaml
 metadata:
-  agh:
+  compozy:
     when:
       platforms: [darwin, linux]
       requires_tools: [compozy__browser_screenshot]
       requires_capabilities: [browser.operate]
 ```
 
-| Gate                    | Match rule | Runtime input                                                                                                                         |
-| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `platforms`             | any        | The current Go operating system (`darwin`, `linux`, or another canonical `runtime.GOOS` value). AGH does not accept platform aliases. |
-| `environments`          | any        | An explicit activation environment context. The current daemon does not provide one, so a non-empty gate fails closed.                |
-| `requires_tools`        | all        | Tool IDs callable for the current workspace, agent, and session. Availability is resolved when the catalog is built.                  |
-| `requires_capabilities` | all        | Capabilities authored on the effective agent. Network or extension capabilities are not merged into this gate.                        |
+| Gate                    | Match rule | Runtime input                                                                                                                             |
+| ----------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `platforms`             | any        | The current Go operating system (`darwin`, `linux`, or another canonical `runtime.GOOS` value). Compozy does not accept platform aliases. |
+| `environments`          | any        | An explicit activation environment context. The current daemon does not provide one, so a non-empty gate fails closed.                    |
+| `requires_tools`        | all        | Tool IDs callable for the current workspace, agent, and session. Availability is resolved when the catalog is built.                      |
+| `requires_capabilities` | all        | Capabilities authored on the effective agent. Network or extension capabilities are not merged into this gate.                            |
 
 Different gate families compose with AND: every declared family must pass. Values are trimmed,
 lowercased, deduplicated, and kept in author order. Every gate value must be a non-empty string;
@@ -88,20 +88,20 @@ missing values, and a human-readable message. Tool availability is late-bound, s
 projection automatically offers the skill after its required tools become callable; no daemon
 restart is required.
 
-### `metadata.agh.mcp_servers`
+### `metadata.compozy.mcp_servers`
 
 Each MCP server object accepts:
 
-| Field     | Type         | Required | Behavior                                                                                 |
-| --------- | ------------ | -------- | ---------------------------------------------------------------------------------------- |
-| `name`    | string       | yes      | Used for deduplication and merge replacement. Missing names skip that server.            |
-| `command` | string       | yes      | Launched directly by the ACP runtime path. Missing commands skip that server.            |
-| `args`    | string array | no       | Passed as process arguments.                                                             |
-| `env`     | string map   | no       | Passed as literal environment values. AGH does not perform shell expansion in the value. |
+| Field     | Type         | Required | Behavior                                                                                     |
+| --------- | ------------ | -------- | -------------------------------------------------------------------------------------------- |
+| `name`    | string       | yes      | Used for deduplication and merge replacement. Missing names skip that server.                |
+| `command` | string       | yes      | Launched directly by the ACP runtime path. Missing commands skip that server.                |
+| `args`    | string array | no       | Passed as process arguments.                                                                 |
+| `env`     | string map   | no       | Passed as literal environment values. Compozy does not perform shell expansion in the value. |
 
 ```yaml
 metadata:
-  agh:
+  compozy:
     mcp_servers:
       - name: filesystem
         command: npx
@@ -110,7 +110,7 @@ metadata:
           LOG_LEVEL: "info"
 ```
 
-### `metadata.agh.hooks`
+### `metadata.compozy.hooks`
 
 Skill hooks use the same event names as the runtime hook system.
 
@@ -127,7 +127,7 @@ Skill hooks use the same event names as the runtime hook system.
 
 ```yaml
 metadata:
-  agh:
+  compozy:
     hooks:
       - event: session.post_create
         command: ./scripts/session-context
@@ -141,16 +141,16 @@ metadata:
 The body after the closing `---` is the instruction set. Write it as concrete steps, not as marketing
 copy. A useful skill body usually includes:
 
-| Section      | Purpose                                                                            |
-| ------------ | ---------------------------------------------------------------------------------- |
-| When to use  | The trigger conditions that tell an agent this skill applies.                      |
-| Inputs       | Files, commands, environment variables, or assumptions the agent should inspect.   |
-| Sequence     | Ordered steps the agent should follow.                                             |
-| Verification | How the agent should prove the work is correct.                                    |
-| Edge cases   | Mistakes the skill should prevent.                                                 |
-| Resources    | Relative file names the agent can read with `agh skill view <name> --file <path>`. |
+| Section      | Purpose                                                                                |
+| ------------ | -------------------------------------------------------------------------------------- |
+| When to use  | The trigger conditions that tell an agent this skill applies.                          |
+| Inputs       | Files, commands, environment variables, or assumptions the agent should inspect.       |
+| Sequence     | Ordered steps the agent should follow.                                                 |
+| Verification | How the agent should prove the work is correct.                                        |
+| Edge cases   | Mistakes the skill should prevent.                                                     |
+| Resources    | Relative file names the agent can read with `compozy skill view <name> --file <path>`. |
 
-AGH scans the body for critical prompt-injection, destructive command, and credential-extraction
+Compozy scans the body for critical prompt-injection, destructive command, and credential-extraction
 patterns. Critical findings block the skill from loading. Warning findings are logged but allowed.
 Content over 50,000 characters creates an info warning.
 
@@ -180,7 +180,7 @@ frontmatter and sidecar JSON, the sidecar replaces the whole server object.
 
 ### Marketplace provenance sidecar
 
-Marketplace installs write `.agh-meta.json` next to `SKILL.md`. Users normally do not create this
+Marketplace installs write `.compozy-meta.json` next to `SKILL.md`. Users normally do not create this
 file by hand.
 
 ```json
@@ -193,7 +193,7 @@ file by hand.
 }
 ```
 
-All fields are required. AGH recomputes the installed directory hash at load time and blocks the
+All fields are required. Compozy recomputes the installed directory hash at load time and blocks the
 marketplace skill if it does not match the stored hash.
 
 ## Complete Example: Simple Skill
@@ -227,7 +227,7 @@ Use this skill when a task changes structure without intending to change behavio
 Create it locally with:
 
 ```bash
-agh skill create refactor-checklist
+compozy skill create refactor-checklist
 ```
 
 Then replace the generated `SKILL.md` body with the content above.
@@ -235,7 +235,7 @@ Then replace the generated `SKILL.md` body with the content above.
 ## Complete Example: Skill With MCP Sidecar
 
 ```text
-<workspace>/.agh/skills/workspace-files/
+<workspace>/.compozy/skills/workspace-files/
   SKILL.md
   mcp.json
 ```
@@ -288,19 +288,19 @@ For marketplace-installed skills, the MCP server above would be blocked until th
 
 ## Validation Failures
 
-| Failure                         | Cause                                                                          | Fix                                                           |
-| ------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `missing YAML frontmatter`      | File does not start with `---`.                                                | Add a frontmatter block.                                      |
-| `unterminated YAML frontmatter` | Opening delimiter has no closing delimiter.                                    | Close frontmatter before the Markdown body.                   |
-| `skill name is required`        | `name` is missing or blank.                                                    | Add a non-empty `name`.                                       |
-| `metadata.agh.when` parse error | `when` has an unknown key, non-array value, non-string item, or blank item.    | Use only the four documented gates with non-empty strings.    |
-| MCP server skipped              | One `metadata.agh.mcp_servers` entry is malformed or missing `name`/`command`. | Fix that entry or move the server into `mcp.json`.            |
-| Hook parse failure              | A hook has an unknown field, invalid event, or missing command.                | Use current dot-form hook events and supported hook fields.   |
-| Skill blocked                   | Verification found critical content or marketplace hash verification failed.   | Remove the unsafe content or reinstall the marketplace skill. |
+| Failure                             | Cause                                                                              | Fix                                                           |
+| ----------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `missing YAML frontmatter`          | File does not start with `---`.                                                    | Add a frontmatter block.                                      |
+| `unterminated YAML frontmatter`     | Opening delimiter has no closing delimiter.                                        | Close frontmatter before the Markdown body.                   |
+| `skill name is required`            | `name` is missing or blank.                                                        | Add a non-empty `name`.                                       |
+| `metadata.compozy.when` parse error | `when` has an unknown key, non-array value, non-string item, or blank item.        | Use only the four documented gates with non-empty strings.    |
+| MCP server skipped                  | One `metadata.compozy.mcp_servers` entry is malformed or missing `name`/`command`. | Fix that entry or move the server into `mcp.json`.            |
+| Hook parse failure                  | A hook has an unknown field, invalid event, or missing command.                    | Use current dot-form hook events and supported hook fields.   |
+| Skill blocked                       | Verification found critical content or marketplace hash verification failed.       | Remove the unsafe content or reinstall the marketplace skill. |
 
 ## Related Pages
 
 - [Skills Overview](/runtime/core/skills) explains how this file is discovered and injected.
-- [Marketplace](/runtime/core/skills/marketplace) explains `.agh-meta.json` provenance.
+- [Marketplace](/runtime/core/skills/marketplace) explains `.compozy-meta.json` provenance.
 - [Hooks CLI Reference](/runtime/cli-reference/hooks) lists hook inspection commands.
 - [Skill CLI Reference](/runtime/cli-reference/skill) lists every generated skill command.

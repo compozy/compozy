@@ -2,7 +2,7 @@ import type { ComponentPropsWithoutRef } from "react";
 
 import { Plus, Trash2 } from "lucide-react";
 
-import { Button, cn } from "@agh/ui";
+import { Button, cn } from "@compozy/ui";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 

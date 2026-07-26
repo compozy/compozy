@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
   Pill,
   TopbarOverflowIcon,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 export interface AgentPageStatusPillProps {
   activeCount: number;

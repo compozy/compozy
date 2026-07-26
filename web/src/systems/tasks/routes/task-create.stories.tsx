@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -55,7 +55,7 @@ export const Submitting: Story = {
     ...appRouteParameters("/tasks/new"),
     ...storybookMswParameters({
       tasks: [
-        aghApiMock.post("/api/tasks", async () => {
+        compozyApiMock.post("/api/tasks", async () => {
           await delay("infinite");
           return HttpResponse.json({ task: buildCreatedTaskFixture() }, { status: 201 });
         }),

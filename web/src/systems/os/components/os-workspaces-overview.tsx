@@ -10,7 +10,7 @@ import {
   OwnerAvatar,
   Pill,
   cn,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { WorkspacePayload } from "@/systems/workspace";
 

@@ -1,14 +1,14 @@
 ---
-title: "agh resource get"
+title: "compozy resource get"
 description: "Show one desired-state resource"
 ---
 
-## agh resource get
+## compozy resource get
 
 Show one desired-state resource
 
 ```
-agh resource get <kind> <id> [flags]
+compozy resource get <kind> <id> [flags]
 ```
 
 ### Options
@@ -26,7 +26,7 @@ agh resource get <kind> <id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -36,5 +36,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh resource get <kind> <id> -o json
+compozy resource get <kind> <id> -o json
 ```

@@ -10,7 +10,7 @@ import {
   useSettingsRolesPage,
   useSettingsTopbar,
 } from "@/systems/settings";
-import { Button, Skeleton } from "@agh/ui";
+import { Button, Skeleton } from "@compozy/ui";
 
 const TEST_PREFIX = "settings-page-roles";
 

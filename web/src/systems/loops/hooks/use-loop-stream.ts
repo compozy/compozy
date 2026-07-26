@@ -26,7 +26,7 @@ interface UseLoopStreamOptions {
   onError?: (error: unknown) => void;
 }
 
-// AGH Loop SSE emits named events via `event: <kind>` from the run-events writer
+// CompozyOS Loop SSE emits named events via `event: <kind>` from the run-events writer
 // (internal/daemon). EventSource routes named SSE frames to listeners registered
 // with addEventListener("<kind>", ...); they never reach onmessage, which only
 // handles unnamed `message` frames. Keep this list aligned with the enumerated

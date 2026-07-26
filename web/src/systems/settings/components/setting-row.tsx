@@ -12,7 +12,7 @@ import {
   FieldHeader,
   FieldLabel,
   HelpTip,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { associateSettingsControl } from "../lib/control-association";
 
 export interface SettingRowProps {

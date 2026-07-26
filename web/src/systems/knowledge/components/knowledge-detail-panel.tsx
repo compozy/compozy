@@ -14,7 +14,7 @@ import {
   Skeleton,
   StatusDot,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   knowledgeAgentTierLabel,

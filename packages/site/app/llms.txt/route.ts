@@ -29,7 +29,7 @@ export function GET() {
   const blogLines = posts.map(post => docLine(post.title, post.permalink, post.description));
 
   const body = [
-    "# AGH Documentation",
+    "# Compozy Documentation",
     "",
     "> An open workplace for AI agents, the runtime, the compozy-network/v0 protocol, and the blog.",
     "",

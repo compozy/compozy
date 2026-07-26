@@ -2,7 +2,7 @@ import * as ResizablePrimitive from "react-resizable-panels";
 import { useDefaultLayout } from "react-resizable-panels";
 import type { Layout, LayoutStorage } from "react-resizable-panels";
 
-import { cn } from "@agh/ui/lib/utils";
+import { cn } from "@compozy/ui/lib/utils";
 
 function ResizablePanelGroup({ className, ...props }: ResizablePrimitive.GroupProps) {
   return (

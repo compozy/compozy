@@ -8,7 +8,7 @@ import {
   NativeSelect,
   NativeSelectOption,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type {
   BridgeDeliveryDefaults,

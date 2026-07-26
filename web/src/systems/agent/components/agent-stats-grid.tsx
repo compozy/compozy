@@ -1,4 +1,4 @@
-import { Metric, MetricGrid, Time } from "@agh/ui";
+import { Metric, MetricGrid, Time } from "@compozy/ui";
 
 export type AgentStatsGridVariant = "overview" | "sessions";
 

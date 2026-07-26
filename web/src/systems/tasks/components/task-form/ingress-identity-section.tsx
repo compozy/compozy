@@ -1,4 +1,4 @@
-import { Field, FieldLabel, Input } from "@agh/ui";
+import { Field, FieldLabel, Input } from "@compozy/ui";
 
 interface IngressIdentitySectionProps {
   identifier: string;

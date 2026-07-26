@@ -17,7 +17,7 @@
             "outputs": ["dist/**"],
             "env": ["VITE_COMPOZY_API_URL"]
         },
-        "@agh/ui#build": {
+        "@compozy/ui#build": {
             "dependsOn": [],
             "outputs": []
         },
@@ -25,14 +25,14 @@
             "dependsOn": ["^build"],
             "outputs": ["storybook-static/**"]
         },
-        "@agh/site#generate:openapi": {
+        "@compozy/site#generate:openapi": {
             "inputs": [
                 "scripts/generate-openapi.ts",
                 "lib/openapi.ts",
                 "lib/runtime-navigation.ts",
                 "$TURBO_ROOT$/internal/api/httpapi/*routes.go",
                 "$TURBO_ROOT$/internal/api/udsapi/*routes.go",
-                "$TURBO_ROOT$/openapi/agh.json"
+                "$TURBO_ROOT$/openapi/compozy.json"
             ],
             "outputs": [
                 "content/runtime/api-reference/*.mdx",
@@ -40,7 +40,7 @@
                 "content/runtime/api-reference/meta.json"
             ]
         },
-        "@agh/site#generate:content": {
+        "@compozy/site#generate:content": {
             "dependsOn": ["generate:openapi"],
             "inputs": [
                 "$TURBO_DEFAULT$",
@@ -49,15 +49,15 @@
             ],
             "outputs": [".source/**", ".velite/**"]
         },
-        "@agh/site#build": {
+        "@compozy/site#build": {
             "dependsOn": ["generate:content", "^build"],
             "outputs": ["out/**", ".next/**", "!.next/cache/**"]
         },
-        "@agh/site#typecheck": {
+        "@compozy/site#typecheck": {
             "dependsOn": ["//#codegen-check", "generate:content", "transit"],
             "outputs": []
         },
-        "@agh/site#test": {
+        "@compozy/site#test": {
             "dependsOn": ["//#codegen-check", "generate:content", "transit"],
             "inputs": [
                 "$TURBO_DEFAULT$",
@@ -73,7 +73,7 @@
                 "$TURBO_ROOT$/internal/config/mcp_resource.go",
                 "$TURBO_ROOT$/internal/config/provider.go",
                 "$TURBO_ROOT$/internal/tools/builtin_ids.go",
-                "$TURBO_ROOT$/openapi/agh.json"
+                "$TURBO_ROOT$/openapi/compozy.json"
             ],
             "outputs": []
         },

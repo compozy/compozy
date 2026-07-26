@@ -1,10 +1,13 @@
-import type { AghApiJsonResponseFor, AghApiOkJsonResponseFor } from "@/storybook/openapi-msw";
+import type {
+  CompozyApiJsonResponseFor,
+  CompozyApiOkJsonResponseFor,
+} from "@/storybook/openapi-msw";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 
 export const windowManagerStoryDesktopId = "desktop-launch";
 export const windowManagerStoryWindowId = "app:settings";
 
-export const windowManagerSnapshotFixture: AghApiOkJsonResponseFor<
+export const windowManagerSnapshotFixture: CompozyApiOkJsonResponseFor<
   "get",
   "/api/workspaces/{workspace_id}/window-manager"
 > = {
@@ -51,7 +54,7 @@ export const windowManagerSnapshotFixture: AghApiOkJsonResponseFor<
 export function windowManagerClientFixture(
   clientId: string,
   workspaceId: string = storyDefaultWorkspaceId
-): AghApiJsonResponseFor<"post", "/api/workspaces/{workspace_id}/window-manager/clients", 201> {
+): CompozyApiJsonResponseFor<"post", "/api/workspaces/{workspace_id}/window-manager/clients", 201> {
   return {
     workspace_id: workspaceId,
     client_id: clientId,

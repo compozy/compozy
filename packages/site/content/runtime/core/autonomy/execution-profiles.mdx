@@ -14,7 +14,7 @@ described in [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases)
 
 <OperatorNote>
   Execution profiles are selection input first. Runtime evidence mode is the only field that can
-  affect the session permission mode, and AGH widens it only when the same profile selects an
+  affect the session permission mode, and Compozy widens it only when the same profile selects an
   explicit sandbox reference.
 </OperatorNote>
 
@@ -147,13 +147,13 @@ only chooses which sandbox profile (if any) the session boots with.
 
 ### Runtime mode behavior
 
-| Mode       | Effect at session start                                                                                                                                                                                                                                                                      |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default`  | The session uses the normal task-session runtime contract. No extra prompt guidance or permission change is applied.                                                                                                                                                                         |
-| `evidence` | The daemon adds prompt guidance for browser, simulator, local-app, and artifact capture work. AGH sets session permissions to `approve-all` only when the same profile sets `sandbox.mode = "ref"` with a non-empty `sandbox_ref`. Otherwise, the configured permission mode stays in force. |
+| Mode       | Effect at session start                                                                                                                                                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `default`  | The session uses the normal task-session runtime contract. No extra prompt guidance or permission change is applied.                                                                                                                                                                             |
+| `evidence` | The daemon adds prompt guidance for browser, simulator, local-app, and artifact capture work. Compozy sets session permissions to `approve-all` only when the same profile sets `sandbox.mode = "ref"` with a non-empty `sandbox_ref`. Otherwise, the configured permission mode stays in force. |
 
 Evidence mode does not create task authority. The agent still has to claim the run through
-`agh task next --wait -o json`, keep the lease alive, and complete or fail the run through the task
+`compozy task next --wait -o json`, keep the lease alive, and complete or fail the run through the task
 lease APIs. It only changes the session runtime envelope used to gather evidence.
 
 ### Worker runtime selection
@@ -176,22 +176,22 @@ profile.
 
 ## Manage a profile from the CLI
 
-The `agh task profile` command group operates against a single task id and shares its UDS surface
+The `compozy task profile` command group operates against a single task id and shares its UDS surface
 with the matching HTTP endpoints. Every subcommand supports `-o json|jsonl|toon` for agent
 consumption.
 
 ```bash
-agh task profile inspect task-123 -o json
-agh task profile update  task-123 --profile "$(cat profile.json)" -o json
-agh task profile delete  task-123 -o json
+compozy task profile inspect task-123 -o json
+compozy task profile update  task-123 --profile "$(cat profile.json)" -o json
+compozy task profile delete  task-123 -o json
 ```
 
 Generated reference for each verb:
 
-- [agh task profile](/runtime/cli-reference/task/profile)
-- [agh task profile inspect](/runtime/cli-reference/task/profile/inspect)
-- [agh task profile update](/runtime/cli-reference/task/profile/update)
-- [agh task profile delete](/runtime/cli-reference/task/profile/delete)
+- [compozy task profile](/runtime/cli-reference/task/profile)
+- [compozy task profile inspect](/runtime/cli-reference/task/profile/inspect)
+- [compozy task profile update](/runtime/cli-reference/task/profile/update)
+- [compozy task profile delete](/runtime/cli-reference/task/profile/delete)
 
 Update is a full replace, not a patch. The request body must carry the entire profile; any section
 that is omitted, sent as `{}`, or sent with an empty selector list normalizes to its default
@@ -211,10 +211,10 @@ refer to the same authority.
 | `PUT`    | `/api/tasks/{id}/execution-profile` | Replace the profile. Body must satisfy `task_execution_profile.task_id == {id}` (or omit the field). Omitted blocks normalize to defaults; PUT does not patch fields. |
 | `DELETE` | `/api/tasks/{id}/execution-profile` | Remove the profile. The task falls back to the default `inherit` profile.                                                                                             |
 
-Operation IDs in `openapi/agh.json`: `getTaskExecutionProfile`, `setTaskExecutionProfile`, and
+Operation IDs in `openapi/compozy.json`: `getTaskExecutionProfile`, `setTaskExecutionProfile`, and
 `deleteTaskExecutionProfile`. The OpenAPI document is the source of truth for request/response
 shapes; do not paraphrase fields. Generated TypeScript types live under
-`web/src/generated/agh-openapi.d.ts`.
+`web/src/generated/compozy-openapi.d.ts`.
 
 `PUT` and `DELETE` return `409 Conflict` when the task has an active run
 (`tasks.current_run_id` is set). Resolve or release the active run before retrying.
@@ -222,7 +222,7 @@ shapes; do not paraphrase fields. Generated TypeScript types live under
 ## Native tools for in-session agents
 
 Worker, coordinator, and reviewer sessions can manage profiles through the task toolset. The
-model-facing names live in the `tasks` toolset; AGH registers them internally with the `compozy__`
+model-facing names live in the `tasks` toolset; Compozy registers them internally with the `compozy__`
 prefix so toolset routing can hide them when policy denies the call.
 
 | Model-facing name               | Internal id                              | Authority                                                                  |
@@ -273,10 +273,10 @@ Behavior to keep in mind:
 
 - Unknown TOML keys are errors. The config loader rejects typos at startup; profiles inherit the
   same strictness.
-- `<workspace>/.agh/config.toml` overlays the global file. Workspace overlays can flip
+- `<workspace>/.compozy/config.toml` overlays the global file. Workspace overlays can flip
   `allow_task_provider_override` or `allow_task_sandbox_none` for one workspace.
 - `task.orchestration.profile.*` paths are agent-mutable through the existing config tool surface
-  (`agh config set` and the `compozy__config_*` native tools). Secret-shaped paths and trust-rooted
+  (`compozy config set` and the `compozy__config_*` native tools). Secret-shaped paths and trust-rooted
   sections remain off-limits; see the config tool surface invariants in
   [config.toml](/runtime/core/configuration/config-toml).
 - Sandbox `none` is rejected at validation time when `allow_task_sandbox_none = false`, even if a
@@ -318,5 +318,5 @@ Profiles are configuration and selection input. They never become authority on t
   conversation but never own task state.
 - [config.toml](/runtime/core/configuration/config-toml) lists every `[task.orchestration]` field,
   default, and validation rule.
-- [agh task profile](/runtime/cli-reference/task/profile) is the generated CLI reference for the
+- [compozy task profile](/runtime/cli-reference/task/profile) is the generated CLI reference for the
   profile commands.

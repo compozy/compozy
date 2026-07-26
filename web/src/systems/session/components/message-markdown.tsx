@@ -1,6 +1,6 @@
 import { memo } from "react";
 
-import { StreamMarkdown } from "@agh/ui";
+import { StreamMarkdown } from "@compozy/ui";
 
 export interface MessageMarkdownProps {
   content: string;

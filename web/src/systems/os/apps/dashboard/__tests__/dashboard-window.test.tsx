@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TopbarSlotProvider } from "@agh/ui";
+import { TopbarSlotProvider } from "@compozy/ui";
 
 const connection = { status: "connected" as "connected" | "disconnected" };
 

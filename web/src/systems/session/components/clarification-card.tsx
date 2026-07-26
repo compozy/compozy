@@ -1,6 +1,6 @@
 import { type FormEvent, useId, useState } from "react";
 
-import { Button, Eyebrow, Field, FieldLabel, Spinner, StatusDot, Textarea } from "@agh/ui";
+import { Button, Eyebrow, Field, FieldLabel, Spinner, StatusDot, Textarea } from "@compozy/ui";
 
 export interface ClarificationCardProps {
   question: string;

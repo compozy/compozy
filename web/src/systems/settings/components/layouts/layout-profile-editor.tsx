@@ -1,4 +1,4 @@
-import { Button, Field, FieldDescription, FieldLabel, Input, cn } from "@agh/ui";
+import { Button, Field, FieldDescription, FieldLabel, Input, cn } from "@compozy/ui";
 
 import type { WindowManagerLayoutProfilesModel } from "../../hooks/use-window-manager-layout-profiles";
 import type {

@@ -1,6 +1,14 @@
 import { ArrowUpRight } from "lucide-react";
 
-import { Button, Eyebrow, Item, ItemActions, ItemContent, ItemFooter, ItemHeader } from "@agh/ui";
+import {
+  Button,
+  Eyebrow,
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemFooter,
+  ItemHeader,
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

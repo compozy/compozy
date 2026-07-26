@@ -1,4 +1,4 @@
-import { KindIcon, providerKindIconRegistry, type KindIconProps } from "@agh/ui";
+import { KindIcon, providerKindIconRegistry, type KindIconProps } from "@compozy/ui";
 
 interface ProviderLogoProps extends Omit<KindIconProps, "kind" | "registry" | "size"> {
   provider: string;

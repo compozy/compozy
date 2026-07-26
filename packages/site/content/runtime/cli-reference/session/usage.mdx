@@ -1,24 +1,24 @@
 ---
-title: "agh session usage"
+title: "compozy session usage"
 description: "Show aggregated session token usage and cost provenance"
 ---
 
-## agh session usage
+## compozy session usage
 
 Show aggregated session token usage and cost provenance
 
 ```
-agh session usage <session-id> [flags]
+compozy session usage <session-id> [flags]
 ```
 
 ### Examples
 
 ```
   # Show truthful token and cost totals
-  agh session usage sess_1234
+  compozy session usage sess_1234
 
   # Read the usage contract as JSON for scripts
-  agh session usage sess_1234 -o json
+  compozy session usage sess_1234 -o json
 ```
 
 ### Options
@@ -36,7 +36,7 @@ agh session usage <session-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -46,5 +46,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session usage <session-id> -o json
+compozy session usage <session-id> -o json
 ```

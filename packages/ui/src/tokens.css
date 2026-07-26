@@ -1,4 +1,4 @@
-/* Canonical AGH Tailwind v4 tokens. DESIGN.md is the generated specification;
+/* Canonical Compozy Tailwind v4 tokens. DESIGN.md is the generated specification;
    this file owns utility-facing declarations while tokens-runtime.css owns
    global base styles, custom utilities, and reduced-motion behavior.
    Naming rule: `--spacing-*` (in `@theme`) generates gap/padding utilities;

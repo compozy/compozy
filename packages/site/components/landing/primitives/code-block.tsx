@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, Copy } from "lucide-react";
-import { Button, Eyebrow } from "@agh/ui";
-import { cn } from "@agh/ui/lib/utils";
+import { Button, Eyebrow } from "@compozy/ui";
+import { cn } from "@compozy/ui/lib/utils";
 
 interface LandingCodeBlockProps {
   code: string;

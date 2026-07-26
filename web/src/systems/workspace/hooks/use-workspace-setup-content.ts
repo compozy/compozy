@@ -39,7 +39,7 @@ function getGlobalUnavailableReason(isLoading: boolean, userHomeDir: string): st
   }
 
   if (!userHomeDir) {
-    return "Daemon status unavailable. Connect AGH to use your global workspace.";
+    return "Daemon status unavailable. Connect CompozyOS to use your global workspace.";
   }
 
   return null;

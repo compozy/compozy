@@ -1,4 +1,4 @@
-import { formatDuration } from "@agh/ui";
+import { formatDuration } from "@compozy/ui";
 
 /** Format summed session elapsed seconds for Overview/Sessions metric display. */
 export function formatAgentRuntimeDuration(totalSeconds: number): string | null {

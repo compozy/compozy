@@ -4,7 +4,7 @@
 // turn stays expanded with a "You stopped after {duration}" label. This is a pure
 // view over the `SessionRow` list produced by the base derivation.
 
-import { formatDuration } from "@agh/ui";
+import { formatDuration } from "@compozy/ui";
 
 import { aggregateChangedFiles } from "./session-timeline-changed-files";
 import {

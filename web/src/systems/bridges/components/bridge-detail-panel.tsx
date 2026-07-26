@@ -1,6 +1,6 @@
 import { AlertCircle, SearchCheck, Waypoints } from "lucide-react";
 
-import { Button, cn, DataSurface, Eyebrow, PAGE_CONTENT_GUTTER, Skeleton } from "@agh/ui";
+import { Button, cn, DataSurface, Eyebrow, PAGE_CONTENT_GUTTER, Skeleton } from "@compozy/ui";
 
 import { formatBridgeProviderConfig } from "../lib/bridge-formatters";
 import type { BridgeSetupProjection } from "../lib/bridge-setup";

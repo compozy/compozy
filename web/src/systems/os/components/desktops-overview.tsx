@@ -16,7 +16,7 @@ import {
   Skeleton,
   TooltipProvider,
   cn,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { DesktopsOverviewGrid } from "./desktops-overview-grid";
 

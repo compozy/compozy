@@ -1,7 +1,7 @@
 import { AlertCircle } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { Button, Pill, Section, Skeleton, Spinner } from "@agh/ui";
+import { Button, Pill, Section, Skeleton, Spinner } from "@compozy/ui";
 
 import { describeSchedule } from "../lib/automation-formatters";
 import type { AutomationSuggestion } from "../types";

@@ -1,4 +1,4 @@
-import { Pill } from "@agh/ui";
+import { Pill } from "@compozy/ui";
 
 import type { MCPStatusCell as MCPStatusCellModel } from "../lib/mcp-status-view-model";
 

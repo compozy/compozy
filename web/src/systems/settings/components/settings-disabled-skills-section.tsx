@@ -10,7 +10,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 interface SettingsDisabledSkillsSectionProps {
   baselineDisabled: readonly string[];

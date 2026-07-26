@@ -1,6 +1,6 @@
 ---
 title: Participation, Channels, and Peers
-description: How AGH resolves Local or Live participation, derives workspace channels, and registers Live sessions as peers.
+description: How Compozy resolves Local or Live participation, derives workspace channels, and registers Live sessions as peers.
 ---
 
 Participation belongs to an execution, not to the daemon and not to a bare channel string. Every
@@ -44,7 +44,7 @@ channel and bound fields rather than silently ignoring them.
 Example session creation:
 
 ```bash
-agh session new \
+compozy session new \
   --agent reviewer \
   --workspace checkout-api \
   --network live \
@@ -55,7 +55,7 @@ agh session new \
 Example bounded task run:
 
 ```bash
-agh task start task-123 \
+compozy task start task-123 \
   --network live \
   --network-channel-strategy run \
   --network-bounds '{"max_wakes":4,"max_wake_depth":2}' \
@@ -79,9 +79,9 @@ the immutable snapshot of an existing execution.
 The workspace coordination record is a default for future coordinated task runs:
 
 ```bash
-agh network coordination status --workspace checkout-api -o json
-agh network coordination enable --workspace checkout-api -o json
-agh network coordination disable --workspace checkout-api -o json
+compozy network coordination status --workspace checkout-api -o json
+compozy network coordination enable --workspace checkout-api -o json
+compozy network coordination disable --workspace checkout-api -o json
 ```
 
 The web invitation writes the same workspace record. Accepting it does not change the current run;
@@ -90,16 +90,16 @@ has higher precedence.
 
 ## Peers and presence
 
-The current AGH Runtime registers only sessions whose resolved mode is Live. A local peer exists
+The current Compozy Runtime registers only sessions whose resolved mode is Live. A local peer exists
 while its session is registered in the channel. Peer cards advertise protocol and capability
 claims for routing and inspection; they do not grant task, tool, or file authority.
 
 Use:
 
 ```bash
-agh network status -o json
-agh network channels -o json
-agh network peers release-readiness -o json
+compozy network status -o json
+compozy network channels -o json
+compozy network peers release-readiness -o json
 ```
 
 The status payload reports `local_peers`; it does not claim an embedded listener, broker workers,

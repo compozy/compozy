@@ -1,7 +1,7 @@
 import { AlertCircle, ChevronRight, History } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Empty, Eyebrow, Pill, Section, Spinner } from "@agh/ui";
+import { Empty, Eyebrow, Pill, Section, Spinner } from "@compozy/ui";
 
 import {
   automationRunSkipReason,

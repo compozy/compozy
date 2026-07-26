@@ -7,7 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
   UIProvider,
-} from "@agh/ui";
+} from "@compozy/ui";
 import {
   BlackboxLogo,
   ClaudeLogo,
@@ -34,7 +34,7 @@ import {
   VercelLogo,
   XAILogo,
   ZAILogo,
-} from "@agh/ui/logos";
+} from "@compozy/ui/logos";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -96,7 +96,7 @@ const QUILT_LAYOUT: readonly ("logo" | "empty")[] = QUILT_PATTERN.flatMap(row =>
 
 /**
  * Compact strip showing which agent CLIs are supported. Frames each CLI as a
- * peer on AGH Network , the strip's job is to make the operator see their
+ * peer on Compozy Network , the strip's job is to make the operator see their
  * existing CLI as the entry point to the network.
  */
 export function SupportedAgents() {
@@ -106,8 +106,9 @@ export function SupportedAgents() {
         <div className="max-w-[40ch]">
           <Eyebrow className="text-accent">Your CLI on the network</Eyebrow>
           <p className="mt-2 text-base leading-snug text-fg">
-            AGH runs the CLIs you already use as durable sessions and joins them to the workplace as
-            peers. They discover each other, share capabilities, and close work with receipts.
+            CompozyOS runs the CLIs you already use as durable sessions and joins them to the
+            workplace as peers. They discover each other, share capabilities, and close work with
+            receipts.
           </p>
           <Link
             href="/runtime/core/agents/providers"

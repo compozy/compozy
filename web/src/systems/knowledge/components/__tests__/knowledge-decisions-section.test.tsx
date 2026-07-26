@@ -1,4 +1,4 @@
-import { UIProvider } from "@agh/ui";
+import { UIProvider } from "@compozy/ui";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 

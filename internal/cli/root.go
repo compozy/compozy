@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	rootAghKey       = "compozy"
+	rootCompozyKey   = "compozy"
 	rootVersionKey   = "version"
 	cliCodeKey       = "code"
 	cliFieldKey      = "field"
@@ -87,7 +87,7 @@ type commandDeps struct {
 	runMCPServe                 mcpServeRunner
 }
 
-// NewRootCommand constructs the AGH v1 CLI command tree.
+// NewRootCommand constructs the Compozy v1 CLI command tree.
 func NewRootCommand() *cobra.Command {
 	return newRootCommand(commandDeps{})
 }
@@ -96,8 +96,8 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	deps = deps.withDefaults()
 
 	cmd := &cobra.Command{
-		Use:   rootAghKey,
-		Short: "AGH — Artificial General Hivemind",
+		Use:   rootCompozyKey,
+		Short: "Compozy — agent operating system",
 		Example: `  # Start the daemon and create a session in the current workspace
   compozy daemon start
   compozy session new --agent general
@@ -170,7 +170,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 func newVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   rootVersionKey,
-		Short: "Print the AGH version",
+		Short: "Print the Compozy version",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return writeCommandOutput(cmd, outputBundle{
 				jsonValue: version.Current(),

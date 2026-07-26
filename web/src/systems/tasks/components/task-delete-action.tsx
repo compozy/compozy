@@ -1,7 +1,7 @@
 import { Trash2 } from "lucide-react";
 import { useState, type ComponentProps } from "react";
 
-import { Button, ConfirmDialog, DialogTrigger, Spinner } from "@agh/ui";
+import { Button, ConfirmDialog, DialogTrigger, Spinner } from "@compozy/ui";
 
 type ButtonSize = ComponentProps<typeof Button>["size"];
 type ButtonVariant = ComponentProps<typeof Button>["variant"];

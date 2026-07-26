@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section, Skeleton } from "@agh/ui";
+import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section, Skeleton } from "@compozy/ui";
 
 import {
   formatTaskRunBounds,

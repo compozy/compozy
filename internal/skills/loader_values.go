@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -47,7 +47,7 @@ func stringSliceValue(skill *Skill, scope string, index int, field string, raw a
 
 	items, ok := raw.([]any)
 	if !ok {
-		warnAGHMetadata(
+		warnCompozyMetadata(
 			skill,
 			"skills: malformed metadata list field",
 			"scope",
@@ -66,7 +66,7 @@ func stringSliceValue(skill *Skill, scope string, index int, field string, raw a
 	for itemIndex, item := range items {
 		value, ok := item.(string)
 		if !ok {
-			warnAGHMetadata(
+			warnCompozyMetadata(
 				skill,
 				"skills: malformed metadata list item",
 				"scope",
@@ -100,7 +100,7 @@ func stringMapValue(skill *Skill, scope string, index int, field string, raw any
 
 	input, ok := raw.(map[string]any)
 	if !ok {
-		warnAGHMetadata(
+		warnCompozyMetadata(
 			skill,
 			"skills: malformed metadata map field",
 			"scope",
@@ -119,7 +119,7 @@ func stringMapValue(skill *Skill, scope string, index int, field string, raw any
 	for key, rawValue := range input {
 		value, ok := rawValue.(string)
 		if !ok {
-			warnAGHMetadata(
+			warnCompozyMetadata(
 				skill,
 				"skills: malformed metadata map entry",
 				"scope",
@@ -146,7 +146,7 @@ func stringMapValue(skill *Skill, scope string, index int, field string, raw any
 	return values
 }
 
-func warnAGHMetadata(skill *Skill, message string, args ...any) {
+func warnCompozyMetadata(skill *Skill, message string, args ...any) {
 	attrs := make([]any, 0, len(args)+4)
 	if skill != nil {
 		if skill.FilePath != "" {
@@ -202,7 +202,7 @@ func shouldSkipDir(name string) bool {
 	switch name {
 	case ".git", "node_modules":
 		return true
-	case aghconfig.DirName:
+	case compozyconfig.DirName:
 		return false
 	}
 

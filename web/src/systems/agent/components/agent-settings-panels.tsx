@@ -1,4 +1,4 @@
-import { ActionResultBanner, Button } from "@agh/ui";
+import { ActionResultBanner, Button } from "@compozy/ui";
 
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 

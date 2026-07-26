@@ -1,6 +1,6 @@
 import { Plus, Waypoints } from "lucide-react";
 
-import { Button, Empty, Section } from "@agh/ui";
+import { Button, Empty, Section } from "@compozy/ui";
 
 import {
   buildBridgeProviderKey,
@@ -21,7 +21,7 @@ export function BridgeEmptyState({ onCreate, providers }: BridgeEmptyStateProps)
   const title = hasInstalledProviders ? "No bridges configured" : "No bridge providers installed";
   const description = hasInstalledProviders
     ? "Start by creating a bridge from an installed provider. Bridge instances keep routing, delivery defaults, and health separated per workspace or globally."
-    : "Install a bridge-capable extension first. The create flow only becomes available when AGH can discover a provider through the runtime catalog.";
+    : "Install a bridge-capable extension first. The create flow only becomes available when CompozyOS can discover a provider through the runtime catalog.";
 
   const action = (
     <>

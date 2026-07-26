@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import type * as React from "react";
 
-import { Button, cn, MonoId, OwnerAvatar, Pill, PropertyRow, Time } from "@agh/ui";
+import { Button, cn, MonoId, OwnerAvatar, Pill, PropertyRow, Time } from "@compozy/ui";
 
 import { describeCost } from "@/lib/cost-provenance";
 import { ownerAvatarKindFor, taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
@@ -194,7 +194,7 @@ export function TaskRunRail({
           Inspect
         </Button>
         <span className="truncate font-mono text-micro text-faint">
-          agh task run show {record.id}
+          compozy task run show {record.id}
         </span>
       </footer>
     </div>

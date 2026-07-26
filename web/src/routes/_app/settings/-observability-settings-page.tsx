@@ -16,7 +16,7 @@ import {
   useSettingsTopbar,
   type SettingsObservabilitySection,
 } from "@/systems/settings";
-import { Button, Spinner, Switch } from "@agh/ui";
+import { Button, Spinner, Switch } from "@compozy/ui";
 
 type ObservabilityConfig = SettingsObservabilitySection["config"];
 

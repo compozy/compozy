@@ -1,4 +1,4 @@
-import { Pill, PillDot, type PillProps, type PillSize } from "@agh/ui";
+import { Pill, PillDot, type PillProps, type PillSize } from "@compozy/ui";
 
 import { loopStatusLabel, loopStatusPulse, loopStatusTone } from "../lib/loop-formatters";
 

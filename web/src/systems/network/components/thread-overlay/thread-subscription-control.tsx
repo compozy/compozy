@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   useDeleteNetworkSubscription,

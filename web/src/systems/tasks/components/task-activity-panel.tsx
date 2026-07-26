@@ -9,7 +9,7 @@ import {
   Section,
   Timeline,
   type PillGroupItem,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   humanizeTaskEvent,

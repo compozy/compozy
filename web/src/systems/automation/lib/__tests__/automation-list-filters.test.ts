@@ -4,7 +4,7 @@
 // typed handler per field (invalid values fall back to null). Ports the
 // filter-forwarding coverage lost with the master-detail list panel.
 // Boundary IN: filter state <-> chip projection/application.
-// Boundary OUT: URL persistence (page-base) and chip rendering (@agh/ui Filters).
+// Boundary OUT: URL persistence (page-base) and chip rendering (@compozy/ui Filters).
 import { describe, expect, it, vi } from "vitest";
 
 import {

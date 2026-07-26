@@ -9,7 +9,7 @@ import { categoryLabel, formatReadingTime } from "./format";
 import { BlogKindChip, type WireKind } from "./kind-chip";
 import { MonoBadge } from "./mono-badge";
 import { blogPostCover } from "@/lib/blog";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 export interface FeaturedPostProps {
   post: Post;

@@ -1,4 +1,4 @@
-import { Button, FormSection, Input } from "@agh/ui";
+import { Button, FormSection, Input } from "@compozy/ui";
 import { Plus, Trash2 } from "lucide-react";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";

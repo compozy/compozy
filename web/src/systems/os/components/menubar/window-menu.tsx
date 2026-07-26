@@ -8,7 +8,7 @@ import {
   MenubarSubContent,
   MenubarSubTrigger,
   MenubarTrigger,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { OsWindowCommandsModel } from "../../hooks/use-os-window-commands";
 import {

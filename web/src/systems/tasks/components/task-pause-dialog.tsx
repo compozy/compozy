@@ -8,7 +8,7 @@ import {
   DialogTitle,
   Spinner,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { useTaskPauseDialog } from "../hooks/use-task-pause-dialog";
 

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -47,7 +47,7 @@ export const EmptyRuns: Story = {
     ...appRouteParameters("/loop-runs"),
     ...storybookMswParameters({
       loops: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/loop-runs", () =>
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs", () =>
           HttpResponse.json({ runs: [], aggregates: { ...loopRunAggregatesFixture, total: 0 } })
         ),
       ],
@@ -62,7 +62,7 @@ export const LoadingRuns: Story = {
     ...appRouteParameters("/loop-runs"),
     ...storybookMswParameters({
       loops: [
-        aghApiMock.get("/api/workspaces/{workspace_id}/loop-runs", async () => {
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs", async () => {
           await delay("infinite");
           return HttpResponse.json({
             runs: [],

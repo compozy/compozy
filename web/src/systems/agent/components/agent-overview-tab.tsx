@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Empty, MetadataList, Pill, Section, Skeleton } from "@agh/ui";
+import { Empty, MetadataList, Pill, Section, Skeleton } from "@compozy/ui";
 
 import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 

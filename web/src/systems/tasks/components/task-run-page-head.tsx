@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
   Pill,
   TopbarOverflowIcon,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   HEAD_STATUS_TONE_TEXT,

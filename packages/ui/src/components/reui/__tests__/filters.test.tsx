@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { Button, Filters, FiltersWithSearch, type FilterFieldsConfig } from "@agh/ui";
+import { Button, Filters, FiltersWithSearch, type FilterFieldsConfig } from "@compozy/ui";
 
 const FIELDS: FilterFieldsConfig<boolean> = [
   {
@@ -13,7 +13,7 @@ const FIELDS: FilterFieldsConfig<boolean> = [
 ];
 
 describe("Filters public surface", () => {
-  it("Should resolve Filters from @agh/ui and render an accessible add-filter control", () => {
+  it("Should resolve Filters from @compozy/ui and render an accessible add-filter control", () => {
     const onChange = vi.fn();
 
     render(
@@ -66,7 +66,7 @@ describe("Filters public surface", () => {
     ]);
   });
 
-  it("Should resolve FiltersWithSearch from @agh/ui as a distinct searchable variant", () => {
+  it("Should resolve FiltersWithSearch from @compozy/ui as a distinct searchable variant", () => {
     const onChange = vi.fn();
 
     render(

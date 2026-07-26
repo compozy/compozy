@@ -1,1 +1,1 @@
-export { cn } from "@agh/ui";
+export { cn } from "@compozy/ui";

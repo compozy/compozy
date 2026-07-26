@@ -1,6 +1,6 @@
 import { Network as NetworkIcon } from "lucide-react";
 
-import { Button, Empty } from "@agh/ui";
+import { Button, Empty } from "@compozy/ui";
 
 export interface NetworkEmptyProps {
   /** Settings deep-link handler from the parent route. */

@@ -2,7 +2,7 @@
 name: mcp-only
 description: Skill with MCP metadata only
 metadata:
-  agh:
+  compozy:
     mcp_servers:
       - name: filesystem
         command: npx

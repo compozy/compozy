@@ -1,5 +1,5 @@
 import type { Release } from "#site/content";
-import { cn, Eyebrow } from "@agh/ui";
+import { cn, Eyebrow } from "@compozy/ui";
 import Link from "next/link";
 
 export interface ChangelogTocRailProps {

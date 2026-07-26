@@ -18,7 +18,7 @@
  * `TaskLane` is a UI vocabulary, not backend-bound (per N-004): it covers the
  * sidebar/topbar lane names, none of which exist in `internal/task/types.go`.
  */
-import type { PillTone } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
 
 export type TaskStatus =
   | "draft"

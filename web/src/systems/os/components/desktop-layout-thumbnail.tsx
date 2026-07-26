@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { OsWindow } from "../lib/os-types";
 import type { LayoutProjection, PixelRect } from "../lib/window-manager-types";

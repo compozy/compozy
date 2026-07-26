@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 import { AlertTriangle, Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 

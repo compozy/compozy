@@ -1,7 +1,7 @@
 import { Clock3, Play } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, CatalogCard, Pill } from "@agh/ui";
+import { Button, CatalogCard, Pill } from "@compozy/ui";
 
 import {
   automationSourceLabel,

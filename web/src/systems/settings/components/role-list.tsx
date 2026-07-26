@@ -1,4 +1,4 @@
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 
 import type { RolesDisclosure } from "../hooks/use-roles-disclosure";
 import type { RolesRuntimeOptions } from "../hooks/use-roles-runtime-options";

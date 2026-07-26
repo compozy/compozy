@@ -1,9 +1,9 @@
 ---
 title: Google Chat Setup
-description: Configure a Google Chat app with direct HTTP, Pub/Sub, or hybrid ingress and verify the AGH bridge end to end.
+description: Configure a Google Chat app with direct HTTP, Pub/Sub, or hybrid ingress and verify the Compozy bridge end to end.
 ---
 
-This guide creates a Google Chat app that sends interaction events to AGH and receives responses
+This guide creates a Google Chat app that sends interaction events to Compozy and receives responses
 through the Chat REST API. Choose one inbound architecture first; most deployments need either
 `direct` or `pubsub`, not both.
 
@@ -13,7 +13,7 @@ can name the audience, push identity, topic, and duplicate-delivery controls you
 
 ## How the Google Chat bridge behaves
 
-| Surface                    | AGH behavior                                                                                                                           |
+| Surface                    | Compozy behavior                                                                                                                       |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Direct messages and spaces | Routes on `spaces/...` conversation resources and encoded thread targets. Sender `users/...` resources are separate access identities. |
 | Inbound events             | Maps messages, actions, and reactions. Direct and Pub/Sub envelopes have separate JWT verification.                                    |
@@ -23,20 +23,20 @@ can name the audience, push identity, topic, and duplicate-delivery controls you
 
 Keep access and delivery identities separate:
 
-| Purpose                 | AGH field or surface             | Google Chat value                                           |
-| ----------------------- | -------------------------------- | ----------------------------------------------------------- |
-| Sender and DM allowlist | `sender.id`, `dm.allow_user_ids` | User resource name such as `users/123`.                     |
-| Direct-message route    | `peer_id`                        | DM space resource name such as `spaces/AAAA`.               |
-| Shared-space route      | `group_id`                       | Shared space resource name such as `spaces/BBBB`.           |
-| Route-derived reply     | `thread_id`                      | Opaque encoded Chat target returned by `agh bridge routes`. |
+| Purpose                 | Compozy field or surface         | Google Chat value                                               |
+| ----------------------- | -------------------------------- | --------------------------------------------------------------- |
+| Sender and DM allowlist | `sender.id`, `dm.allow_user_ids` | User resource name such as `users/123`.                         |
+| Direct-message route    | `peer_id`                        | DM space resource name such as `spaces/AAAA`.                   |
+| Shared-space route      | `group_id`                       | Shared space resource name such as `spaces/BBBB`.               |
+| Route-derived reply     | `thread_id`                      | Opaque encoded Chat target returned by `compozy bridge routes`. |
 
 ## Choose the ingress architecture
 
-| Mode     | Best fit                                                                                                 | Required verification data                                     |
-| -------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `direct` | Google Chat can call your public HTTPS endpoint directly. This is the default.                           | Bound `project_number`; Chat's direct JWT uses it as audience. |
-| `pubsub` | Chat publishes to a topic and a push subscription forwards to AGH. Useful for centralized Cloud routing. | `pubsub_audience` and `pubsub_service_account_email`.          |
-| `hybrid` | An advanced deployment intentionally accepts both event forms.                                           | All direct and Pub/Sub requirements.                           |
+| Mode     | Best fit                                                                                                     | Required verification data                                     |
+| -------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `direct` | Google Chat can call your public HTTPS endpoint directly. This is the default.                               | Bound `project_number`; Chat's direct JWT uses it as audience. |
+| `pubsub` | Chat publishes to a topic and a push subscription forwards to Compozy. Useful for centralized Cloud routing. | `pubsub_audience` and `pubsub_service_account_email`.          |
+| `hybrid` | An advanced deployment intentionally accepts both event forms.                                               | All direct and Pub/Sub requirements.                           |
 
 Do not omit `mode` expecting automatic selection: an empty value becomes `direct`. The manifest marks
 `project_number` optional only because pure `pubsub` mode does not use it.
@@ -46,7 +46,7 @@ Do not omit `mode` expecting automatic selection: an empty value becomes `direct
 1. Create one Google Cloud project and service account.
 2. Enable the Chat API and record the numeric project number.
 3. Configure the Chat app for direct HTTP delivery to a stable public URL.
-4. Create the AGH bridge disabled with `mode: "direct"`.
+4. Create the Compozy bridge disabled with `mode: "direct"`.
 5. Bind the service-account JSON and project number.
 6. Verify identity and configuration while the bridge remains disabled.
 7. Configure direct-message access if the selected route accepts DMs.
@@ -60,14 +60,14 @@ Do not omit `mode` expecting automatic selection: an empty value becomes `direct
 - A dedicated Google Cloud project with the Google Chat API enabled.
 - Permission to configure the Chat app and create a service account key.
 - For Pub/Sub: the Pub/Sub API, a topic, permission bindings, and an authenticated push subscription.
-- A stable public HTTPS callback plus an AGH workspace with a default agent.
+- A stable public HTTPS callback plus an Compozy workspace with a default agent.
 
 Before configuring Google Cloud, prove that the locally built provider is installed and visible in
 the daemon catalog:
 
 ```bash
 PROVIDER=gchat
-agh extension status "$PROVIDER" -o json
+compozy extension status "$PROVIDER" -o json
 curl -sS http://127.0.0.1:2123/api/bridges/providers | \
   jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
 ```
@@ -85,9 +85,9 @@ visibility, and logging.
 1. Create or select a dedicated Google Cloud project.
 2. Open **APIs & Services → Library** and enable **Google Chat API**. Enable **Cloud Pub/Sub API**
    too if you chose `pubsub` or `hybrid`.
-3. Open **IAM & Admin → Service Accounts** and create the identity AGH will use for Chat API calls.
+3. Open **IAM & Admin → Service Accounts** and create the identity Compozy will use for Chat API calls.
 4. Open the service account's **Keys** tab and create a JSON key.
-5. Store the complete JSON object in a secret manager. AGH needs at least `client_email` and
+5. Store the complete JSON object in a secret manager. Compozy needs at least `client_email` and
    `private_key`; it does not use `token_uri` to select a credential destination.
 6. Record the numeric **Project number** from the Cloud project overview for direct or hybrid mode.
 
@@ -117,14 +117,14 @@ Use these steps instead for `pubsub`:
    binding, Chat cannot publish events.
 3. In **Google Chat API → Configuration**, select **Cloud Pub/Sub** as the connection and enter the
    topic resource name. Configure application info, functionality, visibility, and logging, then save.
-4. Create a **push subscription** on the topic whose endpoint is AGH's
+4. Create a **push subscription** on the topic whose endpoint is Compozy's
    `provider_config.webhook.public_url`.
 5. Enable authenticated push with a dedicated push service account.
 6. Set an explicit OIDC audience. The exact audience and service-account email become
    `verification.pubsub_audience` and `verification.pubsub_service_account_email`.
 
 Google's [Pub/Sub Chat app guide](https://developers.google.com/workspace/chat/quickstart/pub-sub)
-documents the topic-side Chat configuration. AGH uses a push subscription rather than a pull worker,
+documents the topic-side Chat configuration. Compozy uses a push subscription rather than a pull worker,
 so the final hop must target the public provider endpoint.
 
 For `hybrid`, configure both upstream paths and supply both verification sets. Use distinct upstream
@@ -144,7 +144,7 @@ one listener address and requires unique paths for its instances.
 
 ## Step 4: Create the bridge disabled
 
-Google Chat has no guided `agh bridge setup` command. Route flags are conjunctive: every selected
+Google Chat has no guided `compozy bridge setup` command. Route flags are conjunctive: every selected
 dimension must exist on an inbound event. Google Chat emits the DM's `space.name` as `peer_id` plus
 an encoded `thread_id`; it does not use the sender's `users/...` resource as the peer. Shared spaces
 emit `space.name` as `group_id` plus an optional `thread_id`. An event never emits peer and group
@@ -152,18 +152,18 @@ together.
 
 Choose the policy that matches the events this callback accepts:
 
-| Intended traffic                | Routing flags                      | Session boundary                                                                 |
-| ------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------- |
-| Spaces collapsed by space       | `--include-group`                  | One AGH session per space; replies target the space rather than a source thread. |
-| Spaces separated by Chat thread | `--include-group --include-thread` | One AGH session and reply target per encoded Chat thread.                        |
-| Direct messages only            | `--include-peer --include-thread`  | One AGH session per DM.                                                          |
+| Intended traffic                | Routing flags                      | Session boundary                                                                     |
+| ------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
+| Spaces collapsed by space       | `--include-group`                  | One Compozy session per space; replies target the space rather than a source thread. |
+| Spaces separated by Chat thread | `--include-group --include-thread` | One Compozy session and reply target per encoded Chat thread.                        |
+| Direct messages only            | `--include-peer --include-thread`  | One Compozy session per DM.                                                          |
 
 For a space event without a native thread resource, the provider derives the encoded thread key from
 the message resource name, so the group-plus-thread shape remains complete.
 
 If one Chat app must accept both DMs and spaces while keeping them in distinct sessions, route the
 two event shapes to separate bridge instances with distinct callback paths. That requires separate
-Chat app configurations or an operator-owned dispatcher in front of AGH. Do not combine
+Chat app configurations or an operator-owned dispatcher in front of Compozy. Do not combine
 `--include-peer` and `--include-group`: the provider cannot satisfy that policy. Leaving every route
 flag off is not a dynamic-reply solution either, because the daemon cannot build a peer or group
 delivery target from that key.
@@ -172,7 +172,7 @@ The primary example accepts space events and preserves their thread identity. He
 `mode: "direct"` means direct HTTP ingress; it does not mean a direct-message route:
 
 ```bash
-agh bridge create \
+compozy bridge create \
   --scope workspace \
   --workspace-id ws_8f33a913d23c4fd1 \
   --platform gchat \
@@ -223,7 +223,7 @@ BRIDGE_ID=brg_123
 All modes need the complete service-account JSON:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" credentials_json \
+compozy bridge secret-bindings put "$BRIDGE_ID" credentials_json \
   --secret-ref "vault:bridges/$BRIDGE_ID/credentials_json" \
   --kind json \
   --secret-value-file "/secure/path/service-account.json"
@@ -232,7 +232,7 @@ agh bridge secret-bindings put "$BRIDGE_ID" credentials_json \
 Direct and hybrid modes also need the numeric project number:
 
 ```bash
-printf '%s' "$GOOGLE_CLOUD_PROJECT_NUMBER" | agh bridge secret-bindings put "$BRIDGE_ID" project_number \
+printf '%s' "$GOOGLE_CLOUD_PROJECT_NUMBER" | compozy bridge secret-bindings put "$BRIDGE_ID" project_number \
   --secret-ref "vault:bridges/$BRIDGE_ID/project_number" \
   --kind credential \
   --secret-value-stdin
@@ -243,15 +243,15 @@ provider configuration instead.
 
 <OperatorNote>
   Keep the service-account file permission-restricted and remove any temporary copy after the write.
-  AGH reads the contents without placing them in process arguments. For secret managers that emit to
-  stdout, pipe into `--secret-value-stdin`; see [Bridge
+  Compozy reads the contents without placing them in process arguments. For secret managers that
+  emit to stdout, pipe into `--secret-value-stdin`; see [Bridge
   operations](/runtime/core/bridges/operations#rotate-a-credential).
 </OperatorNote>
 
 ## Step 6: Verify the disabled bridge
 
 ```bash
-agh bridge verify "$BRIDGE_ID" --json
+compozy bridge verify "$BRIDGE_ID" --json
 ```
 
 Expected evidence:
@@ -270,9 +270,9 @@ The primary space route above rejects DMs because it requires `group_id`. Before
 DM-only bridge, set an explicit access policy. An omitted or empty `dm_policy` normalizes to `open`
 and admits every Google Chat DM sender whose event passes direct or Pub/Sub JWT verification.
 
-`agh bridge create` and `agh bridge update` do not currently expose `--dm-policy`. Use the Web editor
+`compozy bridge create` and `compozy bridge update` do not currently expose `--dm-policy`. Use the Web editor
 or HTTP API procedure in [Control direct-message access](./access), then keep the bridge disabled
-until `agh bridge get "$BRIDGE_ID" -o json` reports the intended policy and
+until `compozy bridge get "$BRIDGE_ID" -o json` reports the intended policy and
 `provider_config.dm` lists. Prefer stable Google user resource names such as `users/123` over email or
 display-name fallbacks.
 
@@ -287,9 +287,9 @@ those surfaces.
 ## Step 8: Enable, install, and test the app
 
 ```bash
-agh bridge enable "$BRIDGE_ID"
-agh bridge verify "$BRIDGE_ID" --json
-agh bridge get "$BRIDGE_ID" -o json
+compozy bridge enable "$BRIDGE_ID"
+compozy bridge verify "$BRIDGE_ID" --json
+compozy bridge get "$BRIDGE_ID" -o json
 ```
 
 Open Google Chat as one of the configured test users:
@@ -297,7 +297,7 @@ Open Google Chat as one of the configured test users:
 1. Select **New chat** and search for the app name.
 2. Add the app to a permitted test space.
 3. Send both an unthreaded message and, if the space supports threads, one threaded reply.
-4. Wait for the AGH response to each message.
+4. Wait for the Compozy response to each message.
 
 If the app is absent from search, revisit **Google Chat API → Configuration → Visibility**. If Chat
 shows “App is not responding,” verify that interactive features are enabled and the connection points
@@ -306,14 +306,14 @@ to the intended HTTP endpoint or topic.
 Inspect the route created by the first inbound event:
 
 ```bash
-agh bridge routes "$BRIDGE_ID" -o json
+compozy bridge routes "$BRIDGE_ID" -o json
 ```
 
 Then test a real outbound message with the shared-space route:
 
 ```bash
-agh bridge send-test "$BRIDGE_ID" \
-  --message "AGH Google Chat connection check" \
+compozy bridge send-test "$BRIDGE_ID" \
+  --message "Compozy Google Chat connection check" \
   --group-id "<spaces/... group-id-from-route>" \
   --thread-id "<encoded-thread-id-from-route>" \
   --mode reply \
@@ -328,8 +328,8 @@ For a DM-only deployment, create a separate instance and callback with both `--i
 `--include-thread`, establish a direct route, and prove its exact delivery target:
 
 ```bash
-agh bridge send-test "$BRIDGE_ID" \
-  --message "AGH Google Chat direct-message check" \
+compozy bridge send-test "$BRIDGE_ID" \
+  --message "Compozy Google Chat direct-message check" \
   --peer-id "<spaces/... peer-id-from-route>" \
   --thread-id "<encoded-thread-id-from-route>" \
   --mode reply \
@@ -345,7 +345,7 @@ instance above intentionally rejects DMs because its route requires `group_id`.
 | Field                                             | Default / fallback                 | Purpose                                                                                      |
 | ------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------- |
 | `mode`                                            | `direct`                           | `direct`, `pubsub`, or `hybrid` ingress validation.                                          |
-| `webhook.public_url`                              | none                               | Full public HTTPS endpoint used by Chat/Pub/Sub and AGH verification.                        |
+| `webhook.public_url`                              | none                               | Full public HTTPS endpoint used by Chat/Pub/Sub and Compozy verification.                    |
 | `webhook.listen_addr`                             | `COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR` | Local provider listener.                                                                     |
 | `webhook.path`                                    | `/gchat/<bridge-id>`               | Local callback path.                                                                         |
 | `verification.direct_issuer`                      | Google Chat system service account | Expected issuer for direct Chat JWTs.                                                        |
@@ -364,7 +364,7 @@ Chat API and OAuth token destinations are official defaults or operator-owned pr
 Positive batching changes the acknowledgement boundary: the adapter returns callback success after
 an in-memory enqueue, before the batch reaches the Host. A later flush failure cannot be reflected to
 Google Chat, and pending batches do not survive an adapter-process restart. Keep `delay_ms` at `0`
-when the callback must carry the Host admission result; AGH has no durable readmission queue behind
+when the callback must carry the Host admission result; Compozy has no durable readmission queue behind
 this batching option.
 
 ## Troubleshooting
@@ -377,7 +377,7 @@ this batching option.
 | App is not visible in Chat                       | Add your account or group under Chat API **Visibility**, save, and wait for the configuration to propagate.               |
 | App is visible but stays silent in direct mode   | Enable interactive features and check the HTTP endpoint URL and reverse-proxy path.                                       |
 | Pub/Sub topic has no Chat events                 | Grant `chat-api-push@system.gserviceaccount.com` Pub/Sub Publisher on the topic and confirm Chat uses that topic.         |
-| Topic has events but AGH sees none               | Inspect the push subscription endpoint, OIDC audience, push service account, and provider listener.                       |
+| Topic has events but Compozy sees none           | Inspect the push subscription endpoint, OIDC audience, push service account, and provider listener.                       |
 | Outbound returns 403                             | Confirm the app remains installed in the target space and the service account belongs to the configured Chat app project. |
 | Send-test cannot resolve the destination         | Use the full `spaces/...` name from an inbound route, not the human-readable room name.                                   |
 
@@ -408,7 +408,7 @@ account used by the bridge and the service account used by authenticated push as
 - The route contains the expected `spaces/...` resource and, when thread-preserving routing was
   selected, the encoded thread identity.
 - `send-test` returns a Google Chat message resource name.
-- Hybrid deployments prove one logical event does not create duplicate AGH turns.
+- Hybrid deployments prove one logical event does not create duplicate Compozy turns.
 - The bridge returns to `ready` after one restart.
 
 ## Related docs

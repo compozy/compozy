@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Repeat2 } from "lucide-react";
 
-import { ListingRow, Pill } from "@agh/ui";
+import { ListingRow, Pill } from "@compozy/ui";
 
 import {
   hasHumanGate,

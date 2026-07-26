@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { FormSection } from "@agh/ui";
+import { FormSection } from "@compozy/ui";
 
 import { useOptionCardSlot } from "../hooks/use-option-card-slot";
 import {

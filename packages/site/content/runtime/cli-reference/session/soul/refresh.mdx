@@ -1,20 +1,20 @@
 ---
-title: "agh session soul refresh"
+title: "compozy session soul refresh"
 description: "Refresh an idle session's Soul snapshot"
 ---
 
-## agh session soul refresh
+## compozy session soul refresh
 
 Refresh an idle session's Soul snapshot
 
 ```
-agh session soul refresh <session-id> [flags]
+compozy session soul refresh <session-id> [flags]
 ```
 
 ### Examples
 
 ```
-  agh session soul refresh sess_123 --expected-digest sha256:old --json
+  compozy session soul refresh sess_123 --expected-digest sha256:old --json
 ```
 
 ### Options
@@ -34,7 +34,7 @@ agh session soul refresh <session-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -44,5 +44,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session soul refresh <session-id> -o json
+compozy session soul refresh <session-id> -o json
 ```

@@ -10,7 +10,7 @@ import {
   TabsContent,
   useTopbarSlot,
   type LaneTabsItem,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   AgentConfigurationTab,

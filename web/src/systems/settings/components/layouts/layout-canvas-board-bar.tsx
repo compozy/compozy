@@ -1,4 +1,4 @@
-import { Pill } from "@agh/ui";
+import { Pill } from "@compozy/ui";
 
 import type { LayoutProjection, LayoutProjectionDiagnostic } from "@/systems/os";
 

@@ -209,7 +209,7 @@ describe("SandboxPage", () => {
     expect(screen.getByTestId("sandbox-page-card-local-source")).toHaveTextContent("CONFIG");
   });
 
-  it("shows the @agh/ui Empty card when no sandboxes exist", () => {
+  it("shows the @compozy/ui Empty card when no sandboxes exist", () => {
     pageState = makeState({
       sandboxes: [],
       filtered: [],
@@ -359,7 +359,7 @@ describe("SandboxPage", () => {
     );
   });
 
-  it("shows the last action banner after save and delete via @agh/ui Alert", () => {
+  it("shows the last action banner after save and delete via @compozy/ui Alert", () => {
     pageState = makeState({
       lastAction: {
         kind: "deleted",

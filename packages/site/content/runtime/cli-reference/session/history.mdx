@@ -1,24 +1,24 @@
 ---
-title: "agh session history"
+title: "compozy session history"
 description: "Show session history grouped by turn"
 ---
 
-## agh session history
+## compozy session history
 
 Show session history grouped by turn
 
 ```
-agh session history <id> [flags]
+compozy session history <id> [flags]
 ```
 
 ### Examples
 
 ```
   # Show replayable turn history for one session
-  agh session history sess_1234
+  compozy session history sess_1234
 
   # Show turns after a known event sequence
-  agh session history sess_1234 --after 120 --last 10
+  compozy session history sess_1234 --after 120 --last 10
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh session history <id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh session history <id> -o json
+compozy session history <id> -o json
 ```

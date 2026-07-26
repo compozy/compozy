@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
@@ -79,7 +79,7 @@ export const Loading: Story = {
     ...appRouteParameters("/settings/automation"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/automation", async () => {
+        compozyApiMock.get("/api/settings/automation", async () => {
           await delay("infinite");
           return HttpResponse.json(settingsAutomationSectionFixture);
         }),
@@ -98,7 +98,7 @@ export const Error: Story = {
     ...appRouteParameters("/settings/automation"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/automation", () =>
+        compozyApiMock.get("/api/settings/automation", () =>
           HttpResponse.json({ error: "Failed to load automation settings" }, { status: 500 })
         ),
       ],

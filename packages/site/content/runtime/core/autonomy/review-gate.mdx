@@ -56,7 +56,7 @@ Read this section first. Everything else on the page operates inside it.
    through the daemon composition root.
 6. The daemon binds the reviewer session to the review request through
    `task.Service.BindRunReviewSession` before exposing `submit_run_review`. The reviewer prompt
-   directs the session to load `agh` and read `references/tasks-and-orchestration.md`, but the
+   directs the session to load `compozy` and read `references/tasks-and-orchestration.md`, but the
    binding is the authority.
 7. The reviewer submits exactly one typed verdict. `task.Service.RecordRunReview` validates the
    review/run link, actor identity, active binding when the actor is a reviewer session,
@@ -166,7 +166,7 @@ Continuation profile precedence — see
 The next worker reads continuation context through `TaskContextBundle.ReviewContinuation` and
 `TaskContextBundle.ReviewHistory` in the `/agent/context` task bundle. The implemented API
 reference is [Agent API](/runtime/api-reference/agent), and the CLI path is
-[agh me context](/runtime/cli-reference/me/context). Workers must still claim the run through
+[compozy me context](/runtime/cli-reference/me/context). Workers must still claim the run through
 `ClaimNextRun` and mutate it through session-bound lease lookup. The continuation context is
 guidance, not permission.
 
@@ -176,22 +176,22 @@ Idempotent rejected-verdict replay returns the existing continuation by
 
 ## Manage reviews from the CLI
 
-The `agh task review` command group operates over UDS and shares its surface with the matching
+The `compozy task review` command group operates over UDS and shares its surface with the matching
 HTTP endpoints. Every subcommand supports `-o json|jsonl|toon` for agent consumption.
 
 ```bash
 # Request a review for a terminal run.
-agh task review request <run-id> --policy on_success --reason "audit before promotion" -o json
+compozy task review request <run-id> --policy on_success --reason "audit before promotion" -o json
 
 # List reviews for a task or run.
-agh task review list --task <task-id> --status recorded -o json
-agh task review list --run  <run-id>  --status routed   -o json
+compozy task review list --task <task-id> --status recorded -o json
+compozy task review list --run  <run-id>  --status routed   -o json
 
 # Inspect one review.
-agh task review show <review-id> -o json
+compozy task review show <review-id> -o json
 
 # Submit the bound verdict (review id is the path argument; --run is required for the run link).
-agh task review submit <review-id> \
+compozy task review submit <review-id> \
   --run <run-id> \
   --outcome rejected \
   --confidence 0.4 \
@@ -204,20 +204,20 @@ agh task review submit <review-id> \
 
 Generated reference for each verb:
 
-- [agh task review](/runtime/cli-reference/task/review)
-- [agh task review request](/runtime/cli-reference/task/review/request)
-- [agh task review list](/runtime/cli-reference/task/review/list)
-- [agh task review show](/runtime/cli-reference/task/review/show)
-- [agh task review submit](/runtime/cli-reference/task/review/submit)
+- [compozy task review](/runtime/cli-reference/task/review)
+- [compozy task review request](/runtime/cli-reference/task/review/request)
+- [compozy task review list](/runtime/cli-reference/task/review/list)
+- [compozy task review show](/runtime/cli-reference/task/review/show)
+- [compozy task review submit](/runtime/cli-reference/task/review/submit)
 
-`agh task review submit` is the operator-facing path. Submitting from the CLI uses server-derived
+`compozy task review submit` is the operator-facing path. Submitting from the CLI uses server-derived
 operator actor authorization. It does not surface or call the reviewer-bound native tool, and it
 cannot be invoked by an unbound session.
 
 ## Manage reviews through HTTP and UDS
 
 Both transports mount the same shared core handlers, so HTTP and UDS responses are identical and
-refer to the same authority. Operation IDs come from `openapi/agh.json`; do not paraphrase the
+refer to the same authority. Operation IDs come from `openapi/compozy.json`; do not paraphrase the
 shapes.
 
 | Method | Path                             | Operation ID                 | Purpose                                                                            |
@@ -232,11 +232,11 @@ shapes.
 `recorded`, `circuit_opened`, `canceled`). The verdict request body is the typed
 `RunReviewVerdict`; `outcome` uses the verdict-outcome enum from this page (`approved`, `rejected`,
 `blocked`, `error`, `timeout`, `invalid_output`). Generated TypeScript types for web consumers live
-in `web/src/generated/agh-openapi.d.ts`.
+in `web/src/generated/compozy-openapi.d.ts`.
 
 ## Reviewer-bound native tool
 
-In-session reviewers submit verdicts through one model-facing tool. AGH registers the tool
+In-session reviewers submit verdicts through one model-facing tool. Compozy registers the tool
 internally with the `compozy__` prefix so toolset routing can hide it when the session is not bound.
 
 | Model-facing name   | Internal id                       | Authority                                                                                               |
@@ -252,7 +252,7 @@ Visibility rules enforced by the runtime:
 - The tool never inspects claim leases or exposes raw claim tokens. Reviewer sessions do not need
   an active claim.
 - Operator/API/UDS/CLI verdict submissions go through the explicit `/api/task-reviews/{id}/verdict`
-  HTTP/UDS endpoint or `agh task review submit` with server-derived operator identity. There is no
+  HTTP/UDS endpoint or `compozy task review submit` with server-derived operator identity. There is no
   debug-only native-tool bypass for unbound sessions.
 
 The reviewer-related auxiliary tools — `task_run_review_request`, `task_run_review_list`, and
@@ -269,7 +269,7 @@ same authority:
 
 - They render `status`, `outcome`, `reason`, `missing_work`, `next_round_guidance`,
   `reviewed_at`, `delivery_id`, and reviewer identity from
-  `web/src/generated/agh-openapi.d.ts` types — no inferred state.
+  `web/src/generated/compozy-openapi.d.ts` types — no inferred state.
 - Verdict authority remains the reviewer-bound native tool or the explicit
   `/api/task-reviews/{id}/verdict` endpoint; these web surfaces do not submit verdicts.
 - Continuation lineage and rejected-review guidance appear next to the reviewed run so operators
@@ -303,9 +303,9 @@ and never carry raw claim tokens or full reviewer transcripts.
 notifier on review-gated work. See
 [Notification Cursors](/runtime/core/autonomy/notification-cursors).
 
-## AGH skill expectations
+## Compozy skill expectations
 
-`agh` is the bundled runtime skill. Reviewer sessions are instructed to load it and read
+`compozy` is the bundled runtime skill. Reviewer sessions are instructed to load it and read
 `references/tasks-and-orchestration.md`. That reference is purely instructional:
 
 - It cannot record verdicts, change task state, alter reviewer routing, or expose claim tokens.
@@ -324,9 +324,9 @@ reviewer routing.
 
 Behavior to keep in mind:
 
-- Workspace overlays (`<workspace>/.agh/config.toml`) may tighten or relax the review defaults per
+- Workspace overlays (`<workspace>/.compozy/config.toml`) may tighten or relax the review defaults per
   workspace. Unknown keys still fail validation.
-- Updating `[task.orchestration.review]` via `agh config set` or the `compozy__config_*` native tools
+- Updating `[task.orchestration.review]` via `compozy config set` or the `compozy__config_*` native tools
   is allowed because review policy is a runtime configuration value, not a credential. Secret-
   shaped paths and trust-rooted sections remain off-limits.
 - Per-task review policy and reviewer routing are managed through the task execution profile, not
@@ -340,8 +340,8 @@ Behavior to keep in mind:
   `TaskExecutionProfile.Review` shapes reviewer selection.
 - [Notification Cursors](/runtime/core/autonomy/notification-cursors) explains why bridge
   terminal notifications wait for the accepted-final event on review-gated runs.
-- [Bundled Skill](/runtime/core/skills/bundled) documents the `agh` skill and its contextual
+- [Bundled Skill](/runtime/core/skills/bundled) documents the `compozy` skill and its contextual
   reference-loading model.
 - [config.toml](/runtime/core/configuration/config-toml) lists every `[task.orchestration]` key.
-- [agh task review](/runtime/cli-reference/task/review) is the generated CLI reference for the
+- [compozy task review](/runtime/cli-reference/task/review) is the generated CLI reference for the
   review commands.

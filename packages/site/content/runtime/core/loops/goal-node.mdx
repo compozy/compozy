@@ -4,7 +4,7 @@ description: The exact compozy.loop/v1 Goal action schema, judge contract, sessi
 ---
 
 A `goal` action advances a durable convergence cycle: one managed agent session works toward an
-objective, one or more judges evaluate the current result, and AGH either completes the node,
+objective, one or more judges evaluate the current result, and Compozy either completes the node,
 starts another turn, or records a typed control boundary. Use this page when you author or review a
 Goal node. For the rest of the Loop document, see the
 [compozy.loop/v1 DSL reference](/runtime/core/loops/dsl-reference).
@@ -81,7 +81,7 @@ waiting for a human criterion. Use `on_exhausted: escalate` or another typed Goa
 operator decision is required.
 
 `check` belongs only to `command` criteria. It is an authored shell command in a Loop definition.
-Text entered through a conversational `/goal` `verify:` clause is different: AGH adds that text to
+Text entered through a conversational `/goal` `verify:` clause is different: Compozy adds that text to
 the synthetic agent-judge rubric and never converts it into a command. See
 [Operate a Goal from a session](/runtime/core/loops/goals#verification-and-constraints).
 
@@ -92,10 +92,10 @@ context usage, the checkpoint records `known`; absent telemetry is `unknown`; a 
 that still needs a newer report is `pending`. These states are runtime evidence, not authored
 values.
 
-`retry.on_failure: fresh_session` is a bounded pre-submission policy. It applies only when AGH proves
+`retry.on_failure: fresh_session` is a bounded pre-submission policy. It applies only when Compozy proves
 that the external prompt effect did not start, such as a failed session preparation or prompt-slot
 admission. Each rejection consumes one attempt and advances `prompt_attempt`. Once the durable work
-claim starts, AGH never retries or replays that prompt. Recovery after context exhaustion creates a
+claim starts, Compozy never retries or replays that prompt. Recovery after context exhaustion creates a
 new continuation turn that inspects current state.
 
 Continuous Goal nodes cannot run beneath a `fan-out` ancestor whose `max_parallel` is greater than
@@ -140,7 +140,7 @@ The shared daemon linter returns these Goal-specific codes:
 Validate before publishing:
 
 ```bash
-agh loop validate --file .agh/loops/my-loop.yaml -o json
+compozy loop validate --file .compozy/loops/my-loop.yaml -o json
 ```
 
 The visual editor uses the same validate route and linter codes. It does not maintain a separate

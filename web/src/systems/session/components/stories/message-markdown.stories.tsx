@@ -35,7 +35,7 @@ export const Default: Story = {
 
 const RICH_MARKDOWN = `# Heading one
 
-Body paragraph at card-title size with a [strong link](https://agh.network) and \`inline code\`.
+Body paragraph at card-title size with a [strong link](https://compozy.com) and \`inline code\`.
 
 ## Heading two
 

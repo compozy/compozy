@@ -1,14 +1,14 @@
 ---
 title: Workspace Resolver
-description: How AGH registers workspace roots, resolves the active workspace, and discovers project-local runtime resources.
+description: How Compozy registers workspace roots, resolves the active workspace, and discovers project-local runtime resources.
 ---
 
-A workspace is a registered project root with a stable identity. AGH stores the registration in
+A workspace is a registered project root with a stable identity. Compozy stores the registration in
 the global database, but the filesystem remains the source of truth. Each session starts by
 resolving a workspace snapshot: the canonical root directory, optional additional roots, the
 durable `workspace_id`, effective configuration, visible agents, and visible skill directories.
 
-The durable identity comes from `<workspace>/.agh/workspace.toml`:
+The durable identity comes from `<workspace>/.compozy/workspace.toml`:
 
 ```toml
 workspace_id = "01HXJ9YR4Q..."
@@ -21,29 +21,29 @@ forensic session ledgers all key on `workspace_id`. Path-keyed memory is gone. M
 workspace directory (`mv`) does not orphan its memory because the ULID travels with the
 directory.
 
-That is the portability model: copy the project directory with its `.agh/` directory, register
+That is the portability model: copy the project directory with its `.compozy/` directory, register
 the new path, and the same project agents, skills, memory files, identity, and config overlay
 travel with it.
 
 <OperatorNote>
-  `agh workspace add` registers a directory. It does not create or own the directory, and `agh
-  workspace remove` leaves your project files on disk. It removes the registration and AGH's
+  `compozy workspace add` registers a directory. It does not create or own the directory, and `compozy
+  workspace remove` leaves your project files on disk. It removes the registration and Compozy's
   persisted history for stopped sessions in that workspace, plus workspace-scoped MCP OAuth token
   rows and their encrypted Vault values. Global credentials and credentials owned by other
-  workspaces are preserved. Active sessions must be stopped or removed first. AGH creates
-  `<workspace>/.agh/workspace.toml` on first daemon touch when
+  workspaces are preserved. Active sessions must be stopped or removed first. Compozy creates
+  `<workspace>/.compozy/workspace.toml` on first daemon touch when
   `[memory.workspace] auto_create = true`; commit it to git so collaborators share the same
   workspace identity.
 </OperatorNote>
 
 On a fresh install, daemon boot registers the operator home directory (`$HOME`) as the default
-workspace through the same resolver path. That gives first-run onboarding and `agh workspace list`
-a usable workspace before any manual project registration. Use `agh workspace add` for additional
+workspace through the same resolver path. That gives first-run onboarding and `compozy workspace list`
+a usable workspace before any manual project registration. Use `compozy workspace add` for additional
 project roots that should have their own stable names, agents, skills, or config overlays.
 
 ## What Gets Stored
 
-AGH stores workspace registrations in the global catalog database at `~/.agh/agh.db`. The
+Compozy stores workspace registrations in the global catalog database at `~/.compozy/compozy.db`. The
 `workspaces` table stores:
 
 | Field                      | Meaning                                                    |
@@ -55,15 +55,15 @@ AGH stores workspace registrations in the global catalog database at `~/.agh/agh
 | `default_agent`            | Optional workspace default agent override.                 |
 | `created_at`, `updated_at` | Registration timestamps.                                   |
 
-The ID is random and stable. The default name comes from the root directory basename, and AGH adds
+The ID is random and stable. The default name comes from the root directory basename, and Compozy adds
 numeric suffixes such as `repo-2` when another workspace already has the same name.
 
-## Typical `.agh/` Layout
+## Typical `.compozy/` Layout
 
 ```text
 my-repo/
   .env
-  .agh/
+  .compozy/
     config.toml
     mcp.json
     agents/
@@ -81,19 +81,19 @@ my-repo/
       release-rules.md
 ```
 
-| Path                                      | Used by                    | Behavior                                                                                     |
-| ----------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
-| `<workspace>/.agh/config.toml`            | Config loader              | Overlays built-in defaults and global config for this workspace root.                        |
-| `<workspace>/.agh/mcp.json`               | Config loader              | Adds or replaces top-level MCP servers after workspace TOML is applied.                      |
-| `<workspace>/.agh/agents/<name>/AGENT.md` | Resolver                   | Makes an agent visible to sessions in this workspace.                                        |
-| `<workspace>/.agh/agents/<name>/mcp.json` | Agent loader               | Replaces same-name MCP servers declared inline in that agent definition.                     |
-| `<workspace>/.agh/skills/<name>/SKILL.md` | Resolver + skills registry | Makes a skill directory visible to sessions in this workspace.                               |
-| `<workspace>/.agh/skills/<name>/mcp.json` | Skills registry            | Replaces same-name MCP servers declared in that skill's frontmatter.                         |
-| `<workspace>/.agh/workspace.toml`         | Workspace identity         | Stable workspace ULID. Created on first daemon touch when auto_create is true.               |
-| `<workspace>/.agh/memory/`                | Memory runtime             | Stores workspace-scoped memory files after the workspace root is resolved.                   |
-| `<workspace>/.agh/agents/<name>/memory/`  | Memory runtime             | Stores agent-workspace memory for that workspace agent.                                      |
-| `<workspace>/.agh/agh.db`                 | Workspace catalog DB       | Per-workspace catalog plus workspace-scoped `memory_events`, `memory_decisions`, signals.    |
-| `<workspace>/.env`                        | Config loader              | Optional. Loaded before `COMPOZY_HOME` is resolved when config is loaded for this workspace. |
+| Path                                          | Used by                    | Behavior                                                                                     |
+| --------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
+| `<workspace>/.compozy/config.toml`            | Config loader              | Overlays built-in defaults and global config for this workspace root.                        |
+| `<workspace>/.compozy/mcp.json`               | Config loader              | Adds or replaces top-level MCP servers after workspace TOML is applied.                      |
+| `<workspace>/.compozy/agents/<name>/AGENT.md` | Resolver                   | Makes an agent visible to sessions in this workspace.                                        |
+| `<workspace>/.compozy/agents/<name>/mcp.json` | Agent loader               | Replaces same-name MCP servers declared inline in that agent definition.                     |
+| `<workspace>/.compozy/skills/<name>/SKILL.md` | Resolver + skills registry | Makes a skill directory visible to sessions in this workspace.                               |
+| `<workspace>/.compozy/skills/<name>/mcp.json` | Skills registry            | Replaces same-name MCP servers declared in that skill's frontmatter.                         |
+| `<workspace>/.compozy/workspace.toml`         | Workspace identity         | Stable workspace ULID. Created on first daemon touch when auto_create is true.               |
+| `<workspace>/.compozy/memory/`                | Memory runtime             | Stores workspace-scoped memory files after the workspace root is resolved.                   |
+| `<workspace>/.compozy/agents/<name>/memory/`  | Memory runtime             | Stores agent-workspace memory for that workspace agent.                                      |
+| `<workspace>/.compozy/compozy.db`             | Workspace catalog DB       | Per-workspace catalog plus workspace-scoped `memory_events`, `memory_decisions`, signals.    |
+| `<workspace>/.env`                            | Config loader              | Optional. Loaded before `COMPOZY_HOME` is resolved when config is loaded for this workspace. |
 
 The resolver directly snapshots config, MCP sidecars, agent definitions, and skill definitions.
 Workspace memory uses the resolved root, but memory files are managed by the memory runtime instead
@@ -101,7 +101,7 @@ of by the workspace resolver.
 
 ## Resolution Inputs
 
-AGH resolves workspaces from three kinds of input:
+Compozy resolves workspaces from three kinds of input:
 
 | Input          | Example                       | Lookup                                                         |
 | -------------- | ----------------------------- | -------------------------------------------------------------- |
@@ -109,23 +109,23 @@ AGH resolves workspaces from three kinds of input:
 | Workspace name | `checkout-api`                | Unique name lookup.                                            |
 | Absolute path  | `/Users/you/src/checkout-api` | Canonical path lookup after `filepath.Abs` and `EvalSymlinks`. |
 
-Relative paths are not accepted by API workspace create/resolve requests or by `agh session new
+Relative paths are not accepted by API workspace create/resolve requests or by `compozy session new
 --cwd`. The resolver itself also requires the path to exist and to be a directory.
 
 ## Register A Workspace
 
-Use `agh workspace add` when you want the directory to appear in `agh workspace list` and to have a
+Use `compozy workspace add` when you want the directory to appear in `compozy workspace list` and to have a
 stable name:
 
 ```bash
-agh workspace add /Users/you/src/checkout-api --name checkout-api
+compozy workspace add /Users/you/src/checkout-api --name checkout-api
 ```
 
 Add a workspace-local default agent when this project should start a different agent from your
 global default:
 
 ```bash
-agh workspace add /Users/you/src/checkout-api \
+compozy workspace add /Users/you/src/checkout-api \
   --name checkout-api \
   --default-agent reviewer
 ```
@@ -136,23 +136,23 @@ back.
 
 ## Auto-Registration
 
-AGH can also register a workspace on demand:
+Compozy can also register a workspace on demand:
 
 ```bash
-agh session new --cwd /Users/you/src/checkout-api --agent reviewer
+compozy session new --cwd /Users/you/src/checkout-api --agent reviewer
 ```
 
 When `--cwd` points to a path that is not registered yet, `ResolveOrRegister` canonicalizes the
 path, creates a registration, and resolves the new workspace before starting the session.
 
-The CLI default is also path-based. If you run `agh session new` without `--workspace` or `--cwd`,
+The CLI default is also path-based. If you run `compozy session new` without `--workspace` or `--cwd`,
 the CLI sends its current working directory as `workspace_path`, so that directory is resolved or
 registered automatically.
 
 Use `--workspace` when you want to target an existing registration by name or ID:
 
 ```bash
-agh session new --workspace checkout-api --agent reviewer
+compozy session new --workspace checkout-api --agent reviewer
 ```
 
 `--workspace` and `--cwd` are mutually exclusive. The HTTP and UDS create-session contract mirrors
@@ -163,7 +163,7 @@ that rule: send either `workspace` or `workspace_path`, not both.
 For this setup:
 
 ```text
-~/.agh/
+~/.compozy/
   config.toml
   agents/
     general/AGENT.md
@@ -172,7 +172,7 @@ For this setup:
     repo-map/SKILL.md
 
 /Users/you/src/checkout-api/
-  .agh/
+  .compozy/
     config.toml
     agents/
       reviewer/AGENT.md
@@ -184,21 +184,21 @@ For this setup:
 Running this command:
 
 ```bash
-agh session new --workspace checkout-api --agent reviewer
+compozy session new --workspace checkout-api --agent reviewer
 ```
 
 produces this cascade:
 
 1. `checkout-api` is looked up as a registered workspace name.
 2. The stored `root_dir` is checked with `os.Stat`.
-3. The root is canonicalized again with `EvalSymlinks`. If the canonical target changed, AGH updates
+3. The root is canonicalized again with `EvalSymlinks`. If the canonical target changed, Compozy updates
    the stored `root_dir`.
-4. Config is loaded as built-in defaults, then `~/.agh/config.toml`, then `~/.agh/mcp.json`, then
-   `<workspace>/.agh/config.toml`, then `<workspace>/.agh/mcp.json`.
-5. Agents are discovered from `<workspace>/.agh/agents/`, then additional roots, then global
+4. Config is loaded as built-in defaults, then `~/.compozy/config.toml`, then `~/.compozy/mcp.json`, then
+   `<workspace>/.compozy/config.toml`, then `<workspace>/.compozy/mcp.json`.
+5. Agents are discovered from `<workspace>/.compozy/agents/`, then additional roots, then global
    `$COMPOZY_HOME/agents/`.
 6. Base skills are resolved from bundled plus global `$COMPOZY_HOME/skills/`, then additional roots,
-   then `<workspace>/.agh/skills/`.
+   then `<workspace>/.compozy/skills/`.
 7. If the winning agent has `skills/`, that agent-local directory overlays the base set last.
 8. Same-name agents and skills use first-wins or higher-precedence overlay behavior, so the
    workspace `reviewer` and `repo-map` override the global ones.
@@ -231,10 +231,10 @@ The resolver watches:
 
 | Watched path                                        | Why it matters                                            |
 | --------------------------------------------------- | --------------------------------------------------------- |
-| `~/.agh/config.toml`                                | Global config changes can affect every workspace.         |
-| `~/.agh/mcp.json`                                   | Global top-level MCP sidecars can affect every workspace. |
-| `<workspace>/.agh/config.toml`                      | Workspace config overlay.                                 |
-| `<workspace>/.agh/mcp.json`                         | Workspace top-level MCP sidecar.                          |
+| `~/.compozy/config.toml`                            | Global config changes can affect every workspace.         |
+| `~/.compozy/mcp.json`                               | Global top-level MCP sidecars can affect every workspace. |
+| `<workspace>/.compozy/config.toml`                  | Workspace config overlay.                                 |
+| `<workspace>/.compozy/mcp.json`                     | Workspace top-level MCP sidecar.                          |
 | Every discovered `AGENT.md` and adjacent `mcp.json` | Agent availability and startup settings.                  |
 | Every discovered `SKILL.md` and adjacent `mcp.json` | Workspace skill visibility and MCP sidecars.              |
 | Agent and skill directories                         | Additions and removals.                                   |

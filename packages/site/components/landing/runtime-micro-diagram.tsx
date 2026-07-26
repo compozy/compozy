@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@agh/ui/lib/utils";
+import { cn } from "@compozy/ui/lib/utils";
 import { useReducedMotion } from "./primitives/use-reduced-motion";
 
 const SUBSYSTEMS = [
@@ -12,7 +12,7 @@ const SUBSYSTEMS = [
 ];
 
 /**
- * 240×320 SVG showing the AGH daemon and its five subsystems with a subtle
+ * 240×320 SVG showing the CompozyOS daemon and its five subsystems with a subtle
  * highlight cycling through them , communicates "the daemon has real internals"
  * without re-rendering the full architecture diagram.
  */
@@ -50,7 +50,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           fill="var(--color-accent)"
           letterSpacing="0.08em"
         >
-          AGH DAEMON
+          CompozyOS DAEMON
         </text>
         <text
           x={120}
@@ -77,7 +77,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
                 strokeWidth={1}
               />
               <rect
-                className={reducedMotion ? undefined : "agh-subsystem"}
+                className={reducedMotion ? undefined : "compozy-subsystem"}
                 style={
                   reducedMotion
                     ? undefined
@@ -122,17 +122,17 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
 
       {!reducedMotion && (
         <style>{`
-          .agh-subsystem {
-            animation-name: agh-subsystem-pulse;
+          .compozy-subsystem {
+            animation-name: compozy-subsystem-pulse;
             animation-iteration-count: infinite;
             animation-timing-function: var(--ease-in-out);
           }
           @media (prefers-reduced-motion: reduce) {
-            .agh-subsystem {
+            .compozy-subsystem {
               animation: none !important;
             }
           }
-          @keyframes agh-subsystem-pulse {
+          @keyframes compozy-subsystem-pulse {
             0%, 100% {
               fill: var(--color-canvas-soft);
               stroke: var(--color-line);

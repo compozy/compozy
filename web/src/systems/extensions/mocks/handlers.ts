@@ -1,6 +1,6 @@
 import { HttpResponse, type HttpHandler } from "msw";
 
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
   bundleActivationFixtures,
@@ -34,15 +34,15 @@ function activationById(id: string) {
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/extensions", () => HttpResponse.json({ extensions: extensionsState })),
-  aghApiMock.get("/api/extensions/{name}/provenance", ({ params }) => {
+  compozyApiMock.get("/api/extensions", () => HttpResponse.json({ extensions: extensionsState })),
+  compozyApiMock.get("/api/extensions/{name}/provenance", ({ params }) => {
     const name = String(params.name);
     const provenance = extensionProvenanceFixtures[name];
     return provenance
       ? HttpResponse.json({ provenance })
       : HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
   }),
-  aghApiMock.post("/api/extensions/{name}/enable", ({ params }) => {
+  compozyApiMock.post("/api/extensions/{name}/enable", ({ params }) => {
     const name = String(params.name);
     const extension = extensionByName(name);
     if (!extension) {
@@ -52,7 +52,7 @@ export const handlers: HttpHandler[] = [
     extensionsState = extensionsState.map(item => (item.name === name ? enabled : item));
     return HttpResponse.json({ extension: enabled });
   }),
-  aghApiMock.post("/api/extensions/{name}/disable", ({ params }) => {
+  compozyApiMock.post("/api/extensions/{name}/disable", ({ params }) => {
     const name = String(params.name);
     const extension = extensionByName(name);
     if (!extension) {
@@ -62,7 +62,7 @@ export const handlers: HttpHandler[] = [
     extensionsState = extensionsState.map(item => (item.name === name ? disabled : item));
     return HttpResponse.json({ extension: disabled });
   }),
-  aghApiMock.put("/api/extensions/{name}", ({ params }) => {
+  compozyApiMock.put("/api/extensions/{name}", ({ params }) => {
     const name = String(params.name);
     const extension = extensionByName(name);
     return extension
@@ -79,7 +79,7 @@ export const handlers: HttpHandler[] = [
         })
       : HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
   }),
-  aghApiMock.delete("/api/extensions/{name}", ({ params }) => {
+  compozyApiMock.delete("/api/extensions/{name}", ({ params }) => {
     const name = String(params.name);
     if (!extensionByName(name)) {
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
@@ -89,17 +89,17 @@ export const handlers: HttpHandler[] = [
       extension: { name, path: `/var/lib/agh/extensions/${name}`, status: "removed" },
     });
   }),
-  aghApiMock.get("/api/bundles/activations", () =>
+  compozyApiMock.get("/api/bundles/activations", () =>
     HttpResponse.json({ activations: bundleActivationsState })
   ),
-  aghApiMock.get("/api/bundles/activations/{id}", ({ params }) => {
+  compozyApiMock.get("/api/bundles/activations/{id}", ({ params }) => {
     const id = String(params.id);
     const activation = activationById(id);
     return activation
       ? HttpResponse.json({ activation })
       : HttpResponse.json({ error: `Bundle activation not found: ${id}` }, { status: 404 });
   }),
-  aghApiMock.patch("/api/bundles/activations/{id}", async ({ params, request }) => {
+  compozyApiMock.patch("/api/bundles/activations/{id}", async ({ params, request }) => {
     const id = String(params.id);
     const activation = activationById(id);
     if (!activation) {
@@ -127,7 +127,7 @@ export const handlers: HttpHandler[] = [
     bundleActivationsState = bundleActivationsState.map(item => (item.id === id ? updated : item));
     return HttpResponse.json({ activation: updated });
   }),
-  aghApiMock.delete("/api/bundles/activations/{id}", ({ params }) => {
+  compozyApiMock.delete("/api/bundles/activations/{id}", ({ params }) => {
     const id = String(params.id);
     if (!activationById(id)) {
       return HttpResponse.json({ error: `Bundle activation not found: ${id}` }, { status: 404 });

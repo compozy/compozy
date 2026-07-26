@@ -1,4 +1,4 @@
-# Contributing To AGH
+# Contributing To Compozy
 
 ## Contents
 
@@ -15,7 +15,7 @@
 
 ## Repository Posture
 
-AGH is greenfield alpha. There are no production users, and backward compatibility must not reduce code quality. Prefer hard cuts over compatibility bridges:
+Compozy is greenfield alpha. There are no production users, and backward compatibility must not reduce code quality. Prefer hard cuts over compatibility bridges:
 
 - no aliases for renamed public concepts
 - no dual fields
@@ -52,12 +52,12 @@ Backend-only work may declare no web/docs impact only after analysis.
 
 ## Cross-Surface Impact Audit
 
-Every feature, bug fix, refactor, public contract change, CLI/API/native-tool/config/docs update, or runtime behavior change needs an `AGH Impact Audit` before it is claimed complete:
+Every feature, bug fix, refactor, public contract change, CLI/API/native-tool/config/docs update, or runtime behavior change needs an `Compozy Impact Audit` before it is claimed complete:
 
 - Native tools: affected `compozy__*` IDs, toolsets, descriptors, schemas, risk flags, availability diagnostics, capability gates, tests, or explicit no-impact evidence.
 - Extensibility and hooks: affected extensions, hook taxonomy/dispatch, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, config lifecycle, docs, tests, or explicit no-impact evidence.
 - Workspace data isolation: global/workspace/session/agent scope decision, `workspace_id` propagation through CLI/HTTP/UDS/core/store/web/SSE/cache/events, cross-workspace leak tests when data is listed/read/cached/emitted, or explicit no-impact evidence.
-- Official AGH skill: updates to `skills/agh/SKILL.md` or `skills/agh/references/*.md` when public behavior, tool IDs, CLI paths, hook events, capabilities, bundles/resources, memory/network/task semantics, or agent guidance changes, or explicit no-impact evidence.
+- Official Compozy skill: updates to `skills/compozy/SKILL.md` or `skills/compozy/references/*.md` when public behavior, tool IDs, CLI paths, hook events, capabilities, bundles/resources, memory/network/task semantics, or agent guidance changes, or explicit no-impact evidence.
 
 Worktree or QA lab isolation is not a substitute for workspace data isolation. `No impact` must name the checked surfaces and why they remain unchanged.
 

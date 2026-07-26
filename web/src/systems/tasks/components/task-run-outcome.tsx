@@ -1,4 +1,4 @@
-import { Time } from "@agh/ui";
+import { Time } from "@compozy/ui";
 
 import { computeElapsed } from "../lib/task-formatters";
 import type { TaskRun, TaskRunDetailView } from "../types";

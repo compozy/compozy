@@ -1,21 +1,21 @@
 ---
-title: "agh skill where"
+title: "compozy skill where"
 description: "Show every path participating in skill resolution"
 ---
 
-## agh skill where
+## compozy skill where
 
 Show every path participating in skill resolution
 
 ```
-agh skill where <name> [flags]
+compozy skill where <name> [flags]
 ```
 
 ### Examples
 
 ```
   # Show which skill declaration wins and which ones are shadowed
-  agh skill where code-review
+  compozy skill where code-review
 ```
 
 ### Options
@@ -35,7 +35,7 @@ agh skill where <name> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -45,5 +45,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh skill where <name> -o json
+compozy skill where <name> -o json
 ```

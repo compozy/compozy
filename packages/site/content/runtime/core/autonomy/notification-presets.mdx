@@ -67,12 +67,12 @@ same `notification_suppress` field.
 The CLI group is agent-operable and supports `-o json|jsonl|toon`:
 
 ```bash
-agh notifications presets list -o json
-agh notifications preset show task_terminal -o json
-agh notifications preset enable task_terminal --target brg_ops:channel:ops -o json
-agh notifications preset create provider_failures --event provider.* --filter "severity >= warning" -o json
-agh notifications preset disable task_terminal -o json
-agh notifications preset delete provider_failures -o json
+compozy notifications presets list -o json
+compozy notifications preset show task_terminal -o json
+compozy notifications preset enable task_terminal --target brg_ops:channel:ops -o json
+compozy notifications preset create provider_failures --event provider.* --filter "severity >= warning" -o json
+compozy notifications preset disable task_terminal -o json
+compozy notifications preset delete provider_failures -o json
 ```
 
 HTTP and UDS expose the same CRUD contract:

@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import { LLMCopyButton, OpenWithAI, ViewOptions } from "@/components/docs/page-actions";
 
@@ -51,7 +51,7 @@ function resolveRuntimeSection(slug: string[]) {
 function resolveMeta(kind: "runtime" | "protocol", slug: string[]) {
   if (kind === "runtime") {
     return {
-      eyebrow: "AGH Runtime",
+      eyebrow: "CompozyOS Runtime",
       audience: "Operators running durable agent work",
       section: resolveRuntimeSection(slug),
     };
@@ -60,7 +60,7 @@ function resolveMeta(kind: "runtime" | "protocol", slug: string[]) {
   const family = slug[0];
 
   return {
-    eyebrow: family === "specification" ? "AGH Network Protocol" : "AGH Network",
+    eyebrow: family === "specification" ? "Compozy Network Protocol" : "Compozy Network",
     audience: "Implementers designing interoperable agents",
     section: toLabel(family ?? "overview"),
   };

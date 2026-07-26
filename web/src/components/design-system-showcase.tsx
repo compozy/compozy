@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Kbd, KbdGroup, PillGroup, SearchInput, Toaster, TooltipProvider } from "@agh/ui";
+import { Kbd, KbdGroup, PillGroup, SearchInput, Toaster, TooltipProvider } from "@compozy/ui";
 import { SparklesIcon } from "lucide-react";
 import { DesignSystemShowcaseLink } from "./design-system-showcase-link";
 
@@ -52,7 +52,7 @@ export function DesignSystemShowcase() {
                 <SparklesIcon className="size-3" />
               </span>
               <h1 className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
-                AGH design system
+                CompozyOS design system
               </h1>
               <span
                 data-slot="page-header-count"

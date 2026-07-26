@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { ChevronRight, Search } from "lucide-react";
 
-import { Button, useTopbarSlot } from "@agh/ui";
+import { Button, useTopbarSlot } from "@compozy/ui";
 
 import { OsDock, OsDockZone, type OsDockItemData } from "../os-dock";
 import { OsWindowFrame } from "../os-window-frame";

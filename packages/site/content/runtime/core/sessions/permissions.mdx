@@ -1,30 +1,30 @@
 ---
 title: Permissions
-description: How AGH applies static permission modes, workspace boundaries, and interactive approvals during session execution.
+description: How Compozy applies static permission modes, workspace boundaries, and interactive approvals during session execution.
 ---
 
-AGH applies permissions in two layers:
+Compozy applies permissions in two layers:
 
 1. a daemon-side static policy for built-in ACP tool surfaces
 2. an interactive approval flow for ACP `session/request_permission`
 
 Both layers are scoped to the session workspace. `approve-all` never means "full machine access".
 
-When provider-native tool interception is active, AGH may keep the upstream ACP session in an
-approval-mediated mode so provider-native tool calls return through the AGH execution gateway
+When provider-native tool interception is active, Compozy may keep the upstream ACP session in an
+approval-mediated mode so provider-native tool calls return through the Compozy execution gateway
 before any real side effect. That does not change the configured policy outcome:
 `approve-all` still auto-allows, `approve-reads` still auto-allows reads only, and `deny-all`
 still auto-rejects at the execution boundary.
 
 ## Permission modes
 
-AGH supports three static modes:
+Compozy supports three static modes:
 
-| Mode            | Static behavior                                                                   |
-| --------------- | --------------------------------------------------------------------------------- |
-| `deny-all`      | AGH auto-allows none of the built-in file or terminal operations.                 |
-| `approve-reads` | AGH auto-allows `fs/read_text_file` only.                                         |
-| `approve-all`   | AGH auto-allows `fs/read_text_file`, `fs/write_text_file`, and `terminal/create`. |
+| Mode            | Static behavior                                                                       |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `deny-all`      | Compozy auto-allows none of the built-in file or terminal operations.                 |
+| `approve-reads` | Compozy auto-allows `fs/read_text_file` only.                                         |
+| `approve-all`   | Compozy auto-allows `fs/read_text_file`, `fs/write_text_file`, and `terminal/create`. |
 
 ### Defaults and overrides
 
@@ -43,7 +43,7 @@ falls back to `approve-reads` instead of launching with an empty policy.
 
 ## What the static policy actually covers
 
-These are the built-in operations AGH checks directly:
+These are the built-in operations Compozy checks directly:
 
 | Operation            | `deny-all` | `approve-reads` | `approve-all` |
 | -------------------- | ---------- | --------------- | ------------- |
@@ -51,21 +51,21 @@ These are the built-in operations AGH checks directly:
 | `fs/write_text_file` | blocked    | blocked         | allowed       |
 | `terminal/create`    | blocked    | blocked         | allowed       |
 
-Static auto-allow is only one part of the full story. AGH still enforces workspace scoping and
+Static auto-allow is only one part of the full story. Compozy still enforces workspace scoping and
 network-turn restrictions after the mode check passes.
 
 ## Workspace boundaries
 
 Every permission decision is evaluated relative to the session workspace root.
 
-AGH resolves paths carefully:
+Compozy resolves paths carefully:
 
 - absolute paths are checked directly
 - relative paths are resolved under the workspace root
 - existing paths are resolved through symlinks
 - missing paths are resolved through the first existing ancestor
 
-If the final path escapes the workspace root, AGH rejects it with a path-outside-workspace error.
+If the final path escapes the workspace root, Compozy rejects it with a path-outside-workspace error.
 
 ## Network-originated turn restrictions
 
@@ -74,7 +74,7 @@ Network-originated turns are stricter than normal user turns, even under `approv
 Current daemon-side restrictions:
 
 - `fs/write_text_file` is blocked for network turns
-- `terminal/create` is only allowed for a narrow allowlist of `agh network ...` commands
+- `terminal/create` is only allowed for a narrow allowlist of `compozy network ...` commands
 
 This is enforced after the normal mode check.
 
@@ -85,10 +85,10 @@ Agents can also ask for permission explicitly with ACP `session/request_permissi
 That flow behaves like this:
 
 1. the agent sends a permission request with one or more offered outcomes
-2. AGH checks the workspace boundary first
-3. AGH either auto-selects an outcome or records a pending permission event
+2. Compozy checks the workspace boundary first
+3. Compozy either auto-selects an outcome or records a pending permission event
 4. a client approves or rejects it
-5. AGH returns the selected ACP outcome to the agent
+5. Compozy returns the selected ACP outcome to the agent
 
 ### Auto decisions vs pending decisions
 
@@ -133,18 +133,18 @@ Success response:
 ### Approval timeout
 
 Pending interactive permission requests wait up to 5 minutes by default. If no approval arrives,
-AGH resolves the request as `reject-once`.
+Compozy resolves the request as `reject-once`.
 
 ### What `allow-always` and `reject-always` mean
 
-For a generic ACP permission request, AGH picks the closest option offered by the agent and returns
+For a generic ACP permission request, Compozy picks the closest option offered by the agent and returns
 it. The agent runtime owns the long-lived meaning of "always" for that request.
 
-Native tools routed through AGH's approval gateway have an additional daemon-owned contract.
+Native tools routed through Compozy's approval gateway have an additional daemon-owned contract.
 Selecting `allow-always` or `reject-always` stores an exact workspace + agent + tool + input-digest
 decision. The next matching invocation uses that decision before prompting, and the decision
 survives daemon restart. Operators and agents can inspect or revoke these records through Web,
-`agh tool approvals`, HTTP/UDS, or the `compozy__tool_approvals_*` native tools. This does not change ACP
+`compozy tool approvals`, HTTP/UDS, or the `compozy__tool_approvals_*` native tools. This does not change ACP
 subprocess permissions or sandbox policy. See [Policy and Invocation](/runtime/core/tools/policy-and-invocation#remembered-native-tool-decisions).
 
 ## Permission events
@@ -156,7 +156,7 @@ Example canonical permission payload:
 
 ```json
 {
-  "schema": "agh.session.event.v1",
+  "schema": "compozy.session.event.v1",
   "type": "permission",
   "session_id": "acp-session-77",
   "turn_id": "turn-9abc",
@@ -181,13 +181,13 @@ yet. The resolved decision appears when approval completes.
 
 ## Current transport status
 
-Interactive approval is exposed differently across AGH transports today:
+Interactive approval is exposed differently across Compozy transports today:
 
 | Transport | Status                                                                           |
 | --------- | -------------------------------------------------------------------------------- |
 | HTTP      | implemented at `POST /api/workspaces/:workspace_id/sessions/:session_id/approve` |
 | UDS       | implemented at `POST /api/workspaces/:workspace_id/sessions/:session_id/approve` |
-| CLI       | implemented at `agh session approve <id>`                                        |
+| CLI       | implemented at `compozy session approve <id>`                                    |
 
 That means browser-facing clients, UDS clients, and the local CLI all drive the same approval
 surface today.
@@ -203,9 +203,9 @@ The question may offer up to four unique choices or accept free text. The HTTP/U
 zero-based `choice_index`; the CLI presents one-based choice numbers:
 
 ```bash
-agh session clarify pending <session-id> -o json
-agh session clarify answer <session-id> <request-id> --choice 1 -o json
-agh session clarify answer <session-id> <request-id> --text "Use staging" -o json
+compozy session clarify pending <session-id> -o json
+compozy session clarify answer <session-id> <request-id> --choice 1 -o json
+compozy session clarify answer <session-id> <request-id> --text "Use staging" -o json
 ```
 
 HTTP and UDS use the same workspace-scoped routes:
@@ -219,7 +219,7 @@ resolved, timed-out, and canceled transitions for timeline and audit. Timeout re
 
 ## Practical configuration example
 
-Global default in `~/.agh/config.toml`:
+Global default in `~/.compozy/config.toml`:
 
 ```toml
 [permissions]
@@ -239,7 +239,7 @@ Review code changes and explain the risk.
 ```
 
 Use the global default for the team baseline, then override individual agents only when they need a
-different safety envelope. There is no `agh session new --permissions` flag today, and the session
+different safety envelope. There is no `compozy session new --permissions` flag today, and the session
 create HTTP payload does not currently accept a permissions override either.
 
 ## Next steps

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn, Input, Switch } from "@agh/ui";
+import { cn, Input, Switch } from "@compozy/ui";
 
 import type { RoleFieldDescriptor } from "../lib/roles-config";
 import { RoleEffectiveHint } from "./role-effective-hint";

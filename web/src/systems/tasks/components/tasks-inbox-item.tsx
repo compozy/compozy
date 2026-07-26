@@ -2,7 +2,7 @@ import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "lucide
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, Eyebrow, MonoId, Pill } from "@agh/ui";
+import { Button, Eyebrow, MonoId, Pill } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

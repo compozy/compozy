@@ -17,7 +17,7 @@ import {
   SkeletonRows,
   Spinner,
   Time,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   knowledgeAgentTierShortLabel,

@@ -88,7 +88,7 @@ func newTaskReviewRequestCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&parentID, "parent-review", "", "Parent review ID for continuation rounds")
 	cmd.Flags().
-		BoolVar(&asAgent, "as-agent", false, "Request review using the current AGH-managed agent session identity")
+		BoolVar(&asAgent, "as-agent", false, "Request review using the current Compozy-managed agent session identity")
 	return cmd
 }
 
@@ -208,7 +208,7 @@ func newTaskReviewSubmitCommand(deps commandDeps) *cobra.Command {
 		StringVar(&input.NextRoundGuidance, "next-round-guidance", "", "Guidance for continuation rounds")
 	cmd.Flags().StringVar(&input.ReviewText, "review-text", "", "Full review text")
 	cmd.Flags().
-		BoolVar(&asAgent, "as-agent", false, "Submit review using the current AGH-managed agent session identity")
+		BoolVar(&asAgent, "as-agent", false, "Submit review using the current Compozy-managed agent session identity")
 	mustMarkFlagRequired(cmd, "run")
 	mustMarkFlagRequired(cmd, cliOutcomeKey)
 	mustMarkFlagRequired(cmd, "confidence")

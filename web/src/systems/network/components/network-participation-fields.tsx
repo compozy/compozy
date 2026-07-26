@@ -7,7 +7,7 @@ import {
   NativeSelect,
   NativeSelectOption,
   cn,
-} from "@agh/ui";
+} from "@compozy/ui";
 import type { ComponentProps } from "react";
 
 import type {

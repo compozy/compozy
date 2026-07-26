@@ -12,7 +12,7 @@ import {
   RadioCard,
   Spinner,
   Switch,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { usePreviewMarketplaceBundle } from "../hooks/use-marketplace-actions";
 import type { MarketplaceEntryResponse } from "../types";
@@ -142,7 +142,7 @@ function BundleActivationDialog({
                   className="text-form-hint text-muted"
                   id="marketplace-network-confirmation-description"
                 >
-                  AGH records this extension’s current participation requirement with the
+                  CompozyOS records this extension’s current participation requirement with the
                   activation.
                 </span>
               </span>

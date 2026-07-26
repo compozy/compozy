@@ -1,24 +1,24 @@
 ---
-title: "agh spawn"
+title: "compozy spawn"
 description: "Spawn a bounded child agent session"
 ---
 
-## agh spawn
+## compozy spawn
 
 Spawn a bounded child agent session
 
 ```
-agh spawn [flags]
+compozy spawn [flags]
 ```
 
 ### Examples
 
 ```
   # Spawn a worker child with a required TTL
-  agh spawn --agent reviewer --ttl-seconds 1800
+  compozy spawn --agent reviewer --ttl-seconds 1800
 
   # Spawn with a role, prompt overlay, and narrowed permission atoms
-  agh spawn \
+  compozy spawn \
     --agent reviewer \
     --role reviewer \
     --ttl-seconds 1800 \
@@ -58,7 +58,7 @@ agh spawn [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -68,5 +68,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh spawn -o json
+compozy spawn -o json
 ```

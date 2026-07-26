@@ -1,6 +1,6 @@
 import { AlertCircle, History, RotateCcw } from "lucide-react";
 
-import { Button, Empty, Pill, Section, Spinner, Time, TimelineEvent } from "@agh/ui";
+import { Button, Empty, Pill, Section, Spinner, Time, TimelineEvent } from "@compozy/ui";
 
 import { decisionOpLabel, decisionSourceLabel } from "@/systems/knowledge/lib/knowledge-formatters";
 import type { MemoryDecision } from "@/systems/knowledge/types";

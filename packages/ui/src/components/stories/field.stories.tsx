@@ -19,7 +19,7 @@ const meta: Meta<typeof Field> = {
     docs: {
       description: {
         component:
-          "Form field wrapper that composes Label, Input, helper text, and error messaging. Pair with @agh/ui primitives for the control.",
+          "Form field wrapper that composes Label, Input, helper text, and error messaging. Pair with @compozy/ui primitives for the control.",
       },
     },
   },

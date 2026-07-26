@@ -1,21 +1,21 @@
 ---
-title: "agh tool info"
+title: "compozy tool info"
 description: "Show one registry tool descriptor and diagnostics"
 ---
 
-## agh tool info
+## compozy tool info
 
 Show one registry tool descriptor and diagnostics
 
 ```
-agh tool info <tool_id> [flags]
+compozy tool info <tool_id> [flags]
 ```
 
 ### Examples
 
 ```
   # Show a tool descriptor and availability diagnostics
-  agh tool info compozy__skill_view -o json
+  compozy tool info compozy__skill_view -o json
 ```
 
 ### Options
@@ -36,7 +36,7 @@ agh tool info <tool_id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -46,5 +46,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh tool info <tool_id> -o json
+compozy tool info <tool_id> -o json
 ```

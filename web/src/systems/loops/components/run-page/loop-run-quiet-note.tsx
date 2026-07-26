@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import type { LucideIcon } from "lucide-react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 interface LoopRunQuietNoteProps extends ComponentProps<"div"> {
   icon: LucideIcon;

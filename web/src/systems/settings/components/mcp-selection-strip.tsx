@@ -1,4 +1,4 @@
-import { Alert, AlertActions, AlertDescription, AlertTitle, Button } from "@agh/ui";
+import { Alert, AlertActions, AlertDescription, AlertTitle, Button } from "@compozy/ui";
 import { CircleAlert, CircleCheck } from "lucide-react";
 
 import type { SettingsMCPServerEntry } from "../types";

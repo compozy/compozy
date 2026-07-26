@@ -1,7 +1,7 @@
 import { Zap } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { ListingRow, Pill } from "@agh/ui";
+import { ListingRow, Pill } from "@compozy/ui";
 
 import {
   automationScopeLabel,

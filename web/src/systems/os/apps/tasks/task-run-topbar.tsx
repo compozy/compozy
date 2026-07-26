@@ -1,4 +1,4 @@
-import { useTopbarSlot } from "@agh/ui";
+import { useTopbarSlot } from "@compozy/ui";
 
 import { TaskRunPageActions, TaskRunPageOverflow, TaskRunPageStatus } from "@/systems/tasks";
 

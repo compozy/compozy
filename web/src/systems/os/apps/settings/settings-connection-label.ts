@@ -1,4 +1,4 @@
-import type { ConnectionStatus } from "@agh/ui";
+import type { ConnectionStatus } from "@compozy/ui";
 
 const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
   connected: "Daemon running",

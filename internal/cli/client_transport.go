@@ -226,7 +226,7 @@ func newDaemonUnavailableError(socketPath string, method string, path string, er
 		contract.CodeDaemonUnavailable,
 		contract.CategoryDaemon,
 		"Daemon unavailable",
-		fmt.Sprintf("AGH daemon is not reachable at %s while requesting %s %s.", socketPath, method, path),
+		fmt.Sprintf("Compozy daemon is not reachable at %s while requesting %s %s.", socketPath, method, path),
 		contract.SeverityError,
 		contract.FreshnessOffline,
 		diagnosticspkg.WithSuggestedCommand("compozy daemon start"),

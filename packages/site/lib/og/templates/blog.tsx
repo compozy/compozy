@@ -77,11 +77,11 @@ export async function renderBlogOG({
               letterSpacing: "-0.01em",
             }}
           >
-            agh
+            Compozy
           </div>
         </div>
         <div style={metaStyle}>
-          <span style={{ color: COLORS.accent, textTransform: "uppercase" }}>AGH BLOG</span>
+          <span style={{ color: COLORS.accent, textTransform: "uppercase" }}>COMPOZY BLOG</span>
           {formattedDate ? (
             <>
               <span style={{ width: "48px", height: "1px", background: COLORS.border }} />
@@ -166,7 +166,7 @@ export async function renderBlogOG({
             letterSpacing: "0.04em",
           }}
         >
-          {`agh.network/blog/${trimmedSlug}`}
+          {`compozy.com/blog/${trimmedSlug}`}
         </div>
         {author ? (
           <div

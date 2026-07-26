@@ -4,7 +4,7 @@ import Link from "next/link";
 import { DateStamp } from "./date-stamp";
 import { BulletDivider } from "./divider";
 import { categoryLabel, formatReadingTime } from "./format";
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 export interface PostCardProps {
   post: Post;

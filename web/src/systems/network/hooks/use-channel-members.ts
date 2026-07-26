@@ -29,7 +29,7 @@ export interface UseChannelMembersResult {
  * Classify a peer summary into AGENT vs HUMAN. The runtime currently does not
  * persist a `kind` field on `NetworkPeerPayload`, so we treat the presence of a
  * local agent session (`session_id`) as the AGENT signal , peers without a
- * session id are assumed to be humans (operators acting against the AGH
+ * session id are assumed to be humans (operators acting against the CompozyOS
  * Network). When the daemon eventually exposes an explicit kind, swap this
  * heuristic for the canonical field.
  */

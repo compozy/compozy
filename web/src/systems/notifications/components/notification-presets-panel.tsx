@@ -14,7 +14,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 interface NotificationPresetsPanelProps {
   presets: NotificationPresetEntry[];

@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Plus } from "lucide-react";
 
-import { Icon, Tooltip, TooltipContent, TooltipTrigger } from "@agh/ui";
+import { Icon, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 

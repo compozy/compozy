@@ -1,9 +1,9 @@
 ---
-title: "agh layout-profile put"
+title: "compozy layout-profile put"
 description: "Create or replace one saved layout"
 ---
 
-## agh layout-profile put
+## compozy layout-profile put
 
 Create or replace one saved layout
 
@@ -14,7 +14,7 @@ Create or replace one saved layout.
 --expected-version 0 creates; a non-zero value replaces that exact version and fails if the record moved underneath you.
 
 ```
-agh layout-profile put <profile-id> [flags]
+compozy layout-profile put <profile-id> [flags]
 ```
 
 ### Options
@@ -36,7 +36,7 @@ agh layout-profile put <profile-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -46,5 +46,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh layout-profile put <profile-id> -o json
+compozy layout-profile put <profile-id> -o json
 ```

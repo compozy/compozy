@@ -8,7 +8,7 @@ import {
   NativeSelectOption,
   SkeletonRows,
   useTopbarSlot,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { useLoopRunsRoute, type LoopRunsRouteSearch } from "./use-loop-runs-route";
 import { LoopRunsView } from "@/systems/loops";
 

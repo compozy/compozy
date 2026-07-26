@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
-import { cn, Collapsible, CollapsibleContent, CollapsibleTrigger, Pill } from "@agh/ui";
+import { cn, Collapsible, CollapsibleContent, CollapsibleTrigger, Pill } from "@compozy/ui";
 
 /**
  * The one Advanced fold per page (design system §08): chevron toggle, closed

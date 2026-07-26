@@ -55,7 +55,7 @@ export function LoopEditorCanvas({
   );
   return (
     <ReactFlow
-      // Dark-only for v1 (AGH ships a single dark theme); wire `colorMode` to the app theme
+      // Dark-only for v1 (CompozyOS ships a single dark theme); wire `colorMode` to the app theme
       // if a light theme lands.
       colorMode="dark"
       nodes={displayNodes}

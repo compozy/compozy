@@ -2,7 +2,7 @@ import { AlertCircle } from "lucide-react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 
-import { Empty, Skeleton, useTopbarSlot, type TopbarSlotValue } from "@agh/ui";
+import { Empty, Skeleton, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { useLoopEditor, type UseLoopEditorResult } from "../../hooks/use-loop-editor";
 import type { LoopDefinition, LoopDetail } from "../../types";

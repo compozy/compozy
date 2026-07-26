@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { SettingsRestartViewState } from "../lib/restart-presentation";
 import type { SettingsSectionSlug } from "../types";

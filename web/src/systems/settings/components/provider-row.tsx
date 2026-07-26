@@ -1,6 +1,6 @@
 import { ChevronRight } from "lucide-react";
 
-import { cn, ListingRow, Pill } from "@agh/ui";
+import { cn, ListingRow, Pill } from "@compozy/ui";
 
 import { providerListingView } from "../lib/provider-listing-view";
 import type { SettingsProviderEntry } from "../types";

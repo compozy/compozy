@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, Empty, Skeleton, Spinner } from "@agh/ui";
+import { Button, Empty, Skeleton, Spinner } from "@compozy/ui";
 
 import { TaskKanbanCard } from "./task-kanban-card";
 import { TaskKanbanColumn } from "./task-kanban-column";
@@ -11,7 +11,7 @@ import {
 } from "../lib/task-grouping";
 import type { TaskStatus } from "../types";
 
-import type { PillTone } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
 
 /**
  * Column header tone — `In progress` reads as `info` (live work without an

@@ -1,4 +1,4 @@
-import { LaneTabs, TabsContent, type LaneTabsItem } from "@agh/ui";
+import { LaneTabs, TabsContent, type LaneTabsItem } from "@compozy/ui";
 
 import type { EditableLoopContractField } from "../../lib/loop-editor-definition";
 import type { EditorEdge, EditorNode } from "../../lib/codec";

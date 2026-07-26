@@ -1,6 +1,6 @@
 import { Info } from "lucide-react";
 
-import { Field, FieldLabel, Input, NativeSelect, NativeSelectOption, Textarea } from "@agh/ui";
+import { Field, FieldLabel, Input, NativeSelect, NativeSelectOption, Textarea } from "@compozy/ui";
 import {
   NetworkParticipationFields,
   networkParticipationDraftFromPayload,

@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 const STEPS: { step: number; label: string }[] = [
   { step: 1, label: "Runtime" },

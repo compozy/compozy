@@ -1,4 +1,4 @@
-import { Button, Eyebrow, Progress, cn } from "@agh/ui";
+import { Button, Eyebrow, Progress, cn } from "@compozy/ui";
 
 import {
   evenWeights,

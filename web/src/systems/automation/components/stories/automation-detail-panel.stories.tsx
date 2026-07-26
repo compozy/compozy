@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -64,7 +64,7 @@ export const Error: Story = {
   parameters: {
     ...storybookMswParameters({
       automation: [
-        aghApiMock.get("/api/automation/jobs/{id}", ({ params }) =>
+        compozyApiMock.get("/api/automation/jobs/{id}", ({ params }) =>
           HttpResponse.json(
             { error: `Failed to load automation job ${String(params.id)}` },
             { status: 500 }

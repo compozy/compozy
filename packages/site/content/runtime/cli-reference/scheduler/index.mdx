@@ -1,27 +1,27 @@
 ---
-title: "agh scheduler"
+title: "compozy scheduler"
 description: "Inspect and control task scheduler dispatch"
 ---
 
-## agh scheduler
+## compozy scheduler
 
 Inspect and control task scheduler dispatch
 
 ```
-agh scheduler [flags]
+compozy scheduler [flags]
 ```
 
 ### Examples
 
 ```
   # Show scheduler pause and backlog pressure
-  agh scheduler status
+  compozy scheduler status
 
   # Pause all new scheduler dispatch while active claims continue
-  agh scheduler pause --reason "incident response"
+  compozy scheduler pause --reason "incident response"
 
   # Pause and wait up to 30 seconds for active claims to finish
-  agh scheduler drain --timeout 30s
+  compozy scheduler drain --timeout 30s
 ```
 
 ### Options
@@ -39,7 +39,7 @@ agh scheduler [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -49,15 +49,15 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh scheduler -o json
+compozy scheduler -o json
 ```
 
 ## Subcommands
 
-| Command                                                           | Description                                              |
-| ----------------------------------------------------------------- | -------------------------------------------------------- |
-| [agh scheduler backlog](/runtime/cli-reference/scheduler/backlog) | List queued runs visible to scheduler dispatch           |
-| [agh scheduler drain](/runtime/cli-reference/scheduler/drain)     | Pause dispatch and wait for active task claims to finish |
-| [agh scheduler pause](/runtime/cli-reference/scheduler/pause)     | Pause new scheduler dispatch                             |
-| [agh scheduler resume](/runtime/cli-reference/scheduler/resume)   | Resume scheduler dispatch                                |
-| [agh scheduler status](/runtime/cli-reference/scheduler/status)   | Show scheduler pause and queue pressure                  |
+| Command                                                               | Description                                              |
+| --------------------------------------------------------------------- | -------------------------------------------------------- |
+| [compozy scheduler backlog](/runtime/cli-reference/scheduler/backlog) | List queued runs visible to scheduler dispatch           |
+| [compozy scheduler drain](/runtime/cli-reference/scheduler/drain)     | Pause dispatch and wait for active task claims to finish |
+| [compozy scheduler pause](/runtime/cli-reference/scheduler/pause)     | Pause new scheduler dispatch                             |
+| [compozy scheduler resume](/runtime/cli-reference/scheduler/resume)   | Resume scheduler dispatch                                |
+| [compozy scheduler status](/runtime/cli-reference/scheduler/status)   | Show scheduler pause and queue pressure                  |

@@ -192,7 +192,7 @@ describe("runtime docs truth", () => {
     const content = manualContent();
     const apiReference = readRepoFile("packages/site/content/runtime/api-reference/index.mdx");
 
-    expect(apiReference).toMatch(/built from\s+`openapi\/agh\.json`/);
+    expect(apiReference).toMatch(/built from\s+`openapi\/compozy\.json`/);
     expect(apiReference).toContain("make codegen-check");
     expect(apiReference).not.toMatch(
       /does not yet cover every implemented\s+streaming and bundle route/
@@ -205,7 +205,7 @@ describe("runtime docs truth", () => {
     const builtinToolIDs = extractGoStringConstants(toolSource, "ToolID");
     const content = manualContent();
     const concreteInvocations = [
-      ...content.matchAll(/\bagh tool invoke\s+(compozy__[a-z0-9_]+)/g),
+      ...content.matchAll(/\bcompozy tool invoke\s+(compozy__[a-z0-9_]+)/g),
     ].map(match => match[1] ?? "");
 
     expect(content).not.toContain("compozy__example_tool");
@@ -262,8 +262,8 @@ describe("runtime docs truth", () => {
       .map(path => readRepoFile(path))
       .join("\n");
 
-    expect(memoryDocs).toContain("agh memory show");
-    expect(memoryDocs).toContain("agh memory dream trigger");
+    expect(memoryDocs).toContain("compozy memory show");
+    expect(memoryDocs).toContain("compozy memory dream trigger");
     expect(memoryDocs).toContain("POST /api/memory/search");
     expect(memoryDocs).toContain("POST /api/memory/dreams/trigger");
     expect(memoryDocs).toContain("compozy__memory_show");
@@ -345,8 +345,8 @@ describe("runtime docs truth", () => {
       "$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl"
     );
     expect(fileLocations).toContain("$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl");
-    expect(fileLocations).toContain("<workspace>/.agh/workspace.toml");
-    expect(fileLocations).toContain("<workspace>/.agh/agents/<name>/memory/");
+    expect(fileLocations).toContain("<workspace>/.compozy/workspace.toml");
+    expect(fileLocations).toContain("<workspace>/.compozy/agents/<name>/memory/");
     expect(fileLocations).toContain("$COMPOZY_HOME/agents/<name>/memory/");
     expect(fileLocations).toContain("$COMPOZY_HOME/memory/_inbox/");
     expect(fileLocations).toContain("$COMPOZY_HOME/memory/_system/");
@@ -364,19 +364,19 @@ describe("runtime docs truth", () => {
       "packages/site/content/runtime/cli-reference/memory/dream/trigger.mdx"
     );
 
-    expect(memoryIndex).toContain("[agh memory show](/runtime/cli-reference/memory/show)");
-    expect(memoryIndex).toContain("[agh memory dream](/runtime/cli-reference/memory/dream)");
-    expect(memoryIndex).not.toContain("[agh memory read](");
-    expect(memoryIndex).not.toContain("[agh memory consolidate](");
+    expect(memoryIndex).toContain("[compozy memory show](/runtime/cli-reference/memory/show)");
+    expect(memoryIndex).toContain("[compozy memory dream](/runtime/cli-reference/memory/dream)");
+    expect(memoryIndex).not.toContain("[compozy memory read](");
+    expect(memoryIndex).not.toContain("[compozy memory consolidate](");
 
-    expect(memoryShow).toMatch(/^## agh memory show$/m);
+    expect(memoryShow).toMatch(/^## compozy memory show$/m);
     expect(memoryShow).toContain("Show one Memory v2 entry");
 
     expect(dreamIndex).toContain(
-      "[agh memory dream trigger](/runtime/cli-reference/memory/dream/trigger)"
+      "[compozy memory dream trigger](/runtime/cli-reference/memory/dream/trigger)"
     );
     expect(dreamIndex).not.toContain("consolidate");
-    expect(dreamTrigger).toMatch(/^## agh memory dream trigger$/m);
+    expect(dreamTrigger).toMatch(/^## compozy memory dream trigger$/m);
     expect(dreamTrigger).toContain("Trigger Memory v2 dreaming");
 
     const memoryRoot = resolve(siteRoot, "content/runtime/cli-reference/memory");
@@ -477,9 +477,9 @@ describe("runtime docs truth", () => {
       "/api/daemon/status",
       "/api/observe/health",
       "/api/observe/events",
-      "agh daemon status",
-      "agh observe health",
-      "agh observe events",
+      "compozy daemon status",
+      "compozy observe health",
+      "compozy observe events",
       "pending_changes",
       "network.presence.active_window_minutes",
       "useNetworkPresence",

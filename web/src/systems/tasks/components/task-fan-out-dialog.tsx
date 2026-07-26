@@ -13,7 +13,7 @@ import {
   FieldLabel,
   Spinner,
   Textarea,
-} from "@agh/ui";
+} from "@compozy/ui";
 import { NetworkParticipationFields } from "@/systems/network";
 
 import { useTaskFanOutDialog } from "../hooks/use-task-fan-out-dialog";

@@ -10,7 +10,7 @@ import type {
   VaultNamespaceFilter,
 } from "@/systems/vault/hooks/use-vault-page";
 import type { VaultListFilter, VaultSecret } from "@/systems/vault";
-import type { ListingViewMode } from "@agh/ui";
+import type { ListingViewMode } from "@compozy/ui";
 
 import { VaultPage } from "@/systems/vault";
 

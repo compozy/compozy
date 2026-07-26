@@ -1,4 +1,4 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@compozy/ui";
 
 import type { LoopRun } from "../../types";
 import { LOOP_RUNS_ROW_GRID, LoopRunRow } from "./loop-run-row";

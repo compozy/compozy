@@ -31,7 +31,7 @@ func TestUnixSocketClientSlackBridgeManifest(t *testing.T) {
     "_metadata": {"major_version": 1, "minor_version": 1},
     "display_information": {
       "name": "Support agent",
-      "description": "Connect Slack messages to AGH.",
+      "description": "Connect Slack messages to Compozy.",
       "background_color": "#E8572A"
     },
     "features": {
@@ -39,7 +39,7 @@ func TestUnixSocketClientSlackBridgeManifest(t *testing.T) {
       "slash_commands": [{
         "command": "/compozy",
         "url": "https://bridge.example.com/slack/support",
-        "description": "Send a command to AGH",
+        "description": "Send a command to Compozy",
         "usage_hint": "<command>",
         "should_escape": false
       }]

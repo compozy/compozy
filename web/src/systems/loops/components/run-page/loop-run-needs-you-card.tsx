@@ -1,6 +1,6 @@
 import { Check, PenLine, X } from "lucide-react";
 
-import { Button, Eyebrow, StatusCard } from "@agh/ui";
+import { Button, Eyebrow, StatusCard } from "@compozy/ui";
 
 import type {
   LoopApprovalFact,

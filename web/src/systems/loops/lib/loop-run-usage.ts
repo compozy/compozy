@@ -24,7 +24,7 @@ export interface LoopRunUsageRow {
 }
 
 /**
- * Coarse display-only USD estimate per 1M tokens (ADR-017 §9.5.2). AGH enforces
+ * Coarse display-only USD estimate per 1M tokens (ADR-017 §9.5.2). CompozyOS enforces
  * no USD cap and the run projection carries no per-model price, so this single
  * documented blended heuristic exists for visibility ONLY — never a billed
  * figure and never a budget dimension. It is superseded the day the daemon

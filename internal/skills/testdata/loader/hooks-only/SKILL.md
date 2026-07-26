@@ -2,7 +2,7 @@
 name: hooks-only
 description: Skill with hook metadata only
 metadata:
-  agh:
+  compozy:
     hooks:
       - event: session.post_create
         command: /bin/sh

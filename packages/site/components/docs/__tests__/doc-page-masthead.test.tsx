@@ -13,7 +13,7 @@ describe("DocPageMasthead", () => {
       />
     );
 
-    expect(screen.getByText("AGH Runtime")).toBeTruthy();
+    expect(screen.getByText("CompozyOS Runtime")).toBeTruthy();
     expect(screen.getByText("Sessions")).toBeTruthy();
     expect(
       screen.getByText(
@@ -27,7 +27,7 @@ describe("DocPageMasthead", () => {
       <DocPageMasthead
         kind="runtime"
         slug={["cli-reference", "agent", "info"]}
-        title="agh agent info"
+        title="compozy agent info"
         description="Inspect one agent."
       />
     );
@@ -41,7 +41,7 @@ describe("DocPageMasthead", () => {
         kind="runtime"
         slug={[]}
         title="Runtime Documentation"
-        description="AGH Runtime overview."
+        description="CompozyOS Runtime overview."
       />
     );
 
@@ -53,7 +53,7 @@ describe("DocPageMasthead", () => {
       <DocPageMasthead
         kind="runtime"
         slug={["cli-reference", "agent--info"]}
-        title="agh agent info"
+        title="compozy agent info"
         description="Inspect one agent."
       />
     );

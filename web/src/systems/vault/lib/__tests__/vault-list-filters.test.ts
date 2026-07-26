@@ -1,4 +1,4 @@
-import type { Filter } from "@agh/ui";
+import type { Filter } from "@compozy/ui";
 import { describe, expect, it, vi } from "vitest";
 
 import {

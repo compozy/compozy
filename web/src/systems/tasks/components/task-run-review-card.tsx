@@ -1,4 +1,4 @@
-import { StatusCard, Time } from "@agh/ui";
+import { StatusCard, Time } from "@compozy/ui";
 
 import { taskRunReviewPresentation } from "../lib/task-run-presentation";
 import type { TaskRunReview } from "../types";

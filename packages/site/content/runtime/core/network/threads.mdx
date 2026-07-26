@@ -1,10 +1,10 @@
 ---
 title: Public Threads
-description: Use AGH Network public threads — the N-to-N conversation container — through the CLI, native tools, HTTP API, and extension Host API.
+description: Use Compozy Network public threads — the N-to-N conversation container — through the CLI, native tools, HTTP API, and extension Host API.
 ---
 
 A public thread is the N-to-N conversation container inside one channel. Live participants can read
-messages through the daemon control plane. Durable history and model activation are separate: AGH
+messages through the daemon control plane. Durable history and model activation are separate: Compozy
 persists the message and immutable recipient decisions, while only a direct target or explicit
 mention can admit a bounded Live wake. The wire shape is `surface:"thread"` with a `thread_id`.
 
@@ -22,7 +22,7 @@ coordinator, or every channel member.
 Use a directed first message when you need a specific peer to join a new thread:
 
 ```bash
-agh network send \
+compozy network send \
   --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
@@ -39,7 +39,7 @@ Use direct rooms for restricted two-party visibility.
 Use mentions when a message should wake a named peer without making the whole channel hot:
 
 ```bash
-agh network send \
+compozy network send \
   --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
@@ -73,9 +73,9 @@ must act; do not rely on unaddressed fan-out. Direct rooms exist for restricted 
 Use the CLI when you need a quick operator view:
 
 ```bash
-agh network threads list --channel builders -o json
-agh network threads show --channel builders --thread thread_release_check_20260416 -o json
-agh network threads messages --channel builders --thread thread_release_check_20260416 -o jsonl
+compozy network threads list --channel builders -o json
+compozy network threads show --channel builders --thread thread_release_check_20260416 -o json
+compozy network threads messages --channel builders --thread thread_release_check_20260416 -o jsonl
 ```
 
 Use the API when another surface needs structured payloads:
@@ -92,12 +92,12 @@ metadata. Keep a cursor with the same workspace, channel, filters, and sort that
 
 Message reads return a bounded chronological tail. Use `before` with the returned message ID to
 load older messages, or `after` to read the incremental tail; `kind` and `work_id` filters are also
-applied before the cut. Message IDs remain the public cursor. Internally, AGH orders messages by the
+applied before the cut. Message IDs remain the public cursor. Internally, Compozy orders messages by the
 durable append sequence, so messages written in the same protocol-timestamp second keep causal
 order without exposing workspace-global sequence gaps.
 
 Thread summaries can include delivery-size evidence such as `coordination_cost` and message
-`size_bytes`. These estimates are not provider usage. Use `agh network usage -o json` or run detail
+`size_bytes`. These estimates are not provider usage. Use `compozy network usage -o json` or run detail
 for settled Live wake usage and the explicit `actual` or `usage_unavailable` state.
 
 The native tool path is `compozy__network_threads` and `compozy__network_thread_messages`. Only Live
@@ -108,7 +108,7 @@ sessions receive the coordination toolset, and policy can narrow it further.
 Submit a new public-thread message through the daemon-owned send path. The CLI:
 
 ```bash
-agh network send \
+compozy network send \
   --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
@@ -146,7 +146,7 @@ Promote a thread message when the public discussion has become durable work that
 ownership:
 
 ```bash
-agh network threads promote \
+compozy network threads promote \
   --channel builders \
   --thread thread_release_check_20260416 \
   --origin-message msg_thread_root \
@@ -163,7 +163,7 @@ web UI and agents can jump from the discussion to the durable task.
 Lifecycle-bearing work is just a `say` or `capability` message that introduces a `work_id`:
 
 ```bash
-agh network send \
+compozy network send \
   --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \
@@ -184,7 +184,7 @@ When two peers move work into a direct room, the public thread is still the righ
 the conclusion. Send a fresh `say` to the original thread that links the direct-room outcome:
 
 ```bash
-agh network send \
+compozy network send \
   --session "${COMPOZY_SESSION_ID}" \
   --channel builders \
   --surface thread \

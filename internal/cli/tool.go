@@ -53,7 +53,7 @@ func newToolMCPCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if err := deps.ensureHome(runtime.HomePaths); err != nil {
-				return fmt.Errorf("cli: ensure AGH home: %w", err)
+				return fmt.Errorf("cli: ensure Compozy home: %w", err)
 			}
 			client, err := deps.newClient(runtime.Config.Daemon.Socket)
 			if err != nil {

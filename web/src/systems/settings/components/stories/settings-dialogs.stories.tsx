@@ -11,7 +11,7 @@ import {
   HelpTip,
   Input,
   Pill,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { ModalSettingsFieldRow } from "../settings-field-row";
 import { SettingsEditorDialog } from "../settings-editor-dialog";
@@ -61,7 +61,7 @@ export const Editor: Story = {
         <ModalSettingsFieldRow
           control={<Input className="font-mono" defaultValue="codex" />}
           data-testid="settings-providers-command"
-          help="The executable AGH launches for this provider."
+          help="The executable CompozyOS launches for this provider."
           label="Command"
         />
         <ModalSettingsFieldRow

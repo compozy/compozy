@@ -6,7 +6,7 @@ import {
   SettingsProvChip,
   type SettingsGeneralSection,
 } from "@/systems/settings";
-import { Input, Switch } from "@agh/ui";
+import { Input, Switch } from "@compozy/ui";
 
 type GeneralConfig = SettingsGeneralSection["config"];
 

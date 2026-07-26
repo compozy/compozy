@@ -34,13 +34,13 @@ describe("authored context runtime docs", () => {
       "`SOUL.md`",
       "persona",
       "expected_digest",
-      "agh agent soul inspect",
-      "agh agent soul validate",
-      "agh agent soul write",
-      "agh agent soul delete",
-      "agh agent soul history",
-      "agh agent soul rollback",
-      "agh session soul refresh",
+      "compozy agent soul inspect",
+      "compozy agent soul validate",
+      "compozy agent soul write",
+      "compozy agent soul delete",
+      "compozy agent soul history",
+      "compozy agent soul rollback",
+      "compozy session soul refresh",
       "`agents/soul/get`",
       "`agents/soul/put`",
       "`agents/soul/rollback`",
@@ -48,7 +48,7 @@ describe("authored context runtime docs", () => {
       "`AGENT.md`",
       "Agent Heartbeat",
     ]);
-    expectExcludesAll(soul, ["agh session heartbeat", "$CLAIM_TOKEN"]);
+    expectExcludesAll(soul, ["compozy session heartbeat", "$CLAIM_TOKEN"]);
   });
 
   it("documents HEARTBEAT.md as advisory wake policy with no queue or task ownership", () => {
@@ -62,22 +62,22 @@ describe("authored context runtime docs", () => {
       "wake policy",
       "expected_digest",
       "heartbeat_if_match_header_unsupported",
-      "agh agent heartbeat inspect",
-      "agh agent heartbeat validate",
-      "agh agent heartbeat write",
-      "agh agent heartbeat delete",
-      "agh agent heartbeat history",
-      "agh agent heartbeat rollback",
-      "agh agent heartbeat status",
-      "agh agent heartbeat wake",
+      "compozy agent heartbeat inspect",
+      "compozy agent heartbeat validate",
+      "compozy agent heartbeat write",
+      "compozy agent heartbeat delete",
+      "compozy agent heartbeat history",
+      "compozy agent heartbeat rollback",
+      "compozy agent heartbeat status",
+      "compozy agent heartbeat wake",
       "`agents/heartbeat/wake`",
       "`agents/heartbeat/status`",
       "session_prompt_active_race",
       "wake_coalesced",
     ]);
-    expectExcludesAll(heartbeat, ["agh session heartbeat", "$CLAIM_TOKEN", 'claim_token":']);
+    expectExcludesAll(heartbeat, ["compozy session heartbeat", "$CLAIM_TOKEN", 'claim_token":']);
     // Heartbeat must explicitly call out the absent refresh command, not advertise it.
-    expect(heartbeat).toContain("no `agh agent heartbeat refresh` command");
+    expect(heartbeat).toContain("no `compozy agent heartbeat refresh` command");
   });
 
   it("registers SOUL.md and HEARTBEAT.md pages in agents navigation", () => {
@@ -107,11 +107,11 @@ describe("authored context runtime docs", () => {
       "heartbeat_no_policy",
       "heartbeat_rate_limited",
       "wake_coalesced",
-      "agh session health",
-      "agh session status",
-      "agh session inspect",
+      "compozy session health",
+      "compozy session status",
+      "compozy session inspect",
       "include_health=true",
-      "AGH Network membership",
+      "Compozy Network membership",
     ]);
   });
 
@@ -168,7 +168,7 @@ describe("authored context runtime docs", () => {
     expect(develop).not.toContain("compozy__agent_soul ");
   });
 
-  it("documents AGH Network greet as independent from authored context", () => {
+  it("documents Compozy Network greet as independent from authored context", () => {
     const protocol = readDoc("core/network/protocol.mdx");
 
     expectIncludesAll(protocol, [
@@ -209,11 +209,11 @@ describe("authored context runtime docs", () => {
     }
   });
 
-  it("does not advertise an agh session heartbeat command in CLI references", () => {
+  it("does not advertise an compozy session heartbeat command in CLI references", () => {
     expect(existsSync(resolve(runtimeRoot, "cli-reference/session/heartbeat"))).toBe(false);
     expect(existsSync(resolve(runtimeRoot, "cli-reference/session/heartbeat.mdx"))).toBe(false);
 
     const sessionIndex = readDoc("cli-reference/session/index.mdx");
-    expect(sessionIndex).not.toContain("agh session heartbeat");
+    expect(sessionIndex).not.toContain("compozy session heartbeat");
   });
 });

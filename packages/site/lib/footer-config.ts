@@ -22,7 +22,7 @@ export const footerColumns: FooterColumn[] = [
     ],
   },
   {
-    title: "AGH Network",
+    title: "Compozy Network",
     items: [
       { label: "Overview", href: "/protocol" },
       { label: "Envelope", href: "/protocol/envelope" },

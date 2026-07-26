@@ -14,7 +14,7 @@ import {
   StatusDot,
   Time,
   type PillTone,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";

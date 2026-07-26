@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import type { EntityMode } from "@agh/ui";
+import type { EntityMode } from "@compozy/ui";
 
 import { emptyDraft, type MCPDraft } from "../../lib/mcp-editor-model";
 import { MCPServerEditor } from "../mcp-server-editor";

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CircleCheckIcon, OctagonXIcon, TriangleAlertIcon } from "lucide-react";
 
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 import { ActionResultBanner } from "../action-result-banner";
 
 const meta: Meta<typeof ActionResultBanner> = {

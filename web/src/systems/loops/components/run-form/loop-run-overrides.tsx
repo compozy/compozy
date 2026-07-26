@@ -7,7 +7,7 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   buildOverrideFields,

@@ -1,6 +1,6 @@
 import { MessageSquare } from "lucide-react";
 
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 
 export interface AgentFleetNewSessionButtonProps {
   agentName: string;

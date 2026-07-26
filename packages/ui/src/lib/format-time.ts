@@ -1,5 +1,5 @@
 /**
- * Time formatters consumed by the `<Time>` primitive. Lives inside `@agh/ui`
+ * Time formatters consumed by the `<Time>` primitive. Lives inside `@compozy/ui`
  * because the primitive must respect the package boundary (no `web/` imports).
  *
  * `web/src/lib/format-time.ts` re-exports these so application code can consume

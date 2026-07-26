@@ -803,7 +803,7 @@ describe("MarketplaceKindPage", () => {
     const user = userEvent.setup();
     renderKindPage("skill", { tab: "installed" });
     expect(screen.getByTestId("marketplace-installed-empty-skill")).toBeInTheDocument();
-    expect(screen.getByText(/agh skill install/)).toBeInTheDocument();
+    expect(screen.getByText(/compozy skill install/)).toBeInTheDocument();
     await user.click(screen.getByTestId("marketplace-browse-market-skill"));
     expect(mocks.navigate).toHaveBeenCalled();
   });

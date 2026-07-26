@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 import { storybookMswParameters } from "@/storybook/msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import {
   bashToolMessageFixture,
   errorToolMessageFixture,
@@ -137,7 +137,7 @@ function base64Bytes(bytes: Uint8Array): string {
   return globalThis.btoa(binary);
 }
 
-const artifactHandler = aghApiMock.get(
+const artifactHandler = compozyApiMock.get(
   "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}",
   ({ request }) => {
     const offset = Number(new URL(request.url).searchParams.get("offset") ?? "0");
@@ -161,7 +161,7 @@ const artifactHandler = aghApiMock.get(
   }
 );
 
-const unavailableArtifactHandler = aghApiMock.get(
+const unavailableArtifactHandler = compozyApiMock.get(
   "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}",
   () =>
     HttpResponse.json(
@@ -298,7 +298,7 @@ export const StatusMatrix: Story = {
 /**
  * Mixed-tool batch: each row shows its per-tool glyph and a visible tense-aware
  * verb + target — terminal (running), file-text, file-pen, search, folder-search,
- * globe, the AGH-native `memory` family glyph, the MCP connector, and a failed
+ * globe, the CompozyOS-native `memory` family glyph, the MCP connector, and a failed
  * command. No two known tools share the generic terminal icon.
  */
 export const MixedToolBatch: Story = {

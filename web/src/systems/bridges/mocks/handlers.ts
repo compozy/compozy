@@ -1,5 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
   bridgeDetailFixture,
@@ -43,11 +43,11 @@ function createBridgeHealthStreamResponse(): Response {
 }
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/bridges", () => HttpResponse.json(bridgesListFixture)),
-  aghApiMock.get("/api/bridges/providers", () =>
+  compozyApiMock.get("/api/bridges", () => HttpResponse.json(bridgesListFixture)),
+  compozyApiMock.get("/api/bridges/providers", () =>
     HttpResponse.json({ providers: bridgeProvidersFixture })
   ),
-  aghApiMock.get("/api/bridges/providers/slack/manifest", ({ request }) => {
+  compozyApiMock.get("/api/bridges/providers/slack/manifest", ({ request }) => {
     const instanceID = new URL(request.url).searchParams.get("instance");
     if (instanceID !== bridgeDetailFixture.bridge.id) {
       return HttpResponse.json({ error: "Slack bridge instance not found" }, { status: 404 });
@@ -55,10 +55,10 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(slackBridgeManifestFixture);
   }),
-  aghApiMock.get("/api/bridges/health/stream", ({ response }) =>
+  compozyApiMock.get("/api/bridges/health/stream", ({ response }) =>
     response.untyped(createBridgeHealthStreamResponse())
   ),
-  aghApiMock.get("/api/bridges/{id}", ({ params }) => {
+  compozyApiMock.get("/api/bridges/{id}", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -67,7 +67,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(bridgeDetailFixture);
   }),
-  aghApiMock.get("/api/bridges/{id}/routes", ({ params }) => {
+  compozyApiMock.get("/api/bridges/{id}/routes", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -76,7 +76,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ routes: bridgeRoutesFixture });
   }),
-  aghApiMock.get("/api/bridges/{id}/targets", ({ params, request }) => {
+  compozyApiMock.get("/api/bridges/{id}/targets", ({ params, request }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -100,7 +100,7 @@ export const handlers: HttpHandler[] = [
       total: targets.length,
     });
   }),
-  aghApiMock.post("/api/bridges/{id}/resolve", async ({ params, request }) => {
+  compozyApiMock.post("/api/bridges/{id}/resolve", async ({ params, request }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -163,7 +163,7 @@ export const handlers: HttpHandler[] = [
       { status: 404 }
     );
   }),
-  aghApiMock.get("/api/bridges/{id}/secret-bindings", ({ params }) => {
+  compozyApiMock.get("/api/bridges/{id}/secret-bindings", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -172,7 +172,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ bindings: bridgeSecretBindingsFixture });
   }),
-  aghApiMock.post("/api/bridges", async ({ request }) => {
+  compozyApiMock.post("/api/bridges", async ({ request }) => {
     const body = (await request.json()) as {
       delivery_defaults?: (typeof createBridgeFixture.bridge)["delivery_defaults"];
       display_name?: string;
@@ -203,7 +203,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  aghApiMock.patch("/api/bridges/{id}", async ({ params, request }) => {
+  compozyApiMock.patch("/api/bridges/{id}", async ({ params, request }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -234,7 +234,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.put("/api/bridges/{id}/secret-bindings/{binding_name}", ({ params }) => {
+  compozyApiMock.put("/api/bridges/{id}/secret-bindings/{binding_name}", ({ params }) => {
     const id = String(params.id);
     const bindingName = String(params.binding_name);
 
@@ -249,7 +249,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.delete("/api/bridges/{id}/secret-bindings/{binding_name}", ({ params }) => {
+  compozyApiMock.delete("/api/bridges/{id}/secret-bindings/{binding_name}", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -258,7 +258,7 @@ export const handlers: HttpHandler[] = [
 
     return new HttpResponse(null, { status: 204 });
   }),
-  aghApiMock.post("/api/bridges/{id}/enable", ({ params }) => {
+  compozyApiMock.post("/api/bridges/{id}/enable", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -274,7 +274,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/bridges/{id}/disable", ({ params }) => {
+  compozyApiMock.post("/api/bridges/{id}/disable", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -290,7 +290,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  aghApiMock.post("/api/bridges/{id}/restart", ({ params }) => {
+  compozyApiMock.post("/api/bridges/{id}/restart", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -299,7 +299,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(bridgeDetailFixture);
   }),
-  aghApiMock.post("/api/bridges/{id}/test-delivery", ({ params }) => {
+  compozyApiMock.post("/api/bridges/{id}/test-delivery", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -308,7 +308,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(testBridgeDeliveryFixture);
   }),
-  aghApiMock.post("/api/bridges/{id}/verify", ({ params }) => {
+  compozyApiMock.post("/api/bridges/{id}/verify", ({ params }) => {
     const id = String(params.id);
     if (id !== bridgeDetailFixture.bridge.id) {
       return HttpResponse.json({ error: `Bridge not found: ${id}` }, { status: 404 });
@@ -316,7 +316,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(bridgeVerifyFixture);
   }),
-  aghApiMock.post("/api/bridges/{id}/send-test", ({ params }) => {
+  compozyApiMock.post("/api/bridges/{id}/send-test", ({ params }) => {
     const id = String(params.id);
     if (id !== bridgeDetailFixture.bridge.id) {
       return HttpResponse.json({ error: `Bridge not found: ${id}` }, { status: 404 });

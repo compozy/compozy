@@ -1,4 +1,4 @@
-import { PillGroup } from "@agh/ui";
+import { PillGroup } from "@compozy/ui";
 import type { AgentPayload } from "@/systems/agent";
 import { LoopTargetFields, type LoopTargetCatalog, type LoopTargetDraft } from "@/systems/loops";
 

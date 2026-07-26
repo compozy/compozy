@@ -7,7 +7,7 @@ import {
   FormSection,
   Input,
   RequiredMark,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import {
   AgentCommandSelect,

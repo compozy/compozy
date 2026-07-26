@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "@agh/ui/lib/utils";
+import { cn } from "@compozy/ui/lib/utils";
 
 type Background = "canvas" | "surface" | "deep";
 type PadY = "md" | "lg" | "xl";

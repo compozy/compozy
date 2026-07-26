@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@agh/ui";
+import { UIProvider } from "@compozy/ui";
 
 import { AgentCommandSelect } from "../agent-command-select";
 import type { AgentPayload } from "../../types";

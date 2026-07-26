@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 
-import { Button, Empty, buttonVariants } from "@agh/ui";
+import { Button, Empty, buttonVariants } from "@compozy/ui";
 
 export function RootComponent() {
   return (

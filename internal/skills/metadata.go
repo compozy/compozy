@@ -13,33 +13,33 @@ var activationGateKeys = []string{
 	"requires_tools",
 }
 
-func parseAGHMetadata(skill *Skill) error {
+func parseCompozyMetadata(skill *Skill) error {
 	if skill == nil || skill.Meta.Metadata == nil {
 		return nil
 	}
 
-	rawAGH, ok := skill.Meta.Metadata["agh"]
-	if !ok || rawAGH == nil {
+	rawCompozy, ok := skill.Meta.Metadata["compozy"]
+	if !ok || rawCompozy == nil {
 		return nil
 	}
 
-	agh, ok := rawAGH.(map[string]any)
+	compozy, ok := rawCompozy.(map[string]any)
 	if !ok {
-		warnAGHMetadata(skill, "skills: malformed metadata.compozy block", "type", fmt.Sprintf("%T", rawAGH))
+		warnCompozyMetadata(skill, "skills: malformed metadata.compozy block", "type", fmt.Sprintf("%T", rawCompozy))
 		return nil
 	}
 
-	if rawMCPServers, ok := agh["mcp_servers"]; ok {
+	if rawMCPServers, ok := compozy["mcp_servers"]; ok {
 		skill.MCPServers = parseMCPServerDecls(skill, rawMCPServers)
 	}
-	if rawHooks, ok := agh["hooks"]; ok {
+	if rawHooks, ok := compozy["hooks"]; ok {
 		hooks, err := parseHookDecls(skill, rawHooks)
 		if err != nil {
 			return err
 		}
 		skill.Hooks = hooks
 	}
-	if rawWhen, ok := agh["when"]; ok {
+	if rawWhen, ok := compozy["when"]; ok {
 		gates, err := parseActivationGates(rawWhen)
 		if err != nil {
 			return err
@@ -56,7 +56,7 @@ func parseActivationGates(raw any) (ActivationGates, error) {
 	}
 	when, ok := raw.(map[string]any)
 	if !ok {
-		return ActivationGates{}, fmt.Errorf("metadata.agh.when must be a mapping, got %T", raw)
+		return ActivationGates{}, fmt.Errorf("metadata.compozy.when must be a mapping, got %T", raw)
 	}
 
 	keys := make([]string, 0, len(when))
@@ -66,7 +66,7 @@ func parseActivationGates(raw any) (ActivationGates, error) {
 	slices.Sort(keys)
 	for _, key := range keys {
 		if !slices.Contains(activationGateKeys, key) {
-			return ActivationGates{}, fmt.Errorf("metadata.agh.when: unknown key %q", key)
+			return ActivationGates{}, fmt.Errorf("metadata.compozy.when: unknown key %q", key)
 		}
 	}
 
@@ -100,14 +100,14 @@ func activationAtoms(raw any, field string) ([]string, error) {
 	}
 	items, ok := raw.([]any)
 	if !ok {
-		return nil, fmt.Errorf("metadata.agh.when.%s must be a string array, got %T", field, raw)
+		return nil, fmt.Errorf("metadata.compozy.when.%s must be a string array, got %T", field, raw)
 	}
 
 	values := make([]string, 0, len(items))
 	for idx, item := range items {
 		value, ok := item.(string)
 		if !ok {
-			return nil, fmt.Errorf("metadata.agh.when.%s[%d] must be a string, got %T", field, idx, item)
+			return nil, fmt.Errorf("metadata.compozy.when.%s[%d] must be a string, got %T", field, idx, item)
 		}
 		values = append(values, value)
 	}
@@ -120,7 +120,7 @@ func normalizeActivationValues(values []string, field string) ([]string, error) 
 	for idx, value := range values {
 		value = strings.ToLower(strings.TrimSpace(value))
 		if value == "" {
-			return nil, fmt.Errorf("metadata.agh.when.%s[%d] is required", field, idx)
+			return nil, fmt.Errorf("metadata.compozy.when.%s[%d] is required", field, idx)
 		}
 		if _, exists := seen[value]; exists {
 			continue

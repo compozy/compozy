@@ -17,7 +17,7 @@ import {
   type GoalPromptMeta,
   type UIMessage,
 } from "@/systems/session";
-import { Button, Eyebrow } from "@agh/ui";
+import { Button, Eyebrow } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
 import {

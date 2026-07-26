@@ -1,7 +1,8 @@
 {
-    "name": "@agh/create-extension",
+    "name": "@compozy/create-extension",
     "version": "0.1.0",
-    "description": "Scaffold AGH TypeScript extensions",
+    "private": true,
+    "description": "Scaffold Compozy TypeScript extensions",
     "license": "UNLICENSED",
     "bin": {
         "create-extension": "./dist/index.js"

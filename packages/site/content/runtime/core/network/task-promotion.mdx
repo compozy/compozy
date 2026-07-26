@@ -12,7 +12,7 @@ run.
 Use the CLI when a public discussion has become durable work:
 
 ```bash
-agh network threads promote \
+compozy network threads promote \
   --channel builders \
   --thread thread_release_check_20260416 \
   --origin-message msg_thread_root \
@@ -37,7 +37,7 @@ The conversation channel is correlation evidence only. Start the task separately
 participation explicitly when needed:
 
 ```bash
-agh task start task-123 \
+compozy task start task-123 \
   --network live \
   --network-channel-strategy run \
   -o json

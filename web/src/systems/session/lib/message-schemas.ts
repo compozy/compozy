@@ -236,7 +236,7 @@ function restoreOriginalToolParts(
 }
 
 // `validateUIMessages` parses every part against the AI SDK's schema, which drops
-// unknown sibling keys — so AGH's custom `turn_id`/`timestamp` fields never survive
+// unknown sibling keys — so CompozyOS's custom `turn_id`/`timestamp` fields never survive
 // validation. The turn-fold derivation needs them (turn boundaries + "Worked for Xs"
 // duration), so capture them before validation and re-attach afterward. Validation
 // preserves part order/count (an invalid part fails the whole message and throws),

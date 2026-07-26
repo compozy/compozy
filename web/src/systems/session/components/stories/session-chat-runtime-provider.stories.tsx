@@ -12,7 +12,7 @@ const meta: Meta<typeof SessionChatRuntimeProvider> = {
     docs: {
       description: {
         component:
-          "Assistant runtime provider that wires AGH session transport, tools, and data UIs.",
+          "Assistant runtime provider that wires CompozyOS session transport, tools, and data UIs.",
       },
     },
   },

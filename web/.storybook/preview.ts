@@ -1,7 +1,7 @@
 import type { Preview } from "@storybook/react-vite";
 import { withThemeByClassName } from "@storybook/addon-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { TooltipProvider, UIProvider } from "@agh/ui";
+import { TooltipProvider, UIProvider } from "@compozy/ui";
 import {
   RouterProvider,
   createMemoryHistory,

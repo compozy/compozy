@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
@@ -61,7 +61,7 @@ export const LogTailUnavailable: Story = {
     ...appRouteParameters("/settings/observability"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/observability", () =>
+        compozyApiMock.get("/api/settings/observability", () =>
           HttpResponse.json({
             ...settingsObservabilitySectionFixture,
             log_tail: {
@@ -86,7 +86,7 @@ export const Loading: Story = {
     ...appRouteParameters("/settings/observability"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/observability", async () => {
+        compozyApiMock.get("/api/settings/observability", async () => {
           await delay("infinite");
           return HttpResponse.json(settingsObservabilitySectionFixture);
         }),
@@ -105,7 +105,7 @@ export const Error: Story = {
     ...appRouteParameters("/settings/observability"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/observability", () =>
+        compozyApiMock.get("/api/settings/observability", () =>
           HttpResponse.json({ error: "Failed to load observability settings" }, { status: 500 })
         ),
       ],

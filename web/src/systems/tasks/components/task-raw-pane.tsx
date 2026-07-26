@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { cn, JsonViewer } from "@agh/ui";
+import { cn, JsonViewer } from "@compozy/ui";
 
 import type { TaskDetailView } from "../types";
 

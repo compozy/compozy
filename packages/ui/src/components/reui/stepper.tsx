@@ -2,7 +2,7 @@
 
 import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes } from "react";
 
-import { cn } from "@agh/ui/lib/utils";
+import { cn } from "@compozy/ui/lib/utils";
 import {
   StepItemContext,
   StepperContext,

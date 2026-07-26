@@ -1,20 +1,20 @@
 ---
-title: "agh agent heartbeat write"
+title: "compozy agent heartbeat write"
 description: "Create or replace HEARTBEAT.md through managed authoring"
 ---
 
-## agh agent heartbeat write
+## compozy agent heartbeat write
 
 Create or replace HEARTBEAT.md through managed authoring
 
 ```
-agh agent heartbeat write <agent> [flags]
+compozy agent heartbeat write <agent> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent heartbeat write coder --file HEARTBEAT.md --expected-digest sha256:old --json
+  compozy agent heartbeat write coder --file HEARTBEAT.md --expected-digest sha256:old --json
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh agent heartbeat write <agent> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent heartbeat write <agent> -o json
+compozy agent heartbeat write <agent> -o json
 ```

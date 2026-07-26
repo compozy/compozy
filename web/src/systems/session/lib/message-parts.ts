@@ -1,4 +1,4 @@
-import type { ToolCallStatus } from "@agh/ui";
+import type { ToolCallStatus } from "@compozy/ui";
 
 import type {
   AghPermissionData,
@@ -143,7 +143,7 @@ function toolResultEnvelope(value: Record<string, unknown>): ToolResultEnvelope 
 /**
  * Normalize a raw tool result payload into a `ToolUseResult`. Consolidates the
  * shape handling both render paths need (assistant-ui toolkit + derive layer):
- * AGH event payloads fold through `parseToolUseResult`, strings become `content`,
+ * CompozyOS event payloads fold through `parseToolUseResult`, strings become `content`,
  * and any other record is preserved as `rawOutput`. Absent output stays absent.
  */
 export function resolveToolResult(result: unknown): ToolUseResult | undefined {
@@ -207,7 +207,7 @@ function toolOutputLooksLikeFailure(result: ToolUseResult): boolean {
 }
 
 export interface ToolRowStatusInput {
-  /** Explicit AGH runtime error (assistant-ui `output-error`). */
+  /** Explicit CompozyOS runtime error (assistant-ui `output-error`). */
   toolError?: boolean;
   /** Normalized tool output; absent while the call is still in flight. */
   toolResult?: ToolUseResult;
@@ -224,7 +224,7 @@ export interface ToolRowStatus {
 }
 
 /**
- * Single source of truth for a tool row's state. Prefers explicit AGH signals
+ * Single source of truth for a tool row's state. Prefers explicit CompozyOS signals
  * (`toolError`, then the result's own `error` field) and only falls back to the
  * stderr failure heuristic. Neutral (empty-output) rows show `empty` (Minus) while
  * the turn streams and promote to `success` (Check) once it settles — never before,

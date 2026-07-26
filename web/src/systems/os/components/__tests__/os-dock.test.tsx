@@ -8,7 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { Bot, LayoutDashboard, ListChecks } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TooltipProvider } from "@agh/ui";
+import { TooltipProvider } from "@compozy/ui";
 
 import { OsDock } from "../os-dock";
 

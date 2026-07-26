@@ -3,7 +3,7 @@ title: Session Health
 description: Metadata-only session presence, attachability, wake eligibility, and boundaries with HEARTBEAT.md policy, task leases, and network greet presence.
 ---
 
-Session health is a metadata-only runtime primitive AGH maintains for every active session. It
+Session health is a metadata-only runtime primitive Compozy maintains for every active session. It
 answers four questions without ever calling the model:
 
 1. What state is this session in?
@@ -13,8 +13,8 @@ answers four questions without ever calling the model:
 
 <OperatorNote>
   Session health is not authored content and not the same thing as `HEARTBEAT.md` wake policy or
-  task-run lease heartbeat. It is a daemon-owned metadata table consumed by wake decisions, the `agh
-  session health|status|inspect` commands, and `GET
+  task-run lease heartbeat. It is a daemon-owned metadata table consumed by wake decisions, the
+  `compozy session health|status|inspect` commands, and `GET
   /api/workspaces/:workspace_id/sessions/:session_id/health|status|inspect`.
 </OperatorNote>
 
@@ -58,9 +58,9 @@ CLI, HTTP, and UDS share the same DTOs. `--json`/`-o json` returns deterministic
 output suitable for agents.
 
 ```bash
-agh session health sess_123 --json
-agh session status sess_123 --json
-agh session inspect sess_123 --json
+compozy session health sess_123 --json
+compozy session status sess_123 --json
+compozy session inspect sess_123 --json
 ```
 
 ```bash
@@ -75,7 +75,7 @@ To list sessions with health summary attached:
 curl -s "http://localhost:2123/api/sessions?include_health=true"
 ```
 
-`agh session inspect` adds Heartbeat policy correlation (snapshot id, digest, wake state, last
+`compozy session inspect` adds Heartbeat policy correlation (snapshot id, digest, wake state, last
 audit) and any redacted last-error context for diagnostics.
 
 ## Wake eligibility
@@ -84,7 +84,7 @@ audit) and any redacted last-error context for diagnostics.
 config. The wake service rejects ineligible sessions before doing any work and returns a closed
 deterministic reason:
 
-| Reason                       | When AGH returns it                                                                           |
+| Reason                       | When Compozy returns it                                                                       |
 | ---------------------------- | --------------------------------------------------------------------------------------------- |
 | `session_not_found`          | The target session id was not resolved.                                                       |
 | `session_unhealthy`          | Health is `degraded`, `stale`, `dead`, or `unknown` such that wake is unsafe.                 |
@@ -100,7 +100,7 @@ deterministic reason:
 | `wake_coalesced`             | A previous wake attempt is still in progress; this one was coalesced.                         |
 | `synthetic_prompt_failed`    | Synthetic prompt enqueue failed.                                                              |
 
-These reasons appear in `agh agent heartbeat status`, `agh agent heartbeat wake`, and the
+These reasons appear in `compozy agent heartbeat status`, `compozy agent heartbeat wake`, and the
 `/api/agents/{name}/heartbeat/status|wake` responses.
 
 ## Boundaries
@@ -111,7 +111,7 @@ These reasons appear in `agh agent heartbeat status`, `agh agent heartbeat wake`
   timers and runtime progress events; health is consumed metadata.
 - Session health is **not** `HEARTBEAT.md`. The authored file expresses wake/reentry preferences
   within config bounds. Health is always present; `HEARTBEAT.md` is optional.
-- Session health is **not** AGH Network membership. Network membership is daemon-local and belongs
+- Session health is **not** Compozy Network membership. Network membership is daemon-local and belongs
   to the [protocol model](/runtime/core/network/protocol). Membership never makes a session
   wake-eligible by itself.
 - Session health is **not** an event bus. `session.health.update.after` fires on transitions only
@@ -121,12 +121,12 @@ These reasons appear in `agh agent heartbeat status`, `agh agent heartbeat wake`
 
 If a session looks unhealthy unexpectedly:
 
-1. Inspect with `agh session inspect <session-id> -o json`.
-2. Check supervision state in `agh session status` — long-running prompts can show idle timers.
+1. Inspect with `compozy session inspect <session-id> -o json`.
+2. Check supervision state in `compozy session status` — long-running prompts can show idle timers.
 3. Verify `[agents.heartbeat].session_health_stale_after` is not too aggressive for your idle
    pattern.
 4. If the daemon was restarted, allow recovery to recompute health before retrying a wake.
-5. Use [`agh session repair`](/runtime/cli-reference/session/repair) for stale `active`/
+5. Use [`compozy session repair`](/runtime/cli-reference/session/repair) for stale `active`/
    `stopping`/`starting` metadata after an unclean exit. Repair never alters wake state.
 
 ## Related pages
@@ -136,6 +136,6 @@ If a session looks unhealthy unexpectedly:
   surfaces.
 - [`config.toml` → `[agents.heartbeat]`](/runtime/core/configuration/config-toml) for cadence,
   rate limits, retention, and stale thresholds.
-- [`agh session health`](/runtime/cli-reference/session/health),
-  [`agh session status`](/runtime/cli-reference/session/status), and
-  [`agh session inspect`](/runtime/cli-reference/session/inspect) generated CLI references.
+- [`compozy session health`](/runtime/cli-reference/session/health),
+  [`compozy session status`](/runtime/cli-reference/session/status), and
+  [`compozy session inspect`](/runtime/cli-reference/session/inspect) generated CLI references.

@@ -1,9 +1,9 @@
 ---
 title: Choose the Right Operator Surface
-description: Decide when AGH work should go through CLI, HTTP/SSE, UDS, or the web UI.
+description: Decide when Compozy work should go through CLI, HTTP/SSE, UDS, or the web UI.
 ---
 
-This guide helps you choose the AGH surface for the actor in front of you: a human operator, a
+This guide helps you choose the Compozy surface for the actor in front of you: a human operator, a
 script, a local agent, a web UI, or a remote integration. It intentionally avoids flag-by-flag
 reference. Use the generated references when you need exact syntax.
 
@@ -28,9 +28,9 @@ reference. Use the generated references when you need exact syntax.
     Start with the CLI. It is explicit, scriptable, and mirrors daemon state directly.
 
     ```bash
-    agh status
-    agh session list
-    agh session events sess_1234 --follow
+    compozy status
+    compozy session list
+    compozy session events sess_1234 --follow
     ```
 
     What happened: the operator asked the daemon for current state, then followed the durable event
@@ -38,14 +38,14 @@ reference. Use the generated references when you need exact syntax.
 
   </WorkflowStep>
 
-  <WorkflowStep title="An agent needs to inspect or mutate AGH">
+  <WorkflowStep title="An agent needs to inspect or mutate Compozy">
     Prefer CLI JSON output or the local UDS API. Agents should avoid scraping terminal prose or web
     UI state.
 
     ```bash
-    agh session list -o json
-    agh memory search release notes -o json
-    agh tool list -o json
+    compozy session list -o json
+    compozy memory search release notes -o json
+    compozy tool list -o json
     ```
 
     What happened: the agent received machine-readable runtime state it can validate before taking
@@ -54,7 +54,7 @@ reference. Use the generated references when you need exact syntax.
   </WorkflowStep>
 
   <WorkflowStep title="A browser surface needs live updates">
-    Use HTTP plus SSE. Polling hides ordering and makes recovery harder; AGH events are already
+    Use HTTP plus SSE. Polling hides ordering and makes recovery harder; Compozy events are already
     append-only runtime records.
 
     ```bash
@@ -79,8 +79,8 @@ reference. Use the generated references when you need exact syntax.
     shared API handler contracts used by HTTP.
 
     ```bash
-    agh status
-    agh doctor -o json
+    compozy status
+    compozy doctor -o json
     ```
 
     What happened: the CLI talked to the daemon over the local socket and returned structured health
@@ -96,9 +96,9 @@ reference. Use the generated references when you need exact syntax.
 Use the CLI:
 
 ```bash
-agh daemon start
-agh status
-agh daemon stop
+compozy daemon start
+compozy status
+compozy daemon stop
 ```
 
 Then open [Daemon Operations](/runtime/core/operations/daemon) when you need supervision,
@@ -109,15 +109,15 @@ foreground logs, socket paths, or process details.
 Use CLI first, then web UI when visual scanning helps:
 
 ```bash
-agh session status sess_1234 -o json
-agh session history sess_1234
-agh session events sess_1234 --follow
+compozy session status sess_1234 -o json
+compozy session history sess_1234
+compozy session events sess_1234 --follow
 ```
 
 For the lifecycle model behind those commands, read
 [Session Lifecycle](/runtime/core/sessions/lifecycle).
 
-### Let another system watch AGH
+### Let another system watch Compozy
 
 Use HTTP/SSE. The API route map lists the implemented route families and marks which routes are
 generated from OpenAPI today; the guides explain when a route is the right tool.
@@ -133,10 +133,10 @@ Start with:
 
 Use surfaces with structured output:
 
-- `agh task next -o json` for claimable work
-- `agh task heartbeat <run-id> -o json` for lease extension
-- `agh task complete <run-id> -o json` for task completion
-- `agh ch send <channel>` and `agh ch recv <channel>` for coordination channels
+- `compozy task next -o json` for claimable work
+- `compozy task heartbeat <run-id> -o json` for lease extension
+- `compozy task complete <run-id> -o json` for task completion
+- `compozy ch send <channel>` and `compozy ch recv <channel>` for coordination channels
 
 These are agent-operable surfaces, not hidden in-process calls. A managed agent can use them when
 its session has CLI/tool access to the runtime; a human operator can run the same commands from a
@@ -148,6 +148,6 @@ The web UI can show the same state, but it should not be the only way an agent c
 
 - Use [Debug a Failed or Stuck Session](/runtime/guides/debug-a-failed-session) when the surface
   reports an unhealthy state.
-- Use [Coordinate Agents over AGH Network](/runtime/guides/coordinate-agents-over-network) when one
+- Use [Coordinate Agents over Compozy Network](/runtime/guides/coordinate-agents-over-network) when one
   session needs to find or delegate to another.
 - Use [CLI Reference](/runtime/cli-reference) for exact commands and flags.

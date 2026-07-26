@@ -1,4 +1,4 @@
-import { Eyebrow, FormSection, ImmutableIdentity, Input, RequiredMark } from "@agh/ui";
+import { Eyebrow, FormSection, ImmutableIdentity, Input, RequiredMark } from "@compozy/ui";
 
 import type { ProviderDraft } from "../types";
 import type { ProviderDraftChange } from "./provider-edit-form";

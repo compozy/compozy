@@ -1,28 +1,28 @@
 ---
-title: "agh update"
-description: "Check for and apply the latest stable AGH release"
+title: "compozy update"
+description: "Check for and apply the latest stable Compozy release"
 ---
 
-## agh update
+## compozy update
 
-Check for and apply the latest stable AGH release
+Check for and apply the latest stable Compozy release
 
 ### Synopsis
 
-Check GitHub Releases for the latest stable AGH build and apply it when this install supports
+Check GitHub Releases for the latest stable Compozy build and apply it when this install supports
 self-update. Managed installs return the exact package-manager upgrade path instead of mutating
 files directly.
 
 ```
-agh update [flags]
+compozy update [flags]
 ```
 
 ### Examples
 
 ```
-agh update
-  agh update --check
-  agh update -o json
+compozy update
+  compozy update --check
+  compozy update -o json
 ```
 
 ### Options
@@ -41,7 +41,7 @@ agh update
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -51,5 +51,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh update -o json
+compozy update -o json
 ```

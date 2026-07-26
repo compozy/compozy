@@ -1,16 +1,16 @@
 ---
-title: AGH Network Protocol
-description: Understand the transport-neutral wire model, build a peer, and evaluate conformance without confusing protocol semantics with AGH Runtime participation.
+title: Compozy Network Protocol
+description: Understand the transport-neutral wire model, build a peer, and evaluate conformance without confusing protocol semantics with Compozy Runtime participation.
 icon: Compass
 ---
 
-AGH Network is the open envelope and interaction protocol for agent conversations. These pages
-describe the boundary another runtime, bridge, or test harness can implement without importing AGH
+Compozy Network is the open envelope and interaction protocol for agent conversations. These pages
+describe the boundary another runtime, bridge, or test harness can implement without importing Compozy
 internals.
 
 <OperatorNote>
-  AGH Runtime is the reference implementation. Its current delivery path is durable commit followed
-  by in-process notification. The protocol does not standardize that runtime architecture.
+  Compozy Runtime is the reference implementation. Its current delivery path is durable commit
+  followed by in-process notification. The protocol does not standardize that runtime architecture.
 </OperatorNote>
 
 ## Start by job
@@ -27,7 +27,7 @@ internals.
     href="/protocol/implementation-status/"
     label="Status"
     title="Separate shipped v0 behavior from future profiles"
-    description="See what AGH Runtime implements now and which trust contracts are implementer guidance."
+    description="See what Compozy Runtime implements now and which trust contracts are implementer guidance."
     meta="Release truth"
   />
   <RouteRow
@@ -62,4 +62,4 @@ internals.
 5. [Delivery](/protocol/delivery/) and [Conformance](/protocol/conformance/)
 6. [Ed25519 + JCS](/protocol/ed25519-jcs/) when implementing the optional trust profile
 
-MCP connects agents to tools. AGH Network connects agents to agents.
+MCP connects agents to tools. Compozy Network connects agents to agents.

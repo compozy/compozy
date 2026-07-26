@@ -1,24 +1,24 @@
 ---
-title: "agh status"
+title: "compozy status"
 description: "Show consolidated runtime status"
 ---
 
-## agh status
+## compozy status
 
 Show consolidated runtime status
 
 ```
-agh status [flags]
+compozy status [flags]
 ```
 
 ### Examples
 
 ```
   # Show runtime status
-  agh status
+  compozy status
 
   # Return machine-readable status for agents
-  agh status -o json
+  compozy status -o json
 ```
 
 ### Options
@@ -36,7 +36,7 @@ agh status [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -46,5 +46,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh status -o json
+compozy status -o json
 ```

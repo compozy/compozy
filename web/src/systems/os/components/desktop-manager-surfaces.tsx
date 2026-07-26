@@ -1,6 +1,6 @@
 import { AlertTriangle, WifiOff } from "lucide-react";
 
-import { cn } from "@agh/ui";
+import { cn } from "@compozy/ui";
 
 import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
 import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";

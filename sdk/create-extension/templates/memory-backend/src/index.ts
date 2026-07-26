@@ -8,7 +8,7 @@ import {
   type MemoryForgetParams,
   type MemoryRecallParams,
   type MemoryStoreParams,
-} from "@agh/extension-sdk";
+} from "@compozy/extension-sdk";
 
 interface StoredEntry {
   content: string;

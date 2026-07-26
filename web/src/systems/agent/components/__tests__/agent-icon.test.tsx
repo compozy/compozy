@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { providerKindIconRegistry } from "@agh/ui";
+import { providerKindIconRegistry } from "@compozy/ui";
 import { describe, expect, it } from "vitest";
 
 import { AgentIcon } from "../agent-icon";

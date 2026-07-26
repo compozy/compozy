@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Button } from "@agh/ui";
+import { Button } from "@compozy/ui";
 import { EditorFooter } from "../editor-footer";
 
 const meta: Meta<typeof EditorFooter> = {

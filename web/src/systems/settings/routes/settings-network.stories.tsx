@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
@@ -76,7 +76,7 @@ export const Loading: Story = {
     ...appRouteParameters("/settings/network"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/network", async () => {
+        compozyApiMock.get("/api/settings/network", async () => {
           await delay("infinite");
           return HttpResponse.json(settingsNetworkSectionFixture);
         }),
@@ -95,7 +95,7 @@ export const Error: Story = {
     ...appRouteParameters("/settings/network"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/network", () =>
+        compozyApiMock.get("/api/settings/network", () =>
           HttpResponse.json({ error: "Failed to load network settings" }, { status: 500 })
         ),
       ],

@@ -1,5 +1,5 @@
 // Pure per-turn aggregation of the files an assistant turn modified via Edit/Write
-// tool calls, feeding the settled-turn "Changed files" roll-up. AGH has no git
+// tool calls, feeding the settled-turn "Changed files" roll-up. CompozyOS has no git
 // checkpoint to read stats from — the +/- counts are derived directly from the
 // tool payloads the reader already sees in the `edit-content` / `write-content`
 // renderers:
@@ -11,7 +11,7 @@
 import { resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
 import type { ChangedFileEntry, SessionTimelineToolPart } from "./session-timeline.logic";
 
-// The file-modifying tools AGH surfaces structured diff sources for
+// The file-modifying tools CompozyOS surfaces structured diff sources for
 // (`tool-renderers/{edit,write}-content.tsx`). Normalized through
 // `resolveRegisteredToolName` so ACP-style titles ("Edit routes.go") also match.
 const FILE_MODIFYING_TOOLS = new Set(["Edit", "Write"]);

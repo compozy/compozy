@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 
-import { ActionResultBanner, MonoId } from "@agh/ui";
+import { ActionResultBanner, MonoId } from "@compozy/ui";
 
 import type { RoleDiagnostic } from "../types";
 

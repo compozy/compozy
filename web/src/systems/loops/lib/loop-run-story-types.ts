@@ -1,4 +1,4 @@
-import type { PillTone } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
 
 import type { LoopRunGeneration } from "../types";
 import type { LoopGraph } from "./loop-graph";

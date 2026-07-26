@@ -3,7 +3,7 @@ import { HttpResponse } from "msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
@@ -34,7 +34,7 @@ type Story = StoryObj<typeof meta>;
  * groups flatten in key order, `os` precedes `settings`, and MSW resolves the
  * first match — a settings-group handler for this route would never be reached.
  */
-const denseSnapshot = aghApiMock.get(
+const denseSnapshot = compozyApiMock.get(
   "/api/workspaces/{workspace_id}/window-manager",
   ({ params }) =>
     HttpResponse.json({
@@ -82,7 +82,7 @@ export const ValidationFailed: Story = {
     ...storybookMswParameters({
       os: [denseSnapshot],
       settings: [
-        aghApiMock.post(
+        compozyApiMock.post(
           "/api/workspaces/{workspace_id}/window-manager/layout/validate",
           ({ params }) =>
             HttpResponse.json({

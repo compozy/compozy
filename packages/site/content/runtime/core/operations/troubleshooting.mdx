@@ -1,30 +1,30 @@
 ---
 title: Troubleshooting
-description: Diagnose and resolve common AGH daemon, socket, agent, session, and database issues.
+description: Diagnose and resolve common Compozy daemon, socket, agent, session, and database issues.
 ---
 
 Use this guide when an operational command fails or the daemon is not behaving as expected. Each
 entry has symptoms, diagnosis, and a resolution path.
 
 <OperatorNote>
-  Start with `agh status`, `agh doctor`, and `$COMPOZY_HOME/logs/agh.log`. Those three surfaces
-  usually tell you whether the failure is process discovery, runtime health, or a deeper startup
-  problem.
+  Start with `compozy status`, `compozy doctor`, and `$COMPOZY_HOME/logs/compozy.log`. Those three
+  surfaces usually tell you whether the failure is process discovery, runtime health, or a deeper
+  startup problem.
 </OperatorNote>
 
 ## Daemon reports "already running"
 
-| Field      | What to check                                                                                                   |
-| ---------- | --------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | `cli: daemon already running (pid=12345)` or `daemon: already running with pid 12345`.                          |
-| Diagnosis  | The lock file is held by a live process, or `daemon.json` points at a process that is still alive.              |
-| Resolution | Use the existing daemon, or stop it with `agh daemon stop`. Do not remove `daemon.lock` while the PID is alive. |
+| Field      | What to check                                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | `cli: daemon already running (pid=12345)` or `daemon: already running with pid 12345`.                              |
+| Diagnosis  | The lock file is held by a live process, or `daemon.json` points at a process that is still alive.                  |
+| Resolution | Use the existing daemon, or stop it with `compozy daemon stop`. Do not remove `daemon.lock` while the PID is alive. |
 
 Inspect the current discovery files:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
-agh status
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+compozy status
 cat "$COMPOZY_HOME/daemon.json"
 cat "$COMPOZY_HOME/daemon.lock"
 ```
@@ -43,39 +43,39 @@ path, and clean up orphan child processes from the old daemon.
 Commands:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
-tail -n 120 "$COMPOZY_HOME/logs/agh.log"
-agh daemon start --foreground
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+tail -n 120 "$COMPOZY_HOME/logs/compozy.log"
+compozy daemon start --foreground
 ```
 
 Fix the error reported by foreground mode, then start normally:
 
 ```bash
-agh daemon start
+compozy daemon start
 ```
 
-## AGH refuses an incompatible database
+## Compozy refuses an incompatible database
 
-| Field      | What to check                                                                                                                                                                                                                                                                                                                          |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | A daemon-global refusal stops boot and names `$COMPOZY_HOME/agh.db`. A per-session refusal can instead appear after AGH is ready when `agh session history <id> -o json` or the HTTP/UDS session-history route opens that session's `events.db`.                                                                                       |
-| Diagnosis  | `legacy_database` means the file predates AGH's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global and memory streams, not every lazily opened per-session stream.                           |
-| Resolution | For `schema_ahead`, run a newer compatible AGH binary against the stopped, intact database family—the preferred state-preserving path. For `legacy_database`, cold-move the complete `COMPOZY_HOME` or workspace `.agh` family and select a separate fresh home. Never edit a version table or move one database/sidecar in isolation. |
+| Field      | What to check                                                                                                                                                                                                                                                                                                                                  |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | A daemon-global refusal stops boot and names `$COMPOZY_HOME/compozy.db`. A per-session refusal can instead appear after Compozy is ready when `compozy session history <id> -o json` or the HTTP/UDS session-history route opens that session's `events.db`.                                                                                   |
+| Diagnosis  | `legacy_database` means the file predates Compozy's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global and memory streams, not every lazily opened per-session stream.                               |
+| Resolution | For `schema_ahead`, run a newer compatible Compozy binary against the stopped, intact database family—the preferred state-preserving path. For `legacy_database`, cold-move the complete `COMPOZY_HOME` or workspace `.compozy` family and select a separate fresh home. Never edit a version table or move one database/sidecar in isolation. |
 
 Stopped-daemon provider-auth, extension, and MCP-auth commands return the same refusal as one structured error
 document under `-o json`. Match `diagnostic.code` as `legacy_database` or `schema_ahead`; the diagnostic evidence
 includes the direct-open surface and canonical offending path.
 
-When a fresh home is the chosen hard-cut path, stop AGH and preserve the complete old home first:
+When a fresh home is the chosen hard-cut path, stop Compozy and preserve the complete old home first:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
-agh daemon stop
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+compozy daemon stop
 legacy_home="${COMPOZY_HOME}.pre-goose-$(date +%Y%m%d-%H%M%S)"
 mv "$COMPOZY_HOME" "$legacy_home"
 mkdir -p "$COMPOZY_HOME"
-agh daemon start
-agh status -o json | jq '.daemon.schema_streams'
+compozy daemon start
+compozy status -o json | jq '.daemon.schema_streams'
 ```
 
 The final command should report the `global` and `memory` streams with their applied versions and
@@ -96,10 +96,10 @@ original home in place and use a newer compatible binary instead of this state-d
 Inspect the socket path:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
 socket="$COMPOZY_HOME/daemon.sock"
 
-agh status
+compozy status
 ls -ld "$COMPOZY_HOME" "$(dirname "$socket")"
 ls -l "$socket"
 file "$socket"
@@ -109,7 +109,7 @@ If `file "$socket"` shows a regular file and the daemon is stopped, move it asid
 
 ```bash
 mv "$socket" "$socket.stale"
-agh daemon start
+compozy daemon start
 ```
 
 If the socket lives outside `COMPOZY_HOME`, confirm the configured `[daemon].socket` path and parent
@@ -126,12 +126,12 @@ directory ownership in [config.toml](/runtime/core/configuration/config-toml).
 Commands:
 
 ```bash
-agh status
+compozy status
 curl -s http://localhost:2123/api/status | jq '.daemon'
 ```
 
 The default HTTP bind is `localhost:2123`. For local production use, keep the host on `localhost`
-unless you intentionally place AGH behind a protected reverse proxy.
+unless you intentionally place Compozy behind a protected reverse proxy.
 
 ## Agent fails to spawn
 
@@ -144,9 +144,9 @@ unless you intentionally place AGH behind a protected reverse proxy.
 Commands:
 
 ```bash
-agh agent info <agent-name>
-agh daemon start --foreground
-tail -n 120 "$COMPOZY_HOME/logs/agh.log"
+compozy agent info <agent-name>
+compozy daemon start --foreground
+tail -n 120 "$COMPOZY_HOME/logs/compozy.log"
 command -v npx
 command -v codex
 command -v gemini
@@ -161,17 +161,17 @@ provider editor and confirm the provider status reports the credential as presen
 Native ACP providers use their own CLI login/session state. Check them with:
 
 ```bash
-agh provider auth status <provider>
-agh provider auth login <provider>
+compozy provider auth status <provider>
+compozy provider auth login <provider>
 ```
 
-`agh provider auth login` requires the provider to define `auth_login_command`. Built-in `claude`,
+`compozy provider auth login` requires the provider to define `auth_login_command`. Built-in `claude`,
 `codex`, `opencode`, and `pi` providers define one; for custom native providers, configure the
-command or run the provider's own login command outside AGH. `agh provider auth login` executes the
+command or run the provider's own login command outside Compozy. `compozy provider auth login` executes the
 configured login command locally by default and attaches the terminal when stdin, stdout, and stderr
-are TTYs, so provider prompts and OAuth URLs stay visible. For isolated provider homes, AGH supplies
-the required environment prefix so native credentials land in AGH's provider home. Use
-`agh provider auth login <provider> --print-command` for one raw copyable shell command without
+are TTYs, so provider prompts and OAuth URLs stay visible. For isolated provider homes, Compozy supplies
+the required environment prefix so native credentials land in Compozy's provider home. Use
+`compozy provider auth login <provider> --print-command` for one raw copyable shell command without
 executing it, `--no-tty` for deterministic non-interactive runs, and `--timeout` when scripts need a
 bounded attempt. HTTP/UDS and daemon pre-start checks never run login commands; they use
 non-interactive `auth_status_command` probes only.
@@ -180,19 +180,19 @@ See [Spawning](/runtime/core/agents/spawning) for the exact launch and ACP negot
 
 ## Session is stuck after a crash
 
-| Field      | What to check                                                                                                           |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | A session appears to stay in `starting`, `active`, or `stopping` after a daemon or agent crash.                         |
-| Diagnosis  | The metadata on disk may describe an in-flight state from a previous daemon process.                                    |
-| Resolution | Restart the daemon, then list or inspect the session. AGH repairs stale session metadata during boot and session reads. |
+| Field      | What to check                                                                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | A session appears to stay in `starting`, `active`, or `stopping` after a daemon or agent crash.                             |
+| Diagnosis  | The metadata on disk may describe an in-flight state from a previous daemon process.                                        |
+| Resolution | Restart the daemon, then list or inspect the session. Compozy repairs stale session metadata during boot and session reads. |
 
 Commands:
 
 ```bash
-agh daemon start
-agh session list --all
-agh session status <session-id>
-agh session repair <session-id> --dry-run
+compozy daemon start
+compozy session list --all
+compozy session status <session-id>
+compozy session repair <session-id> --dry-run
 ```
 
 The repair rules are:
@@ -208,8 +208,8 @@ transcripts by appending terminal repair events. If a transcript or chat replay 
 dangling tool call or streaming assistant message after restart, run:
 
 ```bash
-agh session repair <session-id> --dry-run
-agh session repair <session-id>
+compozy session repair <session-id> --dry-run
+compozy session repair <session-id>
 ```
 
 If resume still fails, check that the workspace directory, agent definition, and
@@ -219,19 +219,19 @@ If resume still fails, check that the workspace directory, agent definition, and
 
 | Field      | What to check                                                                                                                                          |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Symptoms   | SQLite reports `database is locked`, `database disk image is malformed`, or the daemon cannot open `agh.db` or `events.db`.                            |
+| Symptoms   | SQLite reports `database is locked`, `database disk image is malformed`, or the daemon cannot open `compozy.db` or `events.db`.                        |
 | Diagnosis  | A live daemon may still hold the database, a filesystem copy may have missed WAL sidecars, or SQLite classified the database as corrupt.               |
 | Resolution | Stop the daemon. Preserve the complete database family byte-for-byte, diagnose a cold copy, and restore a complete known-good family if it is corrupt. |
 
 Commands:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
-agh daemon stop
-sqlite3 -readonly "/path/to/cold-backup/agh.db" "pragma integrity_check;"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+compozy daemon stop
+sqlite3 -readonly "/path/to/cold-backup/compozy.db" "pragma integrity_check;"
 ```
 
-AGH does not rename or recreate a database after classifying corruption. For cold backup, family
+Compozy does not rename or recreate a database after classifying corruption. For cold backup, family
 preservation, and restore details, see [Database Operations](/runtime/core/operations/database).
 
 ## Permission errors in COMPOZY_HOME
@@ -239,15 +239,15 @@ preservation, and restore details, see [Database Operations](/runtime/core/opera
 | Field      | What to check                                                                                                                          |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Symptoms   | Startup logs show errors creating the home layout, lock file, log file, socket parent, or database directory.                          |
-| Diagnosis  | The daemon user does not own `COMPOZY_HOME`, or a service manager starts AGH with a different home path than the CLI.                  |
+| Diagnosis  | The daemon user does not own `COMPOZY_HOME`, or a service manager starts Compozy with a different home path than the CLI.              |
 | Resolution | Use one stable `COMPOZY_HOME`, ensure the daemon user owns it, and run the CLI with the same `COMPOZY_HOME` when managing that daemon. |
 
 Commands:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
 ls -ld "$COMPOZY_HOME" "$COMPOZY_HOME/logs" "$COMPOZY_HOME/sessions"
-agh status
+compozy status
 ```
 
 For systemd or launchd installs, define `COMPOZY_HOME` in the service environment and keep provider API

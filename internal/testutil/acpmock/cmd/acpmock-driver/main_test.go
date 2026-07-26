@@ -69,7 +69,7 @@ func TestExtractPromptTextPreservesAugmentedPromptDiagnostics(t *testing.T) {
 
 		prompt := "Session instructions\n\n" +
 			"User request:\n\n" +
-			"<agh-situation-context>{}</agh-situation-context>\n\n" +
+			"<compozy-situation-context>{}</compozy-situation-context>\n\n" +
 			"<turn-recall>\n" +
 			"Relevant durable memory for this turn:\n" +
 			"- Auth [workspace]\n" +
@@ -136,7 +136,7 @@ func TestExtractPromptTextPreservesAugmentedPromptWithoutNestedMessageMarker(t *
 
 		prompt := "Session instructions\n\n" +
 			"User request:\n\n" +
-			"<agh-situation-context>{}</agh-situation-context>\n\n" +
+			"<compozy-situation-context>{}</compozy-situation-context>\n\n" +
 			"hello alpha"
 		blocks := []acpsdk.ContentBlock{
 			acpsdk.TextBlock(prompt),

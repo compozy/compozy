@@ -1,20 +1,20 @@
 ---
-title: "agh task create"
+title: "compozy task create"
 description: "Create a task"
 ---
 
-## agh task create
+## compozy task create
 
 Create a task
 
 ```
-agh task create [flags]
+compozy task create [flags]
 ```
 
 ### Options
 
 ```
-      --as-agent                          Create using the current AGH-managed agent session identity
+      --as-agent                          Create using the current Compozy-managed agent session identity
       --auto-enqueue-on-ready             Auto-enqueue the run once blocking dependencies complete
       --description string                Task description
   -h, --help                              help for create
@@ -43,7 +43,7 @@ agh task create [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -53,5 +53,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task create -o json
+compozy task create -o json
 ```

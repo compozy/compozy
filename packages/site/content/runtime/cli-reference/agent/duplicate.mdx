@@ -1,14 +1,14 @@
 ---
-title: "agh agent duplicate"
+title: "compozy agent duplicate"
 description: "Duplicate an agent definition without exposing secrets"
 ---
 
-## agh agent duplicate
+## compozy agent duplicate
 
 Duplicate an agent definition without exposing secrets
 
 ```
-agh agent duplicate <source> <new-name> [flags]
+compozy agent duplicate <source> <new-name> [flags]
 ```
 
 ### Options
@@ -40,7 +40,7 @@ agh agent duplicate <source> <new-name> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -50,5 +50,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent duplicate <source> <new-name> -o json
+compozy agent duplicate <source> <new-name> -o json
 ```

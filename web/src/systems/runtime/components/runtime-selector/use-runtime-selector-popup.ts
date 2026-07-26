@@ -1,6 +1,6 @@
 import { useId, type ComponentProps, type KeyboardEvent, type RefObject } from "react";
 
-import type { Popover } from "@agh/ui";
+import type { Popover } from "@compozy/ui";
 
 import type { RuntimeProviderOption } from "./types";
 import type { RuntimeSelectorController } from "./use-runtime-selector";

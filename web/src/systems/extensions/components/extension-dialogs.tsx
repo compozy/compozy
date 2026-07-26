@@ -14,7 +14,7 @@ import {
   Eyebrow,
   MonoId,
   Spinner,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { useExtensionProvenance } from "../hooks/use-extensions";
 import { useRemoveExtension } from "../hooks/use-extension-actions";

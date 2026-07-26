@@ -1,7 +1,7 @@
 import { AlertCircle, Clock3, Plus, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, Skeleton, SkeletonRows, type ListingViewMode } from "@agh/ui";
+import { Button, Empty, Skeleton, SkeletonRows, type ListingViewMode } from "@compozy/ui";
 
 import type { AutomationKind } from "../types";
 

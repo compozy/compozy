@@ -1,4 +1,4 @@
-import type { ConnectionStatus } from "@agh/ui";
+import type { ConnectionStatus } from "@compozy/ui";
 
 import type { HealthPayload } from "@/systems/status";
 

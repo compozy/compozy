@@ -1,14 +1,14 @@
 ---
-title: "agh task dependency remove"
+title: "compozy task dependency remove"
 description: "Remove a dependency edge from a task"
 ---
 
-## agh task dependency remove
+## compozy task dependency remove
 
 Remove a dependency edge from a task
 
 ```
-agh task dependency remove <task-id> <depends-on-id> [flags]
+compozy task dependency remove <task-id> <depends-on-id> [flags]
 ```
 
 ### Options
@@ -26,7 +26,7 @@ agh task dependency remove <task-id> <depends-on-id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -36,5 +36,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task dependency remove <task-id> <depends-on-id> -o json
+compozy task dependency remove <task-id> <depends-on-id> -o json
 ```

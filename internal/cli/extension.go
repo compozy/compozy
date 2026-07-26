@@ -49,7 +49,7 @@ type localExtensionRegistry interface {
 func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   extensionExtensionKey,
-		Short: "Manage AGH extensions",
+		Short: "Manage Compozy extensions",
 	}
 
 	cmd.AddCommand(newExtensionSearchCommand(deps))

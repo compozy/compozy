@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { Metric, MetricGrid, Sparkline } from "@agh/ui";
+import { Metric, MetricGrid, Sparkline } from "@compozy/ui";
 
 import { formatHomeTokens } from "../lib/home-formatters";
 import type { HomeOverview } from "../types";

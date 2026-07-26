@@ -4842,9 +4842,9 @@ func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testi
 	t.Parallel()
 
 	h := newHarness(t)
-	networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
+	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledAghSkillName, testBundledNetworkReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
 	}
 	networkSkill = strings.TrimSpace(networkSkill)
 
@@ -4919,9 +4919,9 @@ func TestCreateWithoutChannelDoesNotAppendBundledNetworkSkill(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t, WithPromptAssembler(nil))
-	networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
+	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledAghSkillName, testBundledNetworkReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
 	}
 	networkSkill = strings.TrimSpace(networkSkill)
 
@@ -4948,9 +4948,9 @@ func TestResumeWithChannelReinjectsBundledNetworkSkillOnce(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
+	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledAghSkillName, testBundledNetworkReference, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
 	}
 	networkSkill = strings.TrimSpace(networkSkill)
 
@@ -5293,7 +5293,10 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 					if startup.NetworkParticipation.Mode != participation.ModeLive {
 						return prompt, nil
 					}
-					networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
+					networkSkill, err := skillbundled.LoadResource(
+						testBundledCompozySkillName,
+						testBundledNetworkReference,
+					)
 					if err != nil {
 						return "", err
 					}
@@ -5521,7 +5524,7 @@ func (a *resumeContextPromptAssembler) ResumeContextSection(
 }
 
 const (
-	testBundledAghSkillName     = "agh"
+	testBundledCompozySkillName = "compozy"
 	testBundledNetworkReference = "references/network.md"
 )
 

@@ -1,4 +1,4 @@
-import { DayStackedBars, Empty, Panel, Section } from "@agh/ui";
+import { DayStackedBars, Empty, Panel, Section } from "@compozy/ui";
 
 import type { HomeOverview } from "../types";
 

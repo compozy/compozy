@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { CpuIcon, ServerIcon, ZapIcon } from "lucide-react";
 
-import { Pill } from "@agh/ui";
+import { Pill } from "@compozy/ui";
 import { RadioCard } from "../radio-card";
 
 const meta: Meta<typeof RadioCard> = {

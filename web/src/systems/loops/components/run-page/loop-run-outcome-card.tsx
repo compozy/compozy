@@ -1,7 +1,7 @@
 import { Check, RotateCcw } from "lucide-react";
 import { useState } from "react";
 
-import { Button, StatusCard, type StatusCardTone } from "@agh/ui";
+import { Button, StatusCard, type StatusCardTone } from "@compozy/ui";
 
 import type { LoopCoordinatorFailure } from "../../lib/loop-events";
 import { formatClockDuration, terminalRunElapsedSeconds } from "../../lib/loop-run-usage";

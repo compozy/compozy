@@ -182,7 +182,7 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 			stringAt(t, npm, "repository"),
 			"git+https://github.com/compozy/agh.git",
 		)
-		assertEqualString(t, "npms[0].homepage", stringAt(t, npm, "homepage"), "https://agh.network")
+		assertEqualString(t, "npms[0].homepage", stringAt(t, npm, "homepage"), "https://compozy.com")
 	})
 }
 
@@ -265,7 +265,7 @@ func TestReleaseTemplatesStayAlignedWithPublicInstallMethods(t *testing.T) {
 			"brew install compozy/compozy/agh",
 			"npm install -g @compozy/agh",
 			"go install github.com/compozy/compozy@{{ .Tag }}",
-			"curl -fsSL https://agh.network/install.sh | sh",
+			"curl -fsSL https://compozy.com/install.sh | sh",
 			"Verified Binary Installer",
 		} {
 			assertContainsText(t, "GoReleaser release header", header, snippet)

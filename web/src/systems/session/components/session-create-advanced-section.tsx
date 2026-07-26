@@ -1,4 +1,4 @@
-import { Field, FieldContent, FieldDescription, FieldLabel, FormSection, Input } from "@agh/ui";
+import { Field, FieldContent, FieldDescription, FieldLabel, FormSection, Input } from "@compozy/ui";
 
 import { NetworkParticipationFields, type NetworkParticipationDraft } from "@/systems/network";
 

@@ -1,4 +1,4 @@
-import type { StatusDotTone, StatusDotVariant } from "@agh/ui";
+import type { StatusDotTone, StatusDotVariant } from "@compozy/ui";
 
 import type { TaskInboxItem, TaskInboxLane } from "../types";
 

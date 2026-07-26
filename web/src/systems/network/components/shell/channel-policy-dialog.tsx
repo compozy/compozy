@@ -22,7 +22,7 @@ import {
   FormSection,
   ImmutableIdentity,
   Input,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import { ChannelFanoutCards } from "../channel-fanout-cards";
 import type { ChannelMember } from "../../hooks/use-channel-members";

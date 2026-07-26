@@ -1,20 +1,20 @@
 ---
-title: "agh task block"
+title: "compozy task block"
 description: "Block a task with a typed reason"
 ---
 
-## agh task block
+## compozy task block
 
 Block a task with a typed reason
 
 ```
-agh task block <id> [flags]
+compozy task block <id> [flags]
 ```
 
 ### Options
 
 ```
-      --as-agent            Block using the current AGH-managed agent session identity
+      --as-agent            Block using the current Compozy-managed agent session identity
       --details string      Optional block details JSON
       --expires-in string   Optional transient block duration
   -h, --help                help for block
@@ -32,7 +32,7 @@ agh task block <id> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -42,5 +42,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task block <id> -o json
+compozy task block <id> -o json
 ```

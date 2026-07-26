@@ -1,4 +1,4 @@
-import { Pill } from "@agh/ui";
+import { Pill } from "@compozy/ui";
 
 import type { OpenWorkEntry } from "../../hooks/use-work";
 import { getNetworkStatusTone } from "../../lib/network-formatters";

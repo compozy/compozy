@@ -1,6 +1,6 @@
 import { ListFilter } from "lucide-react";
 
-import { Button, FiltersWithSearch, type Filter } from "@agh/ui";
+import { Button, FiltersWithSearch, type Filter } from "@compozy/ui";
 
 import {
   applyAutomationFilterChips,

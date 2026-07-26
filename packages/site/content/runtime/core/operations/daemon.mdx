@@ -1,32 +1,33 @@
 ---
 title: Daemon Operations
-description: Start, stop, restart, inspect, and supervise the AGH daemon.
+description: Start, stop, restart, inspect, and supervise the Compozy daemon.
 ---
 
-Use this guide when you need to run AGH as a long-lived daemon, inspect whether it is healthy, or
+Use this guide when you need to run Compozy as a long-lived daemon, inspect whether it is healthy, or
 install it under a service manager.
 
 <OperatorNote>
-  The daemon is the singleton runtime for one `COMPOZY_HOME`. By default `COMPOZY_HOME` is `~/.agh`;
-  set the environment variable before running `agh` when you want a different home directory.
+  The daemon is the singleton runtime for one `COMPOZY_HOME`. By default `COMPOZY_HOME` is
+  `~/.compozy`; set the environment variable before running `compozy` when you want a different home
+  directory.
 </OperatorNote>
 
 ## Start the daemon
 
-Start AGH in the background:
+Start Compozy in the background:
 
 ```bash
-agh daemon start
+compozy daemon start
 ```
 
 The CLI starts a detached child process, redirects the child stdout and stderr to
-`$COMPOZY_HOME/logs/agh.log`, and waits for daemon readiness. Readiness is checked by polling the daemon
+`$COMPOZY_HOME/logs/compozy.log`, and waits for daemon readiness. Readiness is checked by polling the daemon
 status API every 100 ms for up to 15 seconds.
 
 Use foreground mode when you are debugging startup or when a service manager should own the process:
 
 ```bash
-agh daemon start --foreground
+compozy daemon start --foreground
 ```
 
 Foreground mode keeps the daemon attached to the terminal. It exits when the process receives
@@ -34,25 +35,25 @@ Foreground mode keeps the daemon attached to the terminal. It exits when the pro
 
 ## Check status and health
 
-Use `agh status` for the process-level status:
+Use `compozy status` for the process-level status:
 
 ```bash
-agh status
-agh status --output json
+compozy status
+compozy status --output json
 ```
 
 The command first calls `/api/status` over the Unix domain socket. If the socket is not
 available, it falls back to `$COMPOZY_HOME/daemon.json` and verifies whether the recorded PID is alive.
 
-Use `agh doctor` for DiagnosticItem-backed runtime checks:
+Use `compozy doctor` for DiagnosticItem-backed runtime checks:
 
 ```bash
-agh doctor
-agh doctor --output json
+compozy doctor
+compozy doctor --output json
 ```
 
 The doctor command reports probe results with stable codes, severity, remediation text, and
-optional suggested commands. Use `agh status --output json` when an agent needs the raw runtime
+optional suggested commands. Use `compozy status --output json` when an agent needs the raw runtime
 health fields.
 
 If HTTP is enabled on the default host and port, the same data is available over HTTP:
@@ -64,15 +65,15 @@ curl -s http://localhost:2123/api/doctor | jq '.items'
 ```
 
 `GET /api/status` accepts either `workspace_id=<id>` or `workspace=<id|name|path>` when the caller
-needs skill diagnostics resolved for one workspace. Bare `agh status` remains the daemon-wide
+needs skill diagnostics resolved for one workspace. Bare `compozy status` remains the daemon-wide
 process view and does not infer a workspace.
 
 <Mermaid
   chart={`flowchart LR
-  CLI["agh status"] --> UDS["$COMPOZY_HOME/daemon.sock"]
+  CLI["compozy status"] --> UDS["$COMPOZY_HOME/daemon.sock"]
   UDS --> Status["/api/status"]
   CLI --> Fallback["daemon.json + PID check"]
-  Health["agh doctor"] --> Observe["/api/doctor"]
+  Health["compozy doctor"] --> Observe["/api/doctor"]
   HTTP["curl localhost:2123"] --> Status
   HTTP --> Observe`}
   caption="Status is live runtime truth; doctor is the diagnostic probe surface."
@@ -84,8 +85,8 @@ Inspect active ACP subprocess verdicts and their task-run consequence through th
 doctor surfaces:
 
 ```bash
-agh status -o json | jq '.subprocess_health, .tasks.run_totals'
-agh doctor --only runtime.subprocess_health -o json
+compozy status -o json | jq '.subprocess_health, .tasks.run_totals'
+compozy doctor --only runtime.subprocess_health -o json
 ```
 
 `status.subprocess_health` is `degraded` while an active session reports a failed verdict. The
@@ -100,25 +101,25 @@ transition, and terminal runs remain terminal. Recover a parked run through the 
 recovery surface after fixing the subprocess cause:
 
 ```bash
-agh task run recover <run-id> --reason "provider recovered" -o json
+compozy task run recover <run-id> --reason "provider recovered" -o json
 ```
 
 Set the threshold to `0` and restart the daemon to retain status and doctor evidence without changing
-task-run state. AGH does not restart the subprocess automatically.
+task-run state. Compozy does not restart the subprocess automatically.
 
 ## Drain new-work admission
 
-Drain AGH before maintenance that should let admitted prompts and claimed task runs finish without
+Drain Compozy before maintenance that should let admitted prompts and claimed task runs finish without
 accepting more work:
 
 ```bash
-agh drain -o json
-agh status -o json | jq '.daemon.status'
-agh doctor --only daemon -o json
+compozy drain -o json
+compozy status -o json | jq '.daemon.status'
+compozy doctor --only daemon -o json
 ```
 
-`agh drain` is idempotent and returns `{"state":"draining"}`. The same control is available as
-`POST /api/drain` over HTTP and UDS. While draining, AGH returns HTTP 503 with `daemon is draining;
+`compozy drain` is idempotent and returns `{"state":"draining"}`. The same control is available as
+`POST /api/drain` over HTTP and UDS. While draining, Compozy returns HTTP 503 with `daemon is draining;
 new work admission is closed` for new sessions, session restarts and prompts, task-run enqueue, and
 run claims. Task-run retry and recover are also rejected because they enqueue fresh child runs. Work
 admitted before the drain may finish; stop, interrupt, cancel, completion, failure, release,
@@ -131,10 +132,10 @@ persisted, and resets to active when the daemon starts again.
 Resume admission without restarting:
 
 ```bash
-agh undrain -o json
+compozy undrain -o json
 ```
 
-`agh undrain` is also idempotent and returns `{"state":"active"}`; HTTP and UDS expose the matching
+`compozy undrain` is also idempotent and returns `{"state":"active"}`; HTTP and UDS expose the matching
 `POST /api/undrain` route.
 
 ## Stop and restart the daemon
@@ -142,7 +143,7 @@ agh undrain -o json
 Stop the daemon cleanly:
 
 ```bash
-agh daemon stop
+compozy daemon stop
 ```
 
 The CLI reads `$COMPOZY_HOME/daemon.json`, verifies that the PID is alive, sends `SIGTERM`, and waits up
@@ -151,11 +152,11 @@ to 15 seconds for the daemon to disappear.
 Restart by stopping and starting:
 
 ```bash
-agh daemon stop
-agh daemon start
+compozy daemon stop
+compozy daemon start
 ```
 
-During daemon shutdown, AGH first closes new-work admission, then stops runtime workers, extensions, automation, active sessions, HTTP,
+During daemon shutdown, Compozy first closes new-work admission, then stops runtime workers, extensions, automation, active sessions, HTTP,
 UDS, bridges, network runtime, hooks, and then closes persistent resources. The default daemon
 shutdown context is 10 seconds.
 
@@ -165,21 +166,21 @@ Long-running tool work can create subprocesses outside the main agent process. E
 terminals, sandbox-backed terminals, hook subprocesses, managed extension processes, and shared
 subprocess helpers.
 
-AGH records those processes in the global database when they start, updates the record when ownership
+Compozy records those processes in the global database when they start, updates the record when ownership
 or state changes, and completes the record when the process exits. Each record stores bounded command
 metadata, owner IDs such as session, turn, terminal, hook, or extension, the daemon PID that created
 it, and PID start-time evidence when the process is local.
 
-On daemon boot, AGH reconciles active process records before it starts accepting runtime work:
+On daemon boot, Compozy reconciles active process records before it starts accepting runtime work:
 
 - records with a PID and matching start-time evidence remain active for scoped interruption
 - records whose PID evidence no longer matches are marked `stale`
 - records without reusable local PID evidence, such as remote sandbox terminals, are retired as
   stale after restart rather than signaled by PID
 
-This prevents AGH from killing an unrelated host process after PID reuse.
+This prevents Compozy from killing an unrelated host process after PID reuse.
 
-Prompt cancellation is also scoped. AGH first sends the ACP cooperative cancel for the active prompt,
+Prompt cancellation is also scoped. Compozy first sends the ACP cooperative cancel for the active prompt,
 then interrupts only registered tool processes owned by the same session turn. A terminal, hook, or
 extension process can also be interrupted by its recorded process scope. This is different from
 resetting the whole session: the registry targets the matching tool process and leaves unrelated
@@ -187,20 +188,20 @@ session work alone.
 
 ## Know the runtime files
 
-| File                         | Purpose                                                                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `$COMPOZY_HOME/daemon.lock`  | Advisory flock used to prevent two daemons from managing the same home directory.                      |
-| `$COMPOZY_HOME/daemon.json`  | Discovery file with PID, HTTP port, start time, and optional network diagnostics.                      |
-| `$COMPOZY_HOME/daemon.sock`  | Unix domain socket for local CLI and API traffic.                                                      |
-| `$COMPOZY_HOME/logs/agh.log` | Structured daemon log file and detached child stdout/stderr target.                                    |
-| `$COMPOZY_HOME/agh.db`       | Global SQLite catalog for sessions, workspaces, automation, bridges, extensions, tasks, and summaries. |
-| `$COMPOZY_HOME/sessions/`    | Per-session directories with event databases and metadata.                                             |
+| File                             | Purpose                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `$COMPOZY_HOME/daemon.lock`      | Advisory flock used to prevent two daemons from managing the same home directory.                      |
+| `$COMPOZY_HOME/daemon.json`      | Discovery file with PID, HTTP port, start time, and optional network diagnostics.                      |
+| `$COMPOZY_HOME/daemon.sock`      | Unix domain socket for local CLI and API traffic.                                                      |
+| `$COMPOZY_HOME/logs/compozy.log` | Structured daemon log file and detached child stdout/stderr target.                                    |
+| `$COMPOZY_HOME/compozy.db`       | Global SQLite catalog for sessions, workspaces, automation, bridges, extensions, tasks, and summaries. |
+| `$COMPOZY_HOME/sessions/`        | Per-session directories with event databases and metadata.                                             |
 
 See [File Locations](/runtime/core/configuration/file-locations) for the full home directory map.
 
 ## Understand the lock file
 
-AGH acquires `$COMPOZY_HOME/daemon.lock` before opening the global database or starting servers. The lock
+Compozy acquires `$COMPOZY_HOME/daemon.lock` before opening the global database or starting servers. The lock
 uses an operating-system advisory file lock and stores the daemon PID in the lock file.
 
 When another process already owns the lock, startup fails with a singleton error such as:
@@ -211,20 +212,20 @@ daemon: already running with pid 12345
 
 When the prior PID is stale, boot records that stale PID, removes the stale socket path, and tries to
 clean up orphan child processes whose parent was the old daemon PID. Do not delete `daemon.lock`
-while a daemon is alive; use `agh daemon stop` so AGH can shut down sessions and release the lock.
+while a daemon is alive; use `compozy daemon stop` so Compozy can shut down sessions and release the lock.
 
 ## Manage logs
 
 Tail the daemon log:
 
 ```bash
-export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.agh}"
-tail -f "$COMPOZY_HOME/logs/agh.log"
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+tail -f "$COMPOZY_HOME/logs/compozy.log"
 ```
 
 The default log level is `info`. Supported levels are `debug`, `info`, `warn`, and `error`; configure
 them in [config.toml](/runtime/core/configuration/config-toml). The same `[log]` section also
-controls daemon-owned rotation for `agh.log`.
+controls daemon-owned rotation for `compozy.log`.
 
 Detached startup appends child stdout and stderr to the same file. If the detached child exits before
 readiness, the CLI returns the recent log text and prefers a recent line beginning with `error:`.
@@ -251,20 +252,20 @@ Use foreground mode under systemd so systemd owns the daemon process directly:
 
 ```ini
 [Unit]
-Description=AGH daemon
+Description=Compozy daemon
 After=network.target
 
 [Service]
 Type=simple
-User=agh
-Group=agh
-Environment=COMPOZY_HOME=/var/lib/agh
-EnvironmentFile=-/etc/agh/agh.env
-ExecStart=/usr/local/bin/agh daemon start --foreground
-ExecStop=/usr/local/bin/agh daemon stop
+User=compozy
+Group=compozy
+Environment=COMPOZY_HOME=/var/lib/compozy
+EnvironmentFile=-/etc/compozy/compozy.env
+ExecStart=/usr/local/bin/compozy daemon start --foreground
+ExecStop=/usr/local/bin/compozy daemon stop
 Restart=on-failure
 RestartSec=3
-WorkingDirectory=/var/lib/agh
+WorkingDirectory=/var/lib/compozy
 
 [Install]
 WantedBy=multi-user.target
@@ -273,14 +274,14 @@ WantedBy=multi-user.target
 Install and start it:
 
 ```bash
-sudo install -d -o agh -g agh -m 0750 /var/lib/agh /etc/agh
+sudo install -d -o compozy -g compozy -m 0750 /var/lib/compozy /etc/compozy
 sudo systemctl daemon-reload
-sudo systemctl enable --now agh
-sudo systemctl status agh
+sudo systemctl enable --now compozy
+sudo systemctl status compozy
 ```
 
 Put path overrides, daemon environment variables, and any `env:` secrets used by
-`bound_secret` providers in `/etc/agh/agh.env`. Native ACP providers use the service user's own
+`bound_secret` providers in `/etc/compozy/compozy.env`. Native ACP providers use the service user's own
 CLI login/session state unless their provider config sets `home_policy = "isolated"`. Agent
 subprocesses receive the provider environment selected by `env_policy`.
 
@@ -295,11 +296,11 @@ On macOS, run the foreground command from a user LaunchAgent:
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>dev.agh.daemon</string>
+  <string>dev.compozy.daemon</string>
 
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/agh</string>
+    <string>/usr/local/bin/compozy</string>
     <string>daemon</string>
     <string>start</string>
     <string>--foreground</string>
@@ -308,7 +309,7 @@ On macOS, run the foreground command from a user LaunchAgent:
   <key>EnvironmentVariables</key>
   <dict>
     <key>COMPOZY_HOME</key>
-    <string>/Users/you/.agh</string>
+    <string>/Users/you/.compozy</string>
   </dict>
 
   <key>RunAtLoad</key>
@@ -316,9 +317,9 @@ On macOS, run the foreground command from a user LaunchAgent:
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/Users/you/.agh/logs/launchd.out.log</string>
+  <string>/Users/you/.compozy/logs/launchd.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/you/.agh/logs/launchd.err.log</string>
+  <string>/Users/you/.compozy/logs/launchd.err.log</string>
 </dict>
 </plist>
 ```
@@ -326,9 +327,9 @@ On macOS, run the foreground command from a user LaunchAgent:
 Load it:
 
 ```bash
-mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.agh/logs"
-launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/dev.agh.daemon.plist"
-launchctl print "gui/$(id -u)/dev.agh.daemon"
+mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.compozy/logs"
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/dev.compozy.daemon.plist"
+launchctl print "gui/$(id -u)/dev.compozy.daemon"
 ```
 
 ## Related pages

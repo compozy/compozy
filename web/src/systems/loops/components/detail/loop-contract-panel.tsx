@@ -1,5 +1,5 @@
-import type { PillTone } from "@agh/ui";
-import { Eyebrow, Section } from "@agh/ui";
+import type { PillTone } from "@compozy/ui";
+import { Eyebrow, Section } from "@compozy/ui";
 
 import { loopStatusLabel, loopStatusTone } from "../../lib/loop-formatters";
 import type { LoopContract, LoopContractVerification } from "../../types";

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, Download, Upload } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 
-import { Button, Spinner } from "@agh/ui";
+import { Button, Spinner } from "@compozy/ui";
 
 import { windowManagerConfigOptions } from "@/systems/os";
 import {

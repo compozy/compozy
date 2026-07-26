@@ -1,20 +1,20 @@
 ---
-title: "agh agent heartbeat rollback"
+title: "compozy agent heartbeat rollback"
 description: "Rollback HEARTBEAT.md to a managed revision or snapshot digest"
 ---
 
-## agh agent heartbeat rollback
+## compozy agent heartbeat rollback
 
 Rollback HEARTBEAT.md to a managed revision or snapshot digest
 
 ```
-agh agent heartbeat rollback <agent> [flags]
+compozy agent heartbeat rollback <agent> [flags]
 ```
 
 ### Examples
 
 ```
-  agh agent heartbeat rollback coder --revision-id rev_123 --expected-digest sha256:old --json
+  compozy agent heartbeat rollback coder --revision-id rev_123 --expected-digest sha256:old --json
 ```
 
 ### Options
@@ -38,7 +38,7 @@ agh agent heartbeat rollback <agent> [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -48,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent heartbeat rollback <agent> -o json
+compozy agent heartbeat rollback <agent> -o json
 ```

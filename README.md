@@ -20,7 +20,7 @@
 
 AGH is a local-first agent operating system. It runs the agent CLIs you already use — Claude Code, OpenClaw, Hermes, and others — as durable, inspectable sessions managed by a single background daemon, and connects them on the open `compozy-network/v0` so sessions can discover peers, share capabilities, and close work with receipts.
 
-The complete documentation lives at [agh.network](https://agh.network).
+The complete documentation lives at [compozy.com](https://compozy.com).
 
 <div align="center">
   <img src="docs/design/screen.png" alt="AGH" width="100%">
@@ -37,7 +37,7 @@ The complete documentation lives at [agh.network](https://agh.network).
 ## Install
 
 ```bash
-curl -fsSL https://agh.network/install.sh | sh
+curl -fsSL https://compozy.com/install.sh | sh
 ```
 
 Homebrew:
@@ -58,27 +58,27 @@ Go:
 go install github.com/compozy/agh@latest
 ```
 
-The full [Installation guide](https://agh.network/runtime/core/getting-started/installation) covers the verified binary installer, Linux packages, and source builds.
+The full [Installation guide](https://compozy.com/runtime/core/getting-started/installation) covers the verified binary installer, Linux packages, and source builds.
 
 ## Quick start
 
 ```bash
-agh install
-agh daemon start
-agh workspace add "$PWD" --name current
-agh session new --workspace current --agent general
+compozy install
+compozy daemon start
+compozy workspace add "$PWD" --name current
+compozy session new --workspace current --agent general
 ```
 
-See the [Quick Start](https://agh.network/runtime/core/getting-started/quick-start) for the full walkthrough.
+See the [Quick Start](https://compozy.com/runtime/core/getting-started/quick-start) for the full walkthrough.
 
 ## Documentation
 
-- [Runtime overview](https://agh.network/runtime)
-- [Installation](https://agh.network/runtime/core/getting-started/installation)
-- [Quick Start](https://agh.network/runtime/core/getting-started/quick-start)
-- [CLI reference](https://agh.network/runtime/cli-reference)
-- [Extensions](https://agh.network/runtime/core/extensions)
-- [AGH Network protocol](https://agh.network/protocol)
+- [Runtime overview](https://compozy.com/runtime)
+- [Installation](https://compozy.com/runtime/core/getting-started/installation)
+- [Quick Start](https://compozy.com/runtime/core/getting-started/quick-start)
+- [CLI reference](https://compozy.com/runtime/cli-reference)
+- [Extensions](https://compozy.com/runtime/core/extensions)
+- [AGH Network protocol](https://compozy.com/protocol)
 - [GitHub releases](https://github.com/compozy/agh/releases)
 
 ## Development

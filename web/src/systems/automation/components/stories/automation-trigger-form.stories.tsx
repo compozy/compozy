@@ -10,7 +10,7 @@ import {
   storyWorkspaceNames,
 } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { createAutomationTriggerDraft } from "@/systems/automation";
 import type { CreateAutomationTriggerRequest } from "@/systems/automation";
@@ -162,7 +162,7 @@ export const WorkspaceLoopTarget: Story = {
   args: {},
   parameters: storybookMswParameters({
     loops: [
-      aghApiMock.get("/api/workspaces/{workspace_id}/loops", () => {
+      compozyApiMock.get("/api/workspaces/{workspace_id}/loops", () => {
         const reviewsWatch = loopCatalogFixtures.find(loop => loop.name === "reviews-watch");
         if (!reviewsWatch) {
           return HttpResponse.json(

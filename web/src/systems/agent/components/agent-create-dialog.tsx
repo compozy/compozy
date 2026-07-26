@@ -13,7 +13,7 @@ import {
   EntityModeToolbar,
   PillGroup,
   type EntityMode,
-} from "@agh/ui";
+} from "@compozy/ui";
 
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import { WorkspaceCommandSelect, type WorkspaceCommandSelectOption } from "@/systems/workspace";

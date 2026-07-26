@@ -3,9 +3,9 @@ import { absoluteUrl, canonicalPath, createPageMetadata, siteConfig } from "../s
 
 describe("site config metadata helpers", () => {
   it("builds absolute URLs and canonical paths consistently", () => {
-    expect(siteConfig.url).toBe("https://agh.network");
-    expect(absoluteUrl("/runtime")).toBe("https://agh.network/runtime");
-    expect(absoluteUrl("/runtime/")).toBe("https://agh.network/runtime/");
+    expect(siteConfig.url).toBe("https://compozy.com");
+    expect(absoluteUrl("/runtime")).toBe("https://compozy.com/runtime");
+    expect(absoluteUrl("/runtime/")).toBe("https://compozy.com/runtime/");
     expect(canonicalPath()).toBe("/");
     expect(canonicalPath("")).toBe("/");
     expect(canonicalPath("/")).toBe("/");
@@ -29,14 +29,14 @@ describe("site config metadata helpers", () => {
       openGraph: {
         title: "Runtime Overview",
         description: siteConfig.description,
-        url: "https://agh.network/runtime/",
-        siteName: "AGH",
+        url: "https://compozy.com/runtime/",
+        siteName: "Compozy",
         images: [
           {
             url: "/og/runtime/image.png",
             width: 1200,
             height: 630,
-            alt: "Runtime Overview | AGH",
+            alt: "Runtime Overview | Compozy",
           },
         ],
       },
@@ -50,13 +50,13 @@ describe("site config metadata helpers", () => {
   });
 
   it("falls back to static OG image for the home page", () => {
-    const metadata = createPageMetadata({ title: "AGH", path: "/" });
+    const metadata = createPageMetadata({ title: "Compozy", path: "/" });
     expect(metadata.openGraph.images).toEqual([
       {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "AGH | AGH",
+        alt: "Compozy | Compozy",
       },
     ]);
   });
@@ -73,24 +73,24 @@ describe("site config metadata helpers", () => {
   it("preserves page descriptions and custom social images", () => {
     const metadata = createPageMetadata({
       title: "Launch Post",
-      description: "A public alpha announcement for AGH.",
+      description: "A public alpha announcement for Compozy.",
       path: "/blog/launch",
       image: {
         url: "/static/blog/launch.png",
-        alt: "AGH launch cover",
+        alt: "Compozy launch cover",
         width: 1600,
         height: 1000,
       },
     });
 
-    expect(metadata.description).toBe("A public alpha announcement for AGH.");
+    expect(metadata.description).toBe("A public alpha announcement for Compozy.");
     expect(metadata.alternates.canonical).toBe("/blog/launch/");
-    expect(metadata.openGraph.description).toBe("A public alpha announcement for AGH.");
-    expect(metadata.openGraph.url).toBe("https://agh.network/blog/launch/");
+    expect(metadata.openGraph.description).toBe("A public alpha announcement for Compozy.");
+    expect(metadata.openGraph.url).toBe("https://compozy.com/blog/launch/");
     expect(metadata.openGraph.images).toEqual([
       {
         url: "/static/blog/launch.png",
-        alt: "AGH launch cover",
+        alt: "Compozy launch cover",
         width: 1600,
         height: 1000,
       },

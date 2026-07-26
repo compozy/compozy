@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Button, Panel, Pill, Section } from "@agh/ui";
+import { Button, Panel, Pill, Section } from "@compozy/ui";
 
 import type { HomeNetworkRow } from "../lib/home-network";
 

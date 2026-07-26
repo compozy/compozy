@@ -1,14 +1,14 @@
 ---
-title: "agh loop"
+title: "compozy loop"
 description: "Manage Loop definitions and runs"
 ---
 
-## agh loop
+## compozy loop
 
 Manage Loop definitions and runs
 
 ```
-agh loop [flags]
+compozy loop [flags]
 ```
 
 ### Options
@@ -26,7 +26,7 @@ agh loop [flags]
 
 ## Output Formats
 
-Every AGH command supports `-o, --output`:
+Every Compozy command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
@@ -36,25 +36,25 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh loop -o json
+compozy loop -o json
 ```
 
 ## Subcommands
 
-| Command                                                     | Description                                       |
-| ----------------------------------------------------------- | ------------------------------------------------- |
-| [agh loop approve](/runtime/cli-reference/loop/approve)     | Apply one Loop human-gate decision                |
-| [agh loop configure](/runtime/cli-reference/loop/configure) | Write per-loop runtime config overrides           |
-| [agh loop create](/runtime/cli-reference/loop/create)       | Create, fork, or publish one Loop definition      |
-| [agh loop delete](/runtime/cli-reference/loop/delete)       | Delete one user-authored Loop definition          |
-| [agh loop edit](/runtime/cli-reference/loop/edit)           | Edit and publish one Loop definition with $EDITOR |
-| [agh loop inspect](/runtime/cli-reference/loop/inspect)     | Inspect one Loop definition                       |
-| [agh loop list](/runtime/cli-reference/loop/list)           | List Loop definitions                             |
-| [agh loop pause](/runtime/cli-reference/loop/pause)         | Pause one Loop run                                |
-| [agh loop resume](/runtime/cli-reference/loop/resume)       | Resume one Loop run                               |
-| [agh loop run](/runtime/cli-reference/loop/run)             | Start or dry-run one Loop                         |
-| [agh loop runs](/runtime/cli-reference/loop/runs)           | List workspace Loop runs                          |
-| [agh loop status](/runtime/cli-reference/loop/status)       | Inspect one Loop run                              |
-| [agh loop stop](/runtime/cli-reference/loop/stop)           | Stop one Loop run                                 |
-| [agh loop turns](/runtime/cli-reference/loop/turns)         | List one Loop run's Goal turn audit               |
-| [agh loop validate](/runtime/cli-reference/loop/validate)   | Validate one Loop definition without saving       |
+| Command                                                         | Description                                       |
+| --------------------------------------------------------------- | ------------------------------------------------- |
+| [compozy loop approve](/runtime/cli-reference/loop/approve)     | Apply one Loop human-gate decision                |
+| [compozy loop configure](/runtime/cli-reference/loop/configure) | Write per-loop runtime config overrides           |
+| [compozy loop create](/runtime/cli-reference/loop/create)       | Create, fork, or publish one Loop definition      |
+| [compozy loop delete](/runtime/cli-reference/loop/delete)       | Delete one user-authored Loop definition          |
+| [compozy loop edit](/runtime/cli-reference/loop/edit)           | Edit and publish one Loop definition with $EDITOR |
+| [compozy loop inspect](/runtime/cli-reference/loop/inspect)     | Inspect one Loop definition                       |
+| [compozy loop list](/runtime/cli-reference/loop/list)           | List Loop definitions                             |
+| [compozy loop pause](/runtime/cli-reference/loop/pause)         | Pause one Loop run                                |
+| [compozy loop resume](/runtime/cli-reference/loop/resume)       | Resume one Loop run                               |
+| [compozy loop run](/runtime/cli-reference/loop/run)             | Start or dry-run one Loop                         |
+| [compozy loop runs](/runtime/cli-reference/loop/runs)           | List workspace Loop runs                          |
+| [compozy loop status](/runtime/cli-reference/loop/status)       | Inspect one Loop run                              |
+| [compozy loop stop](/runtime/cli-reference/loop/stop)           | Stop one Loop run                                 |
+| [compozy loop turns](/runtime/cli-reference/loop/turns)         | List one Loop run's Goal turn audit               |
+| [compozy loop validate](/runtime/cli-reference/loop/validate)   | Validate one Loop definition without saving       |
