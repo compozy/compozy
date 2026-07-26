@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -235,6 +236,48 @@ func TestWriteConfigRoundTripsDefaultsWithoutEmptySections(t *testing.T) {
 	if loaded.Defaults.Model == nil || *loaded.Defaults.Model != "gpt-5.4" {
 		t.Fatalf("unexpected loaded defaults.model: %#v", loaded.Defaults.Model)
 	}
+}
+
+func TestWriteConfigRoundTripsSpeed(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".compozy", "config.toml")
+	cfg := ProjectConfig{
+		Defaults: DefaultsConfig{
+			Speed: ptrString("normal"),
+		},
+		Exec: ExecConfig{
+			RuntimeOverrides: RuntimeOverrides{
+				Speed: ptrString("fast"),
+			},
+		},
+	}
+
+	if err := WriteConfig(context.Background(), configPath, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	rendered := string(content)
+	if !strings.Contains(rendered, "[defaults]") ||
+		!strings.Contains(rendered, "[exec]") ||
+		strings.Count(rendered, "speed = ") != 2 {
+		t.Fatalf("expected defaults and exec speed values in rendered config, got:\n%s", rendered)
+	}
+
+	loaded, exists, err := LoadConfigFile(context.Background(), configPath)
+	if err != nil {
+		t.Fatalf("load config file: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected written config file to exist")
+	}
+	assertOptionalString(t, "defaults.speed", loaded.Defaults.Speed, ptrString("normal"))
+	assertOptionalString(t, "exec.speed", loaded.Exec.Speed, ptrString("fast"))
 }
 
 func TestLoadConfigRejectsUnknownFields(t *testing.T) {
@@ -1606,6 +1649,203 @@ ide = "cursor-agent"
 	}
 }
 
+func TestLoadConfigAcceptsCanonicalSpeedValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		content     string
+		wantDefault *string
+		wantExec    *string
+	}{
+		{
+			name: "normal under defaults",
+			content: `
+[defaults]
+speed = "normal"
+`,
+			wantDefault: ptrString("normal"),
+		},
+		{
+			name: "fast under defaults",
+			content: `
+[defaults]
+speed = "fast"
+`,
+			wantDefault: ptrString("fast"),
+		},
+		{
+			name: "normal under exec",
+			content: `
+[exec]
+speed = "normal"
+`,
+			wantExec: ptrString("normal"),
+		},
+		{
+			name: "fast under exec",
+			content: `
+[exec]
+speed = "fast"
+`,
+			wantExec: ptrString("fast"),
+		},
+		{
+			name: "omitted speed stays nil",
+			content: `
+[sound]
+enabled = false
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+			configPath := filepath.Join(root, ".compozy", "config.toml")
+			cfg, exists, err := LoadConfigFile(context.Background(), configPath)
+			if err != nil {
+				t.Fatalf("load config file: %v", err)
+			}
+			if !exists {
+				t.Fatal("expected config file to exist")
+			}
+			assertOptionalString(t, "defaults.speed", cfg.Defaults.Speed, tt.wantDefault)
+			assertOptionalString(t, "exec.speed", cfg.Exec.Speed, tt.wantExec)
+		})
+	}
+}
+
+func TestLoadConfigRejectsInvalidSpeedWithExactScopedPath(t *testing.T) {
+	scopes := []struct {
+		name  string
+		label string
+		load  func(*testing.T, string, string) error
+	}{
+		{
+			name:  "workspace",
+			label: workspaceConfigScope,
+			load: func(t *testing.T, section string, value string) error {
+				t.Helper()
+				isolateWorkspaceConfigHome(t)
+				root := t.TempDir()
+				writeWorkspaceConfig(t, root, fmt.Sprintf("[%s]\nspeed = %q\n", section, value))
+				_, _, err := LoadConfig(context.Background(), root)
+				return err
+			},
+		},
+		{
+			name:  "global",
+			label: globalConfigScope,
+			load: func(t *testing.T, section string, value string) error {
+				t.Helper()
+				homeDir := isolateWorkspaceConfigHome(t)
+				root := t.TempDir()
+				writeGlobalConfig(t, homeDir, fmt.Sprintf("[%s]\nspeed = %q\n", section, value))
+				_, _, err := LoadConfig(context.Background(), root)
+				return err
+			},
+		},
+		{
+			name:  "effective",
+			label: effectiveConfigScope,
+			load: func(t *testing.T, section string, value string) error {
+				t.Helper()
+
+				var cfg ProjectConfig
+				if section == "defaults" {
+					cfg.Defaults.Speed = ptrString(value)
+				} else {
+					cfg.Exec.Speed = ptrString(value)
+				}
+				return cfg.validate(effectiveConfigScope)
+			},
+		},
+	}
+	sections := []string{"defaults", "exec"}
+	values := []string{"", "   ", "turbo"}
+
+	for _, scope := range scopes {
+		for _, section := range sections {
+			for _, value := range values {
+				name := fmt.Sprintf("%s/%s/%q", scope.name, section, value)
+				t.Run(name, func(t *testing.T) {
+					err := scope.load(t, section, value)
+					if err == nil {
+						t.Fatal("expected invalid speed error")
+					}
+					wantPath := fmt.Sprintf("%s %s.speed", scope.label, section)
+					wantErr := fmt.Sprintf(
+						"%s must be %q or %q (got %q)",
+						wantPath,
+						"normal",
+						"fast",
+						strings.TrimSpace(value),
+					)
+					if err.Error() != wantErr {
+						t.Fatalf("unexpected error\nwant: %q\ngot:  %q", wantErr, err)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestLoadConfigRejectsChildSpecificSpeedFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "recovery",
+			content: `
+[recovery]
+speed = "fast"
+`,
+		},
+		{
+			name: "conflict resolver",
+			content: `
+[tasks.run.parallel.conflict_resolver]
+speed = "fast"
+`,
+		},
+		{
+			name: "task runtime rule",
+			content: `
+[[tasks.run.task_runtime_rules]]
+type = "backend"
+speed = "fast"
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+			configPath := filepath.Join(root, ".compozy", "config.toml")
+			_, _, err := LoadConfigFile(context.Background(), configPath)
+			if err == nil {
+				t.Fatal("expected child-specific speed field to be rejected")
+			}
+			wantErr := "decode workspace config: strict mode: fields in the document are missing in the target struct"
+			if err.Error() != wantErr {
+				t.Fatalf("unexpected error\nwant: %q\ngot:  %q", wantErr, err)
+			}
+		})
+	}
+}
+
 func TestLoadConfigRejectsInvalidFixReviewsValues(t *testing.T) {
 	t.Parallel()
 
@@ -2070,6 +2310,138 @@ output_format = "text"
 	}
 	if cfg.Exec.Verbose == nil || !*cfg.Exec.Verbose {
 		t.Fatalf("expected global exec.verbose to remain available, got %#v", cfg.Exec.Verbose)
+	}
+}
+
+func TestLoadConfigMergesSpeedPrecedence(t *testing.T) {
+	tests := []struct {
+		name            string
+		global          string
+		workspace       string
+		wantDefault     *string
+		wantExecOverlay *string
+		wantExec        *string
+	}{
+		{
+			name: "workspace exec overrides every lower layer",
+			global: `
+[defaults]
+speed = "fast"
+
+[exec]
+speed = "normal"
+`,
+			workspace: `
+[defaults]
+speed = "normal"
+
+[exec]
+speed = "fast"
+`,
+			wantDefault:     ptrString("normal"),
+			wantExecOverlay: ptrString("fast"),
+			wantExec:        ptrString("fast"),
+		},
+		{
+			name: "workspace default shadows global exec",
+			global: `
+[defaults]
+speed = "normal"
+
+[exec]
+speed = "fast"
+`,
+			workspace: `
+[defaults]
+speed = "normal"
+`,
+			wantDefault: ptrString("normal"),
+			wantExec:    ptrString("normal"),
+		},
+		{
+			name: "omitted workspace speed preserves global exec",
+			global: `
+[defaults]
+speed = "normal"
+
+[exec]
+speed = "fast"
+`,
+			workspace: `
+[sound]
+enabled = false
+`,
+			wantDefault:     ptrString("normal"),
+			wantExecOverlay: ptrString("fast"),
+			wantExec:        ptrString("fast"),
+		},
+		{
+			name: "global default applies when command speeds are omitted",
+			global: `
+[defaults]
+speed = "fast"
+`,
+			workspace: `
+[sound]
+enabled = false
+`,
+			wantDefault: ptrString("fast"),
+			wantExec:    ptrString("fast"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			homeDir := isolateWorkspaceConfigHome(t)
+			root := t.TempDir()
+			writeGlobalConfig(t, homeDir, tt.global)
+			writeWorkspaceConfig(t, root, tt.workspace)
+
+			cfg, _, err := LoadConfig(context.Background(), root)
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			assertOptionalString(t, "defaults.speed", cfg.Defaults.Speed, tt.wantDefault)
+			assertOptionalString(t, "exec.speed", cfg.Exec.Speed, tt.wantExecOverlay)
+
+			execSpeed := cfg.Exec.Speed
+			if execSpeed == nil {
+				execSpeed = cfg.Defaults.Speed
+			}
+			assertOptionalString(t, "effective exec speed", execSpeed, tt.wantExec)
+		})
+	}
+}
+
+func TestBuildEffectiveProjectConfigClonesSpeedPointers(t *testing.T) {
+	t.Parallel()
+
+	globalDefault := "normal"
+	workspaceExec := "fast"
+	global := ProjectConfig{
+		Defaults: DefaultsConfig{
+			Speed: &globalDefault,
+		},
+	}
+	workspace := ProjectConfig{
+		Exec: ExecConfig{
+			RuntimeOverrides: RuntimeOverrides{
+				Speed: &workspaceExec,
+			},
+		},
+	}
+
+	effective := buildEffectiveProjectConfig(global, workspace)
+	globalDefault = "fast"
+	workspaceExec = "normal"
+
+	assertOptionalString(t, "defaults.speed", effective.Defaults.Speed, ptrString("normal"))
+	assertOptionalString(t, "exec.speed", effective.Exec.Speed, ptrString("fast"))
+	if effective.Defaults.Speed == global.Defaults.Speed {
+		t.Fatal("effective defaults.speed aliases global source pointer")
+	}
+	if effective.Exec.Speed == workspace.Exec.Speed {
+		t.Fatal("effective exec.speed aliases workspace source pointer")
 	}
 }
 

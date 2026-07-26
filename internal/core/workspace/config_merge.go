@@ -121,77 +121,97 @@ func buildEffectiveExecConfig(
 	workspace ExecConfig,
 ) ExecConfig {
 	return ExecConfig{
-		RuntimeOverrides: RuntimeOverrides{
-			IDE: effectiveCommandOverride(
-				globalDefaults.IDE,
-				global.IDE,
-				workspaceDefaults.IDE,
-				workspace.IDE,
-			),
-			Model: effectiveCommandOverride(
-				globalDefaults.Model,
-				global.Model,
-				workspaceDefaults.Model,
-				workspace.Model,
-			),
-			OutputFormat: effectiveCommandOverride(
-				globalDefaults.OutputFormat,
-				global.OutputFormat,
-				workspaceDefaults.OutputFormat,
-				workspace.OutputFormat,
-			),
-			ReasoningEffort: effectiveCommandOverride(
-				globalDefaults.ReasoningEffort,
-				global.ReasoningEffort,
-				workspaceDefaults.ReasoningEffort,
-				workspace.ReasoningEffort,
-			),
-			AccessMode: effectiveCommandOverride(
-				globalDefaults.AccessMode,
-				global.AccessMode,
-				workspaceDefaults.AccessMode,
-				workspace.AccessMode,
-			),
-			Timeout: effectiveCommandOverride(
-				globalDefaults.Timeout,
-				global.Timeout,
-				workspaceDefaults.Timeout,
-				workspace.Timeout,
-			),
-			TailLines: effectiveCommandOverride(
-				globalDefaults.TailLines,
-				global.TailLines,
-				workspaceDefaults.TailLines,
-				workspace.TailLines,
-			),
-			AddDirs: effectiveCommandSliceOverride(
-				globalDefaults.AddDirs,
-				global.AddDirs,
-				workspaceDefaults.AddDirs,
-				workspace.AddDirs,
-			),
-			AutoCommit: effectiveCommandOverride(
-				globalDefaults.AutoCommit,
-				global.AutoCommit,
-				workspaceDefaults.AutoCommit,
-				workspace.AutoCommit,
-			),
-			MaxRetries: effectiveCommandOverride(
-				globalDefaults.MaxRetries,
-				global.MaxRetries,
-				workspaceDefaults.MaxRetries,
-				workspace.MaxRetries,
-			),
-			RetryBackoffMultiplier: effectiveCommandOverride(
-				globalDefaults.RetryBackoffMultiplier,
-				global.RetryBackoffMultiplier,
-				workspaceDefaults.RetryBackoffMultiplier,
-				workspace.RetryBackoffMultiplier,
-			),
-		},
+		RuntimeOverrides: buildEffectiveExecRuntimeOverrides(
+			globalDefaults,
+			global,
+			workspaceDefaults,
+			workspace,
+		),
 		Verbose: cloneOptionalValue(preferOverlay(global.Verbose, workspace.Verbose)),
 		TUI:     cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
 		Persist: cloneOptionalValue(preferOverlay(global.Persist, workspace.Persist)),
+	}
+}
+
+func buildEffectiveExecRuntimeOverrides(
+	globalDefaults DefaultsConfig,
+	global ExecConfig,
+	workspaceDefaults DefaultsConfig,
+	workspace ExecConfig,
+) RuntimeOverrides {
+	return RuntimeOverrides{
+		IDE: effectiveCommandOverride(
+			globalDefaults.IDE,
+			global.IDE,
+			workspaceDefaults.IDE,
+			workspace.IDE,
+		),
+		Model: effectiveCommandOverride(
+			globalDefaults.Model,
+			global.Model,
+			workspaceDefaults.Model,
+			workspace.Model,
+		),
+		OutputFormat: effectiveCommandOverride(
+			globalDefaults.OutputFormat,
+			global.OutputFormat,
+			workspaceDefaults.OutputFormat,
+			workspace.OutputFormat,
+		),
+		ReasoningEffort: effectiveCommandOverride(
+			globalDefaults.ReasoningEffort,
+			global.ReasoningEffort,
+			workspaceDefaults.ReasoningEffort,
+			workspace.ReasoningEffort,
+		),
+		Speed: effectiveCommandOverride(
+			globalDefaults.Speed,
+			global.Speed,
+			workspaceDefaults.Speed,
+			workspace.Speed,
+		),
+		AccessMode: effectiveCommandOverride(
+			globalDefaults.AccessMode,
+			global.AccessMode,
+			workspaceDefaults.AccessMode,
+			workspace.AccessMode,
+		),
+		Timeout: effectiveCommandOverride(
+			globalDefaults.Timeout,
+			global.Timeout,
+			workspaceDefaults.Timeout,
+			workspace.Timeout,
+		),
+		TailLines: effectiveCommandOverride(
+			globalDefaults.TailLines,
+			global.TailLines,
+			workspaceDefaults.TailLines,
+			workspace.TailLines,
+		),
+		AddDirs: effectiveCommandSliceOverride(
+			globalDefaults.AddDirs,
+			global.AddDirs,
+			workspaceDefaults.AddDirs,
+			workspace.AddDirs,
+		),
+		AutoCommit: effectiveCommandOverride(
+			globalDefaults.AutoCommit,
+			global.AutoCommit,
+			workspaceDefaults.AutoCommit,
+			workspace.AutoCommit,
+		),
+		MaxRetries: effectiveCommandOverride(
+			globalDefaults.MaxRetries,
+			global.MaxRetries,
+			workspaceDefaults.MaxRetries,
+			workspace.MaxRetries,
+		),
+		RetryBackoffMultiplier: effectiveCommandOverride(
+			globalDefaults.RetryBackoffMultiplier,
+			global.RetryBackoffMultiplier,
+			workspaceDefaults.RetryBackoffMultiplier,
+			workspace.RetryBackoffMultiplier,
+		),
 	}
 }
 
@@ -307,6 +327,7 @@ func mergeRuntimeOverrides(base, overlay RuntimeOverrides) RuntimeOverrides {
 		Model:           cloneOptionalValue(preferOverlay(base.Model, overlay.Model)),
 		OutputFormat:    cloneOptionalValue(preferOverlay(base.OutputFormat, overlay.OutputFormat)),
 		ReasoningEffort: cloneOptionalValue(preferOverlay(base.ReasoningEffort, overlay.ReasoningEffort)),
+		Speed:           cloneOptionalValue(preferOverlay(base.Speed, overlay.Speed)),
 		AccessMode:      cloneOptionalValue(preferOverlay(base.AccessMode, overlay.AccessMode)),
 		Timeout:         cloneOptionalValue(preferOverlay(base.Timeout, overlay.Timeout)),
 		TailLines:       cloneOptionalValue(preferOverlay(base.TailLines, overlay.TailLines)),

@@ -51,6 +51,7 @@ type RuntimeOverrides struct {
 	Model                  *string   `toml:"model,omitempty"`
 	OutputFormat           *string   `toml:"output_format,omitempty"`
 	ReasoningEffort        *string   `toml:"reasoning_effort,omitempty"`
+	Speed                  *string   `toml:"speed,omitempty"`
 	AccessMode             *string   `toml:"access_mode,omitempty"`
 	Timeout                *string   `toml:"timeout,omitempty"`
 	TailLines              *int      `toml:"tail_lines,omitempty"`

@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 const (
@@ -504,6 +505,7 @@ func validateRuntimeOverrides(scope, section string, cfg RuntimeOverrides) error
 		validateRuntimeIDE,
 		validateRuntimeOutputFormat,
 		validateRuntimeReasoningEffort,
+		validateRuntimeSpeed,
 		validateRuntimeAccessMode,
 		validateRuntimeTimeout,
 		validateRuntimeTailLines,
@@ -537,6 +539,25 @@ func validateRuntimeOutputFormat(scope, section string, cfg RuntimeOverrides) er
 
 func validateRuntimeReasoningEffort(scope, section string, cfg RuntimeOverrides) error {
 	return validateReasoningEffortValue(runtimeFieldName(scope, section, "reasoning_effort"), cfg.ReasoningEffort)
+}
+
+func validateRuntimeSpeed(scope, section string, cfg RuntimeOverrides) error {
+	if cfg.Speed == nil {
+		return nil
+	}
+	value := strings.TrimSpace(*cfg.Speed)
+	switch kinds.Speed(value) {
+	case kinds.SpeedNormal, kinds.SpeedFast:
+		return nil
+	default:
+		return fmt.Errorf(
+			"%s must be %q or %q (got %q)",
+			runtimeFieldName(scope, section, "speed"),
+			kinds.SpeedNormal,
+			kinds.SpeedFast,
+			value,
+		)
+	}
 }
 
 func validateRuntimeAccessMode(scope, section string, cfg RuntimeOverrides) error {
