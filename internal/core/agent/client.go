@@ -18,6 +18,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/subprocess"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 // Client manages an ACP agent subprocess and creates sessions.
@@ -40,6 +41,21 @@ type Client interface {
 	Kill() error
 }
 
+// AtomicClient is the temporary migration contract for client-owned pre-prompt setup.
+// Atomic callers must not fall back to Client's legacy session-start methods.
+type AtomicClient interface {
+	// CreateSessionAtomic starts a new session after applying model and speed.
+	CreateSessionAtomic(ctx context.Context, req SessionRequest) (SessionStart, error)
+	// ResumeSessionAtomic resumes a session after reapplying model and speed.
+	ResumeSessionAtomic(ctx context.Context, req ResumeSessionRequest) (SessionStart, error)
+}
+
+// SessionStart contains the usable session and canonical speed resolution.
+type SessionStart struct {
+	Session Session
+	Speed   kinds.SpeedResolution
+}
+
 // ClientConfig describes how to bootstrap an ACP agent process.
 type ClientConfig struct {
 	IDE             string
@@ -56,6 +72,7 @@ type SessionRequest struct {
 	Prompt       []byte               `json:"prompt,omitempty"`
 	WorkingDir   string               `json:"working_dir,omitempty"`
 	Model        string               `json:"model,omitempty"`
+	Speed        kinds.Speed          `json:"speed,omitempty"`
 	MCPServers   []model.MCPServer    `json:"mcp_servers,omitempty"`
 	ExtraEnv     map[string]string    `json:"extra_env,omitempty"`
 	Context      context.Context      `json:"-"`
@@ -71,6 +88,7 @@ type ResumeSessionRequest struct {
 	Prompt       []byte               `json:"prompt,omitempty"`
 	WorkingDir   string               `json:"working_dir,omitempty"`
 	Model        string               `json:"model,omitempty"`
+	Speed        kinds.Speed          `json:"speed,omitempty"`
 	MCPServers   []model.MCPServer    `json:"mcp_servers,omitempty"`
 	ExtraEnv     map[string]string    `json:"extra_env,omitempty"`
 	Context      context.Context      `json:"-"`
@@ -91,6 +109,7 @@ type sessionRequestJSON struct {
 	Prompt     string            `json:"prompt,omitempty"`
 	WorkingDir string            `json:"working_dir,omitempty"`
 	Model      string            `json:"model,omitempty"`
+	Speed      kinds.Speed       `json:"speed,omitempty"`
 	MCPServers []model.MCPServer `json:"mcp_servers,omitempty"`
 	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
 }
@@ -100,6 +119,7 @@ type resumeSessionRequestJSON struct {
 	Prompt     string            `json:"prompt,omitempty"`
 	WorkingDir string            `json:"working_dir,omitempty"`
 	Model      string            `json:"model,omitempty"`
+	Speed      kinds.Speed       `json:"speed,omitempty"`
 	MCPServers []model.MCPServer `json:"mcp_servers,omitempty"`
 	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
 }
@@ -109,6 +129,7 @@ func (r SessionRequest) MarshalJSON() ([]byte, error) {
 		Prompt:     string(r.Prompt),
 		WorkingDir: r.WorkingDir,
 		Model:      r.Model,
+		Speed:      r.Speed,
 		MCPServers: r.MCPServers,
 		ExtraEnv:   r.ExtraEnv,
 	})
@@ -130,6 +151,7 @@ func (r *SessionRequest) UnmarshalJSON(data []byte) error {
 	}
 	r.WorkingDir = payload.WorkingDir
 	r.Model = payload.Model
+	r.Speed = payload.Speed
 	r.MCPServers = payload.MCPServers
 	r.ExtraEnv = payload.ExtraEnv
 	return nil
@@ -141,6 +163,7 @@ func (r ResumeSessionRequest) MarshalJSON() ([]byte, error) {
 		Prompt:     string(r.Prompt),
 		WorkingDir: r.WorkingDir,
 		Model:      r.Model,
+		Speed:      r.Speed,
 		MCPServers: r.MCPServers,
 		ExtraEnv:   r.ExtraEnv,
 	})
@@ -163,6 +186,7 @@ func (r *ResumeSessionRequest) UnmarshalJSON(data []byte) error {
 	}
 	r.WorkingDir = payload.WorkingDir
 	r.Model = payload.Model
+	r.Speed = payload.Speed
 	r.MCPServers = payload.MCPServers
 	r.ExtraEnv = payload.ExtraEnv
 	return nil
@@ -237,6 +261,10 @@ const (
 	SessionSetupStageLoadSession SessionSetupStage = "load_session"
 	// SessionSetupStageSetMode indicates that ACP session mode configuration failed.
 	SessionSetupStageSetMode SessionSetupStage = "set_mode"
+	// SessionSetupStageSetModel indicates that ACP model configuration failed.
+	SessionSetupStageSetModel SessionSetupStage = "set_model"
+	// SessionSetupStageSetSpeed indicates that ACP speed configuration failed.
+	SessionSetupStageSetSpeed SessionSetupStage = "set_speed"
 )
 
 // SessionSetupError wraps an ACP setup failure with its stage for retry classification.
@@ -314,6 +342,7 @@ type clientImpl struct {
 }
 
 var _ Client = (*clientImpl)(nil)
+var _ AtomicClient = (*clientImpl)(nil)
 var _ acp.Client = (*clientImpl)(nil)
 
 // NewClient constructs a Compozy ACP client wrapper for the configured agent runtime.
@@ -339,22 +368,33 @@ func NewClient(_ context.Context, cfg ClientConfig) (Client, error) {
 
 // CreateSession starts a new ACP session and streams updates until the prompt turn completes.
 func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
+	start, err := c.createSession(ctx, req, false)
+	return start.Session, err
+}
+
+// CreateSessionAtomic starts a new ACP session after model and speed setup completes.
+func (c *clientImpl) CreateSessionAtomic(ctx context.Context, req SessionRequest) (SessionStart, error) {
+	return c.createSession(ctx, req, true)
+}
+
+func (c *clientImpl) createSession(
+	ctx context.Context,
+	req SessionRequest,
+	atomicSetup bool,
+) (SessionStart, error) {
 	req, workingDir, err := prepareCreateSessionRequest(ctx, req)
 	if err != nil {
-		return nil, err
+		return SessionStart{}, err
 	}
-	setupCtx := req.SetupContext
-	if setupCtx == nil {
-		setupCtx = ctx
-	}
+	setupCtx := sessionSetupContext(ctx, req.SetupContext)
 
 	if err := c.ensureStarted(setupCtx, req); err != nil {
-		return nil, err
+		return SessionStart{}, err
 	}
 
 	mcpServers, err := toACPMCPServers(req.MCPServers)
 	if err != nil {
-		return nil, fmt.Errorf("prepare ACP MCP servers for new session: %w", err)
+		return SessionStart{}, fmt.Errorf("prepare ACP MCP servers for new session: %w", err)
 	}
 	c.beginPendingCreate()
 	defer c.finishPendingCreate()
@@ -363,12 +403,17 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		McpServers: mcpServers,
 	})
 	if err != nil {
-		return nil, c.wrapACPSetupErrorWithDiagnostics(setupCtx, SessionSetupStageNewSession, "create ACP session", err)
+		return SessionStart{}, c.wrapACPSetupErrorWithDiagnostics(
+			setupCtx,
+			SessionSetupStageNewSession,
+			"create ACP session",
+			err,
+		)
 	}
 
 	allowedRoots, err := resolveSessionAllowedRoots(workingDir, c.cfg.AddDirs)
 	if err != nil {
-		return nil, err
+		return SessionStart{}, err
 	}
 
 	session := newSessionWithAccess(string(sessionResp.SessionId), workingDir, allowedRoots)
@@ -381,7 +426,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 			ModeId:    acp.SessionModeId(modeID),
 		}); err != nil {
 			c.removeSession(session.id)
-			return nil, c.wrapACPSetupErrorWithDiagnostics(
+			return SessionStart{}, c.wrapACPSetupErrorWithDiagnostics(
 				setupCtx,
 				SessionSetupStageSetMode,
 				"set ACP session mode",
@@ -390,25 +435,27 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		}
 	}
 
-	model.DispatchObserverHook(
-		ctx,
-		req.RuntimeMgr,
-		"agent.post_session_create",
-		sessionCreatedHookPayload{
-			RunID:     req.RunID,
-			JobID:     req.JobID,
-			SessionID: session.id,
-			Identity:  session.Identity(),
-		},
-	)
+	dispatchPostSessionCreateHook(ctx, req, session)
 
-	c.wg.Add(1)
-	go c.runPrompt(ctx, session, acp.PromptRequest{
+	start, err := c.completeSessionStart(
+		setupCtx,
+		session,
+		sessionResp.SessionId,
+		req.Model,
+		req.Speed,
+		sessionResp.ConfigOptions,
+		atomicSetup,
+	)
+	if err != nil {
+		return start, err
+	}
+
+	c.launchRunPrompt(ctx, session, acp.PromptRequest{
 		SessionId: sessionResp.SessionId,
 		Prompt:    []acp.ContentBlock{acp.TextBlock(string(req.Prompt))},
 	})
 
-	return session, nil
+	return start, nil
 }
 
 func prepareCreateSessionRequest(ctx context.Context, req SessionRequest) (SessionRequest, string, error) {
@@ -431,6 +478,13 @@ func prepareCreateSessionRequest(ctx context.Context, req SessionRequest) (Sessi
 	req.WorkingDir = workingDir
 
 	return req, workingDir, nil
+}
+
+func sessionSetupContext(ctx context.Context, setupCtx context.Context) context.Context {
+	if setupCtx != nil {
+		return setupCtx
+	}
+	return ctx
 }
 
 func prepareResumeSessionRequest(ctx context.Context, req ResumeSessionRequest) (ResumeSessionRequest, string, error) {
@@ -460,28 +514,35 @@ func prepareResumeSessionRequest(ctx context.Context, req ResumeSessionRequest) 
 
 // ResumeSession loads an existing ACP session, suppresses replayed updates, and sends a new prompt turn.
 func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error) {
+	start, err := c.resumeSession(ctx, req, false)
+	return start.Session, err
+}
+
+// ResumeSessionAtomic resumes an ACP session after model and speed setup completes.
+func (c *clientImpl) ResumeSessionAtomic(
+	ctx context.Context,
+	req ResumeSessionRequest,
+) (SessionStart, error) {
+	return c.resumeSession(ctx, req, true)
+}
+
+func (c *clientImpl) resumeSession(
+	ctx context.Context,
+	req ResumeSessionRequest,
+	atomicSetup bool,
+) (SessionStart, error) {
 	req, workingDir, err := prepareResumeSessionRequest(ctx, req)
 	if err != nil {
-		return nil, err
+		return SessionStart{}, err
 	}
 
-	sessionReq := SessionRequest{
-		Prompt:       req.Prompt,
-		WorkingDir:   workingDir,
-		Model:        req.Model,
-		MCPServers:   model.CloneMCPServers(req.MCPServers),
-		ExtraEnv:     req.ExtraEnv,
-		SetupContext: req.SetupContext,
-	}
-	setupCtx := req.SetupContext
-	if setupCtx == nil {
-		setupCtx = ctx
-	}
+	sessionReq := req.sessionRequest(workingDir)
+	setupCtx := sessionSetupContext(ctx, req.SetupContext)
 	if err := c.ensureStarted(setupCtx, sessionReq); err != nil {
-		return nil, err
+		return SessionStart{}, err
 	}
 	if !c.SupportsLoadSession() {
-		return nil, wrapSessionSetupError(
+		return SessionStart{}, wrapSessionSetupError(
 			SessionSetupStageLoadSession,
 			errors.New("ACP agent does not support session/load"),
 		)
@@ -489,7 +550,7 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 
 	allowedRoots, err := resolveSessionAllowedRoots(workingDir, c.cfg.AddDirs)
 	if err != nil {
-		return nil, err
+		return SessionStart{}, err
 	}
 
 	sessionID := strings.TrimSpace(req.SessionID)
@@ -499,7 +560,7 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 	mcpServers, err := toACPMCPServers(req.MCPServers)
 	if err != nil {
 		c.removeSession(session.id)
-		return nil, fmt.Errorf("prepare ACP MCP servers for load session: %w", err)
+		return SessionStart{}, fmt.Errorf("prepare ACP MCP servers for load session: %w", err)
 	}
 	loadResp, err := c.conn.LoadSession(setupCtx, acp.LoadSessionRequest{
 		SessionId:  acp.SessionId(sessionID),
@@ -508,19 +569,90 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 	})
 	if err != nil {
 		c.removeSession(session.id)
-		return nil, c.wrapACPSetupErrorWithDiagnostics(setupCtx, SessionSetupStageLoadSession, "load ACP session", err)
+		return SessionStart{}, c.wrapACPSetupErrorWithDiagnostics(
+			setupCtx,
+			SessionSetupStageLoadSession,
+			"load ACP session",
+			err,
+		)
 	}
 	session.setAgentSessionID(extractAgentSessionID(loadResp.Meta))
-	session.waitForIdle(ctx, 15*time.Millisecond)
+
+	start, err := c.completeSessionStart(
+		setupCtx,
+		session,
+		acp.SessionId(sessionID),
+		req.Model,
+		req.Speed,
+		loadResp.ConfigOptions,
+		atomicSetup,
+	)
+	if err != nil {
+		return start, err
+	}
+
+	session.waitForIdle(setupCtx, 15*time.Millisecond)
 	session.resumeUpdates()
 
-	c.wg.Add(1)
-	go c.runPrompt(ctx, session, acp.PromptRequest{
+	c.launchRunPrompt(ctx, session, acp.PromptRequest{
 		SessionId: acp.SessionId(sessionID),
 		Prompt:    []acp.ContentBlock{acp.TextBlock(string(req.Prompt))},
 	})
 
-	return session, nil
+	return start, nil
+}
+
+func (r ResumeSessionRequest) sessionRequest(workingDir string) SessionRequest {
+	return SessionRequest{
+		Prompt:       r.Prompt,
+		WorkingDir:   workingDir,
+		Model:        r.Model,
+		Speed:        r.Speed,
+		MCPServers:   model.CloneMCPServers(r.MCPServers),
+		ExtraEnv:     r.ExtraEnv,
+		SetupContext: r.SetupContext,
+	}
+}
+
+func dispatchPostSessionCreateHook(
+	ctx context.Context,
+	req SessionRequest,
+	session *sessionImpl,
+) {
+	model.DispatchObserverHook(
+		ctx,
+		req.RuntimeMgr,
+		"agent.post_session_create",
+		sessionCreatedHookPayload{
+			RunID:     req.RunID,
+			JobID:     req.JobID,
+			SessionID: session.id,
+			Identity:  session.Identity(),
+		},
+	)
+}
+
+func (c *clientImpl) completeSessionStart(
+	ctx context.Context,
+	session *sessionImpl,
+	sessionID acp.SessionId,
+	modelID string,
+	speed kinds.Speed,
+	options []acp.SessionConfigOption,
+	atomicSetup bool,
+) (SessionStart, error) {
+	start := SessionStart{Session: session}
+	if !atomicSetup {
+		return start, nil
+	}
+
+	var err error
+	start.Speed, err = c.setupAtomicSession(ctx, sessionID, modelID, speed, options)
+	if err != nil {
+		c.removeSession(session.id)
+		start.Session = nil
+	}
+	return start, err
 }
 
 // CancelSession requests cancellation of the active prompt turn without closing the ACP session.
@@ -543,6 +675,91 @@ func (c *clientImpl) CancelSession(ctx context.Context, sessionID string) error 
 		return wrapACPError(err)
 	}
 	return nil
+}
+
+func (c *clientImpl) setupAtomicSession(
+	ctx context.Context,
+	sessionID acp.SessionId,
+	modelID string,
+	speed kinds.Speed,
+	initialOptions []acp.SessionConfigOption,
+) (kinds.SpeedResolution, error) {
+	options := append([]acp.SessionConfigOption(nil), initialOptions...)
+	if trimmedModel := strings.TrimSpace(modelID); trimmedModel != "" {
+		response, err := c.conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
+			ValueId: &acp.SetSessionConfigOptionValueId{
+				SessionId: sessionID,
+				ConfigId:  acp.SessionConfigId("model"),
+				Value:     acp.SessionConfigValueId(trimmedModel),
+			},
+		})
+		if err != nil {
+			return kinds.SpeedResolution{Requested: speed}, c.wrapACPSetupErrorWithDiagnostics(
+				ctx,
+				SessionSetupStageSetModel,
+				"set ACP session model",
+				err,
+			)
+		}
+		options = append([]acp.SessionConfigOption(nil), response.ConfigOptions...)
+	}
+
+	matchResult := matchV1SpeedConfig(speed, options)
+	if matchResult.match == nil {
+		return kinds.SpeedResolution{
+			Requested: speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    matchResult.reason,
+		}, nil
+	}
+
+	match := *matchResult.match
+	if match.alreadyApplied() {
+		return kinds.SpeedResolution{
+			Requested: speed,
+			Status:    kinds.SpeedResolutionStatusApplied,
+		}, nil
+	}
+
+	speedRequest, ok := match.setRequest(sessionID)
+	if !ok {
+		return kinds.SpeedResolution{
+			Requested: speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonValueAmbiguous,
+		}, nil
+	}
+
+	response, err := c.conn.SetSessionConfigOption(ctx, speedRequest)
+	if err != nil {
+		resolution := rejectedSpeedResolution(speed)
+		return resolution, c.wrapACPSetupErrorWithDiagnostics(
+			ctx,
+			SessionSetupStageSetSpeed,
+			"set ACP session speed",
+			err,
+		)
+	}
+	if !confirmSpeedConfig(match, response.ConfigOptions) {
+		resolution := rejectedSpeedResolution(speed)
+		return resolution, wrapSessionSetupError(
+			SessionSetupStageSetSpeed,
+			errors.New("set ACP session speed: response did not confirm the requested value"),
+		)
+	}
+
+	return kinds.SpeedResolution{
+		Requested: speed,
+		Status:    kinds.SpeedResolutionStatusApplied,
+	}, nil
+}
+
+func rejectedSpeedResolution(speed kinds.Speed) kinds.SpeedResolution {
+	return kinds.SpeedResolution{
+		Requested: speed,
+		Status:    kinds.SpeedResolutionStatusRejected,
+		Reason:    kinds.SpeedResolutionReasonProviderRejected,
+	}
 }
 
 // SetSessionModel changes the active model for an ACP session via setSessionConfigOption.
@@ -614,8 +831,7 @@ func (c *clientImpl) PromptSession(ctx context.Context, req PromptSessionRequest
 	if messageID := strings.TrimSpace(req.MessageID); messageID != "" {
 		promptReq.MessageId = &messageID
 	}
-	c.wg.Add(1)
-	go c.runPrompt(ctx, session, promptReq)
+	c.launchRunPrompt(ctx, session, promptReq)
 	return session, nil
 }
 
@@ -1026,6 +1242,15 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 
 	session.waitForIdle(ctx, 15*time.Millisecond)
 	session.finish(model.StatusCompleted, nil)
+}
+
+func (c *clientImpl) launchRunPrompt(
+	ctx context.Context,
+	session *sessionImpl,
+	prompt acp.PromptRequest,
+) {
+	c.wg.Add(1)
+	go c.runPrompt(ctx, session, prompt)
 }
 
 // NewPromptMessageID returns an ACP-compatible UUIDv4 message id.

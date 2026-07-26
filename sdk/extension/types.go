@@ -321,6 +321,7 @@ type SessionRequest struct {
 	Prompt     []byte            `json:"prompt,omitempty"`
 	WorkingDir string            `json:"working_dir,omitempty"`
 	Model      string            `json:"model,omitempty"`
+	Speed      Speed             `json:"speed,omitempty"`
 	MCPServers []MCPServer       `json:"mcp_servers,omitempty"`
 	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
 }
@@ -332,6 +333,7 @@ type ResumeSessionRequest struct {
 	Prompt     []byte            `json:"prompt,omitempty"`
 	WorkingDir string            `json:"working_dir,omitempty"`
 	Model      string            `json:"model,omitempty"`
+	Speed      Speed             `json:"speed,omitempty"`
 	MCPServers []MCPServer       `json:"mcp_servers,omitempty"`
 	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
 }
@@ -340,6 +342,7 @@ type sessionRequestJSON struct {
 	Prompt     string            `json:"prompt,omitempty"`
 	WorkingDir string            `json:"working_dir,omitempty"`
 	Model      string            `json:"model,omitempty"`
+	Speed      Speed             `json:"speed,omitempty"`
 	MCPServers []MCPServer       `json:"mcp_servers,omitempty"`
 	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
 }
@@ -349,6 +352,7 @@ type resumeSessionRequestJSON struct {
 	Prompt     string            `json:"prompt,omitempty"`
 	WorkingDir string            `json:"working_dir,omitempty"`
 	Model      string            `json:"model,omitempty"`
+	Speed      Speed             `json:"speed,omitempty"`
 	MCPServers []MCPServer       `json:"mcp_servers,omitempty"`
 	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
 }
@@ -360,6 +364,7 @@ func (r SessionRequest) MarshalJSON() ([]byte, error) {
 		Prompt:     string(r.Prompt),
 		WorkingDir: r.WorkingDir,
 		Model:      r.Model,
+		Speed:      r.Speed,
 		MCPServers: r.MCPServers,
 		ExtraEnv:   r.ExtraEnv,
 	})
@@ -383,6 +388,7 @@ func (r *SessionRequest) UnmarshalJSON(data []byte) error {
 	}
 	r.WorkingDir = payload.WorkingDir
 	r.Model = payload.Model
+	r.Speed = payload.Speed
 	r.MCPServers = payload.MCPServers
 	r.ExtraEnv = payload.ExtraEnv
 	return nil
@@ -396,6 +402,7 @@ func (r ResumeSessionRequest) MarshalJSON() ([]byte, error) {
 		Prompt:     string(r.Prompt),
 		WorkingDir: r.WorkingDir,
 		Model:      r.Model,
+		Speed:      r.Speed,
 		MCPServers: r.MCPServers,
 		ExtraEnv:   r.ExtraEnv,
 	})
@@ -420,6 +427,7 @@ func (r *ResumeSessionRequest) UnmarshalJSON(data []byte) error {
 	}
 	r.WorkingDir = payload.WorkingDir
 	r.Model = payload.Model
+	r.Speed = payload.Speed
 	r.MCPServers = payload.MCPServers
 	r.ExtraEnv = payload.ExtraEnv
 	return nil

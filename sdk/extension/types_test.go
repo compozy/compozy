@@ -15,6 +15,7 @@ func TestSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 		Prompt:     []byte("plain prompt"),
 		WorkingDir: "/tmp/work",
 		Model:      "gpt-5.5",
+		Speed:      extension.Speed("fast"),
 	}
 
 	raw, err := json.Marshal(request)
@@ -35,6 +36,9 @@ func TestSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 	if got := string(roundTrip.Prompt); got != "plain prompt" {
 		t.Fatalf("unexpected round-trip prompt: %q", got)
 	}
+	if roundTrip.Speed != extension.Speed("fast") {
+		t.Fatalf("unexpected round-trip speed: %q", roundTrip.Speed)
+	}
 }
 
 func TestResumeSessionRequestJSONUsesReadablePromptText(t *testing.T) {
@@ -45,6 +49,7 @@ func TestResumeSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 		Prompt:     []byte("resume prompt"),
 		WorkingDir: "/tmp/work",
 		Model:      "gpt-5.5",
+		Speed:      extension.Speed("normal"),
 	}
 
 	raw, err := json.Marshal(request)
@@ -64,5 +69,8 @@ func TestResumeSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 	}
 	if got := string(roundTrip.Prompt); got != "resume prompt" {
 		t.Fatalf("unexpected round-trip resume prompt: %q", got)
+	}
+	if roundTrip.Speed != extension.Speed("normal") {
+		t.Fatalf("unexpected round-trip resume speed: %q", roundTrip.Speed)
 	}
 }

@@ -32,6 +32,7 @@ type SessionOutcome struct {
 
 func (r SessionRequest) withHookContextFrom(src SessionRequest) SessionRequest {
 	r.Context = src.Context
+	r.SetupContext = src.SetupContext
 	r.RunID = src.RunID
 	r.JobID = src.JobID
 	r.RuntimeMgr = src.RuntimeMgr
@@ -68,6 +69,7 @@ func (r SessionRequest) dispatchPreCreateHook() (SessionRequest, error) {
 
 func (r ResumeSessionRequest) withHookContextFrom(src ResumeSessionRequest) ResumeSessionRequest {
 	r.Context = src.Context
+	r.SetupContext = src.SetupContext
 	r.RunID = src.RunID
 	r.JobID = src.JobID
 	r.RuntimeMgr = src.RuntimeMgr

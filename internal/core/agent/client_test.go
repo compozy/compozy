@@ -21,6 +21,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/subprocess"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) {
@@ -149,6 +150,588 @@ func TestClientReleasedSDKConfigOptionsPreserveSessionCompatibility(t *testing.T
 			t.Fatalf("close client: %v", err)
 		}
 	})
+}
+
+func TestClientAtomicSessionSetupOrdersModelSpeedAndPrompt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		resume    bool
+		wantOrder []string
+	}{
+		{
+			name:      "new session",
+			wantOrder: []string{"new", "model", "speed", "prompt"},
+		},
+		{
+			name:      "resumed session",
+			resume:    true,
+			wantOrder: []string{"load", "model", "speed", "prompt"},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			protocolLog := filepath.Join(t.TempDir(), "protocol.log")
+			scenario := helperScenario{
+				SessionID:                "sess-atomic",
+				ExpectedCWD:              t.TempDir(),
+				ExpectedLoadSessionID:    "sess-atomic",
+				ExpectedPrompt:           "atomic prompt",
+				SupportsLoadSession:      test.resume,
+				NewSessionConfigOptions:  atomicSpeedSelectOptions("accelerated-tier"),
+				LoadSessionConfigOptions: atomicSpeedSelectOptions("accelerated-tier"),
+				ModelConfigOptions:       atomicSpeedSelectOptions("standard-tier"),
+				SpeedConfigOptions:       atomicSpeedSelectOptions("accelerated-tier"),
+				ExpectedModelValue:       "model-v2",
+				ExpectedSpeedConfigID:    "provider-speed",
+				ExpectedSpeedValue:       "accelerated-tier",
+				ExpectedRequestOrder:     test.wantOrder,
+				ProtocolLogPath:          protocolLog,
+				Updates:                  []acp.SessionUpdate{acp.UpdateAgentMessageText("fresh response")},
+				StopReason:               string(acp.StopReasonEndTurn),
+				UpdatesOnModelConfig:     nil,
+				UpdatesOnSpeedConfig:     nil,
+				ReplayUpdatesOnLoad:      []acp.SessionUpdate{acp.UpdateAgentMessageText("load replay")},
+			}
+			if test.resume {
+				scenario.UpdatesOnModelConfig = []acp.SessionUpdate{
+					acp.UpdateAgentMessageText("model replay"),
+				}
+				scenario.UpdatesOnSpeedConfig = []acp.SessionUpdate{
+					acp.UpdateAgentMessageText("speed replay"),
+				}
+			}
+
+			client := newTestClient(t, scenario)
+			t.Cleanup(func() {
+				if err := client.Close(); err != nil {
+					t.Errorf("close client: %v", err)
+				}
+			})
+
+			var (
+				start SessionStart
+				err   error
+			)
+			if test.resume {
+				start, err = client.ResumeSessionAtomic(context.Background(), ResumeSessionRequest{
+					SessionID:    scenario.SessionID,
+					WorkingDir:   scenario.ExpectedCWD,
+					Prompt:       []byte(scenario.ExpectedPrompt),
+					Model:        scenario.ExpectedModelValue,
+					Speed:        kinds.SpeedFast,
+					SetupContext: context.Background(),
+				})
+			} else {
+				start, err = client.CreateSessionAtomic(context.Background(), SessionRequest{
+					WorkingDir:   scenario.ExpectedCWD,
+					Prompt:       []byte(scenario.ExpectedPrompt),
+					Model:        scenario.ExpectedModelValue,
+					Speed:        kinds.SpeedFast,
+					SetupContext: context.Background(),
+				})
+			}
+			if err != nil {
+				t.Fatalf("atomic session start: %v", err)
+			}
+			if start.Session == nil {
+				t.Fatal("expected usable atomic session")
+			}
+			if want := (kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			}); start.Speed != want {
+				t.Fatalf("speed resolution = %#v, want %#v", start.Speed, want)
+			}
+
+			updates := collectSessionUpdates(t, start.Session)
+			if test.resume {
+				if len(updates) != 2 {
+					t.Fatalf("resume updates length = %d, want 2", len(updates))
+				}
+				if got := mustFirstTextBlock(t, updates[0].Blocks).Text; got != "fresh response" {
+					t.Fatalf("first resumed update = %q, want fresh response", got)
+				}
+			}
+			assertProtocolRequests(t, protocolLog, test.wantOrder)
+		})
+	}
+}
+
+func TestClientCreateSessionAtomicSpeedOutcomes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		modelOptions []acp.SessionConfigOption
+		speedOptions []acp.SessionConfigOption
+		want         kinds.SpeedResolution
+		wantOrder    []string
+	}{
+		{
+			name:         "applied after write",
+			modelOptions: atomicSpeedSelectOptions("standard-tier"),
+			speedOptions: atomicSpeedSelectOptions("accelerated-tier"),
+			want: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			wantOrder: []string{"new", "model", "speed", "prompt"},
+		},
+		{
+			name:         "already applied",
+			modelOptions: atomicSpeedSelectOptions("accelerated-tier"),
+			want: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			wantOrder: []string{"new", "model", "prompt"},
+		},
+		{
+			name: "unsupported absent",
+			want: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+			wantOrder: []string{"new", "model", "prompt"},
+		},
+		{
+			name: "unsupported boolean",
+			modelOptions: []acp.SessionConfigOption{
+				completeBooleanConfigOption(
+					"provider-fast",
+					"Fast Mode",
+					speedTestCategory("model_config"),
+					false,
+				),
+			},
+			want: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+			wantOrder: []string{"new", "model", "prompt"},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			protocolLog := filepath.Join(t.TempDir(), "protocol.log")
+			scenario := helperScenario{
+				ExpectedCWD:             t.TempDir(),
+				ExpectedPrompt:          "resolve atomic speed",
+				NewSessionConfigOptions: atomicSpeedSelectOptions("accelerated-tier"),
+				ModelConfigOptions:      test.modelOptions,
+				SpeedConfigOptions:      test.speedOptions,
+				ExpectedModelValue:      "model-v2",
+				ExpectedSpeedConfigID:   "provider-speed",
+				ExpectedSpeedValue:      "accelerated-tier",
+				ExpectedRequestOrder:    test.wantOrder,
+				ProtocolLogPath:         protocolLog,
+				StopReason:              string(acp.StopReasonEndTurn),
+			}
+
+			client := newTestClient(t, scenario)
+			start, err := client.CreateSessionAtomic(context.Background(), SessionRequest{
+				WorkingDir: scenario.ExpectedCWD,
+				Prompt:     []byte(scenario.ExpectedPrompt),
+				Model:      scenario.ExpectedModelValue,
+				Speed:      kinds.SpeedFast,
+			})
+			if err != nil {
+				t.Fatalf("create atomic session: %v", err)
+			}
+			if start.Session == nil {
+				t.Fatal("expected usable session")
+			}
+			if start.Speed != test.want {
+				t.Fatalf("speed resolution = %#v, want %#v", start.Speed, test.want)
+			}
+			updates := collectSessionUpdates(t, start.Session)
+			if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+				t.Fatalf("unexpected session updates: %#v", updates)
+			}
+			if err := client.Close(); err != nil {
+				t.Fatalf("close client: %v", err)
+			}
+			assertProtocolRequests(t, protocolLog, test.wantOrder)
+		})
+	}
+}
+
+func TestClientCreateSessionAtomicPreservesModeAndHooks(t *testing.T) {
+	t.Parallel()
+
+	const promptSuffix = " ::atomic-hook"
+	manager := &agentHookManager{
+		mutators: map[string]func(any) (any, error){
+			"agent.pre_session_create": func(input any) (any, error) {
+				payload := input.(sessionCreateHookPayload)
+				if payload.SessionRequest.Speed != kinds.SpeedFast {
+					return nil, fmt.Errorf(
+						"hook speed = %q, want %q",
+						payload.SessionRequest.Speed,
+						kinds.SpeedFast,
+					)
+				}
+				payload.SessionRequest.Prompt = append(
+					payload.SessionRequest.Prompt,
+					[]byte(promptSuffix)...,
+				)
+				return payload, nil
+			},
+		},
+	}
+	protocolLog := filepath.Join(t.TempDir(), "protocol.log")
+	scenario := helperScenario{
+		ExpectedCWD:           t.TempDir(),
+		ExpectedPrompt:        "hook me" + promptSuffix,
+		ExpectedSessionModeID: "bypassPermissions",
+		ModelConfigOptions:    atomicSpeedSelectOptions("accelerated-tier"),
+		ExpectedModelValue:    "model-v2",
+		ExpectedRequestOrder:  []string{"new", "mode", "model", "prompt"},
+		ProtocolLogPath:       protocolLog,
+		StopReason:            string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+		cfg.AccessMode = model.AccessModeFull
+	})
+	start, err := client.CreateSessionAtomic(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte("hook me"),
+		Model:      scenario.ExpectedModelValue,
+		Speed:      kinds.SpeedFast,
+		RunID:      "run-atomic",
+		JobID:      "job-atomic",
+		RuntimeMgr: manager,
+	})
+	if err != nil {
+		t.Fatalf("create atomic session: %v", err)
+	}
+	updates := collectSessionUpdates(t, start.Session)
+	if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected session updates: %#v", updates)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+	assertProtocolRequests(t, protocolLog, scenario.ExpectedRequestOrder)
+
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if got, want := manager.mutableHooks, []string{"agent.pre_session_create"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("mutable hook order = %#v, want %#v", got, want)
+	}
+	if got, want := manager.observerHooks, []string{"agent.post_session_create"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("observer hook order = %#v, want %#v", got, want)
+	}
+	payload := manager.observerPayloads[0].(sessionCreatedHookPayload)
+	if payload.RunID != "run-atomic" ||
+		payload.JobID != "job-atomic" ||
+		payload.SessionID != start.Session.ID() {
+		t.Fatalf("observer metadata = %#v", payload)
+	}
+}
+
+func TestClientAtomicSessionSetupRejectsWithoutPromptAndRemovesSession(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		resume           bool
+		speedError       *helperRequestError
+		speedOptions     []acp.SessionConfigOption
+		wantSessionError bool
+		wantOrder        []string
+	}{
+		{
+			name: "provider rejection",
+			speedError: &helperRequestError{
+				Code:    4711,
+				Message: "speed rejected",
+			},
+			wantSessionError: true,
+			wantOrder:        []string{"new", "model", "speed"},
+		},
+		{
+			name:         "resume confirmation mismatch",
+			resume:       true,
+			speedOptions: atomicSpeedSelectOptions("standard-tier"),
+			wantOrder:    []string{"load", "model", "speed"},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			protocolLog := filepath.Join(t.TempDir(), "protocol.log")
+			scenario := helperScenario{
+				SessionID:             "sess-rejected",
+				ExpectedCWD:           t.TempDir(),
+				ExpectedLoadSessionID: "sess-rejected",
+				SupportsLoadSession:   test.resume,
+				ModelConfigOptions:    atomicSpeedSelectOptions("standard-tier"),
+				SpeedConfigOptions:    test.speedOptions,
+				ExpectedModelValue:    "model-v2",
+				ExpectedSpeedConfigID: "provider-speed",
+				ExpectedSpeedValue:    "accelerated-tier",
+				ProtocolLogPath:       protocolLog,
+				SpeedConfigError:      test.speedError,
+				ReplayUpdatesOnLoad:   []acp.SessionUpdate{acp.UpdateAgentMessageText("replay")},
+				UpdatesOnModelConfig:  []acp.SessionUpdate{acp.UpdateAgentMessageText("model replay")},
+				UpdatesOnSpeedConfig:  []acp.SessionUpdate{acp.UpdateAgentMessageText("speed replay")},
+			}
+
+			client := newTestClient(t, scenario)
+			var (
+				start SessionStart
+				err   error
+			)
+			if test.resume {
+				start, err = client.ResumeSessionAtomic(context.Background(), ResumeSessionRequest{
+					SessionID:  scenario.SessionID,
+					WorkingDir: scenario.ExpectedCWD,
+					Prompt:     []byte("must not prompt"),
+					Model:      scenario.ExpectedModelValue,
+					Speed:      kinds.SpeedFast,
+				})
+			} else {
+				start, err = client.CreateSessionAtomic(context.Background(), SessionRequest{
+					WorkingDir: scenario.ExpectedCWD,
+					Prompt:     []byte("must not prompt"),
+					Model:      scenario.ExpectedModelValue,
+					Speed:      kinds.SpeedFast,
+				})
+			}
+			if err == nil {
+				t.Fatal("expected rejected atomic setup error")
+			}
+			if start.Session != nil {
+				t.Fatalf("rejected start session = %#v, want nil", start.Session)
+			}
+			wantResolution := rejectedSpeedResolution(kinds.SpeedFast)
+			if start.Speed != wantResolution {
+				t.Fatalf("speed resolution = %#v, want %#v", start.Speed, wantResolution)
+			}
+			var setupErr *SessionSetupError
+			if !errors.As(err, &setupErr) || setupErr.Stage != SessionSetupStageSetSpeed {
+				t.Fatalf("setup error = %v, want stage %q", err, SessionSetupStageSetSpeed)
+			}
+			var sessionErr *SessionError
+			if got := errors.As(err, &sessionErr); got != test.wantSessionError {
+				t.Fatalf("SessionError presence = %t, want %t (error %v)", got, test.wantSessionError, err)
+			}
+			if got := client.openSessionCount(); got != 0 {
+				t.Fatalf("stored session count = %d, want 0", got)
+			}
+			if err := client.Close(); err != nil {
+				t.Fatalf("close client: %v", err)
+			}
+			assertProtocolRequests(t, protocolLog, test.wantOrder)
+		})
+	}
+}
+
+func TestClientAtomicSessionSetupCancellationNeverPrompts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		resume     bool
+		blockModel bool
+		wantOrder  []string
+	}{
+		{
+			name:       "model setup",
+			blockModel: true,
+			wantOrder:  []string{"new", "model"},
+		},
+		{
+			name:      "resumed speed setup",
+			resume:    true,
+			wantOrder: []string{"load", "model", "speed"},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			protocolLog := filepath.Join(t.TempDir(), "protocol.log")
+			scenario := helperScenario{
+				SessionID:                   "sess-canceled",
+				ExpectedCWD:                 t.TempDir(),
+				ExpectedLoadSessionID:       "sess-canceled",
+				SupportsLoadSession:         test.resume,
+				ModelConfigOptions:          atomicSpeedSelectOptions("standard-tier"),
+				ExpectedModelValue:          "model-v2",
+				ExpectedSpeedConfigID:       "provider-speed",
+				ExpectedSpeedValue:          "accelerated-tier",
+				ProtocolLogPath:             protocolLog,
+				BlockModelConfigUntilCancel: test.blockModel,
+				BlockSpeedConfigUntilCancel: !test.blockModel,
+			}
+
+			client := newTestClient(t, scenario)
+			setupCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+			t.Cleanup(cancel)
+
+			var err error
+			if test.resume {
+				_, err = client.ResumeSessionAtomic(context.Background(), ResumeSessionRequest{
+					SessionID:    scenario.SessionID,
+					WorkingDir:   scenario.ExpectedCWD,
+					Prompt:       []byte("must not prompt"),
+					Model:        scenario.ExpectedModelValue,
+					Speed:        kinds.SpeedFast,
+					SetupContext: setupCtx,
+				})
+			} else {
+				_, err = client.CreateSessionAtomic(context.Background(), SessionRequest{
+					WorkingDir:   scenario.ExpectedCWD,
+					Prompt:       []byte("must not prompt"),
+					Model:        scenario.ExpectedModelValue,
+					Speed:        kinds.SpeedFast,
+					SetupContext: setupCtx,
+				})
+			}
+			if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("atomic setup error = %v, want deadline exceeded", err)
+			}
+			if got := client.openSessionCount(); got != 0 {
+				t.Fatalf("stored session count = %d, want 0", got)
+			}
+			if err := client.Close(); err != nil {
+				t.Fatalf("close client: %v", err)
+			}
+			assertProtocolRequests(t, protocolLog, test.wantOrder)
+		})
+	}
+}
+
+func TestClientMigrationLegacySurfaceRemainsUsable(t *testing.T) {
+	t.Parallel()
+
+	protocolLog := filepath.Join(t.TempDir(), "protocol.log")
+	scenario := helperScenario{
+		SessionID:          "sess-legacy",
+		ExpectedCWD:        t.TempDir(),
+		ModelConfigOptions: atomicSpeedSelectOptions("standard-tier"),
+		ExpectedModelValue: "model-v2",
+		ProtocolLogPath:    protocolLog,
+		Updates:            []acp.SessionUpdate{acp.UpdateAgentMessageText("response")},
+		StopReason:         string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte("legacy prompt"),
+	})
+	if err != nil {
+		t.Fatalf("create legacy session: %v", err)
+	}
+	firstUpdates := collectSessionUpdates(t, session)
+	if len(firstUpdates) != 2 {
+		t.Fatalf("initial updates length = %d, want 2", len(firstUpdates))
+	}
+
+	if err := client.SetSessionModel(context.Background(), session.ID(), scenario.ExpectedModelValue); err != nil {
+		t.Fatalf("set legacy session model: %v", err)
+	}
+	followUp, err := client.PromptSession(context.Background(), PromptSessionRequest{
+		SessionID: session.ID(),
+		Prompt:    []byte("follow-up prompt"),
+		MessageID: "message-123",
+	})
+	if err != nil {
+		t.Fatalf("prompt legacy session: %v", err)
+	}
+	followUpUpdates := collectSessionUpdates(t, followUp)
+	if len(followUpUpdates) != 2 {
+		t.Fatalf("follow-up updates length = %d, want 2", len(followUpUpdates))
+	}
+	assertProtocolRequests(
+		t,
+		protocolLog,
+		[]string{"new", "prompt", "model", "prompt"},
+	)
+	if err := client.CancelSession(context.Background(), session.ID()); err != nil {
+		t.Fatalf("cancel legacy session: %v", err)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestClientMigrationSurfaceValidatesState(t *testing.T) {
+	t.Parallel()
+
+	client := &clientImpl{
+		sessions: make(map[string]*sessionImpl),
+	}
+	if err := client.CancelSession(context.Background(), ""); err == nil {
+		t.Fatal("expected missing cancel session id error")
+	}
+	if err := client.CancelSession(context.Background(), "sess-1"); err == nil {
+		t.Fatal("expected unstarted cancel error")
+	}
+	if err := client.SetSessionModel(context.Background(), "", "model"); err != nil {
+		t.Fatalf("empty legacy model request should be a no-op: %v", err)
+	}
+	if err := client.SetSessionModel(context.Background(), "sess-1", "model"); err == nil {
+		t.Fatal("expected unstarted model error")
+	}
+	if _, err := client.PromptSession(context.Background(), PromptSessionRequest{}); err == nil {
+		t.Fatal("expected missing prompt session id error")
+	}
+	if _, err := client.PromptSession(context.Background(), PromptSessionRequest{
+		SessionID: "sess-1",
+	}); err == nil {
+		t.Fatal("expected missing follow-up prompt error")
+	}
+	if _, err := client.PromptSession(context.Background(), PromptSessionRequest{
+		SessionID: "sess-1",
+		Prompt:    []byte("prompt"),
+	}); err == nil {
+		t.Fatal("expected unstarted prompt error")
+	}
+
+	client.started = true
+	client.conn = &acp.ClientSideConnection{}
+	if _, err := client.PromptSession(context.Background(), PromptSessionRequest{
+		SessionID: "unknown",
+		Prompt:    []byte("prompt"),
+	}); err == nil {
+		t.Fatal("expected unknown prompt session error")
+	}
+
+	client.closed = true
+	if err := client.CancelSession(context.Background(), "sess-1"); err == nil {
+		t.Fatal("expected closed cancel error")
+	}
+	if err := client.SetSessionModel(context.Background(), "sess-1", "model"); err == nil {
+		t.Fatal("expected closed model error")
+	}
+	if _, err := client.PromptSession(context.Background(), PromptSessionRequest{
+		SessionID: "sess-1",
+		Prompt:    []byte("prompt"),
+	}); err == nil {
+		t.Fatal("expected closed prompt error")
+	}
 }
 
 func TestClientCreateSessionStartsAgentProcessInWorkingDirectory(t *testing.T) {
@@ -954,6 +1537,7 @@ func TestSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 		Prompt:     []byte("plain prompt"),
 		WorkingDir: "/tmp/work",
 		Model:      "gpt-5.5",
+		Speed:      kinds.SpeedFast,
 	}
 
 	raw, err := json.Marshal(request)
@@ -974,6 +1558,9 @@ func TestSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 	if got := string(roundTrip.Prompt); got != "plain prompt" {
 		t.Fatalf("unexpected round-trip prompt: %q", got)
 	}
+	if roundTrip.Speed != kinds.SpeedFast {
+		t.Fatalf("unexpected round-trip speed: %q", roundTrip.Speed)
+	}
 }
 
 func TestResumeSessionRequestJSONUsesReadablePromptText(t *testing.T) {
@@ -984,6 +1571,7 @@ func TestResumeSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 		Prompt:     []byte("resume prompt"),
 		WorkingDir: "/tmp/work",
 		Model:      "gpt-5.5",
+		Speed:      kinds.SpeedNormal,
 	}
 
 	raw, err := json.Marshal(request)
@@ -1003,6 +1591,9 @@ func TestResumeSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 	}
 	if got := string(roundTrip.Prompt); got != "resume prompt" {
 		t.Fatalf("unexpected round-trip resume prompt: %q", got)
+	}
+	if roundTrip.Speed != kinds.SpeedNormal {
+		t.Fatalf("unexpected round-trip resume speed: %q", roundTrip.Speed)
 	}
 }
 
@@ -1036,6 +1627,7 @@ func TestSessionRequestDispatchPreCreateHookPreservesContext(t *testing.T) {
 	type contextKey string
 
 	ctx := context.WithValue(context.Background(), contextKey("request_id"), "req-123")
+	setupCtx := context.WithValue(context.Background(), contextKey("setup_id"), "setup-123")
 	manager := &agentHookManager{
 		mutators: map[string]func(any) (any, error){
 			"agent.pre_session_create": func(input any) (any, error) {
@@ -1047,12 +1639,14 @@ func TestSessionRequestDispatchPreCreateHookPreservesContext(t *testing.T) {
 	}
 
 	request := SessionRequest{
-		Context:    ctx,
-		Prompt:     []byte("keep context"),
-		WorkingDir: t.TempDir(),
-		RunID:      "run-123",
-		JobID:      "job-123",
-		RuntimeMgr: manager,
+		Context:      ctx,
+		SetupContext: setupCtx,
+		Prompt:       []byte("keep context"),
+		WorkingDir:   t.TempDir(),
+		Speed:        kinds.SpeedFast,
+		RunID:        "run-123",
+		JobID:        "job-123",
+		RuntimeMgr:   manager,
 	}
 
 	got, err := request.dispatchPreCreateHook()
@@ -1065,6 +1659,13 @@ func TestSessionRequestDispatchPreCreateHookPreservesContext(t *testing.T) {
 	if got := got.Context.Value(contextKey("request_id")); got != "req-123" {
 		t.Fatalf("unexpected preserved context value: %#v", got)
 	}
+	if got.SetupContext == nil ||
+		got.SetupContext.Value(contextKey("setup_id")) != "setup-123" {
+		t.Fatalf("unexpected preserved setup context: %#v", got.SetupContext)
+	}
+	if got.Speed != kinds.SpeedFast {
+		t.Fatalf("unexpected hook-dispatched speed: %q", got.Speed)
+	}
 }
 
 func TestResumeSessionRequestDispatchPreResumeHookPreservesContext(t *testing.T) {
@@ -1073,6 +1674,7 @@ func TestResumeSessionRequestDispatchPreResumeHookPreservesContext(t *testing.T)
 	type contextKey string
 
 	ctx := context.WithValue(context.Background(), contextKey("request_id"), "req-456")
+	setupCtx := context.WithValue(context.Background(), contextKey("setup_id"), "setup-456")
 	manager := &agentHookManager{
 		mutators: map[string]func(any) (any, error){
 			"agent.pre_session_resume": func(input any) (any, error) {
@@ -1084,13 +1686,15 @@ func TestResumeSessionRequestDispatchPreResumeHookPreservesContext(t *testing.T)
 	}
 
 	request := ResumeSessionRequest{
-		Context:    ctx,
-		SessionID:  "sess-123",
-		Prompt:     []byte("keep context"),
-		WorkingDir: t.TempDir(),
-		RunID:      "run-123",
-		JobID:      "job-123",
-		RuntimeMgr: manager,
+		Context:      ctx,
+		SetupContext: setupCtx,
+		SessionID:    "sess-123",
+		Prompt:       []byte("keep context"),
+		WorkingDir:   t.TempDir(),
+		Speed:        kinds.SpeedNormal,
+		RunID:        "run-123",
+		JobID:        "job-123",
+		RuntimeMgr:   manager,
 	}
 
 	got, err := request.dispatchPreResumeHook()
@@ -1102,6 +1706,13 @@ func TestResumeSessionRequestDispatchPreResumeHookPreservesContext(t *testing.T)
 	}
 	if got := got.Context.Value(contextKey("request_id")); got != "req-456" {
 		t.Fatalf("unexpected preserved resume context value: %#v", got)
+	}
+	if got.SetupContext == nil ||
+		got.SetupContext.Value(contextKey("setup_id")) != "setup-456" {
+		t.Fatalf("unexpected preserved resume setup context: %#v", got.SetupContext)
+	}
+	if got.Speed != kinds.SpeedNormal {
+		t.Fatalf("unexpected hook-dispatched resume speed: %q", got.Speed)
 	}
 }
 
@@ -2352,6 +2963,19 @@ type helperScenario struct {
 	ExpectClientCapabilities      bool                      `json:"expect_client_capabilities,omitempty"`
 	NewSessionConfigOptions       []acp.SessionConfigOption `json:"new_session_config_options,omitempty"`
 	LoadSessionConfigOptions      []acp.SessionConfigOption `json:"load_session_config_options,omitempty"`
+	ModelConfigOptions            []acp.SessionConfigOption `json:"model_config_options,omitempty"`
+	SpeedConfigOptions            []acp.SessionConfigOption `json:"speed_config_options,omitempty"`
+	ExpectedModelValue            string                    `json:"expected_model_value,omitempty"`
+	ExpectedSpeedConfigID         string                    `json:"expected_speed_config_id,omitempty"`
+	ExpectedSpeedValue            string                    `json:"expected_speed_value,omitempty"`
+	ExpectedRequestOrder          []string                  `json:"expected_request_order,omitempty"`
+	ProtocolLogPath               string                    `json:"protocol_log_path,omitempty"`
+	ModelConfigError              *helperRequestError       `json:"model_config_error,omitempty"`
+	SpeedConfigError              *helperRequestError       `json:"speed_config_error,omitempty"`
+	BlockModelConfigUntilCancel   bool                      `json:"block_model_config_until_cancel,omitempty"`
+	BlockSpeedConfigUntilCancel   bool                      `json:"block_speed_config_until_cancel,omitempty"`
+	UpdatesOnModelConfig          []acp.SessionUpdate       `json:"updates_on_model_config,omitempty"`
+	UpdatesOnSpeedConfig          []acp.SessionUpdate       `json:"updates_on_speed_config,omitempty"`
 	// ExpectedEnvVars asserts process environment values at helper startup.
 	// An empty value means the variable must be unset or empty.
 	ExpectedEnvVars         map[string]string   `json:"expected_env_vars,omitempty"`
@@ -2385,6 +3009,8 @@ type helperAgent struct {
 	connReady chan struct{}
 	scenario  helperScenario
 	sessionID string
+	mu        sync.Mutex
+	requests  []string
 }
 
 func (a *helperAgent) setConn(conn *acp.AgentSideConnection) {
@@ -2442,6 +3068,9 @@ func (a *helperAgent) Initialize(
 }
 
 func (a *helperAgent) NewSession(_ context.Context, req acp.NewSessionRequest) (acp.NewSessionResponse, error) {
+	if err := a.recordRequest("new"); err != nil {
+		return acp.NewSessionResponse{}, err
+	}
 	if a.scenario.NewSessionError != nil {
 		return acp.NewSessionResponse{}, a.scenario.NewSessionError.toACPError()
 	}
@@ -2469,6 +3098,9 @@ func (a *helperAgent) NewSession(_ context.Context, req acp.NewSessionRequest) (
 }
 
 func (a *helperAgent) LoadSession(ctx context.Context, req acp.LoadSessionRequest) (acp.LoadSessionResponse, error) {
+	if err := a.recordRequest("load"); err != nil {
+		return acp.LoadSessionResponse{}, err
+	}
 	if a.scenario.ExpectedLoadSessionID != "" && string(req.SessionId) != a.scenario.ExpectedLoadSessionID {
 		return acp.LoadSessionResponse{}, &acp.RequestError{
 			Code:    4002,
@@ -2502,6 +3134,24 @@ func (a *helperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (ac
 }
 
 func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.PromptResponse, error) {
+	if err := a.recordRequest("prompt"); err != nil {
+		return acp.PromptResponse{}, err
+	}
+	if len(a.scenario.ExpectedRequestOrder) > 0 {
+		a.mu.Lock()
+		gotOrder := append([]string(nil), a.requests...)
+		a.mu.Unlock()
+		if !reflect.DeepEqual(gotOrder, a.scenario.ExpectedRequestOrder) {
+			return acp.PromptResponse{}, &acp.RequestError{
+				Code: 4007,
+				Message: fmt.Sprintf(
+					"unexpected request order %#v, want %#v",
+					gotOrder,
+					a.scenario.ExpectedRequestOrder,
+				),
+			}
+		}
+	}
 	if a.scenario.ExpectedPrompt != "" {
 		gotPrompt := firstPromptText(req.Prompt)
 		if gotPrompt != a.scenario.ExpectedPrompt {
@@ -2609,8 +3259,14 @@ func (a *helperAgent) emitUpdates(ctx context.Context, updates []acp.SessionUpda
 	return nil
 }
 
-func (a *helperAgent) Cancel(context.Context, acp.CancelNotification) error {
-	return nil
+func (a *helperAgent) Cancel(_ context.Context, notification acp.CancelNotification) error {
+	if notification.SessionId != acp.SessionId(a.sessionID) {
+		return &acp.RequestError{
+			Code:    4013,
+			Message: fmt.Sprintf("unexpected cancel session id %q", notification.SessionId),
+		}
+	}
+	return a.recordRequest("cancel")
 }
 
 func (*helperAgent) Logout(context.Context, acp.LogoutRequest) (acp.LogoutResponse, error) {
@@ -2629,17 +3285,93 @@ func (*helperAgent) ResumeSession(context.Context, acp.ResumeSessionRequest) (ac
 	return acp.ResumeSessionResponse{}, nil
 }
 
-func (*helperAgent) SetSessionConfigOption(
-	context.Context,
-	acp.SetSessionConfigOptionRequest,
+func (a *helperAgent) SetSessionConfigOption(
+	ctx context.Context,
+	req acp.SetSessionConfigOptionRequest,
 ) (acp.SetSessionConfigOptionResponse, error) {
-	return acp.SetSessionConfigOptionResponse{}, nil
+	if req.ValueId == nil || req.Boolean != nil {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4008,
+			Message: "expected value-id session configuration request",
+		}
+	}
+
+	valueRequest := req.ValueId
+	if valueRequest.SessionId != acp.SessionId(a.sessionID) {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4009,
+			Message: fmt.Sprintf("unexpected config session id %q", valueRequest.SessionId),
+		}
+	}
+
+	if valueRequest.ConfigId == acp.SessionConfigId("model") {
+		if err := a.recordRequest("model"); err != nil {
+			return acp.SetSessionConfigOptionResponse{}, err
+		}
+		if a.scenario.ExpectedModelValue != "" &&
+			string(valueRequest.Value) != a.scenario.ExpectedModelValue {
+			return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+				Code: 4010,
+				Message: fmt.Sprintf(
+					"unexpected model value %q",
+					valueRequest.Value,
+				),
+			}
+		}
+		if err := a.emitUpdates(ctx, a.scenario.UpdatesOnModelConfig); err != nil {
+			return acp.SetSessionConfigOptionResponse{}, err
+		}
+		if a.scenario.BlockModelConfigUntilCancel {
+			<-ctx.Done()
+			return acp.SetSessionConfigOptionResponse{}, ctx.Err()
+		}
+		if a.scenario.ModelConfigError != nil {
+			return acp.SetSessionConfigOptionResponse{}, a.scenario.ModelConfigError.toACPError()
+		}
+		return acp.SetSessionConfigOptionResponse{
+			ConfigOptions: append([]acp.SessionConfigOption(nil), a.scenario.ModelConfigOptions...),
+		}, nil
+	}
+
+	if err := a.recordRequest("speed"); err != nil {
+		return acp.SetSessionConfigOptionResponse{}, err
+	}
+	if a.scenario.ExpectedSpeedConfigID != "" &&
+		string(valueRequest.ConfigId) != a.scenario.ExpectedSpeedConfigID {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4011,
+			Message: fmt.Sprintf("unexpected speed config id %q", valueRequest.ConfigId),
+		}
+	}
+	if a.scenario.ExpectedSpeedValue != "" &&
+		string(valueRequest.Value) != a.scenario.ExpectedSpeedValue {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4012,
+			Message: fmt.Sprintf("unexpected speed value %q", valueRequest.Value),
+		}
+	}
+	if err := a.emitUpdates(ctx, a.scenario.UpdatesOnSpeedConfig); err != nil {
+		return acp.SetSessionConfigOptionResponse{}, err
+	}
+	if a.scenario.BlockSpeedConfigUntilCancel {
+		<-ctx.Done()
+		return acp.SetSessionConfigOptionResponse{}, ctx.Err()
+	}
+	if a.scenario.SpeedConfigError != nil {
+		return acp.SetSessionConfigOptionResponse{}, a.scenario.SpeedConfigError.toACPError()
+	}
+	return acp.SetSessionConfigOptionResponse{
+		ConfigOptions: append([]acp.SessionConfigOption(nil), a.scenario.SpeedConfigOptions...),
+	}, nil
 }
 
 func (a *helperAgent) SetSessionMode(
 	_ context.Context,
 	req acp.SetSessionModeRequest,
 ) (acp.SetSessionModeResponse, error) {
+	if err := a.recordRequest("mode"); err != nil {
+		return acp.SetSessionModeResponse{}, err
+	}
 	if a.scenario.ExpectedSessionModeID != "" && string(req.ModeId) != a.scenario.ExpectedSessionModeID {
 		return acp.SetSessionModeResponse{}, &acp.RequestError{
 			Code:    4002,
@@ -2647,6 +3379,30 @@ func (a *helperAgent) SetSessionMode(
 		}
 	}
 	return acp.SetSessionModeResponse{}, nil
+}
+
+func (a *helperAgent) recordRequest(request string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.requests = append(a.requests, request)
+	if a.scenario.ProtocolLogPath == "" {
+		return nil
+	}
+	file, err := os.OpenFile(a.scenario.ProtocolLogPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("open protocol log: %w", err)
+	}
+	if _, err := fmt.Fprintln(file, request); err != nil {
+		return errors.Join(
+			fmt.Errorf("write protocol log: %w", err),
+			file.Close(),
+		)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close protocol log: %w", err)
+	}
+	return nil
 }
 
 func (e *helperRequestError) toACPError() error {
@@ -2665,13 +3421,43 @@ func (e *helperRequestError) toACPError() error {
 	}
 }
 
-func newTestClient(t *testing.T, scenario helperScenario) Client {
+func atomicSpeedSelectOptions(current acp.SessionConfigValueId) []acp.SessionConfigOption {
+	return []acp.SessionConfigOption{
+		completeFlatSelectConfigOption(
+			"provider-speed",
+			"Speed",
+			speedTestCategory("model_config"),
+			current,
+			completeSelectValue("standard-tier", "Standard"),
+			completeSelectValue("accelerated-tier", "Enabled"),
+		),
+	}
+}
+
+func assertProtocolRequests(t *testing.T, path string, want []string) {
+	t.Helper()
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read protocol log: %v", err)
+	}
+	got := strings.Fields(string(raw))
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("protocol requests = %#v, want %#v", got, want)
+	}
+}
+
+func newTestClient(t *testing.T, scenario helperScenario) *clientImpl {
 	t.Helper()
 
 	return newTestClientWithConfig(t, scenario, nil)
 }
 
-func newTestClientWithConfig(t *testing.T, scenario helperScenario, configure func(*ClientConfig)) Client {
+func newTestClientWithConfig(
+	t *testing.T,
+	scenario helperScenario,
+	configure func(*ClientConfig),
+) *clientImpl {
 	t.Helper()
 
 	return newTestClientWithSpecConfig(t, scenario, nil, configure)
@@ -2682,7 +3468,7 @@ func newTestClientWithSpecConfig(
 	scenario helperScenario,
 	configureSpec func(*Spec),
 	configure func(*ClientConfig),
-) Client {
+) *clientImpl {
 	t.Helper()
 
 	scenarioJSON, err := json.Marshal(scenario)
@@ -2725,7 +3511,11 @@ func newTestClientWithSpecConfig(
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	return client
+	implementation, ok := client.(*clientImpl)
+	if !ok {
+		t.Fatalf("client implementation type = %T, want *clientImpl", client)
+	}
+	return implementation
 }
 
 func collectSessionUpdates(t *testing.T, session Session) []model.SessionUpdate {
