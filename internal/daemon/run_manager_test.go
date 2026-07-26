@@ -72,6 +72,112 @@ func TestRunManagerStartTaskRunAllocatesRunDBAndRejectsDuplicateRunID(t *testing
 	}
 }
 
+func TestRunManagerPreparedJobQueuedAndExecutorStartedAgreeOnRequestedSpeed(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(
+			_ context.Context,
+			_ *model.RuntimeConfig,
+			scope model.RunScope,
+		) (*model.SolvePreparation, error) {
+			jobArtifacts := scope.RunArtifacts().JobArtifacts("task_01")
+			return &model.SolvePreparation{
+				Jobs: []model.Job{{
+					CodeFiles: []string{"task_01.md"},
+					Groups: map[string][]model.IssueEntry{
+						"task_01": {{Name: "task_01.md", CodeFile: "task_01.md"}},
+					},
+					TaskTitle: "Speed event contract",
+					TaskType:  "backend",
+					SafeName:  "task_01",
+					Prompt:    []byte("verify speed event propagation"),
+					OutLog:    jobArtifacts.OutLogPath,
+					ErrLog:    jobArtifacts.ErrLogPath,
+				}},
+				RunArtifacts: scope.RunArtifacts(),
+			}, nil
+		},
+		execute: func(
+			ctx context.Context,
+			prep *model.SolvePreparation,
+			cfg *model.RuntimeConfig,
+		) error {
+			executionCfg := cfg.Clone()
+			executionCfg.DryRun = false
+			executionCfg.IDE = "missing-runtime"
+			return runpkg.Execute(
+				ctx,
+				prep.Jobs,
+				prep.RunArtifacts,
+				prep.Journal(),
+				prep.EventBus(),
+				executionCfg,
+				prep.RuntimeManager(),
+			)
+		},
+	})
+	env.writeWorkflowFile(
+		t,
+		env.workflowSlug,
+		"task_01.md",
+		daemonTaskBody("pending", "Speed event contract"),
+	)
+
+	const runID = "task-run-speed-events"
+	run := env.startTaskRun(
+		t,
+		runID,
+		rawJSON(t, `{"run_id":"`+runID+`","dry_run":true,"speed":"fast"}`),
+	)
+	terminal := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if terminal.Status != runStatusFailed {
+		t.Fatalf("terminal status = %q, want failed", terminal.Status)
+	}
+
+	runDB, err := openRunDBForRunID(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("openRunDBForRunID() error = %v", err)
+	}
+	defer func() {
+		_ = runDB.Close()
+	}()
+	lifecycleEvents, err := runDB.ListEventsByKind(context.Background(), []eventspkg.EventKind{
+		eventspkg.EventKindJobQueued,
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindJobStarted,
+	})
+	if err != nil {
+		t.Fatalf("ListEventsByKind() error = %v", err)
+	}
+	if len(lifecycleEvents) != 3 {
+		t.Fatalf("speed lifecycle event count = %d, want 3", len(lifecycleEvents))
+	}
+
+	var queued kinds.JobQueuedPayload
+	if err := json.Unmarshal(lifecycleEvents[0].Payload, &queued); err != nil {
+		t.Fatalf("decode job.queued payload: %v", err)
+	}
+	var runStarted kinds.RunStartedPayload
+	if err := json.Unmarshal(lifecycleEvents[1].Payload, &runStarted); err != nil {
+		t.Fatalf("decode run.started payload: %v", err)
+	}
+	var jobStarted kinds.JobStartedPayload
+	if err := json.Unmarshal(lifecycleEvents[2].Payload, &jobStarted); err != nil {
+		t.Fatalf("decode job.started payload: %v", err)
+	}
+	if queued.Speed != kinds.SpeedFast ||
+		runStarted.Speed != kinds.SpeedFast ||
+		jobStarted.Speed != kinds.SpeedFast {
+		t.Fatalf(
+			"requested speeds = queued:%q run_started:%q job_started:%q, want fast",
+			queued.Speed,
+			runStarted.Speed,
+			jobStarted.Speed,
+		)
+	}
+}
+
 func TestRunManagerRejectsCompletedTaskWorkflowBeforeCreatingRun(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Done task"))

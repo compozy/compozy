@@ -9,6 +9,7 @@ type RunQueuedPayload struct {
 	Model           string `json:"model,omitempty"`
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 	AccessMode      string `json:"access_mode,omitempty"`
+	Speed           Speed  `json:"speed,omitempty"`
 }
 
 // RunStartedPayload describes a started run.
@@ -20,6 +21,7 @@ type RunStartedPayload struct {
 	Model           string `json:"model,omitempty"`
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 	AccessMode      string `json:"access_mode,omitempty"`
+	Speed           Speed  `json:"speed,omitempty"`
 	ArtifactsDir    string `json:"artifacts_dir,omitempty"`
 	JobsTotal       int    `json:"jobs_total,omitempty"`
 }

@@ -1397,16 +1397,23 @@ func TestJobLifecycleEmitsFailedEvent(t *testing.T) {
 		ctx: context.Background(),
 		cfg: &config{
 			MaxRetries: 2,
+			Speed:      kinds.SpeedFast,
 			RunArtifacts: model.RunArtifacts{
 				RunID: runID,
 			},
 		},
 		journal: runJournal,
 	}
+	rejected := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusRejected,
+		Reason:    kinds.SpeedResolutionReasonProviderRejected,
+	}
 	lifecycle := newJobLifecycle(0, &job{
-		CodeFiles: []string{"task_01"},
-		OutLog:    "task_01.out.log",
-		ErrLog:    "task_01.err.log",
+		CodeFiles:       []string{"task_01"},
+		OutLog:          "task_01.out.log",
+		ErrLog:          "task_01.err.log",
+		SpeedResolution: rejected,
 	}, execCtx)
 
 	lifecycle.startAttempt(1, 3, time.Second)
@@ -1422,6 +1429,11 @@ func TestJobLifecycleEmitsFailedEvent(t *testing.T) {
 	if got := events[0].Kind; got != eventspkg.EventKindJobStarted {
 		t.Fatalf("expected job.started event, got %s", got)
 	}
+	var started kinds.JobStartedPayload
+	decodeRuntimeEventPayload(t, events[0], &started)
+	if started.Speed != kinds.SpeedFast {
+		t.Fatalf("job.started speed = %q, want fast", started.Speed)
+	}
 	if got := events[1].Kind; got != eventspkg.EventKindJobFailed {
 		t.Fatalf("expected job.failed event, got %s", got)
 	}
@@ -1429,6 +1441,43 @@ func TestJobLifecycleEmitsFailedEvent(t *testing.T) {
 	decodeRuntimeEventPayload(t, events[1], &payload)
 	if payload.Error != "boom" {
 		t.Fatalf("expected job.failed payload error to carry failure reason, got %#v", payload)
+	}
+	if payload.SpeedResolution == nil || *payload.SpeedResolution != rejected {
+		t.Fatalf("job.failed speed resolution = %#v, want %#v", payload.SpeedResolution, rejected)
+	}
+}
+
+func TestJobLifecycleOmitsUsableSessionResolutionFromFailedEvent(t *testing.T) {
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			MaxRetries: 2,
+			Speed:      kinds.SpeedFast,
+			RunArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		journal: runJournal,
+	}
+	lifecycle := newJobLifecycle(0, &job{
+		CodeFiles: []string{"task_01"},
+		SpeedResolution: kinds.SpeedResolution{
+			Requested: kinds.SpeedFast,
+			Status:    kinds.SpeedResolutionStatusApplied,
+		},
+	}, execCtx)
+
+	lifecycle.startAttempt(1, 3, time.Second)
+	lifecycle.markGiveUp(failInfo{CodeFile: "task_01", ExitCode: 1, Err: errors.New("prompt failed")})
+
+	events := collectRuntimeEvents(t, eventsCh, 2)
+	var payload kinds.JobFailedPayload
+	decodeRuntimeEventPayload(t, events[1], &payload)
+	if payload.SpeedResolution != nil {
+		t.Fatalf("job.failed usable session resolution = %#v, want omitted", payload.SpeedResolution)
 	}
 }
 

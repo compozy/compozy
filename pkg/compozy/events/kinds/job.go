@@ -14,6 +14,7 @@ type JobQueuedPayload struct {
 	Model           string   `json:"model,omitempty"`
 	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
 	AccessMode      string   `json:"access_mode,omitempty"`
+	Speed           Speed    `json:"speed,omitempty"`
 	OutLog          string   `json:"out_log,omitempty"`
 	ErrLog          string   `json:"err_log,omitempty"`
 }
@@ -25,6 +26,7 @@ type JobStartedPayload struct {
 	Model           string `json:"model,omitempty"`
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 	AccessMode      string `json:"access_mode,omitempty"`
+	Speed           Speed  `json:"speed,omitempty"`
 }
 
 // JobAttemptInfo carries shared attempt counters for job lifecycle payloads.
@@ -83,12 +85,13 @@ type JobCompletedPayload struct {
 // JobFailedPayload describes a failed job.
 type JobFailedPayload struct {
 	JobAttemptInfo
-	CodeFile   string `json:"code_file,omitempty"`
-	ExitCode   int    `json:"exit_code,omitempty"`
-	OutLog     string `json:"out_log,omitempty"`
-	ErrLog     string `json:"err_log,omitempty"`
-	Error      string `json:"error,omitempty"`
-	DurationMs int64  `json:"duration_ms,omitempty"`
+	CodeFile        string           `json:"code_file,omitempty"`
+	ExitCode        int              `json:"exit_code,omitempty"`
+	OutLog          string           `json:"out_log,omitempty"`
+	ErrLog          string           `json:"err_log,omitempty"`
+	Error           string           `json:"error,omitempty"`
+	DurationMs      int64            `json:"duration_ms,omitempty"`
+	SpeedResolution *SpeedResolution `json:"speed_resolution,omitempty"`
 }
 
 // JobCancelledPayload describes a canceled job.

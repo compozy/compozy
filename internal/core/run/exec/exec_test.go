@@ -15,6 +15,7 @@ import (
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
@@ -153,6 +154,7 @@ func TestPrepareExecRunStateScopedFreshPersistedRunInitializesRecord(t *testing.
 		IDE:           model.IDECodex,
 		Model:         "gpt-5.5",
 		AccessMode:    model.AccessModeDefault,
+		Speed:         kinds.SpeedFast,
 		OutputFormat:  model.OutputFormatText,
 		Persist:       true,
 		DaemonOwned:   true,
@@ -167,6 +169,8 @@ func TestPrepareExecRunStateScopedFreshPersistedRunInitializesRecord(t *testing.
 	defer func() {
 		_ = scope.Close(context.Background())
 	}()
+	_, eventsCh, unsubscribe := scope.RunEventBus().Subscribe()
+	defer unsubscribe()
 
 	state, err := prepareExecRunState(context.Background(), cfg, scope)
 	if err != nil {
@@ -182,6 +186,21 @@ func TestPrepareExecRunStateScopedFreshPersistedRunInitializesRecord(t *testing.
 	}
 	if err := state.writeStarted(cfg); err != nil {
 		t.Fatalf("state.writeStarted() error = %v", err)
+	}
+	select {
+	case event := <-eventsCh:
+		if event.Kind != eventspkg.EventKindRunStarted {
+			t.Fatalf("event kind = %q, want run.started", event.Kind)
+		}
+		var payload kinds.RunStartedPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("decode run.started payload: %v", err)
+		}
+		if payload.Speed != kinds.SpeedFast {
+			t.Fatalf("run.started speed = %q, want fast", payload.Speed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for run.started event")
 	}
 	if _, err := os.Stat(scope.RunArtifacts().RunMetaPath); err != nil {
 		t.Fatalf("stat run meta path %q: %v", scope.RunArtifacts().RunMetaPath, err)

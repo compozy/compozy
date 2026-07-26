@@ -1622,6 +1622,37 @@ func TestEmitRunStartWaitsForObserverHooksBeforeReturning(t *testing.T) {
 	}
 }
 
+func TestEmitRunStartCarriesRequestedSpeed(t *testing.T) {
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	runArtifacts := model.RunArtifacts{RunID: runID}
+	internalCfg := &config{
+		Mode:         model.ExecutionModePRDTasks,
+		Speed:        kinds.SpeedFast,
+		RunArtifacts: runArtifacts,
+	}
+	if err := emitRunStart(
+		context.Background(),
+		runJournal,
+		runArtifacts,
+		internalCfg,
+		[]job{{SafeName: "task_01"}},
+	); err != nil {
+		t.Fatalf("emitRunStart() error = %v", err)
+	}
+
+	events := collectRuntimeEvents(t, eventsCh, 1)
+	if events[0].Kind != eventspkg.EventKindRunStarted {
+		t.Fatalf("event kind = %q, want run.started", events[0].Kind)
+	}
+	var payload kinds.RunStartedPayload
+	decodeRuntimeEventPayload(t, events[0], &payload)
+	if payload.Speed != kinds.SpeedFast {
+		t.Fatalf("run.started speed = %q, want fast", payload.Speed)
+	}
+}
+
 func TestFinalizeExecutionWaitsForObserverHooksWithoutCanceledRunContext(t *testing.T) {
 	t.Parallel()
 

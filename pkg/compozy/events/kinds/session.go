@@ -85,10 +85,11 @@ type SessionUpdate struct {
 
 // SessionStartedPayload describes a new attached session.
 type SessionStartedPayload struct {
-	Index          int    `json:"index"`
-	ACPSessionID   string `json:"acp_session_id"`
-	AgentSessionID string `json:"agent_session_id,omitempty"`
-	Resumed        bool   `json:"resumed,omitempty"`
+	Index           int              `json:"index"`
+	ACPSessionID    string           `json:"acp_session_id"`
+	AgentSessionID  string           `json:"agent_session_id,omitempty"`
+	Resumed         bool             `json:"resumed,omitempty"`
+	SpeedResolution *SpeedResolution `json:"speed_resolution,omitempty"`
 }
 
 // SessionUpdatePayload carries one streamed session update.

@@ -1680,6 +1680,7 @@ func (m *RunManager) executeWorkflowRun(active *activeRun, row globaldb.Run, run
 		runtimeCfg.RunID,
 		prep.Jobs,
 		runtimeCfg.AccessMode,
+		runtimeCfg.Speed,
 	); err != nil {
 		fallback = fallbackTerminalState(
 			scope.RunArtifacts(),
@@ -2473,6 +2474,7 @@ func emitPreparedJobQueuedEvents(
 	runID string,
 	jobs []model.Job,
 	accessMode string,
+	speed kinds.Speed,
 ) error {
 	if runJournal == nil || len(jobs) == 0 {
 		return nil
@@ -2493,6 +2495,7 @@ func emitPreparedJobQueuedEvents(
 			Model:           strings.TrimSpace(job.Model),
 			ReasoningEffort: strings.TrimSpace(job.ReasoningEffort),
 			AccessMode:      strings.TrimSpace(accessMode),
+			Speed:           speed,
 			OutLog:          strings.TrimSpace(job.OutLog),
 			ErrLog:          strings.TrimSpace(job.ErrLog),
 		}

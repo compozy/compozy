@@ -61,6 +61,7 @@ func (l *jobLifecycle) startAttempt(attempt int, maxAttempts int, timeout time.D
 				Model:           l.configModel(),
 				ReasoningEffort: l.configReasoningEffort(),
 				AccessMode:      l.configAccessMode(),
+				Speed:           l.configSpeed(),
 			},
 		)
 		notifyJobStart(
@@ -114,12 +115,13 @@ func (l *jobLifecycle) markGiveUp(failure failInfo) {
 				Attempt:     l.attempt,
 				MaxAttempts: l.maxAttempts(),
 			},
-			CodeFile:   l.job.CodeFileLabel(),
-			ExitCode:   l.lastExitCode,
-			OutLog:     l.job.OutLog,
-			ErrLog:     l.job.ErrLog,
-			Error:      l.job.Failure,
-			DurationMs: l.elapsedMs(),
+			CodeFile:        l.job.CodeFileLabel(),
+			ExitCode:        l.lastExitCode,
+			OutLog:          l.job.OutLog,
+			ErrLog:          l.job.ErrLog,
+			Error:           l.job.Failure,
+			DurationMs:      l.elapsedMs(),
+			SpeedResolution: optionalRejectedSpeedResolution(l.job.SpeedResolution),
 		},
 	)
 	if l.lastFailure != nil && l.humanOutputEnabled() {
@@ -287,6 +289,29 @@ func (l *jobLifecycle) configAccessMode() string {
 		return ""
 	}
 	return cfg.AccessMode
+}
+
+func (l *jobLifecycle) configSpeed() kinds.Speed {
+	cfg := l.execConfig()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Speed
+}
+
+func optionalSpeedResolution(resolution kinds.SpeedResolution) *kinds.SpeedResolution {
+	if resolution == (kinds.SpeedResolution{}) {
+		return nil
+	}
+	copied := resolution
+	return &copied
+}
+
+func optionalRejectedSpeedResolution(resolution kinds.SpeedResolution) *kinds.SpeedResolution {
+	if resolution.Status != kinds.SpeedResolutionStatusRejected {
+		return nil
+	}
+	return optionalSpeedResolution(resolution)
 }
 
 func refreshTaskMetaOnExit(cfg *config) {

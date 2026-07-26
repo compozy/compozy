@@ -190,6 +190,7 @@ func emitRunStart(
 			Model:           internalCfg.Model,
 			ReasoningEffort: internalCfg.ReasoningEffort,
 			AccessMode:      internalCfg.AccessMode,
+			Speed:           internalCfg.Speed,
 			ArtifactsDir:    runArtifacts.RunDir,
 			JobsTotal:       len(internalJobs),
 		},

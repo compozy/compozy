@@ -760,6 +760,7 @@ func (s *execRunState) writeStarted(cfg *model.RuntimeConfig) error {
 			Model:           s.record.Model,
 			ReasoningEffort: cfg.ReasoningEffort,
 			AccessMode:      cfg.AccessMode,
+			Speed:           cfg.Speed,
 			ArtifactsDir:    s.runArtifacts.RunDir,
 			JobsTotal:       1,
 		},

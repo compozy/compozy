@@ -62,6 +62,212 @@ func TestJobAttemptPayloadJSONCompatibility(t *testing.T) {
 	}
 }
 
+func TestSpeedLifecyclePayloadJSONCompatibility(t *testing.T) {
+	t.Parallel()
+
+	applied := SpeedResolution{
+		Requested: SpeedFast,
+		Status:    SpeedResolutionStatusApplied,
+	}
+	unsupported := SpeedResolution{
+		Requested: SpeedNormal,
+		Status:    SpeedResolutionStatusUnsupported,
+		Reason:    SpeedResolutionReasonCapabilityAbsent,
+	}
+	rejected := SpeedResolution{
+		Requested: SpeedFast,
+		Status:    SpeedResolutionStatusRejected,
+		Reason:    SpeedResolutionReasonProviderRejected,
+	}
+	tests := []struct {
+		name    string
+		payload any
+		want    string
+	}{
+		{
+			name:    "run queued intent",
+			payload: RunQueuedPayload{Mode: "prd", Speed: SpeedFast},
+			want:    `{"mode":"prd","speed":"fast"}`,
+		},
+		{
+			name:    "run started intent",
+			payload: RunStartedPayload{Mode: "prd", Speed: SpeedFast},
+			want:    `{"mode":"prd","speed":"fast"}`,
+		},
+		{
+			name:    "job queued intent",
+			payload: JobQueuedPayload{Index: 1, Speed: SpeedFast},
+			want:    `{"index":1,"speed":"fast"}`,
+		},
+		{
+			name: "job started intent",
+			payload: JobStartedPayload{
+				JobAttemptInfo: JobAttemptInfo{Index: 1},
+				Speed:          SpeedFast,
+			},
+			want: `{"index":1,"speed":"fast"}`,
+		},
+		{
+			name: "session started applied resolution",
+			payload: SessionStartedPayload{
+				Index:           1,
+				ACPSessionID:    "acp-1",
+				SpeedResolution: &applied,
+			},
+			want: `{"index":1,"acp_session_id":"acp-1","speed_resolution":{"requested":"fast","status":"applied"}}`,
+		},
+		{
+			name: "session started unsupported resolution",
+			payload: SessionStartedPayload{
+				Index:           1,
+				ACPSessionID:    "acp-1",
+				SpeedResolution: &unsupported,
+			},
+			want: `{"index":1,"acp_session_id":"acp-1","speed_resolution":{"requested":"normal","status":"unsupported","reason":"capability_absent"}}`,
+		},
+		{
+			name: "job failed rejected resolution",
+			payload: JobFailedPayload{
+				JobAttemptInfo:  JobAttemptInfo{Index: 1},
+				Error:           "speed rejected",
+				SpeedResolution: &rejected,
+			},
+			want: `{"index":1,"error":"speed rejected","speed_resolution":{"requested":"fast","status":"rejected","reason":"provider_rejected"}}`,
+		},
+		{
+			name: "absent session resolution remains omitted",
+			payload: SessionStartedPayload{
+				Index:        1,
+				ACPSessionID: "acp-1",
+			},
+			want: `{"index":1,"acp_session_id":"acp-1"}`,
+		},
+		{
+			name:    "absent failed resolution remains omitted",
+			payload: JobFailedPayload{JobAttemptInfo: JobAttemptInfo{Index: 1}},
+			want:    `{"index":1}`,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			data, err := json.Marshal(test.payload)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			if got := string(data); got != test.want {
+				t.Fatalf("payload JSON = %s, want %s", got, test.want)
+			}
+		})
+	}
+}
+
+func TestHistoricalSpeedLifecyclePayloadJSONCompatibility(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		data   string
+		decode func(t *testing.T, data []byte)
+	}{
+		{
+			name: "run queued",
+			data: `{"mode":"prd"}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var payload RunQueuedPayload
+				if err := json.Unmarshal(data, &payload); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if payload.Speed != "" {
+					t.Fatalf("historical run queued speed = %q, want empty", payload.Speed)
+				}
+			},
+		},
+		{
+			name: "run started",
+			data: `{"mode":"prd"}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var payload RunStartedPayload
+				if err := json.Unmarshal(data, &payload); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if payload.Speed != "" {
+					t.Fatalf("historical run started speed = %q, want empty", payload.Speed)
+				}
+			},
+		},
+		{
+			name: "job queued",
+			data: `{"index":1}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var payload JobQueuedPayload
+				if err := json.Unmarshal(data, &payload); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if payload.Speed != "" {
+					t.Fatalf("historical job queued speed = %q, want empty", payload.Speed)
+				}
+			},
+		},
+		{
+			name: "job started",
+			data: `{"index":1}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var payload JobStartedPayload
+				if err := json.Unmarshal(data, &payload); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if payload.Speed != "" {
+					t.Fatalf("historical job started speed = %q, want empty", payload.Speed)
+				}
+			},
+		},
+		{
+			name: "session started",
+			data: `{"index":1,"acp_session_id":"acp-1"}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var payload SessionStartedPayload
+				if err := json.Unmarshal(data, &payload); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if payload.SpeedResolution != nil {
+					t.Fatalf("historical session resolution = %#v, want nil", payload.SpeedResolution)
+				}
+			},
+		},
+		{
+			name: "job failed",
+			data: `{"index":1,"error":"failed"}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var payload JobFailedPayload
+				if err := json.Unmarshal(data, &payload); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if payload.SpeedResolution != nil {
+					t.Fatalf("historical job resolution = %#v, want nil", payload.SpeedResolution)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			test.decode(t, []byte(test.data))
+		})
+	}
+}
+
 func TestRunRecoveryPayloadJSONCompatibility(t *testing.T) {
 	t.Parallel()
 

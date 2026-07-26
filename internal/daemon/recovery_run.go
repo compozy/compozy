@@ -65,6 +65,7 @@ func (r *daemonWorkflowPreparedRun) executePrepared(
 		r.runtimeCfg.RunID,
 		prep.Jobs,
 		r.runtimeCfg.AccessMode,
+		r.runtimeCfg.Speed,
 	); err != nil {
 		return recovery.RunOutcome{}, err
 	}

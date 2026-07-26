@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 const (
@@ -26,6 +27,7 @@ type executionResult struct {
 	Status        string             `json:"status"`
 	IDE           string             `json:"ide"`
 	Model         string             `json:"model"`
+	Speed         kinds.Speed        `json:"speed,omitempty"`
 	OutputFormat  string             `json:"output_format"`
 	ArtifactsDir  string             `json:"artifacts_dir"`
 	RunMetaPath   string             `json:"run_meta_path"`
@@ -37,18 +39,19 @@ type executionResult struct {
 }
 
 type executionJobInfo struct {
-	SafeName        string      `json:"safe_name"`
-	CodeFiles       []string    `json:"code_files,omitempty"`
-	IDE             string      `json:"ide,omitempty"`
-	Model           string      `json:"model,omitempty"`
-	ReasoningEffort string      `json:"reasoning_effort,omitempty"`
-	Status          string      `json:"status"`
-	ExitCode        int         `json:"exit_code"`
-	PromptPath      string      `json:"prompt_path"`
-	StdoutLogPath   string      `json:"stdout_log_path"`
-	StderrLogPath   string      `json:"stderr_log_path"`
-	Usage           model.Usage `json:"usage,omitempty"`
-	Error           string      `json:"error,omitempty"`
+	SafeName        string                 `json:"safe_name"`
+	CodeFiles       []string               `json:"code_files,omitempty"`
+	IDE             string                 `json:"ide,omitempty"`
+	Model           string                 `json:"model,omitempty"`
+	ReasoningEffort string                 `json:"reasoning_effort,omitempty"`
+	Status          string                 `json:"status"`
+	ExitCode        int                    `json:"exit_code"`
+	PromptPath      string                 `json:"prompt_path"`
+	StdoutLogPath   string                 `json:"stdout_log_path"`
+	StderrLogPath   string                 `json:"stderr_log_path"`
+	Usage           model.Usage            `json:"usage,omitempty"`
+	Error           string                 `json:"error,omitempty"`
+	SpeedResolution *kinds.SpeedResolution `json:"speed_resolution,omitempty"`
 }
 
 func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdownErr error) executionResult {
@@ -59,6 +62,7 @@ func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdown
 		Status:        deriveRunStatus(jobs, failures),
 		IDE:           cfg.IDE,
 		Model:         cfg.Model,
+		Speed:         cfg.Speed,
 		OutputFormat:  string(cfg.OutputFormat),
 		ArtifactsDir:  cfg.RunArtifacts.RunDir,
 		RunMetaPath:   cfg.RunArtifacts.RunMetaPath,
@@ -80,6 +84,7 @@ func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdown
 			StderrLogPath:   item.ErrLog,
 			Usage:           item.Usage,
 			Error:           item.Failure,
+			SpeedResolution: optionalSpeedResolution(item.SpeedResolution),
 		})
 		result.Usage.Add(item.Usage)
 	}

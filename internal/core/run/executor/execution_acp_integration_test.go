@@ -602,6 +602,7 @@ func TestExecuteACPJSONModeWritesStructuredSuccessResult(t *testing.T) {
 			IDE:                    model.IDECodex,
 			Mode:                   model.ExecutionModeExec,
 			OutputFormat:           model.OutputFormatJSON,
+			Speed:                  kinds.SpeedFast,
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 2,
 		}, nil)
@@ -634,6 +635,21 @@ func TestExecuteACPJSONModeWritesStructuredSuccessResult(t *testing.T) {
 	}
 	if len(payload.Jobs) != 1 || payload.Jobs[0].Status != runStatusSucceeded {
 		t.Fatalf("unexpected job payload: %#v", payload.Jobs)
+	}
+	wantResolution := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+	if payload.Speed != kinds.SpeedFast {
+		t.Fatalf("result speed = %q, want fast", payload.Speed)
+	}
+	if payload.Jobs[0].SpeedResolution == nil || *payload.Jobs[0].SpeedResolution != wantResolution {
+		t.Fatalf(
+			"job speed resolution = %#v, want %#v",
+			payload.Jobs[0].SpeedResolution,
+			wantResolution,
+		)
 	}
 	if payload.Jobs[0].PromptPath != jobArtifacts.PromptPath {
 		t.Fatalf("unexpected prompt path: %q", payload.Jobs[0].PromptPath)
@@ -682,6 +698,7 @@ func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 		IDE:                    model.IDECodex,
 		Mode:                   model.ExecutionModePRDTasks,
 		OutputFormat:           model.OutputFormatRawJSON,
+		Speed:                  kinds.SpeedFast,
 		ReasoningEffort:        "medium",
 		RetryBackoffMultiplier: 2,
 		Concurrent:             1,
@@ -753,6 +770,45 @@ func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 				replayed[i].Kind,
 			)
 		}
+	}
+
+	wantResolution := kinds.SpeedResolution{
+		Requested: kinds.SpeedFast,
+		Status:    kinds.SpeedResolutionStatusUnsupported,
+		Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+	}
+	var runStarted kinds.RunStartedPayload
+	decodeRuntimeEventPayload(t, busEvents[0], &runStarted)
+	if runStarted.Speed != kinds.SpeedFast {
+		t.Fatalf("run.started speed = %q, want fast", runStarted.Speed)
+	}
+	var jobStarted kinds.JobStartedPayload
+	decodeRuntimeEventPayload(t, busEvents[1], &jobStarted)
+	if jobStarted.Speed != kinds.SpeedFast {
+		t.Fatalf("job.started speed = %q, want fast", jobStarted.Speed)
+	}
+	var sessionStarted kinds.SessionStartedPayload
+	decodeRuntimeEventPayload(t, busEvents[2], &sessionStarted)
+	if sessionStarted.SpeedResolution == nil || *sessionStarted.SpeedResolution != wantResolution {
+		t.Fatalf(
+			"session.started speed resolution = %#v, want %#v",
+			sessionStarted.SpeedResolution,
+			wantResolution,
+		)
+	}
+
+	resultBytes, err := os.ReadFile(prep.RunArtifacts.ResultPath)
+	if err != nil {
+		t.Fatalf("read workflow result: %v", err)
+	}
+	var result executionResult
+	if err := json.Unmarshal(resultBytes, &result); err != nil {
+		t.Fatalf("decode workflow result: %v", err)
+	}
+	if result.Speed != kinds.SpeedFast || len(result.Jobs) != 1 ||
+		result.Jobs[0].SpeedResolution == nil ||
+		*result.Jobs[0].SpeedResolution != wantResolution {
+		t.Fatalf("workflow result speed projection = %#v", result)
 	}
 }
 

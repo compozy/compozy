@@ -440,6 +440,16 @@ func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResu
 			if got, want := mcpMerged.MCPServers, []string{"compozy", "filesystem"}; !slices.Equal(got, want) {
 				t.Fatalf("unexpected mcp server names: got %v want %v", got, want)
 			}
+
+			var started kinds.SessionStartedPayload
+			decodeRuntimeEventPayload(t, events[3], &started)
+			if started.SpeedResolution == nil || *started.SpeedResolution != tt.wantResolution {
+				t.Fatalf(
+					"session started speed resolution = %#v, want %#v",
+					started.SpeedResolution,
+					tt.wantResolution,
+				)
+			}
 		})
 	}
 }
@@ -600,6 +610,7 @@ func TestSetupSessionExecutionPreservesRejectedResolutionAndClosesResources(t *t
 		OutLog:   outLog,
 		ErrLog:   errLog,
 	}
+	submitter := &stubRuntimeEventSubmitter{}
 	releaseCalls := 0
 	_, err := SetupSessionExecution(SessionSetupRequest{
 		Context: context.Background(),
@@ -609,9 +620,10 @@ func TestSetupSessionExecutionPreservesRejectedResolutionAndClosesResources(t *t
 			Speed:        kinds.SpeedFast,
 			RunArtifacts: model.RunArtifacts{RunID: "run-rejected"},
 		},
-		Job:    testJob,
-		CWD:    tmpDir,
-		Logger: silentLogger(),
+		Job:        testJob,
+		CWD:        tmpDir,
+		Logger:     silentLogger(),
+		RunJournal: submitter,
 		TrackClient: func(agent.Client) func() {
 			return func() {
 				releaseCalls++
@@ -629,6 +641,9 @@ func TestSetupSessionExecutionPreservesRejectedResolutionAndClosesResources(t *t
 	}
 	if releaseCalls != 1 {
 		t.Fatalf("client release calls = %d, want 1", releaseCalls)
+	}
+	if got := submitter.countKind(eventspkg.EventKindSessionStarted); got != 0 {
+		t.Fatalf("rejected setup emitted %d session started events, want 0", got)
 	}
 
 	errLogContents, readErr := os.ReadFile(errLog)

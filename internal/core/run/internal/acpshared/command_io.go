@@ -183,6 +183,7 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 		req.Config.RunArtifacts.RunID,
 		req.Index,
 		session.Identity(),
+		execution.SpeedResolution,
 	); err != nil {
 		writeErr := writeSetupFailureToErrLog(execution.ErrFile, err)
 		execution.Close()
@@ -280,6 +281,7 @@ func emitSessionStartedEvent(
 	runID string,
 	index int,
 	identity agent.SessionIdentity,
+	speedResolution kinds.SpeedResolution,
 ) error {
 	if !hasRuntimeEventSubmitter(runJournal) {
 		return nil
@@ -292,10 +294,11 @@ func emitSessionStartedEvent(
 		runID,
 		events.EventKindSessionStarted,
 		kinds.SessionStartedPayload{
-			Index:          index,
-			ACPSessionID:   identity.ACPSessionID,
-			AgentSessionID: identity.AgentSessionID,
-			Resumed:        identity.Resumed,
+			Index:           index,
+			ACPSessionID:    identity.ACPSessionID,
+			AgentSessionID:  identity.AgentSessionID,
+			Resumed:         identity.Resumed,
+			SpeedResolution: &speedResolution,
 		},
 	)
 	if err != nil {
