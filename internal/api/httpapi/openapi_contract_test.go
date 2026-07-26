@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -287,6 +288,90 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	}
 }
 
+func TestBrowserOpenAPIContractDefinesOptionalCanonicalSpeedProjection(t *testing.T) {
+	t.Parallel()
+
+	spec := loadBrowserOpenAPISpec(t)
+	enumCases := []struct {
+		schema string
+		want   []string
+	}{
+		{
+			schema: "Speed",
+			want:   []string{"fast", "normal"},
+		},
+		{
+			schema: "SpeedResolutionStatus",
+			want:   []string{"applied", "rejected", "unsupported"},
+		},
+		{
+			schema: "SpeedResolutionReason",
+			want: []string{
+				"capability_absent",
+				"capability_ambiguous",
+				"provider_rejected",
+				"value_ambiguous",
+			},
+		},
+	}
+	for _, testCase := range enumCases {
+		testCase := testCase
+		t.Run("Should define exact literals for "+testCase.schema, func(t *testing.T) {
+			t.Parallel()
+
+			got := schemaEnumStrings(t, getSchema(t, spec, testCase.schema))
+			if !slices.Equal(got, testCase.want) {
+				t.Fatalf("%s enum = %#v, want %#v", testCase.schema, got, testCase.want)
+			}
+		})
+	}
+
+	resolution := getSchema(t, spec, "SpeedResolution")
+	if !schemaRequires(resolution, "requested") || !schemaRequires(resolution, "status") {
+		t.Fatal("SpeedResolution must require requested and status")
+	}
+	if schemaRequires(resolution, "reason") {
+		t.Fatal("SpeedResolution must keep reason optional")
+	}
+	resolutionProperties := getMap(t, resolution, "properties")
+	assertSchemaRef(t, resolutionProperties, "requested", "#/components/schemas/Speed")
+	assertSchemaRef(t, resolutionProperties, "status", "#/components/schemas/SpeedResolutionStatus")
+	assertSchemaRef(t, resolutionProperties, "reason", "#/components/schemas/SpeedResolutionReason")
+
+	summary := getSchema(t, spec, "RunJobSummary")
+	if schemaRequires(summary, "speed") || schemaRequires(summary, "speed_resolution") {
+		t.Fatal("RunJobSummary must keep speed and speed_resolution optional")
+	}
+	summaryProperties := getMap(t, summary, "properties")
+	assertSchemaRef(t, summaryProperties, "speed", "#/components/schemas/Speed")
+	assertSchemaRef(t, summaryProperties, "speed_resolution", "#/components/schemas/SpeedResolution")
+}
+
+func TestGeneratedOpenAPIContractKeepsSpeedFieldsOptionalAndLiteral(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join("..", "..", "..", "web", "src", "generated", "compozy-openapi.d.ts")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", path, err)
+	}
+	generated := string(body)
+	for _, fragment := range []string{
+		`Speed: "normal" | "fast";`,
+		`SpeedResolutionReason: "capability_absent" | "capability_ambiguous" | "value_ambiguous" | "provider_rejected";`,
+		`SpeedResolutionStatus: "applied" | "unsupported" | "rejected";`,
+		`speed?: components["schemas"]["Speed"];`,
+		`speed_resolution?: components["schemas"]["SpeedResolution"];`,
+		`requested: components["schemas"]["Speed"];`,
+		`status: components["schemas"]["SpeedResolutionStatus"];`,
+		`reason?: components["schemas"]["SpeedResolutionReason"];`,
+	} {
+		if !strings.Contains(generated, fragment) {
+			t.Fatalf("generated OpenAPI declaration missing %q", fragment)
+		}
+	}
+}
+
 func loadBrowserOpenAPISpec(t *testing.T) map[string]any {
 	t.Helper()
 
@@ -451,4 +536,32 @@ func schemaRequires(schema map[string]any, field string) bool {
 		}
 	}
 	return false
+}
+
+func schemaEnumStrings(t *testing.T, schema map[string]any) []string {
+	t.Helper()
+
+	raw, ok := schema["enum"].([]any)
+	if !ok {
+		t.Fatalf("schema enum = %T, want array", schema["enum"])
+	}
+	values := make([]string, 0, len(raw))
+	for _, item := range raw {
+		value, ok := item.(string)
+		if !ok {
+			t.Fatalf("schema enum item = %T, want string", item)
+		}
+		values = append(values, value)
+	}
+	sort.Strings(values)
+	return values
+}
+
+func assertSchemaRef(t *testing.T, properties map[string]any, field string, want string) {
+	t.Helper()
+
+	property := getMap(t, properties, field)
+	if got := property["$ref"]; got != want {
+		t.Fatalf("%s.$ref = %#v, want %q", field, got, want)
+	}
 }

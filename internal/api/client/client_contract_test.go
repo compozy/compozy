@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 type idleSSEBody struct {
@@ -411,6 +412,12 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 			Summary: &contract.RunJobSummary{
 				IDE:   "codex",
 				Model: "gpt-5.5",
+				Speed: kinds.SpeedFast,
+				SpeedResolution: &kinds.SpeedResolution{
+					Requested: kinds.SpeedFast,
+					Status:    kinds.SpeedResolutionStatusRejected,
+					Reason:    kinds.SpeedResolutionReasonProviderRejected,
+				},
 			},
 		}},
 		Transcript: []contract.RunTranscriptMessage{{
@@ -466,6 +473,11 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 		got.Jobs[0].Summary.Model != "gpt-5.5" {
 		t.Fatalf("snapshot jobs = %#v, want codex/gpt-5.5 summary", got.Jobs)
 	}
+	if got.Jobs[0].Summary.Speed != kinds.SpeedFast || got.Jobs[0].Summary.SpeedResolution == nil ||
+		got.Jobs[0].Summary.SpeedResolution.Status != kinds.SpeedResolutionStatusRejected ||
+		got.Jobs[0].Summary.SpeedResolution.Reason != kinds.SpeedResolutionReasonProviderRejected {
+		t.Fatalf("snapshot speed fields = %#v, want rejected fast resolution", got.Jobs[0].Summary)
+	}
 	if len(got.Transcript) != 1 || got.Transcript[0].Content != "hello" {
 		t.Fatalf("snapshot transcript = %#v, want one hello message", got.Transcript)
 	}
@@ -483,6 +495,37 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 	}
 	if got.NextCursor == nil || got.NextCursor.Sequence != 9 || !got.NextCursor.Timestamp.Equal(now.Add(time.Second)) {
 		t.Fatalf("snapshot next cursor = %#v, want seq 9", got.NextCursor)
+	}
+}
+
+func TestGetRunSnapshotDecodesHistoricalSummaryWithoutSpeed(t *testing.T) {
+	t.Parallel()
+
+	client := &Client{
+		target:  Target{SocketPath: "/tmp/compozy.sock"},
+		baseURL: "http://daemon",
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				if req.URL.Path != "/api/runs/run-historical/snapshot" {
+					t.Fatalf("path = %s, want /api/runs/run-historical/snapshot", req.URL.Path)
+				}
+				return jsonResponse(
+					http.StatusOK,
+					`{"run":{"run_id":"run-historical"},"jobs":[{"summary":{"index":1,"model":"legacy"}}]}`,
+				), nil
+			}),
+		},
+	}
+
+	got, err := client.GetRunSnapshot(context.Background(), "run-historical")
+	if err != nil {
+		t.Fatalf("GetRunSnapshot() error = %v", err)
+	}
+	if len(got.Jobs) != 1 || got.Jobs[0].Summary == nil {
+		t.Fatalf("historical snapshot jobs = %#v, want one summary", got.Jobs)
+	}
+	if got.Jobs[0].Summary.Speed != "" || got.Jobs[0].Summary.SpeedResolution != nil {
+		t.Fatalf("historical speed fields = %#v, want absent", got.Jobs[0].Summary)
 	}
 }
 

@@ -388,28 +388,30 @@ type Run struct {
 }
 
 type RunJobSummary struct {
-	Index           int                 `json:"index"`
-	CodeFile        string              `json:"code_file,omitempty"`
-	CodeFiles       []string            `json:"code_files,omitempty"`
-	Issues          int                 `json:"issues,omitempty"`
-	TaskNumber      int                 `json:"task_number,omitempty"`
-	TaskTitle       string              `json:"task_title,omitempty"`
-	TaskType        string              `json:"task_type,omitempty"`
-	SafeName        string              `json:"safe_name,omitempty"`
-	IDE             string              `json:"ide,omitempty"`
-	Model           string              `json:"model,omitempty"`
-	ReasoningEffort string              `json:"reasoning_effort,omitempty"`
-	AccessMode      string              `json:"access_mode,omitempty"`
-	OutLog          string              `json:"out_log,omitempty"`
-	ErrLog          string              `json:"err_log,omitempty"`
-	Attempt         int                 `json:"attempt,omitempty"`
-	MaxAttempts     int                 `json:"max_attempts,omitempty"`
-	RetryReason     string              `json:"retry_reason,omitempty"`
-	ExitCode        int                 `json:"exit_code,omitempty"`
-	ErrorText       string              `json:"error_text,omitempty"`
-	Session         SessionViewSnapshot `json:"session,omitempty"`
-	Usage           kinds.Usage         `json:"usage,omitempty"`
-	DurationMs      int64               `json:"duration_ms,omitempty"`
+	Index           int                    `json:"index"`
+	CodeFile        string                 `json:"code_file,omitempty"`
+	CodeFiles       []string               `json:"code_files,omitempty"`
+	Issues          int                    `json:"issues,omitempty"`
+	TaskNumber      int                    `json:"task_number,omitempty"`
+	TaskTitle       string                 `json:"task_title,omitempty"`
+	TaskType        string                 `json:"task_type,omitempty"`
+	SafeName        string                 `json:"safe_name,omitempty"`
+	IDE             string                 `json:"ide,omitempty"`
+	Model           string                 `json:"model,omitempty"`
+	ReasoningEffort string                 `json:"reasoning_effort,omitempty"`
+	AccessMode      string                 `json:"access_mode,omitempty"`
+	Speed           kinds.Speed            `json:"speed,omitempty"`
+	SpeedResolution *kinds.SpeedResolution `json:"speed_resolution,omitempty"`
+	OutLog          string                 `json:"out_log,omitempty"`
+	ErrLog          string                 `json:"err_log,omitempty"`
+	Attempt         int                    `json:"attempt,omitempty"`
+	MaxAttempts     int                    `json:"max_attempts,omitempty"`
+	RetryReason     string                 `json:"retry_reason,omitempty"`
+	ExitCode        int                    `json:"exit_code,omitempty"`
+	ErrorText       string                 `json:"error_text,omitempty"`
+	Session         SessionViewSnapshot    `json:"session,omitempty"`
+	Usage           kinds.Usage            `json:"usage,omitempty"`
+	DurationMs      int64                  `json:"duration_ms,omitempty"`
 }
 
 type RunJobState struct {

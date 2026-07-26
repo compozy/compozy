@@ -950,6 +950,12 @@
                         "additionalProperties": true,
                         "type": "object"
                     },
+                    "speed": {
+                        "$ref": "#/components/schemas/Speed"
+                    },
+                    "speed_resolution": {
+                        "$ref": "#/components/schemas/SpeedResolution"
+                    },
                     "task_number": {
                         "type": "integer"
                     },
@@ -1313,6 +1319,38 @@
                 },
                 "required": ["Plan", "Revision", "Session"],
                 "type": "object"
+            },
+            "Speed": {
+                "enum": ["normal", "fast"],
+                "type": "string"
+            },
+            "SpeedResolution": {
+                "properties": {
+                    "reason": {
+                        "$ref": "#/components/schemas/SpeedResolutionReason"
+                    },
+                    "requested": {
+                        "$ref": "#/components/schemas/Speed"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/SpeedResolutionStatus"
+                    }
+                },
+                "required": ["requested", "status"],
+                "type": "object"
+            },
+            "SpeedResolutionReason": {
+                "enum": [
+                    "capability_absent",
+                    "capability_ambiguous",
+                    "value_ambiguous",
+                    "provider_rejected"
+                ],
+                "type": "string"
+            },
+            "SpeedResolutionStatus": {
+                "enum": ["applied", "unsupported", "rejected"],
+                "type": "string"
             },
             "SyncRequest": {
                 "properties": {

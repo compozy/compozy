@@ -502,6 +502,79 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 	})
 }
 
+func TestRunJobSummarySpeedJSONContract(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		resolution kinds.SpeedResolution
+	}{
+		{
+			name: "Should round trip an applied resolution without a reason",
+			resolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+		},
+		{
+			name: "Should round trip an unsupported resolution with its reason",
+			resolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedNormal,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+		},
+		{
+			name: "Should round trip a rejected resolution with its reason",
+			resolution: kinds.SpeedResolution{
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusRejected,
+				Reason:    kinds.SpeedResolutionReasonProviderRejected,
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			summary := contract.RunJobSummary{
+				Index:           1,
+				Speed:           testCase.resolution.Requested,
+				SpeedResolution: &testCase.resolution,
+			}
+
+			var decoded contract.RunJobSummary
+			roundTripJSON(t, summary, &decoded)
+
+			if decoded.Speed != summary.Speed || !reflect.DeepEqual(decoded.SpeedResolution, summary.SpeedResolution) {
+				t.Fatalf("decoded speed fields = %#v, want %#v", decoded, summary)
+			}
+		})
+	}
+
+	t.Run("Should decode and preserve a historical summary without speed fields", func(t *testing.T) {
+		t.Parallel()
+
+		var summary contract.RunJobSummary
+		if err := json.Unmarshal([]byte(`{"index":1,"model":"gpt-5.5"}`), &summary); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if summary.Speed != "" || summary.SpeedResolution != nil {
+			t.Fatalf("historical summary speed fields = %#v, want absent", summary)
+		}
+
+		data, err := json.Marshal(summary)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if strings.Contains(string(data), `"speed"`) || strings.Contains(string(data), `"speed_resolution"`) {
+			t.Fatalf("historical summary JSON = %s, want speed fields omitted", data)
+		}
+	})
+}
+
 func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testing.T) {
 	t.Parallel()
 

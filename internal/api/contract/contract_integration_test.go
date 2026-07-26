@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,6 +101,14 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 		TransportName:     "integration",
 		HeartbeatInterval: 10 * time.Millisecond,
 		Runs: integrationRunService{
+			run: core.Run{
+				RunID:            "run-1",
+				WorkspaceID:      "ws-1",
+				Mode:             "task",
+				Status:           "running",
+				PresentationMode: "stream",
+				StartedAt:        now,
+			},
 			snapshot: core.RunSnapshot{
 				Run: core.Run{
 					RunID:            "run-1",
@@ -117,6 +126,12 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 					Summary: &core.RunJobSummary{
 						IDE:   "codex",
 						Model: "gpt-5.5",
+						Speed: kinds.SpeedFast,
+						SpeedResolution: &kinds.SpeedResolution{
+							Requested: kinds.SpeedFast,
+							Status:    kinds.SpeedResolutionStatusUnsupported,
+							Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+						},
 					},
 				}},
 				Transcript: []core.RunTranscriptMessage{{
@@ -147,6 +162,50 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 		},
 	}))
 
+	t.Run("list and detail remain shape compatible", func(t *testing.T) {
+		for _, testCase := range []struct {
+			path string
+			body any
+		}{
+			{
+				path: "/api/runs",
+				body: &contract.RunListResponse{},
+			},
+			{
+				path: "/api/runs/run-1",
+				body: &contract.RunResponse{},
+			},
+		} {
+			request := httptest.NewRequest(http.MethodGet, testCase.path, http.NoBody)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, request)
+
+			if response.Code != http.StatusOK {
+				t.Fatalf("%s status = %d, want 200", testCase.path, response.Code)
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), testCase.body); err != nil {
+				t.Fatalf("%s json.Unmarshal() error = %v", testCase.path, err)
+			}
+			switch payload := testCase.body.(type) {
+			case *contract.RunListResponse:
+				if len(payload.Runs) != 1 || payload.Runs[0].RunID != "run-1" {
+					t.Fatalf("%s payload = %#v, want run-1 list entry", testCase.path, payload)
+				}
+			case *contract.RunResponse:
+				if payload.Run.RunID != "run-1" {
+					t.Fatalf("%s payload = %#v, want run-1 detail", testCase.path, payload)
+				}
+			}
+			if strings.Contains(response.Body.String(), `"speed"`) {
+				t.Fatalf(
+					"%s response unexpectedly changed run summary shape: %s",
+					testCase.path,
+					response.Body.String(),
+				)
+			}
+		}
+	})
+
 	t.Run("snapshot", func(t *testing.T) {
 		t.Parallel()
 
@@ -168,6 +227,46 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 		}
 		if len(snapshot.Jobs) != 1 || snapshot.Usage.TotalTokens != 10 || snapshot.Shutdown == nil {
 			t.Fatalf("decoded snapshot = %#v", snapshot)
+		}
+		summary := snapshot.Jobs[0].Summary
+		if summary == nil || summary.Speed != kinds.SpeedFast || summary.SpeedResolution == nil {
+			t.Fatalf("decoded snapshot speed summary = %#v", summary)
+		}
+		wantResolution := kinds.SpeedResolution{
+			Requested: kinds.SpeedFast,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		}
+		if !reflect.DeepEqual(*summary.SpeedResolution, wantResolution) {
+			t.Fatalf("decoded speed resolution = %#v, want %#v", *summary.SpeedResolution, wantResolution)
+		}
+
+		var responseJSON map[string]any
+		if err := json.Unmarshal(response.Body.Bytes(), &responseJSON); err != nil {
+			t.Fatalf("json.Unmarshal(response body) error = %v", err)
+		}
+		jobs, ok := responseJSON["jobs"].([]any)
+		if !ok || len(jobs) != 1 {
+			t.Fatalf("response jobs = %#v, want one job", responseJSON["jobs"])
+		}
+		job, ok := jobs[0].(map[string]any)
+		if !ok {
+			t.Fatalf("response job = %#v, want object", jobs[0])
+		}
+		responseSummary, ok := job["summary"].(map[string]any)
+		if !ok {
+			t.Fatalf("response summary = %#v, want object", job["summary"])
+		}
+		if got := responseSummary["speed"]; got != "fast" {
+			t.Fatalf("response speed = %#v, want fast", got)
+		}
+		wantResolutionJSON := map[string]any{
+			"requested": "fast",
+			"status":    "unsupported",
+			"reason":    "capability_absent",
+		}
+		if got := responseSummary["speed_resolution"]; !reflect.DeepEqual(got, wantResolutionJSON) {
+			t.Fatalf("response speed_resolution = %#v, want %#v", got, wantResolutionJSON)
 		}
 		if got, want := snapshot.IncompleteReasons, []string{"transcript_gap"}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("decoded snapshot incomplete reasons = %#v, want %#v", got, want)
@@ -199,7 +298,7 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 		frames, err := testutil.ReadSSEFramesUntil(response.Body, 2*time.Second, func(frames []testutil.SSEFrame) bool {
 			for _, frame := range frames {
 				switch frame.Event {
-				case "heartbeat":
+				case core.RunHeartbeatSSEEvent:
 					if heartbeat == nil {
 						var payload contract.HeartbeatPayload
 						if err := json.Unmarshal(frame.Data, &payload); err != nil {
@@ -211,7 +310,7 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 						close(sendOverflow)
 						overflowRequested = true
 					}
-				case "overflow":
+				case core.RunOverflowSSEEvent:
 					if overflow == nil {
 						var payload contract.OverflowPayload
 						if err := json.Unmarshal(frame.Data, &payload); err != nil {
@@ -262,16 +361,17 @@ func (s integrationDaemonService) Stop(context.Context, bool) error {
 }
 
 type integrationRunService struct {
+	run        core.Run
 	snapshot   core.RunSnapshot
 	openStream func(context.Context, string, core.StreamCursor) (core.RunStream, error)
 }
 
 func (s integrationRunService) List(context.Context, core.RunListQuery) ([]core.Run, error) {
-	return nil, nil
+	return []core.Run{s.run}, nil
 }
 
 func (s integrationRunService) Get(context.Context, string) (core.Run, error) {
-	return core.Run{}, nil
+	return s.run, nil
 }
 
 func (s integrationRunService) Snapshot(context.Context, string) (core.RunSnapshot, error) {
@@ -283,6 +383,13 @@ func (s integrationRunService) Transcript(context.Context, string) (core.RunTran
 		RunID:      s.snapshot.Run.RunID,
 		Messages:   []core.RunUIMessage{},
 		NextCursor: s.snapshot.NextCursor,
+	}, nil
+}
+
+func (s integrationRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {
+	return core.RunDetailPayload{
+		Run:      s.run,
+		Snapshot: s.snapshot,
 	}, nil
 }
 
@@ -303,6 +410,31 @@ func (s integrationRunService) OpenStream(
 
 func (s integrationRunService) Cancel(context.Context, string) error {
 	return nil
+}
+
+func (s integrationRunService) PauseRunJob(
+	_ context.Context,
+	runID string,
+	jobID string,
+) (core.RunJobControlResponse, error) {
+	return core.RunJobControlResponse{
+		RunID:  runID,
+		JobID:  jobID,
+		Status: "pausing",
+	}, nil
+}
+
+func (s integrationRunService) SendRunJobMessage(
+	_ context.Context,
+	runID string,
+	jobID string,
+	_ core.RunJobMessageRequest,
+) (core.RunJobControlResponse, error) {
+	return core.RunJobControlResponse{
+		RunID:  runID,
+		JobID:  jobID,
+		Status: "resumed",
+	}, nil
 }
 
 type integrationRunStream struct {

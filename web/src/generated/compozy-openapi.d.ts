@@ -831,6 +831,8 @@ export interface components {
             session?: {
                 [key: string]: unknown;
             };
+            speed?: components["schemas"]["Speed"];
+            speed_resolution?: components["schemas"]["SpeedResolution"];
             task_number?: number;
             task_title?: string;
             task_type?: string;
@@ -948,6 +950,17 @@ export interface components {
             Revision: number;
             Session: components["schemas"]["SessionMetaState"];
         };
+        /** @enum {string} */
+        Speed: "normal" | "fast";
+        SpeedResolution: {
+            reason?: components["schemas"]["SpeedResolutionReason"];
+            requested: components["schemas"]["Speed"];
+            status: components["schemas"]["SpeedResolutionStatus"];
+        };
+        /** @enum {string} */
+        SpeedResolutionReason: "capability_absent" | "capability_ambiguous" | "value_ambiguous" | "provider_rejected";
+        /** @enum {string} */
+        SpeedResolutionStatus: "applied" | "unsupported" | "rejected";
         SyncRequest: {
             path?: string;
             workflow_slug?: string;
