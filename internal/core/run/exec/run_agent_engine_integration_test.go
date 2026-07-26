@@ -60,11 +60,14 @@ func TestRunAgentEngineExecutesRealNestedChildSession(t *testing.T) {
 			gotClientCfg = cfg
 			mu.Unlock()
 			return &fakeRunAgentACPClient{
-				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 					mu.Lock()
 					gotReq = req
 					mu.Unlock()
-					return newSuccessfulRunAgentSession("sess-child", "child reply"), nil
+					return unsupportedRunAgentSessionStart(
+						req,
+						newSuccessfulRunAgentSession("sess-child", "child reply"),
+					), nil
 				},
 			}, nil
 		},
@@ -127,33 +130,17 @@ func installRuntimeProbeStubForRunAgent(t *testing.T, command string) {
 }
 
 type fakeRunAgentACPClient struct {
-	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
+	createSessionFn func(context.Context, agent.SessionRequest) (agent.SessionStart, error)
 }
 
-func (c *fakeRunAgentACPClient) CreateSession(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
-	return c.createSessionFn(ctx, req)
-}
-
-func (c *fakeRunAgentACPClient) CreateSessionAtomic(
+func (c *fakeRunAgentACPClient) CreateSession(
 	ctx context.Context,
 	req agent.SessionRequest,
 ) (agent.SessionStart, error) {
-	session, err := c.createSessionFn(ctx, req)
-	return agent.SessionStart{
-		Session: session,
-		Speed: kinds.SpeedResolution{
-			Requested: req.Speed,
-			Status:    kinds.SpeedResolutionStatusUnsupported,
-			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
-		},
-	}, err
+	return c.createSessionFn(ctx, req)
 }
 
-func (*fakeRunAgentACPClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
-	return nil, nil
-}
-
-func (*fakeRunAgentACPClient) ResumeSessionAtomic(
+func (*fakeRunAgentACPClient) ResumeSession(
 	context.Context,
 	agent.ResumeSessionRequest,
 ) (agent.SessionStart, error) {
@@ -162,8 +149,6 @@ func (*fakeRunAgentACPClient) ResumeSessionAtomic(
 
 func (*fakeRunAgentACPClient) CancelSession(context.Context, string) error { return nil }
 
-func (*fakeRunAgentACPClient) SetSessionModel(context.Context, string, string) error { return nil }
-
 func (*fakeRunAgentACPClient) PromptSession(context.Context, agent.PromptSessionRequest) (agent.Session, error) {
 	return nil, nil
 }
@@ -171,6 +156,22 @@ func (*fakeRunAgentACPClient) PromptSession(context.Context, agent.PromptSession
 func (*fakeRunAgentACPClient) SupportsLoadSession() bool { return false }
 func (*fakeRunAgentACPClient) Close() error              { return nil }
 func (*fakeRunAgentACPClient) Kill() error               { return nil }
+
+func unsupportedRunAgentSessionStart(
+	req agent.SessionRequest,
+	session agent.Session,
+) agent.SessionStart {
+	return agent.SessionStart{
+		Session: session,
+		Speed: kinds.SpeedResolution{
+			Requested: req.Speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}
+}
+
+var _ agent.Client = (*fakeRunAgentACPClient)(nil)
 
 type successfulRunAgentSession struct {
 	id      string

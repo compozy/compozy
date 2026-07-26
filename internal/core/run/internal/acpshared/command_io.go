@@ -21,11 +21,6 @@ import (
 
 var newAgentClient = agent.NewClient
 
-type sessionStartClient interface {
-	agent.Client
-	agent.AtomicClient
-}
-
 type runtimeEventSubmitter interface {
 	Submit(context.Context, events.Event) error
 }
@@ -324,7 +319,7 @@ func createACPClient(
 	cfg *config,
 	job *job,
 	logger *slog.Logger,
-) (sessionStartClient, error) {
+) (agent.Client, error) {
 	ide := jobIDE(cfg, job)
 	client, err := newAgentClient(ctx, agent.ClientConfig{
 		IDE:             ide,
@@ -338,15 +333,7 @@ func createACPClient(
 	if err != nil {
 		return nil, fmt.Errorf("create ACP client: %w", err)
 	}
-	atomicClient, ok := client.(sessionStartClient)
-	if !ok {
-		contractErr := errors.New("ACP client does not support atomic session setup")
-		if closeErr := client.Close(); closeErr != nil {
-			return nil, errors.Join(contractErr, fmt.Errorf("close incompatible ACP client: %w", closeErr))
-		}
-		return nil, contractErr
-	}
-	return atomicClient, nil
+	return client, nil
 }
 
 func setupFailureForUser(cfg *config, job *job, err error) error {
@@ -387,7 +374,7 @@ func joinSetupFailure(setupErr error, writeErr error) error {
 func createACPSession(
 	ctx context.Context,
 	setupCtx context.Context,
-	client agent.AtomicClient,
+	client agent.Client,
 	cfg *config,
 	job *job,
 	cwd string,
@@ -399,7 +386,7 @@ func createACPSession(
 		err   error
 	)
 	if strings.TrimSpace(job.ResumeSession) == "" {
-		start, err = client.CreateSessionAtomic(ctx, agent.SessionRequest{
+		start, err = client.CreateSession(ctx, agent.SessionRequest{
 			Prompt:       prompt,
 			WorkingDir:   cwd,
 			Model:        modelName,
@@ -412,7 +399,7 @@ func createACPSession(
 			RuntimeMgr:   cfg.RuntimeManager,
 		})
 	} else {
-		start, err = client.ResumeSessionAtomic(ctx, agent.ResumeSessionRequest{
+		start, err = client.ResumeSession(ctx, agent.ResumeSessionRequest{
 			SessionID:    job.ResumeSession,
 			Prompt:       prompt,
 			WorkingDir:   cwd,

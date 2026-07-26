@@ -40,7 +40,7 @@ func TestLiveCodexModelAvailability(t *testing.T) {
 			}
 		})
 
-		session, err := client.CreateSession(ctx, SessionRequest{
+		start, err := client.CreateSession(ctx, SessionRequest{
 			Prompt:     []byte("Reply with exactly: compozy-model-ok"),
 			WorkingDir: t.TempDir(),
 			Model:      modelName,
@@ -48,6 +48,7 @@ func TestLiveCodexModelAvailability(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create codex session with model %q: %v", modelName, err)
 		}
+		session := start.Session
 
 		updates := collectSessionUpdates(t, session)
 		if err := session.Err(); err != nil {

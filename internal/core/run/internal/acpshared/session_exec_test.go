@@ -480,22 +480,24 @@ type pauseResumeClient struct {
 	promptOnce    sync.Once
 }
 
-func (c *pauseResumeClient) CreateSession(context.Context, agent.SessionRequest) (agent.Session, error) {
-	return nil, nil
+func (c *pauseResumeClient) CreateSession(
+	context.Context,
+	agent.SessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{}, nil
 }
 
-func (c *pauseResumeClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
-	return nil, nil
+func (c *pauseResumeClient) ResumeSession(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.SessionStart, error) {
+	return agent.SessionStart{}, nil
 }
 
 func (c *pauseResumeClient) CancelSession(_ context.Context, sessionID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.cancelSession = append(c.cancelSession, sessionID)
-	return nil
-}
-
-func (c *pauseResumeClient) SetSessionModel(context.Context, string, string) error {
 	return nil
 }
 
@@ -519,6 +521,8 @@ func (c *pauseResumeClient) PromptSession(
 func (c *pauseResumeClient) SupportsLoadSession() bool { return true }
 func (c *pauseResumeClient) Close() error              { return nil }
 func (c *pauseResumeClient) Kill() error               { return nil }
+
+var _ agent.Client = (*pauseResumeClient)(nil)
 
 func (c *pauseResumeClient) cancelledSessions() []string {
 	c.mu.Lock()

@@ -237,7 +237,7 @@ func TestExecutePreparedPromptSucceedsWithoutMCPBuilder(t *testing.T) {
 	restore := acpshared.SwapNewAgentClientForTest(
 		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
 			return &capturingExecACPClient{
-				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 					gotReq = req
 					session := newCapturingExecSession("sess-prepared")
 					session.updates <- model.SessionUpdate{
@@ -246,7 +246,7 @@ func TestExecutePreparedPromptSucceedsWithoutMCPBuilder(t *testing.T) {
 						Blocks: []model.ContentBlock{preparedPromptTextContentBlock(t, "nested reply")},
 					}
 					go session.finish(nil)
-					return session, nil
+					return unsupportedExecSessionStart(req, session), nil
 				},
 			}, nil
 		},
@@ -284,10 +284,10 @@ func TestExecutePreparedPromptReturnsCompletionFailureWhenExecAlsoFails(t *testi
 	restore := acpshared.SwapNewAgentClientForTest(
 		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
 			return &capturingExecACPClient{
-				createSessionFn: func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 					session := newCapturingExecSession("sess-prepared-failure")
 					go session.finish(execErr)
-					return session, nil
+					return unsupportedExecSessionStart(req, session), nil
 				},
 			}, nil
 		},

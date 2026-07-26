@@ -542,8 +542,19 @@ func newKernelBoundaryACP(t *testing.T, root string) *kernelBoundaryACP {
 	}
 }
 
-func (c *kernelBoundaryACP) CreateSession(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
-	return c.createSession(req)
+func (c *kernelBoundaryACP) CreateSession(
+	_ context.Context,
+	req agent.SessionRequest,
+) (agent.SessionStart, error) {
+	session, err := c.createSession(req)
+	return agent.SessionStart{
+		Session: session,
+		Speed: kinds.SpeedResolution{
+			Requested: req.Speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}, err
 }
 
 func (c *kernelBoundaryACP) createSession(req agent.SessionRequest) (agent.Session, error) {
@@ -561,21 +572,6 @@ func (c *kernelBoundaryACP) createSession(req agent.SessionRequest) (agent.Sessi
 	default:
 		return nil, fmt.Errorf("unexpected kernel boundary ACP job %q", jobID)
 	}
-}
-
-func (c *kernelBoundaryACP) CreateSessionAtomic(
-	_ context.Context,
-	req agent.SessionRequest,
-) (agent.SessionStart, error) {
-	session, err := c.createSession(req)
-	return agent.SessionStart{
-		Session: session,
-		Speed: kinds.SpeedResolution{
-			Requested: req.Speed,
-			Status:    kinds.SpeedResolutionStatusUnsupported,
-			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
-		},
-	}, err
 }
 
 func kernelBoundaryTaskID(jobID string) string {
@@ -641,11 +637,7 @@ func (c *kernelBoundaryACP) assertCallCounts(t *testing.T, wantJobs map[string]i
 	}
 }
 
-func (*kernelBoundaryACP) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
-	return nil, errors.New("resume not supported in kernel boundary fake")
-}
-
-func (*kernelBoundaryACP) ResumeSessionAtomic(
+func (*kernelBoundaryACP) ResumeSession(
 	context.Context,
 	agent.ResumeSessionRequest,
 ) (agent.SessionStart, error) {
@@ -653,10 +645,6 @@ func (*kernelBoundaryACP) ResumeSessionAtomic(
 }
 
 func (*kernelBoundaryACP) CancelSession(context.Context, string) error {
-	return nil
-}
-
-func (*kernelBoundaryACP) SetSessionModel(context.Context, string, string) error {
 	return nil
 }
 
@@ -675,6 +663,8 @@ func (*kernelBoundaryACP) Close() error {
 func (*kernelBoundaryACP) Kill() error {
 	return nil
 }
+
+var _ agent.Client = (*kernelBoundaryACP)(nil)
 
 type kernelBoundarySession struct {
 	id      string

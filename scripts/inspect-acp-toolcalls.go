@@ -149,7 +149,7 @@ func inspectIDE(ctx context.Context, stdout io.Writer, stderr io.Writer, cfg ins
 	)
 	fmt.Fprintf(stdout, "Prompt:\n%s\n\n", prompt)
 
-	session, err := client.CreateSession(runCtx, agent.SessionRequest{
+	start, err := client.CreateSession(runCtx, agent.SessionRequest{
 		Prompt:     []byte(prompt),
 		WorkingDir: workDir,
 		Model:      cfg.model,
@@ -162,6 +162,7 @@ func inspectIDE(ctx context.Context, stdout io.Writer, stderr io.Writer, cfg ins
 	if err != nil {
 		return fmt.Errorf("%s: create session: %w", ide, err)
 	}
+	session := start.Session
 
 	for update := range session.Updates() {
 		renderUpdate(stdout, update)

@@ -54,9 +54,9 @@ func TestDocumentedExecAgentExampleWorksWithReviewerFixture(t *testing.T) {
 	restore := coreRun.SwapNewAgentClientForTest(
 		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
 			return &cliCapturingACPClient{
-				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 					capturedPrompt = string(req.Prompt)
-					return newCLIACPTestSession(
+					return unsupportedCLIStart(req.Speed, newCLIACPTestSession(
 						"sess-reviewer",
 						agent.SessionIdentity{ACPSessionID: "sess-reviewer"},
 						[]model.SessionUpdate{
@@ -69,7 +69,7 @@ func TestDocumentedExecAgentExampleWorksWithReviewerFixture(t *testing.T) {
 							},
 						},
 						nil,
-					), nil
+					)), nil
 				},
 			}, nil
 		},

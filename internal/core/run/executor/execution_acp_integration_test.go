@@ -855,8 +855,8 @@ func TestJobExecutionContextLaunchWorkersRetriesRetryableSetupFailureForReviewBa
 	started := make(chan string, 1)
 	finished := make(chan string, 1)
 
-	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
-		return nil, &agent.SessionSetupError{
+	firstClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
+		return rejectedFakeSessionStart(req.Speed), &agent.SessionSetupError{
 			Stage: agent.SessionSetupStageNewSession,
 			Err:   errors.New("temporary review batch setup failure"),
 		}
@@ -1122,8 +1122,8 @@ func TestJobExecutionContextLaunchWorkersRetriesPRDSetupFailureBeforeLaterTasks(
 	finished := make(chan string, 2)
 	releaseFirst := make(chan struct{})
 
-	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
-		return nil, &agent.SessionSetupError{
+	firstClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
+		return rejectedFakeSessionStart(req.Speed), &agent.SessionSetupError{
 			Stage: agent.SessionSetupStageNewSession,
 			Err:   errors.New("temporary PRD setup failure"),
 		}
@@ -1196,19 +1196,19 @@ func TestJobExecutionContextLaunchWorkersReturnsPromptlyWithPendingACPJobs(t *te
 	tmpDir := t.TempDir()
 	firstCreated := make(chan struct{}, 1)
 
-	firstClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	firstClient := newFakeACPClient(func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-blocking")
 		firstCreated <- struct{}{}
 		go func() {
 			<-ctx.Done()
 			session.finish(context.Cause(ctx))
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
-	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	secondClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-pending")
 		go session.finish(nil)
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, firstClient, secondClient)
 
@@ -1278,19 +1278,19 @@ func TestJobExecutionContextLaunchWorkersReturnsPromptlyWithPendingPRDTasks(t *t
 	}
 
 	firstCreated := make(chan struct{}, 1)
-	firstClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	firstClient := newFakeACPClient(func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-prd-blocking")
 		firstCreated <- struct{}{}
 		go func() {
 			<-ctx.Done()
 			session.finish(context.Cause(ctx))
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
-	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	secondClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-prd-pending")
 		go session.finish(nil)
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, firstClient, secondClient)
 
@@ -1898,7 +1898,7 @@ func newPromptReportingACPClient(
 	finished chan<- string,
 	release <-chan struct{},
 ) *fakeACPClient {
-	return newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+	return newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		taskName := strings.TrimSpace(string(req.Prompt))
 		started <- taskName
 		session := newFakeACPSession("sess-" + taskName)
@@ -1909,7 +1909,7 @@ func newPromptReportingACPClient(
 			finished <- taskName
 			session.finish(nil)
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 }
 

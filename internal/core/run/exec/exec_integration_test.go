@@ -446,11 +446,11 @@ func TestExecuteExecWithSelectedAgentResolvesRuntimeAndCanonicalSystemPrompt(t *
 		func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
 			gotClientCfg = cfg
 			return &capturingExecACPClient{
-				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 					gotReq = req
 					session := newCapturingExecSession("sess-agent")
 					go session.finish(nil)
-					return session, nil
+					return unsupportedExecSessionStart(req, session), nil
 				},
 			}, nil
 		},
@@ -685,33 +685,17 @@ func collectedRuntimeSessionUpdateKinds(t *testing.T, events []eventspkg.Event) 
 }
 
 type capturingExecACPClient struct {
-	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
+	createSessionFn func(context.Context, agent.SessionRequest) (agent.SessionStart, error)
 }
 
-func (c *capturingExecACPClient) CreateSession(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
-	return c.createSessionFn(ctx, req)
-}
-
-func (c *capturingExecACPClient) CreateSessionAtomic(
+func (c *capturingExecACPClient) CreateSession(
 	ctx context.Context,
 	req agent.SessionRequest,
 ) (agent.SessionStart, error) {
-	session, err := c.createSessionFn(ctx, req)
-	return agent.SessionStart{
-		Session: session,
-		Speed: kinds.SpeedResolution{
-			Requested: req.Speed,
-			Status:    kinds.SpeedResolutionStatusUnsupported,
-			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
-		},
-	}, err
+	return c.createSessionFn(ctx, req)
 }
 
-func (*capturingExecACPClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
-	return nil, nil
-}
-
-func (*capturingExecACPClient) ResumeSessionAtomic(
+func (*capturingExecACPClient) ResumeSession(
 	context.Context,
 	agent.ResumeSessionRequest,
 ) (agent.SessionStart, error) {
@@ -719,10 +703,6 @@ func (*capturingExecACPClient) ResumeSessionAtomic(
 }
 
 func (*capturingExecACPClient) CancelSession(context.Context, string) error {
-	return nil
-}
-
-func (*capturingExecACPClient) SetSessionModel(context.Context, string, string) error {
 	return nil
 }
 
@@ -741,6 +721,22 @@ func (*capturingExecACPClient) Close() error {
 func (*capturingExecACPClient) Kill() error {
 	return nil
 }
+
+func unsupportedExecSessionStart(
+	req agent.SessionRequest,
+	session agent.Session,
+) agent.SessionStart {
+	return agent.SessionStart{
+		Session: session,
+		Speed: kinds.SpeedResolution{
+			Requested: req.Speed,
+			Status:    kinds.SpeedResolutionStatusUnsupported,
+			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+		},
+	}
+}
+
+var _ agent.Client = (*capturingExecACPClient)(nil)
 
 type capturingExecSession struct {
 	id      string

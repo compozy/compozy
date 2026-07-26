@@ -249,7 +249,10 @@ func TestAgenticRemediationIntegrationRunsDeterministicAgentAndWritesAudit(t *te
 		restore := acpshared.SwapNewAgentClientForTest(
 			func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
 				return &recoveryFakeACPClient{
-					createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+					createSessionFn: func(
+						_ context.Context,
+						req agent.SessionRequest,
+					) (agent.SessionStart, error) {
 						capturedPrompt = string(req.Prompt)
 						if err := os.WriteFile(
 							filepath.Join(workspaceRoot, "fixed.txt"),
@@ -267,7 +270,14 @@ func TestAgenticRemediationIntegrationRunsDeterministicAgentAndWritesAudit(t *te
 							},
 						}
 						go session.finish(nil)
-						return session, nil
+						return agent.SessionStart{
+							Session: session,
+							Speed: kinds.SpeedResolution{
+								Requested: req.Speed,
+								Status:    kinds.SpeedResolutionStatusUnsupported,
+								Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+							},
+						}, nil
 					},
 				}, nil
 			},
@@ -400,39 +410,20 @@ func textContentBlock(t *testing.T, text string) model.ContentBlock {
 }
 
 type recoveryFakeACPClient struct {
-	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
+	createSessionFn func(context.Context, agent.SessionRequest) (agent.SessionStart, error)
 }
 
-func (c *recoveryFakeACPClient) CreateSession(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
-	if c.createSessionFn == nil {
-		return nil, errors.New("missing CreateSession fake")
-	}
-	return c.createSessionFn(ctx, req)
-}
-
-func (c *recoveryFakeACPClient) CreateSessionAtomic(
+func (c *recoveryFakeACPClient) CreateSession(
 	ctx context.Context,
 	req agent.SessionRequest,
 ) (agent.SessionStart, error) {
 	if c.createSessionFn == nil {
-		return agent.SessionStart{}, errors.New("missing CreateSessionAtomic fake")
+		return agent.SessionStart{}, errors.New("missing CreateSession fake")
 	}
-	session, err := c.createSessionFn(ctx, req)
-	return agent.SessionStart{
-		Session: session,
-		Speed: kinds.SpeedResolution{
-			Requested: req.Speed,
-			Status:    kinds.SpeedResolutionStatusUnsupported,
-			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
-		},
-	}, err
+	return c.createSessionFn(ctx, req)
 }
 
-func (*recoveryFakeACPClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
-	return nil, errors.New("resume not supported in recovery fake")
-}
-
-func (*recoveryFakeACPClient) ResumeSessionAtomic(
+func (*recoveryFakeACPClient) ResumeSession(
 	context.Context,
 	agent.ResumeSessionRequest,
 ) (agent.SessionStart, error) {
@@ -440,10 +431,6 @@ func (*recoveryFakeACPClient) ResumeSessionAtomic(
 }
 
 func (*recoveryFakeACPClient) CancelSession(context.Context, string) error {
-	return nil
-}
-
-func (*recoveryFakeACPClient) SetSessionModel(context.Context, string, string) error {
 	return nil
 }
 
@@ -462,6 +449,8 @@ func (*recoveryFakeACPClient) Close() error {
 func (*recoveryFakeACPClient) Kill() error {
 	return nil
 }
+
+var _ agent.Client = (*recoveryFakeACPClient)(nil)
 
 type recoveryFakeSession struct {
 	id      string

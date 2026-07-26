@@ -24,30 +24,19 @@ import (
 // Client manages an ACP agent subprocess and creates sessions.
 type Client interface {
 	// CreateSession starts a new ACP session with the given prompt.
-	CreateSession(ctx context.Context, req SessionRequest) (Session, error)
+	CreateSession(ctx context.Context, req SessionRequest) (SessionStart, error)
 	// ResumeSession attaches to an existing ACP session and sends a new prompt into it.
-	ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error)
+	ResumeSession(ctx context.Context, req ResumeSessionRequest) (SessionStart, error)
 	// CancelSession requests cancellation of the active prompt turn for a session.
 	CancelSession(ctx context.Context, sessionID string) error
 	// PromptSession sends a new prompt turn into an already active ACP session.
 	PromptSession(ctx context.Context, req PromptSessionRequest) (Session, error)
-	// SetSessionModel changes the active model for an ACP session via session/set_config_option.
-	SetSessionModel(ctx context.Context, sessionID string, modelID string) error
 	// SupportsLoadSession reports whether the connected ACP agent advertised session/load support.
 	SupportsLoadSession() bool
 	// Close terminates the agent subprocess.
 	Close() error
 	// Kill force-terminates the agent subprocess immediately.
 	Kill() error
-}
-
-// AtomicClient is the temporary migration contract for client-owned pre-prompt setup.
-// Atomic callers must not fall back to Client's legacy session-start methods.
-type AtomicClient interface {
-	// CreateSessionAtomic starts a new session after applying model and speed.
-	CreateSessionAtomic(ctx context.Context, req SessionRequest) (SessionStart, error)
-	// ResumeSessionAtomic resumes a session after reapplying model and speed.
-	ResumeSessionAtomic(ctx context.Context, req ResumeSessionRequest) (SessionStart, error)
 }
 
 // SessionStart contains the usable session and canonical speed resolution.
@@ -342,7 +331,6 @@ type clientImpl struct {
 }
 
 var _ Client = (*clientImpl)(nil)
-var _ AtomicClient = (*clientImpl)(nil)
 var _ acp.Client = (*clientImpl)(nil)
 
 // NewClient constructs a Compozy ACP client wrapper for the configured agent runtime.
@@ -367,20 +355,13 @@ func NewClient(_ context.Context, cfg ClientConfig) (Client, error) {
 }
 
 // CreateSession starts a new ACP session and streams updates until the prompt turn completes.
-func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
-	start, err := c.createSession(ctx, req, false)
-	return start.Session, err
-}
-
-// CreateSessionAtomic starts a new ACP session after model and speed setup completes.
-func (c *clientImpl) CreateSessionAtomic(ctx context.Context, req SessionRequest) (SessionStart, error) {
-	return c.createSession(ctx, req, true)
+func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (SessionStart, error) {
+	return c.createSession(ctx, req)
 }
 
 func (c *clientImpl) createSession(
 	ctx context.Context,
 	req SessionRequest,
-	atomicSetup bool,
 ) (SessionStart, error) {
 	req, workingDir, err := prepareCreateSessionRequest(ctx, req)
 	if err != nil {
@@ -444,7 +425,6 @@ func (c *clientImpl) createSession(
 		req.Model,
 		req.Speed,
 		sessionResp.ConfigOptions,
-		atomicSetup,
 	)
 	if err != nil {
 		return start, err
@@ -513,23 +493,16 @@ func prepareResumeSessionRequest(ctx context.Context, req ResumeSessionRequest) 
 }
 
 // ResumeSession loads an existing ACP session, suppresses replayed updates, and sends a new prompt turn.
-func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error) {
-	start, err := c.resumeSession(ctx, req, false)
-	return start.Session, err
-}
-
-// ResumeSessionAtomic resumes an ACP session after model and speed setup completes.
-func (c *clientImpl) ResumeSessionAtomic(
+func (c *clientImpl) ResumeSession(
 	ctx context.Context,
 	req ResumeSessionRequest,
 ) (SessionStart, error) {
-	return c.resumeSession(ctx, req, true)
+	return c.resumeSession(ctx, req)
 }
 
 func (c *clientImpl) resumeSession(
 	ctx context.Context,
 	req ResumeSessionRequest,
-	atomicSetup bool,
 ) (SessionStart, error) {
 	req, workingDir, err := prepareResumeSessionRequest(ctx, req)
 	if err != nil {
@@ -585,7 +558,6 @@ func (c *clientImpl) resumeSession(
 		req.Model,
 		req.Speed,
 		loadResp.ConfigOptions,
-		atomicSetup,
 	)
 	if err != nil {
 		return start, err
@@ -639,13 +611,8 @@ func (c *clientImpl) completeSessionStart(
 	modelID string,
 	speed kinds.Speed,
 	options []acp.SessionConfigOption,
-	atomicSetup bool,
 ) (SessionStart, error) {
 	start := SessionStart{Session: session}
-	if !atomicSetup {
-		return start, nil
-	}
-
 	var err error
 	start.Speed, err = c.setupAtomicSession(ctx, sessionID, modelID, speed, options)
 	if err != nil {
@@ -760,36 +727,6 @@ func rejectedSpeedResolution(speed kinds.Speed) kinds.SpeedResolution {
 		Status:    kinds.SpeedResolutionStatusRejected,
 		Reason:    kinds.SpeedResolutionReasonProviderRejected,
 	}
-}
-
-// SetSessionModel changes the active model for an ACP session via setSessionConfigOption.
-func (c *clientImpl) SetSessionModel(ctx context.Context, sessionID string, modelID string) error {
-	sessionID = strings.TrimSpace(sessionID)
-	modelID = strings.TrimSpace(modelID)
-	if sessionID == "" || modelID == "" {
-		return nil
-	}
-	c.mu.Lock()
-	closed := c.closed
-	conn := c.conn
-	c.mu.Unlock()
-	if closed {
-		return errors.New("ACP client is already closed")
-	}
-	if conn == nil {
-		return errors.New("ACP client is not started")
-	}
-	_, err := conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
-		ValueId: &acp.SetSessionConfigOptionValueId{
-			SessionId: acp.SessionId(sessionID),
-			ConfigId:  acp.SessionConfigId("model"),
-			Value:     acp.SessionConfigValueId(modelID),
-		},
-	})
-	if err != nil {
-		return wrapACPError(err)
-	}
-	return nil
 }
 
 // PromptSession sends a follow-up prompt into an already active ACP session.

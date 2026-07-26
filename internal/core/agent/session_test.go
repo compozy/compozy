@@ -268,13 +268,14 @@ func TestClientSessionBufferHandlesThousandUpdatesWithoutDrops(t *testing.T) {
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	gotUpdates := collectSessionUpdates(t, session)
 	if len(gotUpdates) != 1001 {

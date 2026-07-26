@@ -507,8 +507,8 @@ func TestExecCommandExecutePersistedAgentParentChildEmitsReusableAgentLifecycleE
 	restore := coreRun.SwapNewAgentClientForTest(
 		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
 			return &cliCapturingACPClient{
-				createSessionFn: func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
-					return newCLIACPTestSession(
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
+					return unsupportedCLIStart(req.Speed, newCLIACPTestSession(
 						"sess-parent",
 						agent.SessionIdentity{ACPSessionID: "sess-parent"},
 						[]model.SessionUpdate{
@@ -543,7 +543,7 @@ func TestExecCommandExecutePersistedAgentParentChildEmitsReusableAgentLifecycleE
 							},
 						},
 						nil,
-					), nil
+					)), nil
 				},
 			}, nil
 		},
@@ -637,9 +637,12 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 	restore := coreRun.SwapNewAgentClientForTest(
 		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
 			return &cliCapturingACPClient{
-				resumeSessionFn: func(_ context.Context, req agent.ResumeSessionRequest) (agent.Session, error) {
+				resumeSessionFn: func(
+					_ context.Context,
+					req agent.ResumeSessionRequest,
+				) (agent.SessionStart, error) {
 					capturedResume = req
-					return newCLIACPTestSession(
+					return unsupportedCLIStart(req.Speed, newCLIACPTestSession(
 						"sess-existing",
 						agent.SessionIdentity{ACPSessionID: "sess-existing", Resumed: true},
 						[]model.SessionUpdate{
@@ -652,7 +655,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 							},
 						},
 						nil,
-					), nil
+					)), nil
 				},
 			}, nil
 		},
@@ -765,9 +768,9 @@ func TestExecCommandExecuteAgentWorkspaceOverrideWinsOverGlobalDefinition(t *tes
 	restore := coreRun.SwapNewAgentClientForTest(
 		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
 			return &cliCapturingACPClient{
-				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 					capturedPrompt = string(req.Prompt)
-					return newCLIACPTestSession(
+					return unsupportedCLIStart(req.Speed, newCLIACPTestSession(
 						"sess-reviewer",
 						agent.SessionIdentity{ACPSessionID: "sess-reviewer"},
 						[]model.SessionUpdate{
@@ -780,7 +783,7 @@ func TestExecCommandExecuteAgentWorkspaceOverrideWinsOverGlobalDefinition(t *tes
 							},
 						},
 						nil,
-					), nil
+					)), nil
 				},
 			}, nil
 		},
@@ -4142,70 +4145,39 @@ func writeReusableAgentFixtureForCLI(t *testing.T, agentDir, agentMarkdown, mcpC
 }
 
 type cliCapturingACPClient struct {
-	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
-	resumeSessionFn func(context.Context, agent.ResumeSessionRequest) (agent.Session, error)
+	createSessionFn func(context.Context, agent.SessionRequest) (agent.SessionStart, error)
+	resumeSessionFn func(context.Context, agent.ResumeSessionRequest) (agent.SessionStart, error)
 }
 
 func (c *cliCapturingACPClient) CreateSession(
 	ctx context.Context,
 	req agent.SessionRequest,
-) (agent.Session, error) {
+) (agent.SessionStart, error) {
 	if c.createSessionFn == nil {
-		return nil, nil
+		return unsupportedCLIStart(req.Speed, nil), nil
 	}
 	return c.createSessionFn(ctx, req)
-}
-
-func (c *cliCapturingACPClient) CreateSessionAtomic(
-	ctx context.Context,
-	req agent.SessionRequest,
-) (agent.SessionStart, error) {
-	var (
-		session agent.Session
-		err     error
-	)
-	if c.createSessionFn != nil {
-		session, err = c.createSessionFn(ctx, req)
-	}
-	return agent.SessionStart{
-		Session: session,
-		Speed: kinds.SpeedResolution{
-			Requested: req.Speed,
-			Status:    kinds.SpeedResolutionStatusUnsupported,
-			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
-		},
-	}, err
 }
 
 func (c *cliCapturingACPClient) ResumeSession(
 	ctx context.Context,
 	req agent.ResumeSessionRequest,
-) (agent.Session, error) {
+) (agent.SessionStart, error) {
 	if c.resumeSessionFn == nil {
-		return nil, nil
+		return unsupportedCLIStart(req.Speed, nil), nil
 	}
 	return c.resumeSessionFn(ctx, req)
 }
 
-func (c *cliCapturingACPClient) ResumeSessionAtomic(
-	ctx context.Context,
-	req agent.ResumeSessionRequest,
-) (agent.SessionStart, error) {
-	var (
-		session agent.Session
-		err     error
-	)
-	if c.resumeSessionFn != nil {
-		session, err = c.resumeSessionFn(ctx, req)
-	}
+func unsupportedCLIStart(speed kinds.Speed, session agent.Session) agent.SessionStart {
 	return agent.SessionStart{
 		Session: session,
 		Speed: kinds.SpeedResolution{
-			Requested: req.Speed,
+			Requested: speed,
 			Status:    kinds.SpeedResolutionStatusUnsupported,
 			Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
 		},
-	}, err
+	}
 }
 
 func (*cliCapturingACPClient) SupportsLoadSession() bool { return true }
@@ -4213,10 +4185,6 @@ func (*cliCapturingACPClient) Close() error              { return nil }
 func (*cliCapturingACPClient) Kill() error               { return nil }
 
 func (*cliCapturingACPClient) CancelSession(context.Context, string) error {
-	return nil
-}
-
-func (*cliCapturingACPClient) SetSessionModel(context.Context, string, string) error {
 	return nil
 }
 
@@ -4230,6 +4198,8 @@ func (*cliCapturingACPClient) PromptSession(
 		done:    make(chan struct{}),
 	}, nil
 }
+
+var _ agent.Client = (*cliCapturingACPClient)(nil)
 
 type cliACPTestSession struct {
 	id       string

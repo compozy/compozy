@@ -34,13 +34,14 @@ func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) 
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 1 {
@@ -68,13 +69,14 @@ func TestClientInitializePreservesCapabilitiesWithoutBooleanClaim(t *testing.T) 
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 	_ = collectSessionUpdates(t, session)
 	if err := client.Close(); err != nil {
 		t.Fatalf("close client: %v", err)
@@ -111,13 +113,14 @@ func TestClientReleasedSDKConfigOptionsPreserveSessionCompatibility(t *testing.T
 			StopReason:              string(acp.StopReasonEndTurn),
 		}
 		client := newTestClient(t, scenario)
-		session, err := client.CreateSession(context.Background(), SessionRequest{
+		start, err := client.CreateSession(context.Background(), SessionRequest{
 			WorkingDir: scenario.ExpectedCWD,
 			Prompt:     []byte(scenario.ExpectedPrompt),
 		})
 		if err != nil {
 			t.Fatalf("create session: %v", err)
 		}
+		session := start.Session
 		_ = collectSessionUpdates(t, session)
 		if err := client.Close(); err != nil {
 			t.Fatalf("close client: %v", err)
@@ -137,7 +140,7 @@ func TestClientReleasedSDKConfigOptionsPreserveSessionCompatibility(t *testing.T
 			StopReason:               string(acp.StopReasonEndTurn),
 		}
 		client := newTestClient(t, scenario)
-		session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+		start, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
 			SessionID:  scenario.SessionID,
 			WorkingDir: scenario.ExpectedCWD,
 			Prompt:     []byte(scenario.ExpectedPrompt),
@@ -145,6 +148,7 @@ func TestClientReleasedSDKConfigOptionsPreserveSessionCompatibility(t *testing.T
 		if err != nil {
 			t.Fatalf("resume session: %v", err)
 		}
+		session := start.Session
 		_ = collectSessionUpdates(t, session)
 		if err := client.Close(); err != nil {
 			t.Fatalf("close client: %v", err)
@@ -219,7 +223,7 @@ func TestClientAtomicSessionSetupOrdersModelSpeedAndPrompt(t *testing.T) {
 				err   error
 			)
 			if test.resume {
-				start, err = client.ResumeSessionAtomic(context.Background(), ResumeSessionRequest{
+				start, err = client.ResumeSession(context.Background(), ResumeSessionRequest{
 					SessionID:    scenario.SessionID,
 					WorkingDir:   scenario.ExpectedCWD,
 					Prompt:       []byte(scenario.ExpectedPrompt),
@@ -228,7 +232,7 @@ func TestClientAtomicSessionSetupOrdersModelSpeedAndPrompt(t *testing.T) {
 					SetupContext: context.Background(),
 				})
 			} else {
-				start, err = client.CreateSessionAtomic(context.Background(), SessionRequest{
+				start, err = client.CreateSession(context.Background(), SessionRequest{
 					WorkingDir:   scenario.ExpectedCWD,
 					Prompt:       []byte(scenario.ExpectedPrompt),
 					Model:        scenario.ExpectedModelValue,
@@ -263,7 +267,7 @@ func TestClientAtomicSessionSetupOrdersModelSpeedAndPrompt(t *testing.T) {
 	}
 }
 
-func TestClientCreateSessionAtomicSpeedOutcomes(t *testing.T) {
+func TestClientCreateSessionSpeedOutcomes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -341,7 +345,7 @@ func TestClientCreateSessionAtomicSpeedOutcomes(t *testing.T) {
 			}
 
 			client := newTestClient(t, scenario)
-			start, err := client.CreateSessionAtomic(context.Background(), SessionRequest{
+			start, err := client.CreateSession(context.Background(), SessionRequest{
 				WorkingDir: scenario.ExpectedCWD,
 				Prompt:     []byte(scenario.ExpectedPrompt),
 				Model:      scenario.ExpectedModelValue,
@@ -368,7 +372,7 @@ func TestClientCreateSessionAtomicSpeedOutcomes(t *testing.T) {
 	}
 }
 
-func TestClientCreateSessionAtomicPreservesModeAndHooks(t *testing.T) {
+func TestClientCreateSessionPreservesModeAndHooks(t *testing.T) {
 	t.Parallel()
 
 	const promptSuffix = " ::atomic-hook"
@@ -406,7 +410,7 @@ func TestClientCreateSessionAtomicPreservesModeAndHooks(t *testing.T) {
 	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
 		cfg.AccessMode = model.AccessModeFull
 	})
-	start, err := client.CreateSessionAtomic(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte("hook me"),
 		Model:      scenario.ExpectedModelValue,
@@ -500,7 +504,7 @@ func TestClientAtomicSessionSetupRejectsWithoutPromptAndRemovesSession(t *testin
 				err   error
 			)
 			if test.resume {
-				start, err = client.ResumeSessionAtomic(context.Background(), ResumeSessionRequest{
+				start, err = client.ResumeSession(context.Background(), ResumeSessionRequest{
 					SessionID:  scenario.SessionID,
 					WorkingDir: scenario.ExpectedCWD,
 					Prompt:     []byte("must not prompt"),
@@ -508,7 +512,7 @@ func TestClientAtomicSessionSetupRejectsWithoutPromptAndRemovesSession(t *testin
 					Speed:      kinds.SpeedFast,
 				})
 			} else {
-				start, err = client.CreateSessionAtomic(context.Background(), SessionRequest{
+				start, err = client.CreateSession(context.Background(), SessionRequest{
 					WorkingDir: scenario.ExpectedCWD,
 					Prompt:     []byte("must not prompt"),
 					Model:      scenario.ExpectedModelValue,
@@ -591,7 +595,7 @@ func TestClientAtomicSessionSetupCancellationNeverPrompts(t *testing.T) {
 
 			var err error
 			if test.resume {
-				_, err = client.ResumeSessionAtomic(context.Background(), ResumeSessionRequest{
+				_, err = client.ResumeSession(context.Background(), ResumeSessionRequest{
 					SessionID:    scenario.SessionID,
 					WorkingDir:   scenario.ExpectedCWD,
 					Prompt:       []byte("must not prompt"),
@@ -600,7 +604,7 @@ func TestClientAtomicSessionSetupCancellationNeverPrompts(t *testing.T) {
 					SetupContext: setupCtx,
 				})
 			} else {
-				_, err = client.CreateSessionAtomic(context.Background(), SessionRequest{
+				_, err = client.CreateSession(context.Background(), SessionRequest{
 					WorkingDir:   scenario.ExpectedCWD,
 					Prompt:       []byte("must not prompt"),
 					Model:        scenario.ExpectedModelValue,
@@ -622,12 +626,12 @@ func TestClientAtomicSessionSetupCancellationNeverPrompts(t *testing.T) {
 	}
 }
 
-func TestClientMigrationLegacySurfaceRemainsUsable(t *testing.T) {
+func TestClientFinalContractSupportsFollowUpAndCancel(t *testing.T) {
 	t.Parallel()
 
 	protocolLog := filepath.Join(t.TempDir(), "protocol.log")
 	scenario := helperScenario{
-		SessionID:          "sess-legacy",
+		SessionID:          "sess-final",
 		ExpectedCWD:        t.TempDir(),
 		ModelConfigOptions: atomicSpeedSelectOptions("standard-tier"),
 		ExpectedModelValue: "model-v2",
@@ -637,21 +641,20 @@ func TestClientMigrationLegacySurfaceRemainsUsable(t *testing.T) {
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
-		Prompt:     []byte("legacy prompt"),
+		Prompt:     []byte("initial prompt"),
+		Model:      scenario.ExpectedModelValue,
 	})
 	if err != nil {
-		t.Fatalf("create legacy session: %v", err)
+		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 	firstUpdates := collectSessionUpdates(t, session)
 	if len(firstUpdates) != 2 {
 		t.Fatalf("initial updates length = %d, want 2", len(firstUpdates))
 	}
 
-	if err := client.SetSessionModel(context.Background(), session.ID(), scenario.ExpectedModelValue); err != nil {
-		t.Fatalf("set legacy session model: %v", err)
-	}
 	followUp, err := client.PromptSession(context.Background(), PromptSessionRequest{
 		SessionID: session.ID(),
 		Prompt:    []byte("follow-up prompt"),
@@ -667,7 +670,7 @@ func TestClientMigrationLegacySurfaceRemainsUsable(t *testing.T) {
 	assertProtocolRequests(
 		t,
 		protocolLog,
-		[]string{"new", "prompt", "model", "prompt"},
+		[]string{"new", "model", "prompt", "prompt"},
 	)
 	if err := client.CancelSession(context.Background(), session.ID()); err != nil {
 		t.Fatalf("cancel legacy session: %v", err)
@@ -677,7 +680,7 @@ func TestClientMigrationLegacySurfaceRemainsUsable(t *testing.T) {
 	}
 }
 
-func TestClientMigrationSurfaceValidatesState(t *testing.T) {
+func TestClientFinalContractValidatesSessionOperations(t *testing.T) {
 	t.Parallel()
 
 	client := &clientImpl{
@@ -688,12 +691,6 @@ func TestClientMigrationSurfaceValidatesState(t *testing.T) {
 	}
 	if err := client.CancelSession(context.Background(), "sess-1"); err == nil {
 		t.Fatal("expected unstarted cancel error")
-	}
-	if err := client.SetSessionModel(context.Background(), "", "model"); err != nil {
-		t.Fatalf("empty legacy model request should be a no-op: %v", err)
-	}
-	if err := client.SetSessionModel(context.Background(), "sess-1", "model"); err == nil {
-		t.Fatal("expected unstarted model error")
 	}
 	if _, err := client.PromptSession(context.Background(), PromptSessionRequest{}); err == nil {
 		t.Fatal("expected missing prompt session id error")
@@ -723,9 +720,6 @@ func TestClientMigrationSurfaceValidatesState(t *testing.T) {
 	if err := client.CancelSession(context.Background(), "sess-1"); err == nil {
 		t.Fatal("expected closed cancel error")
 	}
-	if err := client.SetSessionModel(context.Background(), "sess-1", "model"); err == nil {
-		t.Fatal("expected closed model error")
-	}
 	if _, err := client.PromptSession(context.Background(), PromptSessionRequest{
 		SessionID: "sess-1",
 		Prompt:    []byte("prompt"),
@@ -753,13 +747,14 @@ func TestClientCreateSessionStartsAgentProcessInWorkingDirectory(t *testing.T) {
 			}
 		})
 
-		session, err := client.CreateSession(context.Background(), SessionRequest{
+		start, err := client.CreateSession(context.Background(), SessionRequest{
 			WorkingDir: workingDir,
 			Prompt:     []byte(scenario.ExpectedPrompt),
 		})
 		if err != nil {
 			t.Fatalf("create session: %v", err)
 		}
+		session := start.Session
 
 		updates := collectSessionUpdates(t, session)
 		if len(updates) != 1 {
@@ -785,13 +780,14 @@ func TestClientCreateSessionBuffersUpdatesArrivingBeforeNewSessionReturns(t *tes
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 2 {
@@ -831,13 +827,14 @@ func TestClientCreateSessionServesTerminalRequestsFromAgent(t *testing.T) {
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 1 {
@@ -930,7 +927,7 @@ func TestClientCreateSessionAppliesPreSessionCreateMutationAndPostCreateObserver
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		Prompt:     []byte("hook me"),
 		WorkingDir: scenario.ExpectedCWD,
 		RunID:      "run-123",
@@ -940,6 +937,7 @@ func TestClientCreateSessionAppliesPreSessionCreateMutationAndPostCreateObserver
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
@@ -997,13 +995,14 @@ func TestSessionUpdatesStreamAndComplete(t *testing.T) {
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 5 {
@@ -1060,13 +1059,14 @@ func TestClientCreateSessionAppliesFullAccessSessionModeWhenSupported(t *testing
 	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
 		cfg.AccessMode = model.AccessModeFull
 	})
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 1 {
@@ -1105,13 +1105,14 @@ func TestClientCreateSessionTreatsAutoModelAsRuntimeDefaultForNonBootstrapACP(t 
 		}
 	})
 
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 1 {
@@ -1150,13 +1151,14 @@ func TestClientCreateSessionCompletesWithExplicitModelForNonBootstrapACP(t *test
 		}
 	})
 
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 1 {
@@ -1195,13 +1197,14 @@ func TestClientCreateSessionPassesExplicitModelThroughLaunchEnv(t *testing.T) {
 		}
 	})
 
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 1 {
@@ -1240,13 +1243,14 @@ func TestClientCreateSessionOmitsLaunchEnvModelForAutoModel(t *testing.T) {
 		}
 	})
 
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 1 {
@@ -1281,7 +1285,7 @@ func TestClientCreateSessionForwardsMCPServersIntoNewSessionRequest(t *testing.T
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte("hello"),
 		MCPServers: []model.MCPServer{{
@@ -1299,6 +1303,7 @@ func TestClientCreateSessionForwardsMCPServersIntoNewSessionRequest(t *testing.T
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	_ = collectSessionUpdates(t, session)
 }
@@ -1341,7 +1346,7 @@ func TestClientResumeSessionLoadsExistingSessionAndSuppressesReplay(t *testing.T
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+	start, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
 		SessionID:  scenario.SessionID,
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
@@ -1349,6 +1354,7 @@ func TestClientResumeSessionLoadsExistingSessionAndSuppressesReplay(t *testing.T
 	if err != nil {
 		t.Fatalf("resume session: %v", err)
 	}
+	session := start.Session
 	if !client.SupportsLoadSession() {
 		t.Fatal("expected load session support after initialization")
 	}
@@ -1395,7 +1401,7 @@ func TestClientResumeSessionForwardsMCPServersIntoLoadSessionRequest(t *testing.
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+	start, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
 		SessionID:  scenario.SessionID,
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte("continue"),
@@ -1413,6 +1419,7 @@ func TestClientResumeSessionForwardsMCPServersIntoLoadSessionRequest(t *testing.
 	if err != nil {
 		t.Fatalf("resume session: %v", err)
 	}
+	session := start.Session
 
 	_ = collectSessionUpdates(t, session)
 }
@@ -1467,7 +1474,7 @@ func TestClientResumeSessionAppliesPreSessionResumeMutation(t *testing.T) {
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+	start, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
 		SessionID:  scenario.SessionID,
 		Prompt:     []byte("continue"),
 		WorkingDir: scenario.ExpectedCWD,
@@ -1478,6 +1485,7 @@ func TestClientResumeSessionAppliesPreSessionResumeMutation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 2 {
@@ -1743,13 +1751,14 @@ func TestSessionErrReturnsStructuredPromptError(t *testing.T) {
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 1 {
@@ -1808,13 +1817,14 @@ func TestFailedToolCallPromptErrorFinishesSessionSuccessfully(t *testing.T) {
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if len(updates) != 3 {
@@ -1868,13 +1878,14 @@ func TestSessionDoneClosesOnContextCancellation(t *testing.T) {
 
 	client := newTestClient(t, scenario)
 	ctx, cancel := context.WithCancel(context.Background())
-	session, err := client.CreateSession(ctx, SessionRequest{
+	start, err := client.CreateSession(ctx, SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	cancel()
 
@@ -1903,13 +1914,14 @@ func TestClientCloseTerminatesSubprocessGracefully(t *testing.T) {
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	_ = collectSessionUpdates(t, session)
 
@@ -1928,13 +1940,14 @@ func TestClientKillForceTerminatesSubprocess(t *testing.T) {
 	}
 
 	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: scenario.ExpectedCWD,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	if err := client.Kill(); err != nil {
 		t.Fatalf("kill client: %v", err)
@@ -2705,13 +2718,14 @@ func TestClientRunPromptPublishesUsageUpdateOnEndTurn(t *testing.T) {
 		}
 	})
 
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: workingDir,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if session.Err() != nil {
@@ -2749,13 +2763,14 @@ func TestClientRunPromptDoesNotPublishUsageUpdateWhenNoneReturned(t *testing.T) 
 		}
 	})
 
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: workingDir,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if session.Err() != nil {
@@ -2792,13 +2807,14 @@ func TestClientRunPromptPublishesUsageWithThoughtTokensSummedIntoOutput(t *testi
 		}
 	})
 
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: workingDir,
 		Prompt:     []byte(scenario.ExpectedPrompt),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	if session.Err() != nil {
@@ -2840,13 +2856,14 @@ func TestClientRunPromptDoesNotPublishUsageUpdateOnCancelledRun(t *testing.T) {
 		}
 	})
 
-	session, err := client.CreateSession(context.Background(), SessionRequest{
+	start, err := client.CreateSession(context.Background(), SessionRequest{
 		WorkingDir: workingDir,
 		Prompt:     []byte("hello canceled"),
 	})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	session := start.Session
 
 	updates := collectSessionUpdates(t, session)
 	// session.Err() is context.Canceled for canceled runs — not checked here

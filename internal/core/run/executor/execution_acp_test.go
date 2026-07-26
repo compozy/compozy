@@ -99,11 +99,11 @@ func TestExecuteUsesWorkspaceRootForWorkflowSessionCWD(t *testing.T) {
 	}
 
 	workingDirCh := make(chan string, 1)
-	client := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+	client := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		workingDirCh <- req.WorkingDir
 		session := newFakeACPSession("sess-workspace-cwd")
 		go session.finish(nil)
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, client)
 
@@ -175,13 +175,13 @@ func TestResolveWorkflowSessionCWDFallsBackToProcessCWDWithoutWorkspaceRoot(t *t
 
 func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 	tmpDir := t.TempDir()
-	firstClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	firstClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-1")
 		go session.finish(&agent.SessionError{Code: 4901, Message: "temporary failure"})
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	secondClientErrCh := make(chan error, 1)
-	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	secondClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-2")
 		go func() {
 			textBlock, err := model.NewContentBlock(model.TextBlock{Text: "retry succeeded"})
@@ -196,7 +196,7 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 			session.finish(nil)
 			secondClientErrCh <- nil
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, firstClient, secondClient)
 
@@ -226,14 +226,8 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 	if got := firstClient.closeCalls.Load() + secondClient.closeCalls.Load(); got != 2 {
 		t.Fatalf("expected both clients to close, got %d", got)
 	}
-	if got := firstClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup on first client, got %d", got)
-	}
-	if got := secondClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup on second client, got %d", got)
-	}
-	if got := secondClient.lastAtomicCreateRequest().Model; got != "test-model" {
-		t.Fatalf("atomic create model = %q, want %q", got, "test-model")
+	if got := secondClient.lastCreateRequest().Model; got != "test-model" {
+		t.Fatalf("create model = %q, want %q", got, "test-model")
 	}
 
 	outLog, err := os.ReadFile(job.OutLog)
@@ -257,16 +251,16 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 
 func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 	tmpDir := t.TempDir()
-	firstClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	firstClient := newFakeACPClient(func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-timeout-first")
 		go func() {
 			<-ctx.Done()
 			session.finish(context.Cause(ctx))
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	secondClientErrCh := make(chan error, 1)
-	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	secondClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-timeout-retry")
 		go func() {
 			textBlock, err := model.NewContentBlock(model.TextBlock{Text: "retry after timeout succeeded"})
@@ -281,7 +275,7 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 			session.finish(nil)
 			secondClientErrCh <- nil
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, firstClient, secondClient)
 
@@ -317,12 +311,6 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 	}
 	if got := secondClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected one successful retry attempt, got %d", got)
-	}
-	if got := firstClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup on first client, got %d", got)
-	}
-	if got := secondClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup on second client, got %d", got)
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
 		t.Fatalf("expected no failed jobs after timeout retry, got %d", got)
@@ -371,20 +359,20 @@ func TestACPSetupPhaseScenarios(t *testing.T) {
 			run: func(t *testing.T) {
 				tmpDir := t.TempDir()
 				firstClient := newFakeACPClient(
-					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+					func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 						setupCtx := fakeSetupContext(ctx, req)
 						<-setupCtx.Done()
-						return nil, &agent.SessionSetupError{
+						return rejectedFakeSessionStart(req.Speed), &agent.SessionSetupError{
 							Stage: agent.SessionSetupStageNewSession,
 							Err:   &agent.SessionError{Code: -32603, Message: "Internal error"},
 						}
 					},
 				)
 				secondClient := newFakeACPClient(
-					func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+					func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 						session := newFakeACPSession("sess-setup-timeout-retry")
 						go session.finish(nil)
-						return session, nil
+						return unsupportedFakeSessionStart(req.Speed, session), nil
 					},
 				)
 				installFakeACPClients(t, firstClient, secondClient)
@@ -425,10 +413,10 @@ func TestACPSetupPhaseScenarios(t *testing.T) {
 			run: func(t *testing.T) {
 				tmpDir := t.TempDir()
 				blockingSetupClient := newFakeACPClient(
-					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+					func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 						setupCtx := fakeSetupContext(ctx, req)
 						<-setupCtx.Done()
-						return nil, &agent.SessionSetupError{
+						return rejectedFakeSessionStart(req.Speed), &agent.SessionSetupError{
 							Stage: agent.SessionSetupStageNewSession,
 							Err:   &agent.SessionError{Code: -32603, Message: "Internal error"},
 						}
@@ -477,14 +465,14 @@ func TestACPSetupPhaseScenarios(t *testing.T) {
 				activityTimeout := 100 * time.Millisecond
 				setupDelay := activityTimeout + 20*time.Millisecond
 				slowSetupClient := newFakeACPClient(
-					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+					func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 						setupCtx := fakeSetupContext(ctx, req)
 						timer := time.NewTimer(setupDelay)
 						defer timer.Stop()
 						select {
 						case <-timer.C:
 						case <-setupCtx.Done():
-							return nil, context.Cause(setupCtx)
+							return rejectedFakeSessionStart(req.Speed), context.Cause(setupCtx)
 						}
 						session := newFakeACPSession("sess-slow-setup")
 						go func() {
@@ -500,7 +488,7 @@ func TestACPSetupPhaseScenarios(t *testing.T) {
 							})
 							session.finish(nil)
 						}()
-						return session, nil
+						return unsupportedFakeSessionStart(req.Speed, session), nil
 					},
 				)
 				installFakeACPClients(t, slowSetupClient)
@@ -538,10 +526,10 @@ func TestACPSetupPhaseScenarios(t *testing.T) {
 			run: func(t *testing.T) {
 				tmpDir := t.TempDir()
 				blockingSetupClient := newFakeACPClient(
-					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+					func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 						setupCtx := fakeSetupContext(ctx, req)
 						<-setupCtx.Done()
-						return nil, context.Cause(setupCtx)
+						return rejectedFakeSessionStart(req.Speed), context.Cause(setupCtx)
 					},
 				)
 				installFakeACPClients(t, blockingSetupClient)
@@ -592,11 +580,11 @@ func TestACPSetupPhaseScenarios(t *testing.T) {
 				tmpDir := t.TempDir()
 				started := make(chan struct{})
 				blockingSetupClient := newFakeACPClient(
-					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+					func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 						setupCtx := fakeSetupContext(ctx, req)
 						close(started)
 						<-setupCtx.Done()
-						return nil, context.Cause(setupCtx)
+						return rejectedFakeSessionStart(req.Speed), context.Cause(setupCtx)
 					},
 				)
 				installFakeACPClients(t, blockingSetupClient)
@@ -665,16 +653,16 @@ func TestACPSetupPhaseScenarios(t *testing.T) {
 
 func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
 	tmpDir := t.TempDir()
-	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
-		return nil, &agent.SessionSetupError{
+	firstClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
+		return rejectedFakeSessionStart(req.Speed), &agent.SessionSetupError{
 			Stage: agent.SessionSetupStageNewSession,
 			Err:   errors.New("temporary session bootstrap failure"),
 		}
 	})
-	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	secondClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-setup-retry")
 		go session.finish(nil)
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, firstClient, secondClient)
 
@@ -704,12 +692,6 @@ func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
 	if got := secondClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected retry attempt to create one successful session, got %d", got)
 	}
-	if got := firstClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup on failed client, got %d", got)
-	}
-	if got := secondClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup on retry client, got %d", got)
-	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
 		t.Fatalf("expected no failed jobs, got %d", got)
 	}
@@ -717,16 +699,16 @@ func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
 
 func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 	tmpDir := t.TempDir()
-	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
-		return nil, &agent.SessionSetupError{
+	firstClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
+		return rejectedFakeSessionStart(req.Speed), &agent.SessionSetupError{
 			Stage: agent.SessionSetupStageSetMode,
 			Err:   errors.New("invalid session mode override"),
 		}
 	})
-	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	secondClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-should-not-run")
 		go session.finish(nil)
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, firstClient, secondClient)
 
@@ -756,9 +738,6 @@ func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 	if got := secondClient.createCalls.Load(); got != 0 {
 		t.Fatalf("expected no retry after non-retryable setup failure, got %d", got)
 	}
-	if got := firstClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup on non-retryable failure, got %d", got)
-	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 1 {
 		t.Fatalf("expected failed jobs counter to be 1, got %d", got)
 	}
@@ -773,13 +752,13 @@ func TestJobExecutionContextLaunchWorkersStopsAfterAuthenticationSetupFailure(t 
 				Err: &agent.SessionError{Code: -32000, Message: "Authentication required"},
 			},
 		}
-		firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
-			return nil, authErr
+		firstClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
+			return rejectedFakeSessionStart(req.Speed), authErr
 		})
-		secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		secondClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 			session := newFakeACPSession("sess-should-not-run")
 			go session.finish(nil)
-			return session, nil
+			return unsupportedFakeSessionStart(req.Speed, session), nil
 		})
 		installFakeACPClients(t, firstClient, secondClient)
 
@@ -866,10 +845,10 @@ func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
 		t.Fatalf("read task file: %v", err)
 	}
 
-	successClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	successClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-task")
 		go session.finish(nil)
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, successClient)
 
@@ -902,9 +881,6 @@ func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
 	if got := runner.lifecycle.state; got != jobPhaseSucceeded {
 		t.Fatalf("expected succeeded lifecycle state, got %s", got)
 	}
-	if got := successClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup on success, got %d", got)
-	}
 	updatedTask, err := os.ReadFile(taskPath)
 	if err != nil {
 		t.Fatalf("read updated task file: %v", err)
@@ -917,14 +893,14 @@ func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
 func TestJobRunnerCancellationDoesNotRetry(t *testing.T) {
 	tmpDir := t.TempDir()
 	created := make(chan struct{}, 1)
-	cancelClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	cancelClient := newFakeACPClient(func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-cancel")
 		created <- struct{}{}
 		go func() {
 			<-ctx.Done()
 			session.finish(context.Cause(ctx))
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, cancelClient)
 
@@ -971,20 +947,17 @@ func TestJobRunnerCancellationDoesNotRetry(t *testing.T) {
 	if got := cancelClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected exactly one attempt before cancellation, got %d", got)
 	}
-	if got := cancelClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup before cancellation, got %d", got)
-	}
 }
 
 func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 	tmpDir := t.TempDir()
-	timeoutClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	timeoutClient := newFakeACPClient(func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-timeout")
 		go func() {
 			<-ctx.Done()
 			session.finish(context.Cause(ctx))
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, timeoutClient)
 
@@ -1022,14 +995,11 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 	if got := timeoutClient.closeCalls.Load(); got != 1 {
 		t.Fatalf("expected client close to run as timeout backstop, got %d closes", got)
 	}
-	if got := timeoutClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup before timeout, got %d", got)
-	}
 }
 
 func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 	tmpDir := t.TempDir()
-	activeClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	activeClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-active")
 		go func() {
 			for i := 0; i < 6; i++ {
@@ -1046,7 +1016,7 @@ func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 			}
 			session.finish(nil)
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, activeClient)
 
@@ -1080,9 +1050,6 @@ func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 	if strings.Contains(string(errLog), "activity timeout") {
 		t.Fatalf("expected no activity-timeout error, got %q", string(errLog))
 	}
-	if got := activeClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no caller-owned model setup on successful session, got %d", got)
-	}
 }
 
 func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
@@ -1095,10 +1062,10 @@ func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
 			run: func(t *testing.T) {
 				tmpDir := t.TempDir()
 				blockingSetupClient := newFakeACPClient(
-					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+					func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 						setupCtx := fakeSetupContext(ctx, req)
 						<-setupCtx.Done()
-						return nil, context.Cause(setupCtx)
+						return rejectedFakeSessionStart(req.Speed), context.Cause(setupCtx)
 					},
 				)
 				installFakeACPClients(t, blockingSetupClient)
@@ -1132,9 +1099,6 @@ func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
 				if got := blockingSetupClient.closeCalls.Load(); got != 1 {
 					t.Fatalf("expected blocked setup client to be closed, got %d closes", got)
 				}
-				if got := blockingSetupClient.setModelCalls.Load(); got != 0 {
-					t.Fatalf("expected no caller-owned model setup when setup times out, got %d", got)
-				}
 			},
 		},
 		{
@@ -1142,10 +1106,10 @@ func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
 			run: func(t *testing.T) {
 				tmpDir := t.TempDir()
 				blockingSetupClient := newFakeACPClient(
-					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+					func(ctx context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 						setupCtx := fakeSetupContext(ctx, req)
 						<-setupCtx.Done()
-						return nil, context.Cause(setupCtx)
+						return rejectedFakeSessionStart(req.Speed), context.Cause(setupCtx)
 					},
 				)
 				installFakeACPClients(t, blockingSetupClient)
@@ -1212,7 +1176,7 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 	})
 
 	successClientErrCh := make(chan error, 1)
-	successClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+	successClient := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.SessionStart, error) {
 		session := newFakeACPSession("sess-ui")
 		go func() {
 			textBlock, err := model.NewContentBlock(model.TextBlock{Text: "hello from ACP"})
@@ -1228,7 +1192,7 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 			session.finish(nil)
 			successClientErrCh <- nil
 		}()
-		return session, nil
+		return unsupportedFakeSessionStart(req.Speed, session), nil
 	})
 	installFakeACPClients(t, successClient)
 
@@ -1623,19 +1587,16 @@ func TestRecordFailureWithContextAddsFailure(t *testing.T) {
 }
 
 type fakeACPClient struct {
-	createSessionFn       func(context.Context, agent.SessionRequest) (agent.Session, error)
-	resumeSessionFn       func(context.Context, agent.ResumeSessionRequest) (agent.Session, error)
-	createSessionAtomicFn func(context.Context, agent.SessionRequest) (agent.SessionStart, error)
-	resumeSessionAtomicFn func(context.Context, agent.ResumeSessionRequest) (agent.SessionStart, error)
-	promptSessionFn       func(context.Context, agent.PromptSessionRequest) (agent.Session, error)
-	supportsLoad          bool
-	createCalls           atomic.Int32
-	resumeCalls           atomic.Int32
-	promptCalls           atomic.Int32
-	cancelCalls           atomic.Int32
-	setModelCalls         atomic.Int32
-	closeCalls            atomic.Int32
-	killCalls             atomic.Int32
+	createSessionFn func(context.Context, agent.SessionRequest) (agent.SessionStart, error)
+	resumeSessionFn func(context.Context, agent.ResumeSessionRequest) (agent.SessionStart, error)
+	promptSessionFn func(context.Context, agent.PromptSessionRequest) (agent.Session, error)
+	supportsLoad    bool
+	createCalls     atomic.Int32
+	resumeCalls     atomic.Int32
+	promptCalls     atomic.Int32
+	cancelCalls     atomic.Int32
+	closeCalls      atomic.Int32
+	killCalls       atomic.Int32
 
 	requestMu     sync.Mutex
 	lastCreateReq agent.SessionRequest
@@ -1643,20 +1604,12 @@ type fakeACPClient struct {
 }
 
 func newFakeACPClient(
-	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error),
+	createSessionFn func(context.Context, agent.SessionRequest) (agent.SessionStart, error),
 ) *fakeACPClient {
 	return &fakeACPClient{createSessionFn: createSessionFn}
 }
 
-func (c *fakeACPClient) CreateSession(context.Context, agent.SessionRequest) (agent.Session, error) {
-	return nil, errors.New("legacy CreateSession must not be called")
-}
-
-func (c *fakeACPClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
-	return nil, errors.New("legacy ResumeSession must not be called")
-}
-
-func (c *fakeACPClient) CreateSessionAtomic(
+func (c *fakeACPClient) CreateSession(
 	ctx context.Context,
 	req agent.SessionRequest,
 ) (agent.SessionStart, error) {
@@ -1664,20 +1617,13 @@ func (c *fakeACPClient) CreateSessionAtomic(
 	c.lastCreateReq = req
 	c.requestMu.Unlock()
 	c.createCalls.Add(1)
-	if c.createSessionAtomicFn != nil {
-		return c.createSessionAtomicFn(ctx, req)
-	}
 	if c.createSessionFn == nil {
-		return agent.SessionStart{}, errors.New("missing fake atomic session factory")
+		return agent.SessionStart{}, errors.New("missing fake session factory")
 	}
-	session, err := c.createSessionFn(ctx, req)
-	return agent.SessionStart{
-		Session: session,
-		Speed:   unsupportedFakeSpeedResolution(req.Speed),
-	}, err
+	return c.createSessionFn(ctx, req)
 }
 
-func (c *fakeACPClient) ResumeSessionAtomic(
+func (c *fakeACPClient) ResumeSession(
 	ctx context.Context,
 	req agent.ResumeSessionRequest,
 ) (agent.SessionStart, error) {
@@ -1685,27 +1631,15 @@ func (c *fakeACPClient) ResumeSessionAtomic(
 	c.lastResumeReq = req
 	c.requestMu.Unlock()
 	c.resumeCalls.Add(1)
-	if c.resumeSessionAtomicFn != nil {
-		return c.resumeSessionAtomicFn(ctx, req)
-	}
 	if c.resumeSessionFn == nil {
-		return agent.SessionStart{}, errors.New("missing fake atomic resume session factory")
+		return agent.SessionStart{}, errors.New("missing fake resume session factory")
 	}
-	session, err := c.resumeSessionFn(ctx, req)
-	return agent.SessionStart{
-		Session: session,
-		Speed:   unsupportedFakeSpeedResolution(req.Speed),
-	}, err
+	return c.resumeSessionFn(ctx, req)
 }
 
 func (c *fakeACPClient) CancelSession(context.Context, string) error {
 	c.cancelCalls.Add(1)
 	return nil
-}
-
-func (c *fakeACPClient) SetSessionModel(_ context.Context, sessionID string, modelID string) error {
-	c.setModelCalls.Add(1)
-	return fmt.Errorf("caller-owned model setup must not be called for session %q model %q", sessionID, modelID)
 }
 
 func (c *fakeACPClient) PromptSession(ctx context.Context, req agent.PromptSessionRequest) (agent.Session, error) {
@@ -1738,7 +1672,26 @@ func unsupportedFakeSpeedResolution(speed kinds.Speed) kinds.SpeedResolution {
 	}
 }
 
-func (c *fakeACPClient) lastAtomicCreateRequest() agent.SessionRequest {
+func unsupportedFakeSessionStart(speed kinds.Speed, session agent.Session) agent.SessionStart {
+	return agent.SessionStart{
+		Session: session,
+		Speed:   unsupportedFakeSpeedResolution(speed),
+	}
+}
+
+func rejectedFakeSessionStart(speed kinds.Speed) agent.SessionStart {
+	return agent.SessionStart{
+		Speed: kinds.SpeedResolution{
+			Requested: speed,
+			Status:    kinds.SpeedResolutionStatusRejected,
+			Reason:    kinds.SpeedResolutionReasonProviderRejected,
+		},
+	}
+}
+
+var _ agent.Client = (*fakeACPClient)(nil)
+
+func (c *fakeACPClient) lastCreateRequest() agent.SessionRequest {
 	c.requestMu.Lock()
 	defer c.requestMu.Unlock()
 	return c.lastCreateReq
