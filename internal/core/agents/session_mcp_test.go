@@ -3,10 +3,12 @@ package agents
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestBuildSessionMCPServersReturnsNilWithoutExecution(t *testing.T) {
@@ -30,6 +32,8 @@ func TestBuildSessionMCPServersBuildsReservedServerForBaseRuntimeOnlySessions(t 
 		Model:           "gpt-5.5",
 		AccessMode:      model.AccessModeDefault,
 		ReasoningEffort: "medium",
+		Speed:           kinds.SpeedFast,
+		ExplicitRuntime: model.ExplicitRuntimeFlags{Speed: true},
 	}
 
 	servers, err := BuildSessionMCPServers(nil, SessionMCPContext{
@@ -54,7 +58,8 @@ func TestBuildSessionMCPServersBuildsReservedServerForBaseRuntimeOnlySessions(t 
 	}
 
 	var runtimeContext ReservedServerRuntimeContext
-	if err := json.Unmarshal([]byte(reserved.Env[RunAgentContextEnvVar]), &runtimeContext); err != nil {
+	payload := reserved.Env[RunAgentContextEnvVar]
+	if err := json.Unmarshal([]byte(payload), &runtimeContext); err != nil {
 		t.Fatalf("decode reserved server context: %v", err)
 	}
 	if runtimeContext.BaseRuntime.WorkspaceRoot != cfg.WorkspaceRoot {
@@ -62,6 +67,14 @@ func TestBuildSessionMCPServersBuildsReservedServerForBaseRuntimeOnlySessions(t 
 	}
 	if runtimeContext.BaseRuntime.IDE != cfg.IDE || runtimeContext.BaseRuntime.Model != cfg.Model {
 		t.Fatalf("unexpected base runtime inheritance: %#v", runtimeContext.BaseRuntime)
+	}
+	if runtimeContext.BaseRuntime.Speed != kinds.SpeedFast ||
+		!runtimeContext.BaseRuntime.ExplicitRuntime.Speed {
+		t.Fatalf("unexpected base runtime speed inheritance: %#v", runtimeContext.BaseRuntime)
+	}
+	if !strings.Contains(payload, `"speed":"fast"`) ||
+		strings.Contains(payload, "speed_resolution") {
+		t.Fatalf("reserved runtime payload copied the wrong speed contract: %s", payload)
 	}
 	if runtimeContext.Nested.ParentAgentName != "" {
 		t.Fatalf("expected no parent agent for base-runtime-only session, got %#v", runtimeContext.Nested)
@@ -244,8 +257,9 @@ func TestNestedBaseRuntimeRuntimeConfigClonesFields(t *testing.T) {
 		Model:                  "gpt-5.5",
 		AddDirs:                []string{"/tmp/extra"},
 		ReasoningEffort:        "high",
+		Speed:                  kinds.SpeedFast,
 		AccessMode:             model.AccessModeFull,
-		ExplicitRuntime:        model.ExplicitRuntimeFlags{Model: true},
+		ExplicitRuntime:        model.ExplicitRuntimeFlags{Model: true, Speed: true},
 		Timeout:                2 * time.Minute,
 		MaxRetries:             3,
 		RetryBackoffMultiplier: 1.5,
@@ -256,8 +270,12 @@ func TestNestedBaseRuntimeRuntimeConfigClonesFields(t *testing.T) {
 		cfg.IDE != base.IDE ||
 		cfg.Model != base.Model ||
 		cfg.ReasoningEffort != base.ReasoningEffort ||
+		cfg.Speed != base.Speed ||
 		cfg.AccessMode != base.AccessMode {
 		t.Fatalf("unexpected runtime config materialization: %#v", cfg)
+	}
+	if !cfg.ExplicitRuntime.Speed {
+		t.Fatalf("expected materialized speed to remain explicit: %#v", cfg.ExplicitRuntime)
 	}
 	if cfg.Mode != model.ExecutionModeExec || cfg.OutputFormat != model.OutputFormatText {
 		t.Fatalf("expected nested runtime to materialize exec/text defaults, got %#v", cfg)
@@ -281,8 +299,9 @@ func TestCaptureNestedBaseRuntimeHandlesNilAndClonesAddDirs(t *testing.T) {
 		Model:                  "gpt-5.5",
 		AddDirs:                []string{"/tmp/extra"},
 		ReasoningEffort:        "medium",
+		Speed:                  kinds.SpeedNormal,
 		AccessMode:             model.AccessModeDefault,
-		ExplicitRuntime:        model.ExplicitRuntimeFlags{AccessMode: true},
+		ExplicitRuntime:        model.ExplicitRuntimeFlags{Speed: true, AccessMode: true},
 		Timeout:                time.Minute,
 		MaxRetries:             2,
 		RetryBackoffMultiplier: 1.25,
@@ -292,5 +311,8 @@ func TestCaptureNestedBaseRuntimeHandlesNilAndClonesAddDirs(t *testing.T) {
 	cfg.AddDirs[0] = "/tmp/changed"
 	if got.AddDirs[0] != "/tmp/extra" {
 		t.Fatalf("expected nested base runtime to clone add_dirs, got %#v", got)
+	}
+	if got.Speed != kinds.SpeedNormal || !got.ExplicitRuntime.Speed {
+		t.Fatalf("expected nested base runtime to capture explicit speed, got %#v", got)
 	}
 }

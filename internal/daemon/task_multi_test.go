@@ -31,6 +31,148 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+func TestTaskMultiChildRuntimeOverridesPreserveSpeedContract(t *testing.T) {
+	t.Parallel()
+
+	empty, err := taskMultiChildRuntimeOverrides(nil)
+	if err != nil {
+		t.Fatalf("taskMultiChildRuntimeOverrides(nil) error = %v", err)
+	}
+	if empty != nil {
+		t.Fatalf("taskMultiChildRuntimeOverrides(nil) = %s, want nil", empty)
+	}
+	if _, err := taskMultiChildRuntimeOverrides(json.RawMessage(`{`)); err == nil {
+		t.Fatal("taskMultiChildRuntimeOverrides(invalid) error = nil")
+	}
+
+	tests := []struct {
+		name         string
+		raw          string
+		wantSpeed    kinds.Speed
+		wantExplicit bool
+	}{
+		{
+			name:         "explicit normal",
+			raw:          `{"run_id":"parent","speed":"normal","explicit_runtime":{"speed":true}}`,
+			wantSpeed:    kinds.SpeedNormal,
+			wantExplicit: true,
+		},
+		{
+			name:         "explicit fast",
+			raw:          `{"run_id":"parent","speed":"fast","explicit_runtime":{"speed":true}}`,
+			wantSpeed:    kinds.SpeedFast,
+			wantExplicit: true,
+		},
+		{
+			name: "speed absent",
+			raw:  `{"run_id":"parent","model":"gpt-5.5"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw, err := taskMultiChildRuntimeOverrides(json.RawMessage(tt.raw))
+			if err != nil {
+				t.Fatalf("taskMultiChildRuntimeOverrides() error = %v", err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &fields); err != nil {
+				t.Fatalf("decode child runtime overrides: %v", err)
+			}
+			if _, ok := fields["run_id"]; ok {
+				t.Fatalf("child runtime overrides retained run_id: %s", raw)
+			}
+			overrides, err := parseRuntimeOverrides(raw)
+			if err != nil {
+				t.Fatalf("parse child runtime overrides: %v", err)
+			}
+			if tt.wantSpeed == "" {
+				if overrides.Speed != nil {
+					t.Fatalf("speed-less child override invented speed %q", *overrides.Speed)
+				}
+				return
+			}
+			if overrides.Speed == nil || *overrides.Speed != tt.wantSpeed {
+				t.Fatalf("child speed = %#v, want %q", overrides.Speed, tt.wantSpeed)
+			}
+			if overrides.ExplicitRuntime == nil ||
+				overrides.ExplicitRuntime.Speed != tt.wantExplicit {
+				t.Fatalf("child explicit runtime = %#v, want speed=%t",
+					overrides.ExplicitRuntime, tt.wantExplicit)
+			}
+		})
+	}
+}
+
+func TestRunManagerTaskRunMultipleChildrenDecodeParentSpeed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		speed kinds.Speed
+	}{
+		{name: "normal", speed: kinds.SpeedNormal},
+		{name: "fast", speed: kinds.SpeedFast},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			parentRunID := "task-multi-speed-" + string(tt.speed)
+			captured := make(chan *model.RuntimeConfig, 1)
+			env := newRunManagerTestEnv(t, runManagerTestDeps{
+				buildRunID: taskMultiRunIDBuilder(parentRunID),
+				prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+					return &model.SolvePreparation{}, nil
+				},
+				execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+					captured <- cfg.Clone()
+					return nil
+				},
+			})
+			writeTaskMultiWorkflow(t, env, "alpha", "pending")
+
+			parent, err := env.manager.StartTaskRunMultiple(
+				context.Background(),
+				env.workspaceRoot,
+				apicore.TaskRunMultipleRequest{
+					Workspace:        env.workspaceRoot,
+					Slugs:            []string{"alpha"},
+					Mode:             "enqueued",
+					PresentationMode: defaultPresentationMode,
+					RuntimeOverrides: rawJSON(
+						t,
+						fmt.Sprintf(
+							`{"run_id":%q,"speed":%q,"explicit_runtime":{"speed":true}}`,
+							parentRunID,
+							tt.speed,
+						),
+					),
+				},
+			)
+			if err != nil {
+				t.Fatalf("StartTaskRunMultiple() error = %v", err)
+			}
+			waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+				return row.Status == runStatusCompleted
+			})
+
+			cfg := waitForRuntimeConfig(t, captured)
+			if cfg.Speed != tt.speed || !cfg.ExplicitRuntime.Speed {
+				t.Fatalf("child speed = %q / %#v, want explicit %q",
+					cfg.Speed, cfg.ExplicitRuntime, tt.speed)
+			}
+			if cfg.ParentRunID != parent.RunID {
+				t.Fatalf("child ParentRunID = %q, want %q", cfg.ParentRunID, parent.RunID)
+			}
+		})
+	}
+}
+
 func TestRunManagerTaskRunMultipleRunsChildrenSequentially(t *testing.T) {
 	t.Parallel()
 
@@ -416,6 +558,10 @@ func TestRemapTaskMultiChildRuntime(t *testing.T) {
 			Concurrent:    4,
 			AddDirs:       []string{"docs", "scripts"},
 			ParentRunID:   "stale-parent",
+			Speed:         kinds.SpeedFast,
+			ExplicitRuntime: model.ExplicitRuntimeFlags{
+				Speed: true,
+			},
 		}
 	}
 
@@ -471,11 +617,17 @@ func TestRemapTaskMultiChildRuntime(t *testing.T) {
 		if got.Model != "custom-model" || !got.AutoCommit || got.Concurrent != 4 {
 			t.Fatalf("unrelated overrides not preserved: %#v", got)
 		}
+		if got.Speed != kinds.SpeedFast || !got.ExplicitRuntime.Speed {
+			t.Fatalf("speed override not preserved: %#v", got)
+		}
 		if len(got.AddDirs) != 2 || got.AddDirs[0] != "docs" || got.AddDirs[1] != "scripts" {
 			t.Fatalf("AddDirs = %#v, want [docs scripts]", got.AddDirs)
 		}
 		if base.WorkspaceRoot != "/original/workspace" || base.ParentRunID != "stale-parent" {
 			t.Fatalf("base config mutated by remap: %#v", base)
+		}
+		if base.Speed != kinds.SpeedFast || !base.ExplicitRuntime.Speed {
+			t.Fatalf("base speed mutated by remap: %#v", base)
 		}
 	})
 
@@ -491,6 +643,49 @@ func TestRemapTaskMultiChildRuntime(t *testing.T) {
 			t.Fatal("empty slug error = nil, want error")
 		}
 	})
+}
+
+func TestParallelPreparedTaskRunFailedConfigClonesSpeed(t *testing.T) {
+	t.Parallel()
+
+	if got := (&parallelPreparedTaskRun{}).FailedConfig(); got != nil {
+		t.Fatalf("FailedConfig() without child runtime = %#v, want nil", got)
+	}
+
+	original := &model.RuntimeConfig{
+		Speed: kinds.SpeedFast,
+		ExplicitRuntime: model.ExplicitRuntimeFlags{
+			Speed: true,
+		},
+		AddDirs: []string{"/tmp/shared"},
+	}
+	prepared := &parallelPreparedTaskRun{
+		child: taskWorktreeChildRun{RuntimeConfig: original},
+	}
+
+	first := prepared.FailedConfig()
+	if first == nil {
+		t.Fatal("FailedConfig() = nil, want clone")
+	}
+	first.Speed = kinds.SpeedNormal
+	first.ExplicitRuntime.Speed = false
+	first.AddDirs[0] = "/tmp/changed"
+
+	second := prepared.FailedConfig()
+	if second == nil {
+		t.Fatal("second FailedConfig() = nil, want clone")
+	}
+	if second == first || second == original {
+		t.Fatal("FailedConfig() reused runtime config pointer")
+	}
+	if second.Speed != kinds.SpeedFast || !second.ExplicitRuntime.Speed {
+		t.Fatalf("second clone speed = %q / %#v, want explicit fast",
+			second.Speed, second.ExplicitRuntime)
+	}
+	if original.Speed != kinds.SpeedFast || !original.ExplicitRuntime.Speed ||
+		original.AddDirs[0] != "/tmp/shared" {
+		t.Fatalf("original runtime mutated through failed clone: %#v", original)
+	}
 }
 
 func TestRequireTaskMultiWorktreeTaskDir(t *testing.T) {
@@ -809,7 +1004,15 @@ func TestRunManagerTaskRunMultipleParallelRegistersChildrenUnderWorktreeWorkspac
 		writeTaskMultiWorkflow(t, env, "beta", "pending")
 		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
 
-		parent := startTaskMultiParallelRun(t, env, "task-multi-parallel-register", []string{"alpha", "beta"})
+		parent := startTaskMultiParallelRunWithOverrides(
+			t,
+			env,
+			[]string{"alpha", "beta"},
+			rawJSON(
+				t,
+				`{"run_id":"task-multi-parallel-register","speed":"fast","explicit_runtime":{"speed":true}}`,
+			),
+		)
 		parentRow := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
 			return row.Status == runStatusCompleted
 		})
@@ -858,6 +1061,10 @@ func TestRunManagerTaskRunMultipleParallelRegistersChildrenUnderWorktreeWorkspac
 			}
 			if cfg.ParentRunID != parent.RunID {
 				t.Fatalf("%s runtime ParentRunID = %q, want %q", slug, cfg.ParentRunID, parent.RunID)
+			}
+			if cfg.Speed != kinds.SpeedFast || !cfg.ExplicitRuntime.Speed {
+				t.Fatalf("%s runtime speed = %q / %#v, want explicit fast",
+					slug, cfg.Speed, cfg.ExplicitRuntime)
 			}
 		}
 
@@ -1768,6 +1975,21 @@ func writeFileForTest(t *testing.T, path string, content string) {
 
 func startTaskMultiParallelRun(t *testing.T, env *runManagerTestEnv, runID string, slugs []string) apicore.Run {
 	t.Helper()
+	return startTaskMultiParallelRunWithOverrides(
+		t,
+		env,
+		slugs,
+		rawJSON(t, fmt.Sprintf(`{"run_id":%q}`, runID)),
+	)
+}
+
+func startTaskMultiParallelRunWithOverrides(
+	t *testing.T,
+	env *runManagerTestEnv,
+	slugs []string,
+	runtimeOverrides json.RawMessage,
+) apicore.Run {
+	t.Helper()
 	run, err := env.manager.StartTaskRunMultiple(
 		context.Background(),
 		env.workspaceRoot,
@@ -1776,7 +1998,7 @@ func startTaskMultiParallelRun(t *testing.T, env *runManagerTestEnv, runID strin
 			Slugs:            slugs,
 			Mode:             "parallel",
 			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, fmt.Sprintf(`{"run_id":%q}`, runID)),
+			RuntimeOverrides: runtimeOverrides,
 		},
 	)
 	if err != nil {

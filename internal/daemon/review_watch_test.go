@@ -27,6 +27,137 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+func TestReviewWatchChildRuntimeOverridesPreserveSpeedContract(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		raw          json.RawMessage
+		autoPush     bool
+		projectRetry bool
+		wantSpeed    kinds.Speed
+	}{
+		{
+			name:      "explicit normal with retry injection",
+			raw:       json.RawMessage(`{"run_id":"parent","speed":"normal","explicit_runtime":{"speed":true}}`),
+			wantSpeed: kinds.SpeedNormal,
+		},
+		{
+			name:         "explicit fast with auto commit injection",
+			raw:          json.RawMessage(`{"run_id":"parent","speed":"fast","explicit_runtime":{"speed":true}}`),
+			autoPush:     true,
+			projectRetry: true,
+			wantSpeed:    kinds.SpeedFast,
+		},
+		{
+			name:         "speed absent",
+			raw:          json.RawMessage(`{"run_id":"parent","model":"gpt-5.5"}`),
+			projectRetry: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw, err := reviewWatchChildRuntimeOverrides(tt.raw, tt.autoPush, tt.projectRetry)
+			if err != nil {
+				t.Fatalf("reviewWatchChildRuntimeOverrides() error = %v", err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &fields); err != nil {
+				t.Fatalf("decode child runtime overrides: %v", err)
+			}
+			if _, ok := fields["run_id"]; ok {
+				t.Fatalf("child runtime overrides retained run_id: %s", raw)
+			}
+			overrides, err := parseRuntimeOverrides(raw)
+			if err != nil {
+				t.Fatalf("parse child runtime overrides: %v", err)
+			}
+			if tt.wantSpeed == "" {
+				if overrides.Speed != nil {
+					t.Fatalf("speed-less child override invented speed %q", *overrides.Speed)
+				}
+				return
+			}
+			if overrides.Speed == nil || *overrides.Speed != tt.wantSpeed {
+				t.Fatalf("child speed = %#v, want %q", overrides.Speed, tt.wantSpeed)
+			}
+			if overrides.ExplicitRuntime == nil || !overrides.ExplicitRuntime.Speed {
+				t.Fatalf("child explicit runtime = %#v, want explicit speed", overrides.ExplicitRuntime)
+			}
+			if tt.autoPush {
+				requireRuntimeOverrideBool(t, raw, "auto_commit", true)
+			}
+			if !tt.projectRetry {
+				requireRuntimeOverrideMaxRetries(t, raw, defaultReviewWatchChildRetries)
+			}
+		})
+	}
+}
+
+func TestRunManagerReviewWatchChildDecodesParentSpeed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		speed kinds.Speed
+	}{
+		{name: "normal", speed: kinds.SpeedNormal},
+		{name: "fast", speed: kinds.SpeedFast},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reviewProvider := &fakeReviewWatchProvider{
+				statuses: []provider.WatchStatus{currentWatchStatus("head-1")},
+				fetches:  [][]provider.ReviewItem{{watchReviewItem()}},
+			}
+			git := &fakeReviewWatchGit{
+				states: []ReviewWatchGitState{
+					{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+					{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+					{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+				},
+			}
+			captured := make(chan *model.RuntimeConfig, 1)
+			resolveIssues := resolveReviewIssuesDuringRun(t)
+			env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{
+				execute: func(ctx context.Context, preparation *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+					captured <- cfg.Clone()
+					return resolveIssues(ctx, preparation, cfg)
+				},
+			})
+
+			parentRunID := "review-watch-speed-" + string(tt.speed)
+			run := startReviewWatch(
+				t,
+				env,
+				reviewWatchRequest(
+					fmt.Sprintf(
+						`{"run_id":%q,"speed":%q,"explicit_runtime":{"speed":true}}`,
+						parentRunID,
+						tt.speed,
+					),
+				),
+			)
+			waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+				return row.Status == runStatusCompleted
+			})
+
+			cfg := waitForRuntimeConfig(t, captured)
+			if cfg.Speed != tt.speed || !cfg.ExplicitRuntime.Speed {
+				t.Fatalf("review child speed = %q / %#v, want explicit %q",
+					cfg.Speed, cfg.ExplicitRuntime, tt.speed)
+			}
+		})
+	}
+}
+
 func TestRunManagerReviewWatchCompletesCleanWithoutEmptyRound(t *testing.T) {
 	t.Run("Should complete clean review watch without creating an empty round", func(t *testing.T) {
 		reviewProvider := &fakeReviewWatchProvider{

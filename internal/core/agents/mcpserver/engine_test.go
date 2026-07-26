@@ -166,6 +166,97 @@ func TestRunAgentCapsChildAccessAndKeepsChildMCPIsolation(t *testing.T) {
 	}
 }
 
+func TestRunAgentInheritsSpeedAcrossIndependentChildExecutions(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	writeAgentFixture(
+		t,
+		workspaceRoot,
+		"child",
+		strings.Join([]string{
+			"---",
+			"title: Child",
+			"description: Child agent",
+			"ide: claude",
+			"model: child-model",
+			"reasoning_effort: high",
+			"---",
+			"",
+			"Child prompt.",
+			"",
+		}, "\n"),
+		"",
+	)
+
+	var captured []*model.RuntimeConfig
+	engine := NewEngine(WithPromptExecutor(
+		func(
+			_ context.Context,
+			cfg *model.RuntimeConfig,
+			_ string,
+			_ *reusableagents.ExecutionContext,
+			_ execpkg.SessionMCPBuilder,
+		) (execpkg.PreparedPromptResult, error) {
+			captured = append(captured, cfg)
+			return execpkg.PreparedPromptResult{RunID: "child-run"}, nil
+		},
+	))
+	host := HostContext{
+		BaseRuntime: reusableagents.NestedBaseRuntime{
+			WorkspaceRoot: workspaceRoot,
+			IDE:           model.IDECodex,
+			Model:         "parent-model",
+			Speed:         kinds.SpeedFast,
+			ExplicitRuntime: model.ExplicitRuntimeFlags{
+				Speed: true,
+			},
+		},
+		Nested: reusableagents.NestedExecutionContext{
+			MaxDepth:         3,
+			ParentAccessMode: model.AccessModeFull,
+		},
+	}
+
+	first := engine.RunAgent(
+		context.Background(),
+		host,
+		RunAgentRequest{Name: "child", Input: "first"},
+	)
+	if !first.Success {
+		t.Fatalf("first child execution failed: %#v", first)
+	}
+	if len(captured) != 1 {
+		t.Fatalf("captured child runtimes = %d, want 1", len(captured))
+	}
+	if captured[0].Speed != kinds.SpeedFast || !captured[0].ExplicitRuntime.Speed {
+		t.Fatalf("first child speed = %q / %#v, want explicit fast", captured[0].Speed, captured[0].ExplicitRuntime)
+	}
+	if captured[0].Model != "child-model" || captured[0].ReasoningEffort != "high" {
+		t.Fatalf("child agent defaults were not applied: %#v", captured[0])
+	}
+
+	captured[0].Speed = kinds.SpeedNormal
+	second := engine.RunAgent(
+		context.Background(),
+		host,
+		RunAgentRequest{Name: "child", Input: "second"},
+	)
+	if !second.Success {
+		t.Fatalf("second child execution failed: %#v", second)
+	}
+	if len(captured) != 2 {
+		t.Fatalf("captured child runtimes = %d, want 2", len(captured))
+	}
+	if captured[0] == captured[1] {
+		t.Fatal("child executions reused the same runtime config")
+	}
+	if captured[1].Speed != kinds.SpeedFast || !captured[1].ExplicitRuntime.Speed {
+		t.Fatalf("second child speed = %q / %#v, want independent explicit fast",
+			captured[1].Speed, captured[1].ExplicitRuntime)
+	}
+}
+
 func TestRunAgentBlocksWhenMaxDepthReached(t *testing.T) {
 	t.Parallel()
 

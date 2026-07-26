@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 const (
@@ -26,6 +27,7 @@ type NestedBaseRuntime struct {
 	Model                  string                     `json:"model,omitempty"`
 	AddDirs                []string                   `json:"add_dirs,omitempty"`
 	ReasoningEffort        string                     `json:"reasoning_effort,omitempty"`
+	Speed                  kinds.Speed                `json:"speed,omitempty"`
 	AccessMode             string                     `json:"access_mode,omitempty"`
 	ExplicitRuntime        model.ExplicitRuntimeFlags `json:"explicit_runtime,omitempty"`
 	Timeout                time.Duration              `json:"timeout,omitempty"`
@@ -42,6 +44,7 @@ func (r NestedBaseRuntime) RuntimeConfig() model.RuntimeConfig {
 		Model:                  r.Model,
 		AddDirs:                append([]string(nil), r.AddDirs...),
 		ReasoningEffort:        r.ReasoningEffort,
+		Speed:                  r.Speed,
 		AccessMode:             r.AccessMode,
 		ExplicitRuntime:        r.ExplicitRuntime,
 		Mode:                   model.ExecutionModeExec,
@@ -214,6 +217,7 @@ func captureNestedBaseRuntime(cfg *model.RuntimeConfig) NestedBaseRuntime {
 		Model:                  cfg.Model,
 		AddDirs:                append([]string(nil), cfg.AddDirs...),
 		ReasoningEffort:        cfg.ReasoningEffort,
+		Speed:                  cfg.Speed,
 		AccessMode:             cfg.AccessMode,
 		ExplicitRuntime:        cfg.ExplicitRuntime,
 		Timeout:                cfg.Timeout,
