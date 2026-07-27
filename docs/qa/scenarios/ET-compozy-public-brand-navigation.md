@@ -3,9 +3,9 @@ id: ET-compozy-public-brand-navigation
 area: ET
 title: Navigate the public Compozy brand and launch post
 persona: Ada
-journey: J-evaluate-compozy-beta
+journey: J-validate-compozy-hard-cut
 expected: The public site, launch post, metadata, OpenGraph assets, sitemap, robots, RSS, llms output, and authored runtime guidance identify Compozy at https://compozy.com; the former launch-post slug redirects permanently to the Compozy slug; no active page points at agh.network.
-entry_points: https://compozy.com; https://compozy.com/blog/introducing-compozy-the-first-agent-network-protocol; https://compozy.com/blog/introducing-agh-the-first-agent-network-protocol
+entry_points: local packages/site root and metadata outputs; local /blog/introducing-compozy-the-first-agent-network-protocol; local /blog/introducing-agh-the-first-agent-network-protocol redirect; canonical https://compozy.com declarations
 qa_status: untested
 bug_ids:
 fix_status:

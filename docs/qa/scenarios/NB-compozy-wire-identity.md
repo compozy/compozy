@@ -3,7 +3,7 @@ id: NB-compozy-wire-identity
 area: NB
 title: Expose only the Compozy wire identity
 persona: Ada
-journey: J-23
+journey: J-validate-compozy-hard-cut
 expected: A fresh runtime reports and persists compozy-network/v0, uses compozy.runtime for its runtime peer, emits only the eight compozy.* capability/workflow/handoff extension keys, derives stable direct-room ids from the Compozy prefix, and contains no prior wire identifier in HTTP, UDS, CLI, native-tool, event, or protocol-document output.
 entry_points: compozy network status/send/inbox -o json; HTTP and UDS network routes; compozy__network_*; Web Loop DSL; /protocol
 qa_status: untested

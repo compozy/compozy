@@ -9,7 +9,9 @@ part of this journey.
 ```mermaid
 flowchart TD
     A([Start review-and-fix with task_name]) --> B[Reviewer returns structured issues]
-    B --> C{Any issues?}
+    B --> V{Schema valid?}
+    V -->|No| X[Fail action_schema_invalid; write no partial round]
+    V -->|Yes| C{Any issues?}
     C -->|No| D([Terminal done])
     C -->|Yes| E[Write exclusive reviews-NNN artifact round]
     E --> F[Fan out complete issue-file batches]
@@ -32,13 +34,15 @@ journey:
       origin: in-app-nav
     - url: "CLI: compozy loop run --workspace <workspace-id> --name review-and-fix --input task_name=<task>"
       origin: direct
+    - url: "HTTP/UDS Loop run routes; native compozy__loop_run and compozy__loop_status"
+      origin: direct
   actions:
     - step: 1
       verb: "Start review-and-fix for a named task"
-      expected_observable: "The run records the selected reviewer/fixer agents and begins with an isolated reviewer action"
+      expected_observable: "The run records the selected reviewer/fixer agents and begins with an isolated reviewer action; no CodeRabbit, gh, PR number, watch source, or push input exists"
     - step: 2
       verb: "Inspect the authored review round"
-      expected_observable: "Each structured issue has one deterministic issue file under the next exclusive reviews-NNN directory"
+      expected_observable: "Each structured issue has one deterministic issue file under the next exclusive reviews-NNN directory; malformed output fails before any partial round"
     - step: 3
       verb: "Remediate complete artifact batches"
       expected_observable: "Every issue file receives one valid or invalid triage result before the round can finalize"
@@ -48,7 +52,7 @@ journey:
   goal:
     observable: "The run ends done only after a fresh reviewer generation reports no issues"
     side_effects: [review-artifact-rounds, scoped-code-fixes, monotonic-finalization]
-  true_end_state: "All prior issues are finalized, the latest reviewer output is empty, and fresh run status and on-disk artifacts agree."
+  true_end_state: "All prior issues are finalized, the latest reviewer output is empty, fresh CLI/HTTP/UDS/native/Web status and on-disk artifacts agree, and another workspace cannot list, read, or mutate the run or files."
   exit:
     natural: "The operator lands on a terminal done run with inspectable finalized review evidence."
   abandonment:

@@ -3,7 +3,7 @@ id: RT-compozy-claim-token-redaction
 area: RT
 title: Keep Compozy claim tokens inside the lease boundary
 persona: Dora
-journey: J-keep-secrets-contained
+journey: J-validate-compozy-hard-cut
 expected: Claim generation produces a case-insensitively protected compozy_claim_ raw secret while claim_token and claim_token_hash field names remain stable; no raw token crosses logs, diagnostics, HTTP, UDS, CLI, native tools, SSE, events, transcripts, Web responses, or persisted diagnostic payloads, and hashes plus correlation ids survive redaction.
 entry_points: task claim/heartbeat/complete routes; compozy task next -o json; compozy__task_run_claim_next; daemon logs; SSE; diagnostics; Web task detail
 qa_status: untested

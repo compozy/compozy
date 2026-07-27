@@ -58,5 +58,9 @@ journey:
 
 ## Coverage note
 
-Task 11 flags the changed launch surfaces only. The next QA cycle owns the browser walk and live
-installation evidence; this change does not retest the journey.
+The journey's true end requires a published beta and therefore remains post-publish backlog under
+Task 10's single-cut runbook. Task 13 selects only `REL-os-landing-proof` as its one adjacent canary:
+that session renders the landing locally and judges the integrated-OS claim, but it does not execute
+step 4, install a package, call a live registry, validate cosign output, or touch DNS. The live
+`REL-beta-install-paths`, `REL-beta-installer-provenance`, and `REL-beta-self-update` rows stay
+`untested` until a real publication exists.
