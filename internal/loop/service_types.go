@@ -249,13 +249,14 @@ type PlanNodePreview struct {
 
 // PlanPreview is the no-state preview returned by DryRun.
 type PlanPreview struct {
-	LoopName                     string             `json:"loop_name"`
-	ResolvedInputs               map[string]any     `json:"resolved_inputs"`
-	Generation                   int                `json:"generation"`
-	Nodes                        []PlanNodePreview  `json:"nodes"`
-	Contract                     dsl.Contract       `json:"contract"`
-	EffectiveConfig              EffectiveConfig    `json:"effective_config"`
-	ResolvedNetworkParticipation participation.Spec `json:"resolved_network_participation"`
+	LoopName                     string                 `json:"loop_name"`
+	ResolvedInputs               map[string]any         `json:"resolved_inputs"`
+	InputOrigins                 map[string]InputOrigin `json:"input_origins"`
+	Generation                   int                    `json:"generation"`
+	Nodes                        []PlanNodePreview      `json:"nodes"`
+	Contract                     dsl.Contract           `json:"contract"`
+	EffectiveConfig              EffectiveConfig        `json:"effective_config"`
+	ResolvedNetworkParticipation participation.Spec     `json:"resolved_network_participation"`
 }
 
 // DisplayCost is derived UI-only cost information.

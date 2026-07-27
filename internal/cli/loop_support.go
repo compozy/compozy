@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/agentidentity"
@@ -398,6 +399,37 @@ func loopOutputBundle(value any, summary string) outputBundle {
 			return renderToonObject(loopLoopKey, []string{loopPayloadKey}, []string{string(body)}), nil
 		},
 	}
+}
+
+func loopRunOutputBundle(response contract.RunLoopResponse, summary string) outputBundle {
+	bundle := loopOutputBundle(response, summary)
+	bundle.human = func() (string, error) {
+		lines := []string{strings.TrimSpace(summary)}
+		if response.DryRun != nil {
+			keys := make([]string, 0, len(response.DryRun.ResolvedInputs))
+			for key := range response.DryRun.ResolvedInputs {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				encoded, err := json.Marshal(response.DryRun.ResolvedInputs[key])
+				if err != nil {
+					return "", fmt.Errorf("cli: render effective Loop input %q: %w", key, err)
+				}
+				lines = append(lines, fmt.Sprintf(
+					"Input %s=%s (origin: %s)",
+					key,
+					encoded,
+					response.DryRun.InputOrigins[key],
+				))
+			}
+		}
+		if strings.TrimSpace(response.WebURL) != "" {
+			lines = append(lines, strings.TrimSpace(response.WebURL))
+		}
+		return strings.Join(lines, "\n"), nil
+	}
+	return bundle
 }
 
 func writeLoopMutationOK(cmd *cobra.Command, verb string, id string) error {

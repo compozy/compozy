@@ -212,6 +212,13 @@ bare `worker=opus` is model-only shorthand, and gateway model IDs retain slashes
 provider separator. Dry-run resolves workspace, stored, definition, and per-run layers without
 creating a run.
 
+Declared Loop inputs may have global or workspace defaults under
+`[loops.inputs.<loop-name>]`. Resolution is per key: run, workspace, global, then definition.
+Dry-run reports the effective value plus `run|workspace|global|definition` origin. Manage dynamic
+paths with `compozy config get|set|unset loops.inputs.<loop-name>.<key>`; HTTP and UDS expose the
+same exact-scope lifecycle under `/loops/{name}/input-defaults`. Stored values are validated only
+when that Loop is dry-run or submitted, and failures return typed `input_default` diagnostics.
+
 `compozy loop validate` performs static definition validation. Dry-run and submission perform
 effective validation after workspace, stored, and per-run layers resolve, then the daemon validates
 again immediately before binding. Failures return structured `runtime_validation` items and spawn
@@ -220,6 +227,8 @@ no ACP process. Model membership is enforced only for providers with an authorit
 Successful generation outputs expose the binder-applied `resolved_runtime` triple plus per-field
 provenance through `compozy loop status`, HTTP/UDS run detail, `compozy__loop_status`, and
 `runtime_applied` SSE frames. The web run inspector displays the same durable values read-only.
+Successful persisted `loop run` responses also expose `web_url`; human output prints it as the final
+line. Dry-run has no run ID and never emits a URL.
 
 ## Loop Hook Events
 

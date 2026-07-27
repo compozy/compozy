@@ -340,12 +340,24 @@ func loopPlanPayload(plan *looppkg.PlanPreview) (*contract.LoopPlanPayload, erro
 	return &contract.LoopPlanPayload{
 		LoopName:                     plan.LoopName,
 		ResolvedInputs:               resolvedInputs,
+		InputOrigins:                 loopInputOriginsPayload(plan.InputOrigins),
 		Generation:                   plan.Generation,
 		Nodes:                        loopPlanNodesPayload(plan.Nodes),
 		Contract:                     loopContract,
 		EffectiveConfig:              effective,
 		ResolvedNetworkParticipation: participation.CloneSpec(plan.ResolvedNetworkParticipation),
 	}, nil
+}
+
+func loopInputOriginsPayload(input map[string]looppkg.InputOrigin) map[string]contract.LoopInputOrigin {
+	if len(input) == 0 {
+		return map[string]contract.LoopInputOrigin{}
+	}
+	origins := make(map[string]contract.LoopInputOrigin, len(input))
+	for key, origin := range input {
+		origins[key] = contract.LoopInputOrigin(origin)
+	}
+	return origins
 }
 
 func loopAnnotationsPayload(input []looppkg.UIAnnotation) []contract.LoopAnnotationPayload {

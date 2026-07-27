@@ -79,6 +79,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                                    | empty list                                                                                            |
 | `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery loops.                                   | iteration cap 50, no-progress window 3, gate revisions 10, fan-out 4                                  |
 | `[loops.defaults.watch]`             | Global/workspace seed defaults for watch loops.                                      | no iteration cap, no-progress window 2, fan-out 2                                                     |
+| `[loops.inputs.<loop-name>]`         | Global/workspace defaults for declared inputs of one Loop.                           | empty map; per-key origin remains explicit                                                            |
 | `[goals]`                            | Goal defaults and durable session-event relay controls.                              | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                              |
 | `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                | block recurrence limit 2                                                                              |
 | `[task.orchestration]`               | Bounds for active workspace runs, summaries, context, scheduler health, and runtime. | 16 active runs/workspace, 4 KiB summaries, 8 KiB context, prior 5/recent 50 events                    |
@@ -646,6 +647,14 @@ model = "sonnet"
 tokens = 0
 wall_clock_sec = 0
 on_exceeded = "halt"
+
+[loops.inputs.software-delivery]
+# Explicit false, zero, and valid empty strings remain present values.
+auto_commit = false
+verify_command = ""
+
+[loops.inputs.review-and-fix]
+auto_commit = false
 
 [goals]
 # Defaults for newly started Goals. Active Runs keep their pinned values.
@@ -1761,6 +1770,35 @@ plus criterion `runtime`; task rules never apply. `model_defaults`, scalar `para
 scalar criterion `model` are rejected instead of translated. Static `loop validate` checks authored
 definition values; dry-run and submission check the effective workspace/run values before any ACP
 process starts.
+
+## `[loops.inputs.<loop-name>]`
+
+Each table supplies global or workspace defaults for inputs declared by one dynamically enrolled
+Loop. Values resolve independently as per-run input, workspace default, global default, then
+definition default. Presence is tracked before config overlays merge, so `false`, `0`, and valid
+empty strings do not collapse into “unset.” Dry-run exposes every effective value and its
+`run|workspace|global|definition` origin.
+
+Config loading accepts dynamic Loop names and scalar values without consulting the current catalog.
+Static `loop validate` validates only defaults authored in the definition. Configured defaults and
+per-run values are validated together during effective dry-run or submission; unknown keys and type
+mismatches return typed `input_default {loop,key,reason}` diagnostics before a run or ACP process is
+created.
+
+Manage one value through the validated config writer:
+
+```bash
+compozy config set loops.inputs.software-delivery.auto_commit false \
+  --scope workspace --workspace /absolute/project/root
+compozy config get loops.inputs.software-delivery.auto_commit \
+  --workspace /absolute/project/root
+compozy config unset loops.inputs.software-delivery.auto_commit \
+  --scope workspace --workspace /absolute/project/root
+```
+
+HTTP and UDS provide exact-scope inspect, replace, set, and delete operations at
+`/api/workspaces/{workspace_id}/loops/{name}/input-defaults`. These paths are also available through
+native config tools. Changes are `restart-required`; existing runs retain their materialized inputs.
 
 ## `[goals]`
 

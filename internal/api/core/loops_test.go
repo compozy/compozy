@@ -69,18 +69,26 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			runID string,
 			afterSeq int64,
 		) ([]contract.LoopRunEventPayload, error) {
-			if workspaceID != "ws-1" || runID != "run-1" || afterSeq != 3 {
+			if workspaceID != "ws-1" || runID != "run-1" {
 				t.Fatalf("ListLoopRunEvents() = workspace=%s run=%s after=%d", workspaceID, runID, afterSeq)
 			}
-			return []contract.LoopRunEventPayload{{
-				ID:          "evt-4",
-				LoopRunID:   "run-1",
-				WorkspaceID: "ws-1",
-				Seq:         4,
-				Kind:        "status_changed",
-				Payload:     []byte(`{"status":"running"}`),
-				At:          fixedLoopTime(),
-			}}, nil
+			switch afterSeq {
+			case 3:
+				return []contract.LoopRunEventPayload{{
+					ID:          "evt-4",
+					LoopRunID:   "run-1",
+					WorkspaceID: "ws-1",
+					Seq:         4,
+					Kind:        "status_changed",
+					Payload:     []byte(`{"status":"running"}`),
+					At:          fixedLoopTime(),
+				}}, nil
+			case 4:
+				return nil, nil
+			default:
+				t.Fatalf("ListLoopRunEvents() = workspace=%s run=%s after=%d", workspaceID, runID, afterSeq)
+				return nil, nil
+			}
 		}
 		handlers, engine := newLoopHandlerFixture(t, "httpapi", service)
 		done := make(chan struct{})
@@ -313,6 +321,138 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			t.Fatalf("POST /run legacy body = %s, want unknown_field with removed field name", body)
 		}
 	})
+}
+
+func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing.T) {
+	t.Parallel()
+
+	for _, transport := range []string{"httpapi", "udsapi"} {
+		t.Run("Should expose inspect get replace set and delete through "+transport, func(t *testing.T) {
+			t.Parallel()
+
+			service := happyLoopService(t)
+			service.getInputDefaultsFn = func(
+				_ context.Context,
+				workspaceID string,
+				name string,
+				scope contract.LoopInputDefaultsScope,
+			) (contract.LoopInputDefaultsResponse, error) {
+				if workspaceID != "ws-1" || name != "alpha" || scope != contract.LoopInputDefaultsScopeWorkspace {
+					t.Fatalf("GetLoopInputDefaults() = %s/%s/%s", workspaceID, name, scope)
+				}
+				return contract.LoopInputDefaultsResponse{
+					LoopName: name,
+					Scope:    scope,
+					Values:   map[string]any{"auto_commit": false},
+				}, nil
+			}
+			service.getInputDefaultFn = func(
+				_ context.Context,
+				workspaceID string,
+				name string,
+				key string,
+				scope contract.LoopInputDefaultsScope,
+			) (contract.LoopInputDefaultResponse, error) {
+				if workspaceID != "ws-1" || name != "alpha" || key != "auto_commit" ||
+					scope != contract.LoopInputDefaultsScopeWorkspace {
+					t.Fatalf("GetLoopInputDefault() = %s/%s/%s/%s", workspaceID, name, key, scope)
+				}
+				return contract.LoopInputDefaultResponse{
+					LoopName: name, Key: key, Scope: scope, Present: true, Value: false,
+				}, nil
+			}
+			service.putInputDefaultsFn = func(
+				_ context.Context,
+				workspaceID string,
+				name string,
+				req contract.PutLoopInputDefaultsRequest,
+			) (contract.LoopInputDefaultsResponse, error) {
+				if workspaceID != "ws-1" || name != "alpha" ||
+					req.Scope != contract.LoopInputDefaultsScopeGlobal || req.Values["retries"] != float64(0) {
+					t.Fatalf("PutLoopInputDefaults() = %s/%s/%#v", workspaceID, name, req)
+				}
+				return contract.LoopInputDefaultsResponse{LoopName: name, Scope: req.Scope, Values: req.Values}, nil
+			}
+			service.putInputDefaultFn = func(
+				_ context.Context,
+				workspaceID string,
+				name string,
+				key string,
+				req contract.PutLoopInputDefaultRequest,
+			) (contract.LoopInputDefaultResponse, error) {
+				if workspaceID != "ws-1" || name != "alpha" || key != "reviewer" ||
+					req.Scope != contract.LoopInputDefaultsScopeWorkspace || req.Value != "" {
+					t.Fatalf("PutLoopInputDefault() = %s/%s/%s/%#v", workspaceID, name, key, req)
+				}
+				return contract.LoopInputDefaultResponse{
+					LoopName: name, Key: key, Scope: req.Scope, Present: true, Value: req.Value,
+				}, nil
+			}
+			service.deleteInputDefaultFn = func(
+				_ context.Context,
+				workspaceID string,
+				name string,
+				key string,
+				scope contract.LoopInputDefaultsScope,
+			) (contract.DeleteLoopInputDefaultResponse, error) {
+				if workspaceID != "ws-1" || name != "alpha" || key != "reviewer" ||
+					scope != contract.LoopInputDefaultsScopeGlobal {
+					t.Fatalf("DeleteLoopInputDefault() = %s/%s/%s/%s", workspaceID, name, key, scope)
+				}
+				return contract.DeleteLoopInputDefaultResponse{
+					LoopName: name, Key: key, Scope: scope, Deleted: true,
+				}, nil
+			}
+			_, engine := newLoopHandlerFixture(t, transport, service)
+
+			response := performRequest(
+				t, engine, http.MethodGet,
+				"/workspaces/ws-1/loops/alpha/input-defaults?scope=workspace", nil,
+			)
+			assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
+			var defaults contract.LoopInputDefaultsResponse
+			testutil.DecodeJSONResponse(t, response, &defaults)
+			if value, present := defaults.Values["auto_commit"]; !present || value != false {
+				t.Fatalf("GET input defaults = %#v, want explicit false", defaults)
+			}
+
+			response = performRequest(
+				t, engine, http.MethodGet,
+				"/workspaces/ws-1/loops/alpha/input-defaults/auto_commit?scope=workspace", nil,
+			)
+			assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
+			var item contract.LoopInputDefaultResponse
+			testutil.DecodeJSONResponse(t, response, &item)
+			if !item.Present || item.Value != false {
+				t.Fatalf("GET input default = %#v, want present false value", item)
+			}
+
+			response = performRequest(
+				t, engine, http.MethodPut,
+				"/workspaces/ws-1/loops/alpha/input-defaults",
+				[]byte(`{"scope":"global","values":{"retries":0}}`),
+			)
+			assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
+
+			response = performRequest(
+				t, engine, http.MethodPut,
+				"/workspaces/ws-1/loops/alpha/input-defaults/reviewer",
+				[]byte(`{"scope":"workspace","value":""}`),
+			)
+			assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
+
+			response = performRequest(
+				t, engine, http.MethodDelete,
+				"/workspaces/ws-1/loops/alpha/input-defaults/reviewer?scope=global", nil,
+			)
+			assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
+			var deleted contract.DeleteLoopInputDefaultResponse
+			testutil.DecodeJSONResponse(t, response, &deleted)
+			if !deleted.Deleted {
+				t.Fatalf("DELETE input default = %#v, want deleted", deleted)
+			}
+		})
+	}
 }
 
 func TestLoopCatalogHandlerShouldForwardBoundedQuery(t *testing.T) {
@@ -908,6 +1048,52 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return structured input-default validation over HTTP and UDS", func(t *testing.T) {
+		t.Parallel()
+
+		for _, transport := range []string{"httpapi", "udsapi"} {
+			t.Run("Should preserve input-default validation through "+transport, func(t *testing.T) {
+				t.Parallel()
+
+				service := happyLoopService(t)
+				service.runLoopFn = func(
+					context.Context,
+					string,
+					string,
+					contract.RunLoopRequest,
+					dsl.StartKind,
+					taskpkg.ActorContext,
+					bool,
+				) (contract.RunLoopResponse, error) {
+					return contract.RunLoopResponse{}, &looppkg.InputDefaultError{
+						Loop:   "review-and-fix",
+						Key:    "unknown",
+						Reason: looppkg.InputDefaultReasonUnknownInput,
+						Err:    errors.New("input is not declared"),
+					}
+				}
+				_, engine := newLoopHandlerFixture(t, transport, service)
+				resp := performRequest(
+					t,
+					engine,
+					http.MethodPost,
+					"/workspaces/ws-1/loops/review-and-fix/run?dry=true",
+					[]byte(`{"inputs":{"unknown":true}}`),
+				)
+				assertLoopStatus(t, resp.Code, http.StatusUnprocessableEntity, resp.Body.String())
+				var payload contract.LoopValidationResponse
+				testutil.DecodeJSONResponse(t, resp, &payload)
+				if payload.Valid || payload.InputDefault == nil {
+					t.Fatalf("input-default validation payload = %#v, want one typed item", payload)
+				}
+				if got := payload.InputDefault; got.Loop != "review-and-fix" || got.Key != "unknown" ||
+					got.Reason != string(looppkg.InputDefaultReasonUnknownInput) {
+					t.Fatalf("input-default validation item = %#v, want stable structured fields", got)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject retired runtime keys before validation service dispatch", func(t *testing.T) {
 		t.Parallel()
 
@@ -1068,6 +1254,11 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.POST("/loops/:name/run", handlers.RunLoop)
 	workspace.GET("/loops/:name/config", handlers.GetLoopConfig)
 	workspace.PUT("/loops/:name/config", handlers.PutLoopConfig)
+	workspace.GET("/loops/:name/input-defaults", handlers.GetLoopInputDefaults)
+	workspace.PUT("/loops/:name/input-defaults", handlers.PutLoopInputDefaults)
+	workspace.GET("/loops/:name/input-defaults/:key", handlers.GetLoopInputDefault)
+	workspace.PUT("/loops/:name/input-defaults/:key", handlers.PutLoopInputDefault)
+	workspace.DELETE("/loops/:name/input-defaults/:key", handlers.DeleteLoopInputDefault)
 	workspace.GET("/loops/:name/annotations", handlers.GetLoopAnnotations)
 	workspace.PUT("/loops/:name/annotations", handlers.PutLoopAnnotations)
 	workspace.GET("/loop-runs", handlers.ListLoopRuns)
@@ -1082,15 +1273,26 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 }
 
 type stubLoopService struct {
-	listLoopsFn         func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error)
-	createLoopFn        func(context.Context, string, contract.CreateLoopRequest) (contract.LoopResponse, error)
-	getLoopFn           func(context.Context, string, string) (contract.LoopResponse, error)
-	patchLoopFn         func(context.Context, string, string, contract.PatchLoopRequest) (contract.LoopResponse, error)
-	validateLoopFn      func(context.Context, string, string, contract.ValidateLoopRequest) (contract.LoopValidationResponse, error)
-	deleteLoopFn        func(context.Context, string, string) error
-	runLoopFn           func(context.Context, string, string, contract.RunLoopRequest, dsl.StartKind, taskpkg.ActorContext, bool) (contract.RunLoopResponse, error)
-	getLoopConfigFn     func(context.Context, string, string) (contract.LoopConfigResponse, error)
-	putLoopConfigFn     func(context.Context, string, string, contract.PutLoopConfigRequest) (contract.LoopConfigResponse, error)
+	listLoopsFn          func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error)
+	createLoopFn         func(context.Context, string, contract.CreateLoopRequest) (contract.LoopResponse, error)
+	getLoopFn            func(context.Context, string, string) (contract.LoopResponse, error)
+	patchLoopFn          func(context.Context, string, string, contract.PatchLoopRequest) (contract.LoopResponse, error)
+	validateLoopFn       func(context.Context, string, string, contract.ValidateLoopRequest) (contract.LoopValidationResponse, error)
+	deleteLoopFn         func(context.Context, string, string) error
+	runLoopFn            func(context.Context, string, string, contract.RunLoopRequest, dsl.StartKind, taskpkg.ActorContext, bool) (contract.RunLoopResponse, error)
+	getLoopConfigFn      func(context.Context, string, string) (contract.LoopConfigResponse, error)
+	putLoopConfigFn      func(context.Context, string, string, contract.PutLoopConfigRequest) (contract.LoopConfigResponse, error)
+	getInputDefaultsFn   func(context.Context, string, string, contract.LoopInputDefaultsScope) (contract.LoopInputDefaultsResponse, error)
+	getInputDefaultFn    func(context.Context, string, string, string, contract.LoopInputDefaultsScope) (contract.LoopInputDefaultResponse, error)
+	putInputDefaultsFn   func(context.Context, string, string, contract.PutLoopInputDefaultsRequest) (contract.LoopInputDefaultsResponse, error)
+	putInputDefaultFn    func(context.Context, string, string, string, contract.PutLoopInputDefaultRequest) (contract.LoopInputDefaultResponse, error)
+	deleteInputDefaultFn func(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.LoopInputDefaultsScope,
+	) (contract.DeleteLoopInputDefaultResponse, error)
 	getAnnotationsFn    func(context.Context, string, string) (contract.LoopAnnotationsResponse, error)
 	putAnnotationsFn    func(context.Context, string, string, contract.PutLoopAnnotationsRequest) (contract.LoopAnnotationsResponse, error)
 	listLoopRunsFn      func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
@@ -1153,6 +1355,49 @@ func happyLoopService(t testing.TB) *stubLoopService {
 		},
 		putLoopConfigFn: func(context.Context, string, string, contract.PutLoopConfigRequest) (contract.LoopConfigResponse, error) {
 			return contract.LoopConfigResponse{Config: &cfg, EffectiveConfig: effectiveCfg}, nil
+		},
+		getInputDefaultsFn: func(
+			context.Context,
+			string,
+			string,
+			contract.LoopInputDefaultsScope,
+		) (contract.LoopInputDefaultsResponse, error) {
+			return contract.LoopInputDefaultsResponse{}, nil
+		},
+		getInputDefaultFn: func(
+			context.Context,
+			string,
+			string,
+			string,
+			contract.LoopInputDefaultsScope,
+		) (contract.LoopInputDefaultResponse, error) {
+			return contract.LoopInputDefaultResponse{}, nil
+		},
+		putInputDefaultsFn: func(
+			context.Context,
+			string,
+			string,
+			contract.PutLoopInputDefaultsRequest,
+		) (contract.LoopInputDefaultsResponse, error) {
+			return contract.LoopInputDefaultsResponse{}, nil
+		},
+		putInputDefaultFn: func(
+			context.Context,
+			string,
+			string,
+			string,
+			contract.PutLoopInputDefaultRequest,
+		) (contract.LoopInputDefaultResponse, error) {
+			return contract.LoopInputDefaultResponse{}, nil
+		},
+		deleteInputDefaultFn: func(
+			context.Context,
+			string,
+			string,
+			string,
+			contract.LoopInputDefaultsScope,
+		) (contract.DeleteLoopInputDefaultResponse, error) {
+			return contract.DeleteLoopInputDefaultResponse{}, nil
 		},
 		getAnnotationsFn: func(context.Context, string, string) (contract.LoopAnnotationsResponse, error) {
 			return contract.LoopAnnotationsResponse{Annotations: annotations}, nil
@@ -1270,6 +1515,54 @@ func (s *stubLoopService) PutLoopConfig(
 	req contract.PutLoopConfigRequest,
 ) (contract.LoopConfigResponse, error) {
 	return s.putLoopConfigFn(ctx, workspaceID, name, req)
+}
+
+func (s *stubLoopService) GetLoopInputDefaults(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	scope contract.LoopInputDefaultsScope,
+) (contract.LoopInputDefaultsResponse, error) {
+	return s.getInputDefaultsFn(ctx, workspaceID, name, scope)
+}
+
+func (s *stubLoopService) GetLoopInputDefault(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	key string,
+	scope contract.LoopInputDefaultsScope,
+) (contract.LoopInputDefaultResponse, error) {
+	return s.getInputDefaultFn(ctx, workspaceID, name, key, scope)
+}
+
+func (s *stubLoopService) PutLoopInputDefaults(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	req contract.PutLoopInputDefaultsRequest,
+) (contract.LoopInputDefaultsResponse, error) {
+	return s.putInputDefaultsFn(ctx, workspaceID, name, req)
+}
+
+func (s *stubLoopService) PutLoopInputDefault(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	key string,
+	req contract.PutLoopInputDefaultRequest,
+) (contract.LoopInputDefaultResponse, error) {
+	return s.putInputDefaultFn(ctx, workspaceID, name, key, req)
+}
+
+func (s *stubLoopService) DeleteLoopInputDefault(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	key string,
+	scope contract.LoopInputDefaultsScope,
+) (contract.DeleteLoopInputDefaultResponse, error) {
+	return s.deleteInputDefaultFn(ctx, workspaceID, name, key, scope)
 }
 
 func (s *stubLoopService) GetLoopAnnotations(

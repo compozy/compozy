@@ -20,6 +20,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
@@ -28,6 +29,7 @@ const (
 	loopRuntimeWorkerAgent       = "loop-runtime-worker"
 	loopRuntimeJudgeAgent        = "loop-runtime-judge"
 	loopRuntimeSelectionName     = "runtime-selection-integration"
+	loopInputDefaultsName        = "input-defaults-integration"
 	loopRuntimeMissingSecretName = "COMPOZY_TEST_RUNTIME_SELECTION_MISSING_SECRET"
 )
 
@@ -207,6 +209,29 @@ func loopRuntimeSingleAgentDefinition(name string, provider string) contract.Loo
 		Reasoning: "low",
 	}}
 	definition.Graph.Nodes[0].Params["agent"] = loopRuntimeWorkerAgent
+	return definition
+}
+
+func loopInputDefaultsDefinition() contract.LoopDefinitionDocument {
+	definition := loopRuntimeSingleAgentDefinition(loopInputDefaultsName, acpmock.ProviderName)
+	definition.Meta.Description = "Exercise configured Loop inputs through every public submission transport."
+	definition.Inputs = map[string]contract.LoopInput{
+		"task_name": {
+			Type:        string(dsl.InputTypeString),
+			Description: "Task selected for the integration probe.",
+			Required:    true,
+		},
+		"auto_commit": {
+			Type:        string(dsl.InputTypeBoolean),
+			Description: "Whether the probe would commit automatically.",
+			Default:     false,
+		},
+		"reviewer": {
+			Type:        string(dsl.InputTypeString),
+			Description: "Reviewer identity.",
+			Default:     "definition-reviewer",
+		},
+	}
 	return definition
 }
 

@@ -598,6 +598,103 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			t.Fatalf("pinned iteration cap = %d, want %d after defaults mutation", got, want)
 		}
 	})
+
+	t.Run("Should resolve configured inputs at the shared dry run and persisted start seam", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Inputs["auto_commit"] = dsl.Input{Type: dsl.InputTypeBoolean, Default: false}
+		store := newFakeLoopStore()
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithInputDefaultsResolver(func(
+				_ context.Context,
+				ws loop.WorkspaceID,
+				name string,
+			) (loop.InputDefaultLayers, error) {
+				if ws != "ws-inputs" || name != "valid-loop" {
+					t.Fatalf("input defaults target = %s/%s, want ws-inputs/valid-loop", ws, name)
+				}
+				return loop.InputDefaultLayers{
+					Global:    map[string]any{"tasks": "configured-task"},
+					Workspace: map[string]any{"auto_commit": true},
+				}, nil
+			}),
+		)
+
+		preview, err := svc.DryRun(context.Background(), "ws-inputs", "valid-loop", loop.Inputs{})
+		if err != nil {
+			t.Fatalf("DryRun() error = %v", err)
+		}
+		if got, want := preview.ResolvedInputs["tasks"], "configured-task"; got != want {
+			t.Fatalf("DryRun tasks = %#v, want %#v", got, want)
+		}
+		if got, want := preview.InputOrigins["tasks"], loop.InputOriginGlobal; got != want {
+			t.Fatalf("DryRun tasks origin = %q, want %q", got, want)
+		}
+		if got, want := preview.InputOrigins["auto_commit"], loop.InputOriginWorkspace; got != want {
+			t.Fatalf("DryRun auto_commit origin = %q, want %q", got, want)
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("DryRun create count = %d, want 0", store.createCount())
+		}
+
+		run, err := svc.Start(
+			context.Background(),
+			"ws-inputs",
+			"valid-loop",
+			loop.Inputs{Values: map[string]any{"tasks": "explicit-task"}},
+			humanActor(t),
+		)
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		if got, want := run.Inputs["tasks"], "explicit-task"; got != want {
+			t.Fatalf("Start tasks = %#v, want %#v", got, want)
+		}
+		if store.createCount() != 1 {
+			t.Fatalf("Start create count = %d, want 1", store.createCount())
+		}
+	})
+
+	t.Run("Should reject configured type mismatches before creating a run", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Inputs["auto_commit"] = dsl.Input{Type: dsl.InputTypeBoolean, Default: false}
+		store := newFakeLoopStore()
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithInputDefaultsResolver(func(
+				context.Context,
+				loop.WorkspaceID,
+				string,
+			) (loop.InputDefaultLayers, error) {
+				return loop.InputDefaultLayers{
+					Workspace: map[string]any{"auto_commit": "true"},
+				}, nil
+			}),
+		)
+
+		_, err := svc.Start(
+			context.Background(),
+			"ws-inputs",
+			"valid-loop",
+			loop.Inputs{Values: map[string]any{"tasks": "task-ref"}},
+			humanActor(t),
+		)
+		validation, ok := loop.AsInputDefaultError(err)
+		if !ok || validation.Key != "auto_commit" || validation.Reason != loop.InputDefaultReasonTypeMismatch {
+			t.Fatalf("Start() error = %#v, want typed auto_commit type mismatch", err)
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("Start create count = %d, want 0", store.createCount())
+		}
+	})
 }
 
 func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T) {
@@ -1383,6 +1480,112 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 			t.Fatalf("ResolveInputs() error = %v, want ErrValidation", err)
 		}
 	})
+
+	t.Run("Should resolve run workspace global and definition values by presence", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"task_name":   {Type: dsl.InputTypeString, Required: true},
+			"auto_commit": {Type: dsl.InputTypeBoolean, Default: false},
+			"retries":     {Type: dsl.InputTypeNumber, Default: 5},
+			"reviewer":    {Type: dsl.InputTypeString, Default: "reviewer"},
+		}
+		resolved, err := loop.ResolveInputDefaults(
+			def,
+			"valid-loop",
+			map[string]any{"task_name": "run-task", "auto_commit": false},
+			loop.InputDefaultLayers{
+				Global: map[string]any{"auto_commit": true, "retries": int64(0)},
+				Workspace: map[string]any{
+					"auto_commit": true,
+					"reviewer":    "",
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("ResolveInputDefaults() error = %v", err)
+		}
+		wantValues := map[string]any{
+			"task_name": "run-task", "auto_commit": false, "retries": int64(0), "reviewer": "",
+		}
+		if !reflect.DeepEqual(resolved.Values, wantValues) {
+			t.Fatalf("resolved values = %#v, want %#v", resolved.Values, wantValues)
+		}
+		wantOrigins := map[string]loop.InputOrigin{
+			"task_name":   loop.InputOriginRun,
+			"auto_commit": loop.InputOriginRun,
+			"retries":     loop.InputOriginGlobal,
+			"reviewer":    loop.InputOriginWorkspace,
+		}
+		if !reflect.DeepEqual(resolved.Origins, wantOrigins) {
+			t.Fatalf("resolved origins = %#v, want %#v", resolved.Origins, wantOrigins)
+		}
+	})
+
+	t.Run("Should return typed errors for unknown and mismatched inputs", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"task_name":   {Type: dsl.InputTypeString, Required: true},
+			"auto_commit": {Type: dsl.InputTypeBoolean, Default: false},
+		}
+		cases := []struct {
+			name   string
+			run    map[string]any
+			layers loop.InputDefaultLayers
+			key    string
+			reason loop.InputDefaultReason
+		}{
+			{
+				name: "Should reject an unknown configured key",
+				run:  map[string]any{"task_name": "task-09"},
+				layers: loop.InputDefaultLayers{
+					Workspace: map[string]any{"legacy_provider": "coderabbit"},
+				},
+				key: "legacy_provider", reason: loop.InputDefaultReasonUnknownInput,
+			},
+			{
+				name: "Should reject an unknown run key",
+				run:  map[string]any{"task_name": "task-09", "legacy_provider": "coderabbit"},
+				key:  "legacy_provider", reason: loop.InputDefaultReasonUnknownInput,
+			},
+			{
+				name: "Should reject a configured type mismatch",
+				run:  map[string]any{"task_name": "task-09"},
+				layers: loop.InputDefaultLayers{
+					Global: map[string]any{"auto_commit": "true"},
+				},
+				key: "auto_commit", reason: loop.InputDefaultReasonTypeMismatch,
+			},
+		}
+		for _, tt := range cases {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := loop.ResolveInputDefaults(def, "valid-loop", tt.run, tt.layers)
+				validation, ok := loop.AsInputDefaultError(err)
+				if !ok || validation.Loop != "valid-loop" || validation.Key != tt.key ||
+					validation.Reason != tt.reason {
+					t.Fatalf("ResolveInputDefaults() error = %#v, want valid-loop/%s/%s", err, tt.key, tt.reason)
+				}
+			})
+		}
+	})
+
+	t.Run("Should validate definition defaults without consulting configured layers", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"auto_commit": {Type: dsl.InputTypeBoolean, Default: "true"},
+		}
+		_, err := loop.NewCompiler().Compile(def)
+		validation, ok := loop.AsInputDefaultError(err)
+		if !ok || validation.Key != "auto_commit" || validation.Reason != loop.InputDefaultReasonTypeMismatch {
+			t.Fatalf("Compile() error = %#v, want typed input_default type mismatch", err)
+		}
+	})
 }
 
 func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
@@ -1405,6 +1608,9 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		}
 		if got, want := preview.ResolvedInputs["tasks"], "task-ref"; got != want {
 			t.Fatalf("ResolvedInputs[tasks] = %#v, want %q", got, want)
+		}
+		if got, want := preview.InputOrigins["tasks"], loop.InputOriginRun; got != want {
+			t.Fatalf("InputOrigins[tasks] = %q, want %q", got, want)
 		}
 		if len(preview.Nodes) == 0 {
 			t.Fatal("Nodes length = 0, want materialized gen-1 nodes")

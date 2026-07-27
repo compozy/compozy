@@ -33,9 +33,9 @@ const (
 	bridgeBridgeKey         = "bridge"
 	bridgeCreateKey         = "create"
 	bridgeCreatedAtKey      = "created_at"
-	bridgeDeletedKey        = "deleted"
+	bridgeDeletedKey        = cliDeletedKey
 	bridgeDisplayNameKey    = "display_name"
-	bridgeEnabledKey        = "enabled"
+	bridgeEnabledKey        = cliEnabledKey
 	bridgeGetIDValue        = "get <id>"
 	bridgeGroupIDKey        = "group_id"
 	bridgeLastActivityAtKey = "last_activity_at"

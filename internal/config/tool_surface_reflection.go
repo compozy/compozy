@@ -34,7 +34,7 @@ func indirectConfigValue(value reflect.Value) (reflect.Value, bool) {
 	if !value.IsValid() {
 		return reflect.Value{}, false
 	}
-	for value.Kind() == reflect.Pointer {
+	for value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface {
 		if value.IsNil() {
 			return reflect.Value{}, false
 		}

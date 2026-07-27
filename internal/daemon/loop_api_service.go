@@ -153,6 +153,7 @@ func loopAPIServiceOptions(
 		looppkg.WithClock(now),
 		looppkg.WithLogger(logger),
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, state.workspaceResolver)),
+		looppkg.WithInputDefaultsResolver(newLoopInputDefaultsResolver(homePaths, state.workspaceResolver)),
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
 	}
@@ -411,6 +412,10 @@ func (s *daemonLoopAPIService) RunLoop(
 		}
 		return contract.RunLoopResponse{DryRun: payload}, nil
 	}
+	webEndpoint, err := s.resolveLoopRunWebEndpoint(ctx, ws)
+	if err != nil {
+		return contract.RunLoopResponse{}, err
+	}
 	run, err := looppkg.StartFromActor(ctx, s.aggregate, s.resolver, looppkg.StartBindingRequest{
 		WorkspaceID: ws,
 		LoopName:    name,
@@ -424,5 +429,5 @@ func (s *daemonLoopAPIService) RunLoop(
 	if err != nil {
 		return contract.RunLoopResponse{}, err
 	}
-	return contract.RunLoopResponse{Run: &payload}, nil
+	return contract.RunLoopResponse{Run: &payload, WebURL: webEndpoint.runURL(payload.ID)}, nil
 }

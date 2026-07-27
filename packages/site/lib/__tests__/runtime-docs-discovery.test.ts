@@ -30,6 +30,7 @@ describe("runtime docs discovery", () => {
     expect(runtimeMeta.pages).toEqual([
       "index",
       "how-to-use-these-docs",
+      "migration",
       "core",
       "guides",
       "use-cases",
@@ -37,6 +38,7 @@ describe("runtime docs discovery", () => {
       "api-reference",
     ]);
     expect(runtimePageExists("how-to-use-these-docs.mdx")).toBe(true);
+    expect(runtimePageExists("migration", "index.mdx")).toBe(true);
   });
 
   it("keeps newly added guide and use-case sections discoverable", () => {

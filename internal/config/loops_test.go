@@ -87,6 +87,11 @@ window = 1
 
 [loops.defaults.watch.runtime_defaults.judge]
 model = "global-watch-judge"
+
+[loops.inputs.review-and-fix]
+auto_commit = false
+retries = 0
+reviewer = ""
 `)
 		writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [loops.defaults.delivery]
@@ -117,6 +122,10 @@ max_revisions = 7
 
 [loops.defaults.watch.runtime_defaults.judge]
 model = "workspace-watch-judge"
+
+[loops.inputs.review-and-fix]
+auto_commit = true
+fixer = ""
 `)
 
 		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
@@ -149,6 +158,22 @@ model = "workspace-watch-judge"
 		if len(rules) != 2 || rules[0].Match.Complexity != "high" ||
 			rules[1].Match.Type != "frontend" || rules[1].Runtime.Model != "workspace-frontend-model" {
 			t.Fatalf("delivery runtime rules = %#v, want ordered global/workspace rules", rules)
+		}
+		globalInputs, workspaceInputs := cfg.Loops.InputDefaultLayers("review-and-fix")
+		if got, ok := workspaceInputs["auto_commit"]; !ok || got != true {
+			t.Fatalf("workspace auto_commit = %#v/%v, want explicit true", got, ok)
+		}
+		if got, ok := globalInputs["retries"]; !ok || got != int64(0) {
+			t.Fatalf("global retries = %#v/%v, want explicit int64(0)", got, ok)
+		}
+		if got, ok := globalInputs["reviewer"]; !ok || got != "" {
+			t.Fatalf("global reviewer = %#v/%v, want explicit empty string", got, ok)
+		}
+		if got, ok := workspaceInputs["fixer"]; !ok || got != "" {
+			t.Fatalf("workspace fixer = %#v/%v, want explicit empty string", got, ok)
+		}
+		if _, leaked := globalInputs["auto_commit"]; leaked {
+			t.Fatalf("global inputs expose shadowed auto_commit: %#v", globalInputs)
 		}
 	})
 
@@ -255,6 +280,11 @@ func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 			name: "Should allow delivery worker runtime defaults",
 			path: []string{"loops", "defaults", "delivery", "runtime_defaults", "worker", "model"},
 			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow dynamic per Loop input defaults",
+			path: []string{"loops", "inputs", "review-and-fix", "auto_commit"},
+			kind: ConfigValueScalar,
 		},
 	}
 

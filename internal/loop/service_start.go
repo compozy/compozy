@@ -154,7 +154,7 @@ func (s *service) prepareResolvedStart(
 	if err := origin.Validate(); err != nil {
 		return Run{}, err
 	}
-	resolvedInputs, err := ResolveInputs(resolved.Definition, inputs)
+	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, loopName, resolved.Definition, inputs.Values)
 	if err != nil {
 		return Run{}, err
 	}
@@ -194,7 +194,7 @@ func (s *service) prepareResolvedStart(
 		loopName,
 		resolved,
 		effective,
-		resolvedInputs,
+		resolvedInputs.Values,
 		inputs,
 		origin,
 		policy,

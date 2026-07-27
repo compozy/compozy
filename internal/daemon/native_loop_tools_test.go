@@ -182,7 +182,13 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						capturedActor = actor
 						capturedDry = dry
 						return contract.RunLoopResponse{
-							DryRun: &contract.LoopPlanPayload{LoopName: "release", ResolvedInputs: request.Inputs},
+							DryRun: &contract.LoopPlanPayload{
+								LoopName:       "release",
+								ResolvedInputs: request.Inputs,
+								InputOrigins: map[string]contract.LoopInputOrigin{
+									"target": contract.LoopInputOriginRun,
+								},
+							},
 						}, nil
 					},
 				}
@@ -215,6 +221,103 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, result, []byte(`"dry_run"`))
 		requireNativeStructuredContains(t, result, []byte(`"release"`))
+		requireNativeStructuredContains(t, result, []byte(`"input_origins":{"target":"run"}`))
+	})
+
+	t.Run("Should preserve the persisted run web URL in structured output", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService {
+				return &nativeLoopServiceStub{
+					runLoopFn: func(
+						context.Context,
+						string,
+						string,
+						contract.RunLoopRequest,
+						dsl.StartKind,
+						taskpkg.ActorContext,
+						bool,
+					) (contract.RunLoopResponse, error) {
+						return contract.RunLoopResponse{
+							Run:    &contract.LoopRunPayload{ID: "run-release"},
+							WebURL: "http://127.0.0.1:43127/loop-runs/run-release",
+						}, nil
+					},
+				}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDLoopRun,
+				Input:  json.RawMessage(`{"name":"release"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(loop_run persisted) error = %v", err)
+		}
+		requireNativeStructuredContains(
+			t,
+			result,
+			[]byte(`"web_url":"http://127.0.0.1:43127/loop-runs/run-release"`),
+		)
+	})
+
+	t.Run("Should return typed input-default diagnostics for native submissions", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService {
+				return &nativeLoopServiceStub{
+					runLoopFn: func(
+						context.Context,
+						string,
+						string,
+						contract.RunLoopRequest,
+						dsl.StartKind,
+						taskpkg.ActorContext,
+						bool,
+					) (contract.RunLoopResponse, error) {
+						return contract.RunLoopResponse{}, &looppkg.InputDefaultError{
+							Loop:   "review-and-fix",
+							Key:    "unknown",
+							Reason: looppkg.InputDefaultReasonUnknownInput,
+							Err:    errors.New("input is not declared"),
+						}
+					},
+				}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDLoopRun,
+				Input:  json.RawMessage(`{"name":"review-and-fix","inputs":{"unknown":true},"dry":true}`),
+			},
+		)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+			t.Fatalf("Registry.Call(loop_run input default) error = %#v, want invalid-input ToolError", err)
+		}
+		if toolErr.PartialResult == nil {
+			t.Fatalf("loop_run input-default ToolError = %#v, want structured partial result", toolErr)
+		}
+		structured := string(toolErr.PartialResult.Structured)
+		for _, want := range []string{
+			`"input_default"`,
+			`"loop":"review-and-fix"`,
+			`"key":"unknown"`,
+			`"reason":"unknown_input"`,
+		} {
+			if !strings.Contains(structured, want) {
+				t.Fatalf("loop_run input-default structured payload = %s, want %s", structured, want)
+			}
+		}
 	})
 
 	t.Run("Should return structured runtime validation diagnostics", func(t *testing.T) {
@@ -901,6 +1004,54 @@ func (s *nativeLoopServiceStub) PutLoopConfig(
 		return s.putLoopConfigFn(ctx, workspaceID, name, req)
 	}
 	return contract.LoopConfigResponse{}, errors.New("unexpected PutLoopConfig call")
+}
+
+func (s *nativeLoopServiceStub) GetLoopInputDefaults(
+	context.Context,
+	string,
+	string,
+	contract.LoopInputDefaultsScope,
+) (contract.LoopInputDefaultsResponse, error) {
+	return contract.LoopInputDefaultsResponse{}, errors.New("unexpected GetLoopInputDefaults call")
+}
+
+func (s *nativeLoopServiceStub) GetLoopInputDefault(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.LoopInputDefaultsScope,
+) (contract.LoopInputDefaultResponse, error) {
+	return contract.LoopInputDefaultResponse{}, errors.New("unexpected GetLoopInputDefault call")
+}
+
+func (s *nativeLoopServiceStub) PutLoopInputDefaults(
+	context.Context,
+	string,
+	string,
+	contract.PutLoopInputDefaultsRequest,
+) (contract.LoopInputDefaultsResponse, error) {
+	return contract.LoopInputDefaultsResponse{}, errors.New("unexpected PutLoopInputDefaults call")
+}
+
+func (s *nativeLoopServiceStub) PutLoopInputDefault(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.PutLoopInputDefaultRequest,
+) (contract.LoopInputDefaultResponse, error) {
+	return contract.LoopInputDefaultResponse{}, errors.New("unexpected PutLoopInputDefault call")
+}
+
+func (s *nativeLoopServiceStub) DeleteLoopInputDefault(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.LoopInputDefaultsScope,
+) (contract.DeleteLoopInputDefaultResponse, error) {
+	return contract.DeleteLoopInputDefaultResponse{}, errors.New("unexpected DeleteLoopInputDefault call")
 }
 
 func (s *nativeLoopServiceStub) GetLoopAnnotations(

@@ -228,33 +228,6 @@ func validateEffectiveConfig(cfg EffectiveConfig) error {
 	return nil
 }
 
-// ResolveInputs applies declared input defaults and validates required values.
-func ResolveInputs(def dsl.Definition, inputs Inputs) (map[string]any, error) {
-	resolved := cloneMap(inputs.Values)
-	for name, input := range def.Inputs {
-		if _, ok := resolved[name]; ok {
-			continue
-		}
-		if input.Default != nil {
-			resolved[name] = cloneAnyValue(input.Default)
-			continue
-		}
-		if input.Required {
-			return nil, fmt.Errorf("%w: input %q is required", ErrValidation, name)
-		}
-	}
-	for name, value := range resolved {
-		input, declared := def.Inputs[name]
-		if !declared {
-			continue
-		}
-		if err := validateInputType(name, input.Type, value); err != nil {
-			return nil, err
-		}
-	}
-	return resolved, nil
-}
-
 // DeriveDisplayCost derives a display-only cost value from token count and price.
 func DeriveDisplayCost(tokens int64, pricePerTokenUSD float64) DisplayCost {
 	if tokens < 0 {
@@ -268,30 +241,6 @@ func DeriveDisplayCost(tokens int64, pricePerTokenUSD float64) DisplayCost {
 		PricePerTokenUSD: pricePerTokenUSD,
 		USD:              float64(tokens) * pricePerTokenUSD,
 	}
-}
-
-func validateInputType(name string, inputType dsl.InputType, value any) error {
-	switch inputType {
-	case dsl.InputTypeString, dsl.InputTypeFile, dsl.InputTypeAgent, dsl.InputTypeRef:
-		if _, ok := value.(string); !ok {
-			return fmt.Errorf("%w: input %q must be a string", ErrValidation, name)
-		}
-	case dsl.InputTypeNumber:
-		switch value.(type) {
-		case int, int64, float64, float32, json.Number:
-		default:
-			return fmt.Errorf("%w: input %q must be a number", ErrValidation, name)
-		}
-	case dsl.InputTypeBoolean:
-		if _, ok := value.(bool); !ok {
-			return fmt.Errorf("%w: input %q must be a boolean", ErrValidation, name)
-		}
-	case "":
-		return fmt.Errorf("%w: input %q type is required", ErrValidation, name)
-	default:
-		return fmt.Errorf("%w: input %q type is invalid: %q", ErrValidation, name, inputType)
-	}
-	return nil
 }
 
 func clampNonNegative(value *int) {

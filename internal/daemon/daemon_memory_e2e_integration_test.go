@@ -134,7 +134,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	legacyPath := filepath.Join(harness.WorkspaceRoot, ".compozy", "memory", "legacy-only.md")
+	legacyPath := filepath.Join(harness.WorkspaceRoot, ".agh", "memory", "legacy-only.md")
 	if err := os.MkdirAll(filepath.Dir(legacyPath), 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(legacyPath), err)
 	}

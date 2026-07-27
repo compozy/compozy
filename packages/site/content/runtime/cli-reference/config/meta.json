@@ -11,6 +11,7 @@
         "reload",
         "set",
         "show",
+        "unset",
         "validate"
     ]
 }

@@ -8,6 +8,11 @@ import (
 )
 
 const (
+	// LoopsConfigKey is the top-level Loop configuration section.
+	LoopsConfigKey = "loops"
+	// LoopInputsConfigKey is the dynamic per-Loop input-default section.
+	LoopInputsConfigKey = "inputs"
+
 	loopDefaultsMaxFanoutWidth      = 64
 	loopDefaultsMaxNoProgressWindow = 30
 )
@@ -15,6 +20,43 @@ const (
 // LoopsConfig holds global and workspace defaults used to seed new loop runs.
 type LoopsConfig struct {
 	Defaults LoopsDefaultsConfig `toml:"defaults"`
+	Inputs   LoopInputDefaults   `toml:"inputs,omitempty"`
+
+	inputSources LoopInputDefaultSources
+}
+
+// LoopInputDefaults stores author-owned defaults by Loop name and declared input key.
+// Values remain untyped until the named Loop definition is resolved.
+type LoopInputDefaults map[string]map[string]any
+
+type LoopInputDefaultSources map[string]map[string]string
+
+// InputDefaultLayers returns caller-owned global and workspace defaults for one Loop.
+// The source map is recorded while overlays are applied; origin is never inferred from values.
+func (c LoopsConfig) InputDefaultLayers(loopName string) (global map[string]any, workspace map[string]any) {
+	name := strings.TrimSpace(loopName)
+	global = map[string]any{}
+	workspace = map[string]any{}
+	for key, value := range c.Inputs[name] {
+		switch c.inputSources[name][key] {
+		case RoleFieldSourceWorkspace:
+			workspace[key] = cloneLoopInputDefaultValue(value)
+		case RoleFieldSourceGlobal:
+			global[key] = cloneLoopInputDefaultValue(value)
+		}
+	}
+	return global, workspace
+}
+
+func cloneLoopInputDefaultValue(value any) any {
+	switch typed := value.(type) {
+	case []string:
+		return append([]string(nil), typed...)
+	case []any:
+		return append([]any(nil), typed...)
+	default:
+		return typed
+	}
 }
 
 // LoopsDefaultsConfig separates delivery and watch loop seed defaults.

@@ -82,6 +82,9 @@ type ResolvedDefaults struct {
 // Compile lints, parses templates/CEL, snapshots tool schemas, and folds defaults.
 func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 	def.Normalize()
+	if err := ValidateDefinitionInputDefaults(def); err != nil {
+		return nil, err
+	}
 	if err := ValidateDefinitionRuntime(context.Background(), nil, def); err != nil {
 		return nil, err
 	}

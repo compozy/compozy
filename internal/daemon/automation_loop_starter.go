@@ -56,6 +56,7 @@ func newAutomationLoopStarter(
 	}
 	options := []looppkg.Option{
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, workspaceResolver)),
+		looppkg.WithInputDefaultsResolver(newLoopInputDefaultsResolver(homePaths, workspaceResolver)),
 	}
 	if participationResolver != nil {
 		options = append(options, looppkg.WithParticipationResolver(participationResolver))

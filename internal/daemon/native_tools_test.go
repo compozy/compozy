@@ -1986,6 +1986,56 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Defaults.Agent = %q, want planner", cfg.Defaults.Agent)
 		}
 
+		loopInputWorkspace := t.TempDir()
+		loopInputPath := "loops.inputs.review-and-fix.auto_commit"
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"path":%q,"value":false,"scope":"workspace","workspace_root":%q}`,
+					loopInputPath,
+					loopInputWorkspace,
+				)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set Loop input default) error = %v", err)
+		}
+		loopInputResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigGet,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"path":%q,"workspace_root":%q}`,
+					loopInputPath,
+					loopInputWorkspace,
+				)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_get Loop input default) error = %v", err)
+		}
+		requireNativeStructuredContains(t, loopInputResult, []byte(`"value":false`))
+		unsetLoopInputResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigUnset,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"path":%q,"scope":"workspace","workspace_root":%q}`,
+					loopInputPath,
+					loopInputWorkspace,
+				)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_unset Loop input default) error = %v", err)
+		}
+		requireNativeStructuredContains(t, unsetLoopInputResult, []byte(`"deleted":true`))
+
 		_, err = registry.Call(
 			t.Context(),
 			toolspkg.Scope{},

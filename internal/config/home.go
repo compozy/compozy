@@ -19,7 +19,7 @@ const (
 	// SkillsDirName is the directory used for persisted user skills.
 	SkillsDirName = "skills"
 	// LoopsDirName is the directory used for persisted user loop definitions.
-	LoopsDirName = "loops"
+	LoopsDirName = LoopsConfigKey
 	// MemoryDirName is the directory used for persistent memory files.
 	MemoryDirName = "memory"
 	// SessionsDirName is the directory used for persisted session state.

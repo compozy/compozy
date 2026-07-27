@@ -19,6 +19,7 @@ func newConfigCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newConfigListCommand(deps))
 	cmd.AddCommand(newConfigGetCommand(deps))
 	cmd.AddCommand(newConfigSetCommand(deps))
+	cmd.AddCommand(newConfigUnsetCommand(deps))
 	cmd.AddCommand(newConfigPathCommand(deps))
 	cmd.AddCommand(newConfigValidateCommand(deps))
 	cmd.AddCommand(newConfigCheckCommand(deps))
@@ -26,6 +27,78 @@ func newConfigCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newConfigReloadCommand(deps))
 	cmd.AddCommand(newConfigApplyHistoryCommand(deps))
 	return cmd
+}
+
+func newConfigUnsetCommand(deps commandDeps) *cobra.Command {
+	var (
+		scopeRaw      string
+		workspaceRoot string
+	)
+	cmd := &cobra.Command{
+		Use:   "unset <path>",
+		Short: "Remove one config value through the validated config writer",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runConfigUnsetCommand(cmd, deps, scopeRaw, workspaceRoot, args[0])
+		},
+	}
+	cmd.Flags().
+		StringVar(&scopeRaw, configScopeKey, string(aghconfig.WriteScopeGlobal), "Write scope: global or workspace")
+	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped writes")
+	return cmd
+}
+
+func runConfigUnsetCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	scopeRaw string,
+	workspaceRoot string,
+	rawPath string,
+) error {
+	if err := requireUnmanagedForMutation(deps, "unset config values"); err != nil {
+		return err
+	}
+	homePaths, target, workspace, err := configWriteTarget(deps, scopeRaw, workspaceRoot)
+	if err != nil {
+		return err
+	}
+	path, _, _, err := configMutationPath(rawPath)
+	if err != nil {
+		return err
+	}
+	if err := prepareConfigMutationTarget(target, path); err != nil {
+		return err
+	}
+	deleted := false
+	if _, err := aghconfig.EditConfigOverlay(homePaths, workspace, target, func(editor *aghconfig.OverlayEditor) error {
+		deleted = editor.HasPath(path)
+		return editor.Delete(path)
+	}); err != nil {
+		return err
+	}
+	lifecycle := classifyConfigSetLifecycle(path)
+	base := configSetRecordForLocalWrite(path, nil, target, false, lifecycle)
+	reloaded, err := maybeReloadConfigAfterLocalWrite(cmd.Context(), deps, target, base)
+	if err != nil {
+		return err
+	}
+	if reloaded != nil {
+		base = *reloaded
+	}
+	return writeCommandOutput(cmd, configUnsetBundle(configUnsetRecord{
+		Path:             base.Path,
+		Scope:            base.Scope,
+		Target:           base.Target,
+		Deleted:          deleted,
+		Lifecycle:        base.Lifecycle,
+		ApplyRecordID:    base.ApplyRecordID,
+		Applied:          base.Applied,
+		ActiveGeneration: base.ActiveGeneration,
+		ActiveConfigHash: base.ActiveConfigHash,
+		NextAction:       base.NextAction,
+		RestartRequired:  base.RestartRequired,
+		RestartScope:     base.RestartScope,
+	}))
 }
 
 func newConfigShowCommand(deps commandDeps) *cobra.Command {

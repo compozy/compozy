@@ -471,5 +471,14 @@ func (h *BaseHandlers) respondLoopError(c *gin.Context, err error) {
 		})
 		return
 	}
+	if inputDefault, ok := errors.AsType[*looppkg.InputDefaultError](err); ok {
+		c.JSON(http.StatusUnprocessableEntity, contract.LoopValidationResponse{
+			Valid: false,
+			InputDefault: &contract.LoopInputDefaultErrorPayload{
+				Loop: inputDefault.Loop, Key: inputDefault.Key, Reason: string(inputDefault.Reason),
+			},
+		})
+		return
+	}
 	h.respondError(c, StatusForLoopError(err), err)
 }

@@ -47,6 +47,11 @@ func registerLoopRoutes(api gin.IRouter, handlers *Handlers) {
 		loops.POST("/:name/run", handlers.RunLoop)
 		loops.GET("/:name/config", handlers.GetLoopConfig)
 		loops.PUT("/:name/config", handlers.PutLoopConfig)
+		loops.GET("/:name/input-defaults", handlers.GetLoopInputDefaults)
+		loops.PUT("/:name/input-defaults", handlers.PutLoopInputDefaults)
+		loops.GET("/:name/input-defaults/:key", handlers.GetLoopInputDefault)
+		loops.PUT("/:name/input-defaults/:key", handlers.PutLoopInputDefault)
+		loops.DELETE("/:name/input-defaults/:key", handlers.DeleteLoopInputDefault)
 		loops.GET("/:name/annotations", handlers.GetLoopAnnotations)
 		loops.PUT("/:name/annotations", handlers.PutLoopAnnotations)
 	}

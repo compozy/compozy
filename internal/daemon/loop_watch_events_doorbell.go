@@ -29,7 +29,7 @@ type watchEventsDoorbellCompiler struct {
 
 func newWatchEventsDoorbellCompiler() (*watchEventsDoorbellCompiler, error) {
 	env, err := cel.NewEnv(
-		cel.Variable("inputs", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable(loopInputsKey, cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("nodes", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("event", cel.MapType(cel.StringType, cel.DynType)),
 	)
@@ -52,9 +52,9 @@ func (c *watchEventsDoorbellCompiler) Match(
 		return true
 	}
 	value, _, err := condition.program.Eval(map[string]any{
-		"inputs": inputs,
-		"nodes":  map[string]any{},
-		"event":  event.EventMap(),
+		loopInputsKey: inputs,
+		"nodes":       map[string]any{},
+		"event":       event.EventMap(),
 	})
 	if err != nil {
 		return true

@@ -175,6 +175,65 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	})
 }
 
+func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{})
+	for _, testCase := range []struct {
+		path      string
+		rawValue  string
+		wantValue any
+	}{
+		{path: "loops.inputs.review-and-fix.auto_commit", rawValue: "false", wantValue: false},
+		{path: "loops.inputs.review-and-fix.retries", rawValue: "0", wantValue: float64(0)},
+		{path: "loops.inputs.review-and-fix.reviewer", rawValue: "", wantValue: ""},
+	} {
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"config", "set", testCase.path, testCase.rawValue, "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("config set %s error = %v", testCase.path, err)
+		}
+		var setRecord configSetRecord
+		if err := json.Unmarshal([]byte(stdout), &setRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config set %s) error = %v", testCase.path, err)
+		}
+		if setRecord.Path != testCase.path || setRecord.Value != testCase.wantValue {
+			t.Fatalf("config set %s record = %#v, want %#v", testCase.path, setRecord, testCase.wantValue)
+		}
+
+		stdout, _, err = executeRootCommand(t, deps, "config", "get", testCase.path, "-o", "json")
+		if err != nil {
+			t.Fatalf("config get %s error = %v", testCase.path, err)
+		}
+		var valueRecord configValueRecord
+		if err := json.Unmarshal([]byte(stdout), &valueRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config get %s) error = %v", testCase.path, err)
+		}
+		if valueRecord.Value != testCase.wantValue {
+			t.Fatalf("config get %s value = %#v, want %#v", testCase.path, valueRecord.Value, testCase.wantValue)
+		}
+	}
+
+	const unsetPath = "loops.inputs.review-and-fix.auto_commit"
+	stdout, _, err := executeRootCommand(t, deps, "config", configUnsetKey, unsetPath, "-o", "json")
+	if err != nil {
+		t.Fatalf("config unset %s error = %v", unsetPath, err)
+	}
+	var unsetRecord configUnsetRecord
+	if err := json.Unmarshal([]byte(stdout), &unsetRecord); err != nil {
+		t.Fatalf("json.Unmarshal(config unset) error = %v", err)
+	}
+	if unsetRecord.Path != unsetPath || !unsetRecord.Deleted {
+		t.Fatalf("config unset record = %#v, want deleted %s", unsetRecord, unsetPath)
+	}
+	if _, _, err := executeRootCommand(t, deps, "config", "get", unsetPath, "-o", "json"); err == nil {
+		t.Fatalf("config get %s error = nil after unset", unsetPath)
+	}
+}
+
 func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 	t.Parallel()
 

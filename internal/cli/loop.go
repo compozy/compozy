@@ -271,7 +271,10 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, loopOutputBundle(response, fmt.Sprintf("Loop %s run requested", loopName)))
+			return writeCommandOutput(
+				cmd,
+				loopRunOutputBundle(response, fmt.Sprintf("Loop %s run requested", loopName)),
+			)
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")

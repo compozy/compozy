@@ -35,6 +35,7 @@ type service struct {
 	hooks                 HookDispatcher
 	defaults              LoopDefaults
 	defaultsResolver      DefaultsResolver
+	inputDefaultsResolver InputDefaultsResolver
 	goalRunActivator      GoalRunActivator
 	goalLeaseRevoker      GoalPromptLeaseRevoker
 	participationResolver participation.Resolver
@@ -93,7 +94,7 @@ func (s *service) DryRun(
 	if err != nil {
 		return nil, err
 	}
-	resolvedInputs, err := ResolveInputs(resolved.Definition, inputs)
+	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, loopName, resolved.Definition, inputs.Values)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +119,8 @@ func (s *service) DryRun(
 	}
 	return &PlanPreview{
 		LoopName:                     loopName,
-		ResolvedInputs:               resolvedInputs,
+		ResolvedInputs:               resolvedInputs.Values,
+		InputOrigins:                 resolvedInputs.Origins,
 		Generation:                   1,
 		Nodes:                        previewNodes(resolved.Definition.Graph),
 		Contract:                     resolved.Definition.Contract,

@@ -103,8 +103,9 @@ function manualContent(): string {
     .join("\n");
 }
 
-function allRuntimeContent(): string {
+function activeRuntimeContent(): string {
   return listAllDocs(resolve(contentRoot, "runtime"))
+    .filter(doc => !doc.path.startsWith("runtime/migration/"))
     .map(doc => `\n--- ${doc.path} ---\n${doc.content}`)
     .join("\n");
 }
@@ -472,7 +473,7 @@ describe("runtime docs truth", () => {
   });
 
   it("keeps prod-ready hard-cut surfaces out of current runtime docs", () => {
-    const content = allRuntimeContent();
+    const content = activeRuntimeContent();
     const forbiddenSnippets = [
       "/api/daemon/status",
       "/api/observe/health",

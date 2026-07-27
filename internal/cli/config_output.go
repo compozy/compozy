@@ -102,6 +102,49 @@ func configSetBundle(record configSetRecord) outputBundle {
 	}
 }
 
+func configUnsetBundle(record configUnsetRecord) outputBundle {
+	rows := []keyValue{
+		{Label: configPathValue, Value: stringOrDash(record.Path)},
+		{Label: configScopeValue, Value: stringOrDash(record.Scope)},
+		{Label: configTargetValue, Value: stringOrDash(record.Target)},
+		{Label: "Deleted", Value: strconv.FormatBool(record.Deleted)},
+		{Label: cliLifecycleValue, Value: stringOrDash(record.Lifecycle)},
+		{Label: cliAppliedValue, Value: strconv.FormatBool(record.Applied)},
+		{Label: cliNextActionValue, Value: stringOrDash(record.NextAction)},
+		{Label: "Restart Required", Value: strconv.FormatBool(record.RestartRequired)},
+		{Label: "Restart Scope", Value: stringOrDash(record.RestartScope)},
+	}
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			return renderHumanSection("Config", rows), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject("config_unset", []string{
+				configPathKey,
+				configScopeKey,
+				configTargetKey,
+				cliDeletedKey,
+				cliLifecycleKey,
+				cliAppliedKey,
+				cliNextActionKey,
+				"restart_required",
+				"restart_scope",
+			}, []string{
+				record.Path,
+				record.Scope,
+				record.Target,
+				strconv.FormatBool(record.Deleted),
+				record.Lifecycle,
+				strconv.FormatBool(record.Applied),
+				record.NextAction,
+				strconv.FormatBool(record.RestartRequired),
+				record.RestartScope,
+			}), nil
+		},
+	}
+}
+
 func configApplyHistoryBundle(record SettingsApplyHistoryRecord) outputBundle {
 	rows := make([][]string, 0, len(record.Entries))
 	for _, entry := range record.Entries {

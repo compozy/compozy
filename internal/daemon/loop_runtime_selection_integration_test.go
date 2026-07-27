@@ -5,6 +5,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -25,6 +27,7 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 
 	definition := loopRuntimeMixedDefinition()
 	createLoopViaHTTP(t, ctx, harness, definition)
+	createLoopViaHTTP(t, ctx, harness, loopInputDefaultsDefinition())
 
 	if !t.Run("Should separate static and effective validation without starting ACP", func(t *testing.T) {
 		invalidDefinition := loopRuntimeMixedDefinition()
@@ -201,6 +204,229 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 		return
 	}
 
+	if !t.Run("Should resolve scoped input defaults identically through CLI HTTP and UDS", func(t *testing.T) {
+		inputDefaultsPath := loopRuntimeEndpoint(
+			harness.WorkspaceID,
+			"/loops/"+url.PathEscape(loopInputDefaultsName)+"/input-defaults/auto_commit",
+		)
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPut,
+			inputDefaultsPath,
+			contract.PutLoopInputDefaultRequest{
+				Scope: contract.LoopInputDefaultsScopeGlobal,
+				Value: false,
+			},
+			new(contract.LoopInputDefaultResponse),
+		); err != nil {
+			t.Fatalf("HTTP set global Loop input default error = %v", err)
+		}
+		if err := harness.UDSJSON(
+			ctx,
+			http.MethodPut,
+			inputDefaultsPath,
+			contract.PutLoopInputDefaultRequest{
+				Scope: contract.LoopInputDefaultsScopeWorkspace,
+				Value: true,
+			},
+			new(contract.LoopInputDefaultResponse),
+		); err != nil {
+			t.Fatalf("UDS set workspace Loop input default error = %v", err)
+		}
+
+		var cliResponse contract.RunLoopResponse
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&cliResponse,
+			"loop", "run",
+			"--workspace", harness.WorkspaceRoot,
+			"--name", loopInputDefaultsName,
+			"--input", "task_name=task_09",
+			"--dry-run",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("CLI Loop input-default dry-run error = %v", err)
+		}
+
+		runPath := loopRuntimeEndpoint(
+			harness.WorkspaceID,
+			"/loops/"+url.PathEscape(loopInputDefaultsName)+"/run?dry=true",
+		)
+		request := contract.RunLoopRequest{Inputs: map[string]any{"task_name": "task_09"}}
+		var httpResponse contract.RunLoopResponse
+		if err := harness.HTTPJSON(ctx, http.MethodPost, runPath, request, &httpResponse); err != nil {
+			t.Fatalf("HTTP Loop input-default dry-run error = %v", err)
+		}
+		var udsResponse contract.RunLoopResponse
+		if err := harness.UDSJSON(ctx, http.MethodPost, runPath, request, &udsResponse); err != nil {
+			t.Fatalf("UDS Loop input-default dry-run error = %v", err)
+		}
+		for _, response := range []struct {
+			name string
+			body contract.RunLoopResponse
+		}{
+			{name: "CLI", body: cliResponse},
+			{name: "HTTP", body: httpResponse},
+			{name: "UDS", body: udsResponse},
+		} {
+			if response.body.DryRun == nil {
+				t.Fatalf("%s Loop input-default dry-run = %#v, want plan", response.name, response.body)
+			}
+			plan := response.body.DryRun
+			if plan.ResolvedInputs["task_name"] != "task_09" || plan.InputOrigins["task_name"] != contract.LoopInputOriginRun {
+				t.Fatalf("%s task_name = %#v/%q, want task_09/run", response.name, plan.ResolvedInputs, plan.InputOrigins["task_name"])
+			}
+			if plan.ResolvedInputs["auto_commit"] != true ||
+				plan.InputOrigins["auto_commit"] != contract.LoopInputOriginWorkspace {
+				t.Fatalf("%s auto_commit = %#v/%q, want true/workspace", response.name, plan.ResolvedInputs, plan.InputOrigins["auto_commit"])
+			}
+			if plan.ResolvedInputs["reviewer"] != "definition-reviewer" ||
+				plan.InputOrigins["reviewer"] != contract.LoopInputOriginDefinition {
+				t.Fatalf("%s reviewer = %#v/%q, want definition origin", response.name, plan.ResolvedInputs, plan.InputOrigins["reviewer"])
+			}
+			if response.body.WebURL != "" {
+				t.Fatalf("%s dry-run web_url = %q, want omitted", response.name, response.body.WebURL)
+			}
+		}
+		loopRuntimeAssertJSONEqual(t, "HTTP input-default plan", httpResponse.DryRun, cliResponse.DryRun)
+		loopRuntimeAssertJSONEqual(t, "UDS input-default plan", udsResponse.DryRun, cliResponse.DryRun)
+
+		var foreignWorkspace contract.WorkspaceResponse
+		if err := harness.UDSJSON(
+			ctx,
+			http.MethodPost,
+			"/api/workspaces/resolve",
+			contract.ResolveWorkspaceRequest{Path: t.TempDir()},
+			&foreignWorkspace,
+		); err != nil {
+			t.Fatalf("UDS resolve foreign input-default workspace error = %v", err)
+		}
+		foreignDefinition := loopInputDefaultsDefinition()
+		var foreignCreated contract.LoopResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			loopRuntimeEndpoint(foreignWorkspace.Workspace.ID, "/loops"),
+			contract.CreateLoopRequest{Definition: &foreignDefinition},
+			&foreignCreated,
+		); err != nil {
+			t.Fatalf("HTTP create foreign input-default Loop error = %v", err)
+		}
+		foreignRunPath := loopRuntimeEndpoint(
+			foreignWorkspace.Workspace.ID,
+			"/loops/"+url.PathEscape(loopInputDefaultsName)+"/run?dry=true",
+		)
+		var foreignResponse contract.RunLoopResponse
+		if err := harness.HTTPJSON(ctx, http.MethodPost, foreignRunPath, request, &foreignResponse); err != nil {
+			t.Fatalf("HTTP foreign input-default dry-run error = %v", err)
+		}
+		if foreignResponse.DryRun == nil || foreignResponse.DryRun.ResolvedInputs["auto_commit"] != false ||
+			foreignResponse.DryRun.InputOrigins["auto_commit"] != contract.LoopInputOriginGlobal {
+			t.Fatalf("foreign auto_commit = %#v, want false/global without workspace leak", foreignResponse)
+		}
+
+		overrideRequest := contract.RunLoopRequest{Inputs: map[string]any{
+			"task_name":   "task_09",
+			"auto_commit": false,
+		}}
+		var override contract.RunLoopResponse
+		if err := harness.HTTPJSON(ctx, http.MethodPost, runPath, overrideRequest, &override); err != nil {
+			t.Fatalf("HTTP explicit Loop input override dry-run error = %v", err)
+		}
+		if override.DryRun == nil || override.DryRun.ResolvedInputs["auto_commit"] != false ||
+			override.DryRun.InputOrigins["auto_commit"] != contract.LoopInputOriginRun {
+			t.Fatalf("explicit Loop input override = %#v, want false/run", override)
+		}
+
+		assertInputDefaultFailure := func(
+			name string,
+			client *http.Client,
+			target string,
+			failedRequest contract.RunLoopRequest,
+			wantKey string,
+		) {
+			t.Helper()
+			var validation contract.LoopValidationResponse
+			status := loopRuntimeRawJSON(
+				t, ctx, client, target, http.MethodPost, failedRequest, &validation,
+			)
+			if status != http.StatusUnprocessableEntity || validation.InputDefault == nil {
+				t.Fatalf("%s input-default failure = status:%d payload:%#v", name, status, validation)
+			}
+			if validation.InputDefault.Loop != loopInputDefaultsName ||
+				validation.InputDefault.Key != wantKey ||
+				validation.InputDefault.Reason != string(looppkg.InputDefaultReasonUnknownInput) {
+				t.Fatalf("%s input-default item = %#v", name, validation.InputDefault)
+			}
+		}
+		for _, transport := range []struct {
+			name   string
+			client *http.Client
+			base   string
+		}{
+			{name: "HTTP", client: harness.HTTPClient, base: harness.HTTPBaseURL},
+			{name: "UDS", client: harness.UDSClient, base: harness.UDSBaseURL},
+		} {
+			assertInputDefaultFailure(
+				transport.name+" run unknown",
+				transport.client,
+				transport.base+runPath,
+				contract.RunLoopRequest{Inputs: map[string]any{"task_name": "task_09", "unknown_run": true}},
+				"unknown_run",
+			)
+		}
+
+		unknownConfigPath := loopRuntimeEndpoint(
+			harness.WorkspaceID,
+			"/loops/"+url.PathEscape(loopInputDefaultsName)+"/input-defaults/unknown_configured",
+		)
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPut,
+			unknownConfigPath,
+			contract.PutLoopInputDefaultRequest{
+				Scope: contract.LoopInputDefaultsScopeWorkspace,
+				Value: true,
+			},
+			new(contract.LoopInputDefaultResponse),
+		); err != nil {
+			t.Fatalf("HTTP set unknown configured Loop input default error = %v", err)
+		}
+		for _, transport := range []struct {
+			name   string
+			client *http.Client
+			base   string
+		}{
+			{name: "HTTP", client: harness.HTTPClient, base: harness.HTTPBaseURL},
+			{name: "UDS", client: harness.UDSClient, base: harness.UDSBaseURL},
+		} {
+			assertInputDefaultFailure(
+				transport.name+" configured unknown",
+				transport.client,
+				transport.base+runPath,
+				request,
+				"unknown_configured",
+			)
+		}
+		var deleted contract.DeleteLoopInputDefaultResponse
+		if err := harness.UDSJSON(
+			ctx,
+			http.MethodDelete,
+			unknownConfigPath+"?scope=workspace",
+			nil,
+			&deleted,
+		); err != nil {
+			t.Fatalf("UDS delete unknown configured Loop input default error = %v", err)
+		}
+		if !deleted.Deleted {
+			t.Fatalf("UDS delete unknown configured Loop input default = %#v, want deleted", deleted)
+		}
+		assertLoopRuntimeRunCount(t, ctx, harness, 0)
+	}) {
+		return
+	}
+
 	var mixedRun contract.LoopRunPayload
 	var mixedDetail contract.LoopRunResponse
 	if !t.Run("Should apply mixed runtime sources to distinct ACP sessions and persist provenance", func(t *testing.T) {
@@ -232,6 +458,54 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 		}
 		assertMixedRuntimeOutputs(t, mixedDetail)
 		assertMixedRuntimeDiagnostics(t, environment)
+	}) {
+		return
+	}
+
+	if !t.Run("Should print a resolvable random-port run URL as the final CLI line", func(t *testing.T) {
+		stdout, stderr, err := harness.CLI.RunInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			"loop", "run",
+			"--workspace", harness.WorkspaceRoot,
+			"--name", loopInputDefaultsName,
+			"--input", "task_name=task_09",
+		)
+		if err != nil {
+			t.Fatalf("CLI start Loop error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) < 2 {
+			t.Fatalf("CLI Loop output = %q, want summary and final URL", stdout)
+		}
+		webURL := strings.TrimSpace(lines[len(lines)-1])
+		parsed, err := url.Parse(webURL)
+		if err != nil {
+			t.Fatalf("parse CLI Loop URL %q error = %v", webURL, err)
+		}
+		if got := parsed.Scheme + "://" + parsed.Host; got != harness.HTTPBaseURL {
+			t.Fatalf("CLI Loop URL base = %q, want random-port daemon %q", got, harness.HTTPBaseURL)
+		}
+		runID, err := url.PathUnescape(strings.TrimPrefix(parsed.EscapedPath(), "/loop-runs/"))
+		if err != nil {
+			t.Fatalf("unescape CLI Loop run ID error = %v", err)
+		}
+		if runID == "" || parsed.Path != fmt.Sprintf(contract.LoopRunWebRoute, runID) {
+			t.Fatalf("CLI Loop URL path = %q, want pinned route for run %q", parsed.Path, runID)
+		}
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, webURL, nil)
+		if err != nil {
+			t.Fatalf("create CLI Loop URL request error = %v", err)
+		}
+		response, err := harness.HTTPClient.Do(request)
+		if err != nil {
+			t.Fatalf("resolve CLI Loop URL error = %v", err)
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("CLI Loop URL status = %d, want %d", response.StatusCode, http.StatusOK)
+		}
+		waitForLoopRunStatus(t, ctx, harness, runID, contract.LoopRunStatusDone)
 	}) {
 		return
 	}

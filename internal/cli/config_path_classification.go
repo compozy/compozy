@@ -4,12 +4,17 @@ import (
 	"fmt"
 
 	"strings"
+
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error) {
 	joined := strings.Join(path, ".")
 	if kind, ok := configScalarMutationKinds[joined]; ok {
 		return kind, false, nil
+	}
+	if len(path) == 4 && path[0] == aghconfig.LoopsConfigKey && path[1] == aghconfig.LoopInputsConfigKey {
+		return configSetScalar, false, nil
 	}
 	if len(path) == 3 && path[0] == configProvidersKey && path[2] == configSessionMCPKey {
 		return configSetBool, false, nil

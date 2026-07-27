@@ -268,6 +268,10 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 		policy.Kind = kind
 		return policy, nil
 	}
+	if len(clean) == 4 && clean[0] == LoopsConfigKey && clean[1] == LoopInputsConfigKey {
+		policy.Kind = ConfigValueScalar
+		return policy, nil
+	}
 	if configPathIsSecret(clean) {
 		policy.Denial = ConfigPathSecretForbidden
 		return policy, nil
@@ -340,6 +344,21 @@ func NormalizeToolConfigValue(kind ValueKind, value any) (any, error) {
 			return nil, fmt.Errorf("config: expected object value, got %T", value)
 		}
 		return normalizeTreeValue(table)
+	case ConfigValueScalar:
+		switch value.(type) {
+		case string, bool:
+			return value, nil
+		}
+		if normalized, ok := normalizeIntegerValue(value); ok {
+			return normalized, nil
+		}
+		if normalized, ok := normalizeUnsignedValue(value); ok {
+			return normalized, nil
+		}
+		if normalized, ok := normalizeFloatValue(value); ok {
+			return normalized, nil
+		}
+		return nil, fmt.Errorf("config: expected string, boolean, or number value, got %T", value)
 	default:
 		return nil, fmt.Errorf("config: unsupported config value kind %d", kind)
 	}

@@ -143,7 +143,7 @@ func (n *daemonNativeTools) loopInspect(
 	loop := response.Loop
 	return structuredResult(map[string]any{
 		nativeConfigHookToolsNameKey: loop.Name,
-		"inputs":                     loop.Definition.Inputs,
+		loopInputsKey:                loop.Definition.Inputs,
 		"contract":                   loop.Definition.Contract,
 		"start":                      loop.Definition.Start,
 		"version":                    loop.Version,
@@ -198,6 +198,16 @@ func (n *daemonNativeTools) loopValidate(
 					RuntimeValidation: items,
 				},
 			}, "loop runtime validation failed")
+		}
+		if inputDefault, ok := errors.AsType[*looppkg.InputDefaultError](err); ok {
+			return structuredResult(map[string]any{
+				nativeLoopValidationKey: contract.LoopValidationResponse{
+					Valid: false,
+					InputDefault: &contract.LoopInputDefaultErrorPayload{
+						Loop: inputDefault.Loop, Key: inputDefault.Key, Reason: string(inputDefault.Reason),
+					},
+				},
+			}, "loop input default validation failed")
 		}
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}

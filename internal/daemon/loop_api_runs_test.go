@@ -4,12 +4,195 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+func TestDaemonLoopAPIServiceShouldBuildRunWebURLFromEffectiveConfig(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	target, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+	if err != nil {
+		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+	}
+	if _, err := aghconfig.EditConfigOverlay(
+		homePaths,
+		"",
+		target,
+		func(editor *aghconfig.OverlayEditor) error {
+			if err := editor.SetValue([]string{"http", "host"}, "127.0.0.1"); err != nil {
+				return err
+			}
+			return editor.SetValue([]string{"http", "port"}, 43127)
+		},
+	); err != nil {
+		t.Fatalf("EditConfigOverlay() error = %v", err)
+	}
+
+	service := &daemonLoopAPIService{homePaths: homePaths}
+	endpoint, err := service.resolveLoopRunWebEndpoint(t.Context(), "ws-1")
+	if err != nil {
+		t.Fatalf("resolveLoopRunWebEndpoint() error = %v", err)
+	}
+	got := endpoint.runURL("run-123")
+	const want = "http://127.0.0.1:43127/loop-runs/run-123"
+	if got != want {
+		t.Fatalf("loopRunWebEndpoint.runURL() = %q, want %q", got, want)
+	}
+}
+
+func TestDaemonLoopAPIServiceShouldResolveRunWebEndpointBeforeStarting(t *testing.T) {
+	t.Parallel()
+
+	errResolve := errors.New("resolve effective config")
+	startCalled := false
+	aggregate := &loopApprovalAggregateStub{startFn: func(
+		context.Context,
+		looppkg.WorkspaceID,
+		string,
+		looppkg.Inputs,
+		task.ActorContext,
+	) (*looppkg.Run, error) {
+		startCalled = true
+		return nil, errors.New("unexpected Start call")
+	}}
+	service := &daemonLoopAPIService{
+		aggregate:         aggregate,
+		workspaceResolver: &loopAPIWorkspaceResolverErrorStub{err: errResolve},
+	}
+
+	_, err := service.RunLoop(
+		t.Context(),
+		"ws-1",
+		"delivery",
+		contract.RunLoopRequest{},
+		dsl.StartHTTP,
+		task.ActorContext{},
+		false,
+	)
+	if !errors.Is(err, errResolve) {
+		t.Fatalf("RunLoop() error = %v, want effective-config resolution error", err)
+	}
+	if startCalled {
+		t.Fatal("RunLoop() called Start before resolving the run web endpoint")
+	}
+}
+
+func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPresence(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	workspaceRoot := t.TempDir()
+	resolver := loopCatalogWorkspaceResolverForTest(
+		t,
+		"ws-input-defaults",
+		workspaceRoot,
+		time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC),
+	)
+	service := &daemonLoopAPIService{homePaths: homePaths, workspaceResolver: resolver}
+
+	global, err := service.PutLoopInputDefault(
+		t.Context(),
+		"ws-input-defaults",
+		"review-and-fix",
+		"auto_commit",
+		contract.PutLoopInputDefaultRequest{Scope: contract.LoopInputDefaultsScopeGlobal, Value: false},
+	)
+	if err != nil {
+		t.Fatalf("PutLoopInputDefault(global) error = %v", err)
+	}
+	if !global.Present || global.Value != false {
+		t.Fatalf("global input default = %#v, want present explicit false", global)
+	}
+
+	workspace, err := service.PutLoopInputDefaults(
+		t.Context(),
+		"ws-input-defaults",
+		"review-and-fix",
+		contract.PutLoopInputDefaultsRequest{
+			Scope: contract.LoopInputDefaultsScopeWorkspace,
+			Values: map[string]any{
+				"auto_commit": true,
+				"retries":     float64(0),
+				"reviewer":    "",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("PutLoopInputDefaults(workspace) error = %v", err)
+	}
+	if workspace.Values["auto_commit"] != true {
+		t.Fatalf("workspace auto_commit = %#v, want true", workspace.Values["auto_commit"])
+	}
+	switch retries := workspace.Values["retries"].(type) {
+	case int64:
+		if retries != 0 {
+			t.Fatalf("workspace retries = %d, want zero", retries)
+		}
+	case float64:
+		if retries != 0 {
+			t.Fatalf("workspace retries = %f, want zero", retries)
+		}
+	default:
+		t.Fatalf("workspace retries = %#v (%T), want numeric zero", retries, retries)
+	}
+	if reviewer, present := workspace.Values["reviewer"]; !present || reviewer != "" {
+		t.Fatalf("workspace reviewer = %#v/%v, want present empty string", reviewer, present)
+	}
+
+	globalLayer, err := service.GetLoopInputDefaults(
+		t.Context(),
+		"ws-input-defaults",
+		"review-and-fix",
+		contract.LoopInputDefaultsScopeGlobal,
+	)
+	if err != nil {
+		t.Fatalf("GetLoopInputDefaults(global) error = %v", err)
+	}
+	if value, present := globalLayer.Values["auto_commit"]; !present || value != false {
+		t.Fatalf("global layer after workspace override = %#v, want explicit false preserved", globalLayer.Values)
+	}
+
+	deleted, err := service.DeleteLoopInputDefault(
+		t.Context(),
+		"ws-input-defaults",
+		"review-and-fix",
+		"auto_commit",
+		contract.LoopInputDefaultsScopeWorkspace,
+	)
+	if err != nil {
+		t.Fatalf("DeleteLoopInputDefault(workspace) error = %v", err)
+	}
+	if !deleted.Deleted {
+		t.Fatalf("DeleteLoopInputDefault(workspace) = %#v, want deleted", deleted)
+	}
+	missing, err := service.GetLoopInputDefault(
+		t.Context(),
+		"ws-input-defaults",
+		"review-and-fix",
+		"auto_commit",
+		contract.LoopInputDefaultsScopeWorkspace,
+	)
+	if err != nil {
+		t.Fatalf("GetLoopInputDefault(workspace after delete) error = %v", err)
+	}
+	if missing.Present {
+		t.Fatalf("workspace input default after delete = %#v, want absent", missing)
+	}
+}
 
 func TestDaemonLoopAPIServiceApproveLoopRun(t *testing.T) {
 	t.Parallel()
@@ -118,7 +301,14 @@ func mustLoopApprovalActor(t *testing.T, sessionID string) task.ActorContext {
 }
 
 type loopApprovalAggregateStub struct {
-	run       *looppkg.Run
+	run     *looppkg.Run
+	startFn func(
+		context.Context,
+		looppkg.WorkspaceID,
+		string,
+		looppkg.Inputs,
+		task.ActorContext,
+	) (*looppkg.Run, error)
 	approveFn func(
 		context.Context,
 		looppkg.WorkspaceID,
@@ -130,13 +320,41 @@ type loopApprovalAggregateStub struct {
 }
 
 func (s *loopApprovalAggregateStub) Start(
-	context.Context,
-	looppkg.WorkspaceID,
-	string,
-	looppkg.Inputs,
-	task.ActorContext,
+	ctx context.Context,
+	ws looppkg.WorkspaceID,
+	name string,
+	inputs looppkg.Inputs,
+	actor task.ActorContext,
 ) (*looppkg.Run, error) {
+	if s.startFn != nil {
+		return s.startFn(ctx, ws, name, inputs, actor)
+	}
 	return nil, errors.New("unexpected Start call")
+}
+
+type loopAPIWorkspaceResolverErrorStub struct {
+	err error
+}
+
+func (s *loopAPIWorkspaceResolverErrorStub) Resolve(
+	context.Context,
+	string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, s.err
+}
+
+func (s *loopAPIWorkspaceResolverErrorStub) ResolveOrRegister(
+	context.Context,
+	string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, s.err
+}
+
+func (s *loopAPIWorkspaceResolverErrorStub) Get(
+	context.Context,
+	string,
+) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, s.err
 }
 
 func (s *loopApprovalAggregateStub) StartInline(

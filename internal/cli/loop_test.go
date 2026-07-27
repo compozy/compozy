@@ -19,6 +19,69 @@ import (
 func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should render the persisted run URL through every output contract", func(t *testing.T) {
+		t.Parallel()
+
+		const webURL = "http://127.0.0.1:43127/loop-runs/run-123"
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			runLoopFn: func(
+				context.Context,
+				string,
+				string,
+				contract.RunLoopRequest,
+				bool,
+				agentidentity.Credentials,
+			) (contract.RunLoopResponse, error) {
+				return contract.RunLoopResponse{
+					Run:    &contract.LoopRunPayload{ID: "run-123"},
+					WebURL: webURL,
+				}, nil
+			},
+		})
+
+		human, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "run", "--workspace", "alpha", "--name", "release",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop run human) error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(human), "\n")
+		if got := lines[len(lines)-1]; got != webURL {
+			t.Fatalf("loop run final human line = %q, want %q; output=%q", got, webURL, human)
+		}
+
+		jsonOutput, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "run", "--workspace", "alpha", "--name", "release", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop run json) error = %v", err)
+		}
+		var decoded contract.RunLoopResponse
+		if err := json.Unmarshal([]byte(jsonOutput), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(loop run response) error = %v", err)
+		}
+		if decoded.WebURL != webURL {
+			t.Fatalf("loop run JSON web_url = %q, want %q", decoded.WebURL, webURL)
+		}
+
+		toonOutput, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "run", "--workspace", "alpha", "--name", "release", "-o", "toon",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop run toon) error = %v", err)
+		}
+		if !strings.Contains(toonOutput, webURL) || !strings.Contains(toonOutput, "web_url") {
+			t.Fatalf("loop run TOON = %q, want web_url %q", toonOutput, webURL)
+		}
+	})
+
 	t.Run("Should run dry with parsed inputs", func(t *testing.T) {
 		t.Parallel()
 
@@ -42,7 +105,15 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 				capturedDry = dry
 				capturedCredentials = credentials
 				return contract.RunLoopResponse{
-					DryRun: &contract.LoopPlanPayload{LoopName: "release", ResolvedInputs: request.Inputs},
+					DryRun: &contract.LoopPlanPayload{
+						LoopName:       "release",
+						ResolvedInputs: request.Inputs,
+						InputOrigins: map[string]contract.LoopInputOrigin{
+							"target":  contract.LoopInputOriginRun,
+							"enabled": contract.LoopInputOriginRun,
+							"retries": contract.LoopInputOriginRun,
+						},
+					},
 				}, nil
 			},
 		})
@@ -116,6 +187,48 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 		if response.DryRun == nil || response.DryRun.LoopName != "release" {
 			t.Fatalf("response.DryRun = %#v, want release preview", response.DryRun)
+		}
+		if response.WebURL != "" {
+			t.Fatalf("dry-run web_url = %q, want omitted", response.WebURL)
+		}
+
+		human, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "run",
+			"--workspace", "alpha",
+			"--name", "release",
+			"--input", "target=prod",
+			"--input", "enabled=true",
+			"--input", "retries=3",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop run dry human) error = %v", err)
+		}
+		if !strings.Contains(human, `Input enabled=true (origin: run)`) ||
+			!strings.Contains(human, `Input target="prod" (origin: run)`) ||
+			strings.Contains(human, "/loop-runs/") {
+			t.Fatalf("loop run dry human = %q, want effective origins without a link", human)
+		}
+
+		toonOutput, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "run",
+			"--workspace", "alpha",
+			"--name", "release",
+			"--input", "target=prod",
+			"--input", "enabled=true",
+			"--input", "retries=3",
+			"--dry-run",
+			"-o", "toon",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop run dry toon) error = %v", err)
+		}
+		if !strings.Contains(toonOutput, "input_origins") || strings.Contains(toonOutput, "web_url") {
+			t.Fatalf("loop run dry TOON = %q, want input origins without web_url", toonOutput)
 		}
 	})
 

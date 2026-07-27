@@ -55,6 +55,21 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 		return parseFloatSliceValue(trimmed)
 	case configSetTable:
 		return parseConfigSetTableValue(raw, trimmed)
+	case configSetScalar:
+		value := parseLoopValue(raw)
+		normalized, err := normalizeConfigSetJSONValue(value)
+		if err != nil {
+			return nil, fmt.Errorf("cli: parse scalar value %q: %w", raw, err)
+		}
+		switch normalized.(type) {
+		case string, bool, int64, float64:
+			return normalized, nil
+		default:
+			return nil, fmt.Errorf(
+				"cli: loop input default %q must be a string, boolean, or number",
+				raw,
+			)
+		}
 	default:
 		return nil, fmt.Errorf("cli: unsupported config value kind %d", kind)
 	}

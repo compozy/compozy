@@ -203727,6 +203727,22 @@
                                             },
                                             "type": "array"
                                         },
+                                        "input_default": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "key": {
+                                                    "type": "string"
+                                                },
+                                                "loop": {
+                                                    "type": "string"
+                                                },
+                                                "reason": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["key", "loop", "reason"],
+                                            "type": "object"
+                                        },
                                         "runtime_validation": {
                                             "items": {
                                                 "properties": {
@@ -206979,6 +206995,22 @@
                                             },
                                             "type": "array"
                                         },
+                                        "input_default": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "key": {
+                                                    "type": "string"
+                                                },
+                                                "loop": {
+                                                    "type": "string"
+                                                },
+                                                "reason": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["key", "loop", "reason"],
+                                            "type": "object"
+                                        },
                                         "runtime_validation": {
                                             "items": {
                                                 "properties": {
@@ -208862,6 +208894,1916 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
+        "/api/workspaces/{workspace_id}/loops/{name}/input-defaults": {
+            "get": {
+                "operationId": "getLoopInputDefaults",
+                "parameters": [
+                    {
+                        "description": "Workspace id",
+                        "in": "path",
+                        "name": "workspace_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Loop name",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Config scope: global or workspace",
+                        "in": "query",
+                        "name": "scope",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "loop_name": {
+                                            "type": "string"
+                                        },
+                                        "scope": {
+                                            "type": "string"
+                                        },
+                                        "values": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["loop_name", "scope", "values"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid Loop request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root is missing"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Loop service is not configured"
+                    }
+                },
+                "summary": "Get one scoped Loop input-default table",
+                "tags": ["loops"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "put": {
+                "operationId": "putLoopInputDefaults",
+                "parameters": [
+                    {
+                        "description": "Workspace id",
+                        "in": "path",
+                        "name": "workspace_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Loop name",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "scope": {
+                                        "type": "string"
+                                    },
+                                    "values": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                    }
+                                },
+                                "required": ["scope", "values"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "loop_name": {
+                                            "type": "string"
+                                        },
+                                        "scope": {
+                                            "type": "string"
+                                        },
+                                        "values": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["loop_name", "scope", "values"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid Loop request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root is missing"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Loop service is not configured"
+                    }
+                },
+                "summary": "Replace one scoped Loop input-default table",
+                "tags": ["loops"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}": {
+            "delete": {
+                "operationId": "deleteLoopInputDefault",
+                "parameters": [
+                    {
+                        "description": "Workspace id",
+                        "in": "path",
+                        "name": "workspace_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Loop name",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Declared Loop input name",
+                        "in": "path",
+                        "name": "key",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Config scope: global or workspace",
+                        "in": "query",
+                        "name": "scope",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "deleted": {
+                                            "type": "boolean"
+                                        },
+                                        "key": {
+                                            "type": "string"
+                                        },
+                                        "loop_name": {
+                                            "type": "string"
+                                        },
+                                        "scope": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["deleted", "key", "loop_name", "scope"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid Loop request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root is missing"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Loop service is not configured"
+                    }
+                },
+                "summary": "Delete one scoped Loop input default",
+                "tags": ["loops"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "get": {
+                "operationId": "getLoopInputDefault",
+                "parameters": [
+                    {
+                        "description": "Workspace id",
+                        "in": "path",
+                        "name": "workspace_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Loop name",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Declared Loop input name",
+                        "in": "path",
+                        "name": "key",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Config scope: global or workspace",
+                        "in": "query",
+                        "name": "scope",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "key": {
+                                            "type": "string"
+                                        },
+                                        "loop_name": {
+                                            "type": "string"
+                                        },
+                                        "present": {
+                                            "type": "boolean"
+                                        },
+                                        "scope": {
+                                            "type": "string"
+                                        },
+                                        "value": {}
+                                    },
+                                    "required": ["key", "loop_name", "present", "scope"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid Loop request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root is missing"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Loop service is not configured"
+                    }
+                },
+                "summary": "Get one scoped Loop input default",
+                "tags": ["loops"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "put": {
+                "operationId": "putLoopInputDefault",
+                "parameters": [
+                    {
+                        "description": "Workspace id",
+                        "in": "path",
+                        "name": "workspace_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Loop name",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Declared Loop input name",
+                        "in": "path",
+                        "name": "key",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "scope": {
+                                        "type": "string"
+                                    },
+                                    "value": {}
+                                },
+                                "required": ["scope", "value"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "key": {
+                                            "type": "string"
+                                        },
+                                        "loop_name": {
+                                            "type": "string"
+                                        },
+                                        "present": {
+                                            "type": "boolean"
+                                        },
+                                        "scope": {
+                                            "type": "string"
+                                        },
+                                        "value": {}
+                                    },
+                                    "required": ["key", "loop_name", "present", "scope"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid Loop request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root is missing"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Loop service is not configured"
+                    }
+                },
+                "summary": "Set one scoped Loop input default",
+                "tags": ["loops"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
         "/api/workspaces/{workspace_id}/loops/{name}/run": {
             "post": {
                 "operationId": "runLoop",
@@ -209577,6 +211519,12 @@
                                                 "generation": {
                                                     "type": "integer"
                                                 },
+                                                "input_origins": {
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "object"
+                                                },
                                                 "loop_name": {
                                                     "type": "string"
                                                 },
@@ -209754,6 +211702,7 @@
                                                 "contract",
                                                 "effective_config",
                                                 "generation",
+                                                "input_origins",
                                                 "loop_name",
                                                 "nodes",
                                                 "resolved_inputs",
@@ -210020,6 +211969,9 @@
                                                 "workspace_id"
                                             ],
                                             "type": "object"
+                                        },
+                                        "web_url": {
+                                            "type": "string"
                                         }
                                     },
                                     "type": "object"
@@ -210393,6 +212345,12 @@
                                                 "generation": {
                                                     "type": "integer"
                                                 },
+                                                "input_origins": {
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "object"
+                                                },
                                                 "loop_name": {
                                                     "type": "string"
                                                 },
@@ -210570,6 +212528,7 @@
                                                 "contract",
                                                 "effective_config",
                                                 "generation",
+                                                "input_origins",
                                                 "loop_name",
                                                 "nodes",
                                                 "resolved_inputs",
@@ -210836,6 +212795,9 @@
                                                 "workspace_id"
                                             ],
                                             "type": "object"
+                                        },
+                                        "web_url": {
+                                            "type": "string"
                                         }
                                     },
                                     "type": "object"
@@ -212026,6 +213988,22 @@
                                             },
                                             "type": "array"
                                         },
+                                        "input_default": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "key": {
+                                                    "type": "string"
+                                                },
+                                                "loop": {
+                                                    "type": "string"
+                                                },
+                                                "reason": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["key", "loop", "reason"],
+                                            "type": "object"
+                                        },
                                         "runtime_validation": {
                                             "items": {
                                                 "properties": {
@@ -212146,6 +214124,22 @@
                                                 "type": "object"
                                             },
                                             "type": "array"
+                                        },
+                                        "input_default": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "key": {
+                                                    "type": "string"
+                                                },
+                                                "loop": {
+                                                    "type": "string"
+                                                },
+                                                "reason": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["key", "loop", "reason"],
+                                            "type": "object"
                                         },
                                         "runtime_validation": {
                                             "items": {

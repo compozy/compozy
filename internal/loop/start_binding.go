@@ -125,11 +125,10 @@ func ResolveStartTargetInputs(
 		}
 		values[input] = cloneAnyValue(value)
 	}
-	resolvedInputs, err := ResolveInputs(resolved.Definition, Inputs{Values: values})
-	if err != nil {
-		return nil, reasonError(ReasonCodeStartInputInvalid, err, map[string]string{startLoopMetaKey: req.LoopName})
+	if err := validateStartInputKeys(resolved.Definition, values, "inputs"); err != nil {
+		return nil, err
 	}
-	return resolvedInputs, nil
+	return values, nil
 }
 
 // DeriveStartActor maps every start surface to its canonical task ActorContext derivation.
@@ -236,20 +235,6 @@ func validateStartTargetAgainstDefinition(def dsl.Definition, req StartTargetVal
 	}
 	if err := validateStartMappingKeys(def, req.InputMapping); err != nil {
 		return err
-	}
-	for name, input := range def.Inputs {
-		if input.Default != nil {
-			continue
-		}
-		_, hasStatic := req.Inputs[name]
-		_, hasMapped := req.InputMapping[name]
-		if input.Required && !hasStatic && !hasMapped {
-			return reasonError(
-				ReasonCodeStartInputInvalid,
-				fmt.Errorf("%w: input %q is required", ErrValidation, name),
-				map[string]string{startInputMetaKey: name},
-			)
-		}
 	}
 	return nil
 }

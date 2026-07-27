@@ -30,6 +30,7 @@ func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) 
 		return err
 	}
 	overlay.Roles.recordSources(dst, roleSource)
+	overlay.Loops.recordInputSources(&dst.Loops, roleSource)
 	return nil
 }
 

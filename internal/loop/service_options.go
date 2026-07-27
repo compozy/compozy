@@ -12,6 +12,9 @@ import (
 // DefaultsResolver resolves the `[loops.defaults.*]` layer for one workspace.
 type DefaultsResolver func(context.Context, WorkspaceID) (LoopDefaults, error)
 
+// InputDefaultsResolver resolves source-preserving configured inputs for one named Loop.
+type InputDefaultsResolver func(context.Context, WorkspaceID, string) (InputDefaultLayers, error)
+
 // Option configures a loop service.
 type Option func(*service)
 
@@ -42,6 +45,13 @@ func WithParticipationResolver(resolver participation.Resolver) Option {
 func WithDefaultsResolver(resolver DefaultsResolver) Option {
 	return func(s *service) {
 		s.defaultsResolver = resolver
+	}
+}
+
+// WithInputDefaultsResolver injects workspace-aware `[loops.inputs.<name>]` resolution.
+func WithInputDefaultsResolver(resolver InputDefaultsResolver) Option {
+	return func(s *service) {
+		s.inputDefaultsResolver = resolver
 	}
 }
 
@@ -92,6 +102,17 @@ func (s *service) resolveDefaults(ctx context.Context, ws WorkspaceID) (LoopDefa
 		return s.defaults, nil
 	}
 	return s.defaultsResolver(ctx, ws)
+}
+
+func (s *service) resolveInputDefaults(
+	ctx context.Context,
+	ws WorkspaceID,
+	loopName string,
+) (InputDefaultLayers, error) {
+	if s.inputDefaultsResolver == nil {
+		return InputDefaultLayers{}, nil
+	}
+	return s.inputDefaultsResolver(ctx, ws, loopName)
 }
 
 func (s *service) runtimeCatalogForWorkspace(

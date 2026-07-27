@@ -94,7 +94,7 @@ func roleListBundle(roles []RoleRecord) outputBundle {
 		"roles",
 		[]string{
 			"role",
-			"enabled",
+			cliEnabledKey,
 			"resolution_mode",
 			agentAgentKey,
 			cliProviderKey,
@@ -147,7 +147,7 @@ func roleBundle(role RoleRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderHumanBlocks(renderToonObject("role", []string{
 				"role",
-				"enabled",
+				cliEnabledKey,
 				"resolution_mode",
 				agentAgentKey,
 				cliProviderKey,

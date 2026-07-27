@@ -27,6 +27,9 @@ sessions, keeps their work attached to a workspace, gives humans and agents the 
 and ships an open protocol that lets those sessions find each other, share capabilities, and close
 work with receipts.
 
+Existing Compozy v0.2 users should follow the complete [v0.3 migration guide](/runtime/migration)
+before replacing the CLI or carrying `.compozy/` content into the new runtime.
+
 The first alpha packages one Go binary that runs 23 ACP-compatible agent CLIs — including Claude
 Code, OpenClaw, and Hermes — as durable sessions on a local daemon, speaks `compozy-network/v0` over
 six message kinds and two conversation surfaces, and exposes the same runtime state through the

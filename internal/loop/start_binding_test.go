@@ -149,7 +149,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 		}
 	})
 
-	t.Run("Should reject missing required mapped input before start", func(t *testing.T) {
+	t.Run("Should defer missing required inputs to the shared service resolver", func(t *testing.T) {
 		t.Parallel()
 
 		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
@@ -159,9 +159,8 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 				Kind:        dsl.StartWebhook,
 				Inputs:      map[string]any{"tasks": "task-ref"},
 			})
-		var reason *loop.ReasonError
-		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeStartInputInvalid {
-			t.Fatalf("ValidateStartTarget() error = %v, want %q", err, loop.ReasonCodeStartInputInvalid)
+		if err != nil {
+			t.Fatalf("ValidateStartTarget() error = %v, want service-time input resolution", err)
 		}
 	})
 
@@ -188,7 +187,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 	})
 }
 
-func TestStartBindingShouldStartThroughServiceForEveryDirectSurface(t *testing.T) {
+func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -199,6 +198,9 @@ func TestStartBindingShouldStartThroughServiceForEveryDirectSurface(t *testing.T
 		{name: "Should start from CLI", kind: dsl.StartCLI},
 		{name: "Should start from HTTP", kind: dsl.StartHTTP},
 		{name: "Should start from UDS", kind: dsl.StartUDS},
+		{name: "Should start from trigger", kind: dsl.StartTrigger},
+		{name: "Should start from schedule", kind: dsl.StartSchedule},
+		{name: "Should start from webhook", kind: dsl.StartWebhook},
 		{name: "Should start from network", kind: dsl.StartNetwork},
 		{name: "Should start from extension", kind: dsl.StartExtension},
 		{name: "Should start from native tool", kind: dsl.StartNativeTool},
@@ -250,6 +252,7 @@ func startBindingDefinition() dsl.Definition {
 	def.Start = []dsl.StartBinding{
 		{Kind: dsl.StartManual},
 		{Kind: dsl.StartTrigger, InputMapping: map[string]string{"title": "{{ .trigger.payload.title }}"}},
+		{Kind: dsl.StartSchedule},
 		{Kind: dsl.StartWebhook, InputMapping: map[string]string{"title": "{{ .trigger.payload.title }}"}},
 	}
 	return def

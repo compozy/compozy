@@ -4,6 +4,7 @@ import "github.com/compozy/compozy/internal/loop/dsl"
 
 type loopsOverlay struct {
 	Defaults loopsDefaultsOverlay `toml:"defaults"`
+	Inputs   LoopInputDefaults    `toml:"inputs"`
 }
 
 type loopsDefaultsOverlay struct {
@@ -48,6 +49,31 @@ type loopRuntimeSpecOverlay struct {
 
 func (o loopsOverlay) Apply(dst *LoopsConfig) {
 	o.Defaults.Apply(&dst.Defaults)
+	if dst.Inputs == nil {
+		dst.Inputs = LoopInputDefaults{}
+	}
+	for loopName, values := range o.Inputs {
+		if dst.Inputs[loopName] == nil {
+			dst.Inputs[loopName] = map[string]any{}
+		}
+		for key, value := range values {
+			dst.Inputs[loopName][key] = cloneLoopInputDefaultValue(value)
+		}
+	}
+}
+
+func (o loopsOverlay) recordInputSources(dst *LoopsConfig, source string) {
+	if dst.inputSources == nil {
+		dst.inputSources = LoopInputDefaultSources{}
+	}
+	for loopName, values := range o.Inputs {
+		if dst.inputSources[loopName] == nil {
+			dst.inputSources[loopName] = map[string]string{}
+		}
+		for key := range values {
+			dst.inputSources[loopName][key] = source
+		}
+	}
 }
 
 func (o loopsDefaultsOverlay) Apply(dst *LoopsDefaultsConfig) {

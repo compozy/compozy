@@ -48,6 +48,39 @@ type LoopService interface {
 		name string,
 		req contract.PutLoopConfigRequest,
 	) (contract.LoopConfigResponse, error)
+	GetLoopInputDefaults(
+		ctx context.Context,
+		workspaceID string,
+		name string,
+		scope contract.LoopInputDefaultsScope,
+	) (contract.LoopInputDefaultsResponse, error)
+	GetLoopInputDefault(
+		ctx context.Context,
+		workspaceID string,
+		name string,
+		key string,
+		scope contract.LoopInputDefaultsScope,
+	) (contract.LoopInputDefaultResponse, error)
+	PutLoopInputDefaults(
+		ctx context.Context,
+		workspaceID string,
+		name string,
+		req contract.PutLoopInputDefaultsRequest,
+	) (contract.LoopInputDefaultsResponse, error)
+	PutLoopInputDefault(
+		ctx context.Context,
+		workspaceID string,
+		name string,
+		key string,
+		req contract.PutLoopInputDefaultRequest,
+	) (contract.LoopInputDefaultResponse, error)
+	DeleteLoopInputDefault(
+		ctx context.Context,
+		workspaceID string,
+		name string,
+		key string,
+		scope contract.LoopInputDefaultsScope,
+	) (contract.DeleteLoopInputDefaultResponse, error)
 	GetLoopAnnotations(ctx context.Context, workspaceID string, name string) (contract.LoopAnnotationsResponse, error)
 	PutLoopAnnotations(
 		ctx context.Context,

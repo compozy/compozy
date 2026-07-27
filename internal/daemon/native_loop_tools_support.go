@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -161,7 +162,31 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 		cause = toolspkg.ErrToolUnavailable
 		reason = toolspkg.ReasonDependencyMissing
 	}
-	return toolspkg.NewToolError(code, id, err.Error(), fmt.Errorf("%w: %w", cause, err), reason)
+	toolErr := toolspkg.NewToolError(code, id, err.Error(), fmt.Errorf("%w: %w", cause, err), reason)
+	if inputDefault, ok := errors.AsType[*looppkg.InputDefaultError](err); ok {
+		structured, marshalErr := json.Marshal(map[string]any{
+			nativeLoopValidationKey: contract.LoopValidationResponse{
+				Valid: false,
+				InputDefault: &contract.LoopInputDefaultErrorPayload{
+					Loop: inputDefault.Loop, Key: inputDefault.Key, Reason: string(inputDefault.Reason),
+				},
+			},
+		})
+		if marshalErr != nil {
+			return toolspkg.NewToolError(
+				toolspkg.ErrorCodeBackendFailed,
+				id,
+				"marshal Loop input-default validation payload",
+				fmt.Errorf("%w: %w", toolspkg.ErrToolBackendFailed, marshalErr),
+				toolspkg.ReasonBackendUnhealthy,
+			)
+		}
+		return toolErr.WithPartialResult(toolspkg.ToolResult{
+			Structured: structured,
+			Preview:    "loop input default validation failed",
+		})
+	}
+	return toolErr
 }
 
 type nativeLoopWorkspaceInput struct {

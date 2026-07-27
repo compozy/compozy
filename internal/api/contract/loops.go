@@ -114,6 +114,14 @@ type LoopValidationResponse struct {
 	Valid             bool                               `json:"valid"`
 	Errors            []LoopLintErrorPayload             `json:"errors,omitempty"`
 	RuntimeValidation []LoopRuntimeValidationItemPayload `json:"runtime_validation,omitempty"`
+	InputDefault      *LoopInputDefaultErrorPayload      `json:"input_default,omitempty"`
+}
+
+// LoopInputDefaultErrorPayload reports one input resolution failure.
+type LoopInputDefaultErrorPayload struct {
+	Loop   string `json:"loop"`
+	Key    string `json:"key"`
+	Reason string `json:"reason"`
 }
 
 // LoopLintErrorPayload is the per-node 422 payload surfaced to authoring clients.
@@ -142,18 +150,33 @@ type RunLoopRequest struct {
 type RunLoopResponse struct {
 	Run    *LoopRunPayload  `json:"run,omitempty"`
 	DryRun *LoopPlanPayload `json:"dry_run,omitempty"`
+	WebURL string           `json:"web_url,omitempty"`
 }
+
+// LoopRunWebRoute is the public SPA route for one persisted Loop run.
+const LoopRunWebRoute = "/loop-runs/%s"
 
 // LoopPlanPayload is the public dry-run preview.
 type LoopPlanPayload struct {
-	LoopName                     string                `json:"loop_name"`
-	ResolvedInputs               map[string]any        `json:"resolved_inputs"`
-	Generation                   int                   `json:"generation"`
-	Nodes                        []LoopPlanNodePreview `json:"nodes"`
-	Contract                     LoopContract          `json:"contract"`
-	EffectiveConfig              LoopEffectiveConfig   `json:"effective_config"`
-	ResolvedNetworkParticipation *participation.Spec   `json:"resolved_network_participation"`
+	LoopName                     string                     `json:"loop_name"`
+	ResolvedInputs               map[string]any             `json:"resolved_inputs"`
+	InputOrigins                 map[string]LoopInputOrigin `json:"input_origins"`
+	Generation                   int                        `json:"generation"`
+	Nodes                        []LoopPlanNodePreview      `json:"nodes"`
+	Contract                     LoopContract               `json:"contract"`
+	EffectiveConfig              LoopEffectiveConfig        `json:"effective_config"`
+	ResolvedNetworkParticipation *participation.Spec        `json:"resolved_network_participation"`
 }
+
+// LoopInputOrigin is the public effective-input provenance vocabulary.
+type LoopInputOrigin string
+
+const (
+	LoopInputOriginRun        LoopInputOrigin = "run"
+	LoopInputOriginWorkspace  LoopInputOrigin = "workspace"
+	LoopInputOriginGlobal     LoopInputOrigin = "global"
+	LoopInputOriginDefinition LoopInputOrigin = "definition"
+)
 
 // LoopPlanNodePreview is one gen-1 node materialized by dry-run.
 type LoopPlanNodePreview struct {

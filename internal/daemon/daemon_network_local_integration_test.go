@@ -116,6 +116,9 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 			t.Fatal("MockAgentRegistration(local-default) = missing, want present")
 		}
 		assertLocalACPDiagnosticsHaveNoNetworkContext(t, registration)
+		if err := harness.Stop(ctx); err != nil {
+			t.Fatalf("Stop(Local zero-cost daemon) error = %v", err)
+		}
 		assertLocalNetworkPersistence(t, ctx, harness, taskRun.ID, loopRun.ID)
 	})
 }

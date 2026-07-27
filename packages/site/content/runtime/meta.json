@@ -2,6 +2,7 @@
     "pages": [
         "index",
         "how-to-use-these-docs",
+        "migration",
         "core",
         "guides",
         "use-cases",

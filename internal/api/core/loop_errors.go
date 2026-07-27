@@ -46,6 +46,7 @@ func (e *LoopLintFailedError) Error() string {
 func StatusForLoopError(err error) int {
 	var lintErr *LoopLintFailedError
 	var runtimeErr *looppkg.RuntimeValidationError
+	var inputDefaultErr *looppkg.InputDefaultError
 	if status := StatusForTaskError(err); status != http.StatusInternalServerError {
 		return status
 	}
@@ -53,6 +54,8 @@ func StatusForLoopError(err error) int {
 	case errors.As(err, &lintErr):
 		return http.StatusUnprocessableEntity
 	case errors.As(err, &runtimeErr):
+		return http.StatusUnprocessableEntity
+	case errors.As(err, &inputDefaultErr):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, ErrLoopVersionConflict),
 		errors.Is(err, looppkg.ErrConcurrencyConflict),

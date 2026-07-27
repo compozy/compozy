@@ -93,6 +93,41 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				parameters: []string{"workspace_id", "name"},
 			},
 			{
+				name:       "get input defaults",
+				path:       "/api/workspaces/{workspace_id}/loops/{name}/input-defaults",
+				method:     "GET",
+				statuses:   []int{200, 400, 404, 410, 503, 500},
+				parameters: []string{"workspace_id", "name", "scope"},
+			},
+			{
+				name:       "replace input defaults",
+				path:       "/api/workspaces/{workspace_id}/loops/{name}/input-defaults",
+				method:     "PUT",
+				statuses:   []int{200, 400, 404, 410, 503, 500},
+				parameters: []string{"workspace_id", "name"},
+			},
+			{
+				name:       "get input default",
+				path:       "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
+				method:     "GET",
+				statuses:   []int{200, 400, 404, 410, 503, 500},
+				parameters: []string{"workspace_id", "name", "key", "scope"},
+			},
+			{
+				name:       "set input default",
+				path:       "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
+				method:     "PUT",
+				statuses:   []int{200, 400, 404, 410, 503, 500},
+				parameters: []string{"workspace_id", "name", "key"},
+			},
+			{
+				name:       "delete input default",
+				path:       "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
+				method:     "DELETE",
+				statuses:   []int{200, 400, 404, 410, 503, 500},
+				parameters: []string{"workspace_id", "name", "key", "scope"},
+			},
+			{
 				name:       "get annotations",
 				path:       "/api/workspaces/{workspace_id}/loops/{name}/annotations",
 				method:     "GET",
@@ -182,10 +217,12 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				assertLoopResponseStatusesExactly(t, operation, tc.statuses)
 				for _, parameter := range tc.parameters {
 					switch parameter {
-					case "workspace_id", "name", "run_id", "session_id":
+					case "workspace_id", "name", "run_id", "session_id", "key":
 						assertParameter(t, operation, parameter, openapi3.ParameterInPath, true)
 					case "Last-Event-ID":
 						assertParameter(t, operation, parameter, openapi3.ParameterInHeader, false)
+					case "scope":
+						assertParameter(t, operation, parameter, openapi3.ParameterInQuery, true)
 					default:
 						assertParameter(t, operation, parameter, openapi3.ParameterInQuery, false)
 					}

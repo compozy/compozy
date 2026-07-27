@@ -77,6 +77,7 @@ See the [Quick Start](https://compozy.com/runtime/core/getting-started/quick-sta
 - [Runtime overview](https://compozy.com/runtime)
 - [Installation](https://compozy.com/runtime/core/getting-started/installation)
 - [Quick Start](https://compozy.com/runtime/core/getting-started/quick-start)
+- [Migrate from v0.2.15](MIGRATION_GUIDE.md)
 - [CLI reference](https://compozy.com/runtime/cli-reference)
 - [Extensions](https://compozy.com/runtime/core/extensions)
 - [Compozy Network protocol](https://compozy.com/protocol)

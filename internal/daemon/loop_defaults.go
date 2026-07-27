@@ -24,6 +24,24 @@ func newLoopDefaultsResolver(
 	}
 }
 
+func newLoopInputDefaultsResolver(
+	homePaths aghconfig.HomePaths,
+	workspaceResolver workspacepkg.RuntimeResolver,
+) looppkg.InputDefaultsResolver {
+	return func(
+		ctx context.Context,
+		ws looppkg.WorkspaceID,
+		loopName string,
+	) (looppkg.InputDefaultLayers, error) {
+		cfg, err := resolveLoopServiceConfig(ctx, homePaths, workspaceResolver, ws)
+		if err != nil {
+			return looppkg.InputDefaultLayers{}, err
+		}
+		global, workspace := cfg.Loops.InputDefaultLayers(loopName)
+		return looppkg.InputDefaultLayers{Global: global, Workspace: workspace}, nil
+	}
+}
+
 func resolveLoopServiceConfig(
 	ctx context.Context,
 	homePaths aghconfig.HomePaths,
